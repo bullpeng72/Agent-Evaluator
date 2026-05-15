@@ -324,7 +324,7 @@ class ConversationSession:
             InvalidOperationError: 턴이 하나도 없을 경우.
         """
         if not self._turns:
-            raise InvalidOperationError("compute_metrics()를 호출하려면 최소 1턴이 필요합니다.")
+            raise InvalidOperationError("compute_metrics() requires at least 1 turn.")
 
         n = len(self._turns)
 
@@ -387,7 +387,7 @@ class ConversationSession:
             try:
                 self.compute_metrics()
             except Exception as e:
-                logger.warning("compute_metrics() 실패 (세션=%s): %s", self.session_id, e)
+                logger.warning("compute_metrics() failed (session=%s): %s", self.session_id, e)
 
         if self._monitor is not None and self.metrics is not None:
             try:
@@ -398,7 +398,7 @@ class ConversationSession:
                 else:
                     self._monitor.conversation_sessions.append(self)
             except AttributeError as e:
-                logger.warning("monitor.conversation_sessions 접근 실패: %s", e)
+                logger.warning("monitor.conversation_sessions access failed: %s", e)
         return False  # 예외 전파 (suppress하지 않음)
 
     # ------------------------------------------------------------------

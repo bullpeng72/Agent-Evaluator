@@ -76,9 +76,9 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         pass
     return records
 
-@router.get("", summary="알림 목록 조회")
+@router.get("", summary="Alert history list")
 def list_alerts(request: Request, days: int = 7) -> List[Dict[str, Any]]:
-    """최근 N일 알림 히스토리."""
+    """Recent N-day alert history."""
     alert_dir = _alert_dir(request)
     result = []
     for i in range(days):
@@ -86,9 +86,9 @@ def list_alerts(request: Request, days: int = 7) -> List[Dict[str, Any]]:
         result.extend(_read_jsonl(alert_dir / f"{d}.jsonl"))
     return sorted(result, key=lambda x: x.get("triggered_at", ""), reverse=True)
 
-@router.get("/today", summary="오늘 알림 조회")
+@router.get("/today", summary="Today's alerts")
 def today_alerts(request: Request) -> Dict[str, Any]:
-    """오늘 발화된 알림 요약."""
+    """Summary of alerts fired today."""
     alert_dir = _alert_dir(request)
     today = date.today().isoformat()
     records = _read_jsonl(alert_dir / f"{today}.jsonl")
@@ -110,13 +110,13 @@ def today_alerts(request: Request) -> Dict[str, Any]:
         "events": records,
     }
 
-@router.get("/file/{file_id}", summary="파일별 알림 조회")
+@router.get("/file/{file_id}", summary="Alerts for a result file")
 def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
-    """선택된 결과 파일 날짜에 해당하는 알림 히스토리 반환.
+    """Return alert history for the date corresponding to the selected result file.
 
-    파일의 timestamp에서 날짜(YYYY-MM-DD)를 추출하여 해당 날짜의
-    alerts/*.jsonl 파일을 읽는다. 대시보드에서 특정 결과 파일을 선택하면
-    그 파일이 생성된 날의 알림 이력을 표시하는 데 사용된다.
+    Extracts the date (YYYY-MM-DD) from the file's timestamp and reads the
+    alerts/*.jsonl file for that date. Used to show the alert history for
+    the day a specific result file was created.
     """
     rs = getattr(request.app.state, "result_set", None)
     if rs is None:
@@ -155,9 +155,9 @@ def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/patterns", summary="알림 패턴 분석")
+@router.get("/patterns", summary="Alert pattern analysis")
 def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:
-    """최근 N일 알림의 시간대·요일·규칙별 반복 패턴 탐지."""
+    """Detect recurring patterns in the last N days of alerts by hour, weekday, and rule."""
     alert_dir = _alert_dir(request)
     all_records: List[Dict[str, Any]] = []
     for i in range(days):
@@ -200,9 +200,9 @@ def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:
     }
 
 
-@router.get("/rules", summary="알림 규칙 목록")
+@router.get("/rules", summary="Alert rules list")
 def list_alert_rules(request: Request) -> Dict[str, Any]:
-    """알림 규칙 목록 조회 (B7/B8) — 파일 기반 영구 저장."""
+    """List alert rules (B7/B8) — file-based persistent storage."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
     # 메모리 캐시 동기화
@@ -211,9 +211,9 @@ def list_alert_rules(request: Request) -> Dict[str, Any]:
     return {"total": len(rules), "rules": list(rules.values())}
 
 
-@router.post("/rules", summary="알림 규칙 생성")
+@router.post("/rules", summary="Create alert rule")
 def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]:
-    """알림 규칙 생성 (B7/B8) — 파일 영구 저장 + compound_conditions 지원.
+    """Create alert rule (B7/B8) — file-based persistent storage + compound_conditions support.
 
     Example body::
 
@@ -254,9 +254,9 @@ def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]
     return rule
 
 
-@router.get("/rules/{rule_id}", summary="알림 규칙 상세")
+@router.get("/rules/{rule_id}", summary="Alert rule detail")
 def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
-    """알림 규칙 단일 조회 (B7/B8) — 파일에서 조회."""
+    """Get a single alert rule (B7/B8) — retrieved from file."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
     rule = rules.get(rule_id) or _ALERT_RULES_STORE.get(rule_id)
@@ -265,9 +265,9 @@ def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     return rule
 
 
-@router.delete("/rules/{rule_id}", summary="알림 규칙 삭제")
+@router.delete("/rules/{rule_id}", summary="Delete alert rule")
 def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
-    """알림 규칙 삭제 (B7/B8) — 파일에서도 삭제."""
+    """Delete an alert rule (B7/B8) — removed from file as well."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
     rule = rules.pop(rule_id, None) or _ALERT_RULES_STORE.pop(rule_id, None)
@@ -281,9 +281,9 @@ def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     return {"deleted": True, "rule_id": rule_id, "name": rule.get("name")}
 
 
-@router.get("/summary", summary="알림 요약")
+@router.get("/summary", summary="Alert summary")
 def alert_summary(request: Request) -> Dict[str, Any]:
-    """7일 알림 통계 요약."""
+    """7-day alert statistics summary."""
     alert_dir = _alert_dir(request)
     daily_counts: Dict[str, int] = {}
     total_critical = total_warning = 0

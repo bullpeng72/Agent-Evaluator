@@ -402,7 +402,7 @@ def extract_tokens_from_langchain(langchain_result: Any) -> Dict[str, int]:
                 "total": token_usage.get("total_tokens", 0)
             }
     except Exception as e:
-        logger.warning("LangChain 토큰 추출 실패 (tokens_used=0으로 기록됨): %s", e)
+        logger.warning("LangChain token extraction failed (recording tokens_used=0): %s", e)
 
     return {"input": 0, "output": 0, "total": 0}
 
@@ -470,7 +470,7 @@ def extract_tool_calls_from_langchain(langchain_result) -> List[Dict[str, Any]]:
                         "output": str(output)
                     })
     except Exception as e:
-        logger.warning("LangChain tool calls 추출 실패 (tool_calls=[]로 기록됨): %s", e)
+        logger.warning("LangChain tool calls extraction failed (recording tool_calls=[]): %s", e)
 
     return tool_calls
 
@@ -497,7 +497,7 @@ def extract_tool_calls_from_openai_functions(openai_response) -> List[Dict[str, 
                     "arguments": tool_call.function.arguments
                 })
     except Exception as e:
-        logger.warning("OpenAI function calling tool calls 추출 실패 (tool_calls=[]로 기록됨): %s", e)
+        logger.warning("OpenAI function calling tool calls extraction failed (recording tool_calls=[]): %s", e)
 
     return tool_calls
 
@@ -733,7 +733,7 @@ def calculate_percentage_score(score: float) -> float:
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("TaskResult Helpers - 사용 예제")
+    print("TaskResult Helpers - Usage Examples")
     print("=" * 70)
 
     # 예제 1: Completion Score 계산
@@ -755,14 +755,14 @@ if __name__ == "__main__":
 
     # 예제 4: 통합 TaskResult 생성 (시뮬레이션)
     print("\n4️⃣ TaskResult 생성 (시뮬레이션)")
-    print("   모든 필드가 동적으로 계산됩니다:")
-    print("   ✅ completion_score: 동적 계산")
-    print("   ✅ accuracy_score: 4가지 메트릭 조합")
-    print("   ✅ tokens_used: 동적 추출/추정")
-    print("   ✅ tool_calls: 동적 추출")
+    print("   All fields are dynamically calculated:")
+    print("   ✅ completion_score: dynamically calculated")
+    print("   ✅ accuracy_score: 4 metrics combined")
+    print("   ✅ tokens_used: dynamically extracted/estimated")
+    print("   ✅ tool_calls: dynamically extracted")
 
     print("\n✅ taskresult_helpers.py 준비 완료!")
-    print("   examples/ 디렉토리에서 import하여 사용하세요.")
+    print("   Import from the examples/ directory to use.")
 
 
 # ============================================================================

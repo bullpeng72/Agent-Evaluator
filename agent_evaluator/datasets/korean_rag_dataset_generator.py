@@ -115,7 +115,7 @@ class KoreanPDFExtractor:
             List of (page_number, text) tuples
         """
         if not os.path.exists(pdf_path):
-            raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
+            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
         return self._extract_with_pdfplumber(pdf_path)
 
@@ -246,11 +246,11 @@ class KoreanQAGenerator:
             model: 사용할 모델 (gpt-4o-mini, gpt-4o, gpt-3.5-turbo 등)
         """
         if not OPENAI_AVAILABLE:
-            raise ImportError("OpenAI 라이브러리가 필요합니다: pip install openai")
+            raise ImportError("OpenAI library required: pip install openai")
 
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다")
+            raise ValueError("OPENAI_API_KEY is not set")
 
         self.client = OpenAI(api_key=self.api_key)
         self.model = model
@@ -294,7 +294,7 @@ class KoreanQAGenerator:
             return qa_pairs
 
         except Exception as e:
-            print(f"⚠️  QA 생성 실패 (chunk_id: {chunk.chunk_id}): {str(e)}")
+            print(f"⚠️  QA generation failed (chunk_id: {chunk.chunk_id}): {str(e)}")
             return []
 
     def _build_prompt(self, context: str, num_questions: int, question_types: List[str]) -> str:
@@ -452,7 +452,7 @@ class GoldenDatasetManager:
         elif format == "csv":
             self._save_as_csv(dataset, filepath)
         else:
-            raise ValueError(f"지원하지 않는 형식: {format}")
+            raise ValueError(f"Unsupported format: {format}")
 
         return str(filepath)
 
@@ -463,7 +463,7 @@ class GoldenDatasetManager:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        print(f"✅ JSON으로 저장됨: {filepath}")
+        print(f"✅ Saved as JSON: {filepath}")
 
     def _save_as_csv(self, dataset: GoldenDataset, filepath: Path):
         """CSV 형식으로 저장"""
@@ -485,21 +485,21 @@ class GoldenDatasetManager:
         df = pd.DataFrame(rows)
         df.to_csv(filepath, index=False, encoding='utf-8-sig')  # utf-8-sig for Excel
 
-        print(f"✅ CSV로 저장됨: {filepath}")
+        print(f"✅ Saved as CSV: {filepath}")
 
     def load_dataset(self, filepath: str) -> GoldenDataset:
         """Dataset 로드"""
         filepath = Path(filepath)
 
         if not filepath.exists():
-            raise FileNotFoundError(f"파일을 찾을 수 없습니다: {filepath}")
+            raise FileNotFoundError(f"File not found: {filepath}")
 
         if filepath.suffix == ".json":
             return self._load_from_json(filepath)
         elif filepath.suffix == ".csv":
             return self._load_from_csv(filepath)
         else:
-            raise ValueError(f"지원하지 않는 형식: {filepath.suffix}")
+            raise ValueError(f"Unsupported format: {filepath.suffix}")
 
     def _load_from_json(self, filepath: Path) -> GoldenDataset:
         """JSON에서 로드"""
@@ -518,7 +518,7 @@ class GoldenDatasetManager:
             metadata=data.get("metadata", {})
         )
 
-        print(f"✅ JSON에서 로드됨: {filepath} ({len(qa_pairs)} QA pairs)")
+        print(f"✅ Loaded from JSON: {filepath} ({len(qa_pairs)} QA pairs)")
         return dataset
 
     def _load_from_csv(self, filepath: Path) -> GoldenDataset:
@@ -554,7 +554,7 @@ class GoldenDatasetManager:
             metadata={}
         )
 
-        print(f"✅ CSV에서 로드됨: {filepath} ({len(qa_pairs)} QA pairs)")
+        print(f"✅ Loaded from CSV: {filepath} ({len(qa_pairs)} QA pairs)")
         return dataset
 
     def validate_dataset(self, dataset: GoldenDataset) -> Dict[str, Any]:
@@ -648,13 +648,13 @@ class KoreanRAGDatasetGenerator:
             생성된 Golden Dataset
         """
         print(f"\n{'='*80}")
-        print(f"한국어 RAG Golden Dataset 생성 시작")
+        print(f"Korean RAG Golden Dataset generation started")
         print(f"{'='*80}\n")
 
         # 1. PDF 텍스트 추출
-        print(f"📄 PDF 파일 읽기: {pdf_path}")
+        print(f"📄 Reading PDF file: {pdf_path}")
         pages_text = self.pdf_extractor.extract_text(pdf_path)
-        print(f"   ✓ {len(pages_text)} 페이지 추출됨\n")
+        print(f"   ✓ {len(pages_text)} pages extracted\n")
 
         # 텍스트 정제
         cleaned_pages = []
@@ -667,28 +667,28 @@ class KoreanRAGDatasetGenerator:
             # 청크당 평균 1-2페이지로 가정, 여유있게 계산
             estimated_pages_needed = max(3, max_chunks * 2)
             if len(cleaned_pages) > estimated_pages_needed:
-                print(f"🛡️  메모리 최적화: {len(cleaned_pages)} 페이지 중 앞 {estimated_pages_needed}페이지만 처리 (청크 {max_chunks}개 생성용)")
+                print(f"🛡️  Memory optimization: processing only first {estimated_pages_needed} of {len(cleaned_pages)} pages (for {max_chunks} chunks)")
                 cleaned_pages = cleaned_pages[:estimated_pages_needed]
 
         # 2. 텍스트 청킹
-        print(f"📦 텍스트 청킹 (chunk_size: {self.text_chunker.chunk_size}, overlap: {self.text_chunker.chunk_overlap})")
+        print(f"📦 Text chunking (chunk_size: {self.text_chunker.chunk_size}, overlap: {self.text_chunker.chunk_overlap})")
         chunks = self.text_chunker.chunk_documents(cleaned_pages)
 
         if max_chunks and len(chunks) > max_chunks:
             chunks = chunks[:max_chunks]
-            print(f"   ⚠️  청크 제한 적용: {max_chunks}개 청크만 사용")
+            print(f"   ⚠️  Chunk limit applied: using only {max_chunks} chunks")
 
-        print(f"   ✓ {len(chunks)} 청크 생성됨\n")
+        print(f"   ✓ {len(chunks)} chunks created\n")
 
         # 3. QA 쌍 생성
-        print(f"🤖 AI 기반 QA 쌍 생성 (청크당 {num_questions_per_chunk}개 질문)")
-        print(f"   모델: {self.qa_generator.model}")
-        print(f"   예상 생성 수: {len(chunks) * num_questions_per_chunk}개\n")
+        print(f"🤖 AI-based QA pair generation ({num_questions_per_chunk} questions per chunk)")
+        print(f"   Model: {self.qa_generator.model}")
+        print(f"   Expected count: {len(chunks) * num_questions_per_chunk}\n")
 
         all_qa_pairs = []
 
         for i, chunk in enumerate(chunks, 1):
-            print(f"   [{i}/{len(chunks)}] 청크 처리 중 (Page {chunk.page_number})...", end=" ")
+            print(f"   [{i}/{len(chunks)}] Processing chunk (Page {chunk.page_number})...", end=" ")
 
             qa_pairs = self.qa_generator.generate_qa_pairs(
                 chunk,
@@ -697,12 +697,12 @@ class KoreanRAGDatasetGenerator:
             )
 
             all_qa_pairs.extend(qa_pairs)
-            print(f"✓ {len(qa_pairs)}개 생성")
+            print(f"✓ {len(qa_pairs)} generated")
 
-        print(f"\n   ✓ 총 {len(all_qa_pairs)}개 QA 쌍 생성됨\n")
+        print(f"\n   ✓ Total {len(all_qa_pairs)} QA pairs generated\n")
 
         # 4. Golden Dataset 생성
-        print("💾 Golden Dataset 생성 및 저장")
+        print("💾 Building and saving Golden Dataset")
         dataset = self.dataset_manager.create_dataset(
             qa_pairs=all_qa_pairs,
             source_document=pdf_path,
@@ -720,15 +720,15 @@ class KoreanRAGDatasetGenerator:
         # 5. 검증
         validation = self.dataset_manager.validate_dataset(dataset)
         if validation["is_valid"]:
-            print(f"   ✓ 데이터셋 검증 통과")
+            print(f"   ✓ Dataset validation passed")
         else:
-            print(f"   ⚠️  데이터셋 검증 실패:")
+            print(f"   ⚠️  Dataset validation failed:")
             for issue in validation["issues"][:5]:  # 처음 5개만 표시
                 print(f"      - {issue}")
 
         # 6. 저장
         saved_path = self.dataset_manager.save_dataset(dataset, format=save_format)
-        print(f"   ✓ 저장 완료: {saved_path}\n")
+        print(f"   ✓ Saved: {saved_path}\n")
 
         # 7. 요약 출력
         self._print_summary(dataset)
@@ -738,26 +738,26 @@ class KoreanRAGDatasetGenerator:
     def _print_summary(self, dataset: GoldenDataset):
         """생성 결과 요약 출력"""
         print(f"{'='*80}")
-        print(f"📊 생성 결과 요약")
+        print(f"📊 Generation summary")
         print(f"{'='*80}\n")
 
         print(f"Dataset ID: {dataset.dataset_id}")
-        print(f"소스 문서: {dataset.source_document}")
-        print(f"생성 시간: {dataset.created_at}")
-        print(f"총 QA 쌍: {dataset.total_qa_pairs}개\n")
+        print(f"Source document: {dataset.source_document}")
+        print(f"Created at: {dataset.created_at}")
+        print(f"Total QA pairs: {dataset.total_qa_pairs}\n")
 
         # 샘플 QA 쌍 출력
         if dataset.qa_pairs:
-            print("📝 샘플 QA 쌍 (첫 번째):")
+            print("📝 Sample QA pair (first):")
             print("-" * 80)
             sample = dataset.qa_pairs[0]
-            print(f"질문: {sample.question}")
-            print(f"답변: {sample.answer}")
+            print(f"Question: {sample.question}")
+            print(f"Answer: {sample.answer}")
             print(f"Ground Truth: {sample.ground_truth}")
-            print(f"Context (처음 100자): {sample.context[:100]}...")
+            print(f"Context (first 100 chars): {sample.context[:100]}...")
             print("-" * 80 + "\n")
 
-        print(f"✅ Golden Dataset 생성 완료!\n")
+        print(f"✅ Golden Dataset generation complete!\n")
 
 
 # ============================================================================
@@ -797,7 +797,7 @@ def example_load_and_use():
 
     # 2. 검증
     validation = manager.validate_dataset(dataset)
-    print(f"검증 결과: {'통과' if validation['is_valid'] else '실패'}")
+    print(f"Validation result: {'passed' if validation['is_valid'] else 'failed'}")
 
     # 3. RAG 평가에 사용
     for qa in dataset.qa_pairs[:3]:  # 처음 3개만

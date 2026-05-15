@@ -2423,7 +2423,7 @@ def _extract_cohere_metadata(raw: Any) -> Optional[EvalMetadata]:
 
     try:
         if is_streaming:
-            logger.debug("Cohere streaming 응답은 실시간 집계가 필요합니다. 기본 토큰 추출만 시도.")
+            logger.debug("Cohere streaming response requires real-time aggregation. Attempting basic token extraction only.")
             # 스트리밍 응답에서 meta.tokens 추출 시도
             meta = getattr(raw, "meta", None)
             if meta is not None:
@@ -2965,7 +2965,7 @@ def _safe_adapter_call(
         return result, None
     except Exception as exc:
         err_msg = f"{framework_name}: {type(exc).__name__}: {exc}"
-        logger.debug("프레임워크 어댑터 '%s' 실패: %s", framework_name, err_msg)
+        logger.debug("Framework adapter '%s' failed: %s", framework_name, err_msg)
         return None, err_msg
 
 
@@ -3501,7 +3501,7 @@ class SimpleTaskAlertRule:
         try:
             triggered = self.condition(task_result)
         except Exception as e:
-            logger.debug("SimpleTaskAlertRule '%s' condition 실패 (무시): %s", self.name, e)
+            logger.debug("SimpleTaskAlertRule '%s' condition failed (ignored): %s", self.name, e)
             return
         if not triggered:
             return
@@ -3520,7 +3520,7 @@ class SimpleTaskAlertRule:
         try:
             self.handler(msg, task_result)
         except Exception as e:
-            logger.debug("SimpleTaskAlertRule '%s' handler 실패 (무시): %s", self.name, e)
+            logger.debug("SimpleTaskAlertRule '%s' handler failed (ignored): %s", self.name, e)
         # E2: alert history 기록
         import time as _t_hist
         with self._history_lock:
@@ -3721,7 +3721,7 @@ def _make_alert_on_record(
             try:
                 existing_on_record(task_result)
             except Exception as e:
-                logger.debug("on_record 콜백 실패 (무시): %s", e)
+                logger.debug("on_record callback failed (ignored): %s", e)
     return _on_record
 
 
@@ -3806,12 +3806,12 @@ def _apply_overrides(
         try:
             overrides["accuracy_score"] = _clamp01(float(score_fn(response, ground_truth)))
         except Exception as e:
-            logger.debug("score_fn 실패 (자동 계산 유지): %s", e)
+            logger.debug("score_fn failed (keeping auto-calculated value): %s", e)
     if completion_fn is not None and response and ground_truth:  # B3: score_fn과 동일하게 ground_truth guard 추가
         try:
             overrides["completion_score"] = _clamp01(float(completion_fn(response, ground_truth)))
         except Exception as e:
-            logger.debug("completion_fn 실패 (자동 계산 유지): %s", e)
+            logger.debug("completion_fn failed (keeping auto-calculated value): %s", e)
 
     # --- 3단계: _EvalContext (thread-local) ---
     if eval_ctx is not None:
@@ -3873,7 +3873,7 @@ def _record_to_monitors(
             try:
                 m.record_task(task_result)
             except Exception as exc:
-                logger.debug("_record_to_monitors: record_task 실패 (무시): %s", exc)
+                logger.debug("_record_to_monitors: record_task failed (ignored): %s", exc)
     else:
         monitor_or_list.record_task(task_result)
 
@@ -3995,9 +3995,9 @@ def _build_and_record(
                 _custom_meta = custom_parser(raw_result)
                 if _custom_meta is not None:
                     eval_meta = _custom_meta
-                    logger.debug("custom_parser 적용 완료")
+                    logger.debug("custom_parser applied")
             except Exception as _cp_exc:
-                logger.debug("custom_parser 실패 (무시): %s", _cp_exc)
+                logger.debug("custom_parser failed (ignored): %s", _cp_exc)
 
         # C7: auto_detect_framework — framework="native"/"auto"/None 이고 auto_detect_framework=True 이면
         # 응답 객체 타입/속성으로 프레임워크 자동 감지
@@ -4006,7 +4006,7 @@ def _build_and_record(
             _detected = _auto_detect_framework(raw_result)
             if _detected:
                 effective_framework = _detected
-                logger.debug("자동 감지된 프레임워크: %s", _detected)
+                logger.debug("Auto-detected framework: %s", _detected)
 
         # Task 1: 프레임워크 어댑터 자동 적용
         # EvalMetadata 튜플 반환이나 eval_ctx 수동 주입이 없는 경우에만 어댑터 실행.
@@ -4026,9 +4026,9 @@ def _build_and_record(
                 )
                 if _adapter_meta is not None:
                     eval_meta = _adapter_meta
-                    logger.debug("프레임워크 어댑터 '%s' 자동 적용 완료", effective_framework)
+                    logger.debug("Framework adapter '%s' auto-applied", effective_framework)
                 elif _adapter_err is not None:
-                    logger.debug("프레임워크 어댑터 '%s' 실패: %s", effective_framework, _adapter_err)
+                    logger.debug("Framework adapter '%s' failed: %s", effective_framework, _adapter_err)
                     # B4: 어댑터 실패 기록 — extra_override에 병합하여 TaskResult.extra에 저장
                     if extra_override is None:
                         extra_override = {}
@@ -4048,9 +4048,9 @@ def _build_and_record(
                         eval_meta = _plg_meta
                         if effective_framework in (None, "native", "auto"):
                             effective_framework = _plg_fw
-                        logger.debug("PluginRegistry 프레임워크 어댑터 '%s' 적용", _plg_fw)
+                        logger.debug("PluginRegistry framework adapter '%s' applied", _plg_fw)
             except Exception as _pr_exc:
-                logger.debug("PluginRegistry 프레임워크 어댑터 실패 (무시): %s", _pr_exc)
+                logger.debug("PluginRegistry framework adapter failed (ignored): %s", _pr_exc)
 
         response = _extract_response(raw_result)  # has_error 시에도 partial content 보존
         openai_resp = raw_result if _is_openai_response(raw_result) else None
@@ -4163,10 +4163,10 @@ def _build_and_record(
         _valid_cs: List[Dict[str, Any]] = []
         for _step in _cs:
             if not isinstance(_step, dict):
-                logger.warning("chain_steps 항목이 dict가 아닙니다(무시): %s", type(_step).__name__)
+                logger.warning("chain_steps item is not a dict (ignored): %s", type(_step).__name__)
                 continue
             if "name" not in _step:
-                logger.warning("chain_steps 항목에 'name' 필드 없음(무시): %s", list(_step.keys()))
+                logger.warning("chain_steps item missing 'name' field (ignored): %s", list(_step.keys()))
                 continue
             _valid_cs.append(_step)
         _cs = _valid_cs
@@ -4192,7 +4192,7 @@ def _build_and_record(
                 if instructions.fail_on_violation and _instr_result.get("violation_count", 0) > 0:
                     task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
-                logger.debug("instruction_adherence 평가 실패 (무시): %s", _e)
+                logger.debug("instruction_adherence evaluation failed (ignored): %s", _e)
 
         if loop_detection is not None:
             try:
@@ -4214,7 +4214,7 @@ def _build_and_record(
                             _ld_result.get("loop_at_step"),
                         )
             except Exception as _e:
-                logger.debug("loop_detection 평가 실패 (무시): %s", _e)
+                logger.debug("loop_detection evaluation failed (ignored): %s", _e)
 
         if goal_alignment is not None:
             try:
@@ -4224,7 +4224,7 @@ def _build_and_record(
                 if _ga_result is not None:
                     _p1_extra["goal_alignment"] = _ga_result
             except Exception as _e:
-                logger.debug("goal_alignment 평가 실패 (무시): %s", _e)
+                logger.debug("goal_alignment evaluation failed (ignored): %s", _e)
 
         if reproducibility is not None and reproducibility_responses is not None:
             try:
@@ -4239,7 +4239,7 @@ def _build_and_record(
                 ):
                     task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
-                logger.debug("reproducibility 평가 실패 (무시): %s", _e)
+                logger.debug("reproducibility evaluation failed (ignored): %s", _e)
 
         if fault_tolerance is not None:
             try:
@@ -4248,7 +4248,7 @@ def _build_and_record(
                 _ft_result = eval_fault_tolerance(_ft_calls, fault_tolerance)
                 _p1_extra["fault_tolerance"] = _ft_result
             except Exception as _e:
-                logger.debug("fault_tolerance 평가 실패 (무시): %s", _e)
+                logger.debug("fault_tolerance evaluation failed (ignored): %s", _e)
 
         if plan_tracking is not None:
             try:
@@ -4258,7 +4258,7 @@ def _build_and_record(
                 if _plan_result is not None:
                     _p1_extra["plan_coherence"] = _plan_result
             except Exception as _e:
-                logger.debug("plan_coherence 평가 실패 (무시): %s", _e)
+                logger.debug("plan_coherence evaluation failed (ignored): %s", _e)
 
         if _p1_extra:
             _existing = dict(task_result.extra or {})
@@ -4294,7 +4294,7 @@ def _build_and_record(
                 )
                 _harness_extra["sla"] = _sla_result
             except Exception as _e:
-                logger.debug("SLAConfig 평가 실패 (무시): %s", _e)
+                logger.debug("SLAConfig evaluation failed (ignored): %s", _e)
 
         if threat_severity is not None:
             try:
@@ -4307,7 +4307,7 @@ def _build_and_record(
                 if _ts_result.get("fail_triggered"):
                     task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
-                logger.debug("ThreatSeverityConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ThreatSeverityConfig evaluation failed (ignored): %s", _e)
 
         if efficiency is not None:
             try:
@@ -4324,7 +4324,7 @@ def _build_and_record(
                 )
                 _harness_extra["efficiency"] = _eff_result
             except Exception as _e:
-                logger.debug("EfficiencyConfig 평가 실패 (무시): %s", _e)
+                logger.debug("EfficiencyConfig evaluation failed (ignored): %s", _e)
 
         if state_consistency is not None and state_consistency_before is not None:
             try:
@@ -4342,7 +4342,7 @@ def _build_and_record(
                     ):
                         task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
-                logger.debug("StateConsistencyConfig 평가 실패 (무시): %s", _e)
+                logger.debug("StateConsistencyConfig evaluation failed (ignored): %s", _e)
 
         if deadlock is not None:
             try:
@@ -4355,7 +4355,7 @@ def _build_and_record(
                 )
                 _harness_extra["deadlock"] = _dl_result
             except Exception as _e:
-                logger.debug("DeadlockConfig 평가 실패 (무시): %s", _e)
+                logger.debug("DeadlockConfig evaluation failed (ignored): %s", _e)
 
         if observability is not None:
             try:
@@ -4370,7 +4370,7 @@ def _build_and_record(
                 )
                 _harness_extra["observability"] = _obs_result
             except Exception as _e:
-                logger.debug("ObservabilityConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ObservabilityConfig evaluation failed (ignored): %s", _e)
 
         if consensus is not None and consensus_responses:
             try:
@@ -4382,7 +4382,7 @@ def _build_and_record(
                 )
                 _harness_extra["consensus"] = _cs_result
             except Exception as _e:
-                logger.debug("ConsensusConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ConsensusConfig evaluation failed (ignored): %s", _e)
 
         if _harness_extra:
             _merged_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
@@ -4402,7 +4402,7 @@ def _build_and_record(
             except ValueError:
                 raise
             except Exception as _e:
-                logger.debug("ScopeConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ScopeConfig evaluation failed (ignored): %s", _e)
 
         if context_retention is not None:
             try:
@@ -4413,7 +4413,7 @@ def _build_and_record(
                 )
                 _p3_extra["context_retention"] = _cr_result
             except Exception as _e:
-                logger.debug("ContextRetentionConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ContextRetentionConfig evaluation failed (ignored): %s", _e)
 
         if explainability is not None:
             try:
@@ -4423,7 +4423,7 @@ def _build_and_record(
                 )
                 _p3_extra["explainability"] = _expl_result
             except Exception as _e:
-                logger.debug("ExplainabilityConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ExplainabilityConfig evaluation failed (ignored): %s", _e)
 
         if subtask_tracking is not None:
             try:
@@ -4433,7 +4433,7 @@ def _build_and_record(
                 )
                 _p3_extra["subtask_completion"] = _sub_result
             except Exception as _e:
-                logger.debug("SubtaskConfig 평가 실패 (무시): %s", _e)
+                logger.debug("SubtaskConfig evaluation failed (ignored): %s", _e)
 
         if propagation is not None:
             try:
@@ -4444,7 +4444,7 @@ def _build_and_record(
                 )
                 _p3_extra["propagation"] = _prop_result
             except Exception as _e:
-                logger.debug("PropagationConfig 평가 실패 (무시): %s", _e)
+                logger.debug("PropagationConfig evaluation failed (ignored): %s", _e)
 
         if _p3_extra:
             _merged_p3: Dict[str, Any] = dict(task_result.extra or {})
@@ -4461,7 +4461,7 @@ def _build_and_record(
                     task_result.tool_calls, task_result.response, agent_role
                 )
             except Exception as _e:
-                logger.debug("AgentRoleConfig 평가 실패 (무시): %s", _e)
+                logger.debug("AgentRoleConfig evaluation failed (ignored): %s", _e)
 
         if graceful_degradation is not None:
             try:
@@ -4474,7 +4474,7 @@ def _build_and_record(
                     graceful_degradation,
                 )
             except Exception as _e:
-                logger.debug("GracefulDegradationConfig 평가 실패 (무시): %s", _e)
+                logger.debug("GracefulDegradationConfig evaluation failed (ignored): %s", _e)
 
         if compliance is not None:
             try:
@@ -4483,7 +4483,7 @@ def _build_and_record(
                     task_result.response, task_result.question, compliance
                 )
             except Exception as _e:
-                logger.debug("ComplianceConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ComplianceConfig evaluation failed (ignored): %s", _e)
 
         if resource_budget is not None:
             try:
@@ -4503,7 +4503,7 @@ def _build_and_record(
                     task_succeeded=task_result.success,
                 )
             except Exception as _e:
-                logger.debug("ResourceBudgetConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ResourceBudgetConfig evaluation failed (ignored): %s", _e)
 
         if conflict_resolution is not None:
             try:
@@ -4515,7 +4515,7 @@ def _build_and_record(
                     task_result.response, _agent_interactions_p4, conflict_resolution
                 )
             except Exception as _e:
-                logger.debug("ConflictResolutionConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ConflictResolutionConfig evaluation failed (ignored): %s", _e)
 
         if _p4_extra:
             _merged_p4: Dict[str, Any] = dict(task_result.extra or {})
@@ -4532,7 +4532,7 @@ def _build_and_record(
                     task_result.tool_calls, tool_parameter_safety
                 )
             except Exception as _e:
-                logger.debug("ToolParameterSafetyConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ToolParameterSafetyConfig evaluation failed (ignored): %s", _e)
 
         if knowledge_retention is not None:
             try:
@@ -4547,7 +4547,7 @@ def _build_and_record(
                 if _kr_result is not None:
                     _p5_extra["knowledge_retention"] = _kr_result
             except Exception as _e:
-                logger.debug("KnowledgeRetentionConfig 평가 실패 (무시): %s", _e)
+                logger.debug("KnowledgeRetentionConfig evaluation failed (ignored): %s", _e)
 
         if retry_consistency is not None:
             try:
@@ -4556,7 +4556,7 @@ def _build_and_record(
                 if _rc_result is not None:
                     _p5_extra["retry_consistency"] = _rc_result
             except Exception as _e:
-                logger.debug("RetryConsistencyConfig 평가 실패 (무시): %s", _e)
+                logger.debug("RetryConsistencyConfig evaluation failed (ignored): %s", _e)
 
         if error_diagnosis is not None:
             try:
@@ -4570,7 +4570,7 @@ def _build_and_record(
                 if _ed_result is not None:
                     _p5_extra["error_diagnosis"] = _ed_result
             except Exception as _e:
-                logger.debug("ErrorDiagnosisConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ErrorDiagnosisConfig evaluation failed (ignored): %s", _e)
 
         if _p5_extra:
             _merged_p5: Dict[str, Any] = dict(task_result.extra or {})
@@ -4595,7 +4595,7 @@ def _build_and_record(
                         _idem_result.get("non_idempotent_tools", []),
                     )
             except Exception as _e:
-                logger.debug("IdempotencyConfig 평가 실패 (무시): %s", _e)
+                logger.debug("IdempotencyConfig evaluation failed (ignored): %s", _e)
 
         if threat_response is not None:
             try:
@@ -4609,7 +4609,7 @@ def _build_and_record(
                 if _tr_result is not None:
                     _p6_extra["threat_response"] = _tr_result
             except Exception as _e:
-                logger.debug("ThreatResponseConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ThreatResponseConfig evaluation failed (ignored): %s", _e)
 
         if context_window is not None:
             try:
@@ -4626,7 +4626,7 @@ def _build_and_record(
                     context_window,
                 )
             except Exception as _e:
-                logger.debug("ContextWindowConfig 평가 실패 (무시): %s", _e)
+                logger.debug("ContextWindowConfig evaluation failed (ignored): %s", _e)
 
         if latency_attribution is not None:
             try:
@@ -4637,7 +4637,7 @@ def _build_and_record(
                     latency_attribution,
                 )
             except Exception as _e:
-                logger.debug("LatencyAttributionConfig 평가 실패 (무시): %s", _e)
+                logger.debug("LatencyAttributionConfig evaluation failed (ignored): %s", _e)
 
         if _p6_extra:
             _merged_p6: Dict[str, Any] = dict(task_result.extra or {})
@@ -4661,7 +4661,7 @@ def _build_and_record(
                     _pm_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
                     _pm_extra["plugin_metrics"] = _plugin_scores
                     task_result = dataclasses.replace(task_result, extra=_pm_extra)
-                    logger.debug("MetricPlugin 결과 적용: %s", list(_plugin_scores.keys()))
+                    logger.debug("MetricPlugin result applied: %s", list(_plugin_scores.keys()))
         except Exception as _pr2_exc:
             logger.debug("PluginRegistry MetricPlugin 실행 실패 (무시): %s", _pr2_exc)
 
@@ -4858,7 +4858,7 @@ def _build_and_record(
                         }
                         task_result = _dc.replace(task_result, **_clamped)
             except Exception as cb_exc:
-                logger.debug("on_record 콜백 실패 (무시): %s", cb_exc)
+                logger.debug("on_record callback failed (ignored): %s", cb_exc)
 
         # D3: on_error 는 _record_to_monitors() 이후에 호출됨 — 태스크는 이미 기록 완료
         # Gap AK: on_error 콜백 — has_error 시에만 호출
@@ -6255,7 +6255,7 @@ def _do_flush(entry: Dict[str, Any]) -> None:
                     if _returned_tr is not None and hasattr(_returned_tr, "task_id"):
                         pass  # conversation session task_result 교체는 지원하지 않음 (기록 완료 후)
             except Exception as _orec_exc:
-                logger.debug("conversation_eval on_record 콜백 실패 (무시): %s", _orec_exc)
+                logger.debug("conversation_eval on_record callback failed (ignored): %s", _orec_exc)
         # Gap M: on_flush 콜백 — 예외 무시
         # 시그니처: (metrics, session_id) 우선; 구버전 (session_id,) 호환 fallback
         if on_flush_cb is not None:

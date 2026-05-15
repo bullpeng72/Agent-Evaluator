@@ -85,9 +85,9 @@ def _to_meta(f) -> Dict[str, Any]:
     }
 
 
-@router.get("/health", summary="서버 상태 확인")
+@router.get("/health", summary="Server health check")
 def health(request: Request) -> Dict[str, Any]:
-    """서버 상태 + 버전 + 파일 수 + 총 태스크 수 상세 반환."""
+    """Return server status, version, file count, and total task count in detail."""
     try:
         _rs_obj = _rs(request)
         _files = getattr(_rs_obj, "files", [])
@@ -134,9 +134,9 @@ def health(request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/stats", summary="전체 통계 요약")
+@router.get("/stats", summary="Overall statistics summary")
 def get_stats(request: Request) -> Dict[str, Any]:
-    """시스템 전체 통계 요약 반환."""
+    """Return system-wide statistics summary."""
     try:
         _rs_obj = _rs(request)
         _files = getattr(_rs_obj, "files", [])
@@ -173,33 +173,33 @@ def get_stats(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(_e))
 
 
-@router.get("/results", summary="결과 파일 목록")
+@router.get("/results", summary="Result file list")
 def list_results(
     request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=500),
     sort_by: str = Query(
         default="timestamp",
-        description="정렬 기준 필드 — timestamp | tcr | accuracy | avg_latency | total_tasks | total_cost",
+        description="Sort field — timestamp | tcr | accuracy | avg_latency | total_tasks | total_cost",
     ),
-    sort_desc: bool = Query(default=True, description="내림차순 정렬 여부 (기본 True)"),
+    sort_desc: bool = Query(default=True, description="Sort descending (default True)"),
     # K: 범위 필터
-    tcr_min: Optional[float] = Query(None, description="TCR 최소값 (0~100)"),
-    tcr_max: Optional[float] = Query(None, description="TCR 최대값 (0~100)"),
-    accuracy_min: Optional[float] = Query(None, description="정확도 최소값 (0~100)"),
-    age_hours: Optional[float] = Query(None, description="최근 N시간 이내 파일만"),
+    tcr_min: Optional[float] = Query(None, description="TCR minimum value (0–100)"),
+    tcr_max: Optional[float] = Query(None, description="TCR maximum value (0–100)"),
+    accuracy_min: Optional[float] = Query(None, description="Accuracy minimum value (0–100)"),
+    age_hours: Optional[float] = Query(None, description="Files from the last N hours only"),
     # N: 샘플 태스크 포함
-    include_sample: bool = Query(False, description="각 파일의 최근 3개 태스크 샘플 포함"),
+    include_sample: bool = Query(False, description="Include latest 3 task samples per file"),
 ) -> Dict[str, Any]:
-    """결과 파일 목록 — 페이지네이션 + 정렬 지원 (B12, I2).
+    """Result file list — pagination + sorting support (B12, I2).
 
-    **정렬 기준 (sort_by)**:
-    - ``timestamp`` — 파일 생성 시각 (기본)
+    **Sort keys (sort_by)**:
+    - ``timestamp`` — file creation time (default)
     - ``tcr`` — Task Completion Rate (%)
-    - ``accuracy`` — 전체 정확도 (0–100)
-    - ``avg_latency`` — 평균 응답 시간(초)
-    - ``total_tasks`` — 총 태스크 수
-    - ``total_cost`` — 총 비용(USD)
+    - ``accuracy`` — overall accuracy (0–100)
+    - ``avg_latency`` — average response time in seconds
+    - ``total_tasks`` — total task count
+    - ``total_cost`` — total cost (USD)
     """
     # watch 모드: 항상 디스크에서 직접 읽어 최신 파일 목록 보장
     if getattr(request.app.state, "watcher", None) is not None:
@@ -313,15 +313,15 @@ def list_results(
 # ---------------------------------------------------------------------------
 # L: SSE 실시간 통계 엔드포인트
 # ---------------------------------------------------------------------------
-@router.get("/live-stats", summary="실시간 통계 스트림 (SSE)")
+@router.get("/live-stats", summary="Live statistics stream (SSE)")
 async def live_stats_sse(
     request: Request,
-    file_id: Optional[str] = Query(None, description="특정 파일 ID (없으면 전체 통계)"),
-    interval_seconds: float = Query(2.0, ge=0.5, le=30.0, description="푸시 간격(초)"),
+    file_id: Optional[str] = Query(None, description="Specific file ID (omit for global statistics)"),
+    interval_seconds: float = Query(2.0, ge=0.5, le=30.0, description="Push interval in seconds"),
 ) -> StreamingResponse:
-    """SSE(Server-Sent Events) 스트림으로 실시간 통계를 푸시합니다.
+    """Push live statistics via SSE (Server-Sent Events).
 
-    EventSource를 통해 interval_seconds마다 현재 지표를 JSON으로 전송합니다.
+    Sends current metrics as JSON via EventSource every interval_seconds.
     """
     import asyncio as _asyncio
     import datetime as _dt_mod2
@@ -374,17 +374,17 @@ async def live_stats_sse(
 # ---------------------------------------------------------------------------
 # M: 시간대별 지표 트렌드 엔드포인트
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/hourly-stats", summary="시간별 집계 통계")
+@router.get("/results/{file_id}/hourly-stats", summary="Hourly aggregate statistics")
 def get_hourly_stats(
     file_id: str,
     request: Request,
-    hours: int = Query(24, ge=1, le=168, description="최근 N시간"),
+    hours: int = Query(24, ge=1, le=168, description="Last N hours"),
     metrics: str = Query(
         "tcr,avg_accuracy,avg_latency",
-        description="쉼표로 구분된 지표 목록 — tcr|avg_accuracy|avg_latency|task_count|error_rate",
+        description="Comma-separated metric list — tcr|avg_accuracy|avg_latency|task_count|error_rate",
     ),
 ) -> Dict[str, Any]:
-    """시간 단위로 집계된 지표 트렌드를 반환합니다."""
+    """Return metric trend aggregated in hourly buckets."""
     import datetime as _dt_mod3
 
     rs = _rs(request)
@@ -439,15 +439,15 @@ def get_hourly_stats(
     }
 
 
-@router.get("/results/{file_id}", summary="결과 파일 상세")
+@router.get("/results/{file_id}", summary="Result file detail")
 def get_result(file_id: str, request: Request) -> Dict[str, Any]:
-    """단일 평가 결과 파일의 전체 내용 반환.
+    """Return the full content of a single evaluation result file.
 
-    ``summary`` (TCR·정확도·지연 등 집계), ``tasks`` (태스크별 상세),
-    ``harness_gates`` (Gate A–G 점수), ``extra_metrics`` 등을 포함한다.
+    Includes ``summary`` (TCR, accuracy, latency aggregates), ``tasks`` (per-task detail),
+    ``harness_gates`` (Gate A–G scores), ``extra_metrics``, and more.
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -455,7 +455,7 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="File not found")
 
     def _task_extra_field(t, key):
-        """TaskResult.extra 또는 raw에서 안전하게 필드를 추출한다."""
+        """Safely extract a field from TaskResult.extra or raw."""
         extra = getattr(t, "extra", None)
         if isinstance(extra, dict):
             return extra.get(key)
@@ -644,16 +644,16 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.delete("/results/{file_id}", summary="결과 파일 삭제")
+@router.delete("/results/{file_id}", summary="Delete result file")
 def delete_result(
     file_id: str,
     request: Request,
     soft: bool = Query(default=True),
 ) -> Dict[str, Any]:
-    """결과 파일 삭제 (B1 확장).
+    """Delete a result file (B1 extension).
 
-    soft=True: 아카이브 (인메모리 _archived 플래그 설정)
-    soft=False: 실제 파일 삭제
+    soft=True: archive (sets in-memory _archived flag)
+    soft=False: permanently delete the file
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -678,12 +678,12 @@ def delete_result(
         return {"deleted": True, "file_id": file_id, "name": rf.name}
 
 
-@router.post("/results/{file_id}/tasks/bulk-tag", summary="태스크 일괄 태그")
+@router.post("/results/{file_id}/tasks/bulk-tag", summary="Bulk tag tasks")
 async def bulk_tag_tasks(
     file_id: str,
     request: Request,
 ) -> Dict[str, Any]:
-    """여러 태스크에 태그 일괄 추가.
+    """Bulk add tags to multiple tasks.
 
     Body example::
 
@@ -720,13 +720,13 @@ async def bulk_tag_tasks(
     return {"updated": len(task_ids), "tags": tags, "task_ids": task_ids}
 
 
-@router.get("/results/{file_id}/aggregate", summary="태스크 그룹 집계")
+@router.get("/results/{file_id}/aggregate", summary="Task group aggregate")
 def aggregate_tasks(
     file_id: str,
     request: Request,
-    by: str = Query(default="task_type", description="그룹화 기준: task_type|framework|hour|day"),
+    by: str = Query(default="task_type", description="Grouping key: task_type|framework|hour|day"),
 ) -> Dict[str, Any]:
-    """지표 집계 — by 기준으로 그룹화.
+    """Metric aggregate — grouped by the specified key.
 
     Returns:
         file_id, by, groups (key → count/avg_accuracy/avg_latency/tcr/total_tokens)
@@ -793,9 +793,9 @@ def aggregate_tasks(
     }
 
 
-@router.get("/results/{file_id}/reliability", summary="신뢰성 지표")
+@router.get("/results/{file_id}/reliability", summary="Reliability metrics")
 def get_reliability(file_id: str, request: Request) -> Dict[str, Any]:
-    """Reliability 탭용 — 재현성·루프·도구 내결함성 집계 (Phase 2).
+    """Reliability tab — reproducibility, loop, and tool fault-tolerance aggregate (Phase 2).
 
     Returns:
         error_free_rate, retry_free_rate, loop_events, fault_tolerance_by_tool,
@@ -849,11 +849,11 @@ def get_reliability(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.post("/results/{file_id}/tasks/filter", summary="태스크 고급 필터")
+@router.post("/results/{file_id}/tasks/filter", summary="Advanced task filter")
 async def filter_tasks_advanced(file_id: str, request: Request) -> Dict[str, Any]:
-    """복합 필터 조건으로 태스크 검색 (B4, I3).
+    """Search tasks by compound filter conditions (B4, I3).
 
-    **요청 바디 형식**::
+    **Request body format**::
 
         {
             "conditions": [
@@ -867,26 +867,26 @@ async def filter_tasks_advanced(file_id: str, request: Request) -> Dict[str, Any
             "limit": 50
         }
 
-    **지원 연산자 (op)**:
+    **Supported operators (op)**:
 
-    | op       | 타입         | 설명                                         |
+    | op       | type         | description                                   |
     |----------|--------------|----------------------------------------------|
-    | eq       | 모든 타입    | 동일 비교 (문자열은 대소문자 무시)           |
-    | ne       | 모든 타입    | 불일치 비교                                  |
-    | gt       | 숫자         | 초과 (greater than)                          |
-    | gte      | 숫자         | 이상 (greater than or equal)                 |
-    | lt       | 숫자         | 미만 (less than)                             |
-    | lte      | 숫자         | 이하 (less than or equal)                    |
-    | contains | 문자열       | 부분 문자열 포함 여부 (대소문자 무시)        |
-    | in       | 리스트       | value 리스트에 필드값 포함 여부              |
+    | eq       | any type     | equality check (case-insensitive for strings) |
+    | ne       | any type     | inequality check                              |
+    | gt       | number       | greater than                                  |
+    | gte      | number       | greater than or equal                         |
+    | lt       | number       | less than                                     |
+    | lte      | number       | less than or equal                            |
+    | contains | string       | substring match (case-insensitive)            |
+    | in       | list         | field value in the provided list              |
 
-    **지원 필드**:
-    - 최상위 TaskResult 속성: ``task_id``, ``task_type``, ``success``, ``completion_score``,
+    **Supported fields**:
+    - Top-level TaskResult attributes: ``task_id``, ``task_type``, ``success``, ``completion_score``,
       ``accuracy_score``, ``execution_time``, ``attempts``, ``errors``, ``framework``
-    - 중첩 필드: ``tokens_used.total``, ``tokens_used.input``, ``tokens_used.output``
-    - ``extra`` 딕셔너리 키: ``extra.model``, ``extra.framework`` 등
+    - Nested fields: ``tokens_used.total``, ``tokens_used.input``, ``tokens_used.output``
+    - ``extra`` dictionary keys: ``extra.model``, ``extra.framework``, etc.
 
-    **logic**: ``"AND"`` (기본) 또는 ``"OR"`` — 조건 결합 방식.
+    **logic**: ``"AND"`` (default) or ``"OR"`` — how conditions are combined.
     """
     import json as _json
     rs = _rs(request)
@@ -973,7 +973,7 @@ async def filter_tasks_advanced(file_id: str, request: Request) -> Dict[str, Any
     }
 
 
-@router.get("/results/{file_id}/tasks/search", summary="태스크 검색")
+@router.get("/results/{file_id}/tasks/search", summary="Task search")
 def search_tasks(
     file_id: str,
     request: Request,
@@ -985,10 +985,10 @@ def search_tasks(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
 ) -> Dict[str, Any]:
-    """태스크 필터링 검색 — task_type / framework / accuracy / has_error 조합 가능.
+    """Task filter search — combine task_type / framework / accuracy / has_error.
 
     Returns:
-        total (필터링 후 전체 수), tasks (페이지 슬라이스), aggregates (평균 지표)
+        total (count after filtering), tasks (page slice), aggregates (average metrics)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1043,9 +1043,9 @@ def search_tasks(
     }
 
 
-@router.get("/results/{file_id}/distributions", summary="점수 분포")
+@router.get("/results/{file_id}/distributions", summary="Score distribution")
 def get_task_distributions(file_id: str, request: Request) -> Dict[str, Any]:
-    """task_type / framework / accuracy 구간별 분포 통계 — 대시보드 차트용."""
+    """Distribution statistics by task_type / framework / accuracy range — for dashboard charts."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
@@ -1102,20 +1102,20 @@ def get_task_distributions(file_id: str, request: Request) -> Dict[str, Any]:
 _SEARCH_ALLOWED_FIELDS = {"question", "response", "framework", "task_type", "task_id"}
 
 
-@router.get("/tasks/search", summary="전체 파일 태스크 검색")
+@router.get("/tasks/search", summary="Cross-file task search")
 def search_task_across_files(
     request: Request,
-    task_id: Optional[str] = Query(default=None, description="특정 task_id 검색"),
+    task_id: Optional[str] = Query(default=None, description="Search by specific task_id"),
     framework: Optional[str] = Query(default=None),
     task_type: Optional[str] = Query(default=None),
-    q: Optional[str] = Query(default=None, description="전체 텍스트 검색어 (search_fields 기준)"),
+    q: Optional[str] = Query(default=None, description="Full-text search query (applied to search_fields)"),
     search_fields: str = Query(
         default="question,response",
-        description="쉼표 구분 검색 대상 필드: question,response,framework,task_type,task_id",
+        description="Comma-separated fields to search: question,response,framework,task_type,task_id",
     ),
     limit: int = Query(default=50, ge=1, le=500),
 ) -> Dict[str, Any]:
-    """모든 파일에서 task_id / framework / task_type / q 기반 전체 검색 (N: search_fields 파라미터 포함)."""
+    """Cross-file search by task_id / framework / task_type / q (N: includes search_fields parameter)."""
     rs = _rs(request)
     results: List[Dict[str, Any]] = []
 
@@ -1126,7 +1126,7 @@ def search_task_across_files(
         _valid_fields = ["question", "response"]
 
     def _field_value(t, field: str) -> str:
-        """태스크에서 검색 필드 값을 추출한다."""
+        """Extract search field values from a task."""
         if field in ("question", "response"):
             raw = getattr(t, "raw", None) or {}
             if field == "question":
@@ -1173,9 +1173,9 @@ def search_task_across_files(
     }
 
 
-@router.get("/results/{file_id}/tasks/{task_id}", summary="태스크 상세")
+@router.get("/results/{file_id}/tasks/{task_id}", summary="Task detail")
 def get_task_detail(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:
-    """태스크 단위 상세 API — chain_steps, state_transitions, agent_interactions 포함."""
+    """Per-task detail API — includes chain_steps, state_transitions, agent_interactions."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
@@ -1224,9 +1224,9 @@ def get_task_detail(file_id: str, task_id: str, request: Request) -> Dict[str, A
     }
 
 
-@router.get("/results/{file_id}/metrics/{metric_name}", summary="지표 상세")
+@router.get("/results/{file_id}/metrics/{metric_name}", summary="Metric detail")
 def get_metric_detail(file_id: str, metric_name: str, request: Request) -> Dict[str, Any]:
-    """이름으로 지정한 단일 지표의 상세 데이터를 반환.
+    """Return detailed data for a single metric specified by name.
 
     Supported metric_name values:
     ``tcr``, ``accuracy``, ``latency``, ``tokens``, ``hallucination``,
@@ -1294,14 +1294,14 @@ def get_metric_detail(file_id: str, metric_name: str, request: Request) -> Dict[
     }
 
 
-@router.get("/results/{file_id}/heatmap/{metric}", summary="지표 히트맵")
+@router.get("/results/{file_id}/heatmap/{metric}", summary="Metric heatmap")
 def get_metric_heatmap(file_id: str, metric: str, request: Request) -> Dict[str, Any]:
-    """태스크×시간 히트맵 데이터 반환.
+    """Return task × time heatmap data.
 
     metric: ``accuracy_score``, ``execution_time``, ``completion_score``
 
     Returns:
-        x_labels (시간 버킷), y_labels (task_type), matrix (y×x 행렬)
+        x_labels (time buckets), y_labels (task_type), matrix (y×x grid)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1353,15 +1353,15 @@ def get_metric_heatmap(file_id: str, metric: str, request: Request) -> Dict[str,
     }
 
 
-@router.get("/summary", summary="전체 결과 요약")
+@router.get("/summary", summary="Overall result summary")
 def get_summary(request: Request) -> Dict[str, Any]:
-    """전체 결과 파일의 요약 통계 + 투명성 데이터 존재 여부 반환.
+    """Return summary statistics for all result files + transparency data availability.
 
-    ``/api/stats``와 달리 ``has_traces`` · ``has_audit`` · ``has_annotations`` 플래그를
-    추가로 포함한다 (대시보드 Transparency 탭 활성화 여부 판단에 사용).
+    Unlike ``/api/stats``, also includes ``has_traces``, ``has_audit``, and ``has_annotations`` flags
+    (used to determine whether the dashboard Transparency tab should be enabled).
 
     Returns:
-        total_files, total_tasks, avg_tcr 등 요약 지표 +
+        Summary metrics including total_files, total_tasks, avg_tcr, +
         has_traces (bool), has_audit (bool), has_annotations (bool)
     """
     rs = _rs(request)
@@ -1376,17 +1376,17 @@ def get_summary(request: Request) -> Dict[str, Any]:
 # v0.7.7 신규 API endpoints (B1–B6)
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/timeline", summary="타임라인 집계")
+@router.get("/results/{file_id}/timeline", summary="Timeline aggregate")
 def get_result_timeline(
     file_id: str,
     request: Request,
-    metric: str = Query(default="accuracy_score", description="집계 지표"),
-    bucket: str = Query(default="hour", description="시간 버킷: minute|hour|day"),
+    metric: str = Query(default="accuracy_score", description="Aggregation metric"),
+    bucket: str = Query(default="hour", description="Time bucket: minute|hour|day"),
 ) -> Dict[str, Any]:
-    """태스크 시계열 집계 — 지정한 metric 을 시간 버킷별로 집계한다.
+    """Task time-series aggregate — aggregates the specified metric into time buckets.
 
     Returns:
-        buckets (시간 키 리스트), values (버킷별 평균값), counts (버킷별 태스크 수)
+        buckets (time key list), values (average per bucket), counts (task count per bucket)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1433,25 +1433,25 @@ def get_result_timeline(
     }
 
 
-@router.get("/compare", summary="결과 파일 비교")
+@router.get("/compare", summary="Result file comparison")
 def compare_results(
     request: Request,
-    ids: str = Query(..., description="쉼표 구분 file_id 목록 (예: id1,id2)"),
-    detailed: bool = Query(default=False, description="True이면 task_id 교집합 기반 상세 diff 계산"),
+    ids: str = Query(..., description="Comma-separated file_id list (e.g. id1,id2)"),
+    detailed: bool = Query(default=False, description="If True, compute detailed diff based on common task_ids"),
 ) -> Dict[str, Any]:
-    """여러 결과 파일의 주요 지표를 나란히 비교 (B2/B5).
+    """Compare key metrics across multiple result files side by side (B2/B5).
 
-    detailed=True이면 두 파일의 공통 task_id에 대해 accuracy_delta/latency_delta를 계산하고
-    regression_tasks/improvement_tasks 목록을 반환한다.
+    When detailed=True, computes accuracy_delta/latency_delta for common task_ids
+    and returns regression_tasks/improvement_tasks lists.
 
     Returns:
-        files (각 파일 지표 dict 리스트), delta (첫 번째 vs 나머지 차이),
-        [detailed=True일 때] detailed, regression_tasks, improvement_tasks
+        files (list of per-file metric dicts), delta (first vs. rest difference),
+        [when detailed=True] detailed, regression_tasks, improvement_tasks
     """
     rs = _rs(request)
     file_ids = [fid.strip() for fid in ids.split(",") if fid.strip()]
     if not file_ids:
-        raise HTTPException(status_code=400, detail="ids 파라미터가 필요합니다")
+        raise HTTPException(status_code=400, detail="ids parameter is required")
 
     # 실제 ResultFile 객체 보존 (detailed 계산용)
     rf_map: Dict[str, Any] = {}
@@ -1529,17 +1529,17 @@ def compare_results(
     return result
 
 
-@router.get("/leaderboard", summary="리더보드")
+@router.get("/leaderboard", summary="Leaderboard")
 def get_leaderboard(
     request: Request,
-    sort_by: str = Query(default="tcr", description="정렬 기준: tcr|accuracy|avg_latency|total_cost"),
+    sort_by: str = Query(default="tcr", description="Sort key: tcr|accuracy|avg_latency|total_cost"),
     limit: int = Query(default=20, ge=1, le=100),
     ascending: bool = Query(default=False),
 ) -> Dict[str, Any]:
-    """전체 평가 파일 리더보드 — 지정 지표로 정렬한 랭킹.
+    """Leaderboard of all evaluation files — ranked by the specified metric.
 
     Returns:
-        leaderboard (rank, file_id, name, 주요 지표 dict 리스트)
+        leaderboard (rank, file_id, name, key metrics dict list)
     """
     rs = _rs(request)
     _VALID_SORT = {"tcr", "accuracy", "avg_latency", "total_cost", "total_tasks"}
@@ -1568,7 +1568,7 @@ def get_leaderboard(
 
 
 def _enrich_session_turns(session: Dict[str, Any]) -> Dict[str, Any]:
-    """세션의 turn 목록에 tool_calls / model_name / tokens_used 필드를 추가."""
+    """Augment the session turn list with tool_calls / model_name / tokens_used fields."""
     turns = session.get("turns", [])
     # turns 가 int (turn_count) 인 경우 그대로 반환 (구버전 호환)
     if not isinstance(turns, list):
@@ -1591,18 +1591,18 @@ def _enrich_session_turns(session: Dict[str, Any]) -> Dict[str, Any]:
     return {**session, "turns": enriched_turns}
 
 
-@router.get("/results/{file_id}/sessions", summary="대화 세션 목록")
+@router.get("/results/{file_id}/sessions", summary="Conversation sessions list")
 def get_sessions(
     file_id: str,
     request: Request,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=500),
-    include_turns: bool = Query(default=True, description="턴별 상세 데이터 포함 여부"),
+    include_turns: bool = Query(default=True, description="Include per-turn detail data"),
 ) -> Dict[str, Any]:
-    """멀티턴 대화 세션 목록 (B4/M3) — 페이지네이션 + 턴별 tool_calls/model_name/tokens_used 지원.
+    """Multi-turn conversation sessions list (B4/M3) — pagination + per-turn tool_calls/model_name/tokens_used.
 
     Returns:
-        total, sessions (각 세션 요약 dict, turns 포함 시 tool_calls/model_name/tokens_used 포함)
+        total, sessions (per-session summary dict; includes tool_calls/model_name/tokens_used when turns included)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1630,18 +1630,18 @@ _TAG_STORE: Dict[str, List[str]] = {}
 _tag_store_lock = defaultdict(list)
 
 
-@router.post("/results/{file_id}/tags", summary="태그 추가")
+@router.post("/results/{file_id}/tags", summary="Add tags")
 def add_tags(
     file_id: str,
     request: Request,
     tags: List[str] = None,
 ) -> Dict[str, Any]:
-    """파일에 태그 추가.
+    """Add tags to a file.
 
-    Body: JSON list of tag strings  (예: ``["production", "v2", "regression"]``)
+    Body: JSON list of tag strings  (e.g. ``["production", "v2", "regression"]``)
 
     Returns:
-        file_id, tags (현재 태그 전체 목록)
+        file_id, tags (complete current tag list)
     """
     import json as _json
     rs = _rs(request)
@@ -1666,26 +1666,26 @@ def add_tags(
     return {"file_id": file_id, "tags": _TAG_STORE[file_id], "added": new_tags}
 
 
-@router.get("/results/{file_id}/tags", summary="태그 목록")
+@router.get("/results/{file_id}/tags", summary="Tag list")
 def get_tags(file_id: str, request: Request) -> Dict[str, Any]:
-    """파일 태그 조회 (B5 보조)."""
+    """Get file tags (B5 auxiliary)."""
     rs = _rs(request)
     if rs.by_id(file_id) is None:
         raise HTTPException(status_code=404, detail="File not found")
     return {"file_id": file_id, "tags": _TAG_STORE.get(file_id, [])}
 
 
-@router.get("/results/{file_id}/tasks/{task_id}/similar", summary="유사 태스크 검색")
+@router.get("/results/{file_id}/tasks/{task_id}/similar", summary="Similar task search")
 def get_similar_tasks(
     file_id: str,
     task_id: str,
     request: Request,
     top_k: int = Query(default=5, ge=1, le=50),
 ) -> Dict[str, Any]:
-    """유사 태스크 검색 — accuracy_score + task_type 기반 근사 유사도.
+    """Similar task search — approximate similarity based on accuracy_score + task_type.
 
     Returns:
-        task_id, similar (top_k 개 유사 태스크 dict 리스트)
+        task_id, similar (top_k similar task dict list)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1725,13 +1725,13 @@ def get_similar_tasks(
 # ---------------------------------------------------------------------------
 # B2: TaskResult.extra 필드 집계 API
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/aggregate/extra", summary="extra 필드 집계")
+@router.get("/results/{file_id}/aggregate/extra", summary="extra field aggregate")
 def aggregate_extra_field(
     file_id: str,
     request: Request,
-    field: str = Query(..., description="extra 딕셔너리에서 집계할 키"),
+    field: str = Query(..., description="Key to aggregate from the extra dictionary"),
 ) -> Dict[str, Any]:
-    """특정 extra 필드의 값 빈도 분포를 반환한다."""
+    """Return the value frequency distribution for a specific extra field."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
@@ -1757,13 +1757,13 @@ def aggregate_extra_field(
 # ---------------------------------------------------------------------------
 # B3: Anomaly 이벤트 설명 API
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/anomaly/explain/{event_id}", summary="이상 이벤트 설명")
+@router.get("/results/{file_id}/anomaly/explain/{event_id}", summary="Anomaly event explanation")
 def explain_anomaly_event(
     file_id: str,
     event_id: str,
     request: Request,
 ) -> Dict[str, Any]:
-    """특정 이상 감지 이벤트의 원인과 권고사항을 반환한다."""
+    """Return the cause and recommendations for a specific anomaly detection event."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
@@ -1780,9 +1780,9 @@ def explain_anomaly_event(
     deviation_pct = abs(value - threshold) / max(abs(threshold), 1e-9) * 100
     severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
     suggestions = {
-        "accuracy": "정확도가 낮습니다. 프롬프트 개선이나 모델 업그레이드를 고려하세요.",
-        "latency": "응답 시간이 높습니다. 캐싱이나 병렬 처리를 고려하세요.",
-        "error_rate": "오류율이 높습니다. 에이전트 안정성 점검이 필요합니다.",
+        "accuracy": "Accuracy is low. Consider improving prompts or upgrading the model.",
+        "latency": "Response time is high. Consider caching or parallel processing.",
+        "error_rate": "Error rate is high. Agent stability review is required.",
     }
     return {
         "event_id": event_id,
@@ -1791,8 +1791,8 @@ def explain_anomaly_event(
         "threshold": threshold,
         "deviation_pct": round(deviation_pct, 2),
         "severity": severity,
-        "explanation": f"{metric} 값 {value:.4f}이 임계값 {threshold:.4f}을 {deviation_pct:.1f}% 초과했습니다.",
-        "suggested_action": suggestions.get(metric, "해당 지표를 상세 분석하세요."),
+        "explanation": f"{metric} value {value:.4f} exceeded threshold {threshold:.4f} by {deviation_pct:.1f}%.",
+        "suggested_action": suggestions.get(metric, "Analyze this metric in detail."),
         "timestamp": event.get("timestamp", ""),
     }
 
@@ -1801,9 +1801,9 @@ def explain_anomaly_event(
 # B2: 프레임워크별 지표 집계 API
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/frameworks", summary="프레임워크별 분석")
+@router.get("/results/{file_id}/frameworks", summary="Framework analysis")
 def get_framework_breakdown(file_id: str, request: Request) -> Dict[str, Any]:
-    """프레임워크별 지표 집계 — framework 기준 TCR / accuracy / latency / 토큰 분석.
+    """Framework-level metric aggregate — TCR / accuracy / latency / token analysis by framework.
 
     Returns:
         file_id, framework_count, frameworks (framework → metrics dict)
@@ -1860,22 +1860,22 @@ def get_framework_breakdown(file_id: str, request: Request) -> Dict[str, Any]:
 # B4: LLM Judge 상세 집계 API
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/llm_judge", summary="LLM Judge 상세 결과")
+@router.get("/results/{file_id}/llm_judge", summary="LLM Judge detail results")
 def get_llm_judge_details(
     file_id: str,
     request: Request,
-    min_score: Optional[float] = Query(default=None, description="overall 스코어 하한 필터"),
-    max_score: Optional[float] = Query(default=None, description="overall 스코어 상한 필터"),
+    min_score: Optional[float] = Query(default=None, description="Minimum overall score filter"),
+    max_score: Optional[float] = Query(default=None, description="Maximum overall score filter"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> Dict[str, Any]:
-    """LLM Judge 결과 상세 집계 엔드포인트.
+    """LLM Judge result detail aggregate endpoint.
 
-    개별 태스크의 judge 스코어(completeness/relevance/factual_consistency/overall) 목록 반환.
-    min_score / max_score 로 overall 점수 범위 필터링 가능.
+    Returns individual task judge scores (completeness/relevance/factual_consistency/overall).
+    Filter by overall score range using min_score / max_score.
 
     Returns:
-        file_id, model, 집계 통계, results (태스크별 judge 결과 목록)
+        file_id, model, aggregate statistics, results (per-task judge result list)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1915,7 +1915,7 @@ def get_llm_judge_details(
 # ---------------------------------------------------------------------------
 
 class AnomalyEventSchema(BaseModel):
-    """개별 이상 감지 이벤트 스키마."""
+    """Schema for individual anomaly detection events."""
     event_id: str = ""
     event_type: str = ""
     detected_at: str = ""
@@ -1927,18 +1927,18 @@ class AnomalyEventSchema(BaseModel):
 
 
 class AnomalyListResponse(BaseModel):
-    """이상 감지 이벤트 목록 응답 스키마."""
+    """Response schema for anomaly detection event list."""
     file_id: str
     anomaly_count: int
-    events: list  # List[AnomalyEventSchema] — dict 호환
+    events: list  # List[AnomalyEventSchema] — dict compatible
 
 
 # ---------------------------------------------------------------------------
 # D7: Anomaly 이벤트 목록 API
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/anomaly", summary="이상 탐지 결과 (파일)", response_model=AnomalyListResponse)
+@router.get("/results/{file_id}/anomaly", summary="Anomaly detection results (file)", response_model=AnomalyListResponse)
 def get_anomaly(file_id: str, request: Request) -> Dict[str, Any]:
-    """이상 감지 이벤트 목록 및 요약을 반환한다."""
+    """Return anomaly detection event list and summary."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
@@ -1966,8 +1966,8 @@ def get_anomaly(file_id: str, request: Request) -> Dict[str, Any]:
     return {
         "file_id": file_id,
         "anomaly_count": len(anomaly_events),
-        "events": anomaly_events,      # O: AnomalyListResponse 호환
-        "anomalies": anomaly_events,   # 하위 호환
+        "events": anomaly_events,      # O: AnomalyListResponse compatible
+        "anomalies": anomaly_events,   # backward compatible
         "summary": {
             "by_severity": by_severity,
             "by_metric": by_metric,
@@ -1978,9 +1978,9 @@ def get_anomaly(file_id: str, request: Request) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # D9: Multimodal 집계 API
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/multimodal", summary="멀티모달 데이터")
+@router.get("/results/{file_id}/multimodal", summary="Multimodal data")
 def get_multimodal(file_id: str, request: Request) -> Dict[str, Any]:
-    """태스크 extra 기반 멀티모달 지표 집계를 반환한다."""
+    """Return multimodal metric aggregate based on task extra fields."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
@@ -2023,9 +2023,9 @@ def get_multimodal(file_id: str, request: Request) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # B4: Implicit feedback stats API
 # ---------------------------------------------------------------------------
-@router.get("/results/{file_id}/feedback/stats", summary="피드백 통계")
+@router.get("/results/{file_id}/feedback/stats", summary="Feedback statistics")
 def feedback_stats(file_id: str, request: Request) -> Dict[str, Any]:
-    """암묵적 피드백 통계를 반환한다."""
+    """Return implicit feedback statistics."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
@@ -2059,9 +2059,9 @@ def feedback_stats(file_id: str, request: Request) -> Dict[str, Any]:
 _WEBHOOK_HISTORY: Dict[str, list] = {}
 
 
-@router.get("/webhooks/{webhook_id}/history", summary="웹훅 이력")
+@router.get("/webhooks/{webhook_id}/history", summary="Webhook history")
 def webhook_history(webhook_id: str) -> Dict[str, Any]:
-    """웹훅 발동 이력을 반환한다."""
+    """Return webhook trigger history."""
     history = _WEBHOOK_HISTORY.get(webhook_id, [])
     return {
         "webhook_id": webhook_id,
@@ -2070,15 +2070,15 @@ def webhook_history(webhook_id: str) -> Dict[str, Any]:
     }
 
 
-@router.post("/webhooks/{webhook_id}/test", summary="웹훅 테스트 발송")
+@router.post("/webhooks/{webhook_id}/test", summary="Send webhook test")
 def webhook_test(webhook_id: str) -> Dict[str, Any]:
-    """웹훅 발동 이력에 테스트 엔트리를 기록한다 (in-memory).
+    """Record a test entry in the webhook trigger history (in-memory).
 
-    실제 외부 URL로 HTTP 요청을 발송하지 않는다. 외부 URL에 실제 POST를 보내려면
-    ``POST /api/webhook/test`` (body: ``{"url": "..."}```)를 사용한다.
+    Does not send an actual HTTP request to an external URL. To send a real POST to an external URL,
+    use ``POST /api/webhook/test`` (body: ``{"url": "..."}``).
 
     Args:
-        webhook_id: 임의 웹훅 식별자. ``GET /api/webhooks/{webhook_id}/history``로 이력 조회.
+        webhook_id: Arbitrary webhook identifier. Retrieve history via ``GET /api/webhooks/{webhook_id}/history``.
     """
     entry = {
         "fired_at": _datetime.now().isoformat(),
@@ -2093,12 +2093,12 @@ def webhook_test(webhook_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # B6: Result JSON file import API
 # ---------------------------------------------------------------------------
-@router.post("/results/import", summary="결과 파일 가져오기")
+@router.post("/results/import", summary="Import result file")
 async def import_results(
     request: Request,
     file: UploadFile = File(...),
 ) -> Dict[str, Any]:
-    """JSON 결과 파일을 업로드해 output_dir에 저장한다."""
+    """Upload a JSON result file and save it to output_dir."""
     import json as _json
     content = await file.read()
     try:
@@ -2117,16 +2117,16 @@ async def import_results(
         with open(fpath, "w", encoding="utf-8") as _fh:
             _json.dump(data, _fh, ensure_ascii=False, indent=2)
     except Exception as _e:
-        raise HTTPException(status_code=500, detail=f"저장 실패: {_e}")
+        raise HTTPException(status_code=500, detail=f"Save failed: {_e}")
     return {"file_id": filename, "task_count": task_count, "message": "imported successfully"}
 
 
 # ---------------------------------------------------------------------------
 # B7: API version info
 # ---------------------------------------------------------------------------
-@router.get("/version", summary="API 버전 정보")
+@router.get("/version", summary="API version info")
 def api_version() -> Dict[str, Any]:
-    """API 버전 정보 반환."""
+    """Return API version information."""
     return {
         "current": "v1",
         "supported": ["v1"],
@@ -2140,12 +2140,12 @@ def api_version() -> Dict[str, Any]:
 _REQUEST_COUNTS: Dict[str, int] = defaultdict(int)
 
 
-@router.get("/rate-limit/status", summary="API 요청 제한 상태")
+@router.get("/rate-limit/status", summary="API rate limit status")
 def rate_limit_status() -> Dict[str, Any]:
-    """API 요청 제한 설정 조회.
+    """Get API rate limit configuration.
 
-    현재 버전에서 ``current_counts``는 실제 집계되지 않으므로 항상 빈 객체(``{}``)를 반환한다.
-    ``limits.default``(기본 1000)은 참고용 설정값이며 실제 차단 로직은 구현되지 않았다.
+    In the current version, ``current_counts`` is not aggregated and always returns an empty object (``{}``).
+    ``limits.default`` (default 1000) is a reference configuration value; no actual blocking logic is implemented.
     """
     return {
         "limits": {"default": 1000},
@@ -2158,9 +2158,9 @@ def rate_limit_status() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # H3: API response cache stats endpoint
 # ---------------------------------------------------------------------------
-@router.get("/cache/stats", summary="캐시 통계")
+@router.get("/cache/stats", summary="Cache statistics")
 def cache_stats() -> Dict[str, Any]:
-    """응답 캐시 히트/미스 통계를 반환한다."""
+    """Return response cache hit/miss statistics."""
     try:
         from agent_evaluator.serve.cache import _GLOBAL_CACHE
         return _GLOBAL_CACHE.stats()
@@ -2172,24 +2172,24 @@ def cache_stats() -> Dict[str, Any]:
 # P2-C: Quality Heatmap endpoint
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/quality-heatmap", summary="품질 히트맵")
+@router.get("/results/{file_id}/quality-heatmap", summary="Quality heatmap")
 def get_quality_heatmap(
     file_id: str,
     request: Request,
-    group_by: str = Query("task_type", description="그룹화 기준: task_type | framework | hour"),
-    metric: str = Query("accuracy_score", description="지표: accuracy_score | completion_score | execution_time"),
+    group_by: str = Query("task_type", description="Grouping key: task_type | framework | hour"),
+    metric: str = Query("accuracy_score", description="Metric: accuracy_score | completion_score | execution_time"),
 ) -> Dict[str, Any]:
-    """품질 히트맵 — group_by × metric 교차 집계 (P2-C).
+    """Quality heatmap — group_by × metric cross-aggregate (P2-C).
 
-    대시보드에서 task_type/framework/시간대별 품질 지표의 분포를 히트맵으로 시각화할 때 사용한다.
+    Used to visualize the distribution of quality metrics by task_type/framework/time period as a heatmap in the dashboard.
 
     Args:
-        file_id: 평가 결과 파일 ID.
-        group_by: 행 축 그룹화 기준 (``task_type`` | ``framework`` | ``hour``).
-        metric: 집계할 지표 (``accuracy_score`` | ``completion_score`` | ``execution_time``).
+        file_id: Evaluation result file ID.
+        group_by: Row axis grouping key (``task_type`` | ``framework`` | ``hour``).
+        metric: Metric to aggregate (``accuracy_score`` | ``completion_score`` | ``execution_time``).
 
     Returns:
-        groups (그룹명 목록), matrix (그룹 → 버킷 → 평균값), bucket_labels (버킷 레이블).
+        groups (group name list), matrix (group → bucket → average value), bucket_labels (bucket labels).
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -2236,7 +2236,7 @@ def get_quality_heatmap(
             val = float(t.accuracy_score or 0.0)
         elif metric == "completion_score":
             val = float(t.completion_score or 0.0)
-        else:  # execution_time — 정규화 (10s 기준)
+        else:  # execution_time — normalize (10s baseline)
             raw_val = float(t.execution_time or 0.0)
             val = min(1.0, raw_val / 10.0)
 
@@ -2268,12 +2268,12 @@ def get_quality_heatmap(
 # C1: Chain-steps 상세 데이터 엔드포인트
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/tasks/{task_id}/chain-steps", summary="체인 실행 단계")
+@router.get("/results/{file_id}/tasks/{task_id}/chain-steps", summary="Chain execution steps")
 def get_task_chain_steps(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:
-    """특정 태스크의 chain_steps 상세 데이터 반환.
+    """Return chain_steps detail data for a specific task.
 
-    대시보드에서 에이전트의 실행 흐름을 시각화할 때 사용.
-    chain_steps가 없으면 advanced_metrics에서 fallback 탐색.
+    Used to visualize the agent's execution flow in the dashboard.
+    Falls back to advanced_metrics when chain_steps is not present.
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -2321,13 +2321,13 @@ def get_task_chain_steps(file_id: str, task_id: str, request: Request) -> Dict[s
 # C2: 대화 세션 턴별 상세 데이터 엔드포인트
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/conversations/{session_id}/turns", summary="대화 턴 목록")
+@router.get("/results/{file_id}/conversations/{session_id}/turns", summary="Conversation turn list")
 def get_conversation_turns(
     file_id: str,
     session_id: str,
     request: Request,
 ) -> Dict[str, Any]:
-    """특정 대화 세션의 턴별 상세 데이터 반환."""
+    """Return per-turn detail data for a specific conversation session."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
@@ -2391,9 +2391,9 @@ def get_conversation_turns(
 # C3: 태스크별 이상(anomaly) 이벤트 조회 엔드포인트
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/tasks/{task_id}/anomaly", summary="태스크별 이상 탐지")
+@router.get("/results/{file_id}/tasks/{task_id}/anomaly", summary="Task-level anomaly detection")
 def get_task_anomaly(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:
-    """특정 태스크에 관련된 이상(anomaly) 이벤트 조회."""
+    """Query anomaly events related to a specific task."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
@@ -2439,15 +2439,15 @@ def get_task_anomaly(file_id: str, task_id: str, request: Request) -> Dict[str, 
 # C4: 두 평가 결과 파일 비교(diff) 엔드포인트
 # ---------------------------------------------------------------------------
 
-@router.get("/comparison", summary="두 파일 상세 비교")
+@router.get("/comparison", summary="Detailed file comparison")
 def get_comparison(
     request: Request,
-    file_id_a: str = Query(..., description="비교 기준 파일 ID"),
-    file_id_b: str = Query(..., description="비교 대상 파일 ID"),
+    file_id_a: str = Query(..., description="Baseline file ID for comparison"),
+    file_id_b: str = Query(..., description="Target file ID for comparison"),
 ) -> Dict[str, Any]:
-    """두 평가 결과 파일의 지표 diff 반환.
+    """Return metric diff between two evaluation result files.
 
-    동일 에이전트의 두 버전 또는 두 시점 결과를 비교한다.
+    Compares two versions of the same agent or results from two different time points.
     """
     rs = _rs(request)
     rf_a = rs.by_id(file_id_a)
@@ -2497,7 +2497,7 @@ def get_comparison(
     if common_ids:
         tasks_a = {t.task_id: t for t in rf_a.tasks}
         tasks_b = {t.task_id: t for t in rf_b.tasks}
-        for tid in sorted(common_ids)[:50]:  # 최대 50개
+        for tid in sorted(common_ids)[:50]:  # max 50
             ta, tb = tasks_a[tid], tasks_b[tid]
             per_task_diff.append({
                 "task_id": tid,
@@ -2529,7 +2529,7 @@ def get_comparison(
 # ---------------------------------------------------------------------------
 
 def _percentile(sorted_vals: List[float], p: float) -> Optional[float]:
-    """정렬된 리스트에서 p번째 백분위수를 반환한다 (0 < p <= 100)."""
+    """Return the p-th percentile from a sorted list (0 < p <= 100)."""
     if not sorted_vals:
         return None
     try:
@@ -2544,9 +2544,9 @@ def _percentile(sorted_vals: List[float], p: float) -> Optional[float]:
         return round(sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac, 4)
 
 
-@router.get("/results/{file_id}/latency-percentiles", summary="지연 시간 퍼센타일")
+@router.get("/results/{file_id}/latency-percentiles", summary="Latency percentiles")
 def get_latency_percentiles(file_id: str, request: Request) -> Dict[str, Any]:
-    """P50/P75/P95/P99 레이턴시 퍼센타일 및 태스크 타입별 분석 (L).
+    """P50/P75/P95/P99 latency percentiles and per-task-type analysis (L).
 
     Returns:
         file_id, count, p50, p75, p95, p99, min, max, mean, by_task_type
@@ -2603,11 +2603,11 @@ def get_latency_percentiles(file_id: str, request: Request) -> Dict[str, Any]:
 # M: 토큰 분석 엔드포인트
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/token-analytics", summary="토큰 사용 분석")
+@router.get("/results/{file_id}/token-analytics", summary="Token usage analysis")
 def get_token_analytics(file_id: str, request: Request) -> Dict[str, Any]:
-    """태스크 토큰 사용량 분석 — task_type / framework 별 집계 (M).
+    """Task token usage analysis — aggregate by task_type / framework (M).
 
-    tokens_used 가 int이면 total로, dict이면 input/output/total 키를 추출한다.
+    If tokens_used is an int it is treated as total; if dict, input/output/total keys are extracted.
 
     Returns:
         total_tokens, avg_tokens_per_task, by_task_type, by_framework
@@ -2679,28 +2679,28 @@ def get_token_analytics(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/security/events", summary="보안 이벤트 목록")
+@router.get("/security/events", summary="Security events list")
 def get_security_events(
     request: Request,
-    file_id: Optional[str] = Query(default=None, description="특정 결과 파일 ID로 필터"),
+    file_id: Optional[str] = Query(default=None, description="Filter by specific result file ID"),
     category: Optional[str] = Query(default=None, description="input_sanitization|output_leakage|tool_authorization|privilege_escalation|chain_attack"),
-    threats_only: bool = Query(default=False, description="위협이 탐지된 항목만 반환"),
+    threats_only: bool = Query(default=False, description="Return only items with threats detected"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> Dict[str, Any]:
-    """보안 이벤트 상세 목록 반환.
+    """Return detailed list of security events.
 
-    ``enable_security_metrics=True`` 또는 ``security_mode=True`` 로 기록된 데이터를
-    카테고리별로 조회한다.
+    Retrieves data recorded with ``enable_security_metrics=True`` or ``security_mode=True``,
+    organized by category.
 
     Args:
-        file_id: 특정 결과 파일만 조회 (생략 시 전체 파일 집계).
-        category: 조회할 보안 카테고리. 생략 시 모든 카테고리 포함.
-        threats_only: True 시 위협 탐지 이벤트만 반환.
-        skip / limit: 페이지네이션.
+        file_id: Query a specific result file only (omit for all-file aggregate).
+        category: Security category to query. Omit to include all categories.
+        threats_only: When True, return only events with threats detected.
+        skip / limit: pagination.
 
     Returns:
-        summary (카테고리별 집계), events (이벤트 목록), total.
+        summary (per-category aggregate), events (event list), total.
     """
     rs = _rs(request)
     files = [rs.by_id(file_id)] if file_id else getattr(rs, "files", [])

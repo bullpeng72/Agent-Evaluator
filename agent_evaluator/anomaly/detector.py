@@ -191,7 +191,7 @@ class AnomalyDetector:
             return [AnomalyEvent(
                 type="latency_trend",
                 severity=severity,
-                detail=f"P95 지연시간 {len(recent)}개 태스크 동안 지속 상승 (+{change_pct}%)",
+                detail=f"P95 latency rising for {len(recent)} tasks (+{change_pct}%)",
                 value=round(slope, 4),
                 threshold=_TREND_SLOPE_THRESHOLD,
                 algorithm="linear_regression",
@@ -218,7 +218,7 @@ class AnomalyDetector:
             return [AnomalyEvent(
                 type="accuracy_drift",
                 severity=severity,
-                detail=f"정확도 기준선 대비 -{round(drift * 100, 1)}% 이탈 (z-score={round(z_score, 2)})",
+                detail=f"Accuracy drifted -{round(drift * 100, 1)}% from baseline (z-score={round(z_score, 2)})",
                 value=round(recent_mean, 4),
                 threshold=round(base_mean, 4),
                 algorithm="z-score",
@@ -241,7 +241,7 @@ class AnomalyDetector:
             return [AnomalyEvent(
                 type="token_spike",
                 severity=severity,
-                detail=f"평균 토큰 사용량 기준선 대비 +{ratio}% 급증 (IQR 이상치)",
+                detail=f"Avg token usage spiked +{ratio}% above baseline (IQR outlier)",
                 value=round(recent_avg, 1),
                 threshold=round(upper_fence, 1),
                 algorithm="iqr",
@@ -255,7 +255,7 @@ class AnomalyDetector:
             return [AnomalyEvent(
                 type="error_surge",
                 severity=severity,
-                detail=f"오류율 {round(recent_rate * 100, 1)}% (기준선 {round(base_rate * 100, 1)}% 대비 급증)",
+                detail=f"Error rate {round(recent_rate * 100, 1)}% (surge vs baseline {round(base_rate * 100, 1)}%)",
                 value=round(recent_rate, 4),
                 threshold=_ERROR_SURGE_THRESHOLD,
                 algorithm="ratio",
@@ -277,13 +277,13 @@ class AnomalyDetector:
                 return [AnomalyEvent(
                     type="security_pattern",
                     severity=severity,
-                    detail=f"보안 위협 탐지율 {round(threat_rate * 100, 1)}% — 공격 패턴 의심",
+                    detail=f"Security threat detection rate {round(threat_rate * 100, 1)}% — possible attack pattern",
                     value=round(threat_rate, 4),
                     threshold=_SECURITY_SURGE_THRESHOLD,
                     algorithm="frequency",
                 )]
         except Exception as _e:
-            logger.debug("보안 이상 탐지 실패 (무시): %s", _e)
+            logger.debug("Security anomaly detection failed (ignored): %s", _e)
         return []
 
     def explain_event(self, event: "AnomalyEvent") -> Dict[str, Any]:
@@ -300,11 +300,11 @@ class AnomalyDetector:
         severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
 
         _suggestions = {
-            "latency_trend": "응답 시간이 증가 추세입니다. 캐싱, 병렬 처리, 또는 모델 경량화를 고려하세요.",
-            "accuracy_drift": "정확도가 하락했습니다. 프롬프트 개선이나 파인튜닝을 검토하세요.",
-            "token_spike": "토큰 사용량이 급증했습니다. 컨텍스트 길이를 줄이거나 요약 단계를 추가하세요.",
-            "error_surge": "오류율이 급증했습니다. 에이전트 안정성과 외부 서비스 연결을 점검하세요.",
-            "security_pattern": "보안 패턴이 탐지됐습니다. 입력 검증 강화와 감사 로그를 확인하세요.",
+            "latency_trend": "Response time is trending up. Consider caching, parallel processing, or a lighter model.",
+            "accuracy_drift": "Accuracy has dropped. Review prompt improvements or fine-tuning.",
+            "token_spike": "Token usage has spiked. Consider reducing context length or adding a summarization step.",
+            "error_surge": "Error rate has surged. Check agent stability and external service connections.",
+            "security_pattern": "Security pattern detected. Strengthen input validation and review audit logs.",
         }
 
         return {
@@ -314,10 +314,10 @@ class AnomalyDetector:
             "deviation_pct": round(deviation_pct, 2),
             "severity": severity,
             "explanation": (
-                f"{event.type} 값 {event.value:.4f}이 기준값 {event.threshold:.4f}에서 "
-                f"{deviation_pct:.1f}% 벗어났습니다. ({event.detail})"
+                f"{event.type} value {event.value:.4f} deviates {deviation_pct:.1f}% "
+                f"from threshold {event.threshold:.4f}. ({event.detail})"
             ),
-            "suggested_action": _suggestions.get(event.type, "해당 지표를 상세 분석하세요."),
+            "suggested_action": _suggestions.get(event.type, "Analyze this metric in detail."),
             "detected_at": event.detected_at,
         }
 

@@ -1,8 +1,8 @@
-"""멀티턴 대화 평가 API — Phase 1-C.
+"""Multi-turn conversation evaluation API — Phase 1-C.
 
-GET /api/conversation                        — 모든 파일의 대화 세션 요약 목록
-GET /api/conversation/{file_id}              — 특정 파일의 세션 집계 통계 + 목록
-GET /api/conversation/{file_id}/{session_id} — 특정 세션 turn-by-turn 상세
+GET /api/conversation                        — Summary list of conversation sessions across all files
+GET /api/conversation/{file_id}              — Session aggregate stats + list for a specific file
+GET /api/conversation/{file_id}/{session_id} — Turn-by-turn detail for a specific session
 """
 from __future__ import annotations
 from typing import Any, Dict, List
@@ -12,9 +12,9 @@ from agent_evaluator.serve.routers._utils import _rs
 
 router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
-@router.get("", summary="대화 세션 목록")
+@router.get("", summary="Conversation sessions list")
 def list_conversations(request: Request) -> List[Dict[str, Any]]:
-    """모든 파일의 대화 세션 요약 목록."""
+    """Summary list of conversation sessions across all files."""
     rs = _rs(request)
     result = []
     for f in rs.files:
@@ -28,16 +28,16 @@ def list_conversations(request: Request) -> List[Dict[str, Any]]:
             })
     return result
 
-@router.get("/{file_id}", summary="파일별 대화 세션")
+@router.get("/{file_id}", summary="Conversation sessions for a file")
 def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
-    """특정 파일의 대화 세션 상세."""
+    """Conversation session detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
         raise HTTPException(status_code=404, detail="File not found")
     sessions = getattr(rf, "conversation_sessions", [])
 
-    # 집계 통계
+    # Aggregate stats
     if sessions:
         n = len(sessions)
         avg_overall = sum(s.get("metrics", {}).get("overall_score", 0) for s in sessions) / n
@@ -66,13 +66,13 @@ def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/{file_id}/{session_id}", summary="대화 세션 상세")
+@router.get("/{file_id}/{session_id}", summary="Conversation session detail")
 def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[str, Any]:
-    """특정 세션의 turn-by-turn 상세 + 6개 지표 분석.
+    """Turn-by-turn detail + 6-metric analysis for a specific session.
 
     Returns:
-        session_id, turn_count, metrics (6개), turns (역할·내용·latency),
-        quality_summary (상위/하위 턴 분석)
+        session_id, turn_count, metrics (6 metrics), turns (role/content/latency),
+        quality_summary (top/bottom turn analysis)
     """
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -90,14 +90,14 @@ def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[
     metrics = session.get("metrics", {})
     turns: List[Dict[str, Any]] = session.get("turns", [])
 
-    # 상위/하위 턴 분석 (latency 기준)
+    # Top/bottom turn analysis (by latency)
     latencies = [t.get("latency", 0.0) for t in turns if t.get("latency") is not None]
     quality_summary: Dict[str, Any] = {}
     if latencies:
         quality_summary["avg_latency"] = round(sum(latencies) / len(latencies), 3)
         quality_summary["max_latency"] = round(max(latencies), 3)
         quality_summary["min_latency"] = round(min(latencies), 3)
-        # 가장 느린/빠른 턴 인덱스
+        # Slowest/fastest turn index
         quality_summary["slowest_turn"] = latencies.index(max(latencies))
         quality_summary["fastest_turn"] = latencies.index(min(latencies))
 

@@ -223,11 +223,11 @@ def _score_color(v: Any, hi: float = 70.0, lo: float = 50.0) -> str:
 
 def _build_css() -> str:
     return '''<!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent Evaluator — Harness Gate 리포트</title>
+<title>Agent Evaluator — Harness Gate Report</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;background:#f5f6fa;color:#1e2030}
@@ -306,8 +306,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 
 def _not_tested(reason: str = "") -> str:
     """데이터가 수집되지 않은 섹션에 표시하는 '테스트되지 않음' 배너."""
-    msg = reason or "해당 항목이 테스트되지 않았습니다."
-    return f'<div class="not-tested">🔍 <strong>미측정</strong>&nbsp;{msg}</div>'
+    msg = reason or "This item has not been tested."
+    return f'<div class="not-tested">🔍 <strong>Not Measured</strong>&nbsp;{msg}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +326,7 @@ def _build_scorecard(harness_groups: Dict[str, Any]) -> str:
         else:
             score = None
             gate_status = ""
-        badge_html = _gate_badge(gate_status) if gate_status else '<span style="font-size:11px;color:#9ca3af">미설정</span>'
+        badge_html = _gate_badge(gate_status) if gate_status else '<span style="font-size:11px;color:#9ca3af">Not Set</span>'
         bar_html = _gate_score_bar(score, key) if score is not None else ""
         cards.append(
             f'<div class="sc-card" style="border-top-color:{color}">'
@@ -354,9 +354,9 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     kpis = (
         f'<div class="kpi"><div class="kpi-lbl">TCR</div>'
         f'<div class="kpi-val" style="color:{_score_color(tcr)}">{_num(tcr, ".1f")}%</div></div>'
-        f'<div class="kpi"><div class="kpi-lbl">완전 성공률</div>'
+        f'<div class="kpi"><div class="kpi-lbl">Full Success Rate</div>'
         f'<div class="kpi-val" style="color:{_score_color(success_rate)}">{_num(success_rate, ".1f")}%</div></div>'
-        f'<div class="kpi"><div class="kpi-lbl">전체 정확도</div>'
+        f'<div class="kpi"><div class="kpi-lbl">Overall Accuracy</div>'
         f'<div class="kpi-val" style="color:{_score_color(acc)}">{_num(acc, ".1f")}%</div></div>'
     )
 
@@ -382,8 +382,8 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     type_table = ""
     if type_rows:
         type_table = (
-            f'<h3>task_type별 정확도</h3>'
-            f'<table class="mtable"><thead><tr><th>Task Type</th><th>정확도</th></tr></thead>'
+            f'<h3>Accuracy by Task Type</h3>'
+            f'<table class="mtable"><thead><tr><th>Task Type</th><th>Accuracy</th></tr></thead>'
             f'<tbody>{type_rows}</tbody></table>'
         )
 
@@ -393,20 +393,20 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
     if not _hall_measured:
         hall_html = (
-            f'<h3>환각 탐지</h3>'
-            + _not_tested("환각 탐지가 활성화되지 않았습니다 — "
-                          "<code>enable_hallucination_detection=True</code> 로 측정할 수 있습니다.")
+            f'<h3>Hallucination Detection</h3>'
+            + _not_tested("Hallucination detection is not enabled — "
+                          "measure it with <code>enable_hallucination_detection=True</code>.")
         )
     if _hall_measured:
         hall_rate = float(hallucination_data.get("overall_rate") or 0)
         hall_pct = hall_rate  # overall_rate is already a percentage (0–100 scale)
         hall_col = _score_color(100 - hall_pct)
         hall_html = (
-            f'<h3>환각 탐지</h3>'
+            f'<h3>Hallucination Detection</h3>'
             f'<div class="kpis">'
-            f'<div class="kpi"><div class="kpi-lbl">환각율</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Hallucination Rate</div>'
             f'<div class="kpi-val" style="color:{hall_col}">{hall_pct:.1f}%</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">안전율</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Safe Rate</div>'
             f'<div class="kpi-val" style="color:{_score_color(100 - hall_pct)}">{100 - hall_pct:.1f}%</div></div>'
             f'</div>'
         )
@@ -415,12 +415,12 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     details = harness_a.get("details") or {}
     harness_rows = ""
     fields = [
-        ("instruction_adherence", "지시 이행률"),
-        ("goal_alignment", "목표 정렬 점수"),
-        ("plan_coherence", "계획 일관성"),
-        ("subtask_completion", "하위 태스크 완료율"),
-        ("context_retention", "컨텍스트 유지율"),
-        ("knowledge_retention", "지식 보존·활용"),
+        ("instruction_adherence", "Instruction Adherence"),
+        ("goal_alignment", "Goal Alignment Score"),
+        ("plan_coherence", "Plan Coherence"),
+        ("subtask_completion", "Subtask Completion Rate"),
+        ("context_retention", "Context Retention Rate"),
+        ("knowledge_retention", "Knowledge Retention"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -429,15 +429,15 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness A 세부 지표</h3>'
+            f'<h3>Gate A Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — InstructionConfig · GoalAlignmentConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass InstructionConfig · GoalAlignmentConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-a" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate A &nbsp;<span style="font-size:14px;color:#374151">목표 달성 (Goal Achievement)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate A &nbsp;<span style="font-size:14px;color:#374151">Goal Achievement</span>&nbsp;{badge}</h2>'
         f'<div class="kpis">{kpis}</div>'
         f'{type_table}'
         f'{hall_html}'
@@ -459,14 +459,14 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
     tool_html = ""
     if not has_agentic:
         tool_html = (
-            f'<h3>도구 사용 분석</h3>'
-            + _not_tested("에이전틱 도구 사용 데이터가 없습니다 — "
-                          "<code>task_type=\"tool_use\"</code> 태스크를 실행하면 측정됩니다.")
+            f'<h3>Tool Usage Analysis</h3>'
+            + _not_tested("No agentic tool usage data — "
+                          "run tasks with <code>task_type=\"tool_use\"</code> to measure.")
         )
     elif not tool_selection_stats:
         tool_html = (
-            f'<h3>도구 사용 분석</h3>'
-            + _not_tested("도구 선택 데이터가 수집되지 않았습니다.")
+            f'<h3>Tool Usage Analysis</h3>'
+            + _not_tested("No tool selection data collected.")
         )
     if has_agentic and tool_selection_stats:
         f1 = tool_selection_stats.get("avg_f1")
@@ -481,32 +481,32 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
             )
         if eff is not None:
             kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">도구 효율성</div>'
+                f'<div class="kpi"><div class="kpi-lbl">Tool Efficiency</div>'
                 f'<div class="kpi-val" style="color:{_score_color(float(eff)*100)}">{_pct(eff)}</div></div>'
             )
         if redundancy is not None:
             kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">중복 호출률</div>'
+                f'<div class="kpi"><div class="kpi-lbl">Redundancy Rate</div>'
                 f'<div class="kpi-val" style="color:{_score_color(100 - float(redundancy)*100)}">{_pct(redundancy)}</div></div>'
             )
         if fail_rate is not None:
             kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">도구 실패율</div>'
+                f'<div class="kpi"><div class="kpi-lbl">Tool Failure Rate</div>'
                 f'<div class="kpi-val" style="color:{_score_color(100 - float(fail_rate)*100)}">{_pct(fail_rate)}</div></div>'
             )
         if kpi_parts:
-            tool_html = f'<h3>도구 사용 분석</h3><div class="kpis">{kpi_parts}</div>'
+            tool_html = f'<h3>Tool Usage Analysis</h3><div class="kpis">{kpi_parts}</div>'
 
     # Harness B detail
     details = harness_b.get("details") or {}
     harness_rows = ""
     fields = [
-        ("loop_detection_score", "루프 탐지율"),
-        ("scope_compliance", "범위 준수율"),
-        ("tool_param_safety", "도구 파라미터 안전성"),
-        ("context_window_efficiency", "컨텍스트 창 효율"),
-        ("state_consistency", "상태 일관성"),
-        ("deadlock_score", "교착 방지율"),
+        ("loop_detection_score", "Loop Detection Rate"),
+        ("scope_compliance", "Scope Compliance"),
+        ("tool_param_safety", "Tool Parameter Safety"),
+        ("context_window_efficiency", "Context Window Efficiency"),
+        ("state_consistency", "State Consistency"),
+        ("deadlock_score", "Deadlock Prevention Rate"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -515,15 +515,15 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness B 세부 지표</h3>'
+            f'<h3>Gate B Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — LoopDetectionConfig · ScopeConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass LoopDetectionConfig · ScopeConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-b" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate B &nbsp;<span style="font-size:14px;color:#374151">행동 무결성 (Behavioral Integrity)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate B &nbsp;<span style="font-size:14px;color:#374151">Behavioral Integrity</span>&nbsp;{badge}</h2>'
         f'{tool_html}'
         f'{harness_block}'
         f'</div>'
@@ -548,9 +548,9 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
     )
     if not _retry_measured:
         retry_html = (
-            f'<h3>재시도 / 복구</h3>'
-            + _not_tested("재시도 데이터가 수집되지 않았습니다 — "
-                          "재시도가 발생하지 않았거나 <code>RetryConfig</code> 가 설정되지 않았습니다.")
+            f'<h3>Retry / Recovery</h3>'
+            + _not_tested("No retry data collected — "
+                          "no retries occurred or <code>RetryConfig</code> is not set.")
         )
     if _retry_measured:
         retry_rate = retry_metrics.get("overall_retry_rate") or retry_metrics.get("retry_rate")
@@ -558,25 +558,25 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
         kpi_parts = ""
         if retry_rate is not None:
             kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">재시도율</div>'
+                f'<div class="kpi"><div class="kpi-lbl">Retry Rate</div>'
                 f'<div class="kpi-val">{_pct(retry_rate)}</div></div>'
             )
         if correction_rate is not None:
             kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">재시도 성공률</div>'
+                f'<div class="kpi"><div class="kpi-lbl">Retry Success Rate</div>'
                 f'<div class="kpi-val" style="color:{_score_color(float(correction_rate)*100)}">{_pct(correction_rate)}</div></div>'
             )
         if kpi_parts:
-            retry_html = f'<h3>재시도 / 복구</h3><div class="kpis">{kpi_parts}</div>'
+            retry_html = f'<h3>Retry / Recovery</h3><div class="kpis">{kpi_parts}</div>'
 
     details = harness_c.get("details") or {}
     harness_rows = ""
     fields = [
-        ("reproducibility", "재현성"),
-        ("fault_tolerance", "장애 허용률"),
-        ("graceful_degradation", "점진적 품질 하강"),
-        ("retry_consistency", "재시도 일관성"),
-        ("idempotency", "멱등성"),
+        ("reproducibility", "Reproducibility"),
+        ("fault_tolerance", "Fault Tolerance"),
+        ("graceful_degradation", "Graceful Degradation"),
+        ("retry_consistency", "Retry Consistency"),
+        ("idempotency", "Idempotency"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -585,15 +585,15 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness C 세부 지표</h3>'
+            f'<h3>Gate C Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — FaultToleranceConfig · ReproducibilityConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass FaultToleranceConfig · ReproducibilityConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-c" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate C &nbsp;<span style="font-size:14px;color:#374151">신뢰성 (Reliability)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate C &nbsp;<span style="font-size:14px;color:#374151">Reliability</span>&nbsp;{badge}</h2>'
         f'{retry_html}'
         f'{harness_block}'
         f'</div>'
@@ -620,7 +620,7 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
 
     lat_html = ""
     if not latency_stats:
-        lat_html = f'<h3>지연 분석</h3>' + _not_tested("지연 데이터가 수집되지 않았습니다.")
+        lat_html = f'<h3>Latency Analysis</h3>' + _not_tested("No latency data collected.")
     if latency_stats:
         lat_kpis = (
             f'<div class="kpi"><div class="kpi-lbl">Mean</div><div class="kpi-val">{_sec(latency_stats.get("mean"))}</div></div>'
@@ -629,15 +629,15 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
             f'<div class="kpi"><div class="kpi-lbl">P95</div><div class="kpi-val">{_sec(latency_stats.get("p95"))}</div></div>'
             f'<div class="kpi"><div class="kpi-lbl">P99</div><div class="kpi-val">{_sec(latency_stats.get("p99"))}</div></div>'
         )
-        lat_html = f'<h3>지연 분석</h3><div class="kpis">{lat_kpis}</div>'
+        lat_html = f'<h3>Latency Analysis</h3><div class="kpis">{lat_kpis}</div>'
 
     # Token & cost KPIs
     tok_html = ""
     if not token_stats:
         tok_html = (
-            f'<h3>토큰 &amp; 비용</h3>'
-            + _not_tested("토큰·비용 데이터가 수집되지 않았습니다 — "
-                          "토큰 수를 <code>TaskResult</code> 에 기록하면 측정됩니다.")
+            f'<h3>Tokens &amp; Cost</h3>'
+            + _not_tested("No token/cost data collected — "
+                          "record token counts in <code>TaskResult</code> to measure.")
         )
     if token_stats:
         def _cost(v):
@@ -653,25 +653,25 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
                 return "—"
 
         tok_kpis = (
-            f'<div class="kpi"><div class="kpi-lbl">총 토큰</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Total Tokens</div>'
             f'<div class="kpi-val">{int(token_stats.get("total_tokens") or 0):,}</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">평균 토큰/Task</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Avg Tokens/Task</div>'
             f'<div class="kpi-val">{_num(token_stats.get("avg_tokens_per_task"), ".0f")}</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">총 비용</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Total Cost</div>'
             f'<div class="kpi-val">{_cost(token_stats.get("total_cost"))}</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">비용/Task</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Cost/Task</div>'
             f'<div class="kpi-val">{_cost(token_stats.get("avg_cost_per_task"))}</div></div>'
         )
-        tok_html = f'<h3>토큰 & 비용</h3><div class="kpis">{tok_kpis}</div>'
+        tok_html = f'<h3>Tokens & Cost</h3><div class="kpis">{tok_kpis}</div>'
 
     details = harness_d.get("details") or {}
     harness_rows = ""
     fields = [
-        ("sla_compliance", "SLA 준수율"),
-        ("efficiency_score", "효율 점수"),
-        ("resource_budget_compliance", "리소스 예산 준수"),
-        ("ttft_variability", "TTFT 변동성"),
-        ("cost_predictability", "비용 예측가능성"),
+        ("sla_compliance", "SLA Compliance"),
+        ("efficiency_score", "Efficiency Score"),
+        ("resource_budget_compliance", "Resource Budget Compliance"),
+        ("ttft_variability", "TTFT Variability"),
+        ("cost_predictability", "Cost Predictability"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -680,15 +680,15 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness D 세부 지표</h3>'
+            f'<h3>Gate D Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — SLAConfig · EfficiencyConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass SLAConfig · EfficiencyConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-d" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">성능 계약 (Performance Contract)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">Performance Contract</span>&nbsp;{badge}</h2>'
         f'{lat_html}'
         f'{tok_html}'
         f'{harness_block}'
@@ -720,9 +720,9 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
     details = harness_e.get("details") or {}
     harness_rows = ""
     fields = [
-        ("threat_severity_score", "위협 심각도 점수"),
-        ("compliance_score", "규정 준수율"),
-        ("threat_response_score", "위협 대응 점수"),
+        ("threat_severity_score", "Threat Severity Score"),
+        ("compliance_score", "Compliance Rate"),
+        ("threat_response_score", "Threat Response Score"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -731,15 +731,15 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness E 세부 지표</h3>'
+            f'<h3>Gate E Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ThreatSeverityConfig · ComplianceConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ThreatSeverityConfig · ComplianceConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">보안 경계 (Security Boundary)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">Security Boundary</span>&nbsp;{badge}</h2>'
         f'{sec_html}'
         f'{harness_block}'
         f'</div>'
@@ -769,9 +769,9 @@ def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
     details = harness_e.get("details") or {}
     harness_rows = ""
     fields = [
-        ("threat_severity_score", "위협 심각도 점수"),
-        ("compliance_score", "규정 준수율"),
-        ("threat_response_score", "위협 대응 점수"),
+        ("threat_severity_score", "Threat Severity Score"),
+        ("compliance_score", "Compliance Rate"),
+        ("threat_response_score", "Threat Response Score"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -780,15 +780,15 @@ def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness E 세부 지표</h3>'
+            f'<h3>Gate E Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ThreatSeverityConfig · ComplianceConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ThreatSeverityConfig · ComplianceConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">보안 경계 (Security Boundary)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">Security Boundary</span>&nbsp;{badge}</h2>'
         f'{sec_html}'
         f'{harness_block}'
         f'</div>'
@@ -805,9 +805,9 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
         total_inp = input_sec.get("total_inputs_evaluated", 0)
         safe = 100 - threat_rate
         kpi_parts.append(
-            f'<div class="kpi"><div class="kpi-lbl">입력 보안 (L1)</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Input Security (L1)</div>'
             f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
-            f'<div style="font-size:10px;color:#6b7280">{total_inp}건 · 위협 {threat_rate:.1f}%</div></div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_inp} events · threats {threat_rate:.1f}%</div></div>'
         )
 
     if output_leak:
@@ -815,18 +815,18 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
         total_out = output_leak.get("total_outputs_evaluated", 0)
         safe = 100 - leak_rate
         kpi_parts.append(
-            f'<div class="kpi"><div class="kpi-lbl">출력 유출 방지 (L1)</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Output Leak Prevention (L1)</div>'
             f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
-            f'<div style="font-size:10px;color:#6b7280">{total_out}건 · 유출 {leak_rate:.1f}%</div></div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_out} events · leaks {leak_rate:.1f}%</div></div>'
         )
 
     if tool_auth:
         comply = float(tool_auth.get("compliance_rate") or 100)
         total_calls = tool_auth.get("total_tool_calls", 0)
         kpi_parts.append(
-            f'<div class="kpi"><div class="kpi-lbl">도구 권한 준수 (L1)</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Tool Authorization (L1)</div>'
             f'<div class="kpi-val" style="color:{_score_color(comply)}">{comply:.1f}%</div>'
-            f'<div style="font-size:10px;color:#6b7280">{total_calls}건 호출</div></div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_calls} calls</div></div>'
         )
 
     if priv_esc:
@@ -834,9 +834,9 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
         total_priv = priv_esc.get("total_evaluations", 0)
         safe = 100 - esc_rate
         kpi_parts.append(
-            f'<div class="kpi"><div class="kpi-lbl">권한 상승 방어 (L2)</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Privilege Escalation Defense (L2)</div>'
             f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
-            f'<div style="font-size:10px;color:#6b7280">{total_priv}건 · 탐지 {esc_rate:.1f}%</div></div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_priv} events · detected {esc_rate:.1f}%</div></div>'
         )
 
     if chain_atk:
@@ -844,18 +844,18 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
         total_chains = chain_atk.get("total_chains_analyzed", 0)
         safe = 100 - atk_rate
         kpi_parts.append(
-            f'<div class="kpi"><div class="kpi-lbl">공격 체인 탐지 (L2)</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Attack Chain Detection (L2)</div>'
             f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
-            f'<div style="font-size:10px;color:#6b7280">{total_chains}건 · 의심 {atk_rate:.1f}%</div></div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_chains} events · suspicious {atk_rate:.1f}%</div></div>'
         )
 
     if not kpi_parts:
         return (
-            f'<h3>보안 지표</h3>'
-            + _not_tested("보안 지표가 활성화되지 않았습니다 — "
-                          "<code>enable_security_metrics=True</code> 로 측정할 수 있습니다.")
+            f'<h3>Security Metrics</h3>'
+            + _not_tested("Security metrics are not enabled — "
+                          "measure them with <code>enable_security_metrics=True</code>.")
         )
-    return f'<h3>보안 지표</h3><div class="kpis">{"".join(kpi_parts)}</div>'
+    return f'<h3>Security Metrics</h3><div class="kpis">{"".join(kpi_parts)}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -871,9 +871,9 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
     coord_html = ""
     if not has_agentic:
         coord_html = (
-            f'<h3>협업 / 워크플로우</h3>'
-            + _not_tested("멀티에이전트 실행 데이터가 없습니다 — "
-                          "에이전트 협업 태스크가 실행되지 않았습니다.")
+            f'<h3>Coordination / Workflow</h3>'
+            + _not_tested("No multi-agent execution data — "
+                          "agent collaboration tasks have not run.")
         )
     if has_agentic:
         kpi_parts = []
@@ -881,7 +881,7 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
             coord_score = coordination_stats.get("avg_coordination_score") or coordination_stats.get("score")
             if coord_score is not None:
                 kpi_parts.append(
-                    f'<div class="kpi"><div class="kpi-lbl">협업 점수</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Coordination Score</div>'
                     f'<div class="kpi-val" style="color:{_score_color(float(coord_score)*100)}">'
                     f'{float(coord_score)*100:.1f}%</div></div>'
                 )
@@ -890,27 +890,27 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
             step_rate = workflow_stats.get("step_success_rate")
             if wf_rate is not None:
                 kpi_parts.append(
-                    f'<div class="kpi"><div class="kpi-lbl">워크플로우 성공률</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Workflow Success Rate</div>'
                     f'<div class="kpi-val" style="color:{_score_color(float(wf_rate)*100)}">'
                     f'{float(wf_rate)*100:.1f}%</div></div>'
                 )
             if step_rate is not None:
                 _step_pct = float(step_rate) if float(step_rate) > 1.0 else float(step_rate) * 100
                 kpi_parts.append(
-                    f'<div class="kpi"><div class="kpi-lbl">단계 성공률</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Step Success Rate</div>'
                     f'<div class="kpi-val" style="color:{_score_color(_step_pct)}">'
                     f'{_step_pct:.1f}%</div></div>'
                 )
         if kpi_parts:
-            coord_html = f'<h3>협업 / 워크플로우</h3><div class="kpis">{"".join(kpi_parts)}</div>'
+            coord_html = f'<h3>Coordination / Workflow</h3><div class="kpis">{"".join(kpi_parts)}</div>'
 
     details = harness_f.get("details") or {}
     harness_rows = ""
     fields = [
-        ("consensus_rate", "합의율"),
-        ("propagation_accuracy", "정보 전파 정확도"),
-        ("agent_role_compliance", "역할 준수율"),
-        ("conflict_resolution_rate", "충돌 해결률"),
+        ("consensus_rate", "Consensus Rate"),
+        ("propagation_accuracy", "Propagation Accuracy"),
+        ("agent_role_compliance", "Agent Role Compliance"),
+        ("conflict_resolution_rate", "Conflict Resolution Rate"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -919,15 +919,15 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness F 세부 지표</h3>'
+            f'<h3>Gate F Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ConsensusConfig · AgentRoleConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ConsensusConfig · AgentRoleConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-f" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate F &nbsp;<span style="font-size:14px;color:#374151">멀티에이전트 협업 (Multi-Agent Coordination)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate F &nbsp;<span style="font-size:14px;color:#374151">Multi-Agent Coordination</span>&nbsp;{badge}</h2>'
         f'{coord_html}'
         f'{harness_block}'
         f'</div>'
@@ -947,18 +947,18 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     quality_html = ""
     if not quality_metrics or quality_metrics.get("total_evaluated", 0) == 0:
         quality_html = (
-            f'<h3>응답 품질 (5차원)</h3>'
-            + _not_tested("응답 품질 평가 데이터가 수집되지 않았습니다.")
+            f'<h3>Response Quality (5 Dimensions)</h3>'
+            + _not_tested("No response quality evaluation data collected.")
         )
     if quality_metrics and quality_metrics.get("total_evaluated", 0) > 0:
         avg_score = quality_metrics.get("avg_total_score", 0)
         dim_scores = quality_metrics.get("dimension_scores", {})
         dimensions = [
-            ("relevance", "관련성"),
-            ("completeness", "완전성"),
-            ("accuracy", "정확성"),
-            ("clarity", "명확성"),
-            ("usefulness", "유용성"),
+            ("relevance", "Relevance"),
+            ("completeness", "Completeness"),
+            ("accuracy", "Accuracy"),
+            ("clarity", "Clarity"),
+            ("usefulness", "Usefulness"),
         ]
         rows = ""
         for dk, dlabel in dimensions:
@@ -973,16 +973,16 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                     f'</tr>'
                 )
         kpi_html = (
-            f'<div class="kpi"><div class="kpi-lbl">평균 품질 점수</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Avg Quality Score</div>'
             f'<div class="kpi-val" style="color:{_score_color(float(avg_score)/5*100,0.8,0.6)}">'
             f'{float(avg_score):.2f}/5</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">평가 건수</div>'
+            f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
             f'<div class="kpi-val">{quality_metrics.get("total_evaluated", 0)}</div></div>'
         )
         quality_html = (
-            f'<h3>응답 품질 (5차원)</h3>'
+            f'<h3>Response Quality (5 Dimensions)</h3>'
             f'<div class="kpis">{kpi_html}</div>'
-            f'<table class="mtable"><thead><tr><th>차원</th><th>평균</th></tr></thead>'
+            f'<table class="mtable"><thead><tr><th>Dimension</th><th>Avg</th></tr></thead>'
             f'<tbody>{rows}</tbody></table>'
         )
 
@@ -991,8 +991,8 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     if not llm_judge_data:
         judge_html = (
             f'<h3>LLM Judge</h3>'
-            + _not_tested("LLM Judge가 활성화되지 않았습니다 — "
-                          "<code>enable_llm_judge=True</code> 또는 <code>LLMJudgeConfig</code> 로 측정할 수 있습니다.")
+            + _not_tested("LLM Judge is not enabled — "
+                          "measure with <code>enable_llm_judge=True</code> or <code>LLMJudgeConfig</code>.")
         )
     if llm_judge_data:
         try:
@@ -1020,7 +1020,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
             if judged_count == 0:
                 judge_html = (
                     f'<h3>LLM Judge</h3>'
-                    + _not_tested("LLM Judge 채점 결과가 없습니다 — 샘플 비율(<code>judge_sample_rate</code>) 을 확인하세요.")
+                    + _not_tested("No LLM Judge results — check the sample rate (<code>judge_sample_rate</code>).")
                 )
             if judged_count > 0:
                 def _judge_val(v):
@@ -1032,31 +1032,31 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                     return f"{fv:.2f}/{scale}"
                 ov_100 = float(overall) * 10 if overall is not None and float(overall) <= 10 else float(overall or 0)
                 judge_kpis = (
-                    f'<div class="kpi"><div class="kpi-lbl">평가 건수</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
                     f'<div class="kpi-val">{judged_count}</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">종합 점수</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Overall Score</div>'
                     f'<div class="kpi-val" style="color:{_score_color(ov_100)}">'
                     f'{_judge_val(overall)}</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">완전성</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Completeness</div>'
                     f'<div class="kpi-val">{_judge_val(completeness)}</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">관련성</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Relevance</div>'
                     f'<div class="kpi-val">{_judge_val(relevance)}</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">사실 일관성</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Factual Consistency</div>'
                     f'<div class="kpi-val">{_judge_val(factual)}</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">Judge 모델</div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
                     f'<div class="kpi-val" style="font-size:11px">{model_name}</div></div>'
                 )
-                judge_html = f'<h3>LLM Judge (7차원)</h3><div class="kpis">{judge_kpis}</div>'
+                judge_html = f'<h3>LLM Judge (7 Dimensions)</h3><div class="kpis">{judge_kpis}</div>'
         except Exception:
             pass
 
     details = harness_g.get("details") or {}
     harness_rows = ""
     fields = [
-        ("explainability_score", "설명가능성"),
-        ("observability_score", "내부 상태 관측가능성"),
-        ("error_diagnosis_accuracy", "오류 진단 정확도"),
-        ("latency_attribution_score", "지연 원인 분석"),
+        ("explainability_score", "Explainability"),
+        ("observability_score", "Internal State Observability"),
+        ("error_diagnosis_accuracy", "Error Diagnosis Accuracy"),
+        ("latency_attribution_score", "Latency Attribution Analysis"),
     ]
     for fk, flabel in fields:
         v = details.get(fk)
@@ -1065,15 +1065,15 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     harness_block = ""
     if harness_rows:
         harness_block = (
-            f'<h3>Harness G 세부 지표</h3>'
+            f'<h3>Gate G Details</h3>'
             f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
         )
     elif not details:
-        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ExplainabilityConfig · ObservabilityConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ExplainabilityConfig · ObservabilityConfig to your decorator to enable detailed metrics.</div>'
 
     return (
         f'<div class="gate-section" id="gate-g" style="border-left-color:{color}">'
-        f'<h2 style="color:{color}">Gate G &nbsp;<span style="font-size:14px;color:#374151">관측가능성 (Observability)</span>&nbsp;{badge}</h2>'
+        f'<h2 style="color:{color}">Gate G &nbsp;<span style="font-size:14px;color:#374151">Observability</span>&nbsp;{badge}</h2>'
         f'{quality_html}'
         f'{judge_html}'
         f'{harness_block}'
@@ -1093,7 +1093,7 @@ def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
         return ""
 
     parts = ['<div class="gate-section" id="advanced" style="border-left-color:#6366f1">'
-             '<h2 style="color:#6366f1">고급 평가 (Advanced Metrics)</h2>']
+             '<h2 style="color:#6366f1">Advanced Metrics</h2>']
 
     # DeepEval
     if has_advanced and adv_metrics:
@@ -1120,7 +1120,7 @@ def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
         if rows:
             parts.append(
                 f'<h3>DeepEval</h3>'
-                f'<table class="mtable"><thead><tr><th>지표</th><th>평균</th><th>최솟값</th><th>최댓값</th></tr></thead>'
+                f'<table class="mtable"><thead><tr><th>Metric</th><th>Avg</th><th>Min</th><th>Max</th></tr></thead>'
                 f'<tbody>{rows}</tbody></table>'
             )
 
@@ -1143,13 +1143,13 @@ def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
                     f'<td style="padding:5px 10px;font-weight:600;color:{_score_color(avg_v*100,80,60)};border-bottom:1px solid #f3f4f6">{avg_v:.3f}</td>'
                     f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{min(vals):.2f}</td>'
                     f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{max(vals):.2f}</td>'
-                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{len(vals)}건</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{len(vals)}</td>'
                     f'</tr>'
                 )
         if rows:
             parts.append(
-                f'<h3>RAG 지표 (Ragas)</h3>'
-                f'<table class="mtable"><thead><tr><th>지표</th><th>평균</th><th>최솟값</th><th>최댓값</th><th>건수</th></tr></thead>'
+                f'<h3>RAG Metrics (Ragas)</h3>'
+                f'<table class="mtable"><thead><tr><th>Metric</th><th>Avg</th><th>Min</th><th>Max</th><th>Count</th></tr></thead>'
                 f'<tbody>{rows}</tbody></table>'
             )
 
@@ -1176,8 +1176,8 @@ def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
                 )
         if rows:
             parts.append(
-                f'<h3>멀티턴 대화 세션</h3>'
-                f'<table class="mtable"><thead><tr><th>Session ID</th><th>턴 수</th><th>종합 점수</th><th>컨텍스트 유지율</th></tr></thead>'
+                f'<h3>Multi-Turn Conversation Sessions</h3>'
+                f'<table class="mtable"><thead><tr><th>Session ID</th><th>Turns</th><th>Overall Score</th><th>Context Retention</th></tr></thead>'
                 f'<tbody>{rows}</tbody></table>'
             )
 
@@ -1196,13 +1196,13 @@ def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
 
     # Gate-based FAIL/WARN recommendations
     gate_labels = {
-        "A": ("목표 달성", "TCR·정확도·환각 지표를 개선하세요. InstructionConfig / GoalAlignmentConfig를 데코레이터에 추가하여 세부 추적을 활성화하세요."),
-        "B": ("행동 무결성", "루프 탐지·범위 준수 설정을 강화하세요. LoopDetectionConfig / ScopeConfig 파라미터를 조정하세요."),
-        "C": ("신뢰성", "재시도 정책과 장애 허용 메커니즘을 검토하세요. FaultToleranceConfig를 활성화하여 복구율을 측정하세요."),
-        "D": ("성능 계약", "SLA 임계값을 초과했습니다. SLAConfig로 응답시간 상한을 정의하고 P95 지연을 모니터링하세요."),
-        "E": ("보안 경계", "보안 위협이 탐지되었습니다. enable_security_metrics=True와 ThreatSeverityConfig를 활성화하세요."),
-        "F": ("멀티에이전트 협업", "에이전트 간 협업 점수가 낮습니다. ConsensusConfig / ConflictResolutionConfig를 추가하세요."),
-        "G": ("관측가능성", "설명가능성·관측가능성 지표를 강화하세요. ExplainabilityConfig / ObservabilityConfig를 활성화하세요."),
+        "A": ("Goal Achievement", "Improve TCR, accuracy, and hallucination metrics. Add InstructionConfig / GoalAlignmentConfig to your decorator to enable detailed tracking."),
+        "B": ("Behavioral Integrity", "Strengthen loop detection and scope compliance settings. Tune LoopDetectionConfig / ScopeConfig parameters."),
+        "C": ("Reliability", "Review retry policies and fault-tolerance mechanisms. Enable FaultToleranceConfig to measure recovery rate."),
+        "D": ("Performance Contract", "SLA threshold exceeded. Use SLAConfig to define response time limits and monitor P95 latency."),
+        "E": ("Security Boundary", "Security threats detected. Enable enable_security_metrics=True and ThreatSeverityConfig."),
+        "F": ("Multi-Agent Coordination", "Agent collaboration score is low. Add ConsensusConfig / ConflictResolutionConfig."),
+        "G": ("Observability", "Strengthen explainability and observability metrics. Enable ExplainabilityConfig / ObservabilityConfig."),
     }
     for key in "ABCDEFG":
         gdata = harness_groups.get(key, {})
@@ -1210,7 +1210,7 @@ def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
             continue
         gate_status = (gdata.get("gate") or gdata.get("status") or "").lower()
         if gate_status in ("fail", "warn"):
-            label, guide = gate_labels.get(key, (f"Gate {key}", "설정을 검토하세요."))
+            label, guide = gate_labels.get(key, (f"Gate {key}", "Review configuration."))
             priority_class = "priority-high" if gate_status == "fail" else "priority-medium"
             badge_cls = "badge-fail" if gate_status == "fail" else "badge-warn"
             badge_label = "FAIL" if gate_status == "fail" else "WARN"
@@ -1224,36 +1224,36 @@ def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
     # Native metric recommendations
     if tcr < 75:
         recs.append(
-            '<div class="rec priority-high"><strong>TCR 개선 필요</strong>'
-            '<p>작업 완료율이 75% 미만입니다. 에이전트 프롬프트를 개선하고 실패 케이스를 분석하세요.</p></div>'
+            '<div class="rec priority-high"><strong>TCR Improvement Needed</strong>'
+            '<p>Task completion rate is below 75%. Improve agent prompts and analyze failure cases.</p></div>'
         )
     if acc < 70:
         recs.append(
-            '<div class="rec priority-high"><strong>정확도 개선 필요</strong>'
-            '<p>정확도가 70% 미만입니다. RAG 컨텍스트 품질 또는 ground_truth 설정을 검토하세요.</p></div>'
+            '<div class="rec priority-high"><strong>Accuracy Improvement Needed</strong>'
+            '<p>Accuracy is below 70%. Review RAG context quality or ground_truth configuration.</p></div>'
         )
     if hall_rate > 0.2:
         recs.append(
-            '<div class="rec priority-high"><strong>환각 위험 높음</strong>'
-            '<p>환각율이 20%를 초과합니다. 사실 검증 로직을 강화하세요.</p></div>'
+            '<div class="rec priority-high"><strong>High Hallucination Risk</strong>'
+            '<p>Hallucination rate exceeds 20%. Strengthen fact-verification logic.</p></div>'
         )
     if latency > 5.0:
         recs.append(
-            '<div class="rec priority-medium"><strong>응답 지연 개선 필요</strong>'
-            '<p>평균 응답시간이 5초를 초과합니다. 병렬 처리 또는 캐싱을 검토하세요.</p></div>'
+            '<div class="rec priority-medium"><strong>Response Latency Improvement Needed</strong>'
+            '<p>Average response time exceeds 5s. Consider parallel processing or caching.</p></div>'
         )
 
     if not recs:
         recs.append(
             '<div class="rec" style="border-left-color:#10b981">'
-            '<strong style="color:#065f46">모든 지표 양호</strong>'
-            '<p>현재 설정에서 개선이 필요한 지표가 없습니다. 지속적인 모니터링을 유지하세요.</p>'
+            '<strong style="color:#065f46">All metrics healthy</strong>'
+            '<p>No metrics require improvement under the current configuration. Maintain continuous monitoring.</p>'
             '</div>'
         )
 
     return (
         '<div class="gate-section" id="recommendations" style="border-left-color:#6366f1">'
-        '<h2 style="color:#6366f1">개선 권장사항 (Recommendations)</h2>'
+        '<h2 style="color:#6366f1">Recommendations</h2>'
         + ''.join(recs)
         + '</div>'
     )
@@ -1288,12 +1288,12 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
 
     return (
         f'<div class="gate-section" id="conclusion" style="border-left-color:#374151">'
-        f'<h2 style="color:#374151">결론 및 다음 단계 (Conclusion)</h2>'
+        f'<h2 style="color:#374151">Conclusion</h2>'
         f'<div class="ibox ok">'
-        f'<p><strong>평가 등급:</strong> {grade}</p>'
-        f'<p><strong>총 태스크:</strong> {total_tasks}개</p>'
-        f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>정확도:</strong> {_num(acc, ".1f")}% | '
-        f'<strong>환각율:</strong> {hall_rate:.1f}%</p>'
+        f'<p><strong>Grade:</strong> {grade}</p>'
+        f'<p><strong>Total Tasks:</strong> {total_tasks}</p>'
+        f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>Accuracy:</strong> {_num(acc, ".1f")}% | '
+        f'<strong>Hallucination Rate:</strong> {hall_rate:.1f}%</p>'
         f'{"<p><strong>Harness Gate:</strong> " + str(pass_count) + "/" + str(total_active) + " PASS</p>" if total_active > 0 else ""}'
         f'</div>'
         f'<div class="footer">'
@@ -1328,15 +1328,15 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
     gate_badges_div = f'<div style="margin-top:10px">{gate_badges}</div>' if gate_badges else ""
     return (
         '<div class="rpt-header">'
-        '<h1>📊 Agent Evaluator — Harness Gate 리포트</h1>'
-        '<div class="sub">AI Agent 품질 평가 · Harness Gate A–G 중심 구조</div>'
+        '<h1>📊 Agent Evaluator — Harness Gate Report</h1>'
+        '<div class="sub">AI Agent Quality Evaluation · Harness Gate A–G Architecture</div>'
         f'<div class="meta">'
         f'<span>📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
-        f'<span>📋 {total_tasks}개 태스크</span>'
+        f'<span>📋 {total_tasks} tasks</span>'
         f'<span>🔖 v{_ver}</span>'
         f'<span>TCR: <strong>{_num(tcr, ".1f")}%</strong></span>'
-        f'<span>정확도: <strong>{_num(acc, ".1f")}%</strong></span>'
-        f'<span>지연: <strong>{_num(latency, ".2f")}s</strong></span>'
+        f'<span>Accuracy: <strong>{_num(acc, ".1f")}%</strong></span>'
+        f'<span>Latency: <strong>{_num(latency, ".2f")}s</strong></span>'
         f'</div>'
         f'{gate_badges_div}'
         f'</div>'

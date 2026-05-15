@@ -64,7 +64,7 @@ def _setup_offline_assets(app: FastAPI) -> None:
     _STATIC_DIR.mkdir(parents=True, exist_ok=True)
     missing = [name for name in _OFFLINE_ASSETS if not (_STATIC_DIR / name).exists()]
     if missing:
-        print(f"[offline] {len(missing)}개 CDN 에셋 다운로드 중...")
+        print(f"[offline] Downloading {len(missing)} CDN assets...")
         for name in missing:
             url = _OFFLINE_ASSETS[name]
             dest = _STATIC_DIR / name

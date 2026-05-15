@@ -286,9 +286,9 @@ def init_from_app(
         missing = [k for k in required_keys if not status.get(k)]
         if missing:
             msg = (
-                f"Agent Evaluator: 다음 환경 변수가 설정되지 않았습니다: "
+                f"Agent Evaluator: The following environment variables are not set: "
                 f"{', '.join(missing)}\n"
-                f"  'agent-eval init' 을 실행하거나 .env 파일을 확인하세요."
+                f"  Run 'agent-eval init' or check your .env file."
             )
             if raise_on_missing:
                 raise ConfigurationError(msg)

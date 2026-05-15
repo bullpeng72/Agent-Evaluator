@@ -547,7 +547,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 json.dump(data, _f, indent=2, ensure_ascii=False, default=str)
             os.replace(_tmp, filename)
         except Exception as e:
-            logger.error("save_results JSON 저장 실패: %s", e, exc_info=True)
+            logger.error("save_results JSON save failed: %s", e, exc_info=True)
             try:
                 os.unlink(_tmp)
             except OSError:

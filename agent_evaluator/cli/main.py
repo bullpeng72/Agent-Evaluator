@@ -82,7 +82,7 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def _format_usage(self, usage, actions, groups, prefix):  # type: ignore[override]
         if prefix is None:
-            prefix = f"{B}사용법{R}: " if _COLOR else "사용법: "
+            prefix = f"{B}Usage{R}: " if _COLOR else "Usage: "
         result = super()._format_usage(usage, actions, groups, prefix)
         if _COLOR:
             result = re.sub(r"\bagent-eval\b", f"{C}agent-eval{R}", result, count=1)
@@ -111,8 +111,8 @@ KEY_DEFS: List[Dict] = [
         "url":      "https://platform.openai.com/api-keys",
         "prefix":   "sk-",
         "companion": [
-            ("OPENAI_MODEL", "gpt-5-nano", "사용할 모델명"),
-            ("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto", "LLM Judge 기본 제공자 (auto / openai / anthropic)"),
+            ("OPENAI_MODEL", "gpt-5-nano", "Model name to use"),
+            ("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto", "LLM Judge provider (auto / openai / anthropic)"),
         ],
     },
     {
@@ -124,7 +124,7 @@ KEY_DEFS: List[Dict] = [
         "url":      "https://console.anthropic.com/settings/keys",
         "prefix":   "sk-ant-",
         "companion": [
-            ("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001", "사용할 Claude 모델명"),
+            ("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001", "Claude model name to use"),
         ],
     },
 ]
@@ -238,31 +238,31 @@ def _choose_save_location(detected: Optional[Path]) -> Optional[Path]:
     None 이면 저장하지 않는다.
     """
     print()
-    print(f"{B}어디에 저장할까요?{R}")
+    print(f"{B}Where do you want to save?{R}")
 
     options: List[Tuple[str, Optional[Path]]] = []
 
     if detected:
-        label = f"기존 파일에 추가/업데이트  {_dim(str(detected))}"
+        label = f"Update existing file       {_dim(str(detected))}"
         options.append((label, detected))
 
     cwd_env = Path.cwd() / ".env"
     if not detected or detected != cwd_env:
-        label = f"현재 디렉토리에 생성       {_dim(str(cwd_env))}"
+        label = f"Create in current directory {_dim(str(cwd_env))}"
         options.append((label, cwd_env))
 
     global_env = get_global_env_path()
-    label = f"전역 설정 파일             {_dim(str(global_env))}"
+    label = f"Global config file         {_dim(str(global_env))}"
     options.append((label, global_env))
 
-    options.append(("저장하지 않음  (환경 변수를 직접 설정)", None))
+    options.append(("Don't save  (set env vars manually)", None))
 
     for i, (label, _) in enumerate(options, 1):
         print(f"  [{i}] {label}")
 
     default = 1
     try:
-        raw = input(f"\n선택 [{default}]: ").strip()
+        raw = input(f"\nChoose [{default}]: ").strip()
         idx = int(raw) - 1 if raw else default - 1
         if not (0 <= idx < len(options)):
             raise ValueError
@@ -281,7 +281,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     """대화형 API 키 설정 마법사."""
 
     print()
-    print(_hdr(f"  Agent Evaluator v{__version__} — 설정 마법사  "))
+    print(_hdr(f"  Agent Evaluator v{__version__} — Setup Wizard  "))
     print(_dim("─" * 50))
 
     # .env 탐색
@@ -289,13 +289,13 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     global_env = get_global_env_path()
 
     if detected:
-        print(_info(f".env 발견: {detected}"))
+        print(_info(f".env found: {detected}"))
         load_env(detected)
     elif global_env.is_file():
-        print(_info(f"전역 설정 로드: {global_env}"))
+        print(_info(f"Global config loaded: {global_env}"))
         load_env()
     else:
-        print(_dim("  설정된 .env 파일이 없습니다. 새로 만들겠습니다."))
+        print(_dim("  No .env file found. A new one will be created."))
 
     print()
 
@@ -310,27 +310,27 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
         url       = key_def["url"]
         companions = key_def["companion"]
 
-        badge = f"{RD}필수{R}" if required else f"{D}선택{R}"
+        badge = f"{RD}required{R}" if required else f"{D}optional{R}"
         print(f"{B}[{step_num}/{len(KEY_DEFS)}] {label}{R}  {badge}")
-        print(f"  {_dim('용도:')} {used_for}")
-        print(f"  {_dim('발급:')} {url}")
+        print(f"  {_dim('Used for:')} {used_for}")
+        print(f"  {_dim('Get key:')} {url}")
 
         current_val, source = _current_value(env_var)
 
         if current_val:
-            print(f"  현재 값: {G}{_mask(current_val)}{R}  {_dim(f'({source})')}")
+            print(f"  Current value: {G}{_mask(current_val)}{R}  {_dim(f'({source})')}")
             try:
-                keep = input("  그대로 유지할까요? [Y/n]: ").strip().lower()
+                keep = input("  Keep existing? [Y/n]: ").strip().lower()
             except EOFError:
                 keep = "y"
             if keep not in ("n", "no"):
                 print()
                 continue
         else:
-            print(f"  현재 값: {_dim('설정 안 됨')}")
+            print(f"  Current value: {_dim('not set')}")
 
         # 새 값 입력
-        prompt = f"  {'API 키' if not required else '  API 키'} 입력 (빈칸=건너뜀): "
+        prompt = "  Enter API key (blank to skip): "
         try:
             new_val = getpass.getpass(prompt).strip()
         except (EOFError, getpass.GetPassWarning):
@@ -338,7 +338,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
 
         if new_val:
             to_save[env_var] = new_val
-            print(f"  {G}→ 저장 예정{R}  {_dim(_mask(new_val))}")
+            print(f"  {G}→ Will be saved{R}  {_dim(_mask(new_val))}")
 
             # companion 설정값 처리
             for comp_var, comp_default, comp_desc in companions:
@@ -346,7 +346,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
                 if comp_cur:
                     print(
                         f"  {_dim(comp_var)}: {_mask(comp_cur)}  {_dim(f'({comp_src})')} "
-                        f"— {_dim('유지')}"
+                        f"— {_dim('keep')}"
                     )
                 else:
                     try:
@@ -360,12 +360,12 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
         print()
 
     # 기타 설정 (AGENT_EVALUATOR_OUTPUT_DIR)
-    print(f"{B}[기타] 출력 디렉토리 설정{R}")
+    print(f"{B}[Other] Output Directory{R}")
     out_cur, out_src = _current_value("AGENT_EVALUATOR_OUTPUT_DIR")
     if out_cur:
-        print(f"  현재 값: {out_cur}  {_dim(f'({out_src})')}")
+        print(f"  Current value: {out_cur}  {_dim(f'({out_src})')}")
         try:
-            keep = input("  그대로 유지할까요? [Y/n]: ").strip().lower()
+            keep = input("  Keep existing? [Y/n]: ").strip().lower()
         except EOFError:
             keep = "y"
         if keep in ("n", "no"):
@@ -373,7 +373,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
 
     if not out_cur:
         try:
-            new_out = input("  결과 저장 경로 [./results]: ").strip()
+            new_out = input("  Results directory [./results]: ").strip()
         except EOFError:
             new_out = ""
         to_save["AGENT_EVALUATOR_OUTPUT_DIR"] = new_out or "./results"
@@ -381,7 +381,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     print()
 
     if not to_save:
-        print(_ok("변경 사항이 없습니다. 기존 설정을 사용합니다."))
+        print(_ok("No changes. Using existing configuration."))
         return 0
 
     # 저장 위치 결정
@@ -389,17 +389,17 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
 
     if save_path is None:
         print()
-        print(_warn("저장하지 않았습니다. 아래를 참고해 환경 변수를 직접 설정하세요:"))
+        print(_warn("Not saved. Set environment variables manually:"))
         for k, v in to_save.items():
             # 보안: API 키 값은 마스킹하여 출력 (터미널 스크롤백·로그 노출 방지)
-            print(f"  export {k}={_mask(v)}  {_dim('← 실제 값으로 교체하세요')}")
+            print(f"  export {k}={_mask(v)}  {_dim('← replace with actual value')}")
         return 0
 
     # 파일 쓰기
     _update_env_file(save_path, to_save)
 
     print()
-    print(_ok(f"설정이 저장되었습니다 → {save_path}"))
+    print(_ok(f"Configuration saved → {save_path}"))
     print()
 
     # 저장된 키에 따라 필요한 extra 설치 힌트
@@ -408,16 +408,16 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
         if kd["env"] in to_save and kd.get("extra") not in extras_needed:
             extras_needed.append(kd["extra"])
     if extras_needed:
-        print(_dim("  필요한 패키지 설치:"))
+        print(_dim("  Required packages:"))
         for extra in extras_needed:
             print(f"    {C}pip install 'agent-evaluator[{extra}]'{R}")
         print()
 
-    print(_dim("  라이브러리에서 자동 로드하려면:"))
+    print(_dim("  To auto-load from your library:"))
     print(f"    {C}from agent_evaluator.config import load_env{R}")
-    print(f"    {C}load_env()  # 혹은 dotenv_path=Path('...') 지정{R}")
+    print(f"    {C}load_env()  # or specify dotenv_path=Path('...'){R}")
     print()
-    print(_dim("  현재 프로젝트 .env 가 자동으로 인식됩니다. (CWD → 상위 탐색)"))
+    print(_dim("  The project .env is auto-detected. (CWD → parent directory search)"))
     return 0
 
 
@@ -441,13 +441,13 @@ def cmd_check(_args: argparse.Namespace) -> int:
             loaded_from = global_env
 
     print()
-    print(_hdr(f"  Agent Evaluator v{__version__} — 설정 상태  "))
+    print(_hdr(f"  Agent Evaluator v{__version__} — Configuration Status  "))
     print(_dim("─" * 50))
 
     if loaded_from:
-        print(_info(f".env 로드: {loaded_from}"))
+        print(_info(f"Loaded .env: {loaded_from}"))
     else:
-        print(_dim("  .env 파일 없음 (시스템 환경 변수만 사용)"))
+        print(_dim("  No .env file (using system environment variables only)"))
     print()
 
     # 존재하는 .env 파일들
@@ -459,14 +459,14 @@ def cmd_check(_args: argparse.Namespace) -> int:
         existing_files.append(global_env)
 
     if existing_files:
-        print(f"{B}발견된 .env 파일:{R}")
+        print(f"{B}Detected .env files:{R}")
         for p in existing_files:
             keys_in_file = list(_read_env_file(p).keys())
-            print(f"  {p}  {_dim(f'({len(keys_in_file)}개 키)')}")
+            print(f"  {p}  {_dim(f'({len(keys_in_file)} keys)')}")
         print()
 
     # API 키 상태
-    print(f"{B}API 키 상태:{R}")
+    print(f"{B}API Key Status:{R}")
     rows: List[Tuple[str, str, str, str]] = []
     for kd in KEY_DEFS:
         env_var = kd["env"]
@@ -475,9 +475,9 @@ def cmd_check(_args: argparse.Namespace) -> int:
         if val:
             status = f"{G}✅  {_mask(val)}{R}"
         elif kd["required"]:
-            status = f"{RD}❌  미설정 (필수){R}"
+            status = f"{RD}❌  not set (required){R}"
         else:
-            status = f"{D}⚪  미설정 (선택){R}"
+            status = f"{D}⚪  not set (optional){R}"
         rows.append((env_var, label, status, src))
 
     max_env = max(len(r[0]) for r in rows)
@@ -489,13 +489,13 @@ def cmd_check(_args: argparse.Namespace) -> int:
     print()
 
     # 기타 설정 (DEFAULTS 상수로 단일 출처 유지)
-    print(f"{B}기타 설정:{R}")
+    print(f"{B}Other Settings:{R}")
     for extra_var, desc in [
-        ("AGENT_EVALUATOR_OUTPUT_DIR", "결과 저장 경로"),
-        ("OPENAI_MODEL",               "OpenAI 모델"),
-        ("ANTHROPIC_MODEL",            "Claude 모델"),
-        ("LANGCHAIN_TRACING_V2",       "LangChain 트레이싱"),
-        ("LANGCHAIN_PROJECT",          "LangChain 프로젝트"),
+        ("AGENT_EVALUATOR_OUTPUT_DIR", "Results directory"),
+        ("OPENAI_MODEL",               "OpenAI model"),
+        ("ANTHROPIC_MODEL",            "Claude model"),
+        ("LANGCHAIN_TRACING_V2",       "LangChain tracing"),
+        ("LANGCHAIN_PROJECT",          "LangChain project"),
     ]:
         default_val = DEFAULTS.get(extra_var, "")
         val = os.getenv(extra_var, default_val)
@@ -503,11 +503,11 @@ def cmd_check(_args: argparse.Namespace) -> int:
 
     # 패키지 설치 상태
     print()
-    print(f"{B}패키지 상태:{R}")
+    print(f"{B}Package Status:{R}")
     _PKG_MAP = [
         ("openai",     "llm",        "@agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas"),
         ("anthropic",  "llm",        "@agent_eval(framework='anthropic') · LLMJudge"),
-        ("langchain",  "langchain",  "@agent_eval(framework='langchain') · LangChain 프레임워크 통합"),
+        ("langchain",  "langchain",  "@agent_eval(framework='langchain') · LangChain integration"),
         ("deepeval",   "eval",       "DeepEvalAdapter"),
         ("ragas",      "eval",       "RagasAdapter"),
     ]
@@ -516,10 +516,10 @@ def cmd_check(_args: argparse.Namespace) -> int:
             importlib.import_module(pkg)
             print(f"  {G}✅{R}  {pkg:12s}  {_dim(usage)}")
         except ImportError:
-            print(f"  {D}⚪{R}  {pkg:12s}  {_dim(f'미설치  →  pip install agent-evaluator[{extra}]')}")
+            print(f"  {D}⚪{R}  {pkg:12s}  {_dim(f'not installed  →  pip install agent-evaluator[{extra}]')}")
 
     print()
-    print(_dim("  'agent-eval init' 을 실행하면 누락된 키를 설정할 수 있습니다."))
+    print(_dim("  Run 'agent-eval init' to configure missing keys."))
     print()
     return 0
 
@@ -564,9 +564,9 @@ def _print_welcome() -> None:
         if _is_real_key(os.environ.get(env_var, "")):
             key_lines.append(f"  {G}✔{R}  {label}")
         elif required:
-            key_lines.append(f"  {RD}✘{R}  {label} {RD}(필수 — agent-eval init 으로 설정){R}")
+            key_lines.append(f"  {RD}✘{R}  {label} {RD}(required — run agent-eval init){R}")
         else:
-            key_lines.append(f"  {D}–{R}  {label} {D}(선택){R}")
+            key_lines.append(f"  {D}–{R}  {label} {D}(optional){R}")
 
     bar_filled = "█" * set_count
     bar_empty  = "░" * (total - set_count)
@@ -577,21 +577,21 @@ def _print_welcome() -> None:
     print(f"  {B}{C}Agent Evaluator{R}  {D}v{__version__}{R}")
     print(f"  {D}{'─' * 36}{R}")
     print()
-    print(f"  {B}API 키 현황{R}  {bar}  {set_count}/{total}")
+    print(f"  {B}API Key Status{R}  {bar}  {set_count}/{total}")
     for line in key_lines:
         print(line)
     print()
-    print(f"  {B}명령어{R}")
-    print(f"  {Y}init{R}       API 키 대화형 설정 마법사")
-    print(f"  {Y}check{R}      현재 설정 상태 출력")
-    print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
-    print(f"  {Y}monitor{R}    운영 실시간 모니터링  {D}(Phoenix + OTEL){R}")
-    print(f"  {Y}gate{R}       CI/CD 품질 게이팅  {D}(임계값 기준 통과/실패){R}")
-    print(f"  {Y}trend{R}      순차 평가 결과 추세 분석  {D}(TCR·정확도 회귀 감지){R}")
-    print(f"  {Y}dataset{R}    골든 데이터셋 관리  {D}(운영 결과 자동 추출){R}")
-    print(f"  {Y}--version{R}  버전 출력")
+    print(f"  {B}Commands{R}")
+    print(f"  {Y}init{R}       Interactive API key setup wizard")
+    print(f"  {Y}check{R}      Show current configuration status")
+    print(f"  {Y}dashboard{R}  Run the web dashboard  {D}(default port 8765){R}")
+    print(f"  {Y}monitor{R}    Live monitoring  {D}(Phoenix + OTEL){R}")
+    print(f"  {Y}gate{R}       CI/CD quality gating  {D}(pass/fail by threshold){R}")
+    print(f"  {Y}trend{R}      Sequential evaluation trend analysis  {D}(TCR·accuracy regression){R}")
+    print(f"  {Y}dataset{R}    Golden dataset management  {D}(auto-extract from results){R}")
+    print(f"  {Y}--version{R}  Show version")
     print()
-    print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
+    print(f"  {D}Full options: {R}{C}agent-eval --help{R}")
     print()
 
 
@@ -606,8 +606,8 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
         import uvicorn
     except ImportError:
         print(
-            f"{RD}❌  uvicorn 이 설치되지 않았습니다.{R}\n"
-            f"   pip install 'agent-evaluator[serve]' 로 설치하세요.",
+            f"{RD}❌  uvicorn is not installed.{R}\n"
+            f"   Install with: pip install 'agent-evaluator[serve]'",
             file=sys.stderr,
         )
         return 1
@@ -615,7 +615,7 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     try:
         from agent_evaluator.serve.server import create_app
     except ImportError as exc:
-        print(f"{RD}❌  서버 모듈 로드 실패: {exc}{R}", file=sys.stderr)
+        print(f"{RD}❌  Failed to load server module: {exc}{R}", file=sys.stderr)
         return 1
 
     raw_dir      = getattr(args, "results_dir", None)
@@ -640,7 +640,7 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
                 detected = get_evaluation_results_dir()
                 if detected.exists() and any(detected.rglob("*.json")):
                     results_dir = detected
-                    print(f"  {_dim(f'ℹ  결과 디렉토리 자동 감지: {results_dir}')}")
+                    print(f"  {_dim(f'ℹ  Results directory auto-detected: {results_dir}')}")
                 else:
                     results_dir = default_dir
             except Exception:
@@ -658,14 +658,14 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     print()
     print(f"  {B}Agent Evaluator Dev Dashboard{R} v{__version__}")
     print(f"  {'─' * 40}")
-    print(f"  📁  Results dir   : {results_dir}  ({n_files}개 파일 발견)")
+    print(f"  📁  Results dir   : {results_dir}  ({n_files} files found)")
     print(f"  🗂️   Dev Dashboard : {base_url}/dashboard")
-    print(f"  🌐  원본 대시보드  : {base_url}")
+    print(f"  🌐  Dashboard     : {base_url}")
     print(f"  📊  Slides        : {base_url}/slides")
     print(f"  📡  API docs      : {base_url}/api/docs")
     print(f"  🔄  Watch mode    : {'ON' if watch else 'OFF'}")
     print()
-    print(f"  {_dim('Ctrl+C 로 종료')}")
+    print(f"  {_dim('Press Ctrl+C to stop')}")
     print()
 
     app = create_app(
@@ -707,24 +707,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="agent-eval",
         description=(
-            f"{B}{C}Agent Evaluator CLI{R} — AI 에이전트 평가 프레임워크\n"
+            f"{B}{C}Agent Evaluator CLI{R} — AI agent evaluation framework\n"
             "\n"
-            "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
-            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행, CI/CD 게이팅,\n"
-            "골든 데이터셋 관리, Phoenix 실시간 모니터링, 추세 분석을 지원합니다."
+            "Manages the entire pipeline of collecting, saving, and visualizing evaluation results.\n"
+            "Supports API key setup, environment check, web dashboard, CI/CD gating,\n"
+            "golden dataset management, Phoenix live monitoring, and trend analysis."
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(
-            f"{B}명령어:{R}\n"
-            f"  {Y}init{R}         OpenAI·Anthropic API 키를 대화형으로 설정\n"
-            f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
-            f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
-            f"  {Y}gate{R}         CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정\n"
-            f"  {Y}trend{R}        순차 평가 결과 추세 분석 — TCR·정확도 회귀 감지\n"
-            f"  {Y}dataset{R}      운영 결과에서 골든 데이터셋 자동 추출\n"
-            f"  {Y}monitor{R}      Arize Phoenix 기동 + OTLP 스팬 수신 설정 (실시간 모니터링)\n"
+            f"{B}Commands:{R}\n"
+            f"  {Y}init{R}         Interactively configure OpenAI/Anthropic API keys\n"
+            f"  {Y}check{R}        Show API key and configuration status\n"
+            f"  {Y}dashboard{R}    Run the FastAPI web dashboard for evaluation results\n"
+            f"  {Y}gate{R}         CI/CD quality gating — pass/fail by threshold\n"
+            f"  {Y}trend{R}        Sequential evaluation trend analysis — TCR/accuracy regression\n"
+            f"  {Y}dataset{R}      Auto-extract golden datasets from production results\n"
+            f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
             "\n"
-            f"{B}예시:{R}\n"
+            f"{B}Examples:{R}\n"
             f"  {G}agent-eval init{R}\n"
             f"  {G}agent-eval check{R}\n"
             f"  {G}agent-eval dashboard{R}\n"
@@ -742,8 +742,8 @@ def main() -> None:
             f"  {G}agent-eval monitor --reset --yes{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
-            f"{B}더 자세한 도움말:{R}\n"
-            f"  {D}agent-eval <명령어> --help{R}"
+            f"{B}More help:{R}\n"
+            f"  {D}agent-eval <command> --help{R}"
         ),
     )
 
@@ -751,63 +751,63 @@ def main() -> None:
 
     sub.add_parser(
         "init",
-        help="대화형 API 키 설정 마법사",
+        help="Interactive API key setup wizard",
         description=(
-            "OpenAI, Anthropic API 키를\n"
-            "대화형으로 입력하고 .env 파일에 저장합니다.\n"
+            "Interactively enter OpenAI and Anthropic API keys\n"
+            "and save them to a .env file.\n"
             "\n"
-            f"{B}설정 항목:{R}\n"
-            f"  {C}OPENAI_API_KEY{R}              {D}(선택){R} @agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas\n"
-            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} @agent_eval(framework='anthropic') · Claude 평가\n"
-            f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
+            f"{B}Settings:{R}\n"
+            f"  {C}OPENAI_API_KEY{R}              {D}(optional){R} @agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas\n"
+            f"  {C}ANTHROPIC_API_KEY{R}           {D}(optional){R} @agent_eval(framework='anthropic') · Claude evaluation\n"
+            f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  Evaluation results directory {D}(default: ./results){R}\n"
             "\n"
-            f"{B}저장 위치:{R} 실행 시 대화형으로 선택합니다\n"
-            f"  • 탐지된 기존 .env 업데이트 {D}(존재하는 경우){R}\n"
-            f"  • 현재 디렉토리에 .env 생성\n"
-            f"  • 전역 설정 {D}(~/.agent-evaluator/.env — 모든 프로젝트에서 사용){R}\n"
-            f"  • 저장하지 않음 {D}(export 명령어 출력){R}\n"
+            f"{B}Save location:{R} chosen interactively at runtime\n"
+            f"  • Update detected existing .env {D}(if found){R}\n"
+            f"  • Create .env in current directory\n"
+            f"  • Global config {D}(~/.agent-evaluator/.env — used by all projects){R}\n"
+            f"  • Don't save {D}(print export commands){R}\n"
             "\n"
-            f"{B}로드 우선순위:{R}\n"
-            f"  시스템 환경변수 > 명시적 경로 > CWD 탐색 .env > ~/.agent-evaluator/.env"
+            f"{B}Load priority:{R}\n"
+            f"  system env > explicit path > CWD .env search > ~/.agent-evaluator/.env"
         ),
         formatter_class=ColoredHelpFormatter,
     )
     sub.add_parser(
         "check",
-        help="현재 설정 상태 확인",
+        help="Show current configuration status",
         description=(
-            "현재 환경에 설정된 API 키 및 설정값 상태를 출력합니다.\n"
+            "Show API key and configuration status for the current environment.\n"
             "\n"
-            f"{B}출력 항목:{R}\n"
-            f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R}\n"
-            f"  {Y}기타 설정{R}      {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
-            f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R},\n"
-            f"               {C}LANGCHAIN_PROJECT{R}\n"
-            f"  {Y}패키지 상태{R}    openai, anthropic, langchain, deepeval, ragas 설치 여부\n"
-            f"  {Y}.env 위치{R}      로드된 .env 파일 경로\n"
+            f"{B}Output includes:{R}\n"
+            f"  {Y}API key status{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R}\n"
+            f"  {Y}Other settings{R}    {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
+            f"                   {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R},\n"
+            f"                   {C}LANGCHAIN_PROJECT{R}\n"
+            f"  {Y}Package status{R}    openai, anthropic, langchain, deepeval, ragas installed\n"
+            f"  {Y}.env location{R}     path of loaded .env file\n"
             "\n"
-            f"{D}API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다.{R}"
+            f"{D}API keys are shown as the first 8 characters only (rest masked).{R}"
         ),
         formatter_class=ColoredHelpFormatter,
     )
     # dashboard subcommand
     dash_p = sub.add_parser(
         "dashboard",
-        help="평가 결과 시각화 웹 대시보드 실행 (기본 포트 8765)",
+        help="Run the evaluation results web dashboard (default port 8765)",
         formatter_class=ColoredHelpFormatter,
         description=(
-            "평가 결과를 시각화하는 FastAPI 웹 대시보드를 실행합니다.\n"
-            f"{D}pip install 'agent-evaluator[serve]' 필요{R}\n"
+            "Run the FastAPI web dashboard for visualizing evaluation results.\n"
+            f"{D}Requires: pip install 'agent-evaluator[serve]'{R}\n"
             "\n"
-            f"{B}접속 URL:{R}\n"
-            f"  {C}http://localhost:8765/dashboard{R}  Dev 대시보드 (메인, 브라우저 자동 오픈)\n"
-            f"  {C}http://localhost:8765{R}            원본 대시보드\n"
-            f"  {C}http://localhost:8765/slides{R}     슬라이드 뷰\n"
-            f"  {C}http://localhost:8765/sdk-docs{R}   SDK 문서\n"
+            f"{B}URLs:{R}\n"
+            f"  {C}http://localhost:8765/dashboard{R}  Dev dashboard (main, auto-opens browser)\n"
+            f"  {C}http://localhost:8765{R}            Dashboard\n"
+            f"  {C}http://localhost:8765/slides{R}     Slides view\n"
+            f"  {C}http://localhost:8765/sdk-docs{R}   SDK docs\n"
             f"  {C}http://localhost:8765/api/docs{R}   Swagger UI\n"
         ),
         epilog=(
-            f"{B}예시:{R}\n"
+            f"{B}Examples:{R}\n"
             f"  {G}agent-eval dashboard{R}\n"
             f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
             f"  {G}agent-eval dashboard ./results --watch{R}\n"
@@ -817,48 +817,48 @@ def main() -> None:
     )
     dash_p.add_argument(
         "results_dir", nargs="?", default="./results",
-        help="평가 결과 JSON 파일 디렉토리 (기본: ./results)",
+        help="Evaluation results JSON directory (default: ./results)",
     )
     dash_p.add_argument("--host",  default="127.0.0.1", metavar="HOST",
-                        help="바인딩 호스트 (기본: 127.0.0.1)")
+                        help="Bind host (default: 127.0.0.1)")
     dash_p.add_argument("--port",  default=8765, type=int, metavar="PORT",
-                        help="포트 번호 (기본: 8765)")
+                        help="Port number (default: 8765)")
     dash_p.add_argument("--open",  action="store_true", default=True,
-                        help="서버 시작 후 브라우저 자동 오픈 (기본값)")
+                        help="Auto-open browser after server starts (default)")
     dash_p.add_argument("--no-open", dest="open", action="store_false",
-                        help="브라우저 자동 오픈 비활성화")
+                        help="Disable auto-open browser")
     dash_p.add_argument("--watch", action="store_true",
-                        help="결과 파일 변경 감시 후 자동 갱신")
+                        help="Watch result files for changes and auto-refresh")
     dash_p.add_argument("--offline", action="store_true",
-                        help="CDN 에셋을 로컬에 캐시해 인터넷 없이 실행")
+                        help="Cache CDN assets locally for offline use")
     dash_p.add_argument("--title", default="Agent Evaluator — Dev Dashboard",
                         metavar="TITLE",
-                        help="대시보드 제목 (기본: 'Agent Evaluator — Dev Dashboard')")
+                        help="Dashboard title (default: 'Agent Evaluator — Dev Dashboard')")
 
     # gate subcommand
     gate_p = sub.add_parser(
         "gate",
-        help="CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정",
+        help="CI/CD quality gating — pass/fail by threshold",
         formatter_class=ColoredHelpFormatter,
         description=(
-            "평가 결과 JSON 파일을 읽어 임계값 기준으로 통과/실패를 판정합니다.\n"
-            "CI/CD 파이프라인(GitHub Actions, GitLab CI 등)에 연동해 품질 게이트로 사용합니다.\n"
+            "Read evaluation result JSON and determine pass/fail by threshold.\n"
+            "Use as a quality gate in CI/CD pipelines (GitHub Actions, GitLab CI, etc.).\n"
             "\n"
-            f"{B}지원 지표:{R}\n"
-            f"  {Y}--tcr{R}               Task Completion Rate — 태스크 완료율 (%%)\n"
-            f"  {Y}--accuracy{R}          정확도 (%%)\n"
-            f"  {Y}--p95-latency{R}       P95 지연시간 상한 (초)\n"
-            f"  {Y}--hallucination{R}     환각 탐지율 상한 (%%)\n"
-            f"  {Y}--llm-judge{R}         LLM Judge 종합 점수 하한 (0–5)\n"
-            f"  {Y}--fail-on-regression{R} 기준선 대비 허용 회귀 폭 (%%)\n"
+            f"{B}Supported metrics:{R}\n"
+            f"  {Y}--tcr{R}               Task Completion Rate (%%)\n"
+            f"  {Y}--accuracy{R}          Accuracy (%%)\n"
+            f"  {Y}--p95-latency{R}       P95 latency upper bound (seconds)\n"
+            f"  {Y}--hallucination{R}     Hallucination rate upper bound (%%)\n"
+            f"  {Y}--llm-judge{R}         LLM Judge overall score lower bound (0–5)\n"
+            f"  {Y}--fail-on-regression{R} Allowed regression vs baseline (%%)\n"
         ),
         epilog=(
-            f"{B}종료 코드:{R}\n"
-            f"  {G}0{R}  모든 기준 통과\n"
-            f"  {RD}1{R}  임계값 기준 미달\n"
-            f"  {RD}2{R}  이전 버전 대비 회귀 감지 (--fail-on-regression 사용 시)\n"
+            f"{B}Exit codes:{R}\n"
+            f"  {G}0{R}  All criteria passed\n"
+            f"  {RD}1{R}  Below threshold\n"
+            f"  {RD}2{R}  Regression detected vs previous version (when --fail-on-regression used)\n"
             "\n"
-            f"{B}예시:{R}\n"
+            f"{B}Examples:{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70 --p95-latency 3.0{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
@@ -866,65 +866,65 @@ def main() -> None:
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --junit-xml test-results.xml{R}\n"
         ),
     )
-    gate_p.add_argument("result_file", help="평가 결과 JSON 파일 경로")
-    gate_p.add_argument("--tcr", type=float, metavar="PCT", help="최소 TCR (%%)")
-    gate_p.add_argument("--accuracy", type=float, metavar="PCT", help="최소 정확도 (%%)")
+    gate_p.add_argument("result_file", help="Evaluation result JSON file path")
+    gate_p.add_argument("--tcr", type=float, metavar="PCT", help="Minimum TCR (%%)")
+    gate_p.add_argument("--accuracy", type=float, metavar="PCT", help="Minimum accuracy (%%)")
     gate_p.add_argument(
         "--p95-latency", type=float, metavar="SEC", dest="p95_latency",
-        help="최대 P95 지연시간 (초)",
+        help="Maximum P95 latency (seconds)",
     )
     gate_p.add_argument(
         "--hallucination", type=float, metavar="PCT",
-        help="최대 환각 탐지율 (%%)",
+        help="Maximum hallucination rate (%%)",
     )
     gate_p.add_argument(
         "--llm-judge", type=float, metavar="SCORE", dest="llm_judge",
-        help="최소 LLM Judge 종합 점수 (0–5)",
+        help="Minimum LLM Judge overall score (0–5)",
     )
     gate_p.add_argument(
         "--fail-on-regression", type=float, metavar="PCT", dest="fail_on_regression",
-        help="기준선 대비 허용 회귀 비율 (%%) — 이보다 나빠지면 종료 코드 2 반환",
+        help="Allowed regression vs baseline (%%) — returns exit code 2 if exceeded",
     )
     gate_p.add_argument(
         "--baseline", metavar="PATH",
-        help="기준선 파일 경로 (기본: <result_dir>/baseline.json)",
+        help="Baseline file path (default: <result_dir>/baseline.json)",
     )
     gate_p.add_argument(
         "--save-baseline", action="store_true", dest="save_baseline",
-        help="현재 결과를 기준선으로 저장",
+        help="Save current results as baseline",
     )
     gate_p.add_argument(
         "--junit-xml", metavar="PATH", dest="junit_xml",
-        help="JUnit XML 출력 경로 (CI 시스템 연동)",
+        help="JUnit XML output path (for CI system integration)",
     )
     gate_p.add_argument(
         "--min-gate-score", type=float, metavar="SCORE", dest="min_gate_score",
         help=(
-            "Harness Gate A–G 복합 점수 하한 (0.0–1.0). "
-            "지정 시 그룹 가중 평균이 이 값 미만이면 실패 처리."
+            "Harness Gate A–G composite score lower bound (0.0–1.0). "
+            "Fails if weighted group average falls below this value."
         ),
     )
     gate_p.add_argument(
         "--group-weights", metavar="WEIGHTS", dest="group_weights",
         help=(
-            "Gate 그룹별 가중치 (기본: 모두 1.0). "
-            "형식: 'A:2.0,B:1.5,E:3.0'. "
-            "--min-gate-score 와 함께 사용."
+            "Per-gate group weights (default: all 1.0). "
+            "Format: 'A:2.0,B:1.5,E:3.0'. "
+            "Used with --min-gate-score."
         ),
     )
 
     # dataset subcommand
     ds_p = sub.add_parser(
         "dataset",
-        help="골든 데이터셋 관리 (build — 운영 결과에서 자동 추출)",
+        help="Golden dataset management (build — auto-extract from results)",
         formatter_class=ColoredHelpFormatter,
         description=(
-            "골든 데이터셋을 관리합니다.\n"
-            "운영 평가 결과에서 고품질 케이스를 자동 추출해 회귀 테스트 소재로 활용합니다.\n"
-            f"{D}Phoenix 업로드는 'agent-eval monitor --sync-datasets' 를 사용하세요.{R}\n"
+            "Manage golden datasets.\n"
+            "Auto-extract high-quality cases from production results for regression testing.\n"
+            f"{D}For Phoenix upload use 'agent-eval monitor --sync-datasets'.{R}\n"
         ),
         epilog=(
-            f"{B}예시:{R}\n"
+            f"{B}Examples:{R}\n"
             f"  {G}agent-eval dataset build{R}\n"
             f"  {G}agent-eval dataset build --source results/ --strategy failure_cases edge_cases{R}\n"
             f"  {G}agent-eval dataset build --max-cases 30 --output data/golden_datasets/{R}\n"
@@ -934,19 +934,19 @@ def main() -> None:
 
     build_p = ds_sub.add_parser(
         "build",
-        help="운영 결과 파일에서 골든셋 후보 자동 추출",
+        help="Auto-extract golden dataset candidates from result files",
         formatter_class=ColoredHelpFormatter,
         description=(
-            "운영 평가 결과 JSON 파일에서 골든 데이터셋 후보를 자동으로 추출합니다.\n"
+            "Auto-extract golden dataset candidates from production evaluation result JSON files.\n"
             "\n"
-            f"{B}추출 전략 (--strategy){R}\n"
-            f"  {Y}failure_cases{R}  실패 태스크 → 회귀 테스트 소재 {D}(기본){R}\n"
-            f"  {Y}edge_cases{R}     이상치 (비정상 길이·특수문자 등) {D}(기본){R}\n"
-            f"  {Y}high_value{R}     긍정 피드백 높은 케이스\n"
-            f"  {Y}coverage_gap{R}   기존 골든셋 미커버 유형\n"
+            f"{B}Extraction strategies (--strategy){R}\n"
+            f"  {Y}failure_cases{R}  Failed tasks → regression test material {D}(default){R}\n"
+            f"  {Y}edge_cases{R}     Outliers (abnormal length, special chars, etc.) {D}(default){R}\n"
+            f"  {Y}high_value{R}     Cases with high positive feedback\n"
+            f"  {Y}coverage_gap{R}   Types not yet covered by existing golden set\n"
         ),
         epilog=(
-            f"{B}예시:{R}\n"
+            f"{B}Examples:{R}\n"
             f"  {G}agent-eval dataset build{R}\n"
             f"  {G}agent-eval dataset build --source results/ --strategy failure_cases high_value{R}\n"
             f"  {G}agent-eval dataset build --max-cases 30 --output data/golden_datasets/{R}\n"
@@ -955,29 +955,29 @@ def main() -> None:
     )
     build_p.add_argument(
         "--source", default="./results", metavar="DIR",
-        help="결과 JSON 파일 디렉토리 (기본: ./results)",
+        help="Results JSON directory (default: ./results)",
     )
     build_p.add_argument(
         "--output", default=None, metavar="DIR",
-        help="골든셋 출력 디렉토리 (기본: <source>/golden_datasets/)",
+        help="Golden set output directory (default: <source>/golden_datasets/)",
     )
     build_p.add_argument(
         "--strategy", nargs="+",
         default=["failure_cases", "edge_cases"],
         metavar="STRATEGY",
-        help="추출 전략 — 복수 지정 가능 (기본: failure_cases edge_cases). 위 설명 참조",
+        help="Extraction strategy — multiple values allowed (default: failure_cases edge_cases)",
     )
     build_p.add_argument(
         "--max-cases", type=int, default=50, dest="max_cases", metavar="N",
-        help="추출할 최대 케이스 수 (기본: 50)",
+        help="Maximum number of cases to extract (default: 50)",
     )
     build_p.add_argument(
         "--no-review", action="store_true", dest="no_review",
-        help="사람 검토 없이 바로 저장 (기본: 검토 필요 플래그 포함)",
+        help="Save immediately without human review (default: includes review-needed flag)",
     )
     build_p.add_argument(
         "--name", default=None, metavar="FILENAME",
-        help="저장 파일 이름 (기본: candidates_YYYYMMDD_HHMMSS.json)",
+        help="Output filename (default: candidates_YYYYMMDD_HHMMSS.json)",
     )
 
     # monitor subcommand
@@ -988,7 +988,7 @@ def main() -> None:
 
     parser.add_argument(
         "--version", action="store_true",
-        help="패키지 버전 출력",
+        help="Show package version",
     )
 
     args = parser.parse_args()

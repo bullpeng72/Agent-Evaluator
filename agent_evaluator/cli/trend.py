@@ -188,7 +188,7 @@ class RunTrendAnalyzer:
         """
         if not self.results_dir.is_dir():
             raise FileNotFoundError(
-                f"결과 디렉토리를 찾을 수 없습니다: {self.results_dir}"
+                f"Results directory not found: {self.results_dir}"
             )
 
         files = sorted(self.results_dir.glob(self.pattern))[-self.window :]
@@ -220,23 +220,23 @@ class RunTrendAnalyzer:
                 "tcr", "TCR", [r.tcr for r in runs], higher_is_better=True
             ),
             accuracy_trend=self._trend(
-                "accuracy", "정확도", [r.accuracy for r in runs], higher_is_better=True
+                "accuracy", "Accuracy", [r.accuracy for r in runs], higher_is_better=True
             ),
             latency_trend=self._trend(
                 "p95_latency",
-                "P95 지연시간",
+                "P95 Latency",
                 [r.p95_latency for r in runs],
                 higher_is_better=False,
             ),
             hallucination_trend=self._trend(
                 "hallucination",
-                "환각 탐지율",
+                "Hallucination Rate",
                 [r.hallucination for r in runs],
                 higher_is_better=False,
             ),
             cost_trend=self._trend(
                 "total_cost",
-                "총 비용",
+                "Total Cost",
                 [r.total_cost for r in runs],
                 higher_is_better=False,
             ),
@@ -314,9 +314,9 @@ def _direction_icon(direction: str) -> str:
 
 def _direction_label(direction: str) -> str:
     return {
-        "improving": f"{G}개선 중{R}",
-        "degrading": f"{RD}하락 중{R}",
-        "stable": f"{D}안정적{R}",
+        "improving": f"{G}improving{R}",
+        "degrading": f"{RD}degrading{R}",
+        "stable": f"{D}stable{R}",
     }.get(direction, direction)
 
 
@@ -346,14 +346,14 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
     print()
     print(f"  {_SEP}")
     print(f"  {B}Agent Evaluator — Run Trend Analysis{R}")
-    print(f"  디렉토리: {D}{report.results_dir}{R}")
-    print(f"  분석 파일: {report.window}개  패턴: {D}{report.pattern}{R}  slope 임계값: {D}±{slope_threshold}{R}")
+    print(f"  Directory: {D}{report.results_dir}{R}")
+    print(f"  Files analyzed: {report.window}  Pattern: {D}{report.pattern}{R}  slope threshold: {D}±{slope_threshold}{R}")
     print(f"  {_SEP}")
 
     # 파일 목록
     if report.runs:
         print()
-        print(f"  {B}분석된 실행 파일{R}")
+        print(f"  {B}Analyzed run files{R}")
         for i, run in enumerate(report.runs, 1):
             fname = Path(run.path).name
             parts = []
@@ -365,7 +365,7 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
                 parts.append(f"p95={run.p95_latency:.3f}s")
             if run.total_cost is not None:
                 parts.append(f"cost=${run.total_cost:.4f}")
-            summary = "  ".join(parts) if parts else f"{D}지표 없음{R}"
+            summary = "  ".join(parts) if parts else f"{D}no metrics{R}"
             print(f"  {D}{i:>2}.{R} {fname:<52} {D}{summary}{R}")
         print()
 
@@ -381,12 +381,12 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
 
     print(f"  {_SEP}")
     if not active:
-        print(f"\n  {D}유효 데이터 포인트가 부족합니다 (지표당 최소 3개 필요).{R}\n")
+        print(f"\n  {D}Not enough valid data points (minimum 3 per metric required).{R}\n")
         print(f"  {_SEP}\n")
         return
 
     print()
-    hdr = f"  {'지표':<18}  {'첫 값':>9}  {'마지막 값':>10}  {'slope/run':>10}  {'추세':<14}  포인트"
+    hdr = f"  {'Metric':<18}  {'First':>9}  {'Last':>10}  {'slope/run':>10}  {'Trend':<14}  Points"
     print(hdr)
     print(f"  {'─' * 18}  {'─' * 9}  {'─' * 10}  {'─' * 10}  {'─' * 14}  ─────")
 
@@ -408,9 +408,9 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
     regressions = [t for t, _ in active if t.any_regression]
     print()
     if not regressions:
-        print(f"  {G}{B}✅ 회귀 없음 — 모든 지표가 안정적이거나 개선 중입니다.{R}")
+        print(f"  {G}{B}✅ No regressions — all metrics are stable or improving.{R}")
     else:
-        print(f"  {RD}{B}⚠  회귀 감지 ({len(regressions)}개 지표){R}")
+        print(f"  {RD}{B}⚠  Regressions detected ({len(regressions)} metric(s)){R}")
         for t in regressions:
             unit = _METRIC_UNIT.get(t.metric, "")
             print(
@@ -419,7 +419,7 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
                 f"  (slope {t.slope:+.3f}{unit}/run)"
             )
         print()
-        print(f"  {D}→ --fail-on-regression 플래그로 CI 실패 처리가 가능합니다.{R}")
+        print(f"  {D}→ Use --fail-on-regression to fail the CI step on regression.{R}")
 
     print(f"  {_SEP}")
     print()
@@ -468,7 +468,7 @@ def cmd_trend(args: argparse.Namespace) -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
-        print(f"{D}JSON 저장: {args.output_json}{R}")
+        print(f"{D}JSON saved: {args.output_json}{R}")
 
     _print_report(report, args.slope_threshold)
 
@@ -488,21 +488,21 @@ def build_trend_subparser(sub: argparse._SubParsersAction) -> None:  # type: ign
 
     p = sub.add_parser(
         "trend",
-        help="순차 평가 결과의 지표 추세 분석 (TCR·정확도 회귀 감지)",
+        help="Analyze metric trends across sequential evaluation runs (TCR/accuracy regression detection)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "결과 디렉토리의 JSON 파일을 시간순으로 읽어\n"
-            "TCR·정확도·P95 지연시간·환각률의 추세를 분석합니다.\n"
+            "Read JSON result files in a directory in chronological order and\n"
+            "analyze trends in TCR, accuracy, P95 latency, and hallucination rate.\n"
             "\n"
-            "각 지표의 선형 slope를 계산해 지속적 하락을 감지하고\n"
-            "--fail-on-regression 옵션으로 CI/CD 파이프라인을 중단할 수 있습니다.\n"
+            "Computes a linear slope per metric to detect sustained decline;\n"
+            "use --fail-on-regression to abort a CI/CD pipeline on regression.\n"
             "\n"
-            "종료 코드:\n"
-            "  0 — 회귀 없음\n"
-            "  1 — 회귀 감지 (--fail-on-regression 지정 시)\n"
+            "Exit codes:\n"
+            "  0 — no regression\n"
+            "  1 — regression detected (when --fail-on-regression is set)\n"
         ),
         epilog=(
-            "예시:\n"
+            "Examples:\n"
             "  agent-eval trend results/\n"
             "  agent-eval trend results/ --window 5\n"
             "  agent-eval trend results/ --fail-on-regression\n"
@@ -512,20 +512,20 @@ def build_trend_subparser(sub: argparse._SubParsersAction) -> None:  # type: ign
     )
     p.add_argument(
         "results_dir",
-        help="평가 결과 JSON 파일이 저장된 디렉토리",
+        help="Directory containing evaluation result JSON files",
     )
     p.add_argument(
         "--window", "-w",
         type=int,
         default=10,
         metavar="N",
-        help="분석할 최근 파일 수 (기본: 10)",
+        help="Number of most recent files to analyze (default: 10)",
     )
     p.add_argument(
         "--pattern",
         default="*.json",
         metavar="GLOB",
-        help="파일 이름 글로브 패턴 (기본: '*.json')",
+        help="Filename glob pattern (default: '*.json')",
     )
     p.add_argument(
         "--slope-threshold",
@@ -534,8 +534,8 @@ def build_trend_subparser(sub: argparse._SubParsersAction) -> None:  # type: ign
         dest="slope_threshold",
         metavar="FLOAT",
         help=(
-            "이 절댓값 미만의 slope는 'stable'로 판정 (기본: 0.3).\n"
-            "단위: %%/run (TCR·정확도·환각률), 초/run (지연시간)"
+            "Slopes below this absolute value are classified as 'stable' (default: 0.3).\n"
+            "Unit: %%/run (TCR·accuracy·hallucination), s/run (latency)"
         ),
     )
     p.add_argument(
@@ -543,12 +543,12 @@ def build_trend_subparser(sub: argparse._SubParsersAction) -> None:  # type: ign
         action="store_true",
         default=False,
         dest="fail_on_regression",
-        help="회귀 감지 시 종료 코드 1 반환 (CI/CD 실패 처리)",
+        help="Return exit code 1 on regression (CI/CD failure)",
     )
     p.add_argument(
         "--output-json",
         default=None,
         dest="output_json",
         metavar="PATH",
-        help="분석 결과를 JSON 파일로 저장",
+        help="Save analysis results to a JSON file",
     )

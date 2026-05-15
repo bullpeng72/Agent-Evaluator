@@ -22,15 +22,15 @@ def _result_set(request: Request):
     return request.app.state.result_set
 
 
-@router.get("/json/{file_id}", summary="JSON 내보내기")
+@router.get("/json/{file_id}", summary="JSON export")
 def export_json(file_id: str, request: Request):
-    """평가 결과 파일을 원본 JSON 형식으로 다운로드한다.
+    """Download the evaluation result file in raw JSON format.
 
-    추가 의존성 없음. ``Content-Disposition: attachment`` 헤더를 포함하므로
-    브라우저에서 파일명이 ``<file_id>.json``으로 자동 설정된다.
+    No extra dependencies required. Includes a ``Content-Disposition: attachment`` header
+    so the browser automatically saves the file as ``<file_id>.json``.
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     rs = _result_set(request)
     rf = rs.by_id(file_id)
@@ -44,16 +44,16 @@ def export_json(file_id: str, request: Request):
     )
 
 
-@router.get("/csv/{file_id}", summary="CSV 내보내기")
+@router.get("/csv/{file_id}", summary="CSV export")
 def export_csv(file_id: str, request: Request):
-    """평가 결과의 태스크 목록을 CSV 형식으로 다운로드한다.
+    """Download the task list from the evaluation result as CSV.
 
-    각 행은 태스크 1개를 나타내며, task_id · task_type · success · accuracy_score ·
-    execution_time · tokens · framework · harness Gate 점수(16컬럼) 등을 포함한다.
-    추가 의존성 없음.
+    Each row represents one task and includes task_id, task_type, success, accuracy_score,
+    execution_time, tokens, framework, harness Gate scores (16 columns), and more.
+    No extra dependencies required.
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     rs = _result_set(request)
     rf = rs.by_id(file_id)
@@ -141,16 +141,16 @@ def export_csv(file_id: str, request: Request):
     )
 
 
-@router.get("/parquet/{file_id}", summary="Parquet 내보내기")
+@router.get("/parquet/{file_id}", summary="Parquet export")
 def export_parquet(file_id: str, request: Request):
-    """태스크 결과를 Apache Parquet 형식으로 다운로드한다.
+    """Download task results in Apache Parquet format.
 
-    ``pyarrow`` 설치가 필요하다. 미설치 시 HTTP 409를 반환한다.
+    Requires ``pyarrow``. Returns HTTP 409 if not installed.
 
-    설치: ``pip install "agent-evaluator[export]"`` 또는 ``pip install pyarrow``
+    Install: ``pip install "agent-evaluator[export]"`` or ``pip install pyarrow``
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     try:
         import pyarrow as pa
@@ -158,7 +158,7 @@ def export_parquet(file_id: str, request: Request):
     except ImportError:
         raise HTTPException(
             status_code=409,
-            detail="pyarrow 미설치: pip install pyarrow",
+            detail="pyarrow not installed: pip install pyarrow",
         )
     rs = _result_set(request)
     rf = rs.by_id(file_id)
@@ -199,23 +199,23 @@ def export_parquet(file_id: str, request: Request):
     )
 
 
-@router.get("/excel/{file_id}", summary="Excel 내보내기")
+@router.get("/excel/{file_id}", summary="Excel export")
 def export_excel(file_id: str, request: Request):
-    """태스크 결과를 Excel (.xlsx) 형식으로 다운로드한다.
+    """Download task results in Excel (.xlsx) format.
 
-    ``openpyxl`` 설치가 필요하다. 미설치 시 HTTP 501을 반환한다.
+    Requires ``openpyxl``. Returns HTTP 501 if not installed.
 
-    설치: ``pip install "agent-evaluator[export]"`` 또는 ``pip install openpyxl``
+    Install: ``pip install "agent-evaluator[export]"`` or ``pip install openpyxl``
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     try:
         import openpyxl
     except ImportError:
         raise HTTPException(
             status_code=501,
-            detail="openpyxl 미설치: pip install openpyxl",
+            detail="openpyxl not installed: pip install openpyxl",
         )
 
     rs = _result_set(request)
@@ -287,15 +287,15 @@ def export_excel(file_id: str, request: Request):
     )
 
 
-@router.get("/html/{file_id}", summary="HTML 리포트 내보내기")
+@router.get("/html/{file_id}", summary="HTML report export")
 def export_html(file_id: str, request: Request):
-    """Harness Gate A–G 중심의 독립 HTML 리포트를 다운로드한다.
+    """Download a self-contained Harness Gate A–G HTML report.
 
-    단일 파일로 완결된 리포트이며 외부 CDN 의존성 없이 브라우저에서 직접 열 수 있다.
-    추가 의존성 없음.
+    A single-file report that can be opened directly in the browser without any external CDN dependency.
+    No extra dependencies required.
 
     Args:
-        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+        file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     rs = _result_set(request)
     rf = rs.by_id(file_id)

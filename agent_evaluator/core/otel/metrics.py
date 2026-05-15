@@ -74,9 +74,9 @@ class OTELMetrics:
                 else:  # gauge → up_down_counter
                     self._instruments[name] = meter.create_up_down_counter(name, description=desc)
 
-            logger.debug("OTELMetrics: 초기화 완료 (endpoint=%s)", endpoint)
+            logger.debug("OTELMetrics: initialized (endpoint=%s)", endpoint)
         except Exception as exc:
-            logger.warning("OTELMetrics: 초기화 실패, no-op 모드로 전환: %s", exc)
+            logger.warning("OTELMetrics: initialization failed, switching to no-op mode: %s", exc)
             self._enabled = False
 
     def record(
@@ -98,7 +98,7 @@ class OTELMetrics:
             self._instruments[name].record(value, attributes or {})
         except Exception as exc:
             # OTEL 오류가 평가 로직을 중단시키지 않도록 조용히 처리
-            logger.debug("OTELMetrics.record: 지표 기록 실패 (%s): %s", name, exc)
+            logger.debug("OTELMetrics.record: metric record failed (%s): %s", name, exc)
 
     @property
     def enabled(self) -> bool:

@@ -127,7 +127,7 @@ class PydanticAITokenExtractor:
                 return None
             return {"input": inp, "output": out, "total": inp + out}
         except Exception as e:
-            logger.debug("PydanticAITokenExtractor.extract 실패 (무시): %s", e)
+            logger.debug("PydanticAITokenExtractor.extract failed (ignored): %s", e)
             return None
 
 
@@ -254,7 +254,7 @@ class PydanticAIEvaluator:
             task_result = dataclasses.replace(task_result, **overrides)
             self.monitor.record_task(task_result)
         except Exception as e:
-            logger.debug("PydanticAIEvaluator: record_task 실패 (무시): %s", e)
+            logger.debug("PydanticAIEvaluator: record_task failed (ignored): %s", e)
 
         return response
 

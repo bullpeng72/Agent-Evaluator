@@ -159,7 +159,7 @@ class StreamingEvaluator:
             try:
                 self.alert_handler.evaluate(self)
             except Exception as _e:
-                logger.debug("알림 핸들러 평가 실패 (무시): %s", _e)
+                logger.debug("Alert handler evaluation failed (ignored): %s", _e)
 
     def get_stats(self, window: str = "5m") -> Dict[str, Any]:
         """슬라이딩 윈도우 통계 반환.
@@ -185,7 +185,7 @@ class StreamingEvaluator:
             try:
                 self._flush()
             except Exception as _e:
-                logger.debug("스트리밍 플러시 실패 (무시): %s", _e)
+                logger.debug("Streaming flush failed (ignored): %s", _e)
 
     def _flush(self) -> None:
         """슬라이딩 윈도우 현재 스냅샷을 PerformanceMonitor에 저장.

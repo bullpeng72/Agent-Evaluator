@@ -1199,7 +1199,7 @@ def parse_file(path: Path) -> ResultFile:
     try:
         raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as _parse_err:
-        logger.warning("parse_file: '%s' 파싱 실패 (빈 결과 반환): %s", path, _parse_err)
+        logger.warning("parse_file: '%s' parse failed (returning empty result): %s", path, _parse_err)
         raw = {}
 
     # Parse advanced first so we can reuse its rag_metrics for has_rag detection

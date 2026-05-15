@@ -207,13 +207,13 @@ def _resolve_default_model() -> str:
             if s.has_anthropic():
                 return s.anthropic_model
             if s.has_openai():
-                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic 이지만 Anthropic 키 없음 → OpenAI 폴백")
+                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic but Anthropic key missing → falling back to OpenAI")
                 return s.openai_model
         elif provider == "openai":
             if s.has_openai():
                 return s.openai_model
             if s.has_anthropic():
-                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=openai 이지만 OpenAI 키 없음 → Anthropic 폴백")
+                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=openai but OpenAI key missing → falling back to Anthropic")
                 return s.anthropic_model
         else:
             # auto: Anthropic 우선 (유효성 검증이 더 명확)
@@ -222,7 +222,7 @@ def _resolve_default_model() -> str:
             if s.has_openai():
                 return s.openai_model
     except Exception as _e:
-        logger.debug("설정에서 모델 이름 조회 실패 (무시): %s", _e)
+        logger.debug("Model name lookup from config failed (ignored): %s", _e)
     return "gpt-5-nano"
 
 
@@ -424,7 +424,7 @@ class LLMJudge:
         """
         self._consecutive_errors = 0
         self._disabled_reason = None
-        logger.info("LLMJudge: 오류 카운터 초기화 — judge 재활성화됨")
+        logger.info("LLMJudge: error counter reset — judge re-enabled")
 
     async def ajudge(
         self,
@@ -588,11 +588,11 @@ class LLMJudge:
             try:
                 body = e.read().decode("utf-8", errors="replace")[:200]
             except Exception as _e:
-                logger.debug("HTTP 오류 body 읽기 실패 (무시): %s", _e)
-            logger.warning("Phoenix Prompts API 오류 (HTTP %d): %s", e.code, body)
+                logger.debug("HTTP error body read failed (ignored): %s", _e)
+            logger.warning("Phoenix Prompts API error (HTTP %d): %s", e.code, body)
             return None
         except Exception as exc:
-            logger.debug("register_prompt_to_phoenix: 연결 실패: %s", exc)
+            logger.debug("register_prompt_to_phoenix: connection failed: %s", exc)
             return None
 
     # ------------------------------------------------------------------
@@ -610,7 +610,7 @@ class LLMJudge:
                 if saved_day == date.today():
                     return saved_day, float(data["spent"])
         except Exception as exc:
-            logger.debug("budget 상태 파일 로드 실패 (무시): %s", exc)
+            logger.debug("budget status file load failed (ignored): %s", exc)
         return date.today(), 0.0
 
     def _save_budget_state(self, spent: float) -> None:
@@ -624,7 +624,7 @@ class LLMJudge:
                 encoding="utf-8",
             )
         except Exception as exc:
-            logger.debug("budget 상태 파일 저장 실패 (무시): %s", exc)
+            logger.debug("budget status file save failed (ignored): %s", exc)
 
     def _check_budget(self) -> bool:
         """Return True if we are within the daily budget (or no budget set)."""

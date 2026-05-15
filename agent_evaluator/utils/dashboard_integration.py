@@ -128,13 +128,13 @@ def print_save_location_info(filepath: Path):
 
     # Check if it's in Dashboard storage
     if "Dashboard" in str(abs_path) and "data" in str(abs_path):
-        print(f"📁 Dashboard 저장소에 저장됨")
-        print(f"   경로: {abs_path}")
-        print(f"   💡 Dashboard에서 바로 확인 가능합니다!")
+        print(f"📁 Saved to Dashboard storage")
+        print(f"   Path: {abs_path}")
+        print(f"   💡 Viewable directly in the Dashboard!")
     else:
-        print(f"📁 로컬 디렉토리에 저장됨")
-        print(f"   경로: {abs_path}")
-        print(f"   💡 레지스트리를 통해 Dashboard에서 접근 가능합니다")
+        print(f"📁 Saved to local directory")
+        print(f"   Path: {abs_path}")
+        print(f"   💡 Accessible from Dashboard via registry")
 
 
 # Convenience function for examples
@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     print("\n1. Dashboard 사용 가능 여부:")
     available = is_dashboard_available()
-    print(f"   {'✅ 사용 가능' if available else '❌ 사용 불가'}")
+    print(f"   {'✅ Available' if available else '❌ Unavailable'}")
 
     if available:
         print("\n2. Dashboard 저장소 경로:")
@@ -203,9 +203,9 @@ if __name__ == "__main__":
 
     print("\n3. 저장 경로 테스트:")
     test_path = get_save_path("test_file.json", prefer_dashboard=True)
-    print(f"   Dashboard 우선: {test_path}")
+    print(f"   Dashboard-first: {test_path}")
 
     test_path_local = get_save_path("test_file.json", prefer_dashboard=False)
-    print(f"   로컬 우선: {test_path_local}")
+    print(f"   Local-first: {test_path_local}")
 
     print("\n" + "=" * 70)

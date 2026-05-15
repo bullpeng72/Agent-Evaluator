@@ -345,11 +345,11 @@ def _golden_dir(request: Request) -> Path:
     return d
 
 
-@router.get("", summary="골든 데이터셋 목록")
+@router.get("", summary="Golden dataset list")
 def list_golden(request: Request) -> List[Dict[str, Any]]:
-    """골든 데이터셋 디렉토리의 .json 파일 목록을 반환한다.
+    """Return the list of .json files in the golden dataset directory.
 
-    각 항목은 ``name`` · ``stem`` · ``size_bytes`` · ``count`` (QA 케이스 수)를 포함한다.
+    Each entry includes ``name``, ``stem``, ``size_bytes``, and ``count`` (number of QA cases).
     """
     gdir = _golden_dir(request)
     result = []
@@ -370,9 +370,9 @@ def list_golden(request: Request) -> List[Dict[str, Any]]:
 # NOTE: /{name} 파라미터 라우트보다 반드시 먼저 등록해야 함 (FastAPI 순서 매칭)
 # ---------------------------------------------------------------------------
 
-@router.get("/candidates", summary="골든셋 후보 목록")
+@router.get("/candidates", summary="Golden set candidate list")
 def list_candidates(request: Request) -> List[Dict[str, Any]]:
-    """*candidates*.json 파일 목록 반환 (prefix 무관하게 탐색)."""
+    """Return the list of *candidates*.json files (searched regardless of prefix)."""
     gdir = _golden_dir(request)
     result = []
     for p in sorted(gdir.glob("*candidates*.json"), reverse=True):
@@ -397,9 +397,9 @@ def list_candidates(request: Request) -> List[Dict[str, Any]]:
     return result
 
 
-@router.get("/candidates/{name}", summary="후보 파일 상세")
+@router.get("/candidates/{name}", summary="Candidate file detail")
 def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
-    """후보 파일의 케이스 목록 반환 (인덱스 포함)."""
+    """Return the case list from a candidate file (with index)."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
         if p.exists():
@@ -412,9 +412,9 @@ def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/approve/{idx}", summary="케이스 개별 승인")
+@router.post("/candidates/{name}/approve/{idx}", summary="Approve individual case")
 def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
-    """단일 케이스 승인 — _approved=True 플래그 설정."""
+    """Approve a single case — sets _approved=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
         if p.exists():
@@ -434,9 +434,9 @@ def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/reject/{idx}", summary="케이스 개별 거부")
+@router.post("/candidates/{name}/reject/{idx}", summary="Reject individual case")
 def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
-    """단일 케이스 거부 — _rejected=True 플래그 설정."""
+    """Reject a single case — sets _rejected=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
         if p.exists():
@@ -456,18 +456,18 @@ def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/bulk-approve", summary="케이스 일괄 승인")
+@router.post("/candidates/{name}/bulk-approve", summary="Bulk approve cases")
 def bulk_approve_cases(
     name: str,
     request: Request,
     min_accuracy: float = Query(default=0.0, ge=0.0, le=1.0),
     indices: Optional[List[int]] = Query(default=None),
 ) -> Dict[str, Any]:
-    """조건 기반 일괄 승인.
+    """Condition-based bulk approval.
 
-    - min_accuracy > 0이면 해당 점수 이상인 케이스만 승인.
-    - indices가 있으면 해당 인덱스만 승인.
-    - 둘 다 없으면 모두 승인.
+    - If min_accuracy > 0, only approve cases with that score or higher.
+    - If indices is provided, only approve those specific indices.
+    - If neither is specified, approve all cases.
 
     Returns:
         ok, approved_count, total, approved_indices
@@ -507,9 +507,9 @@ def bulk_approve_cases(
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/merge", summary="승인된 케이스 병합")
+@router.post("/candidates/{name}/merge", summary="Merge approved cases")
 def merge_approved(name: str, request: Request) -> Dict[str, Any]:
-    """승인된 케이스를 골든셋에 병합 — 새 golden_*.json 파일 생성."""
+    """Merge approved cases into the golden set — creates a new golden_*.json file."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
         if p.exists():
@@ -538,9 +538,9 @@ def merge_approved(name: str, request: Request) -> Dict[str, Any]:
 # 골든 데이터셋 CRUD — /{name} 파라미터 라우트는 고정 경로보다 반드시 뒤에 등록
 # ---------------------------------------------------------------------------
 
-@router.get("/versions", summary="골든셋 버전 목록")
+@router.get("/versions", summary="Golden set version list")
 def list_versions(request: Request) -> List[Dict[str, Any]]:
-    """golden_*.json 파일 버전 목록 (candidates 제외)."""
+    """Golden set version list of golden_*.json files (excludes candidates)."""
     gdir = _golden_dir(request)
     result = []
     for p in sorted(gdir.glob("golden_*.json"), reverse=True):
@@ -559,12 +559,12 @@ def list_versions(request: Request) -> List[Dict[str, Any]]:
     return result
 
 
-@router.post("", summary="골든 데이터셋 생성")
+@router.post("", summary="Create golden dataset")
 async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:
-    """새 골든 데이터셋 파일을 생성한다.
+    """Create a new golden dataset file.
 
-    ``body.name``으로 파일명을 지정하고 ``body.items`` 배열에 QA 케이스를 담아 전송한다.
-    동일 이름의 파일이 있으면 덮어쓴다.
+    Specify the filename via ``body.name`` and pass QA cases in the ``body.items`` array.
+    Overwrites any existing file with the same name.
     """
     gdir = _golden_dir(request)
     try:
@@ -576,12 +576,12 @@ async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, A
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{name}", summary="골든 데이터셋 상세")
+@router.get("/{name}", summary="Golden dataset detail")
 def get_golden(name: str, request: Request) -> Any:
-    """골든 데이터셋 파일의 전체 내용을 반환한다.
+    """Return the full contents of a golden dataset file.
 
     Args:
-        name: 파일 이름(확장자 포함 또는 생략 가능). 예: ``production_dataset`` 또는 ``production_dataset.json``.
+        name: File name (extension optional). E.g. ``production_dataset`` or ``production_dataset.json``.
     """
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -593,18 +593,18 @@ def get_golden(name: str, request: Request) -> Any:
     raise HTTPException(status_code=404, detail="Golden dataset not found")
 
 
-@router.put("/{name}", summary="골든 데이터셋 저장")
+@router.put("/{name}", summary="Save golden dataset")
 async def save_golden(
     name: str,
     request: Request,
-    body: Any = Body(..., description="골든 데이터셋 전체 내용 (list 또는 dict)"),
+    body: Any = Body(..., description="Full golden dataset content (list or dict)"),
 ) -> Dict[str, Any]:
-    """골든 데이터셋 파일을 덮어쓰기로 저장한다.
+    """Overwrite and save a golden dataset file.
 
-    대시보드에서 케이스를 편집한 뒤 전체 내용을 저장할 때 사용한다.
+    Used when saving the full contents after editing cases in the dashboard.
 
     Args:
-        name: 파일 이름(확장자 포함 또는 생략 가능).
+        name: File name (extension optional).
     """
     gdir = _golden_dir(request)
     fname = name if name.endswith(".json") else f"{name}.json"
@@ -616,14 +616,14 @@ async def save_golden(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{name}", summary="골든 데이터셋 삭제")
+@router.delete("/{name}", summary="Delete golden dataset")
 def delete_golden(name: str, request: Request) -> Dict[str, Any]:
-    """골든 데이터셋 파일을 삭제한다.
+    """Delete a golden dataset file.
 
-    경로 순회(path traversal) 공격을 방지하기 위해 name에 ``..``가 포함되면 400을 반환한다.
+    Returns 400 if ``..`` is found in name to prevent path traversal attacks.
 
     Args:
-        name: 삭제할 파일 이름(확장자 포함 또는 생략 가능).
+        name: File name to delete (extension optional).
     """
     gdir = _golden_dir(request).resolve()
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -637,7 +637,7 @@ def delete_golden(name: str, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Golden dataset not found")
 
 
-@router.post("/pdf", summary="PDF → QA 데이터셋 추출")
+@router.post("/pdf", summary="PDF → QA dataset extraction")
 async def extract_pdf(
     file: UploadFile = File(...),
     num_items: int = Form(default=10),
@@ -653,7 +653,7 @@ async def extract_pdf(
     - Accepts num_items to control how many QA pairs are returned
     """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="PDF 파일만 업로드 가능합니다.")
+        raise HTTPException(status_code=400, detail="Only PDF files can be uploaded.")
 
     content = await file.read()
 
@@ -681,8 +681,8 @@ async def extract_pdf(
         raise HTTPException(
             status_code=422,
             detail=(
-                "PDF에서 텍스트를 추출할 수 없습니다. "
-                "pip install 'agent-evaluator[all]' 로 pdfplumber를 설치하세요."
+                "Could not extract text from PDF. "
+                "Install pdfplumber with: pip install 'agent-evaluator[all]'."
             ),
         )
 
@@ -725,7 +725,7 @@ async def extract_pdf(
     if not all_passages:
         raise HTTPException(
             status_code=422,
-            detail="PDF에서 유효한 텍스트 단락을 추출할 수 없습니다. 텍스트 기반 PDF인지 확인하세요.",
+            detail="Could not extract valid text passages from PDF. Please verify it is a text-based PDF.",
         )
 
     # Uniform sampling across the entire document
@@ -756,7 +756,7 @@ async def extract_pdf(
     }
 
 
-@router.post("/pdf-advanced", summary="PDF → QA 데이터셋 생성 (AI 고품질 모드)")
+@router.post("/pdf-advanced", summary="PDF → QA dataset generation (AI high-quality mode)")
 async def generate_pdf_qa_advanced(
     file: UploadFile = File(...),
     openai_api_key: str = Form(default=""),
@@ -780,15 +780,15 @@ async def generate_pdf_qa_advanced(
         question_types: comma-separated types — factual, reasoning, summary
     """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="PDF 파일만 업로드 가능합니다.")
+        raise HTTPException(status_code=400, detail="Only PDF files can be uploaded.")
 
     api_key = openai_api_key.strip() or os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         raise HTTPException(
             status_code=422,
             detail=(
-                "OpenAI API 키가 필요합니다. "
-                "폼에 직접 입력하거나 OPENAI_API_KEY 환경변수를 설정하세요."
+                "OpenAI API key is required. "
+                "Enter it directly in the form or set the OPENAI_API_KEY environment variable."
             ),
         )
 
@@ -802,7 +802,7 @@ async def generate_pdf_qa_advanced(
                 KoreanRAGDatasetGenerator,
             )
         except ImportError as exc:
-            raise RuntimeError(f"datasets 모듈을 불러올 수 없습니다: {exc}")
+            raise RuntimeError(f"Failed to load datasets module: {exc}")
 
         tmp_dir = tempfile.mkdtemp(prefix="agent_eval_pdf_")
         try:
@@ -830,7 +830,7 @@ async def generate_pdf_qa_advanced(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"QA 생성 실패: {exc}")
+        raise HTTPException(status_code=500, detail=f"QA generation failed: {exc}")
 
     items = [
         {

@@ -42,7 +42,7 @@ class _MonitorHelpFormatter(argparse.RawDescriptionHelpFormatter):
 
     def _format_usage(self, usage, actions, groups, prefix):  # type: ignore[override]
         if prefix is None:
-            prefix = "사용법: "
+            prefix = "Usage: "
         return super()._format_usage(usage, actions, groups, prefix)
 
 
@@ -113,32 +113,31 @@ def _report_startup_failure(
     if _port_in_use(grpc_port, host):
         pids = _get_pids_on_port(grpc_port)
         pid_hint = f" (PID {pids[0]})" if pids else ""
-        print(f"  ❌  Phoenix 기동 실패 — gRPC 포트 {grpc_port} 충돌{pid_hint}")
-        print(f"     다른 Phoenix 인스턴스가 포트 {grpc_port}를 점유하고 있습니다.")
-        print(f"     해결:  kill $(lsof -ti :{grpc_port})  후 재실행")
-        print(f"     또는:  PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+        print(f"  ❌  Phoenix startup failed — gRPC port {grpc_port} conflict{pid_hint}")
+        print(f"     Another Phoenix instance is occupying port {grpc_port}.")
+        print(f"     Fix:  kill $(lsof -ti :{grpc_port})  then retry")
+        print(f"     Or:   PHOENIX_GRPC_PORT=4318 agent-eval monitor")
     elif returncode is not None:
-        print(f"  ❌  Phoenix 프로세스가 즉시 종료됐습니다 (exitcode={returncode}).")
-        # 출력에서 핵심 오류 줄 추출
+        print(f"  ❌  Phoenix process exited immediately (exitcode={returncode}).")
         error_lines = [
             ln.rstrip() for ln in output_lines
             if any(kw in ln for kw in ("Error", "ERROR", "Exception", "FAILED", "Failed"))
         ]
         if error_lines:
-            print("     오류 내용:")
+            print("     Error output:")
             for ln in error_lines[:5]:
                 print(f"       {ln.strip()}")
         else:
-            print("     직접 실행해 오류를 확인하세요:")
+            print("     Run directly to see the error:")
             print(f"       PHOENIX_PORT={ui_port} phoenix serve")
     else:
-        print(f"  ❌  Phoenix 서버 기동 시간 초과 (30초).")
-        print(f"     직접 실행해 오류를 확인하세요:")
+        print(f"  ❌  Phoenix server startup timed out (30s).")
+        print(f"     Run directly to see the error:")
         print(f"       PHOENIX_PORT={ui_port} phoenix serve")
         if _port_in_use(grpc_port, host):
             pids = _get_pids_on_port(grpc_port)
             pid_hint = f" (PID {pids[0]})" if pids else ""
-            print(f"     힌트: gRPC 포트 {grpc_port}가 사용 중{pid_hint}")
+            print(f"     Hint: gRPC port {grpc_port} is in use{pid_hint}")
     print()
 
 
@@ -164,29 +163,29 @@ def cmd_check_monitor() -> int:
     all_ok = True
 
     print()
-    print("  패키지 상태")
+    print("  Package Status")
     print("  " + "─" * 54)
     for pkg, installed in deps.items():
         if installed:
             suffix = f"  ({_phoenix_version()})" if pkg == "arize-phoenix" else ""
-            print(f"  ✅  {pkg:<50} 설치됨{suffix}")
+            print(f"  ✅  {pkg:<50} installed{suffix}")
         else:
-            print(f"  ❌  {pkg:<50} 미설치")
+            print(f"  ❌  {pkg:<50} not installed")
             all_ok = False
 
     print()
-    print("  포트 상태  (Phoenix 13.x: UI + OTLP HTTP 동일 포트)")
+    print("  Port Status  (Phoenix 13.x: UI + OTLP HTTP share the same port)")
     print("  " + "─" * 54)
     for port, label in [(6006, "Phoenix UI / OTLP HTTP"), (4317, "OTLP gRPC")]:
         in_use = _port_in_use(port)
         if in_use:
-            print(f"  ⚠️   포트 {port:<6} ({label}) — 사용 중 (다른 프로세스)")
+            print(f"  ⚠️   Port {port:<6} ({label}) — in use (another process)")
         else:
-            print(f"  ✅  포트 {port:<6} ({label}) — 사용 가능")
+            print(f"  ✅  Port {port:<6} ({label}) — available")
 
     if not all_ok:
         print()
-        print("  설치 명령어:")
+        print("  Install command:")
         print('  pip install "agent-evaluator[otel]"')
         print()
         return 1
@@ -219,23 +218,23 @@ def _print_connect_info(ui_url: str, otlp_url: str) -> None:
 
     print()
     print(top)
-    print(_row("  Agent Evaluator — 운영 모니터링"))
+    print(_row("  Agent Evaluator — Operations Monitoring"))
     print(sep)
     print(_row(f"  Phoenix UI      {ui_url}"))
     print(_row(f"  OTLP HTTP       {otlp_url}"))
     print(sep)
-    print(_row("  에이전트 코드에 아래를 추가하세요:"))
+    print(_row("  Add the following to your agent code:"))
     print(_row(""))
     print(_row("  from agent_evaluator import setup_otel"))
     print(_row(f'  setup_otel(endpoint="{otlp_url}")'))
     print(bot)
     print()
 
-    # Phoenix UI는 새 프로젝트를 자동 감지하지 않음 (Relay 클라이언트 한계).
-    # 브라우저 콘솔에 아래 스크립트를 붙여넣으면 5초마다 자동 새로고침.
-    print("  ── Phoenix Tracing 자동 새로고침 ──────────────────────────")
-    print("  새 프로젝트는 Phoenix UI에서 수동 새로고침 필요 (UI 한계).")
-    print("  브라우저 콘솔(F12 → Console)에 아래를 붙여넣으면 자동 적용:")
+    # Phoenix UI does not auto-detect new projects (Relay client limitation).
+    # Paste the script below in the browser console for 5-second auto-refresh.
+    print("  ── Phoenix Tracing Auto-Refresh ──────────────────────────")
+    print("  New projects require a manual refresh in Phoenix UI (UI limitation).")
+    print("  Paste the following into the browser console (F12 → Console):")
     print()
     print("  (()=>{let p='';setInterval(async()=>{const d=await")
     print(f"  fetch('{ui_url}/v1/projects').then(r=>r.json());")
@@ -259,14 +258,14 @@ def cmd_sync_datasets(args: argparse.Namespace) -> int:
     pattern = args.sync_datasets
     files = _glob.glob(pattern)
     if not files:
-        print(f"\n  ❌  파일을 찾을 수 없습니다: {pattern}\n")
+        print(f"\n  ❌  No files found: {pattern}\n")
         return 1
 
     phoenix_endpoint = f"http://{args.host}:{args.port}"
     builder = GoldenSetBuilder(source_dir=".", output_dir=".")
     success_count = 0
 
-    print(f"\n  Phoenix Datasets 업로드 — {phoenix_endpoint}\n")
+    print(f"\n  Phoenix Datasets upload — {phoenix_endpoint}\n")
     for filepath in sorted(files):
         import pathlib
         name = pathlib.Path(filepath).stem
@@ -279,12 +278,12 @@ def cmd_sync_datasets(args: argparse.Namespace) -> int:
             if dataset_id:
                 print(f"  ✅  {filepath}  →  dataset_id: {dataset_id}")
             else:
-                print(f"  ⚠️   {filepath}  →  업로드 완료 (id 미반환)")
+                print(f"  ⚠️   {filepath}  →  upload complete (no id returned)")
             success_count += 1
         except Exception as exc:
-            print(f"  ❌  {filepath}  →  실패: {exc}")
+            print(f"  ❌  {filepath}  →  failed: {exc}")
 
-    print(f"\n  완료: {success_count}/{len(files)}개 업로드\n")
+    print(f"\n  Done: {success_count}/{len(files)} uploaded\n")
     return 0 if success_count > 0 else 1
 
 
@@ -297,9 +296,9 @@ def cmd_reset_db(args: argparse.Namespace) -> int:
     pg_url = os.environ.get("PHOENIX_SQL_DATABASE_URL", "")
     if pg_url and not pg_url.startswith("sqlite"):
         print()
-        print("  ❌  PostgreSQL 데이터베이스는 파일 삭제로 초기화할 수 없습니다.")
+        print("  ❌  PostgreSQL databases cannot be reset by deleting files.")
         print(f"     PHOENIX_SQL_DATABASE_URL={pg_url}")
-        print("     DB 관리자에게 직접 테이블을 truncate 하도록 요청하세요.")
+        print("     Ask your DB admin to truncate the tables directly.")
         print()
         return 1
 
@@ -322,8 +321,8 @@ def cmd_reset_db(args: argparse.Namespace) -> int:
     # 2. DB 파일 존재 확인
     if not db_file.exists():
         print()
-        print(f"  ℹ️   Phoenix DB 파일이 없습니다: {db_file}")
-        print("     (아직 Phoenix를 실행한 적이 없거나 이미 초기화된 상태)")
+        print(f"  ℹ️   Phoenix DB file not found: {db_file}")
+        print("     (Phoenix has not been run yet, or the DB is already clean)")
         print()
         return 0
 
@@ -332,9 +331,9 @@ def cmd_reset_db(args: argparse.Namespace) -> int:
     host = getattr(args, "host", "localhost")
     if _port_in_use(port, host):
         print()
-        print(f"  ❌  Phoenix가 포트 {port}에서 실행 중입니다.")
-        print("     DB를 초기화하려면 먼저 Phoenix를 종료하세요.")
-        print(f"     (Ctrl+C 또는 kill $(lsof -ti :{port}))")
+        print(f"  ❌  Phoenix is running on port {port}.")
+        print("     Stop Phoenix before resetting the DB.")
+        print(f"     (Ctrl+C or kill $(lsof -ti :{port}))")
         print()
         return 1
 
@@ -355,41 +354,41 @@ def cmd_reset_db(args: argparse.Namespace) -> int:
 
     # 5. 확인 프롬프트 (--yes 없을 때)
     print()
-    print(f"  Phoenix DB 초기화 — {working_dir}")
+    print(f"  Phoenix DB Reset — {working_dir}")
     print()
     for t in targets:
         size = t.stat().st_size if t.is_file() else sum(f.stat().st_size for f in t.rglob("*") if f.is_file())
         print(f"  🗑  {t.name:<24s} ({size/1024:.1f} KB)")
     print()
-    print("  ⚠️  모든 트레이스·프로젝트·어노테이션·데이터셋이 삭제됩니다.")
+    print("  ⚠️  All traces, projects, annotations, and datasets will be deleted.")
     print()
 
     if not getattr(args, "yes", False):
         try:
-            ans = input("  계속하시겠습니까? [y/N] ").strip().lower()
+            ans = input("  Continue? [y/N] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             ans = ""
         if ans not in ("y", "yes"):
-            print("  취소됨.")
+            print("  Cancelled.")
             print()
             return 0
 
-    # 6. 삭제 실행
+    # 6. perform deletion
     for t in targets:
         try:
             if t.is_file():
                 t.unlink()
-                print(f"  ✅  삭제: {t}")
+                print(f"  ✅  Deleted: {t}")
             elif t.is_dir():
                 shutil.rmtree(t)
-                t.mkdir(exist_ok=True)   # 빈 디렉토리 재생성 (Phoenix 재시작 시 필요)
-                print(f"  ✅  초기화: {t}/")
+                t.mkdir(exist_ok=True)   # recreate empty dir (needed on Phoenix restart)
+                print(f"  ✅  Reset: {t}/")
         except Exception as exc:
-            print(f"  ❌  실패: {t}  →  {exc}")
+            print(f"  ❌  Failed: {t}  →  {exc}")
             return 1
 
     print()
-    print("  Phoenix DB 초기화 완료. 다음 실행 시 새 DB가 자동 생성됩니다.")
+    print("  Phoenix DB reset complete. A new DB will be created on next startup.")
     print(f"  agent-eval monitor --port {port}")
     print()
     return 0
@@ -411,8 +410,8 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     missing = [pkg for pkg, ok in deps.items() if not ok]
     if missing:
         print()
-        print("  ❌  필수 패키지가 설치되지 않았습니다.")
-        print(f"     미설치: {', '.join(missing)}")
+        print("  ❌  Required packages are not installed.")
+        print(f"     Missing: {', '.join(missing)}")
         print()
         print('  pip install "agent-evaluator[otel]"')
         print()
@@ -436,8 +435,8 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     # Phoenix UI 포트 충돌 확인
     if _port_in_use(port, host):
         print()
-        print(f"  ⚠️   포트 {port}가 이미 사용 중입니다.")
-        print(f"     기존 서버에 연결하려면: agent-eval monitor --attach {ui_url}")
+        print(f"  ⚠️   Port {port} is already in use.")
+        print(f"     To connect to the existing server: agent-eval monitor --attach {ui_url}")
         print()
         return 1
 
@@ -445,18 +444,18 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     _GRPC_PORT = int(os.environ.get("PHOENIX_GRPC_PORT", "4317"))
     if _port_in_use(_GRPC_PORT, host):
         pids = _get_pids_on_port(_GRPC_PORT)
-        pid_hint = f" (PID {pids[0]} — kill {pids[0]} 로 종료)" if pids else ""
+        pid_hint = f" (PID {pids[0]} — kill {pids[0]} to stop)" if pids else ""
         print()
-        print(f"  ❌  gRPC 포트 {_GRPC_PORT}가 이미 사용 중입니다.{pid_hint}")
-        print(f"     Phoenix는 UI 포트({port})와 gRPC 포트({_GRPC_PORT})를 동시에 사용합니다.")
-        print(f"     해결 방법:")
-        print(f"       1. 기존 프로세스 종료:  kill $(lsof -ti :{_GRPC_PORT})")
-        print(f"       2. gRPC 포트 변경:      PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+        print(f"  ❌  gRPC port {_GRPC_PORT} is already in use.{pid_hint}")
+        print(f"     Phoenix uses both UI port ({port}) and gRPC port ({_GRPC_PORT}).")
+        print(f"     Fix:")
+        print(f"       1. Stop existing process:  kill $(lsof -ti :{_GRPC_PORT})")
+        print(f"       2. Change gRPC port:        PHOENIX_GRPC_PORT=4318 agent-eval monitor")
         print()
         return 1
 
     # Phoenix 서버 기동
-    print(f"\n  Agent Evaluator — 운영 모니터링 기동 중...\n")
+    print(f"\n  Agent Evaluator — Starting operations monitoring...\n")
     try:
         env = os.environ.copy()
         env["PHOENIX_PORT"] = str(port)
@@ -469,7 +468,7 @@ def cmd_monitor(args: argparse.Namespace) -> int:
             stderr=subprocess.STDOUT,
         )
     except Exception as exc:
-        print(f"  ❌  Phoenix 서버 기동 실패: {exc}")
+        print(f"  ❌  Phoenix server startup failed: {exc}")
         return 1
 
     # 서버 준비 대기 (최대 30초)
@@ -528,7 +527,7 @@ def cmd_monitor(args: argparse.Namespace) -> int:
                 new = names - known
                 if new:
                     for n in sorted(new):
-                        print(f"\n  🆕  새 프로젝트 감지: [{n}]  → 브라우저에서 새로고침(F5) 또는 콘솔 스크립트 실행")
+                        print(f"\n  🆕  New project detected: [{n}]  → Refresh browser (F5) or run the console script")
                     known = names
             except Exception:
                 pass  # Phoenix 재시작 중이면 조용히 무시
@@ -536,12 +535,12 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     watcher = threading.Thread(target=_watch_projects, args=(ui_url,), daemon=True)
     watcher.start()
 
-    print("  Ctrl+C 로 종료\n")
+    print("  Press Ctrl+C to stop\n")
     try:
         proc.wait()
     except KeyboardInterrupt:
         proc.terminate()
-        print("\n  모니터링 서버 종료됨.")
+        print("\n  Monitoring server stopped.")
 
     return 0
 
@@ -555,19 +554,19 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
     """main.py에서 호출 — monitor 서브파서 등록."""
     p = sub.add_parser(
         "monitor",
-        help="Arize Phoenix 기동 + OTLP 스팬 수신 — 실시간 운영 모니터링",
+        help="Start Arize Phoenix + OTLP span receiver — real-time operations monitoring",
         description=(
-            "Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정합니다.\n"
-            "프로덕션 환경의 실시간 트레이싱·스팬 분석·오류 감지에 활용합니다.\n"
+            "Start an Arize Phoenix server and configure OpenTelemetry span reception.\n"
+            "Use for real-time tracing, span analysis, and error detection in production.\n"
             "\n"
-            "Phoenix 13.x: UI + OTLP HTTP가 동일 포트(기본 6006) 사용.\n"
-            "예제(01~07) 실행 시 자동으로 OTLP 스팬을 전송하며,\n"
-            "Phoenix UI의 Tracing 탭에서 예제별 독립 프로젝트로 확인할 수 있습니다.\n"
+            "Phoenix 13.x: UI + OTLP HTTP share the same port (default 6006).\n"
+            "Examples (01~07) automatically send OTLP spans;\n"
+            "each example appears as an independent project in the Phoenix UI Tracing tab.\n"
             "\n"
-            "필요 패키지:\n"
+            "Required packages:\n"
             '  pip install "agent-evaluator[otel]"\n'
             "\n"
-            "예시:\n"
+            "Examples:\n"
             "  agent-eval monitor\n"
             "  agent-eval monitor --port 6007\n"
             "  agent-eval monitor --attach http://localhost:6006\n"
@@ -580,31 +579,31 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         "--port",
         type=int,
         default=6006,
-        help="Phoenix UI 포트 (기본: 6006) — OTLP HTTP도 동일 포트 수신",
+        help="Phoenix UI port (default: 6006) — OTLP HTTP also listens on this port",
     )
     p.add_argument(
         "--host",
         type=str,
         default="localhost",
-        help="바인딩 호스트 (기본: localhost)",
+        help="Bind host (default: localhost)",
     )
     p.add_argument(
         "--no-open",
         action="store_true",
         dest="no_open",
-        help="브라우저 자동 오픈 비활성화",
+        help="Disable automatic browser launch",
     )
     p.add_argument(
         "--attach",
         type=str,
         metavar="URL",
         default=None,
-        help="자체 기동 없이 기존 Phoenix 서버 URL에 연결",
+        help="Connect to an existing Phoenix server URL without starting one",
     )
     p.add_argument(
         "--check",
         action="store_true",
-        help="설치 상태 및 포트 점유 확인",
+        help="Check installation status and port availability",
     )
     p.add_argument(
         "--working-dir",
@@ -612,7 +611,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         default=None,
         dest="working_dir",
         metavar="DIR",
-        help="Phoenix DB 저장 디렉토리 (기본: Phoenix 자동 결정 — 보통 ~/.phoenix)",
+        help="Phoenix DB directory (default: auto-determined by Phoenix — usually ~/.phoenix)",
     )
     p.add_argument(
         "--sync-datasets",
@@ -621,18 +620,18 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         default=None,
         dest="sync_datasets",
         help=(
-            "골든셋 JSON 파일을 Phoenix Datasets로 업로드 (glob 패턴 지원).\n"
-            "예: --sync-datasets 'data/golden_datasets/*.json'"
+            "Upload golden-set JSON files to Phoenix Datasets (glob patterns supported).\n"
+            "Example: --sync-datasets 'data/golden_datasets/*.json'"
         ),
     )
     p.add_argument(
         "--reset",
         action="store_true",
-        help="Phoenix DB 초기화 — 모든 트레이스·프로젝트·데이터셋 삭제 (Phoenix 종료 후 실행)",
+        help="Reset Phoenix DB — delete all traces, projects, and datasets (stop Phoenix first)",
     )
     p.add_argument(
         "--yes", "-y",
         action="store_true",
-        help="초기화 확인 프롬프트 없이 바로 실행",
+        help="Skip the reset confirmation prompt",
     )
     p.set_defaults(func=cmd_monitor)

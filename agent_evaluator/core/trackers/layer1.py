@@ -75,9 +75,9 @@ def _try_load_kiwi():
         return Kiwi()
     except ImportError:
         logger.warning(
-            "use_korean_tokenizer=True 이지만 kiwipiepy 가 설치되지 않았습니다. "
-            "공백 분리 폴백을 사용합니다. "
-            "설치: pip install \"agent-evaluator[korean]\""
+            "use_korean_tokenizer=True but kiwipiepy is not installed. "
+            "Falling back to whitespace tokenization. "
+            "Install: pip install \"agent-evaluator[korean]\""
         )
         return None
 
@@ -89,9 +89,9 @@ def _try_load_encoder():
         return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
     except ImportError:
         logger.warning(
-            "use_semantic_similarity=True 이지만 sentence-transformers 가 설치되지 않았습니다. "
-            "단어 중복 방식으로 폴백합니다. "
-            "설치: pip install \"agent-evaluator[semantic]\""
+            "use_semantic_similarity=True but sentence-transformers is not installed. "
+            "Falling back to word-overlap method. "
+            "Install: pip install \"agent-evaluator[semantic]\""
         )
         return None
 
@@ -693,7 +693,7 @@ class HallucinationDetector(BaseTracker):
                 sims.append(float(np.dot(sent_emb, emb) / (sent_norm * norm)))
             return max(sims) if sims else 0.0
         except Exception as exc:
-            logger.debug("semantic_support_score 계산 실패 (무시): %s", exc)
+            logger.debug("semantic_support_score calculation failed (ignored): %s", exc)
             return 0.0
 
     @property

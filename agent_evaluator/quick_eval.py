@@ -49,7 +49,7 @@ class _QuickEvalBatchShortcut:
             return self._eval.batch(**kwargs)
         else:
             raise TypeError(
-                f"_QuickEvalBatchShortcut: callable 또는 키워드 인자를 기대합니다, "
+                f"_QuickEvalBatchShortcut: expected a callable or keyword arguments, "
                 f"got {type(func_or_kwargs).__name__!r}"
             )
 
@@ -67,7 +67,7 @@ class _QuickEvalChatShortcut:
             return self._eval.conversation(**kwargs)
         else:
             raise TypeError(
-                f"_QuickEvalChatShortcut: callable 또는 키워드 인자를 기대합니다, "
+                f"_QuickEvalChatShortcut: expected a callable or keyword arguments, "
                 f"got {type(func_or_kwargs).__name__!r}"
             )
 
@@ -179,15 +179,15 @@ class QuickEval:
                 _invalid = set(monitor_kwargs) - _valid_pm_params
                 if _invalid:
                     _warnings.warn(
-                        f"QuickEval: PerformanceMonitor에 알 수 없는 파라미터가 전달됩니다 "
-                        f"(무시됨): {sorted(_invalid)}",
+                        f"QuickEval: Unknown parameters passed to PerformanceMonitor "
+                        f"(ignored): {sorted(_invalid)}",
                         UserWarning,
                         stacklevel=2,
                     )
                     for _k in _invalid:
                         monitor_kwargs.pop(_k)
             except Exception as _e:
-                logger.debug("QuickEval.__init__: monitor_kwargs 검사 실패 (무시): %s", _e)
+                logger.debug("QuickEval.__init__: monitor_kwargs validation failed (ignored): %s", _e)
 
         # Harness defaults — None이 아닌 파라미터만 저장
         self._harness_defaults: Dict[str, Any] = {
@@ -304,7 +304,7 @@ class QuickEval:
                 with open(baseline_file, "r", encoding="utf-8") as _f:
                     instance._baseline_summary = _json.load(_f)
             except Exception as _e:
-                logger.debug("for_regression_eval: baseline 로드 실패 (무시): %s", _e)
+                logger.debug("for_regression_eval: baseline load failed (ignored): %s", _e)
                 instance._baseline_summary = None
         else:
             instance._baseline_summary = None
@@ -328,7 +328,7 @@ class QuickEval:
             # ... 평가 실행 후 ...
             report = eval.check_regression()
             if report["any_regression"]:
-                print("성능 회귀 감지!", report["regressions"])
+                print("Performance regression detected!", report["regressions"])
         """
         if not hasattr(self, "_baseline_summary") or self._baseline_summary is None:
             return {"has_baseline": False}
@@ -513,9 +513,9 @@ class QuickEval:
         if factory is None:
             valid = list(_preset_map.keys())
             raise ValueError(
-                f"알 수 없는 preset '{preset_name}'. "
-                f"사용 가능한 preset: {valid}\n"
-                f"예: QuickEval.from_preset('rag', 'results/')"
+                f"Unknown preset '{preset_name}'. "
+                f"Available presets: {valid}\n"
+                f"e.g.: QuickEval.from_preset('rag', 'results/')"
             )
         if factory is cls:
             return cls(output_dir, **kwargs)
@@ -741,7 +741,7 @@ class QuickEval:
                     if _k not in ("tcr", "accuracy") and _k not in thresholds:
                         thresholds[_k] = float(_v)
             except Exception as _e:
-                logger.warning("gate config_file 로드 실패 (무시): %s", _e)
+                logger.warning("gate config_file load failed (ignored): %s", _e)
 
         report = self._monitor.generate_report()
         failures: List[str] = []
@@ -759,7 +759,7 @@ class QuickEval:
                 "passed": _passed_tcr,
             }
             if not _passed_tcr:
-                failures.append(f"TCR {actual_tcr:.1f}% < 요구 {tcr}%")
+                failures.append(f"TCR {actual_tcr:.1f}% < required {tcr}%")
 
         if accuracy is not None:
             actual_acc = float(
@@ -774,7 +774,7 @@ class QuickEval:
                 "passed": _passed_acc,
             }
             if not _passed_acc:
-                failures.append(f"Accuracy {actual_acc:.1f}% < 요구 {accuracy}%")
+                failures.append(f"Accuracy {actual_acc:.1f}% < required {accuracy}%")
 
         if "latency_p95" in thresholds:
             p95 = float(
@@ -788,7 +788,7 @@ class QuickEval:
                 "passed": _passed_lat,
             }
             if not _passed_lat:
-                failures.append(f"P95 지연 {p95:.2f}s > 허용 {req}s")
+                failures.append(f"P95 latency {p95:.2f}s > allowed {req}s")
 
         # A7: quality / hallucination 임계값 지원
         if "quality" in thresholds:
@@ -797,8 +797,8 @@ class QuickEval:
             if not _quality_enabled:
                 import warnings as _w
                 _w.warn(
-                    "QuickEval.gate(quality=...): quality 트래킹이 비활성화되어 있어 "
-                    "실제 값은 0.0입니다. PerformanceMonitor 설정을 확인하세요.",
+                    "QuickEval.gate(quality=...): quality tracking is disabled, "
+                    "actual value is 0.0. Check your PerformanceMonitor configuration.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -812,7 +812,7 @@ class QuickEval:
                 "passed": _passed_q,
             }
             if not _passed_q:
-                failures.append(f"Quality {actual_q:.1f} < 요구 {req_q}")
+                failures.append(f"Quality {actual_q:.1f} < required {req_q}")
 
         if "hallucination" in thresholds:
             # H2: hallucination 트래커가 비활성화된 경우 경고
@@ -820,9 +820,9 @@ class QuickEval:
             if not _hall_enabled:
                 import warnings as _w
                 _w.warn(
-                    "QuickEval.gate(hallucination=...): hallucination 탐지가 비활성화되어 있어 "
-                    "실제 값은 0.0입니다. QuickEval.for_rag() 또는 "
-                    "enable_hallucination_detection=True 를 사용하세요.",
+                    "QuickEval.gate(hallucination=...): hallucination detection is disabled, "
+                    "actual value is 0.0. Use QuickEval.for_rag() or "
+                    "enable_hallucination_detection=True.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -836,7 +836,7 @@ class QuickEval:
                 "passed": _passed_h,
             }
             if not _passed_h:
-                failures.append(f"Hallucination rate {actual_h:.1f}% > 허용 {req_h}%")
+                failures.append(f"Hallucination rate {actual_h:.1f}% > allowed {req_h}%")
 
         # C: token_efficiency — 태스크당 평균 토큰 수 (상한, 낮을수록 좋음)
         if token_efficiency_min is not None:
@@ -857,7 +857,7 @@ class QuickEval:
             }
             if not _token_pass:
                 failures.append(
-                    f"평균 토큰 수 {_avg_tokens:.1f} > 허용 {token_efficiency_min}"
+                    f"Avg tokens {_avg_tokens:.1f} > allowed {token_efficiency_min}"
                 )
 
         # C: tool_f1 — 도구 선택 F1 최소값
@@ -876,7 +876,7 @@ class QuickEval:
                         or 0.0
                     )
             except Exception as _e:
-                logger.debug("gate: tool_f1 조회 실패, 0.0 사용: %s", _e)
+                logger.debug("gate: tool_f1 lookup failed, using 0.0: %s", _e)
                 _f1 = 0.0
             _tool_pass = _f1 >= tool_f1_min
             dry_run_results["tool_f1"] = {
@@ -885,7 +885,7 @@ class QuickEval:
                 "passed": _tool_pass,
             }
             if not _tool_pass:
-                failures.append(f"Tool F1 {_f1:.4f} < 요구 {tool_f1_min}")
+                failures.append(f"Tool F1 {_f1:.4f} < required {tool_f1_min}")
 
         # C: coordination_success_rate — 에이전트 협력 성공률
         if coordination_success_rate_min is not None:
@@ -903,7 +903,7 @@ class QuickEval:
                         or 0.0
                     )
             except Exception as _e:
-                logger.debug("gate: coordination_success_rate 조회 실패, 0.0 사용: %s", _e)
+                logger.debug("gate: coordination_success_rate lookup failed, using 0.0: %s", _e)
                 _csr = 0.0
             _coord_pass = _csr >= coordination_success_rate_min
             dry_run_results["coordination_success_rate"] = {
@@ -913,7 +913,7 @@ class QuickEval:
             }
             if not _coord_pass:
                 failures.append(
-                    f"Coordination success rate {_csr:.4f} < 요구 {coordination_success_rate_min}"
+                    f"Coordination success rate {_csr:.4f} < required {coordination_success_rate_min}"
                 )
 
         if dry_run:
@@ -923,7 +923,7 @@ class QuickEval:
             }
 
         if failures:
-            msg = "QuickEval 품질 게이팅 실패:\n" + "\n".join(f"  - {f}" for f in failures)
+            msg = "QuickEval quality gate failed:\n" + "\n".join(f"  - {f}" for f in failures)
             logger.error(msg)
             print(msg)
             sys.exit(1)
@@ -1055,7 +1055,7 @@ class QuickEval:
             # ... candidate 평가 실행 ...
 
             diff = baseline.compare(candidate)
-            print(f"TCR 변화: {diff['delta']['tcr']:+.1f}%")
+            print(f"TCR change: {diff['delta']['tcr']:+.1f}%")
         """
         def _summary(qe: "QuickEval") -> Dict[str, Any]:
             return qe.summary()
@@ -1101,7 +1101,7 @@ class QuickEval:
 
         config: Dict[str, Any] = {}
         if not _os.path.exists(config_file):
-            raise FileNotFoundError(f"설정 파일을 찾을 수 없습니다: {config_file}")
+            raise FileNotFoundError(f"Config file not found: {config_file}")
 
         if config_file.endswith((".yaml", ".yml")):
             try:
@@ -1143,7 +1143,7 @@ class QuickEval:
             RuntimeError: 기록된 태스크가 없는 경우.
         """
         if self._monitor.task_count == 0:
-            raise RuntimeError("기록된 태스크가 없습니다. 평가를 먼저 실행하세요.")
+            raise RuntimeError("No tasks recorded. Run an evaluation first.")
         return self._monitor.export_to_dataframe(include_fields=include_fields)
 
     def replay(self, results_file: str) -> "QuickEval":
@@ -1168,8 +1168,8 @@ class QuickEval:
                 tr = TaskResult.from_dict(td)
                 self._monitor.record_task(tr)
             except Exception as _e:
-                logger.debug("replay: TaskResult 로드 실패 (무시): %s", _e)
-        logger.info("replay: %d개 태스크 로드 완료 (%s)", len(tasks_data), results_file)
+                logger.debug("replay: TaskResult load failed (ignored): %s", _e)
+        logger.info("replay: %d tasks loaded (%s)", len(tasks_data), results_file)
         return self
 
     def ab_test(self, other: "QuickEval") -> Dict[str, Any]:
@@ -1333,14 +1333,14 @@ class QuickEval:
                                     if callback:
                                         callback(_fpath)
                                 except Exception as _e:
-                                    logger.debug("watch: 파일 처리 실패 (무시): %s", _e)
+                                    logger.debug("watch: file processing failed (ignored): %s", _e)
                         _seen.update(_current)
                         # H4: _seen 집합 크기 상한 — 메모리 누수 방지
                         if len(_seen) > max_watched_files:
                             _trim = len(_seen) - max_watched_files
                             _seen -= set(list(_seen)[:_trim])
                     except Exception as _e:
-                        logger.debug("watch: 폴링 실패 (무시): %s", _e)
+                        logger.debug("watch: polling failed (ignored): %s", _e)
                     _t.sleep(5)
 
             def stop(self_h) -> None:

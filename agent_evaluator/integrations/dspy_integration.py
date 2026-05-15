@@ -133,7 +133,7 @@ class DSPyEvaluator:
             from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
             from agent_evaluator.decorators import _extract_dspy_metadata
         except ImportError as e:
-            logger.warning("DSPyEvaluator: import 실패 — %s", e)
+            logger.warning("DSPyEvaluator: import failed — %s", e)
             return 0.0
 
         scores: List[float] = []
@@ -153,7 +153,7 @@ class DSPyEvaluator:
             except Exception as exc:
                 has_error = True
                 error_msg = str(exc)
-                logger.debug("DSPyEvaluator: program 실행 실패 (task %d): %s", i, exc)
+                logger.debug("DSPyEvaluator: program execution failed (task %d): %s", i, exc)
 
             elapsed = time.perf_counter() - start
 
@@ -170,7 +170,7 @@ class DSPyEvaluator:
                     result = metric(example, raw)
                     score = float(result) if isinstance(result, (int, float)) else (1.0 if result else 0.0)
                 except Exception as e:
-                    logger.debug("DSPyEvaluator: metric 실패 (무시): %s", e)
+                    logger.debug("DSPyEvaluator: metric failed (ignored): %s", e)
             scores.append(score)
 
             # DSPy 메타데이터 추출
@@ -206,7 +206,7 @@ class DSPyEvaluator:
                 task_result = dataclasses.replace(task_result, **overrides)
                 self.monitor.record_task(task_result)
             except Exception as e:
-                logger.debug("DSPyEvaluator: record_task 실패 (무시): %s", e)
+                logger.debug("DSPyEvaluator: record_task failed (ignored): %s", e)
 
             if display_progress and (i + 1) % 10 == 0:
                 avg = sum(scores) / len(scores) if scores else 0.0
@@ -263,5 +263,5 @@ class DSPyMetricAdapter:
             result = self.metric(example, prediction)
             return float(result) if isinstance(result, (int, float)) else (1.0 if result else 0.0)
         except Exception as e:
-            logger.debug("DSPyMetricAdapter.score_fn 실패 (0.0 반환): %s", e)
+            logger.debug("DSPyMetricAdapter.score_fn failed (returning 0.0): %s", e)
             return 0.0

@@ -21,7 +21,7 @@ _WS_CONNECTIONS: Set[WebSocket] = set()
 _ws_lock = asyncio.Lock()
 
 
-@router.get("/stream", summary="평가 이벤트 스트림 (SSE)")
+@router.get("/stream", summary="Evaluation event stream (SSE)")
 async def sse_stream(request: Request):
     """
     Server-Sent Events endpoint.
@@ -64,7 +64,7 @@ async def sse_stream(request: Request):
     )
 
 
-@router.get("/stream/live-stats", summary="실시간 집계 통계 스냅샷")
+@router.get("/stream/live-stats", summary="Live aggregate stats snapshot")
 async def live_stats(request: Request, window: str = "5m") -> JSONResponse:
     """
     Return current sliding-window metrics from StreamingEvaluator (if running).
@@ -92,13 +92,13 @@ async def live_stats(request: Request, window: str = "5m") -> JSONResponse:
         return JSONResponse({"window": window, "available": False})
 
 
-@router.get("/stream/snapshot/{file_id}", summary="파일 스냅샷")
+@router.get("/stream/snapshot/{file_id}", summary="File snapshot")
 async def file_snapshot(request: Request, file_id: str, window: str = "5m") -> JSONResponse:
     """
     Return saved streaming snapshot from a result file (offline fallback).
 
-    파일에 저장된 ``streaming_data`` 스냅샷을 반환한다.
-    실시간 StreamingEvaluator가 없을 때 대시보드 '📡 실시간' 탭의 히스토리 데이터로 사용.
+    Returns the ``streaming_data`` snapshot stored in the file.
+    Used as history data for the dashboard live tab when no real-time StreamingEvaluator is running.
 
     Query params:
         window: "1m" | "5m" | "1h"  (default "5m")
@@ -137,7 +137,7 @@ async def file_snapshot(request: Request, file_id: str, window: str = "5m") -> J
     })
 
 
-@router.get("/stream/tasks/{file_id}", summary="태스크 실시간 스트림 (SSE)")
+@router.get("/stream/tasks/{file_id}", summary="Real-time task stream (SSE)")
 async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0):
     """
     Server-Sent Events: real-time task_added stream for a result file.
@@ -148,9 +148,9 @@ async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0
         data: {"type": "ping"}                                     — keep-alive every 15 s
 
     Query params:
-        poll_interval: polling 간격 (초, 기본 1.0, 최소 0.5, 최대 10.0)
+        poll_interval: polling interval in seconds (default 1.0, min 0.5, max 10.0)
 
-    클라이언트 예시 (JavaScript)::
+    Client example (JavaScript)::
 
         const es = new EventSource('/api/stream/tasks/my_file_id');
         es.onmessage = e => {
@@ -238,16 +238,16 @@ async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0
     )
 
 
-@router.get("/stream/filtered/{file_id}", summary="조건 필터 태스크 스트림 (SSE)")
+@router.get("/stream/filtered/{file_id}", summary="Filtered task stream (SSE)")
 async def stream_filtered_tasks(
     file_id: str,
     request: Request,
-    query: str = Query(default="", description="필터 조건 (예: accuracy_score<0.5, task_type=qa)"),
+    query: str = Query(default="", description="Filter expression (e.g. accuracy_score<0.5, task_type=qa)"),
     poll_interval: float = Query(default=2.0, ge=0.5, le=30.0),
 ):
-    """조건 맞는 신규 태스크만 SSE로 스트리밍.
+    """Stream only newly-added tasks that match the filter condition via SSE.
 
-    query 형식: ``field<value`` / ``field>value`` / ``field=value`` / ``field<=value`` / ``field>=value``
+    Query format: ``field<value`` / ``field>value`` / ``field=value`` / ``field<=value`` / ``field>=value``
 
     Emits::
 
@@ -375,20 +375,20 @@ async def stream_filtered_tasks(
     )
 
 
-@router.websocket("/ws/events", name="WebSocket 실시간 이벤트 스트림")
+@router.websocket("/ws/events", name="WebSocket real-time event stream")
 async def websocket_events(websocket: WebSocket):
-    """WebSocket 실시간 이벤트 스트림.
+    """WebSocket real-time event stream.
 
-    연결 즉시 현재 파일 목록을 전송하고,
-    이후 task_added 이벤트를 실시간으로 push 한다.
+    Sends the current file list immediately upon connection,
+    then pushes task_added events in real time.
 
     Message types::
 
-        {"type": "init",         "files": [...], "count": N}   — 연결 직후 초기 스냅샷
-        {"type": "task_added",   "file_id": ..., "task": {...}} — 새 태스크 추가
+        {"type": "init",         "files": [...], "count": N}   — initial snapshot on connect
+        {"type": "task_added",   "file_id": ..., "task": {...}} — new task added
         {"type": "ping"}                                        — keep-alive (15s)
 
-    클라이언트 예시 (JavaScript)::
+    Client example (JavaScript)::
 
         const ws = new WebSocket('ws://localhost:8765/api/ws/events');
         ws.onmessage = e => {

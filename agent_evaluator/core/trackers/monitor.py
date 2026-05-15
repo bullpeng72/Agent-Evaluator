@@ -291,7 +291,7 @@ class PerformanceMonitor:
                     model_name = s.openai_model or ""
                 # 둘 다 없으면 model_name="" 유지 (ae/unspecified fallback)
             except Exception as _e:
-                logger.debug("model_name 설정 실패 (무시): %s", _e)
+                logger.debug("model_name setup failed (ignored): %s", _e)
         self.model_name = model_name
 
         # Configuration
@@ -396,7 +396,7 @@ class PerformanceMonitor:
                 # CRITICAL FIX: Use correct relative import path
                 from ...utils.transparency_manager import TestTransparencyManager
                 self.transparency_manager = TestTransparencyManager(output_dir=str(self.output_dir))
-                logger.info("Test 투명성 추적 활성화됨")
+                logger.info("Test transparency tracking enabled")
                 # Auto audit: evaluation session started
                 self.transparency_manager.log_event(
                     event_type="lifecycle",
@@ -412,8 +412,8 @@ class PerformanceMonitor:
                     success=True,
                 )
             except ImportError as e:
-                logger.warning("transparency_manager를 찾을 수 없습니다: %s", e)
-                logger.warning("투명성 추적 비활성화됨")
+                logger.warning("transparency_manager not found: %s", e)
+                logger.warning("Transparency tracking disabled")
                 self.enable_transparency = False
 
         # LLM Judge (Phase 1-A, opt-in)
@@ -433,13 +433,13 @@ class PerformanceMonitor:
                     escalation_threshold=judge_escalation_threshold,
                     seed=judge_seed,
                 )
-                logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
+                logger.info("LLM Judge enabled (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
             except ImportError as e:
-                warnings.warn(f"LLM Judge 초기화 실패 (의존성 없음): {e}", RuntimeWarning, stacklevel=2)
+                warnings.warn(f"LLM Judge initialization failed (missing dependency): {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
             except Exception as e:
-                logger.warning("LLM Judge 초기화 중 예기치 않은 오류: %s", e, exc_info=True)
-                warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
+                logger.warning("LLM Judge unexpected initialization error: %s", e, exc_info=True)
+                warnings.warn(f"LLM Judge initialization failed: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
 
         # Phase 3-B: 이상 감지 (opt-in)
@@ -623,7 +623,7 @@ class PerformanceMonitor:
             dataset_path = self.golden_dataset_path
 
         if dataset_path is None:
-            logger.warning("Golden Dataset 경로가 지정되지 않았습니다")
+            logger.warning("Golden Dataset path not specified")
             return []
 
         # golden_datasets 디렉토리에서 찾기
@@ -657,14 +657,14 @@ class PerformanceMonitor:
 
             with self._lock:
                 self._golden_datasets = loaded
-            logger.info("Golden Dataset 로드: %d개 항목", len(self._golden_datasets))
+            logger.info("Golden Dataset loaded: %d items", len(self._golden_datasets))
             return list(self._golden_datasets)
         except StorageError:
             raise
         except json.JSONDecodeError as e:
-            raise StorageError(f"Golden Dataset JSON 파싱 오류: {e}") from e
+            raise StorageError(f"Golden Dataset JSON parse error: {e}") from e
         except OSError as e:
-            raise StorageError(f"Golden Dataset 파일 읽기 실패: {e}") from e
+            raise StorageError(f"Golden Dataset file read failed: {e}") from e
 
     def evaluate_with_golden_dataset(
         self,
@@ -740,12 +740,12 @@ class PerformanceMonitor:
 
         total = len(golden_items)
         if verbose:
-            print(f"🚀 Golden Dataset 기반 자동 평가 시작 ({total}개 항목)")
+            print(f"🚀 Starting automated evaluation from Golden Dataset ({total} items)")
 
         # 각 QA 쌍 평가
         for idx, qa_pair in enumerate(golden_items, 1):
             if verbose:
-                print(f"\n[{idx}/{total}] 평가 중: {qa_pair.get('question', '')[:50]}...")
+                print(f"\n[{idx}/{total}] Evaluating: {qa_pair.get('question', '')[:50]}...")
 
             try:
                 # 에이전트 실행
@@ -805,17 +805,17 @@ class PerformanceMonitor:
                     )
 
                 if verbose:
-                    print("   ✅ 평가 완료")
+                    print("   ✅ Evaluation complete")
 
             except Exception as e:
-                logger.warning("Golden Dataset 평가 항목 오류 (continue): %s", e)
+                logger.warning("Golden Dataset evaluation item error (skipping): %s", e)
                 if verbose:
-                    print(f"   ❌ 오류: {str(e)}")
+                    print(f"   ❌ Error: {str(e)}")
                 continue
 
         # 결과 요약
         if verbose:
-            print(f"\n✅ Golden Dataset 평가 완료 ({total}개 항목)")
+            print(f"\n✅ Golden Dataset evaluation complete ({total} items)")
 
         # Layer 1 메트릭
         tcr_data = self.tcr_tracker.calculate_tcr()
@@ -843,7 +843,7 @@ class PerformanceMonitor:
         }
 
         if verbose:
-            print("\n📊 평가 결과 요약:")
+            print("\n📊 Evaluation Summary:")
             print(f"   TCR: {results['layer1_metrics']['tcr']:.1f}%")
             print(f"   Accuracy: {results['layer1_metrics']['accuracy']:.1f}%")
             if enable_layer2_metrics and results['layer2_metrics']:
@@ -1545,7 +1545,7 @@ class PerformanceMonitor:
                 try:
                     task_result = dataclasses.replace(task_result, partial_reason=_new_pr)
                 except Exception as _pr_exc:
-                    logger.debug("partial_reason 확장 분류 실패 (무시): %s", _pr_exc)
+                    logger.debug("partial_reason extended classification failed (ignored): %s", _pr_exc)
 
         with self._lock:  # guard all tracker mutations for thread safety
             # Task completion
@@ -1659,13 +1659,13 @@ class PerformanceMonitor:
                     try:
                         self.input_sanitizer.evaluate_input(task_result.task_id, _sec_q)
                     except Exception as _sec_exc:
-                        logger.debug("InputSanitizationTracker 실패 (무시): %s", _sec_exc)
+                        logger.debug("InputSanitizationTracker failed (ignored): %s", _sec_exc)
                 # Layer 1: Output Leakage Detection — 출력 내 민감정보 탐지
                 if self.output_leakage_detector is not None and _sec_r:
                     try:
                         self.output_leakage_detector.detect_leakage(task_result.task_id, _sec_r)
                     except Exception as _sec_exc:
-                        logger.debug("OutputLeakageDetector 실패 (무시): %s", _sec_exc)
+                        logger.debug("OutputLeakageDetector failed (ignored): %s", _sec_exc)
                 # Layer 1: Tool Authorization — 각 도구 호출 권한 검사
                 if self.tool_authorizer is not None and task_result.tool_calls:
                     for _stc in task_result.tool_calls:
@@ -1678,7 +1678,7 @@ class PerformanceMonitor:
                                 _stc_params = {}
                             self.tool_authorizer.track_tool_call(task_result.task_id, _stc_name, _stc_params or None)
                         except Exception as _sec_exc:
-                            logger.debug("ToolAuthorizationTracker 실패 (무시): %s", _sec_exc)
+                            logger.debug("ToolAuthorizationTracker failed (ignored): %s", _sec_exc)
                 # Layer 2: Privilege Escalation — 도구 체인의 권한 상승 패턴 감지
                 if self.privilege_escalation_detector is not None and task_result.tool_calls:
                     try:
@@ -1686,7 +1686,7 @@ class PerformanceMonitor:
                             task_result.task_id, task_result.tool_calls
                         )
                     except Exception as _sec_exc:
-                        logger.debug("PrivilegeEscalationDetector 실패 (무시): %s", _sec_exc)
+                        logger.debug("PrivilegeEscalationDetector failed (ignored): %s", _sec_exc)
                 # Layer 2: Tool Chain Attack — 연속 도구 호출 공격 패턴 감지
                 if self.tool_chain_attack_detector is not None and task_result.tool_calls:
                     try:
@@ -1698,7 +1698,7 @@ class PerformanceMonitor:
                                 _sec_tool_seq.append(str(_stc))
                         self.tool_chain_attack_detector.analyze_tool_chain(task_result.task_id, _sec_tool_seq)
                     except Exception as _sec_exc:
-                        logger.debug("ToolChainAttackDetector 실패 (무시): %s", _sec_exc)
+                        logger.debug("ToolChainAttackDetector failed (ignored): %s", _sec_exc)
 
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
@@ -1794,7 +1794,7 @@ class PerformanceMonitor:
             try:
                 self.multimodal_tracker.track_multimodal(task_result)
             except Exception as _mm_exc:
-                logger.debug("multimodal_tracker.track_multimodal 실패 (무시): %s", _mm_exc)
+                logger.debug("multimodal_tracker.track_multimodal failed (ignored): %s", _mm_exc)
 
         # M1: ImplicitFeedbackTracker — extra 필드에 피드백 신호 있으면 자동 기록
         _extra_fb = getattr(task_result, "extra", {}) or {}
@@ -1816,7 +1816,7 @@ class PerformanceMonitor:
                         metadata={"auto_recorded": True, "score": float(_fb_val)},
                     )
             except Exception as _fb_exc:
-                logger.debug("ImplicitFeedbackTracker 자동 기록 실패 (무시): %s", _fb_exc)
+                logger.debug("ImplicitFeedbackTracker auto-record failed (ignored): %s", _fb_exc)
 
         # OTEL 스팬 발행 (opt-in, no-op if not configured)
         self._emit_otel_span(task_result)
@@ -1834,7 +1834,7 @@ class PerformanceMonitor:
                         self._auto_save_counter, self._auto_save_filename,
                     )
                 except Exception as _as_exc:
-                    logger.debug("auto_save 저장 실패 (무시): %s", _as_exc)
+                    logger.debug("auto_save write failed (ignored): %s", _as_exc)
 
         return self
 
@@ -2026,7 +2026,7 @@ class PerformanceMonitor:
                     docs = [{"document.id": "0", "document.content": ctx_text}]
                     attributes["retrieval.documents"] = json.dumps(docs, ensure_ascii=False)
                 except Exception as _e:
-                    logger.debug("retrieval.documents 속성 직렬화 실패 (무시): %s", _e)
+                    logger.debug("retrieval.documents attribute serialization failed (ignored): %s", _e)
 
             # span start_time 계산 — Phoenix latency 차트는 span duration을 사용한다.
             # 현재 시각 기준으로 역산 → Phoenix "Last 15 Min" 등 시간 필터에 항상 표시됨.
@@ -2039,7 +2039,7 @@ class PerformanceMonitor:
                 end_ns = int(_time_mod.time() * 1_000_000_000)  # 현재 시각 기준
                 start_time_ns = max(0, end_ns - exec_ns)
             except Exception as _e:
-                logger.debug("start_time_ns 역산 실패, SDK 기본값 사용: %s", _e)
+                logger.debug("start_time_ns reverse calculation failed, using SDK default: %s", _e)
 
             with provider.span(span_name, attributes, start_time_ns=start_time_ns) as span:
                 # 실패 태스크 → SpanStatus ERROR 설정 (Traces with errors 차트용)
@@ -2048,7 +2048,7 @@ class PerformanceMonitor:
                         from opentelemetry.trace import StatusCode
                         span.set_status(StatusCode.ERROR, "task failed")
                     except Exception as _e:
-                        logger.debug("span StatusCode.ERROR 설정 실패 (무시): %s", _e)
+                        logger.debug("span StatusCode.ERROR set failed (ignored): %s", _e)
                 # span_id 캡처 → Phoenix Annotation API 대기열에 추가
                 if span is not None:
                     try:
@@ -2062,7 +2062,7 @@ class PerformanceMonitor:
                                 if hal_data.get("total_evaluated", 0) > 0:
                                     hal_score = float(hal_data.get("overall_rate", 0.0))
                             except Exception as _e:
-                                logger.debug("hallucination score 추출 실패 (무시): %s", _e)
+                                logger.debug("hallucination score extraction failed (ignored): %s", _e)
                             # quality: ResponseQualityEvaluator.get_quality_metrics()
                             # avg_total_score (0–10) → 0–1 정규화
                             qual_score: Optional[float] = None
@@ -2072,7 +2072,7 @@ class PerformanceMonitor:
                                     raw_q = float(qual_data.get("avg_total_score", 0.0))
                                     qual_score = round(min(raw_q / 10.0, 1.0), 4)
                             except Exception as _e:
-                                logger.debug("quality score 추출 실패 (무시): %s", _e)
+                                logger.debug("quality score extraction failed (ignored): %s", _e)
                             self._pending_annotations.append({
                                 "span_id": format(ctx.span_id, "016x"),
                                 "accuracy": float(result.accuracy_score or 0.0),
@@ -2085,7 +2085,7 @@ class PerformanceMonitor:
                                 "attempts": float(result.attempts or 1),
                             })
                     except Exception as _e:
-                        logger.debug("span_id 캡처 / annotation 추가 실패 (무시): %s", _e)
+                        logger.debug("span_id capture / annotation add failed (ignored): %s", _e)
 
                 # Tool call 자식 스팬 — Phoenix "Tool spans" 차트용
                 # tool_calls 가 있으면 항상 발행 (enable_otel_child_spans 불필요)
@@ -2130,9 +2130,9 @@ class PerformanceMonitor:
                                         except Exception as _e:
                                             logger.debug("OTEL attr skipped (tool span status): %s", _e)
                             except Exception as _tse:
-                                logger.debug("tool call 자식 스팬 발행 실패 (무시): %s", _tse)
+                                logger.debug("tool call child span emit failed (ignored): %s", _tse)
                     except Exception as _te:
-                        logger.debug("tool_calls 자식 스팬 처리 실패 (무시): %s", _te)
+                        logger.debug("tool_calls child span processing failed (ignored): %s", _te)
 
                 # D2: 자식 스팬 — chain_steps 각 항목을 별도 OTEL 자식 스팬으로 발행
                 # 부모 span context 안에서 생성해야 parent-child 관계가 성립함
@@ -2164,9 +2164,9 @@ class PerformanceMonitor:
                                     with provider.span(_child_span_name, _child_attrs, start_time_ns=_child_start_ns):
                                         pass
                                 except Exception as _cs_exc:
-                                    logger.debug("자식 스팬 발행 실패 (무시): %s", _cs_exc)
+                                    logger.debug("child span emit failed (ignored): %s", _cs_exc)
                     except Exception as _child_exc:
-                        logger.debug("enable_otel_child_spans 처리 실패 (무시): %s", _child_exc)
+                        logger.debug("enable_otel_child_spans processing failed (ignored): %s", _child_exc)
 
             # Phoenix Metrics 탭 — 집계 지표 전송
             try:
@@ -2185,9 +2185,9 @@ class PerformanceMonitor:
                     m.record("ae.tokens_total", float(tokens_total), task_attrs)
                     m.record("ae.error_rate", 0.0 if result.success else 100.0, task_attrs)
             except Exception as _m_exc:
-                logger.debug("_emit_otel_span: metrics 전송 실패: %s", _m_exc)
+                logger.debug("_emit_otel_span: metrics send failed: %s", _m_exc)
         except Exception as _otel_exc:
-            logger.debug("_emit_otel_span: 스팬 발행 실패: %s", _otel_exc)
+            logger.debug("_emit_otel_span: span emit failed: %s", _otel_exc)
 
     def _flush_phoenix_annotations(self) -> None:
         """누적된 평가 점수를 Phoenix Annotation API로 일괄 전송한다.
@@ -2293,7 +2293,7 @@ class PerformanceMonitor:
                     try:
                         body = http_exc.read().decode("utf-8", errors="replace")[:200]
                     except Exception as _e:
-                        logger.debug("HTTP 에러 바디 읽기 실패 (무시): %s", _e)
+                        logger.debug("HTTP error body read failed (ignored): %s", _e)
                     last_exc = http_exc
                     logger.warning(
                         "Phoenix annotations HTTP %d (시도 %d/%d): %s",
@@ -2319,7 +2319,7 @@ class PerformanceMonitor:
                     last_exc,
                 )
         except Exception as exc:
-            logger.debug("_flush_phoenix_annotations: 초기화 실패: %s", exc)
+            logger.debug("_flush_phoenix_annotations: initialization failed: %s", exc)
 
     # ---------------------------------------------------------------------------
     # Phoenix Experiments — begin / end
@@ -2376,10 +2376,10 @@ class PerformanceMonitor:
                     self._phoenix_experiment_id = exp_id
                     self._phoenix_experiment_name = name
                     self._phoenix_dataset_id = dataset_id
-                    logger.info("Phoenix Experiment 시작: %s (id=%s)", name, exp_id)
+                    logger.info("Phoenix Experiment started: %s (id=%s)", name, exp_id)
                 return exp_id
         except Exception as exc:
-            logger.debug("begin_experiment: Phoenix 연결 실패: %s", exc)
+            logger.debug("begin_experiment: Phoenix connection failed: %s", exc)
             return None
 
     def end_experiment(
@@ -2427,7 +2427,7 @@ class PerformanceMonitor:
                     summary.get("accuracy") or 0.0,
                 )
             except Exception as exc:
-                logger.debug("end_experiment: 지표 전송 실패: %s", exc)
+                logger.debug("end_experiment: metrics send failed: %s", exc)
 
         self._phoenix_experiment_id = None
         self._phoenix_experiment_name = None
@@ -2566,7 +2566,7 @@ class PerformanceMonitor:
             if _f1_by_tool:
                 _tool_sel_data["f1_by_tool"] = _f1_by_tool
         except Exception as _e:
-            logger.debug("get_f1_by_tool 실패 (무시): %s", _e)
+            logger.debug("get_f1_by_tool failed (ignored): %s", _e)
 
         _coord_data: Dict[str, Any] = {}
         # M3: 상호작용 패턴
@@ -2575,7 +2575,7 @@ class PerformanceMonitor:
             if _patterns:
                 _coord_data["interaction_patterns"] = _patterns
         except Exception as _e:
-            logger.debug("get_interaction_patterns 실패 (무시): %s", _e)
+            logger.debug("get_interaction_patterns failed (ignored): %s", _e)
 
         _latency_data: Dict[str, Any] = {}
         # M4: 병목 분석
@@ -2584,7 +2584,7 @@ class PerformanceMonitor:
             if _bottlenecks:
                 _latency_data["bottleneck_analysis"] = _bottlenecks
         except Exception as _e:
-            logger.debug("analyze_bottlenecks 실패 (무시): %s", _e)
+            logger.debug("analyze_bottlenecks failed (ignored): %s", _e)
 
         _workflow_data: Dict[str, Any] = {}
         # M5: 크리티컬 패스 분석
@@ -2593,7 +2593,7 @@ class PerformanceMonitor:
             if _critical_path:
                 _workflow_data["critical_path_analysis"] = _critical_path
         except Exception as _e:
-            logger.debug("get_critical_path_analysis 실패 (무시): %s", _e)
+            logger.debug("get_critical_path_analysis failed (ignored): %s", _e)
 
         _result: Dict[str, Any] = {
             "tool_efficiency": self.tool_analyzer.get_efficiency_stats(),
@@ -2670,7 +2670,7 @@ class PerformanceMonitor:
                 if _mm_summary and _mm_summary.get("total_tracked", 0) > 0:
                     efficiency_metrics["multimodal_metrics"] = _mm_summary
         except Exception as _e:
-            logger.debug("multimodal_metrics 리포트 추가 실패 (무시): %s", _e)
+            logger.debug("multimodal_metrics report add failed (ignored): %s", _e)
 
         # v0.9.0+: Harness groups 집계
         extra_metrics: Optional[Dict[str, Any]] = None
@@ -2687,7 +2687,7 @@ class PerformanceMonitor:
                 if harness_groups:
                     extra_metrics = {"harness_groups": harness_groups}
             except Exception as _hg_exc:
-                logger.debug("harness_groups 집계 실패 (무시): %s", _hg_exc)
+                logger.debug("harness_groups aggregation failed (ignored): %s", _hg_exc)
 
         report = EvaluationReport(
             period="current_session",
@@ -3468,7 +3468,7 @@ class PerformanceMonitor:
         Example::
 
             stats = monitor.get_live_stats(window_seconds=300)
-            print(f"최근 5분: {stats['task_count']}건, TCR={stats['tcr']:.1f}%")
+            print(f"Last 5 min: {stats['task_count']} tasks, TCR={stats['tcr']:.1f}%")
         """
         import time as _time
         from datetime import datetime as _dt
@@ -3683,16 +3683,16 @@ class PerformanceMonitor:
             if tcr_data.get("tcr", 0) < tcr_threshold:
                 alerts.append({
                     "severity": "high",
-                    "metric": "작업 완료율 (TCR)",
-                    "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 ({tcr_threshold:.1f}% 기준 미달)",
-                    "action": "프롬프트와 도구 설정을 검토하세요"
+                    "metric": "Task Completion Rate (TCR)",
+                    "message": f"TCR is {tcr_data.get('tcr', 0):.1f}% (below threshold of {tcr_threshold:.1f}%)",
+                    "action": "Review your prompt and tool configuration"
                 })
             elif tcr_data.get("tcr", 0) < 90:
                 alerts.append({
                     "severity": "medium",
-                    "metric": "작업 완료율 (TCR)",
-                    "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 (90% 기준 미달)",
-                    "action": "작업 완료율 개선을 고려하세요"
+                    "metric": "Task Completion Rate (TCR)",
+                    "message": f"TCR is {tcr_data.get('tcr', 0):.1f}% (below 90% threshold)",
+                    "action": "Consider improving task completion rate"
                 })
 
         # Check accuracy — guard against 0-evaluation state (dict is always truthy)
@@ -3703,16 +3703,16 @@ class PerformanceMonitor:
             if overall_acc < accuracy_threshold:
                 alerts.append({
                     "severity": "critical",
-                    "metric": "정확도 (Accuracy)",
-                    "message": f"정확도가 {overall_acc:.1f}%입니다 ({accuracy_threshold:.1f}% 기준 미달)",
-                    "action": "즉시 검증 로직을 강화하고 프롬프트를 개선하세요"
+                    "metric": "Accuracy",
+                    "message": f"Accuracy is {overall_acc:.1f}% (below threshold of {accuracy_threshold:.1f}%)",
+                    "action": "Immediately strengthen validation logic and improve prompts"
                 })
             elif overall_acc < 80:
                 alerts.append({
                     "severity": "high",
-                    "metric": "정확도 (Accuracy)",
-                    "message": f"정확도가 {overall_acc:.1f}%입니다 (80% 기준 미달)",
-                    "action": "프롬프트 개선과 예시 추가를 고려하세요"
+                    "metric": "Accuracy",
+                    "message": f"Accuracy is {overall_acc:.1f}% (below 80% threshold)",
+                    "action": "Consider improving prompts and adding examples"
                 })
 
         # Check hallucination rate
@@ -3721,16 +3721,16 @@ class PerformanceMonitor:
         if hall_data.get("overall_rate", 0) > hallucination_threshold:
             alerts.append({
                 "severity": "critical",
-                "metric": "환각 발생률 (Hallucination)",
-                "message": f"환각 발생률이 {hall_data.get('overall_rate', 0):.1f}%입니다 ({hallucination_threshold:.1f}% 기준 초과)",
-                "action": "검증 프로세스와 사실 확인 절차를 즉시 강화하세요"
+                "metric": "Hallucination Rate",
+                "message": f"Hallucination rate is {hall_data.get('overall_rate', 0):.1f}% (above threshold of {hallucination_threshold:.1f}%)",
+                "action": "Immediately strengthen verification and fact-checking processes"
             })
         elif hall_data.get("overall_rate", 0) > 5:
             alerts.append({
                 "severity": "high",
-                "metric": "환각 발생률 (Hallucination)",
-                "message": f"환각 발생률이 {hall_data.get('overall_rate', 0):.1f}%입니다 (5% 기준 초과)",
-                "action": "검증 및 사실 확인 프로세스를 강화하세요"
+                "metric": "Hallucination Rate",
+                "message": f"Hallucination rate is {hall_data.get('overall_rate', 0):.1f}% (above 5% threshold)",
+                "action": "Strengthen verification and fact-checking processes"
             })
 
         # Check quality — guard against 0-evaluation state (same as compare_with_thresholds)
@@ -3741,16 +3741,16 @@ class PerformanceMonitor:
             if avg_quality < quality_threshold:
                 alerts.append({
                     "severity": "high",
-                    "metric": "응답 품질 (Quality)",
-                    "message": f"평균 품질이 {avg_quality:.1f}/10입니다 ({quality_threshold:.1f} 기준 미달)",
-                    "action": "응답 완성도, 관련성, 명확성을 개선하세요"
+                    "metric": "Response Quality",
+                    "message": f"Average quality is {avg_quality:.1f}/10 (below threshold of {quality_threshold:.1f})",
+                    "action": "Improve response completeness, relevance, and clarity"
                 })
             elif avg_quality < 7.0:
                 alerts.append({
                     "severity": "medium",
-                    "metric": "응답 품질 (Quality)",
-                    "message": f"평균 품질이 {avg_quality:.1f}/10입니다 (7.0 기준 미달)",
-                    "action": "응답 품질 개선을 고려하세요"
+                    "metric": "Response Quality",
+                    "message": f"Average quality is {avg_quality:.1f}/10 (below 7.0 threshold)",
+                    "action": "Consider improving response quality"
                 })
 
         # Check latency
@@ -3761,16 +3761,16 @@ class PerformanceMonitor:
             if p95_latency > latency_threshold:
                 alerts.append({
                     "severity": "high",
-                    "metric": "응답 시간 (Latency)",
-                    "message": f"P95 응답 시간이 {p95_latency:.2f}초입니다 ({latency_threshold:.2f}초 기준 초과)",
-                    "action": "성능 최적화와 병렬 처리를 고려하세요"
+                    "metric": "Response Latency",
+                    "message": f"P95 latency is {p95_latency:.2f}s (above threshold of {latency_threshold:.2f}s)",
+                    "action": "Consider performance optimization and parallel processing"
                 })
             elif p95_latency > 5:
                 alerts.append({
                     "severity": "medium",
-                    "metric": "응답 시간 (Latency)",
-                    "message": f"P95 응답 시간이 {p95_latency:.2f}초입니다 (5초 기준 초과)",
-                    "action": "응답 시간 최적화를 고려하세요"
+                    "metric": "Response Latency",
+                    "message": f"P95 latency is {p95_latency:.2f}s (above 5s threshold)",
+                    "action": "Consider optimizing response time"
                 })
 
         # Check cost
@@ -3780,16 +3780,16 @@ class PerformanceMonitor:
         if cost_per_task > cost_threshold:
             alerts.append({
                 "severity": "high",
-                "metric": "토큰 비용 (Cost per Task)",
-                "message": f"작업당 평균 비용: ${cost_per_task:.4f} (${cost_threshold:.4f} 기준 초과)",
-                "action": "토큰 사용 패턴을 검토하고 최적화 기회를 찾으세요"
+                "metric": "Token Cost (per Task)",
+                "message": f"Average cost per task: ${cost_per_task:.4f} (above threshold of ${cost_threshold:.4f})",
+                "action": "Review token usage patterns and identify optimization opportunities"
             })
         elif cost_per_task > 0.03:
             alerts.append({
                 "severity": "medium",
-                "metric": "토큰 비용 (Cost per Task)",
-                "message": f"작업당 평균 비용: ${cost_per_task:.4f} ($0.03 기준 초과)",
-                "action": "비용 최적화를 고려하세요"
+                "metric": "Token Cost (per Task)",
+                "message": f"Average cost per task: ${cost_per_task:.4f} (above $0.03 threshold)",
+                "action": "Consider cost optimization"
             })
 
         # Check tool efficiency
@@ -3799,16 +3799,16 @@ class PerformanceMonitor:
             if efficiency < 60:
                 alerts.append({
                     "severity": "high",
-                    "metric": "도구 효율성 (Tool Efficiency)",
-                    "message": f"도구 효율성이 {efficiency:.1f}%입니다 (60% 기준 미달)",
-                    "action": "도구 호출 패턴을 분석하고 중복을 제거하세요"
+                    "metric": "Tool Efficiency",
+                    "message": f"Tool efficiency is {efficiency:.1f}% (below 60% threshold)",
+                    "action": "Analyze tool call patterns and eliminate redundancy"
                 })
             elif efficiency < 70:
                 alerts.append({
                     "severity": "medium",
-                    "metric": "도구 효율성 (Tool Efficiency)",
-                    "message": f"도구 효율성이 {efficiency:.1f}%입니다 (70% 기준 미달)",
-                    "action": "도구 사용 최적화를 고려하세요"
+                    "metric": "Tool Efficiency",
+                    "message": f"Tool efficiency is {efficiency:.1f}% (below 70% threshold)",
+                    "action": "Consider optimizing tool usage"
                 })
 
         # === Security Alerts (Layer 1 & 2) ===
@@ -3821,16 +3821,16 @@ class PerformanceMonitor:
                     if threat_rate > 10:
                         alerts.append({
                             "severity": "critical",
-                            "metric": "입력 보안 위협 (Input Security)",
-                            "message": f"입력의 {threat_rate:.1f}%에서 보안 위협 탐지 (SQL injection, prompt injection 등)",
-                            "action": "즉시 입력 검증 및 살균 프로세스를 강화하세요"
+                            "metric": "Input Security Threats",
+                            "message": f"{threat_rate:.1f}% of inputs contain security threats (SQL injection, prompt injection, etc.)",
+                            "action": "Immediately strengthen input validation and sanitization processes"
                         })
                     elif threat_rate > 5:
                         alerts.append({
                             "severity": "high",
-                            "metric": "입력 보안 위협 (Input Security)",
-                            "message": f"입력의 {threat_rate:.1f}%에서 보안 위협 탐지",
-                            "action": "입력 검증 로직을 검토하고 강화하세요"
+                            "metric": "Input Security Threats",
+                            "message": f"{threat_rate:.1f}% of inputs contain security threats",
+                            "action": "Review and strengthen input validation logic"
                         })
 
             # Output leakage
@@ -3842,16 +3842,16 @@ class PerformanceMonitor:
                     if critical_leaks > 0:
                         alerts.append({
                             "severity": "critical",
-                            "metric": "민감 정보 유출 (Data Leakage)",
-                            "message": f"{critical_leaks}개의 출력에서 API 키, 비밀번호 등 중요 정보 유출 탐지",
-                            "action": "즉시 출력 필터링을 강화하고 유출된 정보를 회전시키세요"
+                            "metric": "Sensitive Data Leakage",
+                            "message": f"{critical_leaks} output(s) contain critical data leakage (API keys, passwords, etc.)",
+                            "action": "Immediately strengthen output filtering and rotate any leaked credentials"
                         })
                     elif leakage_rate > 5:
                         alerts.append({
                             "severity": "high",
-                            "metric": "민감 정보 유출 (Data Leakage)",
-                            "message": f"출력의 {leakage_rate:.1f}%에서 민감 정보 유출 탐지",
-                            "action": "출력 검증 및 마스킹 프로세스를 강화하세요"
+                            "metric": "Sensitive Data Leakage",
+                            "message": f"{leakage_rate:.1f}% of outputs contain sensitive data leakage",
+                            "action": "Strengthen output validation and masking processes"
                         })
 
             # Tool authorization violations
@@ -3862,16 +3862,16 @@ class PerformanceMonitor:
                     if violation_rate > 10:
                         alerts.append({
                             "severity": "critical",
-                            "metric": "도구 권한 위반 (Authorization)",
-                            "message": f"도구 호출의 {violation_rate:.1f}%가 권한 정책 위반",
-                            "action": "즉시 권한 정책을 검토하고 무단 도구 사용을 차단하세요"
+                            "metric": "Tool Authorization Violations",
+                            "message": f"{violation_rate:.1f}% of tool calls violate authorization policy",
+                            "action": "Immediately review authorization policies and block unauthorized tool usage"
                         })
                     elif violation_rate > 5:
                         alerts.append({
                             "severity": "high",
-                            "metric": "도구 권한 위반 (Authorization)",
-                            "message": f"도구 호출의 {violation_rate:.1f}%가 권한 정책 위반",
-                            "action": "권한 정책 및 허용 도구 목록을 검토하세요"
+                            "metric": "Tool Authorization Violations",
+                            "message": f"{violation_rate:.1f}% of tool calls violate authorization policy",
+                            "action": "Review authorization policies and the list of allowed tools"
                         })
 
             # Privilege escalation
@@ -3883,16 +3883,16 @@ class PerformanceMonitor:
                     if high_risk > 0:
                         alerts.append({
                             "severity": "critical",
-                            "metric": "권한 상승 탐지 (Privilege Escalation)",
-                            "message": f"{high_risk}개의 고위험 권한 상승 패턴 탐지",
-                            "action": "즉시 도구 체인을 검토하고 권한 상승 경로를 차단하세요"
+                            "metric": "Privilege Escalation Detected",
+                            "message": f"{high_risk} high-risk privilege escalation pattern(s) detected",
+                            "action": "Immediately review tool chains and block privilege escalation paths"
                         })
                     elif escalation_rate > 20:
                         alerts.append({
                             "severity": "high",
-                            "metric": "권한 상승 탐지 (Privilege Escalation)",
-                            "message": f"작업의 {escalation_rate:.1f}%에서 권한 상승 패턴 탐지",
-                            "action": "권한 상승 패턴을 분석하고 제한하세요"
+                            "metric": "Privilege Escalation Detected",
+                            "message": f"Privilege escalation patterns detected in {escalation_rate:.1f}% of tasks",
+                            "action": "Analyze and restrict privilege escalation patterns"
                         })
 
             # Tool chain attacks
@@ -3903,16 +3903,16 @@ class PerformanceMonitor:
                     if detection_rate > 10:
                         alerts.append({
                             "severity": "critical",
-                            "metric": "공격 패턴 탐지 (Attack Detection)",
-                            "message": f"도구 체인의 {detection_rate:.1f}%에서 공격 패턴 탐지 (데이터 유출, 측면 이동 등)",
-                            "action": "즉시 의심스러운 도구 체인을 검토하고 차단하세요"
+                            "metric": "Attack Pattern Detected",
+                            "message": f"{detection_rate:.1f}% of tool chains contain attack patterns (data exfiltration, lateral movement, etc.)",
+                            "action": "Immediately review and block suspicious tool chains"
                         })
                     elif detection_rate > 5:
                         alerts.append({
                             "severity": "high",
-                            "metric": "공격 패턴 탐지 (Attack Detection)",
-                            "message": f"도구 체인의 {detection_rate:.1f}%에서 공격 패턴 탐지",
-                            "action": "도구 체인 패턴을 분석하고 모니터링을 강화하세요"
+                            "metric": "Attack Pattern Detected",
+                            "message": f"{detection_rate:.1f}% of tool chains contain attack patterns",
+                            "action": "Analyze tool chain patterns and strengthen monitoring"
                         })
 
         return alerts
@@ -3931,21 +3931,21 @@ class PerformanceMonitor:
             failures = tcr_data.get('failures', 0)
 
             recommendations.append({
-                "area": "작업 완료율 개선",
-                "title": f"작업 완료율(TCR)이 목표치 대비 {gap:.1f}%p 낮음",
+                "area": "Task Completion Rate Improvement",
+                "title": f"Task Completion Rate (TCR) is {gap:.1f}pp below target",
                 "priority": "high" if tcr_value < 80 else "medium",
-                "issue": f"현재 TCR {tcr_value:.1f}% (목표: 90% 이상). 전체 성공 {full_success}건, 부분 성공 {partial_success}건, 실패 {failures}건으로 실패 작업의 원인 분석이 필요합니다.",
-                "suggestion": f"""**즉시 실행 가능한 개선 방안:**
-1. **실패 작업 패턴 분석**: 실패한 {failures}개 작업의 공통 오류 패턴 파악 (타임아웃, API 오류, 입력 검증 실패 등)
-2. **프롬프트 명확화**: 작업 지시사항에 구체적인 성공 기준과 출력 형식 명시
-3. **작업 분할 전략**: 복잡한 작업을 3-5개의 하위 작업으로 분할하여 단계별 검증 수행
-4. **재시도 메커니즘**: 일시적 오류(네트워크, API 제한)에 대한 지수 백오프 재시도 구현
-5. **입력 검증 강화**: 작업 실행 전 필수 파라미터와 컨텍스트 검증 로직 추가""",
-                "impact": f"""**예상 개선 효과:**
-• TCR 목표 달성 시 연간 {failures * 52}건 실패 작업 감소 (주간 {failures}건 기준)
-• 사용자 만족도 15-25% 향상 (90% TCR 달성 시)
-• 재작업 비용 절감: 실패 작업당 평균 5분 소요 시 주당 {failures * 5}분 절약
-• 시스템 신뢰도 향상으로 프로덕션 배포 리스크 감소"""
+                "issue": f"Current TCR is {tcr_value:.1f}% (target: 90%+). Full success: {full_success}, partial success: {partial_success}, failures: {failures}. Root cause analysis of failed tasks is required.",
+                "suggestion": f"""**Actionable improvements:**
+1. **Failure pattern analysis**: Identify common error patterns in the {failures} failed tasks (timeouts, API errors, input validation failures, etc.)
+2. **Clarify prompts**: Add explicit success criteria and output format requirements to task instructions
+3. **Task decomposition**: Break complex tasks into 3–5 subtasks and validate each step
+4. **Retry mechanism**: Implement exponential backoff for transient errors (network, API rate limits)
+5. **Input validation**: Add pre-execution checks for required parameters and context""",
+                "impact": f"""**Expected impact:**
+• Reaching TCR target reduces annual failures by {failures * 52} (based on {failures}/week)
+• User satisfaction improvement of 15–25% at 90% TCR
+• Time savings: ~{failures * 5} min/week (assuming 5 min per failed task)
+• Improved system reliability and lower production deployment risk"""
             })
 
         # Accuracy improvement — guard against 0-evaluation state (same as _generate_alerts)
@@ -3955,25 +3955,25 @@ class PerformanceMonitor:
             if overall_acc < 85:
                 gap = 85 - overall_acc
                 recommendations.append({
-                    "area": "정확도 개선",
-                    "title": f"정답 정확도가 기준치 대비 {gap:.1f}%p 부족",
+                    "area": "Accuracy Improvement",
+                    "title": f"Answer accuracy is {gap:.1f}pp below target",
                     "priority": "high" if overall_acc < 75 else "medium",
-                    "issue": f"현재 정확도 {overall_acc:.1f}% (목표: 85% 이상). 응답의 사실 정확성이 부족하여 사용자에게 잘못된 정보를 제공할 위험이 있습니다.",
-                    "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **검증 단계 추가**:
-   - RAG 기반 작업: 검색된 컨텍스트와 응답의 일치성을 자동 검증하는 후처리 단계 추가
-   - 계산/추론 작업: 중간 단계 결과를 명시적으로 출력하고 검증
-2. **Few-shot 예시 제공**: 작업 유형별로 3-5개의 고품질 예시를 프롬프트에 포함
-3. **프롬프트 구조화**:
-   - 단계별 사고 과정(Chain-of-Thought) 유도
-   - 최종 답변 전 자기 검증(Self-verification) 단계 추가
-4. **Golden Dataset 활용**: 현재 평가 데이터셋을 기반으로 오답 패턴 분석 및 학습 데이터 보강
-5. **모델 파라미터 조정**: Temperature 낮추기(0.3-0.5), Top-P 조정으로 일관성 향상""",
-                    "impact": f"""**예상 개선 효과:**
-• 정확도 85% 달성 시 오답률 {100-overall_acc:.1f}% → 15%로 {(100-overall_acc)-15:.1f}%p 감소
-• 사용자 신뢰도 20-30% 향상
-• 잘못된 정보로 인한 비즈니스 리스크 {((100-overall_acc)/100)*100:.0f}% 감소
-• 사실 확인 및 수정 작업 시간 주당 10-15시간 절감"""
+                    "issue": f"Current accuracy is {overall_acc:.1f}% (target: 85%+). Insufficient factual accuracy risks providing incorrect information to users.",
+                    "suggestion": """**Actionable improvements:**
+1. **Add verification steps**:
+   - RAG tasks: add a post-processing step to automatically verify consistency between retrieved context and response
+   - Calculation/reasoning tasks: explicitly output and verify intermediate results
+2. **Provide few-shot examples**: include 3–5 high-quality examples per task type in prompts
+3. **Structure prompts**:
+   - Encourage Chain-of-Thought reasoning
+   - Add a self-verification step before the final answer
+4. **Leverage golden dataset**: analyze incorrect answer patterns and augment training data
+5. **Tune model parameters**: lower temperature (0.3–0.5) and adjust Top-P for consistency""",
+                    "impact": f"""**Expected impact:**
+• Reaching 85% accuracy reduces error rate from {100-overall_acc:.1f}% → 15% ({(100-overall_acc)-15:.1f}pp decrease)
+• User trust improvement of 20–30%
+• Business risk from incorrect information reduced by {((100-overall_acc)/100)*100:.0f}%
+• Save 10–15 hours/week on fact-checking and correction tasks"""
                 })
 
         # Quality improvement — guard against 0-evaluation state (same as _generate_alerts)
@@ -3985,31 +3985,31 @@ class PerformanceMonitor:
             if avg_quality < quality_target:
                 gap = quality_target - avg_quality
                 recommendations.append({
-                    "area": "응답 품질 개선",
-                    "title": f"응답 품질 점수가 목표치 대비 {gap:.1f}점 낮음 (5점 만점)",
+                    "area": "Response Quality Improvement",
+                    "title": f"Response quality score is {gap:.1f} points below target (out of 5)",
                     "priority": "medium",
-                    "issue": f"현재 품질 점수 {avg_quality:.1f}/5.0 (목표: {quality_target:.1f} 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.",
-                    "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **응답 구조화 템플릿 적용**:
-   - 질문형 작업: 직접적 답변 → 근거 제시 → 추가 정보 순으로 구조화
-   - 분석형 작업: 요약 → 상세 분석 → 결론 및 권장사항 순으로 구성
-2. **완성도 체크리스트 도입**:
-   - 질문의 모든 부분에 답변했는가?
-   - 근거나 예시가 충분히 제공되었는가?
-   - 결론이 명확하게 제시되었는가?
-3. **관련성 강화**:
-   - 제공된 컨텍스트나 질문에서 벗어난 내용 제거
-   - 핵심 키워드를 응답에 자연스럽게 포함
-4. **가독성 개선**:
-   - 긴 문장(50자 이상) 분할
-   - 불릿 포인트나 번호 매기기 활용
-   - 전문 용어 사용 시 간단한 설명 추가
-5. **사용자 맞춤화**: 응답 톤과 디테일 수준을 사용자 컨텍스트에 맞게 조정""",
-                    "impact": f"""**예상 개선 효과:**
-• 품질 점수 {quality_target:.1f}/5.0 달성 시 사용자 재질문률 30-40% 감소
-• 응답 이해도 향상으로 고객 지원 문의 주당 20-30건 감소
-• 사용자 세션 시간 15-20% 증가 (만족도 향상)
-• 응답 재작성 필요성 {(gap/quality_target)*100:.0f}% 감소로 운영 효율 증대"""
+                    "issue": f"Current quality score is {avg_quality:.1f}/5.0 (target: {quality_target:.1f}+). Response completeness, relevance, and readability fall short of user expectations.",
+                    "suggestion": """**Actionable improvements:**
+1. **Apply structured response templates**:
+   - Q&A tasks: direct answer → supporting evidence → additional context
+   - Analytical tasks: summary → detailed analysis → conclusions and recommendations
+2. **Introduce completeness checklist**:
+   - Does the response address all parts of the question?
+   - Are sufficient evidence or examples provided?
+   - Is the conclusion clearly stated?
+3. **Improve relevance**:
+   - Remove content that strays from the provided context or question
+   - Naturally incorporate key keywords in the response
+4. **Improve readability**:
+   - Split long sentences (50+ characters)
+   - Use bullet points and numbered lists
+   - Add brief explanations for technical terms
+5. **Personalization**: adjust response tone and detail level to match user context""",
+                    "impact": f"""**Expected impact:**
+• Reaching quality score {quality_target:.1f}/5.0 reduces follow-up questions by 30–40%
+• Improved response comprehension reduces support inquiries by 20–30/week
+• User session time increases 15–20% (higher satisfaction)
+• Response rewrite rate reduced by {(gap/quality_target)*100:.0f}%, improving operational efficiency"""
                 })
 
         # Token optimization
@@ -4020,28 +4020,28 @@ class PerformanceMonitor:
             total_cost = token_data.get("total_cost", 0)
 
             recommendations.append({
-                "area": "토큰 효율성",
-                "title": f"입력 토큰 비율이 {input_ratio:.0f}%로 과도하게 높음",
+                "area": "Token Efficiency",
+                "title": f"Input token ratio is excessively high at {input_ratio:.0f}%",
                 "priority": "medium",
-                "issue": f"전체 토큰 사용량의 {input_ratio:.0f}%가 입력 토큰 (총 {total_tokens:,} 토큰, 비용 ${total_cost:.2f}). 불필요하게 긴 컨텍스트나 반복적인 프롬프트가 비용 증가의 주요 원인입니다.",
-                "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **컨텍스트 요약 기법**:
-   - 긴 문서는 임베딩 기반 검색 후 상위 3-5개 청크만 사용
-   - 대화 히스토리는 최근 5턴으로 제한하고 이전 내용은 요약본 사용
-2. **슬라이딩 윈도우 구현**:
-   - 장문 처리 시 4096 토큰 윈도우로 분할 처리
-   - 중복 컨텍스트 제거 (이전 윈도우에서 이미 처리된 정보)
-3. **프롬프트 최적화**:
-   - 시스템 프롬프트에서 불필요한 예시나 설명 제거
-   - 동적 프롬프트: 작업 복잡도에 따라 프롬프트 길이 조절
-4. **캐싱 활용**:
-   - 반복되는 시스템 프롬프트나 자주 사용하는 컨텍스트는 API 캐싱 기능 활용 (Claude/OpenAI)
-5. **토큰 모니터링**: 작업별 입력 토큰 추적 및 500토큰 이상 작업 우선 최적화""",
-                "impact": f"""**예상 개선 효과:**
-• 입력 토큰 30% 감소 시 월간 비용 ${total_cost * 0.3 * 30:.2f} 절감 (현재 일간 ${total_cost:.2f} 기준)
-• 연간 ${total_cost * 0.3 * 365:.2f} 비용 절감 가능
-• 응답 속도 10-15% 향상 (입력 처리 시간 감소)
-• 토큰 한도 도달 빈도 감소로 서비스 안정성 향상"""
+                "issue": f"{input_ratio:.0f}% of total token usage is input tokens (total: {total_tokens:,} tokens, cost: ${total_cost:.2f}). Unnecessarily long contexts or repetitive prompts are the main driver of cost increases.",
+                "suggestion": """**Actionable improvements:**
+1. **Context summarization**:
+   - For long documents, use embedding-based retrieval and keep only the top 3–5 chunks
+   - Limit conversation history to the last 5 turns and use summaries for older content
+2. **Sliding window approach**:
+   - Split long documents into 4096-token windows for processing
+   - Remove duplicate context already processed in previous windows
+3. **Prompt optimization**:
+   - Remove unnecessary examples or explanations from system prompts
+   - Use dynamic prompts: adjust prompt length based on task complexity
+4. **Leverage caching**:
+   - Use API caching for repeated system prompts or frequently used contexts (Claude/OpenAI)
+5. **Token monitoring**: track input tokens per task and prioritize optimization for tasks using 500+ tokens""",
+                "impact": f"""**Expected impact:**
+• 30% reduction in input tokens saves ${total_cost * 0.3 * 30:.2f}/month (based on current daily cost of ${total_cost:.2f})
+• Annual savings potential: ${total_cost * 0.3 * 365:.2f}
+• 10–15% faster responses (reduced input processing time)
+• Fewer token limit hits, improving service stability"""
             })
 
         # Latency optimization
@@ -4051,31 +4051,31 @@ class PerformanceMonitor:
             if mean_latency > 3:
                 p95 = latency_data.get("p95", 0)
                 recommendations.append({
-                    "area": "응답 시간 최적화",
-                    "title": f"평균 응답 시간이 {mean_latency:.1f}초로 사용자 기대치 초과",
+                    "area": "Response Latency Optimization",
+                    "title": f"Average response time of {mean_latency:.1f}s exceeds user expectations",
                     "priority": "high" if mean_latency > 5 else "medium",
-                    "issue": f"평균 {mean_latency:.2f}초, P95 {p95:.2f}초 (목표: 3초 이내). 긴 대기 시간은 사용자 이탈률 증가와 직결됩니다.",
-                    "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **병렬 처리 구현**:
-   - 독립적인 도구 호출은 asyncio로 병렬 실행 (2-3배 속도 향상)
-   - RAG 검색과 LLM 추론을 파이프라인으로 중첩 처리
-2. **캐싱 전략 적용**:
-   - 빈번한 질문(FAQ)에 대한 응답 캐싱 (Redis/Memcached)
-   - 검색 결과 캐싱: 동일 쿼리 24시간 캐시
-   - 임베딩 캐싱: 동일 텍스트 재계산 방지
-3. **모델 최적화**:
-   - 간단한 작업(분류, 간단한 QA)은 경량 모델 사용 (GPT-3.5, Claude Haiku)
-   - 복잡한 작업만 고성능 모델 사용
-   - Streaming 응답 활성화로 체감 속도 개선
-4. **인프라 최적화**:
-   - API 엔드포인트를 지리적으로 가까운 리전 사용
-   - 연결 풀링 및 Keep-Alive 설정
-5. **타임아웃 설정**: 5초 초과 작업은 중단 후 간소화된 응답 제공""",
-                    "impact": f"""**예상 개선 효과:**
-• 평균 응답 시간 3초 달성 시 사용자 이탈률 25-35% 감소
-• P95를 5초 이하로 개선하면 상위 5% 불만족 사용자 경험 대폭 개선
-• 처리량 {(mean_latency/3.0):.1f}배 증가 (동일 리소스로 더 많은 요청 처리)
-• 사용자 만족도 조사 점수 0.5-1.0점 향상 (5점 만점)"""
+                    "issue": f"Average {mean_latency:.2f}s, P95 {p95:.2f}s (target: under 3s). Long wait times directly increase user churn.",
+                    "suggestion": """**Actionable improvements:**
+1. **Implement parallel processing**:
+   - Run independent tool calls in parallel with asyncio (2–3× speed improvement)
+   - Pipeline RAG retrieval and LLM inference concurrently
+2. **Apply caching strategies**:
+   - Cache responses for frequent queries (FAQ) using Redis/Memcached
+   - Cache search results: same query for 24 hours
+   - Cache embeddings to avoid recomputation for identical text
+3. **Model optimization**:
+   - Use lightweight models for simple tasks (classification, simple Q&A): GPT-3.5, Claude Haiku
+   - Reserve high-performance models for complex tasks
+   - Enable streaming responses to improve perceived speed
+4. **Infrastructure optimization**:
+   - Use API endpoints in the geographically closest region
+   - Configure connection pooling and Keep-Alive
+5. **Timeout policy**: abort tasks exceeding 5s and return a simplified response""",
+                    "impact": f"""**Expected impact:**
+• Reaching average response time of 3s reduces user churn by 25–35%
+• Reducing P95 below 5s dramatically improves the worst 5% of user experiences
+• {(mean_latency/3.0):.1f}× throughput increase (handle more requests with the same resources)
+• User satisfaction score improvement of 0.5–1.0 points (out of 5)"""
                 })
 
         # Tool efficiency
@@ -4087,29 +4087,29 @@ class PerformanceMonitor:
                 redundant_calls = int(total_calls * redundancy_rate / 100)
 
                 recommendations.append({
-                    "area": "도구 호출 최적화",
-                    "title": f"중복 도구 호출로 인한 비효율 발생 ({redundancy_rate:.0f}%)",
+                    "area": "Tool Call Optimization",
+                    "title": f"Inefficiency from redundant tool calls ({redundancy_rate:.0f}%)",
                     "priority": "medium",
-                    "issue": f"총 {total_calls}회 도구 호출 중 약 {redundant_calls}회가 중복 호출 (중복률 {redundancy_rate:.1f}%). 동일한 파라미터로 같은 도구를 반복 호출하여 불필요한 지연과 비용이 발생합니다.",
-                    "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **결과 캐싱 메커니즘**:
-   - 도구 호출 결과를 메모리 캐시에 저장 (작업 세션 동안 유지)
-   - 캐시 키: (도구명, 파라미터 해시) 조합
-   - 최대 100개 결과 저장, LRU 정책으로 관리
-2. **중복 검사 로직**:
-   - 도구 호출 전 최근 5회 호출 이력 확인
-   - 동일 파라미터 발견 시 캐시된 결과 재사용
-3. **에이전트 로직 개선**:
-   - 도구 호출 이력을 프롬프트에 포함하여 LLM이 중복 인지하도록 유도
-   - "이전에 이미 검색한 내용입니다" 같은 피드백 제공
-4. **배치 처리**:
-   - 여러 개의 유사한 도구 호출을 하나로 통합 (예: 10개 문서 검색 → 1회 배치 검색)
-5. **도구 호출 분석**: 상위 5개 중복 도구 파악 후 우선 최적화""",
-                    "impact": f"""**예상 개선 효과:**
-• 중복 호출 {redundancy_rate:.0f}% 제거 시 도구 호출 시간 {redundancy_rate:.0f}% 단축
-• API 비용 절감: 외부 API 도구의 경우 월간 수백 달러 절감 가능
-• 평균 작업 완료 시간 15-20% 개선
-• 시스템 부하 감소로 동시 처리 가능 작업 수 {(100/(100-redundancy_rate)):.1f}배 증가"""
+                    "issue": f"Approximately {redundant_calls} of {total_calls} total tool calls are redundant (redundancy rate: {redundancy_rate:.1f}%). Repeated calls with identical parameters cause unnecessary latency and cost.",
+                    "suggestion": """**Actionable improvements:**
+1. **Result caching mechanism**:
+   - Store tool call results in a memory cache (persist for the task session)
+   - Cache key: (tool name, parameter hash)
+   - Max 100 cached results with LRU eviction policy
+2. **Deduplication logic**:
+   - Check the last 5 call history before each tool invocation
+   - Reuse cached results when identical parameters are detected
+3. **Agent logic improvement**:
+   - Include tool call history in prompts so the LLM recognizes duplicates
+   - Provide feedback such as "This was already retrieved"
+4. **Batch processing**:
+   - Consolidate multiple similar tool calls into one (e.g., 10 document retrievals → 1 batch retrieval)
+5. **Tool call analysis**: identify the top 5 most-redundant tools and prioritize their optimization""",
+                    "impact": f"""**Expected impact:**
+• Eliminating {redundancy_rate:.0f}% redundant calls reduces tool call time by {redundancy_rate:.0f}%
+• Cost savings: hundreds of dollars/month for external API tools
+• Average task completion time improved by 15–20%
+• Reduced system load enables {(100/(100-redundancy_rate)):.1f}× more concurrent tasks"""
                 })
 
         # Retry optimization
@@ -4117,33 +4117,33 @@ class PerformanceMonitor:
         if retry_data.get("overall_retry_rate", 0) > 20:
             retry_rate = retry_data.get('overall_retry_rate', 0)
             recommendations.append({
-                "area": "에러 처리 개선",
-                "title": f"재시도율이 {retry_rate:.0f}%로 과도하게 높음",
+                "area": "Error Handling Improvement",
+                "title": f"Retry rate is excessively high at {retry_rate:.0f}%",
                 "priority": "high" if retry_rate > 30 else "medium",
-                "issue": f"전체 작업의 {retry_rate:.1f}%가 재시도 필요. 높은 재시도율은 근본 원인 해결 없이 임시방편으로 대응하고 있음을 의미하며, 사용자 경험과 시스템 효율을 저하시킵니다.",
-                "suggestion": """**즉시 실행 가능한 개선 방안:**
-1. **실패 패턴 분석 대시보드 구축**:
-   - 재시도 원인별 통계 (API 타임아웃, 파싱 오류, 검증 실패 등)
-   - 시간대별, 작업 유형별 실패율 추적
-   - 주간 리포트 자동 생성
-2. **첫 시도 성공률 개선**:
-   - **API 타임아웃**: 타임아웃 설정 10초 → 15초로 증가, 중요 작업 우선순위 부여
-   - **파싱 오류**: 응답 형식을 JSON Schema로 명시, Pydantic 검증 추가
-   - **검증 실패**: 입력 전처리 단계에서 필수 필드 검증 강화
-3. **지능형 재시도 전략**:
-   - 일시적 오류(네트워크): 지수 백오프 (1초 → 2초 → 4초)
-   - 영구적 오류(잘못된 입력): 재시도 없이 즉시 실패 처리
-   - 최대 재시도 횟수 3회로 제한 (무한 루프 방지)
-4. **대체 전략 구현**:
-   - Primary API 실패 시 Fallback API로 자동 전환
-   - 복잡한 작업 실패 시 단순화된 버전으로 재시도
-5. **알림 시스템**: 재시도율 30% 초과 시 개발팀에 자동 알림""",
-                "impact": f"""**예상 개선 효과:**
-• 재시도율 10% 이하로 감소 시 평균 작업 시간 {retry_rate/2:.0f}% 단축
-• 사용자 체감 속도 30-40% 향상
-• 시스템 리소스 효율 {retry_rate:.0f}% 개선 (중복 처리 감소)
-• 안정성 향상으로 프로덕션 신뢰도 증가
-• 장애 대응 시간 50% 단축 (명확한 실패 패턴 파악)"""
+                "issue": f"{retry_rate:.1f}% of all tasks require retries. A high retry rate indicates relying on workarounds rather than fixing root causes, degrading user experience and system efficiency.",
+                "suggestion": """**Actionable improvements:**
+1. **Build failure pattern analysis dashboard**:
+   - Statistics by retry cause (API timeout, parsing error, validation failure, etc.)
+   - Track failure rate by time of day and task type
+   - Auto-generate weekly reports
+2. **Improve first-attempt success rate**:
+   - **API timeouts**: increase timeout from 10s → 15s, prioritize critical tasks
+   - **Parsing errors**: specify response format with JSON Schema, add Pydantic validation
+   - **Validation failures**: strengthen required field checks in input pre-processing
+3. **Intelligent retry strategy**:
+   - Transient errors (network): exponential backoff (1s → 2s → 4s)
+   - Permanent errors (invalid input): fail immediately without retry
+   - Cap max retries at 3 (prevent infinite loops)
+4. **Fallback strategy**:
+   - Auto-switch to fallback API when primary API fails
+   - Retry complex tasks with a simplified version on failure
+5. **Alerting**: send automatic alerts to the dev team when retry rate exceeds 30%""",
+                "impact": f"""**Expected impact:**
+• Reducing retry rate below 10% cuts average task time by {retry_rate/2:.0f}%
+• Perceived speed improvement of 30–40%
+• System resource efficiency improved by {retry_rate:.0f}% (fewer redundant operations)
+• Higher stability and production reliability
+• 50% faster incident response (clear failure pattern visibility)"""
                 })
 
         return recommendations
@@ -4258,13 +4258,13 @@ class PerformanceMonitor:
             report = self.generate_report()
 
         print("=" * 80)
-        print("         성능 요약 보고서")
+        print("         Performance Summary Report")
         print("=" * 80)
         print()
 
         # Overall statistics
-        print("📊 전체 작업 통계:")
-        print(f"  - 총 작업 수: {report.total_tasks}")
+        print("📊 Overall Task Statistics:")
+        print(f"  - Total tasks: {report.total_tasks}")
 
         # Calculate success/failure from TCR
         tcr_data = report.accuracy_metrics.get("tcr", {})
@@ -4272,17 +4272,17 @@ class PerformanceMonitor:
         failure_count = tcr_data.get("failures", 0)
         success_rate = (success_count / report.total_tasks * 100) if report.total_tasks > 0 else 0
 
-        print(f"  - 성공: {success_count} ({success_rate:.1f}%)")
-        print(f"  - 실패: {failure_count} ({100 - success_rate:.1f}%)")
+        print(f"  - Succeeded: {success_count} ({success_rate:.1f}%)")
+        print(f"  - Failed: {failure_count} ({100 - success_rate:.1f}%)")
         print()
 
         # Accuracy metrics
-        print("✅ 정확도 메트릭:")
+        print("✅ Accuracy Metrics:")
         print(f"  - TCR (Task Completion Rate): {tcr_data.get('tcr', 0):.1f}%")
 
         accuracy = report.accuracy_metrics.get("accuracy_scores", {})
         if accuracy:
-            print(f"  - 평균 Accuracy: {accuracy.get('overall_accuracy', 0):.1f}%")
+            print(f"  - Avg Accuracy: {accuracy.get('overall_accuracy', 0):.1f}%")
 
         hall = report.accuracy_metrics.get("hallucination", {})
         if hall:
@@ -4290,17 +4290,17 @@ class PerformanceMonitor:
         print()
 
         # Efficiency metrics
-        print("⚡ 효율성 메트릭:")
+        print("⚡ Efficiency Metrics:")
         latency = report.efficiency_metrics.get("latency", {})
         if latency:
-            print(f"  - 평균 Latency: {latency.get('mean', 0):.2f}초")
-            print(f"  - P95 Latency: {latency.get('p95', 0):.2f}초")
+            print(f"  - Avg Latency: {latency.get('mean', 0):.2f}s")
+            print(f"  - P95 Latency: {latency.get('p95', 0):.2f}s")
 
         tokens = report.efficiency_metrics.get("tokens", {})
         if tokens:
             avg_tokens = tokens.get('avg_tokens_per_task', 0)
-            print(f"  - 평균 Token 사용량: {avg_tokens:.0f} tokens")
-            print(f"  - 총 비용: ${tokens.get('total_cost', 0):.4f}")
+            print(f"  - Avg Token usage: {avg_tokens:.0f} tokens")
+            print(f"  - Total cost: ${tokens.get('total_cost', 0):.4f}")
 
         print()
         print("=" * 80)
@@ -4328,40 +4328,40 @@ class PerformanceMonitor:
 
         print()
         print("=" * 80)
-        print("                    상세 성능 분석 보고서")
+        print("                    Detailed Performance Analysis Report")
         print("=" * 80)
         print()
 
         # ========== Task Statistics ==========
-        print("📊 작업 통계")
+        print("📊 Task Statistics")
         print("─" * 80)
 
         tcr_data = report.accuracy_metrics.get("tcr", {})
         success_count = tcr_data.get("full_success", 0) + tcr_data.get("partial_success", 0)
         failure_count = tcr_data.get("failures", 0)
 
-        print(f"  총 작업 수              : {report.total_tasks}")
-        print(f"  성공                    : {success_count} ({success_count/report.total_tasks*100:.1f}%)" if report.total_tasks > 0 else "  성공                    : 0 (0.0%)")
-        print(f"  실패                    : {failure_count} ({failure_count/report.total_tasks*100:.1f}%)" if report.total_tasks > 0 else "  실패                    : 0 (0.0%)")
+        print(f"  Total tasks             : {report.total_tasks}")
+        print(f"  Succeeded               : {success_count} ({success_count/report.total_tasks*100:.1f}%)" if report.total_tasks > 0 else "  Succeeded               : 0 (0.0%)")
+        print(f"  Failed                  : {failure_count} ({failure_count/report.total_tasks*100:.1f}%)" if report.total_tasks > 0 else "  Failed                  : 0 (0.0%)")
 
         # Retry statistics
         retries = report.efficiency_metrics.get("retries", {})
         if retries:
-            print(f"  평균 재시도 횟수        : {retries.get('avg_attempts_per_task', 0):.1f}")
+            print(f"  Avg retries             : {retries.get('avg_attempts_per_task', 0):.1f}")
         print()
 
         # ========== Layer 1: Native Metrics ==========
-        print("✅ Layer 1: Native Metrics (기본 성능 지표)")
+        print("✅ Layer 1: Native Metrics")
         print("─" * 80)
 
         # Accuracy
-        print("  [정확도]")
+        print("  [Accuracy]")
         print(f"    - TCR                 : {tcr_data.get('tcr', 0):.1f}%")
 
         accuracy = report.accuracy_metrics.get("accuracy_scores", {})
         if accuracy:
-            print(f"    - Accuracy (평균)     : {accuracy.get('overall_accuracy', 0):.1f}%")
-            print(f"    - Accuracy (중앙값)   : {accuracy.get('median_accuracy', 0):.1f}%")
+            print(f"    - Accuracy (mean)     : {accuracy.get('overall_accuracy', 0):.1f}%")
+            print(f"    - Accuracy (median)   : {accuracy.get('median_accuracy', 0):.1f}%")
 
         hall = report.accuracy_metrics.get("hallucination", {})
         if hall:
@@ -4371,44 +4371,44 @@ class PerformanceMonitor:
         # Latency
         latency = report.efficiency_metrics.get("latency", {})
         if latency:
-            print("  [지연시간]")
-            print(f"    - 평균               : {latency.get('mean', 0):.2f}초")
-            print(f"    - 중앙값             : {latency.get('median', 0):.2f}초")
-            print(f"    - P95                : {latency.get('p95', 0):.2f}초")
-            print(f"    - P99                : {latency.get('p99', 0):.2f}초")
+            print("  [Latency]")
+            print(f"    - Mean               : {latency.get('mean', 0):.2f}s")
+            print(f"    - Median             : {latency.get('median', 0):.2f}s")
+            print(f"    - P95                : {latency.get('p95', 0):.2f}s")
+            print(f"    - P99                : {latency.get('p99', 0):.2f}s")
             if 'min' in latency:
-                print(f"    - 최소               : {latency.get('min', 0):.2f}초")
+                print(f"    - Min                : {latency.get('min', 0):.2f}s")
             if 'max' in latency:
-                print(f"    - 최대               : {latency.get('max', 0):.2f}초")
+                print(f"    - Max                : {latency.get('max', 0):.2f}s")
             print()
 
         # Tokens
         tokens = report.efficiency_metrics.get("tokens", {})
         if tokens:
-            print("  [토큰 사용량]")
-            print(f"    - 총 Input Tokens    : {tokens.get('total_input_tokens', 0):,}")
-            print(f"    - 총 Output Tokens   : {tokens.get('total_output_tokens', 0):,}")
-            print(f"    - 총 Tokens          : {tokens.get('total_tokens', 0):,}")
-            print(f"    - 평균 (작업당)      : {tokens.get('avg_tokens_per_task', 0):.0f} tokens")
+            print("  [Token Usage]")
+            print(f"    - Total Input Tokens : {tokens.get('total_input_tokens', 0):,}")
+            print(f"    - Total Output Tokens: {tokens.get('total_output_tokens', 0):,}")
+            print(f"    - Total Tokens       : {tokens.get('total_tokens', 0):,}")
+            print(f"    - Avg (per task)     : {tokens.get('avg_tokens_per_task', 0):.0f} tokens")
             print()
 
         # Cost
         if tokens:
-            print("  [비용]")
-            print(f"    - 총 비용            : ${tokens.get('total_cost', 0):.4f}")
-            print(f"    - 평균 (작업당)      : ${tokens.get('avg_cost_per_task', 0):.4f}")
+            print("  [Cost]")
+            print(f"    - Total cost         : ${tokens.get('total_cost', 0):.4f}")
+            print(f"    - Avg (per task)     : ${tokens.get('avg_cost_per_task', 0):.4f}")
             if 'estimated_monthly_cost' in tokens:
-                print(f"    - 예상 월간 비용     : ${tokens.get('estimated_monthly_cost', 0):.2f}")
+                print(f"    - Est. monthly cost  : ${tokens.get('estimated_monthly_cost', 0):.2f}")
             print()
 
         # ========== Layer 2: Agentic AI Metrics ==========
-        print("⚙️  Layer 2: Agentic AI Metrics (에이전트 시스템 지표)")
+        print("⚙️  Layer 2: Agentic AI Metrics")
         print("─" * 80)
 
         # Tool usage
         tool_eff = report.efficiency_metrics.get("tool_efficiency", {})
         if tool_eff and tool_eff.get("total_calls", 0) > 0:
-            print("  [도구 사용]")
+            print("  [Tool Usage]")
 
             # Tool selection accuracy (if available)
             tool_selection = self.tool_selection_tracker.get_accuracy_stats()
@@ -4416,37 +4416,37 @@ class PerformanceMonitor:
                 print(f"    - Tool Selection Accuracy    : {tool_selection.get('avg_accuracy', 0):.1f}%")
 
             print(f"    - Tool Efficiency            : {tool_eff.get('avg_efficiency_score', 0):.1f}%")
-            print(f"    - 평균 도구 호출 수          : {tool_eff.get('avg_calls_per_task', 0):.1f}")
+            print(f"    - Avg tool calls             : {tool_eff.get('avg_calls_per_task', 0):.1f}")
 
             if 'redundancy_rate' in tool_eff:
-                print(f"    - 중복 호출 비율             : {tool_eff.get('redundancy_rate', 0):.1f}%")
+                print(f"    - Redundancy rate            : {tool_eff.get('redundancy_rate', 0):.1f}%")
             print()
 
         # Agent coordination
         coord_stats = self.agent_coordination_tracker.calculate_coordination_score()
         if coord_stats and coord_stats.get('total_interactions', 0) > 0:
-            print("  [에이전트 협업]")
+            print("  [Agent Coordination]")
             print(f"    - Agent Coordination Score   : {coord_stats.get('overall_score', 0):.2f}")
-            print(f"    - 협업 성공률                : {coord_stats.get('success_rate', 0):.1f}%")
-            print(f"    - 고유 에이전트 수           : {coord_stats.get('unique_agents', 0)}")
-            print(f"    - 총 상호작용 수             : {coord_stats.get('total_interactions', 0)}")
+            print(f"    - Coordination success rate  : {coord_stats.get('success_rate', 0):.1f}%")
+            print(f"    - Unique agents              : {coord_stats.get('unique_agents', 0)}")
+            print(f"    - Total interactions         : {coord_stats.get('total_interactions', 0)}")
             print()
 
         # Workflow execution
         workflow_stats = self.workflow_tracker.calculate_execution_success_rate()
         if workflow_stats and workflow_stats.get('total_tasks', 0) > 0:
-            print("  [워크플로우 실행]")
+            print("  [Workflow Execution]")
             print(f"    - Workflow Success Rate      : {workflow_stats.get('task_success_rate', 0):.1f}%")
             print(f"    - Step Success Rate          : {workflow_stats.get('step_success_rate', 0):.1f}%")
-            print(f"    - 평균 단계 수               : {workflow_stats.get('avg_steps_per_task', 0):.1f}")
-            print(f"    - 총 실행 태스크 수          : {workflow_stats.get('total_tasks', 0)}")
+            print(f"    - Avg steps                  : {workflow_stats.get('avg_steps_per_task', 0):.1f}")
+            print(f"    - Total tasks executed       : {workflow_stats.get('total_tasks', 0)}")
             print()
 
         # If no Layer 2 metrics
         if (not tool_eff or tool_eff.get("total_calls", 0) == 0) and \
            (not coord_stats or coord_stats.get('total_interactions', 0) == 0) and \
            (not workflow_stats or workflow_stats.get('total_tasks', 0) == 0):
-            print("  (Layer 2 메트릭 데이터 없음)")
+            print("  (No Layer 2 metric data)")
             print()
 
         # ========== Layer 3: Advanced Metrics (if HybridMonitor) ==========
@@ -4455,15 +4455,15 @@ class PerformanceMonitor:
         has_advanced_metrics = False
 
         if hasattr(self, 'metric_adapters') and len(getattr(self, 'metric_adapters', {})) > 0:
-            print("🎯 Layer 3: Advanced Metrics (고급 평가 지표)")
+            print("🎯 Layer 3: Advanced Metrics")
             print("─" * 80)
-            print("  (HybridPerformanceMonitor 사용 시 DeepEval, Ragas 메트릭 표시)")
+            print("  (DeepEval and Ragas metrics shown when using HybridPerformanceMonitor)")
             print()
             has_advanced_metrics = True
 
         # ========== Alerts ==========
         if report.alerts:
-            print("🚨 경고 및 알림")
+            print("🚨 Warnings and Alerts")
             print("─" * 80)
             for alert in report.alerts:
                 severity_icon = "🔴" if alert["severity"] == "critical" else "🟡" if alert["severity"] == "high" else "🟢"
@@ -4474,13 +4474,13 @@ class PerformanceMonitor:
 
         # ========== Recommendations ==========
         if report.recommendations:
-            print("💡 개선 권장사항")
+            print("💡 Improvement Recommendations")
             print("─" * 80)
             for i, rec in enumerate(report.recommendations, 1):
                 print(f"{i}. {rec['area']}")
-                print(f"   문제: {rec['issue']}")
-                print(f"   제안: {rec['suggestion']}")
-                print(f"   영향: {rec['impact']}")
+                print(f"   Issue: {rec['issue']}")
+                print(f"   Suggestion: {rec['suggestion']}")
+                print(f"   Impact: {rec['impact']}")
                 print()
 
         print("=" * 80)
@@ -4504,7 +4504,7 @@ class PerformanceMonitor:
         """
         print()
         print("=" * 80)
-        print("        평가 지표 계산 과정 (Metric Calculation Breakdown)")
+        print("        Metric Calculation Breakdown")
         print("=" * 80)
         print()
 
@@ -4512,7 +4512,7 @@ class PerformanceMonitor:
             # Find specific task
             task = next((t for t in self.tcr_tracker.tasks if t.task_id == task_id), None)
             if not task:
-                print(f"❌ Task ID '{task_id}'를 찾을 수 없습니다.")
+                print(f"❌ Task ID '{task_id}' not found.")
                 return
 
             print(f"🔍 Task ID: {task_id}")
@@ -4521,43 +4521,43 @@ class PerformanceMonitor:
             print()
 
             # ========== TCR Calculation ==========
-            print("📊 1. Task Completion Rate (TCR) 계산")
+            print("📊 1. Task Completion Rate (TCR) Calculation")
             print("─" * 80)
             print(f"   Completion Score: {task.completion_score:.3f}")
             print()
             if verbose:
-                print("   📝 계산 방법:")
-                print("      - success=True이고 completion_score >= 0.7  → Full Success")
-                print("      - success=True이고 completion_score < 0.7   → Partial Success")
+                print("   📝 Calculation method:")
+                print("      - success=True and completion_score >= 0.7  → Full Success")
+                print("      - success=True and completion_score < 0.7   → Partial Success")
                 print("      - success=False                              → Failure")
                 print()
                 if task.success and task.completion_score >= 0.7:
-                    print("   ✅ 이 작업: Full Success (completion_score >= 0.7)")
+                    print("   ✅ This task: Full Success (completion_score >= 0.7)")
                 elif task.success:
-                    print("   ⚠️  이 작업: Partial Success (0 < completion_score < 0.7)")
+                    print("   ⚠️  This task: Partial Success (0 < completion_score < 0.7)")
                 else:
-                    print("   ❌ 이 작업: Failure (success=False)")
+                    print("   ❌ This task: Failure (success=False)")
                 print()
 
             # ========== Accuracy Calculation ==========
-            print("📊 2. Accuracy Score 계산")
+            print("📊 2. Accuracy Score Calculation")
             print("─" * 80)
             print(f"   Accuracy Score: {task.accuracy_score:.3f}")
             print()
             if verbose:
-                print("   📝 계산 방법 (4가지 유사도 메트릭 조합):")
-                print("      1. Token Overlap Ratio (40% 가중치)")
-                print("      2. Jaccard Similarity   (30% 가중치)")
-                print("      3. LCS Similarity       (20% 가중치)")
-                print("      4. Character Similarity (10% 가중치)")
+                print("   📝 Calculation method (4 similarity metrics combined):")
+                print("      1. Token Overlap Ratio (40% weight)")
+                print("      2. Jaccard Similarity   (30% weight)")
+                print("      3. LCS Similarity       (20% weight)")
+                print("      4. Character Similarity (10% weight)")
                 print()
-                print("   ℹ️  이 점수는 응답과 정답(ground truth) 간 유사도를 측정합니다.")
+                print("   ℹ️  This score measures similarity between the response and ground truth.")
                 print()
 
             # ========== Latency ==========
-            print("📊 3. Latency (응답 시간)")
+            print("📊 3. Latency (Response Time)")
             print("─" * 80)
-            print(f"   Execution Time: {task.execution_time:.3f}초")
+            print(f"   Execution Time: {task.execution_time:.3f}s")
             print()
 
             # ========== Token Usage ==========
@@ -4571,7 +4571,7 @@ class PerformanceMonitor:
                 input_cost = task.tokens_used.get('input', 0) / 1_000_000 * self.token_tracker.pricing['input']
                 output_cost = task.tokens_used.get('output', 0) / 1_000_000 * self.token_tracker.pricing['output']
                 total_cost = input_cost + output_cost
-                print("   📝 비용 계산:")
+                print("   📝 Cost calculation:")
                 print(f"      Input Cost  = {task.tokens_used.get('input', 0):,} tokens × ${self.token_tracker.pricing['input']}/1M = ${input_cost:.6f}")
                 print(f"      Output Cost = {task.tokens_used.get('output', 0):,} tokens × ${self.token_tracker.pricing['output']}/1M = ${output_cost:.6f}")
                 print(f"      Total Cost  = ${total_cost:.6f}")
@@ -4600,14 +4600,14 @@ class PerformanceMonitor:
                 print(f"   Retries:  {task.attempts - 1}")
                 if verbose:
                     print()
-                    print("   📝 Retry 효율성 계산:")
-                    print(f"      최종 성공 여부: {'✅ 성공' if task.success else '❌ 실패'}")
-                    print("      Retry Efficiency = 최종 성공 / 총 시도 횟수")
+                    print("   📝 Retry efficiency calculation:")
+                    print(f"      Final outcome: {'✅ succeeded' if task.success else '❌ failed'}")
+                    print("      Retry Efficiency = final success / total attempts")
                 print()
 
         else:
             # Aggregate breakdown
-            print("📊 전체 작업 통합 분석")
+            print("📊 Aggregate Analysis")
             print()
 
             # TCR Breakdown
@@ -4625,7 +4625,7 @@ class PerformanceMonitor:
             print(f"   Failures: {failures} ({failures/total*100:.1f}%)" if total > 0 else "   Failures: 0 (0.0%)")
             print()
             if verbose:
-                print("   📝 TCR 계산식:")
+                print("   📝 TCR formula:")
                 print("      TCR = (Full Success × 1.0 + Partial Success × 0.5) / Total Tasks × 100")
                 weighted_success = (full_success * 1.0 + partial_success * 0.5)
                 tcr_calculated = (weighted_success / total * 100) if total > 0 else 0
@@ -4644,10 +4644,10 @@ class PerformanceMonitor:
                 print(f"   Median Accuracy: {accuracy_stats.get('median_accuracy', 0):.1f}%")
                 print()
                 if verbose:
-                    print("   📝 계산 방법:")
-                    print("      - 각 작업의 accuracy_score를 수집")
-                    print("      - Overall = 평균값")
-                    print("      - Median = 중앙값")
+                    print("   📝 Calculation method:")
+                    print("      - Collect accuracy_score for each task")
+                    print("      - Overall = mean")
+                    print("      - Median = median")
                     print()
 
             # Latency Breakdown
@@ -4655,15 +4655,15 @@ class PerformanceMonitor:
             print("─" * 80)
             latency_stats = self.latency_tracker.get_latency_stats()
             if latency_stats:
-                print(f"   Mean: {latency_stats.get('mean', 0):.3f}초")
-                print(f"   Median: {latency_stats.get('median', 0):.3f}초")
-                print(f"   P95: {latency_stats.get('p95', 0):.3f}초")
-                print(f"   P99: {latency_stats.get('p99', 0):.3f}초")
+                print(f"   Mean: {latency_stats.get('mean', 0):.3f}s")
+                print(f"   Median: {latency_stats.get('median', 0):.3f}s")
+                print(f"   P95: {latency_stats.get('p95', 0):.3f}s")
+                print(f"   P99: {latency_stats.get('p99', 0):.3f}s")
                 print()
                 if verbose:
-                    print("   📝 백분위수(Percentile) 계산:")
-                    print("      - P95: 전체 작업 중 95%가 이 시간 이내에 완료")
-                    print("      - P99: 전체 작업 중 99%가 이 시간 이내에 완료")
+                    print("   📝 Percentile calculation:")
+                    print("      - P95: 95% of all tasks complete within this time")
+                    print("      - P99: 99% of all tasks complete within this time")
                     print()
 
             # Token & Cost Breakdown
@@ -4677,7 +4677,7 @@ class PerformanceMonitor:
                 print(f"   Total Cost: ${token_stats.get('total_cost', 0):.4f}")
                 print()
                 if verbose:
-                    print("   📝 비용 계산식:")
+                    print("   📝 Cost formula:")
                     print(f"      Input Cost  = {token_stats.get('total_input_tokens', 0):,} × ${self.token_tracker.pricing['input']}/1M")
                     print(f"      Output Cost = {token_stats.get('total_output_tokens', 0):,} × ${self.token_tracker.pricing['output']}/1M")
                     print("      Total Cost  = Input Cost + Output Cost")
@@ -4685,8 +4685,8 @@ class PerformanceMonitor:
 
         print("=" * 80)
         print()
-        print("ℹ️  투명성 노트: 이 분석은 평가 과정의 완전한 투명성을 제공합니다.")
-        print("   모든 계산 로직은 오픈소스로 공개되어 있으며, 필요 시 수정 가능합니다.")
+        print("ℹ️  Transparency note: This analysis provides full transparency into the evaluation process.")
+        print("   All calculation logic is open-source and can be modified as needed.")
         print()
 
     def explain_metric(self, metric_name: str) -> None:
@@ -4707,88 +4707,88 @@ class PerformanceMonitor:
         explanations = {
             "tcr": {
                 "name": "Task Completion Rate (TCR)",
-                "purpose": "작업의 완료 여부와 완료 품질을 측정합니다.",
+                "purpose": "Measures whether tasks were completed and the quality of completion.",
                 "calculation": """
-    1. 각 작업을 3가지 범주로 분류:
+    1. Classify each task into 3 categories:
        - Full Success: success=True and completion_score >= 0.7
        - Partial Success: success=True and completion_score < 0.7
        - Failure: success=False
 
-    2. 가중 평균 계산:
+    2. Compute weighted average:
        TCR = (Full Success × 1.0 + Partial Success × 0.5) / Total Tasks × 100
                 """,
                 "interpretation": """
-    - 95% 이상: 우수 (Industry Benchmark)
-    - 90-95%: 양호
-    - 80-90%: 개선 필요
-    - 80% 미만: 긴급 개선 필요
+    - ≥ 95%: Excellent (industry benchmark)
+    - 90-95%: Good
+    - 80-90%: Needs improvement
+    - < 80%: Urgent improvement needed
                 """,
                 "transparency_notes": """
-    - completion_score는 응답 길이, 에러 여부, ground truth 유사도 기반
-    - 기준값(0.7)은 조정 가능
-    - 전체 계산 로직은 TaskCompletionTracker.calculate_tcr()에 공개
+    - completion_score is based on response length, error status, and ground truth similarity
+    - The threshold (0.7) is configurable
+    - Full calculation logic is in TaskCompletionTracker.calculate_tcr()
                 """
             },
             "accuracy": {
                 "name": "Accuracy Score",
-                "purpose": "Agent 응답이 정답(ground truth)과 얼마나 유사한지 측정합니다.",
+                "purpose": "Measures how similar agent responses are to the ground truth.",
                 "calculation": """
-    4가지 유사도 메트릭 조합:
+    4 similarity metrics combined:
 
     1. Token Overlap Ratio (40% 가중치)
-       - 공통 단어 수 / 최대 단어 수
+       - common word count / max word count
 
     2. Jaccard Similarity (30% 가중치)
-       - 교집합 크기 / 합집합 크기
+       - intersection size / union size
 
     3. Longest Common Subsequence (20% 가중치)
-       - 최장 공통 부분 수열 길이 / 최대 길이
+       - longest common subsequence length / max length
 
     4. Character-level Similarity (10% 가중치)
-       - Levenshtein distance 기반
+       - Levenshtein distance based
 
-    최종 점수 = Σ(각 메트릭 × 가중치)
+    Final score = Σ(each metric × weight)
                 """,
                 "interpretation": """
-    - 90% 이상: 매우 정확
-    - 80-90%: 정확
-    - 70-80%: 보통
-    - 70% 미만: 부정확
+    - ≥ 90%: Very accurate
+    - 80-90%: Accurate
+    - 70-80%: Moderate
+    - < 70%: Inaccurate
                 """,
                 "transparency_notes": """
-    - 각 유사도 알고리즘은 taskresult_helpers.py에 구현
-    - 가중치는 연구 기반 최적화된 값
-    - 도메인별로 가중치 조정 가능
+    - Each similarity algorithm is implemented in taskresult_helpers.py
+    - Weights are research-based optimized values
+    - Weights can be adjusted per domain
                 """
             },
             "latency": {
-                "name": "Latency (응답 시간)",
-                "purpose": "Agent가 작업을 완료하는 데 걸린 시간을 측정합니다.",
+                "name": "Latency (Response Time)",
+                "purpose": "Measures the time it takes for the agent to complete a task.",
                 "calculation": """
-    1. 각 작업의 execution_time 수집
-    2. 통계 계산:
-       - Mean (평균): Σ(시간) / 개수
-       - Median (중앙값): 정렬 후 중간 값
-       - P95: 하위 95% 지점의 값
-       - P99: 하위 99% 지점의 값
+    1. Collect execution_time for each task
+    2. Compute statistics:
+       - Mean: Σ(time) / count
+       - Median: middle value after sorting
+       - P95: value at the 95th percentile
+       - P99: value at the 99th percentile
                 """,
                 "interpretation": """
-    P95 Latency 기준:
-    - 1초 미만: 매우 빠름
-    - 1-3초: 빠름 (대부분의 QA 작업)
-    - 3-5초: 보통
-    - 5-10초: 느림 (개선 권장)
-    - 10초 이상: 매우 느림 (즉시 개선)
+    P95 Latency benchmarks:
+    - < 1s: Very fast
+    - 1-3s: Fast (most QA tasks)
+    - 3-5s: Moderate
+    - 5-10s: Slow (improvement recommended)
+    - ≥ 10s: Very slow (immediate action needed)
                 """,
                 "transparency_notes": """
-    - P95/P99는 이상치(outlier)를 고려한 안정적인 지표
-    - 평균만으로는 실제 사용자 경험을 대표하기 어려움
+    - P95/P99 are stable metrics that account for outliers
+    - Mean alone does not adequately represent real user experience
     - 계산 로직: LatencyTracker.get_latency_stats()
                 """
             },
             "cost": {
-                "name": "Token Cost (비용)",
-                "purpose": "LLM API 사용 비용을 계산합니다.",
+                "name": "Token Cost",
+                "purpose": "Calculates LLM API usage cost.",
                 "calculation": """
     1. Input Cost:
        Input Cost = (Total Input Tokens / 1,000,000) × Input Price
@@ -4800,40 +4800,40 @@ class PerformanceMonitor:
        Total Cost = Input Cost + Output Cost
                 """,
                 "interpretation": """
-    작업당 평균 비용 기준:
-    - $0.001 미만: 매우 효율적
-    - $0.001-$0.01: 효율적
-    - $0.01-$0.05: 보통
-    - $0.05 이상: 비효율적 (최적화 필요)
+    Avg cost per task benchmarks:
+    - < $0.001: Very efficient
+    - $0.001-$0.01: Efficient
+    - $0.01-$0.05: Moderate
+    - ≥ $0.05: Inefficient (optimization needed)
                 """,
                 "transparency_notes": """
-    - 가격은 초기화 시 설정 (기본: GPT-4 Turbo 가격)
-    - 실제 가격은 OpenAI pricing 페이지 참조
+    - Prices set at initialization (default: GPT-4 Turbo pricing)
+    - See OpenAI pricing page for actual prices
     - 계산 로직: TokenEconomyTracker.get_usage_stats()
                 """
             },
             "hallucination": {
-                "name": "Hallucination Rate (환각 발생률)",
-                "purpose": "Agent가 사실이 아닌 정보를 생성하는 비율을 측정합니다.",
+                "name": "Hallucination Rate",
+                "purpose": "Measures the rate at which the agent generates factually incorrect information.",
                 "calculation": """
-    1. 각 응답을 분석하여 환각 여부 판정:
-       - Context와 충돌하는 주장
-       - Ground truth와 완전히 다른 정보
-       - 사실이 아닌 추가 정보
+    1. Analyze each response for hallucination:
+       - Claims conflicting with context
+       - Information completely different from ground truth
+       - Additional fabricated information
 
-    2. Hallucination Rate 계산:
-       Rate = (환각 발생 작업 수 / 총 작업 수) × 100
+    2. Compute Hallucination Rate:
+       Rate = (tasks with hallucination / total tasks) × 100
                 """,
                 "interpretation": """
-    - 0-2%: 우수
-    - 2-5%: 양호
-    - 5-10%: 개선 필요
-    - 10% 이상: 심각 (즉시 개선)
+    - 0-2%: Excellent
+    - 2-5%: Good
+    - 5-10%: Needs improvement
+    - ≥ 10%: Critical (immediate action needed)
                 """,
                 "transparency_notes": """
-    - 환각 탐지 로직: HallucinationDetector.detect_hallucination()
-    - Context 기반 검증
-    - 필요시 사용자 정의 탐지 로직 추가 가능
+    - Hallucination detection logic: HallucinationDetector.detect_hallucination()
+    - Context-based verification
+    - Custom detection logic can be added as needed
                 """
             }
         }
@@ -4841,9 +4841,9 @@ class PerformanceMonitor:
         metric_name = metric_name.lower()
 
         if metric_name not in explanations:
-            print(f"❌ 알 수 없는 메트릭: '{metric_name}'")
+            print(f"❌ Unknown metric: '{metric_name}'")
             print()
-            print("사용 가능한 메트릭:")
+            print("Available metrics:")
             for key in explanations.keys():
                 print(f"  - {key}")
             return
@@ -4852,26 +4852,26 @@ class PerformanceMonitor:
 
         print()
         print("=" * 80)
-        print(f"   📖 {info['name']} - 상세 설명")
+        print(f"   📖 {info['name']} - Detailed Explanation")
         print("=" * 80)
         print()
 
-        print("🎯 목적")
+        print("🎯 Purpose")
         print("─" * 80)
         print(info['purpose'])
         print()
 
-        print("🧮 계산 방법")
+        print("🧮 Calculation Method")
         print("─" * 80)
         print(info['calculation'])
         print()
 
-        print("📊 해석 가이드")
+        print("📊 Interpretation Guide")
         print("─" * 80)
         print(info['interpretation'])
         print()
 
-        print("🔍 투명성 노트")
+        print("🔍 Transparency Notes")
         print("─" * 80)
         print(info['transparency_notes'])
         print()
@@ -4891,7 +4891,7 @@ class PerformanceMonitor:
                     json.dump(asdict(report), _f, indent=2, default=str)
                 os.replace(_tmp, filename)
             except Exception as e:
-                logger.error("export_report JSON 저장 실패: %s", e, exc_info=True)
+                logger.error("export_report JSON save failed: %s", e, exc_info=True)
                 try:
                     os.unlink(_tmp)
                 except OSError:
@@ -5100,7 +5100,7 @@ class PerformanceMonitor:
                     self._anomaly_detection_window,
                 )
             except Exception as e:
-                logger.warning("이상 감지 실패 (JSON 저장은 정상): %s", e)
+                logger.warning("anomaly detection failed (JSON save was successful): %s", e)
 
         # Always add full report data (for Dashboard compatibility)
         self._append_report_data(data)
@@ -5132,7 +5132,7 @@ class PerformanceMonitor:
                     json.dump(data, _f, indent=2, default=_json_serializer)
             os.replace(_tmp_path, filename)
         except Exception as e:
-            logger.error("save_to_file JSON 저장 실패: %s", e, exc_info=True)
+            logger.error("save_to_file JSON save failed: %s", e, exc_info=True)
             try:
                 os.unlink(_tmp_path)
             except OSError:
@@ -5155,7 +5155,7 @@ class PerformanceMonitor:
                     _hf.write(html_content)
                 os.replace(_h_tmp, html_path)
             except Exception as e:
-                logger.error("save_to_file HTML 저장 실패: %s", e, exc_info=True)
+                logger.error("save_to_file HTML save failed: %s", e, exc_info=True)
                 try:
                     os.unlink(_h_tmp)
                 except OSError:
@@ -5170,7 +5170,7 @@ class PerformanceMonitor:
             try:
                 self._auto_transparency_on_save(filename)
             except Exception as e:
-                logger.warning("투명성 데이터 생성 실패 (평가 결과는 정상 저장됨): %s", e)
+                logger.warning("transparency data generation failed (evaluation results saved normally): %s", e)
 
         # 레지스트리에 자동 등록
         try:
@@ -5201,11 +5201,11 @@ class PerformanceMonitor:
             )
 
             if success:
-                logger.debug("Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)")
+                logger.debug("Auto-registered in dashboard registry (~/.agent_evaluator/registry.json)")
 
         except Exception as e:
             # 레지스트리 등록 실패해도 데이터 저장은 성공한 것으로 처리
-            logger.warning("레지스트리 등록 실패 (데이터는 정상 저장됨): %s", e)
+            logger.warning("Registry registration failed (data saved normally): %s", e)
 
         # Phoenix Annotation API — accuracy / completion / success 점수 전송
         self._flush_phoenix_annotations()
@@ -5218,7 +5218,7 @@ class PerformanceMonitor:
                 session_tcr = float(self.tcr_tracker.calculate_tcr() * 100)
                 m.record("ae.tcr", session_tcr, {})
         except Exception as _e:
-            logger.debug("OTEL metrics ae.tcr 전송 실패 (무시): %s", _e)
+            logger.debug("OTEL metrics ae.tcr send failed (ignored): %s", _e)
 
         # G2: 압축 저장 (enable_compression() 호출 시)
         _comp_alg = getattr(self, "_compression_algorithm", None)
@@ -5236,9 +5236,9 @@ class PerformanceMonitor:
                 else:
                     with _bz2.open(_comp_path, "wb") as _fout:
                         _fout.write(_raw)
-                logger.debug("압축 저장 완료: %s", _comp_path)
+                logger.debug("Compressed save complete: %s", _comp_path)
             except Exception as _ce:
-                logger.debug("압축 저장 실패 (무시): %s", _ce)
+                logger.debug("Compressed save failed (ignored): %s", _ce)
 
         return filename
 
@@ -5328,7 +5328,7 @@ class PerformanceMonitor:
         Example::
 
             stats = monitor.estimate_token_cost_per_request("qa")
-            print(f"QA 1건당 비용: ${stats['avg_cost_usd']:.6f}")
+            print(f"Cost per QA task: ${stats['avg_cost_usd']:.6f}")
         """
         pricing = getattr(self, "token_tracker", None)
         input_price = self.token_tracker.pricing.get("input", 0.003) if pricing else 0.003
@@ -5478,7 +5478,7 @@ class PerformanceMonitor:
 
         with wandb.init(project=project, name=run_name, **init_kwargs) as run:
             run.log(metrics)
-            logger.info("W&B export 완료: project=%s run=%s", project, run_name)
+            logger.info("W&B export complete: project=%s run=%s", project, run_name)
 
     def export_to_mlflow(
         self,
@@ -5525,7 +5525,7 @@ class PerformanceMonitor:
                 "p95_latency_s":     float(eff_m.get("latency", {}).get("p95", 0.0)),
                 "total_tokens":      float(eff_m.get("tokens", {}).get("total_tokens", 0)),
             })
-            logger.info("MLflow export 완료: experiment=%s run=%s", experiment_name, run_name)
+            logger.info("MLflow export complete: experiment=%s run=%s", experiment_name, run_name)
 
     # ------------------------------------------------------------------
     # F1: configure_suspicious_patterns / evaluate_suspicious_patterns
@@ -5552,7 +5552,7 @@ class PerformanceMonitor:
             ])
         """
         self._suspicious_patterns: List[str] = list(patterns)
-        logger.debug("의심 패턴 %d개 설정됨", len(self._suspicious_patterns))
+        logger.debug("%d suspicious patterns configured", len(self._suspicious_patterns))
 
     def evaluate_suspicious_patterns(
         self,
@@ -5573,7 +5573,7 @@ class PerformanceMonitor:
 
             result = monitor.evaluate_suspicious_patterns(user_input)
             if result["matched"]:
-                print(f"의심 패턴 감지: {result['patterns_matched']}")
+                print(f"Suspicious pattern detected: {result['patterns_matched']}")
         """
         patterns = getattr(self, "_suspicious_patterns", [])
         if not patterns:
@@ -5615,10 +5615,10 @@ class PerformanceMonitor:
         """
         _supported = {"gzip", "bz2"}
         if algorithm not in _supported:
-            logger.warning("지원하지 않는 압축 알고리즘 '%s' — gzip 사용", algorithm)
+            logger.warning("Unsupported compression algorithm '%s' — using gzip", algorithm)
             algorithm = "gzip"
         self._compression_algorithm: str = algorithm
-        logger.debug("압축 활성화: algorithm=%s", algorithm)
+        logger.debug("Compression enabled: algorithm=%s", algorithm)
 
     def compare(self, other: "PerformanceMonitor") -> Dict[str, Any]:
         """두 PerformanceMonitor 인스턴스의 주요 지표를 비교한다 (D1).
@@ -5653,7 +5653,7 @@ class PerformanceMonitor:
                     "total_tokens": int(eff.get("tokens", {}).get("total_tokens", 0)),
                 }
             except Exception as _e:
-                logger.debug("PerformanceMonitor.compare: _extract 실패: %s", _e)
+                logger.debug("PerformanceMonitor.compare: _extract failed: %s", _e)
                 return {"total_tasks": 0, "tcr": 0.0, "accuracy": 0.0,
                         "avg_latency": 0.0, "p95_latency": 0.0, "total_tokens": 0}
 
@@ -6046,14 +6046,14 @@ class PerformanceMonitor:
             recommendations.append({
                 "priority": "high",
                 "category": "task_completion",
-                "message": f"TCR이 {tcr:.1f}%로 낮습니다. 프롬프트와 도구 설정을 검토하세요.",
+                "message": f"TCR is {tcr:.1f}% — low. Review your prompt and tool configuration.",
                 "metric": tcr,
             })
         elif tcr < 85.0:
             recommendations.append({
                 "priority": "medium",
                 "category": "task_completion",
-                "message": f"TCR이 {tcr:.1f}%입니다. 지속적인 모니터링이 필요합니다.",
+                "message": f"TCR is {tcr:.1f}%. Continuous monitoring is recommended.",
                 "metric": tcr,
             })
 
@@ -6063,7 +6063,7 @@ class PerformanceMonitor:
             recommendations.append({
                 "priority": "high",
                 "category": "error_rate",
-                "message": f"에러율이 {error_rate:.1f}%입니다. 주요 오류 원인을 분석하고 예외 처리를 강화하세요.",
+                "message": f"Error rate is {error_rate:.1f}%. Analyze root causes and strengthen exception handling.",
                 "metric": error_rate,
             })
 
@@ -6073,7 +6073,7 @@ class PerformanceMonitor:
             recommendations.append({
                 "priority": "medium",
                 "category": "accuracy",
-                "message": f"평균 정확도가 {avg_acc:.2f}로 낮습니다. 프롬프트 개선 및 ground_truth 검토를 권장합니다.",
+                "message": f"Average accuracy is {avg_acc:.2f} — low. Improving prompts and reviewing ground_truth is recommended.",
                 "metric": avg_acc,
             })
 
@@ -6083,7 +6083,7 @@ class PerformanceMonitor:
             recommendations.append({
                 "priority": "medium",
                 "category": "latency",
-                "message": f"평균 응답 시간이 {avg_lat:.1f}초입니다. 캐싱 또는 모델 최적화를 고려하세요.",
+                "message": f"Average response time is {avg_lat:.1f}s. Consider caching or model optimization.",
                 "metric": avg_lat,
             })
 
@@ -6095,7 +6095,7 @@ class PerformanceMonitor:
                 recommendations.append({
                     "priority": "low",
                     "category": "cost",
-                    "message": f"작업당 평균 비용이 ${avg_cost:.4f}입니다. 모델 변경이나 프롬프트 단축을 고려하세요.",
+                    "message": f"Average cost per task is ${avg_cost:.4f}. Consider switching models or shortening prompts.",
                     "metric": avg_cost,
                 })
         except Exception as _e:
@@ -6133,7 +6133,7 @@ class PerformanceMonitor:
                 "alert_count": len(report.alerts) if report.alerts else 0,
             }
         except Exception as _e:
-            logger.debug("analyze(): generate_report 실패: %s", _e)
+            logger.debug("analyze(): generate_report failed: %s", _e)
             summary = {"total_tasks": self.task_count}
 
         return {
@@ -6415,7 +6415,7 @@ class PerformanceMonitor:
             KeyError: 이름이 등록되어 있지 않은 경우.
         """
         if not hasattr(self, "_custom_aggregators") or name not in self._custom_aggregators:
-            raise KeyError(f"'{name}' 집계 함수가 등록되어 있지 않습니다. register_aggregator()로 먼저 등록하세요.")
+            raise KeyError(f"'{name}' aggregator is not registered. Use register_aggregator() first.")
         return self._custom_aggregators[name](self.tasks)
 
     def list_aggregators(self) -> List[str]:
@@ -6450,12 +6450,12 @@ class PerformanceMonitor:
             try:
                 _merged.record_task(_t)
             except Exception as _e:
-                logger.debug("merge: self 태스크 기록 실패 (무시): %s", _e)
+                logger.debug("merge: self task record failed (ignored): %s", _e)
         for _t in other.tasks:
             try:
                 _merged.record_task(_t)
             except Exception as _e:
-                logger.debug("merge: other 태스크 기록 실패 (무시): %s", _e)
+                logger.debug("merge: other task record failed (ignored): %s", _e)
         return _merged
 
     def flush(self) -> Dict[str, Any]:

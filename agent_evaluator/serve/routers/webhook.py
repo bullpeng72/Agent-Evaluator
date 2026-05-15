@@ -22,7 +22,7 @@ class WebhookTestBody(BaseModel):
     payload: Dict[str, Any] = {}
 
 
-@router.post("/test", summary="웹훅 테스트")
+@router.post("/test", summary="Webhook test")
 async def test_webhook(body: WebhookTestBody) -> Dict[str, Any]:
     """Proxy a test POST to the provided webhook URL.
 
@@ -33,7 +33,7 @@ async def test_webhook(body: WebhookTestBody) -> Dict[str, Any]:
     payload: Any = body.payload
 
     if not url or not url.startswith("https://"):
-        raise HTTPException(status_code=400, detail="유효한 https:// Webhook URL이 필요합니다.")
+        raise HTTPException(status_code=400, detail="A valid https:// Webhook URL is required.")
 
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(

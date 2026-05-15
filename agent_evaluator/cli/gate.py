@@ -191,14 +191,14 @@ def _parse_group_weights(weights_str: Optional[str]) -> Dict[str, float]:
             continue
         parts = token.split(":")
         if len(parts) != 2:
-            raise ValueError(f"잘못된 가중치 형식: '{token}'. 예시: A:2.0,B:1.5")
+            raise ValueError(f"Invalid weight format: '{token}'. Example: A:2.0,B:1.5")
         gate_key = parts[0].strip().upper()
         if gate_key not in "ABCDEFG" or len(gate_key) != 1:
-            raise ValueError(f"유효하지 않은 Gate 키: '{gate_key}'. A–G 중 하나여야 합니다.")
+            raise ValueError(f"Invalid Gate key: '{gate_key}'. Must be one of A–G.")
         try:
             result[gate_key] = float(parts[1].strip())
         except ValueError:
-            raise ValueError(f"가중치가 숫자가 아닙니다: '{parts[1]}'")
+            raise ValueError(f"Weight is not a number: '{parts[1]}'")
     return result
 
 
@@ -264,11 +264,11 @@ def _save_baseline(path: Path, metrics: Dict[str, Optional[float]]) -> None:
 # (name, label, threshold_attr, direction, unit, format_str)
 # direction: "min" → 현재값 ≥ 임계값, "max" → 현재값 ≤ 임계값
 _GATE_DEFS: List[Tuple[str, str, str, str, str]] = [
-    ("tcr",             "TCR",              "tcr",           "min",  "%"),
-    ("accuracy",        "정확도",           "accuracy",       "min",  "%"),
-    ("p95_latency",     "P95 지연시간",      "p95_latency",    "max",  "s"),
-    ("hallucination",   "환각 탐지율",       "hallucination",  "max",  "%"),
-    ("llm_judge_overall", "LLM Judge (종합)", "llm_judge",    "min",  "/5"),
+    ("tcr",             "TCR",                  "tcr",           "min",  "%"),
+    ("accuracy",        "Accuracy",             "accuracy",       "min",  "%"),
+    ("p95_latency",     "P95 Latency",          "p95_latency",    "max",  "s"),
+    ("hallucination",   "Hallucination Rate",   "hallucination",  "max",  "%"),
+    ("llm_judge_overall", "LLM Judge (Overall)", "llm_judge",    "min",  "/5"),
 ]
 
 
@@ -456,9 +456,9 @@ def _print_composite_gate(
         "G": "Observability",
     }
     print()
-    print(f"  {B}Harness Gate 복합 점수{R}  {D}(--min-gate-score {min_score:.2f}){R}")
+    print(f"  {B}Harness Gate Composite Score{R}  {D}(--min-gate-score {min_score:.2f}){R}")
     print(f"  {'─' * 26}  {'─' * 7}  {'─' * 8}  {'─' * 6}")
-    print(f"  {'Gate':<26}  {'점수':>7}  {'가중치':>8}  {'상태'}")
+    print(f"  {'Gate':<26}  {'Score':>7}  {'Weight':>8}  {'Status'}")
     print(f"  {'─' * 26}  {'─' * 7}  {'─' * 8}  {'─' * 6}")
     for gate in "ABCDEFG":
         score = groups.get(gate)
@@ -480,15 +480,15 @@ def _print_composite_gate(
         print(f"  {name:<26}  {score_str:>7}  {weight_str:>8}  {status_str}")
     print()
     if composite is None:
-        print(f"  {D}복합 점수: N/A (Harness 데이터 없음){R}")
+        print(f"  {D}Composite score: N/A (no Harness data){R}")
         passed = True
     else:
         passed = composite >= min_score
         color = G if passed else RD
         result_label = f"{G}✅ PASS{R}" if passed else f"{RD}❌ FAIL{R}"
         print(
-            f"  복합 점수: {color}{composite:.4f}{R}  "
-            f"기준: ≥ {min_score:.2f}  {result_label}"
+            f"  Composite score: {color}{composite:.4f}{R}  "
+            f"threshold: ≥ {min_score:.2f}  {result_label}"
         )
     return passed
 
@@ -508,7 +508,7 @@ def _print_table(
     print()
     print(f"  {_SEP}")
     print(f"  {B}Agent Evaluator — Quality Gate{R}")
-    print(f"  결과: {D}{result_path}{R}")
+    print(f"  Result: {D}{result_path}{R}")
     print(f"  {_SEP}")
     print()
 
@@ -526,8 +526,8 @@ def _print_table(
         print()
 
     if active_count > 0:
-        # 헤더 (5열: 지표 / 현재값 / 기준값 / 차이 / 결과)
-        print(f"  {'지표':<22}  {'현재값':<11}  {'기준값':<12}  {'차이':<10}  {'결과'}")
+        # header (5 columns: Metric / Current / Threshold / Delta / Result)
+        print(f"  {'Metric':<22}  {'Current':<11}  {'Threshold':<12}  {'Delta':<10}  {'Result'}")
         print(f"  {'─' * 22}  {'─' * 11}  {'─' * 12}  {'─' * 10}  {'─' * 6}")
 
         for g in active:
@@ -558,13 +558,13 @@ def _print_table(
     # 회귀 결과
     if regressions:
         print()
-        print(f"  {B}{Y}회귀 감지 항목:{R}")
+        print(f"  {B}{Y}Regressions detected:{R}")
         for reg in regressions:
             direction_sym = "↓" if reg["pct_change"] < 0 else "↑"
             print(
                 f"  {RD}⚠  {reg['label']}{R}"
-                f"  기준선: {_fmt_value(reg['baseline_val'], reg['unit'])}"
-                f"  →  현재: {_fmt_value(reg['current'], reg['unit'])}"
+                f"  baseline: {_fmt_value(reg['baseline_val'], reg['unit'])}"
+                f"  →  current: {_fmt_value(reg['current'], reg['unit'])}"
                 f"  ({direction_sym}{abs(reg['pct_change']):.1f}%)"
             )
         print()
@@ -573,16 +573,16 @@ def _print_table(
     # 요약
     print()
     if active_count == 0:
-        print(f"  {D}임계값 기준이 지정되지 않았습니다. --tcr, --accuracy 등 옵션을 사용하세요.{R}")
+        print(f"  {D}No thresholds specified. Use --tcr, --accuracy, etc.{R}")
     elif fail_count == 0 and not regressions:
         passed = active_count - skip_count
-        print(f"  {G}{B}✅ 모든 기준 통과 ({passed}/{active_count}){R}")
+        print(f"  {G}{B}✅ All checks passed ({passed}/{active_count}){R}")
     elif regressions and fail_count == 0:
-        print(f"  {Y}{B}⚠  임계값은 통과했으나 회귀 감지 ({len(regressions)}건){R}")
+        print(f"  {Y}{B}⚠  Thresholds passed but regressions detected ({len(regressions)}){R}")
     else:
         passed = active_count - fail_count - skip_count
-        print(f"  {RD}{B}❌ 품질 기준 미달 ({passed}/{active_count} 통과){R}")
-        print(f"  {D}→ CI 파이프라인에서 이 단계를 실패 처리하세요{R}")
+        print(f"  {RD}{B}❌ Quality gate failed ({passed}/{active_count} passed){R}")
+        print(f"  {D}→ Fail this step in your CI pipeline{R}")
 
     print(f"  {_SEP}")
     print()
@@ -623,7 +623,7 @@ def _write_junit_xml(
         thr_str = _fmt_threshold(g["threshold"], g["direction"], g["unit"])
         lines.append(f'    <testcase name="{test_name}" classname="{class_name}">')
         if not g["passed"]:
-            msg = f"현재값: {cur_str}, 기준값: {thr_str}"
+            msg = f"current: {cur_str}, threshold: {thr_str}"
             lines.append(f'      <failure message="{msg}">{msg}</failure>')
         lines.append("    </testcase>")
 
@@ -632,7 +632,7 @@ def _write_junit_xml(
         test_name = f"{reg['label']} (regression)"
         cur_str = _fmt_value(reg["current"], reg["unit"])
         base_str = _fmt_value(reg["baseline_val"], reg["unit"])
-        msg = f"현재값: {cur_str}, 기준선: {base_str} ({reg['pct_change']:+.1f}%)"
+        msg = f"current: {cur_str}, baseline: {base_str} ({reg['pct_change']:+.1f}%)"
         lines.append(f'    <testcase name="{test_name}" classname="agent_evaluator.gate.regression">')
         lines.append(f'      <failure message="{msg}">{msg}</failure>')
         lines.append("    </testcase>")
@@ -675,7 +675,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # ── 결과 파일 로드 ───────────────────────────────────────────────────────
     if not result_file.is_file():
         print(
-            f"{RD}❌ 결과 파일을 찾을 수 없습니다: {result_file}{R}",
+            f"{RD}❌ Result file not found: {result_file}{R}",
             file=sys.stderr,
         )
         return 1
@@ -684,7 +684,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         with open(result_file, encoding="utf-8") as f:
             data: Dict[str, Any] = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
-        print(f"{RD}❌ JSON 파싱 실패: {exc}{R}", file=sys.stderr)
+        print(f"{RD}❌ Failed to parse JSON: {exc}{R}", file=sys.stderr)
         return 1
 
     # ── 메트릭 추출 ─────────────────────────────────────────────────────────
@@ -699,7 +699,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # ── --save-baseline: 저장 후 종료 ────────────────────────────────────────
     if getattr(args, "save_baseline", False):
         _save_baseline(baseline_path, metrics)
-        print(f"{G}✅ 기준선 저장 완료: {baseline_path}{R}")
+        print(f"{G}✅ Baseline saved: {baseline_path}{R}")
         # 기준선 저장만 요청한 경우 — 게이팅은 계속 진행
         # (추가 옵션이 없으면 0으로 종료)
         has_gate_args = any(
@@ -720,7 +720,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         try:
             weights = _parse_group_weights(group_weights_str)
         except ValueError as exc:
-            print(f"{RD}❌ --group-weights 오류: {exc}{R}", file=sys.stderr)
+            print(f"{RD}❌ --group-weights error: {exc}{R}", file=sys.stderr)
             return 1
         groups = _load_harness_groups(data)
         composite = _compute_composite_gate(groups, weights)
@@ -738,7 +738,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         baseline_data = _load_baseline(baseline_path)
         if baseline_data is None:
             print(
-                f"{Y}⚠  기준선 파일 없음 ({baseline_path}) — 회귀 검사를 건너뜁니다.{R}",
+                f"{Y}⚠  No baseline file found ({baseline_path}) — skipping regression check.{R}",
                 file=sys.stderr,
             )
         else:

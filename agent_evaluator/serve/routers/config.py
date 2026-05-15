@@ -60,7 +60,7 @@ def _threshold_path(request: Request):
     return request.app.state.results_dir / ".thresholds.json"
 
 
-@router.get("/thresholds", summary="임계값 설정 조회")
+@router.get("/thresholds", summary="Get threshold settings")
 def get_thresholds(request: Request) -> Dict[str, Any]:
     """Load persisted thresholds; return defaults when no file exists."""
     p = _threshold_path(request)
@@ -71,11 +71,11 @@ def get_thresholds(request: Request) -> Dict[str, Any]:
             merged.update({k: float(v) for k, v in saved.items() if k in _DEFAULTS})
             return merged
         except Exception as _e:
-            logger.debug("임계값 설정 파일 로드 실패, 기본값 사용 (무시): %s", _e)
+            logger.debug("Threshold config file load failed, using defaults (ignored): %s", _e)
     return _DEFAULTS.copy()
 
 
-@router.get("/config", summary="모델 설정 조회")
+@router.get("/config", summary="Get model configuration")
 def get_config() -> Dict[str, Any]:
     """Return configured model names from environment (.env)."""
     return {
@@ -84,7 +84,7 @@ def get_config() -> Dict[str, Any]:
     }
 
 
-@router.post("/thresholds", summary="임계값 설정 저장")
+@router.post("/thresholds", summary="Save threshold settings")
 async def save_thresholds(request: Request, body: ThresholdBody) -> Dict[str, Any]:
     """Persist threshold settings; unset fields keep their default values."""
     merged = _DEFAULTS.copy()

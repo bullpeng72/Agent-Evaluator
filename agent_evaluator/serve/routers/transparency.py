@@ -77,23 +77,23 @@ def _list_files(paths: List[Path]) -> List[Dict[str, Any]]:
     return result
 
 
-@router.get("/traces", summary="추적 목록")
+@router.get("/traces", summary="Trace file list")
 def list_traces(request: Request):
-    """OTEL 추적 파일 목록을 반환한다.
+    """Return the list of OTEL trace files.
 
-    ``PerformanceMonitor(enable_transparency=True)``로 평가 실행 시 생성되는
-    ``traces/`` 디렉토리의 ``.json`` 파일 목록을 반환한다.
-    각 항목은 ``name`` · ``stem`` · ``size_bytes`` 필드를 포함한다.
+    Returns ``.json`` files in the ``traces/`` directory created when
+    ``PerformanceMonitor(enable_transparency=True)`` is used.
+    Each entry contains ``name``, ``stem``, and ``size_bytes`` fields.
     """
     return _list_files(_transparency(request).trace_files)
 
 
-@router.get("/traces/{name}", summary="추적 상세")
+@router.get("/traces/{name}", summary="Trace file detail")
 def get_trace(name: str, request: Request):
-    """단일 추적 파일의 전체 내용을 JSON으로 반환한다.
+    """Return the full content of a single trace file as JSON.
 
     Args:
-        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/traces`` 목록의 ``name`` 필드.
+        name: File name (with or without extension). From the ``name`` field of ``GET /api/transparency/traces``.
     """
     for p in _transparency(request).trace_files:
         if p.name == name or p.stem == name:
@@ -104,23 +104,23 @@ def get_trace(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Trace not found")
 
 
-@router.get("/audit", summary="감사 로그 목록")
+@router.get("/audit", summary="Audit log file list")
 def list_audit(request: Request):
-    """감사 로그 파일 목록을 반환한다.
+    """Return the list of audit log files.
 
-    ``PerformanceMonitor(enable_transparency=True)``로 평가 실행 시 생성되는
-    ``audit_logs/`` 디렉토리의 ``.json`` 파일 목록을 반환한다.
-    각 항목은 ``name`` · ``stem`` · ``size_bytes`` 필드를 포함한다.
+    Returns ``.json`` files in the ``audit_logs/`` directory created when
+    ``PerformanceMonitor(enable_transparency=True)`` is used.
+    Each entry contains ``name``, ``stem``, and ``size_bytes`` fields.
     """
     return _list_files(_transparency(request).audit_files)
 
 
-@router.get("/audit/{name}", summary="감사 로그 상세")
+@router.get("/audit/{name}", summary="Audit log file detail")
 def get_audit(name: str, request: Request):
-    """단일 감사 로그 파일의 전체 내용을 JSON으로 반환한다.
+    """Return the full content of a single audit log file as JSON.
 
     Args:
-        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/audit`` 목록의 ``name`` 필드.
+        name: File name (with or without extension). From the ``name`` field of ``GET /api/transparency/audit``.
     """
     for p in _transparency(request).audit_files:
         if p.name == name or p.stem == name:
@@ -131,7 +131,7 @@ def get_audit(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Audit log not found")
 
 
-@router.get("/annotations", summary="어노테이션 목록")
+@router.get("/annotations", summary="Annotation list")
 def list_annotations(request: Request, file_id: str = Query("")):
     """list annotations; if file_id given, only return annotations for that file or global ones."""
     files = _transparency(request).annotation_files
@@ -149,20 +149,20 @@ def list_annotations(request: Request, file_id: str = Query("")):
             if sfid and sfid != file_id:
                 continue  # tagged to a different file — skip
         except Exception as _e:
-            logger.debug("어노테이션 파일 읽기 실패, 포함 처리 (무시): %s", _e)
+            logger.debug("Annotation file read failed, treating as included (ignored): %s", _e)
         result.append({"name": p.name, "stem": p.stem, "size_bytes": size})
     return result
 
 
-@router.get("/annotations/{name}", summary="어노테이션 상세")
+@router.get("/annotations/{name}", summary="Annotation detail")
 def get_annotation(name: str, request: Request):
-    """단일 어노테이션 파일의 전체 내용을 JSON으로 반환한다.
+    """Return the full content of a single annotation file as JSON.
 
-    반환 객체는 ``annotation_id`` · ``title`` · ``content`` · ``annotation_type`` ·
-    ``priority`` · ``author`` · ``timestamp`` · ``replies`` · ``tags`` · ``source_file_id`` 필드를 포함한다.
+    The returned object contains: ``annotation_id``, ``title``, ``content``, ``annotation_type``,
+    ``priority``, ``author``, ``timestamp``, ``replies``, ``tags``, ``source_file_id``.
 
     Args:
-        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/annotations`` 목록의 ``name`` 필드.
+        name: File name (with or without extension). From the ``name`` field of ``GET /api/transparency/annotations``.
     """
     for p in _transparency(request).annotation_files:
         if p.name == name or p.stem == name:
@@ -173,9 +173,9 @@ def get_annotation(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Annotation not found")
 
 
-@router.post("/annotations", summary="어노테이션 생성")
+@router.post("/annotations", summary="Create annotation")
 def create_annotation(body: AnnotationCreate, request: Request):
-    """대시보드에서 새 어노테이션 직접 작성"""
+    """Create a new annotation from the dashboard."""
     annotation_id = f"annotation_{uuid.uuid4().hex[:8]}"
     now = datetime.now().isoformat()
     annotation = {
@@ -204,9 +204,9 @@ def create_annotation(body: AnnotationCreate, request: Request):
     return annotation
 
 
-@router.post("/annotations/{name}/reply", summary="어노테이션 댓글 추가")
+@router.post("/annotations/{name}/reply", summary="Add annotation reply")
 def add_reply(name: str, body: ReplyCreate, request: Request):
-    """기존 어노테이션에 답글 추가"""
+    """Add a reply to an existing annotation."""
     ann_dir = _annotations_dir(request)
     # 파일 탐색: transparency 목록 + 직접 경로
     candidates = list(_transparency(request).annotation_files) + list(ann_dir.glob("*.json"))

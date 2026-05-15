@@ -115,7 +115,7 @@ class RAGSystemInterface:
         Returns:
             RAGResponse (답변 + 검색된 컨텍스트)
         """
-        raise NotImplementedError("RAG 시스템의 query 메서드를 구현해야 합니다")
+        raise NotImplementedError("Implement the query method of the RAG system")
 
 
 # ============================================================================
@@ -189,7 +189,7 @@ class KoreanRAGEvaluator:
         self.monitor = None
 
         if not self.use_ragas:
-            print("⚠️  Ragas를 사용할 수 없습니다. 설치: pip install ragas")
+            print("⚠️  Ragas is not available. Install: pip install ragas")
 
     def set_rag_system(self, rag_system: RAGSystemInterface):
         """RAG 시스템 설정"""

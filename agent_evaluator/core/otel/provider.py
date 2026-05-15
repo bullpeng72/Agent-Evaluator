@@ -55,8 +55,8 @@ class OTELProvider:
         if not self._enabled:
             if enabled and not _HAS_OTEL:
                 logger.warning(
-                    "OTELProvider: opentelemetry-sdk 가 설치되지 않아 no-op 모드로 실행됩니다. "
-                    "pip install 'agent-evaluator[otel]' 로 설치하세요."
+                    "OTELProvider: opentelemetry-sdk is not installed; running in no-op mode. "
+                    "Install: pip install 'agent-evaluator[otel]'"
                 )
             return
 
@@ -74,12 +74,12 @@ class OTELProvider:
             trace.set_tracer_provider(provider)
             self._tracer = trace.get_tracer(service_name)
             logger.debug(
-                "OTELProvider: 초기화 완료 (endpoint=%s, service=%s)",
+                "OTELProvider: initialized (endpoint=%s, service=%s)",
                 endpoint,
                 service_name,
             )
         except Exception as exc:
-            logger.warning("OTELProvider: 초기화 실패, no-op 모드로 전환: %s", exc)
+            logger.warning("OTELProvider: initialization failed, switching to no-op mode: %s", exc)
             self._enabled = False
 
     @contextlib.contextmanager
@@ -114,7 +114,7 @@ class OTELProvider:
             )
             s = span_ctx.__enter__()
         except Exception as exc:
-            logger.debug("OTELProvider.span: 스팬 시작 실패 (%s): %s", name, exc)
+            logger.debug("OTELProvider.span: span start failed (%s): %s", name, exc)
             yield None
             return
 
@@ -123,7 +123,7 @@ class OTELProvider:
             try:
                 s.set_attribute(k, v)
             except Exception as _e:
-                logger.debug("스팬 속성 설정 실패 (무시): %s", _e)
+                logger.debug("span attribute set failed (ignored): %s", _e)
 
         # yield — caller body 실행; 예외가 오더라도 span_ctx.__exit__ 를 보장
         exc_info = (None, None, None)
@@ -137,7 +137,7 @@ class OTELProvider:
             try:
                 span_ctx.__exit__(*exc_info)
             except Exception as close_exc:
-                logger.debug("OTELProvider.span: 스팬 종료 실패 (%s): %s", name, close_exc)
+                logger.debug("OTELProvider.span: span close failed (%s): %s", name, close_exc)
 
     @property
     def enabled(self) -> bool:

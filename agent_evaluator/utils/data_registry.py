@@ -103,7 +103,7 @@ class DataRegistry:
             return True
 
         except Exception as e:
-            logger.warning("레지스트리 등록 실패: %s", e, exc_info=True)
+            logger.warning("Registry registration failed: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -182,7 +182,7 @@ class DataRegistry:
             else:
                 fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
         except Exception as _e:
-            logger.debug("파일 락 해제 실패 (무시): %s", _e)
+            logger.debug("File lock release failed (ignored): %s", _e)
 
     @classmethod
     def _load_registry(cls) -> Dict[str, Any]:
@@ -216,7 +216,7 @@ class DataRegistry:
                 return data
 
         except Exception as e:
-            logger.warning("레지스트리 로드 실패, 빈 레지스트리로 시작: %s", e, exc_info=True)
+            logger.warning("Registry load failed, starting with empty registry: %s", e, exc_info=True)
             return {
                 "version": "0.5.0",
                 "created_at": datetime.now().isoformat(),
@@ -241,7 +241,7 @@ class DataRegistry:
             with open(cls.REGISTRY_FILE, 'w', encoding='utf-8') as f:
                 # Acquire exclusive lock with timeout
                 if not cls._acquire_lock(f, timeout=5.0):
-                    logger.warning("레지스트리 락 획득 실패 (다른 프로세스가 사용 중)")
+                    logger.warning("Registry lock acquisition failed (another process is using it)")
                     return False
 
                 try:
@@ -253,7 +253,7 @@ class DataRegistry:
             return True
 
         except Exception as e:
-            logger.warning("레지스트리 저장 실패: %s", e, exc_info=True)
+            logger.warning("Registry save failed: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -421,7 +421,7 @@ class DataRegistry:
             return False
 
         except Exception as e:
-            logger.warning("파일 제거 실패: %s", e, exc_info=True)
+            logger.warning("File removal failed: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -442,5 +442,5 @@ class DataRegistry:
             return cls._save_registry(registry)
 
         except Exception as e:
-            logger.warning("레지스트리 초기화 실패: %s", e, exc_info=True)
+            logger.warning("Registry reset failed: %s", e, exc_info=True)
             return False

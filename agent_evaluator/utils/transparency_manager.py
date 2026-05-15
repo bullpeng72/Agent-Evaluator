@@ -670,7 +670,7 @@ class TestTransparencyManager:
                     })
 
         except Exception as e:
-            logger.debug("이상 탐지/인사이트 분석 실패: %s", e)
+            logger.debug("Anomaly detection/insight analysis failed: %s", e)
 
         return {
             "anomalies": anomalies,
@@ -1172,7 +1172,7 @@ class TestTransparencyManager:
                     "has_comparison": bool(report_data.get('comparison', {}).get('metric_changes'))
                 })
             except Exception as e:
-                logger.warning("리포트 파일 파싱 실패 (%s): %s", report_file, e)
+                logger.warning("Report file parse failed (%s): %s", report_file, e)
                 continue
 
         # Sort by date (newest first)
@@ -1216,7 +1216,7 @@ class TestTransparencyManager:
             with open(report_file, encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.warning("리포트 파일 로드 실패 (%s): %s", report_file, e)
+            logger.warning("Report file load failed (%s): %s", report_file, e)
             return None
 
     def compare_report_versions(
@@ -1318,7 +1318,7 @@ class TestTransparencyManager:
                 os.remove(report['file_path'])
                 deleted_count += 1
             except Exception as e:
-                logger.warning("리포트 파일 삭제 실패 (%s): %s", report.get('file_path'), e)
+                logger.warning("Report file delete failed (%s): %s", report.get('file_path'), e)
                 continue
 
         return deleted_count

@@ -1,4 +1,4 @@
-"""평가 비용 API — Phase 3-C."""
+"""Evaluation cost API — Phase 3-C."""
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -8,9 +8,9 @@ from agent_evaluator.serve.routers._utils import _rs
 
 router = APIRouter(prefix="/api/cost", tags=["cost"])
 
-@router.get("/summary", summary="비용 요약")
+@router.get("/summary", summary="Cost summary")
 def cost_summary(request: Request) -> Dict[str, Any]:
-    """전체 평가 비용 요약."""
+    """Overall evaluation cost summary."""
     rs = _rs(request)
     total_usd = 0.0
     by_file: List[Dict[str, Any]] = []
@@ -33,21 +33,21 @@ def cost_summary(request: Request) -> Dict[str, Any]:
         "by_file": by_file,
     }
 
-@router.get("/trend", summary="날짜별 비용 추세")
+@router.get("/trend", summary="Cost trend by date")
 def cost_trend(
     request: Request,
     days: int = Query(default=30, ge=1, le=365),
 ) -> Dict[str, Any]:
-    """날짜별 비용 추세 — 최근 N일간 파일별 비용을 날짜 버킷으로 집계.
+    """Cost trend by date — aggregates per-file costs into daily buckets over the last N days.
 
     Returns:
-        period_days, buckets (날짜 리스트), values (날짜별 총 비용 USD),
-        cumulative (누적 비용), by_file (파일별 상세)
+        period_days, buckets (date list), values (total cost USD per date),
+        cumulative (running total), by_file (per-file detail)
     """
     rs = _rs(request)
     since = datetime.now() - timedelta(days=days)
 
-    # 날짜 버킷 초기화
+    # Initialize date buckets
     bucket_costs: Dict[str, float] = {}
     by_file: List[Dict[str, Any]] = []
 
@@ -91,12 +91,12 @@ def cost_trend(
     }
 
 
-@router.get("/breakdown", summary="비용 세부 분석")
+@router.get("/breakdown", summary="Cost breakdown")
 def cost_breakdown(
     request: Request,
-    by: str = Query(default="model", description="그룹화 기준: model|task_type|file"),
+    by: str = Query(default="model", description="Grouping key: model|task_type|file"),
 ) -> Dict[str, Any]:
-    """비용 세부 분석 — by 기준 그룹화.
+    """Cost breakdown — grouped by the specified key.
 
     Returns:
         by, groups (key → total_usd/task_count/avg_cost_per_task/total_tokens)
@@ -147,7 +147,7 @@ def cost_breakdown(
                 groups[key]["task_count"] += 1
                 groups[key]["total_tokens"] += total_tok
 
-    # 최종 포맷: avg_cost_per_task 계산 + 반올림
+    # Final format: compute avg_cost_per_task + round
     result_groups = {}
     for key, g in groups.items():
         count = g["task_count"]
@@ -165,9 +165,9 @@ def cost_breakdown(
     }
 
 
-@router.get("/{file_id}", summary="파일별 비용")
+@router.get("/{file_id}", summary="Cost detail for a file")
 def get_file_cost(file_id: str, request: Request) -> Dict[str, Any]:
-    """특정 파일의 비용 상세."""
+    """Cost detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:

@@ -226,7 +226,7 @@ body.light #file-select option{background:#f0f2ff;}
 <body>
 <div id="ctrl-bar">
   <span style="font-size:11px;color:var(--tc2)">📊</span>
-  <select id="file-select" onchange="switchFile(this.value)" title="평가 파일 선택"></select>
+  <select id="file-select" onchange="switchFile(this.value)" title="Select evaluation file"></select>
   <span style="width:1px;height:14px;background:var(--divider);flex-shrink:0"></span>
   <button id="theme-toggle" onclick="toggleTheme()">☀️</button>
 </div>
@@ -238,7 +238,7 @@ body.light #file-select option{background:#f0f2ff;}
   <div class="title-inner">
     <div style="font-size:2.5em">🤖</div>
     <h1>Agent Evaluator</h1>
-    <div class="title-sub">AI 에이전트 성능 평가 리포트 — Harness Gate A–G</div>
+    <div class="title-sub">AI Agent Performance Evaluation Report — Harness Gate A–G</div>
     <div style="height:1px;width:56px;background:var(--divider)"></div>
     <div class="title-name" id="slide-title">—</div>
     <div class="title-meta" id="slide-meta">—</div>
@@ -248,64 +248,64 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 2. AGENDA (Gate A-G 중심) ═══ -->
 <section>
-  <h2>📋 발표 순서 — Harness Gate 평가</h2>
+  <h2>📋 Agenda — Harness Gate Evaluation</h2>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:1;align-content:start">
     <div class="agenda-item">
       <div class="agenda-num">★</div>
-      <div><div class="agenda-text">평가 개요 · Harness Scorecard</div><div class="agenda-sub">대상 · 방법 · Gate A–G 종합 성적</div></div>
+      <div><div class="agenda-text">Evaluation Overview · Harness Scorecard</div><div class="agenda-sub">Subjects · Methods · Gate A–G Overall Score</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-A)">A</div>
-      <div><div class="agenda-text">Gate A — 목표 달성</div><div class="agenda-sub">TCR · 정확도 · 목표 정렬</div></div>
+      <div><div class="agenda-text">Gate A — Goal Achievement</div><div class="agenda-sub">TCR · Accuracy · Goal Alignment</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-B)">B</div>
-      <div><div class="agenda-text">Gate B — 행동 무결성</div><div class="agenda-sub">Tool 패턴 · 루프 · 상태 일관성</div></div>
+      <div><div class="agenda-text">Gate B — Behavioral Integrity</div><div class="agenda-sub">Tool Patterns · Loop Detection · State Consistency</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-C)">C</div>
-      <div><div class="agenda-text">Gate C — 신뢰성</div><div class="agenda-sub">Retry · 내결함성 · 멱등성</div></div>
+      <div><div class="agenda-text">Gate C — Reliability</div><div class="agenda-sub">Retry · Fault Tolerance · Idempotency</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-D)">D</div>
-      <div><div class="agenda-text">Gate D — 성능 계약</div><div class="agenda-sub">Latency · Cost · SLA</div></div>
+      <div><div class="agenda-text">Gate D — Performance Contract</div><div class="agenda-sub">Latency · Cost · SLA</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-E)">E</div>
-      <div><div class="agenda-text">Gate E — 보안 경계</div><div class="agenda-sub">Security L1/L2 · 위협 탐지</div></div>
+      <div><div class="agenda-text">Gate E — Security Boundary</div><div class="agenda-sub">Security L1/L2 · Threat Detection</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-F)">F</div>
-      <div><div class="agenda-text">Gate F — 멀티에이전트</div><div class="agenda-sub">Coordination · Workflow · 합의</div></div>
+      <div><div class="agenda-text">Gate F — Multi-Agent</div><div class="agenda-sub">Coordination · Workflow · Consensus</div></div>
     </div>
     <div class="agenda-item">
       <div class="agenda-gate-num" style="background:var(--gate-G)">G</div>
-      <div><div class="agenda-text">Gate G — 관측가능성</div><div class="agenda-sub">Quality · LLM Judge · 설명가능성</div></div>
+      <div><div class="agenda-text">Gate G — Observability</div><div class="agenda-sub">Quality · LLM Judge · Explainability</div></div>
     </div>
   </div>
 </section>
 
 <!-- ═══ 3. 평가 개요 ═══ -->
 <section>
-  <h2>🔬 평가 개요</h2>
+  <h2>🔬 Evaluation Overview</h2>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title" style="margin-bottom:10px">평가 구성</div>
+      <div class="bar-title" style="margin-bottom:10px">Evaluation Setup</div>
       <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
-        <div class="kpi-box"><div class="kpi-lbl">총 태스크</div><div class="kpi-val c-accent" id="ov-tasks">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">Task Type 수</div><div class="kpi-val" id="ov-types">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Total Tasks</div><div class="kpi-val c-accent" id="ov-tasks">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Task Types</div><div class="kpi-val" id="ov-types">—</div></div>
       </div>
       <div class="kpi-row kpi-row-2">
-        <div class="kpi-box"><div class="kpi-lbl">평균 실행시간</div><div class="kpi-val" id="ov-avgtime">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">총 토큰</div><div class="kpi-val" id="ov-tokens">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Avg Exec Time</div><div class="kpi-val" id="ov-avgtime">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Total Tokens</div><div class="kpi-val" id="ov-tokens">—</div></div>
       </div>
       <div style="margin-top:12px">
-        <div class="bar-title">활성화된 평가 레이어</div>
+        <div class="bar-title">Active Evaluation Layers</div>
         <div id="ov-layers"></div>
       </div>
     </div>
     <div>
-      <div class="bar-title" style="margin-bottom:10px">Task Type 분포</div>
+      <div class="bar-title" style="margin-bottom:10px">Task Type Distribution</div>
       <div class="chart-wrap" style="height:240px"><canvas id="ov-type-pie"></canvas></div>
     </div>
   </div>
@@ -313,45 +313,45 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 4. HARNESS SCORECARD ═══ -->
 <section id="sl-harness-scorecard">
-  <h2>🏁 Harness Gate 종합 성적표</h2>
+  <h2>🏁 Harness Gate Scorecard</h2>
   <div id="hs-gate-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:9px;margin-bottom:12px;flex-shrink:0"></div>
   <div style="margin-bottom:10px;flex-shrink:0">
-    <div style="font-size:11px;color:var(--tc2);margin-bottom:5px;font-weight:600">종합 Harness 점수</div>
+    <div style="font-size:11px;color:var(--tc2);margin-bottom:5px;font-weight:600">Overall Harness Score</div>
     <div class="gauge-track"><div class="gauge-fill" id="hs-overall-gauge-fill" style="width:0%;background:var(--accent)"></div></div>
     <div class="gauge-lbls"><span>0%</span><span id="hs-overall-val" style="color:var(--accent);font-weight:700">—</span><span>100%</span></div>
   </div>
   <div class="kpi-row kpi-row-4" style="margin-bottom:10px">
-    <div class="kpi-box"><div class="kpi-lbl">활성 Gate</div><div class="kpi-val" id="hs-active">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Active Gates</div><div class="kpi-val" id="hs-active">—</div></div>
     <div class="kpi-box"><div class="kpi-lbl">PASS</div><div class="kpi-val c-green" id="hs-pass">—</div></div>
     <div class="kpi-box"><div class="kpi-lbl">WARN</div><div class="kpi-val c-yellow" id="hs-warn">—</div></div>
     <div class="kpi-box"><div class="kpi-lbl">FAIL</div><div class="kpi-val c-red" id="hs-fail">—</div></div>
   </div>
   <div id="hs-harness-notice" class="harness-inactive" style="display:none">
-    ⚙️ Harness Config 미활성 — <code>@agent_eval</code> 데코레이터에서 InstructionConfig, SLAConfig 등 Harness Config를 전달하면 Gate별 세부 점수가 표시됩니다.
+    ⚙️ Harness Config inactive — pass Harness Configs such as InstructionConfig, SLAConfig to the <code>@agent_eval</code> decorator to display per-Gate detailed scores.
   </div>
   <div class="bottom-line" id="hs-bottom"></div>
 </section>
 
 <!-- ═══ 5. Gate A — 목표 달성 ═══ -->
 <section id="sl-gate-A">
-  <h2>Gate A — 목표 달성 <span class="gate-pill gate-pill-na" id="gA-pill">—</span></h2>
+  <h2>Gate A — Goal Achievement <span class="gate-pill gate-pill-na" id="gA-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-A"><div class="kpi-lbl">Gate A 점수</div><div class="kpi-val" id="gA-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="gA-tcr">—</div><div class="kpi-sub">태스크 완료율</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">전체 정확도</div><div class="kpi-val" id="gA-acc">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">완전성공</div><div class="kpi-val c-green" id="gA-full">—</div><div class="kpi-sub">건</div></div>
+    <div class="kpi-box gate-border-A"><div class="kpi-lbl">Gate A Score</div><div class="kpi-val" id="gA-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="gA-tcr">—</div><div class="kpi-sub">Task Completion Rate</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="gA-acc">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Full Success</div><div class="kpi-val c-green" id="gA-full">—</div><div class="kpi-sub">tasks</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">Task Type별 완료율</div>
+      <div class="bar-title">Completion Rate by Task Type</div>
       <div id="gA-type-bars"></div>
       <div style="margin-top:10px">
-        <div class="bar-title">정확도 분포</div>
+        <div class="bar-title">Accuracy Distribution</div>
         <div class="chart-wrap" style="height:140px"><canvas id="gA-acc-chart"></canvas></div>
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness A 세부 점수</div>
+      <div class="bar-title">Harness A Detailed Scores</div>
       <div id="gA-harness"></div>
     </div>
   </div>
@@ -360,31 +360,31 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 6. Gate B — 행동 무결성 (has_agentic 조건) ═══ -->
 <section id="sl-gate-B" data-visibility="hidden">
-  <h2>Gate B — 행동 무결성 <span class="gate-pill gate-pill-na" id="gB-pill">—</span></h2>
+  <h2>Gate B — Behavioral Integrity <span class="gate-pill gate-pill-na" id="gB-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-B"><div class="kpi-lbl">Gate B 점수</div><div class="kpi-val" id="gB-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Tool F1</div><div class="kpi-val" id="gB-tool-f1">—</div><div class="kpi-sub">도구 선택 정확도</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">워크플로우</div><div class="kpi-val" id="gB-wf">—</div><div class="kpi-sub">단계 성공률</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Tool 호출수</div><div class="kpi-val" id="gB-tool-n">—</div></div>
+    <div class="kpi-box gate-border-B"><div class="kpi-lbl">Gate B Score</div><div class="kpi-val" id="gB-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Tool F1</div><div class="kpi-val" id="gB-tool-f1">—</div><div class="kpi-sub">Tool Selection Accuracy</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Workflow</div><div class="kpi-val" id="gB-wf">—</div><div class="kpi-sub">Step Success Rate</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Tool Calls</div><div class="kpi-val" id="gB-tool-n">—</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">에이전틱 지표</div>
+      <div class="bar-title">Agentic Metrics</div>
       <div id="gB-native-bars"></div>
       <div style="margin-top:10px">
-        <div class="bar-title">해석 기준</div>
+        <div class="bar-title">Interpretation Guide</div>
         <div class="card" style="padding:10px 12px">
           <div style="font-size:11px;color:var(--tc2);line-height:2">
-            • Tool F1 ≥ 80%: 도구 선택 우수<br>
-            • 워크플로우 ≥ 80%: 프로세스 안정<br>
-            • 루프 감지율 낮을수록 양호<br>
-            • 상태 일관성 ≥ 90%: 신뢰 가능
+            • Tool F1 ≥ 80%: Excellent tool selection<br>
+            • Workflow ≥ 80%: Stable process<br>
+            • Lower loop detection rate is better<br>
+            • State consistency ≥ 90%: Reliable
           </div>
         </div>
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness B 세부 점수</div>
+      <div class="bar-title">Harness B Detailed Scores</div>
       <div id="gB-harness"></div>
     </div>
   </div>
@@ -393,27 +393,27 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 7. Gate C — 신뢰성 ═══ -->
 <section id="sl-gate-C">
-  <h2>Gate C — 신뢰성 <span class="gate-pill gate-pill-na" id="gC-pill">—</span></h2>
+  <h2>Gate C — Reliability <span class="gate-pill gate-pill-na" id="gC-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-C"><div class="kpi-lbl">Gate C 점수</div><div class="kpi-val" id="gC-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">재시도 발생</div><div class="kpi-val" id="gC-retry-n">—</div><div class="kpi-sub">건</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">재시도 후 성공</div><div class="kpi-val" id="gC-retry-sr">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">환각 발생률</div><div class="kpi-val" id="gC-hallu">—</div><div class="kpi-sub">낮을수록 안전</div></div>
+    <div class="kpi-box gate-border-C"><div class="kpi-lbl">Gate C Score</div><div class="kpi-val" id="gC-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Retries Occurred</div><div class="kpi-val" id="gC-retry-n">—</div><div class="kpi-sub">tasks</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Success After Retry</div><div class="kpi-val" id="gC-retry-sr">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Hallucination Rate</div><div class="kpi-val" id="gC-hallu">—</div><div class="kpi-sub">Lower is safer</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">신뢰성 지표</div>
+      <div class="bar-title">Reliability Metrics</div>
       <div id="gC-native-bars"></div>
       <div id="gC-hallu-wrap" style="margin-top:10px">
-        <div class="bar-title">환각 위험 게이지</div>
+        <div class="bar-title">Hallucination Risk Gauge</div>
         <div id="gC-hallu-gauge"></div>
       </div>
       <div id="gC-hallu-inactive" class="harness-inactive" style="display:none;margin-top:10px">
-        환각 감지 비활성 — <code>enable_hallucination_detection=True</code>
+        Hallucination detection inactive — <code>enable_hallucination_detection=True</code>
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness C 세부 점수</div>
+      <div class="bar-title">Harness C Detailed Scores</div>
       <div id="gC-harness"></div>
     </div>
   </div>
@@ -422,27 +422,27 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 8. Gate D — 성능 계약 ═══ -->
 <section id="sl-gate-D">
-  <h2>Gate D — 성능 계약 <span class="gate-pill gate-pill-na" id="gD-pill">—</span></h2>
+  <h2>Gate D — Performance Contract <span class="gate-pill gate-pill-na" id="gD-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-D"><div class="kpi-lbl">Gate D 점수</div><div class="kpi-val" id="gD-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">평균 지연</div><div class="kpi-val" id="gD-lat-mean">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">P95 (목표 2s)</div><div class="kpi-val" id="gD-lat-p95">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="gD-cost-task">—</div></div>
+    <div class="kpi-box gate-border-D"><div class="kpi-lbl">Gate D Score</div><div class="kpi-val" id="gD-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Avg Latency</div><div class="kpi-val" id="gD-lat-mean">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">P95 (target 2s)</div><div class="kpi-val" id="gD-lat-p95">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Cost per Task</div><div class="kpi-val" id="gD-cost-task">—</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">Latency 백분위</div>
+      <div class="bar-title">Latency Percentiles</div>
       <div class="chart-wrap" style="height:160px"><canvas id="gD-lat-bar"></canvas></div>
       <div style="margin-top:10px">
-        <div class="bar-title">Token 사용량</div>
+        <div class="bar-title">Token Usage</div>
         <div id="gD-tok-bars"></div>
       </div>
     </div>
     <div>
-      <div class="bar-title">SLA 달성 여부</div>
+      <div class="bar-title">SLA Achievement</div>
       <div id="gD-sla"></div>
       <div style="margin-top:8px">
-        <div class="bar-title">Harness D 세부 점수</div>
+        <div class="bar-title">Harness D Detailed Scores</div>
         <div id="gD-harness"></div>
       </div>
     </div>
@@ -452,28 +452,28 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 9. Gate E — 보안 경계 ═══ -->
 <section id="sl-gate-E">
-  <h2>Gate E — 보안 경계 <span class="gate-pill gate-pill-na" id="gE-pill">—</span></h2>
+  <h2>Gate E — Security Boundary <span class="gate-pill gate-pill-na" id="gE-pill">—</span></h2>
   <div id="gE-active" class="slide-content">
     <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-      <div class="kpi-box gate-border-E"><div class="kpi-lbl">Gate E 점수</div><div class="kpi-val" id="gE-score">—</div></div>
-      <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" id="gE-thr">—</div><div class="kpi-sub">L1 입력 검증</div></div>
-      <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" id="gE-leak">—</div><div class="kpi-sub">L1 출력 검사</div></div>
-      <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" id="gE-auth">—</div><div class="kpi-sub">L1 도구 인가</div></div>
+      <div class="kpi-box gate-border-E"><div class="kpi-lbl">Gate E Score</div><div class="kpi-val" id="gE-score">—</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">Input Threat Rate</div><div class="kpi-val" id="gE-thr">—</div><div class="kpi-sub">L1 Input Validation</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">Output Leakage Rate</div><div class="kpi-val" id="gE-leak">—</div><div class="kpi-sub">L1 Output Inspection</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">Auth Compliance Rate</div><div class="kpi-val" id="gE-auth">—</div><div class="kpi-sub">L1 Tool Authorization</div></div>
     </div>
     <div class="two-col" style="flex:1;align-items:start">
       <div>
-        <div class="bar-title">보안 안전율 (100%에 가까울수록 양호)</div>
+        <div class="bar-title">Security Safety Rate (higher is better)</div>
         <div id="gE-native-bars"></div>
       </div>
       <div>
-        <div class="bar-title">Harness E 세부 점수</div>
+        <div class="bar-title">Harness E Detailed Scores</div>
         <div id="gE-harness"></div>
       </div>
     </div>
   </div>
   <div id="gE-inactive" class="no-data" style="display:none;flex:1">
     <div class="no-data-icon">🛡️</div>
-    <div>보안 트래커 비활성</div>
+    <div>Security tracker inactive</div>
     <div style="font-size:11px">PerformanceMonitor(enable_security_metrics=True)</div>
   </div>
   <div class="bottom-line" id="gE-bottom"></div>
@@ -481,31 +481,31 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 10. Gate F — 멀티에이전트 (has_agentic 조건) ═══ -->
 <section id="sl-gate-F" data-visibility="hidden">
-  <h2>Gate F — 멀티에이전트 <span class="gate-pill gate-pill-na" id="gF-pill">—</span></h2>
+  <h2>Gate F — Multi-Agent <span class="gate-pill gate-pill-na" id="gF-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-F"><div class="kpi-lbl">Gate F 점수</div><div class="kpi-val" id="gF-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">협력 성공률</div><div class="kpi-val" id="gF-coord-sr">—</div><div class="kpi-sub">멀티에이전트</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">워크플로우 SR</div><div class="kpi-val" id="gF-wf-sr">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">재시도 성공</div><div class="kpi-val" id="gF-retry-sr">—</div></div>
+    <div class="kpi-box gate-border-F"><div class="kpi-lbl">Gate F Score</div><div class="kpi-val" id="gF-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Coordination SR</div><div class="kpi-val" id="gF-coord-sr">—</div><div class="kpi-sub">Multi-Agent</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Workflow SR</div><div class="kpi-val" id="gF-wf-sr">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Retry Success</div><div class="kpi-val" id="gF-retry-sr">—</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">멀티에이전트 지표</div>
+      <div class="bar-title">Multi-Agent Metrics</div>
       <div id="gF-native-bars"></div>
       <div style="margin-top:10px">
-        <div class="bar-title">해석 기준</div>
+        <div class="bar-title">Interpretation Guide</div>
         <div class="card" style="padding:10px 12px">
           <div style="font-size:11px;color:var(--tc2);line-height:2">
-            • 협력 성공 ≥ 80%: 멀티에이전트 안정<br>
-            • 워크플로우 ≥ 80%: 분산 프로세스 신뢰<br>
-            • 재시도 성공 ≥ 60%: 자기수정 가능<br>
-            • Consensus ≥ 85%: 에이전트 합의 우수
+            • Coordination ≥ 80%: Stable multi-agent<br>
+            • Workflow ≥ 80%: Reliable distributed process<br>
+            • Retry Success ≥ 60%: Self-correction capable<br>
+            • Consensus ≥ 85%: Excellent agent consensus
           </div>
         </div>
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness F 세부 점수</div>
+      <div class="bar-title">Harness F Detailed Scores</div>
       <div id="gF-harness"></div>
     </div>
   </div>
@@ -514,29 +514,29 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 11. Gate G — 관측가능성 ═══ -->
 <section id="sl-gate-G">
-  <h2>Gate G — 관측가능성 <span class="gate-pill gate-pill-na" id="gG-pill">—</span></h2>
+  <h2>Gate G — Observability <span class="gate-pill gate-pill-na" id="gG-pill">—</span></h2>
   <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
-    <div class="kpi-box gate-border-G"><div class="kpi-lbl">Gate G 점수</div><div class="kpi-val" id="gG-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">품질 평균</div><div class="kpi-val" id="gG-qual-avg">—</div><div class="kpi-sub">/ 5.0</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">LLM Judge 점수</div><div class="kpi-val" id="gG-judge">—</div><div class="kpi-sub">측정 시</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Faithfulness</div><div class="kpi-val" id="gG-faith">—</div><div class="kpi-sub">RAG 모드 시</div></div>
+    <div class="kpi-box gate-border-G"><div class="kpi-lbl">Gate G Score</div><div class="kpi-val" id="gG-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Quality Average</div><div class="kpi-val" id="gG-qual-avg">—</div><div class="kpi-sub">/ 5.0</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">LLM Judge Score</div><div class="kpi-val" id="gG-judge">—</div><div class="kpi-sub">When measured</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Faithfulness</div><div class="kpi-val" id="gG-faith">—</div><div class="kpi-sub">In RAG mode</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">응답품질 5차원</div>
+      <div class="bar-title">Response Quality 5 Dimensions</div>
       <div id="gG-quality-dims"></div>
       <div id="gG-quality-gauge-wrap" style="display:none;margin-top:8px">
-        <div style="font-size:11px;color:var(--tc2);margin-bottom:4px;font-weight:600">종합 품질 점수 (/ 5.0)</div>
+        <div style="font-size:11px;color:var(--tc2);margin-bottom:4px;font-weight:600">Overall Quality Score (/ 5.0)</div>
         <div class="gauge-track"><div class="gauge-fill" id="gG-quality-gauge-fill" style="width:0%;background:#06b6d4"></div></div>
         <div class="gauge-lbls"><span>0</span><span id="gG-quality-avg-val" style="color:#06b6d4;font-weight:700"></span><span>5.0</span></div>
       </div>
       <div id="gG-quality-nodata" class="no-data" style="display:none">
         <div class="no-data-icon">📊</div>
-        <div style="font-size:11px">ResponseQualityEvaluator 미활성</div>
+        <div style="font-size:11px">ResponseQualityEvaluator inactive</div>
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness G 세부 점수</div>
+      <div class="bar-title">Harness G Detailed Scores</div>
       <div id="gG-harness"></div>
     </div>
   </div>
@@ -545,14 +545,14 @@ body.light #file-select option{background:#f0f2ff;}
 
 <!-- ═══ 12. KEY FINDINGS ═══ -->
 <section>
-  <h2>🔑 핵심 발견 (Key Findings)</h2>
+  <h2>🔑 Key Findings</h2>
   <div id="kf-cards" class="slide-content" style="gap:0"></div>
   <div id="kf-verdict" class="verdict-banner" style="margin-top:8px"></div>
 </section>
 
 <!-- ═══ 13. ACTION PLAN ═══ -->
 <section>
-  <h2>🚀 액션 플랜 (Action Plan)</h2>
+  <h2>🚀 Action Plan</h2>
   <div id="ap-content" class="slide-content"></div>
 </section>
 
@@ -560,13 +560,13 @@ body.light #file-select option{background:#f0f2ff;}
 <section style="padding:0!important">
   <div class="title-inner">
     <div style="font-size:2em">🎉</div>
-    <h1>감사합니다</h1>
+    <h1>Thank You</h1>
     <div class="title-sub">Agent Evaluator v{{ version }}</div>
     <div style="height:1px;width:56px;background:var(--divider);margin:8px auto"></div>
     <canvas id="sl-qr" style="border-radius:8px;background:#fff;padding:6px;width:96px;height:96px"></canvas>
     <div style="font-size:11px;color:var(--tc2);margin-top:3px" id="sl-qr-url"></div>
     <a href="#" onclick="window.history.length>1?window.history.back():location.assign('/dashboard');return false;"
-       style="color:var(--accent);font-size:13px;text-decoration:none;margin-top:6px">← 대시보드로 돌아가기</a>
+       style="color:var(--accent);font-size:13px;text-decoration:none;margin-top:6px">← Back to Dashboard</a>
   </div>
 </section>
 
@@ -691,17 +691,17 @@ function _populateSlides(data){
   set('ov-tokens', ((tok.total_tokens||0) > 0) ? (tok.total_tokens).toLocaleString() : '—');
 
   const layerFlags = [
-    ['Layer 1 기초', true, '#6c8ef5'],
-    ['Layer 2 에이전틱', !!data.has_agentic, '#22d3ee'],
-    ['보안 (L1/L2)', !!data.has_security, '#f87171'],
-    ['RAG / 하이브리드', !!data.has_rag || !!data.has_advanced, '#34d399'],
-    ['환각 감지', halluHas, '#facc15'],
-    ['응답품질', Object.values(qual).some(v=>v>0), '#a78bfa'],
+    ['Layer 1 Foundation', true, '#6c8ef5'],
+    ['Layer 2 Agentic', !!data.has_agentic, '#22d3ee'],
+    ['Security (L1/L2)', !!data.has_security, '#f87171'],
+    ['RAG / Hybrid', !!data.has_rag || !!data.has_advanced, '#34d399'],
+    ['Hallucination Detection', halluHas, '#facc15'],
+    ['Response Quality', Object.values(qual).some(v=>v>0), '#a78bfa'],
   ];
   document.getElementById('ov-layers').innerHTML = layerFlags.map(([lbl, on, c]) =>
     `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
        <div style="width:8px;height:8px;border-radius:50%;background:${on?c:'var(--bar-bg)'}"></div>
-       <span style="font-size:12px;color:${on?'var(--tc)':'var(--tc2)'}${on?'':';opacity:.5'}">${lbl}${on?'':' — 비활성'}</span>
+       <span style="font-size:12px;color:${on?'var(--tc)':'var(--tc2)'}${on?'':';opacity:.5'}">${lbl}${on?'':' — Inactive'}</span>
      </div>`
   ).join('');
 
@@ -740,8 +740,8 @@ function _populateSlides(data){
 function renderHarnessScorecard(d) {
   const hg = d.harness_groups || {};
   const gates = ['A','B','C','D','E','F','G'];
-  const names = {A:'목표 달성',B:'행동 무결성',C:'신뢰성',D:'성능 계약',
-                 E:'보안 경계',F:'멀티에이전트',G:'관측가능성'};
+  const names = {A:'Goal Achievement',B:'Behavioral Integrity',C:'Reliability',D:'Performance Contract',
+                 E:'Security Boundary',F:'Multi-Agent',G:'Observability'};
   const colors = {A:'#10b981',B:'#3b82f6',C:'#f59e0b',D:'#0ea5e9',
                   E:'#ef4444',F:'#8b5cf6',G:'#06b6d4'};
 
@@ -809,8 +809,8 @@ function renderHarnessScorecard(d) {
 
   const worstGate = gates.filter(gk => gateResults[gk].status === 'fail')[0];
   document.getElementById('hs-bottom').innerHTML =
-    `<strong>Bottom Line:</strong> ${activeC}개 Gate 평가 · PASS ${passC} / WARN ${warnC} / FAIL ${failC}` +
-    (worstGate ? ` · 가장 낮은 Gate: <strong>${worstGate}(${names[worstGate]})</strong>` : ' · 모든 Gate 양호');
+    `<strong>Bottom Line:</strong> ${activeC} Gates evaluated · PASS ${passC} / WARN ${warnC} / FAIL ${failC}` +
+    (worstGate ? ` · Lowest Gate: <strong>${worstGate} (${names[worstGate]})</strong>` : ' · All Gates OK');
 }
 
 /* ── Native score derivation for gates without Harness Config ── */
@@ -897,11 +897,11 @@ function updateGatePill(id, score) {
 function harnessGroupHtml(gk, hg) {
   const g = hg[gk];
   if (!g) {
-    return `<div class="harness-inactive">⚙️ Harness Config 미활성 — <code>@agent_eval</code> 데코레이터에서 활성화</div>`;
+    return `<div class="harness-inactive">⚙️ Harness Config inactive — activate via <code>@agent_eval</code> decorator</div>`;
   }
   const metrics = g.metrics || g.scores || {};
   if (!Object.keys(metrics).length) {
-    return `<div class="harness-inactive">Harness ${gk} 지표 없음</div>`;
+    return `<div class="harness-inactive">No Harness ${gk} metrics</div>`;
   }
   const entries = Object.entries(metrics).slice(0, 7);
   const maxV = Math.max(...entries.map(([,v]) => +v||0), 1);
@@ -936,7 +936,7 @@ function renderGateA(d, typeStats, tcr_v, acc_v) {
     const rate = Math.round(s.ok/s.n*100);
     const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
     return `<div class="bar-row">
-      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% <span style="font-weight:400;font-size:10px;opacity:.7">(${s.n}건)</span></span></div>
+      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% <span style="font-weight:400;font-size:10px;opacity:.7">(${s.n})</span></span></div>
       <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:${col}"></div></div>
     </div>`;
   }).join('');
@@ -945,8 +945,8 @@ function renderGateA(d, typeStats, tcr_v, acc_v) {
 
   const worstType = Object.entries(typeStats).sort((a,b) => (a[1].ok/a[1].n)-(b[1].ok/b[1].n))[0];
   document.getElementById('gA-bottom').innerHTML =
-    `<strong>Gate A:</strong> TCR ${fmtPct(tcr_v)} · 정확도 ${fmtPct(acc_v)}` +
-    (worstType ? ` · 가장 낮은 타입: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
+    `<strong>Gate A:</strong> TCR ${fmtPct(tcr_v)} · Accuracy ${fmtPct(acc_v)}` +
+    (worstType ? ` · Lowest type: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
 }
 
 /* ── Gate B ── */
@@ -971,15 +971,15 @@ function renderGateB(d) {
 
   document.getElementById('gB-native-bars').innerHTML = buildBars([
     ['Tool F1',          toolF1,  '#3b82f6'],
-    ['워크플로우 SR',    wfSR,    '#22d3ee'],
-    ['협력 성공률',      ag.coordination_summary?.success_rate||0, '#4ade80'],
-    ['재시도 성공률',    ag.retry_summary?.eventual_success_rate||0, '#facc15'],
+    ['Workflow SR',       wfSR,    '#22d3ee'],
+    ['Coordination SR',  ag.coordination_summary?.success_rate||0, '#4ade80'],
+    ['Retry SR',         ag.retry_summary?.eventual_success_rate||0, '#facc15'],
   ]);
 
   document.getElementById('gB-harness').innerHTML = harnessGroupHtml('B', hg);
 
   document.getElementById('gB-bottom').innerHTML =
-    `<strong>Gate B:</strong> Tool F1 ${fmtPct(toolF1)} · 워크플로우 ${fmtPct(wfSR)} · 총 Tool 호출 ${toolN}건`;
+    `<strong>Gate B:</strong> Tool F1 ${fmtPct(toolF1)} · Workflow SR ${fmtPct(wfSR)} · Total Tool Calls ${toolN}`;
 }
 
 /* ── Gate C ── */
@@ -999,9 +999,9 @@ function renderGateC(d, halluHas, hall_v) {
   setKpi('gC-hallu', halluHas ? fmtPct(hall_v) : '—', halluHas ? (hall_v<=5?'c-green':hall_v<=15?'c-yellow':'c-red') : '');
 
   const reliabilityBars = [];
-  if (retryN > 0) reliabilityBars.push(['재시도 성공률', retrySR, '#f59e0b']);
-  if (halluHas) reliabilityBars.push(['환각 안전율', Math.max(0,100-hall_v*5), '#4ade80']);
-  reliabilityBars.push(['태스크 완료율', d.accuracy_metrics?.tcr?.tcr||0, '#6c8ef5']);
+  if (retryN > 0) reliabilityBars.push(['Retry SR', retrySR, '#f59e0b']);
+  if (halluHas) reliabilityBars.push(['Hallucination Safety', Math.max(0,100-hall_v*5), '#4ade80']);
+  reliabilityBars.push(['Task Completion Rate', d.accuracy_metrics?.tcr?.tcr||0, '#6c8ef5']);
   document.getElementById('gC-native-bars').innerHTML = buildBars(reliabilityBars);
 
   if (halluHas) {
@@ -1011,7 +1011,7 @@ function renderGateC(d, halluHas, hall_v) {
     const hcol = hall_v<=5?'#4ade80':hall_v<=15?'#facc15':'#f87171';
     document.getElementById('gC-hallu-gauge').innerHTML =
       `<div class="gauge-track"><div class="gauge-fill" style="width:${hpct}%;background:${hcol}"></div></div>
-       <div class="gauge-lbls"><span>0% 안전</span><span style="color:${hcol};font-weight:700">${fmtPct(hall_v)} 현재</span><span>30% 위험</span></div>`;
+       <div class="gauge-lbls"><span>0% Safe</span><span style="color:${hcol};font-weight:700">${fmtPct(hall_v)} Current</span><span>30% Danger</span></div>`;
   } else {
     document.getElementById('gC-hallu-wrap').style.display = 'none';
     document.getElementById('gC-hallu-inactive').style.display = '';
@@ -1020,8 +1020,8 @@ function renderGateC(d, halluHas, hall_v) {
   document.getElementById('gC-harness').innerHTML = harnessGroupHtml('C', hg);
 
   document.getElementById('gC-bottom').innerHTML =
-    `<strong>Gate C:</strong> 재시도 ${retryN}건 · 재시도 성공 ${fmtPct(retrySR)}` +
-    (halluHas ? ` · 환각 ${fmtPct(hall_v)} (${hall_v<=5?'안전':hall_v<=15?'주의':'위험'})` : '');
+    `<strong>Gate C:</strong> Retries ${retryN} · Retry Success ${fmtPct(retrySR)}` +
+    (halluHas ? ` · Hallucination ${fmtPct(hall_v)} (${hall_v<=5?'Safe':hall_v<=15?'Caution':'Danger'})` : '');
 }
 
 /* ── Gate D ── */
@@ -1042,9 +1042,9 @@ function renderGateD(d, lat, tok, p95_v) {
 
   // SLA cards
   document.getElementById('gD-sla').innerHTML = [
-    ['P50 (중앙값)', lat.p50, 1.0, '쾌적한 경험의 절반 이상'],
-    ['P95',         lat.p95, 2.0, '95%의 사용자 경험'],
-    ['P99',         lat.p99, 3.0, '99%의 사용자 경험'],
+    ['P50 (Median)', lat.p50, 1.0, 'More than half of requests'],
+    ['P95',         lat.p95, 2.0, '95% of requests'],
+    ['P99',         lat.p99, 3.0, '99% of requests'],
   ].map(([lbl,v,thr,desc]) => {
     const ok = v != null && v <= thr;
     const unk = v == null;
@@ -1057,7 +1057,7 @@ function renderGateD(d, lat, tok, p95_v) {
             <span style="font-size:13px;font-weight:700;color:var(--tc)">${lbl}</span>
             <span style="font-size:15px;font-weight:800;color:${col}">${fmtSec(v)}</span>
           </div>
-          <div style="font-size:10px;color:var(--tc2)">기준 ${thr}s · ${desc}</div>
+          <div style="font-size:10px;color:var(--tc2)">Threshold ${thr}s · ${desc}</div>
         </div>
       </div>
     </div>`;
@@ -1077,7 +1077,7 @@ function renderGateD(d, lat, tok, p95_v) {
   document.getElementById('gD-harness').innerHTML = harnessGroupHtml('D', hg);
 
   document.getElementById('gD-bottom').innerHTML =
-    `<strong>Gate D:</strong> P95 ${fmtSec(p95_v)} (SLA 2s ${p95_v<=2?'✅ 달성':'❌ 초과'}) · Task당 비용 ${fmtCost(costPerTask)}`;
+    `<strong>Gate D:</strong> P95 ${fmtSec(p95_v)} (SLA 2s ${p95_v<=2?'✅ Met':'❌ Exceeded'}) · Cost/Task ${fmtCost(costPerTask)}`;
 }
 
 /* ── Gate E ── */
@@ -1112,17 +1112,17 @@ function renderGateE(d) {
   setKpi('gE-auth', fmtPct(auth), auth>=90?'c-green':'c-yellow');
 
   document.getElementById('gE-native-bars').innerHTML = buildBars([
-    ['입력 안전율 (L1)',       100-thr,  '#4ade80'],
-    ['출력 안전율 (L1)',       100-leak, '#4ade80'],
-    ['권한 준수율 (L1)',       auth,     '#6c8ef5'],
-    ['권한 상승 안전율 (L2)',  100-esc,  '#facc15'],
-    ['공격 체인 탐지율 (L2)', atk,      '#ef4444'],
+    ['Input Safety Rate (L1)', 100-thr,  '#4ade80'],
+    ['Output Safety Rate (L1)',100-leak, '#4ade80'],
+    ['Auth Compliance (L1)',   auth,     '#6c8ef5'],
+    ['Priv Esc Safety (L2)',   100-esc,  '#facc15'],
+    ['Attack Chain Det (L2)',  atk,      '#ef4444'],
   ]);
 
   document.getElementById('gE-harness').innerHTML = harnessGroupHtml('E', hg);
 
   document.getElementById('gE-bottom').innerHTML =
-    `<strong>Gate E:</strong> 입력위협 ${fmtPct(thr)} · 출력유출 ${fmtPct(leak)} · 권한준수 ${fmtPct(auth)} · 권한상승 ${fmtPct(esc)}`;
+    `<strong>Gate E:</strong> Input Threat ${fmtPct(thr)} · Output Leak ${fmtPct(leak)} · Auth ${fmtPct(auth)} · Priv Esc ${fmtPct(esc)}`;
 }
 
 /* ── Gate F ── */
@@ -1146,16 +1146,16 @@ function renderGateF(d) {
   setKpi('gF-retry-sr', fmtPct(retrySR), retrySR>=60?'c-green':retrySR>=40?'c-yellow':'c-red');
 
   document.getElementById('gF-native-bars').innerHTML = buildBars([
-    ['협력 성공률',   coordSR, '#8b5cf6'],
-    ['워크플로우 SR', wfSR,    '#22d3ee'],
-    ['재시도 성공',   retrySR, '#facc15'],
+    ['Coordination SR',  coordSR, '#8b5cf6'],
+    ['Workflow SR',      wfSR,    '#22d3ee'],
+    ['Retry Success',    retrySR, '#facc15'],
     ['Tool F1',       ag.tool_selection_summary?.avg_f1_score||0, '#4ade80'],
   ]);
 
   document.getElementById('gF-harness').innerHTML = harnessGroupHtml('F', hg);
 
   document.getElementById('gF-bottom').innerHTML =
-    `<strong>Gate F:</strong> 협력 성공 ${fmtPct(coordSR)} · 워크플로우 ${fmtPct(wfSR)} · 재시도 성공 ${fmtPct(retrySR)}`;
+    `<strong>Gate F:</strong> Coordination ${fmtPct(coordSR)} · Workflow ${fmtPct(wfSR)} · Retry Success ${fmtPct(retrySR)}`;
 }
 
 /* ── Gate G ── */
@@ -1178,11 +1178,11 @@ function renderGateG(d, qual) {
 
   // Quality dims
   const dims = [
-    ['정확성 (Accuracy)',     qual.accuracy_score],
-    ['완결성 (Completeness)', qual.completeness_score],
-    ['명확성 (Clarity)',      qual.clarity_score],
-    ['관련성 (Relevance)',    qual.relevance_score],
-    ['창의성 (Creativity)',   qual.creativity_score],
+    ['Accuracy',     qual.accuracy_score],
+    ['Completeness', qual.completeness_score],
+    ['Clarity',      qual.clarity_score],
+    ['Relevance',    qual.relevance_score],
+    ['Creativity',   qual.creativity_score],
   ];
   const hasQual = dims.some(([,v]) => v != null && v > 0);
   if (hasQual) {
@@ -1207,7 +1207,7 @@ function renderGateG(d, qual) {
   document.getElementById('gG-harness').innerHTML = harnessGroupHtml('G', hg);
 
   document.getElementById('gG-bottom').innerHTML =
-    `<strong>Gate G:</strong> 품질 평균 ${qualAvg != null ? qualAvg.toFixed(2)+'/5.0' : '—'}` +
+    `<strong>Gate G:</strong> Quality Avg ${qualAvg != null ? qualAvg.toFixed(2)+'/5.0' : '—'}` +
     (judgeAvg != null ? ` · LLM Judge ${judgeAvg.toFixed(2)}/5` : '') +
     (faithful != null ? ` · Faithfulness ${faithful.toFixed(2)}/5` : '');
 }
@@ -1219,36 +1219,36 @@ function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, d
   const items = [];
 
   if (tcr_v < 90) {
-    items.push({ ok:false, title:`Gate A — TCR ${fmtPct(tcr_v)} (목표 90% 미달)`,
-      detail:`${tcr_v>=70?'부분적':'전체적'} 개선 필요. Gate A 실패 태스크 패턴 분석이 우선과제입니다.`,
-      badge:tcr_v>=70?'⚠️ 개선필요':'❌ 긴급개선', badgeCls:tcr_v>=70?'#facc15':'#f87171' });
+    items.push({ ok:false, title:`Gate A — TCR ${fmtPct(tcr_v)} (target 90% not met)`,
+      detail:`${tcr_v>=70?'Partial':'Overall'} improvement needed. Analyze Gate A failure task patterns first.`,
+      badge:tcr_v>=70?'⚠️ Needs Improvement':'❌ Urgent Fix', badgeCls:tcr_v>=70?'#facc15':'#f87171' });
   } else {
-    items.push({ ok:true, title:`Gate A — TCR ${fmtPct(tcr_v)} (목표 달성)`,
-      detail:`태스크 완료율이 우수합니다. 부분성공 태스크의 완전성공 전환이 다음 목표입니다.`,
+    items.push({ ok:true, title:`Gate A — TCR ${fmtPct(tcr_v)} (target met)`,
+      detail:`Task completion rate is excellent. Converting partial successes to full successes is the next goal.`,
       badge:'✅ PASS', badgeCls:'#4ade80' });
   }
 
   if (p95_v > 2 && p95_v > 0) {
-    items.push({ ok:false, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA 2s 초과)`,
-      detail:`Gate D 성능 계약 위반. 캐싱·모델 경량화·청크 조정을 검토하세요.`,
-      badge:'⚠️ SLA 위반', badgeCls:'#f87171' });
+    items.push({ ok:false, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA 2s exceeded)`,
+      detail:`Gate D performance contract violated. Consider caching, model optimization, or chunk tuning.`,
+      badge:'⚠️ SLA Violated', badgeCls:'#f87171' });
   } else if (halluHas && hall_v > 5) {
-    items.push({ ok:false, title:`Gate C — 환각 ${fmtPct(hall_v)} (기준 5% 초과)`,
-      detail:`Gate C 신뢰성 저하. RAG 검증 파이프라인 도입을 검토하세요.`,
+    items.push({ ok:false, title:`Gate C — Hallucination ${fmtPct(hall_v)} (>5% threshold)`,
+      detail:`Gate C reliability degraded. Consider introducing a RAG verification pipeline.`,
       badge:'⚠️ WARN', badgeCls:'#facc15' });
   } else {
-    items.push({ ok:true, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA 달성)`,
-      detail:`P95 지연이 목표 이내입니다. 현재 성능을 유지하면서 비용 최적화를 검토하세요.`,
+    items.push({ ok:true, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA met)`,
+      detail:`P95 latency is within target. Consider cost optimization while maintaining current performance.`,
       badge:'✅ PASS', badgeCls:'#4ade80' });
   }
 
   if (acc_v < 70) {
-    items.push({ ok:false, title:`Gate A — 정확도 ${fmtPct(acc_v)} (목표 70% 미달)`,
-      detail:`Gate A 목표 달성 저하. Golden Dataset 품질 점검 및 프롬프트 개선이 필요합니다.`,
-      badge:'⚠️ 개선필요', badgeCls:'#facc15' });
+    items.push({ ok:false, title:`Gate A — Accuracy ${fmtPct(acc_v)} (target 70% not met)`,
+      detail:`Gate A goal achievement degraded. Check Golden Dataset quality and improve prompts.`,
+      badge:'⚠️ Needs Improvement', badgeCls:'#facc15' });
   } else {
-    items.push({ ok:true, title:`Gate A — 정확도 ${fmtPct(acc_v)} (목표 달성)`,
-      detail:`정확도 수준이 양호합니다. 중앙값과 분포 확인으로 일관성을 검증하세요.`,
+    items.push({ ok:true, title:`Gate A — Accuracy ${fmtPct(acc_v)} (target met)`,
+      detail:`Accuracy level is satisfactory. Verify consistency by checking median and distribution.`,
       badge:'✅ PASS', badgeCls:'#4ade80' });
   }
 
@@ -1256,8 +1256,8 @@ function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, d
   const verdictCls = passCount===3?'vb-pass':passCount>=1?'vb-cond':'vb-fail';
   const verdictIcon = passCount===3?'🏆':passCount>=1?'⚠️':'❌';
   const verdictColor = passCount===3?'#4ade80':passCount>=1?'#facc15':'#f87171';
-  const verdictLabel = passCount===3?'PASS — 핵심 Gate 달성':passCount>=1?'CONDITIONAL — 일부 Gate 미달':'FAIL — 핵심 Gate 미달성';
-  const verdictSub = `${passCount}/3개 핵심 Gate 달성 · ${items.filter(i=>!i.ok).map(i=>i.title.split('—')[0].trim()).join(', ')||'없음'} 개선 필요`;
+  const verdictLabel = passCount===3?'PASS — Key Gates achieved':passCount>=1?'CONDITIONAL — Some Gates not met':'FAIL — Key Gates not achieved';
+  const verdictSub = `${passCount}/3 key Gates achieved · ${items.filter(i=>!i.ok).map(i=>i.title.split('—')[0].trim()).join(', ')||'None'} need improvement`;
 
   const cards = items.map((item, i) =>
     `<div class="finding-card">
@@ -1277,32 +1277,32 @@ function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, d
 function buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data){
   const actions = [];
   if (tcr_v < 90)
-    actions.push({ p:'P1', icon:'🔧', title:'Gate A — TCR 향상 (현재 '+fmtPct(tcr_v)+'→목표 90%)',
-      steps:['실패 태스크 에러 로그 분석 (Gate A 슬라이드 참조)', '실패 집중 Task Type 프롬프트 개선', '부분성공 태스크 재실행 조건 완화'],
-      impact:'TCR +5~10%p 예상', file:'01_layer1_all_metrics.py' });
+    actions.push({ p:'P1', icon:'🔧', title:'Gate A — Improve TCR (current '+fmtPct(tcr_v)+'→target 90%)',
+      steps:['Analyze error logs of failed tasks (see Gate A slide)', 'Improve prompts for high-failure Task Types', 'Relax re-execution conditions for partial successes'],
+      impact:'TCR +5~10%p expected', file:'01_layer1_all_metrics.py' });
   if (acc_v < 70)
-    actions.push({ p:'P1', icon:'📚', title:'Gate A — 정확도 개선 (현재 '+fmtPct(acc_v)+'→목표 70%)',
-      steps:['타입별 정확도 격차 분석 (Gate A 슬라이드 참조)', '낮은 타입 대상 Few-shot 예시 추가', 'Golden Dataset 품질 검수 및 확장'],
-      impact:'Accuracy +5~15%p 예상', file:'06_operational.py' });
+    actions.push({ p:'P1', icon:'📚', title:'Gate A — Improve Accuracy (current '+fmtPct(acc_v)+'→target 70%)',
+      steps:['Analyze accuracy gap by type (see Gate A slide)', 'Add few-shot examples for low-accuracy types', 'Review and expand Golden Dataset quality'],
+      impact:'Accuracy +5~15%p expected', file:'06_operational.py' });
   if (halluHas && hall_v > 5)
-    actions.push({ p:'P1', icon:'🧠', title:'Gate C — 환각 억제 (현재 '+fmtPct(hall_v)+'→목표 5%↓)',
-      steps:['환각 다발 유형 집중 분석', 'RAG 기반 Fact 검증 레이어 도입', '응답 생성 온도(temperature) 조정'],
-      impact:'Hallucination -3~8%p 예상', file:'01_layer1_all_metrics.py' });
+    actions.push({ p:'P1', icon:'🧠', title:'Gate C — Suppress Hallucination (current '+fmtPct(hall_v)+'→target 5%↓)',
+      steps:['Focus analysis on high-hallucination types', 'Introduce RAG-based fact verification layer', 'Tune response generation temperature'],
+      impact:'Hallucination -3~8%p expected', file:'01_layer1_all_metrics.py' });
   if (p95_v > 2)
-    actions.push({ p:'P2', icon:'⚡', title:'Gate D — 응답속도 최적화 (P95 '+fmtSec(p95_v)+'→목표 2s↓)',
-      steps:['느린 Task Type 식별 (Gate D 슬라이드 참조)', '결과 캐싱 / 병렬 처리 도입', '경량 모델 또는 청크 크기 조정 검토'],
-      impact:'P95 -30~50% 예상', file:'01_layer1_all_metrics.py' });
+    actions.push({ p:'P2', icon:'⚡', title:'Gate D — Response Speed Optimization (P95 '+fmtSec(p95_v)+'→target 2s↓)',
+      steps:['Identify slow Task Types (see Gate D slide)', 'Introduce result caching / parallel processing', 'Consider lighter model or chunk size adjustment'],
+      impact:'P95 -30~50% expected', file:'01_layer1_all_metrics.py' });
   if (costPerTask > 0.05)
-    actions.push({ p:'P2', icon:'💰', title:'Gate D — 비용 최적화 (Task당 '+fmtCost(costPerTask)+')',
-      steps:['불필요한 Output 토큰 단축 (프롬프트 간결화)', 'AdaptivePolicy 샘플링 도입 (06_operational.py)', '고비용 타입 식별 및 모델 티어 분리'],
-      impact:'비용 20~40% 절감 예상', file:'06_operational.py' });
+    actions.push({ p:'P2', icon:'💰', title:'Gate D — Cost Optimization ('+fmtCost(costPerTask)+'/task)',
+      steps:['Reduce unnecessary output tokens (simplify prompts)', 'Introduce AdaptivePolicy sampling (06_operational.py)', 'Identify high-cost types and separate model tiers'],
+      impact:'Cost reduction 20~40% expected', file:'06_operational.py' });
   if (actions.length === 0)
-    actions.push({ p:'P3', icon:'✅', title:'모든 Gate 달성 — 지속 모니터링',
-      steps:['실시간 대시보드 모니터링 유지 (--watch 모드)', 'Golden Dataset 주기적 확장', 'Anomaly Detection 임계값 점검'],
-      impact:'현재 품질 유지', file:'agent-eval dashboard --watch' });
-  actions.push({ p:'P3', icon:'📊', title:'Gate 기반 CI/CD 파이프라인 구축',
-    steps:['agent-eval gate 품질 게이팅 도입 (모든 Gate 기준)', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', 'Harness Config 전 Gate 활성화 (08_harness_eval.py)'],
-    impact:'Gate 회귀 사전 방지', file:'agent-eval gate result.json --tcr 85' });
+    actions.push({ p:'P3', icon:'✅', title:'All Gates achieved — Continuous monitoring',
+      steps:['Maintain real-time dashboard monitoring (--watch mode)', 'Periodically expand Golden Dataset', 'Review Anomaly Detection thresholds'],
+      impact:'Maintain current quality', file:'agent-eval dashboard --watch' });
+  actions.push({ p:'P3', icon:'📊', title:'Build Gate-based CI/CD Pipeline',
+    steps:['Introduce agent-eval gate quality gating (all Gate criteria)', 'Run GoldenSetBuilder auto-case extraction weekly', 'Activate all Gate Harness Configs (08_harness_eval.py)'],
+    impact:'Prevent Gate regression proactively', file:'agent-eval gate result.json --tcr 85' });
 
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;align-content:start">
     ${actions.slice(0,4).map(a =>

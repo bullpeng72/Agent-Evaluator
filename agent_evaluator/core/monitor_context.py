@@ -76,7 +76,7 @@ def evaluation_session(
                     "session.id": monitor._otel_session_id,
                 })
         except Exception as _e:
-            logger.debug("OTEL 컨텍스트 스팬 설정 실패 (무시): %s", _e)
+            logger.debug("OTEL context span setup failed (ignored): %s", _e)
         return contextlib.nullcontext()
 
     exception_occurred = None

@@ -7,9 +7,9 @@ from agent_evaluator.serve.routers._utils import _rs
 
 router = APIRouter(prefix="/api/anomalies", tags=["anomaly"])
 
-@router.get("", summary="이상 탐지 결과 목록")
+@router.get("", summary="Anomaly detection results list")
 def list_anomalies(request: Request) -> List[Dict[str, Any]]:
-    """모든 파일의 이상 탐지 결과 목록."""
+    """List anomaly detection results across all files."""
     rs = _rs(request)
     result = []
     for f in rs.files:
@@ -25,9 +25,9 @@ def list_anomalies(request: Request) -> List[Dict[str, Any]]:
             })
     return result
 
-@router.get("/{file_id}", summary="파일별 이상 탐지 결과")
+@router.get("/{file_id}", summary="Anomaly detection results for a file")
 def get_anomalies(file_id: str, request: Request) -> Dict[str, Any]:
-    """특정 파일의 이상 탐지 결과."""
+    """Anomaly detection results for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:

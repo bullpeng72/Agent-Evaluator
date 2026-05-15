@@ -213,6 +213,6 @@ class AlertEngine:
             try:
                 rule.handler.send(event)
             except Exception as _e:
-                logger.debug("알림 핸들러 전송 실패 (무시): %s", _e)
+                logger.debug("Alert handler send failed (ignored): %s", _e)
             fired.append(event)
         return fired
