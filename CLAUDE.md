@@ -631,7 +631,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` directory contains **53 files, 2,465+ test functions**.
+`tests/` directory contains **51 files, 2,465+ test functions**.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -714,6 +714,17 @@ Patterns detected by `InputSanitizationTracker`:
 ---
 
 ## 📝 Changelog
+
+### v0.9.2 (2026-05-15) — GPT-5 Standardization · i18n English Localization
+
+- ✨ **GPT-5 Standardization**: Set `gpt-5-nano` as the default OpenAI model project-wide; updated all 26 examples with latest model IDs
+- 🔧 **Modern Token Parameters**: Implemented `max_completion_tokens` for GPT-5 compatible OpenAI calls; maintained `max_tokens` for Anthropic
+- 🔧 **Pricing Update**: Refined cost estimation for `gpt-5-nano` ($0.05/$0.40 per 1M tokens) in `llm_judge.py`
+- 🔧 **CLI `init` improvement**: `init` command now allows model updates when keeping existing API keys; adds missing model fields on re-run
+- 🌐 **i18n English localization**: Translated all user-facing messages, UI strings, log outputs, and dashboard templates (45 files) to English
+- 📝 **Docs English localization**: Fully translated `CLAUDE.md` and `README.md` to English
+- 📝 **Environment Templates**: Modernized `.env.example` to accurately map all 26 book chapter examples to required variables
+- 🐛 **Example fixes**: Fixed errors in example files
 
 ### v0.9.1 (2026-04-27) — Dependency restructure · pip resolver optimization
 
