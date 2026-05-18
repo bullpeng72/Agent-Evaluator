@@ -128,11 +128,17 @@ Caller
 ## Installation
 
 ```bash
-# Base install — includes LLMJudge · dashboard · OTEL monitoring · PDF (sdk built-in)
+# Base install — LLMJudge engine (openai + anthropic) · core metrics only
 pip install agent-evaluator
 
+# ── SDK features (dashboard · OTEL monitoring · PDF) ────────────────────────
+pip install "agent-evaluator[serve]"              # agent-eval dashboard (FastAPI + uvicorn)
+pip install "agent-evaluator[otel]"               # agent-eval monitor (Phoenix + OTEL)
+pip install "agent-evaluator[pdf]"                # Korean RAG PDF processing
+pip install "agent-evaluator[sdk]"                # serve + otel + pdf bundle (recommended)
+
 # ── Running Evaluator_Examples/ ─────────────────────────────────────────────
-pip install "agent-evaluator[examples]"           # all examples runnable (base + eval)
+pip install "agent-evaluator[examples]"           # all examples runnable (sdk + eval)
 
 # ── Framework extensions (when your agent code needs them) ──────────────────
 # agent-evaluator itself works fully without these packages (duck typing)
@@ -145,6 +151,10 @@ pip install "agent-evaluator[autogen]"            # AutoGen ≥0.3 (heavy)
 
 # ── Convenience bundles ──────────────────────────────────────────────────────
 pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/autogen, 10+ min)
+
+# ── pipx global install ──────────────────────────────────────────────────────
+# zsh requires quotes around extras
+pipx install 'agent-evaluator[sdk]'              # dashboard + monitor + PDF all available
 ```
 
 ---
@@ -1266,7 +1276,7 @@ eval.save()                           # results/quickeval.json + .html
 ```
 
 ```bash
-# Dashboard is included in base install
+# Requires [serve] extra: pip install "agent-evaluator[serve]" or "agent-evaluator[sdk]"
 agent-eval dashboard results/ --watch        # auto-refresh on file change
 ```
 
@@ -1281,7 +1291,7 @@ agent-eval dashboard results/ --watch        # auto-refresh on file change
 `setup_otel()` must be called **before creating PerformanceMonitor**. All subsequent `record_task()` calls will automatically emit OTLP spans.
 
 ```bash
-# Terminal 1 — start Phoenix server (OTEL is included in base install)
+# Requires [otel] extra: pip install "agent-evaluator[otel]" or "agent-evaluator[sdk]"
 agent-eval monitor                           # http://localhost:6006
 ```
 
@@ -1437,13 +1447,13 @@ agent-evaluator/
 │   │   │   ├── monitor.py       # PerformanceMonitor (orchestrator)
 │   │   │   ├── conversation.py  # ConversationSession · ConversationMetrics
 │   │   │   └── feedback.py      # ImplicitFeedbackTracker
-│   │   ├── otel/                # OpenTelemetry integration (included in base install)
+│   │   ├── otel/                # OpenTelemetry integration ([otel] extra)
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
 │   │   ├── llm_judge.py         # LLMJudge
 │   │   └── metric_adapters.py   # DeepEval · Ragas adapters
-│   ├── serve/                   # FastAPI dashboard (included in base install)
+│   ├── serve/                   # FastAPI dashboard ([serve] extra)
 │   ├── cli/                     # agent-eval CLI
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
 │   ├── anomaly/                 # AnomalyDetector
@@ -1466,29 +1476,37 @@ agent-evaluator/
 | `numpy` | ≥1.20.0, <3.0.0 | Numerical computation |
 | `pandas` | ≥1.3.0, <4.0.0 | Metric aggregation |
 | `python-dotenv` | ≥0.19.0, <2.0.0 | Environment variable management |
-| `openai` | ≥1.0.0, <3.0.0 | LLMJudge engine |
+| `openai` | ≥2.0.0, <3.0.0 | LLMJudge engine |
 | `anthropic` | ≥0.20.0, <1.0.0 | LLMJudge engine |
-| `fastapi` | ≥0.110.0, <1.0.0 | Web dashboard |
-| `uvicorn[standard]` | ≥0.29.0, <1.0.0 | Web dashboard |
-| `jinja2` | ≥3.1.0, <4.0.0 | Web dashboard |
-| `python-multipart` | ≥0.0.9, <1.0.0 | Web dashboard |
-| `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | OTEL monitoring |
-| `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | OTEL monitoring |
-| `arize-phoenix` | ≥7.0.0 | Phoenix real-time monitoring |
-| `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
+
+**SDK extras** (`pip install "agent-evaluator[sdk]"` — recommended for full CLI use)
+
+| Extra | Package | Version Range | Purpose |
+|-------|---------|--------------|---------|
+| `[serve]` | `fastapi` | ≥0.110.0, <1.0.0 | `agent-eval dashboard` |
+| `[serve]` | `uvicorn[standard]` | ≥0.29.0, <1.0.0 | `agent-eval dashboard` |
+| `[serve]` | `jinja2` | ≥3.1.0, <4.0.0 | `agent-eval dashboard` |
+| `[serve]` | `python-multipart` | ≥0.0.9, <1.0.0 | `agent-eval dashboard` |
+| `[otel]` | `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
+| `[otel]` | `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
+| `[otel]` | `arize-phoenix` | ≥14.0.0, <14.7.0 | Phoenix real-time monitoring² |
+| `[pdf]` | `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
+| **`[sdk]`** | serve + otel + pdf | — | **All CLI features (recommended)** |
+
+² `arize-phoenix` upper bound `<14.7.0` — 14.7.0+ pulls pydantic-ai metapackage (170+ packages).
 
 **Optional extras** (see [## Installation](#installation) for install commands)
 
 | Extra | Key Packages | Install Time | Notes |
 |-------|-------------|-------------|-------|
-| `[examples]` | base + eval | heavy | Examples 01–06: base only · 07: eval additionally required |
+| `[examples]` | sdk + eval | heavy | Examples 01–06: base only · 07: eval additionally required |
 | `[eval]` | deepeval ≥3.0, <4.0 · ragas ≥0.4, <2.0 · datasets ≥4.0, <6.0 | heavy | DeepEval/Ragas external evaluation |
 | `[langchain]` | langchain ≥1.0, langgraph ≥1.0 | medium | For user LangChain agent code¹ |
 | `[dspy]` | dspy-ai ≥2.0 | medium | For user DSPy agent code¹ |
 | `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | fast | For user PydanticAI agent code¹ |
 | `[crewai]` | crewai ≥1.0, <2.0 | heavy (isolated) | For user CrewAI agent code¹ |
 | `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | heavy (isolated) | For user AutoGen agent code¹ |
-| `[full]` | base + eval + langchain + dspy + pydanticai + crewai + autogen | very heavy | ⚠️ 10+ min, for full CI compatibility testing |
+| `[full]` | sdk + eval + langchain + dspy + pydanticai + crewai + autogen | very heavy | ⚠️ 10+ min, for full CI compatibility testing |
 | `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | fast | Development environment |
 
 ¹ agent-evaluator itself works fully without these packages (duck typing). Install only when your agent code directly imports the framework.
