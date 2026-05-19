@@ -36,13 +36,6 @@ from agent_evaluator import (
     setup_otel,
     InstructionConfig,
     SLAConfig,
-    # L1 트래커 직접 사용 (섹션 5)
-    TaskCompletionTracker,
-    AccuracyEvaluator,
-    HallucinationDetector,
-    ResponseQualityEvaluator,
-    LatencyTracker,
-    TokenEconomyTracker,
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -169,28 +162,22 @@ HALLUCINATION_CASES = [
     ),
 ]
 
+_s2_responses = iter([resp for _, _, resp in HALLUCINATION_CASES])
+
 @agent_eval(monitor_s2, task_type="information_retrieval",
             task_id_prefix="s2", context_arg="context")
 def rag_medical_agent(question: str, context: str = "",
                       ground_truth: str = "") -> str:
     """의료 정보 RAG 에이전트 (환각 시나리오 포함)."""
-    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.chat.completions.create(model="gpt-5-nano",
-    #        messages=[{"role":"user","content":question}]).choices[0].message.content
-    # 실제 환경에서는 LLM이 생성; 여기서는 시나리오별 응답을 미리 정의
-    return rag_medical_agent._responses[rag_medical_agent._idx]
-
-rag_medical_agent._idx = 0
-rag_medical_agent._responses = [resp for _, _, resp in HALLUCINATION_CASES]
+    # TODO(현업 적용): return llm.invoke(question)  # 실제 LLM 호출로 교체
+    return next(_s2_responses)
 
 for label, gt, resp in HALLUCINATION_CASES:
-    rag_medical_agent._responses[rag_medical_agent._idx] = resp
     rag_medical_agent(
         question=f"복용 안내_{label}",
         context=CONTEXT_DRUG,
         ground_truth=gt,
     )
-    rag_medical_agent._idx += 1
     print(f"  [{label}] 기록 완료 — 응답: {resp[:40]}...")
 
 print()
@@ -343,109 +330,12 @@ print("    → 기준 미달 시 exit 1 → CI/CD 파이프라인 자동 차단"
 
 
 # ===========================================================================
-# 섹션 5 — L1 트래커 직접 사용
-#
-# PerformanceMonitor는 내부적으로 6개 L1 트래커를 자동 관리하지만,
-# 세밀한 제어가 필요할 때는 트래커를 직접 인스턴스화해 사용할 수 있습니다.
-#
-# TaskCompletionTracker  → add_task() + calculate_tcr()
-# AccuracyEvaluator      → add_evaluation() + get_accuracy_scores()
-# HallucinationDetector  → detect_hallucination()
-# ResponseQualityEvaluator → evaluate_response()
-# LatencyTracker         → record_latency() + get_latency_stats()
-# TokenEconomyTracker    → track_usage() + get_usage_stats()
-# ===========================================================================
-print("\n" + "=" * 62)
-print("섹션 5 — L1 트래커 직접 사용")
-print("=" * 62)
-print("  PerformanceMonitor 없이 각 트래커를 독립적으로 사용합니다.")
-print("  독립 서비스 / 배치 분석 / 커스텀 파이프라인 구성에 유용합니다.\n")
-
-# ── [1] TaskCompletionTracker ─────────────────────────────────────────────
-print("  [1] TaskCompletionTracker — 작업 완료율(TCR) 계산")
-tcr_tracker = TaskCompletionTracker()
-_s5_tasks = [
-    create_taskresult("t5_1", "서울의 날씨는?", "맑고 22도입니다", "맑고 22도", 0.3, task_type="qa"),
-    create_taskresult("t5_2", "파이썬 GIL이란?", "전역 인터프리터 잠금입니다", "전역 인터프리터 잠금", 0.5, task_type="qa"),
-    create_taskresult("t5_3", "머신러닝이란?", "통계 기반 데이터 학습", "데이터 학습 기법", 0.4, task_type="qa"),
-]
-for t in _s5_tasks:
-    tcr_tracker.add_task(t)
-_tcr = tcr_tracker.calculate_tcr()
-print(f"    TCR={_tcr['tcr']:.1f}%  전체={_tcr['total_tasks']}  성공={_tcr['full_success']}  "
-      f"부분={_tcr['partial_success']}  실패={_tcr['failures']}")
-
-# ── [2] AccuracyEvaluator ─────────────────────────────────────────────────
-print("  [2] AccuracyEvaluator — QA 정확도 직접 계산")
-acc_eval = AccuracyEvaluator()
-acc_eval.add_evaluation("t5_a1", ground_truth="서울", prediction="서울입니다", task_type="qa")
-acc_eval.add_evaluation("t5_a2", ground_truth="파이썬", prediction="자바입니다", task_type="qa")
-acc_eval.add_evaluation("t5_a3", ground_truth="머신러닝", prediction="머신러닝과 딥러닝", task_type="qa")
-_acc_scores = acc_eval.get_accuracy_scores()
-print(f"    전체 정확도={_acc_scores['overall_accuracy']:.1f}%  "
-      f"중앙값={_acc_scores['median_accuracy']:.1f}%  평가건={len(acc_eval.evaluations)}")
-
-# ── [3] HallucinationDetector ─────────────────────────────────────────────
-print("  [3] HallucinationDetector — 환각 탐지 직접 호출")
-hd = HallucinationDetector()
-_ctx = "파이썬은 1991년 귀도 반 로섬이 개발한 범용 프로그래밍 언어입니다."
-hd.detect_hallucination("t5_h1",
-    response="파이썬은 1991년 귀도가 개발한 언어입니다.",
-    context=_ctx)
-hd.detect_hallucination("t5_h2",
-    response="파이썬은 2005년 구글이 개발하고 NASA가 NASA가 배포한 언어입니다.",
-    context=_ctx)
-_hd_records = hd.detections
-for rec in _hd_records:
-    print(f"    [{rec['task_id']}] 환각율={rec.get('hallucination_rate', 0):.2f}  "
-          f"의심문장={rec.get('unsupported_sentences', 0)}")
-
-# ── [4] ResponseQualityEvaluator ──────────────────────────────────────────
-print("  [4] ResponseQualityEvaluator — 5차원 응답 품질 평가")
-rqe = ResponseQualityEvaluator()
-_quality = rqe.evaluate_response(
-    task_id="t5_q",
-    response="파이썬은 범용 프로그래밍 언어로 데이터 과학, 웹 개발, 자동화에 널리 쓰입니다.",
-    request="파이썬이란?",
-    expected_elements=["프로그래밍", "데이터"],
-)
-_dims = _quality.get("dimension_scores", {})
-print(f"    총점={_quality['total_score']:.2f}/5  등급={_quality['grade']}  "
-      f"관련성={_dims.get('relevance', 0):.2f}  완전성={_dims.get('completeness', 0):.2f}")
-
-# ── [5] LatencyTracker ────────────────────────────────────────────────────
-print("  [5] LatencyTracker — 레이턴시 백분위 계산")
-lat_tracker = LatencyTracker()
-for i, t in enumerate([0.12, 0.45, 0.23, 1.80, 0.31, 0.67, 0.18, 0.92, 0.25, 2.10,
-                        0.14, 0.38, 0.55, 0.20, 0.73, 0.11, 1.40, 0.29, 0.61, 0.17]):
-    lat_tracker.record_latency(f"t5_l{i}", "qa", total_time=t,
-                               breakdown={"retrieval": t * 0.3, "llm": t * 0.7})
-_lat_stats = lat_tracker.get_latency_stats()
-print(f"    P50={_lat_stats['p50']:.3f}s  P95={_lat_stats['p95']:.3f}s  "
-      f"P99={_lat_stats['p99']:.3f}s  평균={_lat_stats['mean']:.3f}s")
-
-# ── [6] TokenEconomyTracker ───────────────────────────────────────────────
-print("  [6] TokenEconomyTracker — 토큰 비용 추적")
-tok_tracker = TokenEconomyTracker(pricing={"input": 0.003, "output": 0.015})
-for i in range(5):
-    tok_tracker.track_usage(f"t5_tok_{i}", input_tokens=200 + i * 50,
-                            output_tokens=80 + i * 20, task_type="qa",
-                            model="claude-sonnet-4-6")
-_tok_stats = tok_tracker.get_usage_stats()
-print(f"    총 토큰={_tok_stats['total_tokens']}  총 비용=${_tok_stats['total_cost']:.4f}  "
-      f"태스크당 평균=${_tok_stats['avg_cost_per_task']:.4f}")
-
-
-# ===========================================================================
 # 최종 리포트 저장
 # ===========================================================================
 print("\n" + "=" * 62)
 print("최종 리포트 저장")
 print("=" * 62)
 
-# 섹션 1 + 2 통합 저장
-for r in monitor_s2.generate_report().to_dict().get("task_results", []):
-    pass  # monitor_s1에 병합하지 않고 개별 저장
 monitor_s1.save_to_file("ch01_first_eval")
 monitor_s2.save_to_file("ch01_hallucination_eval")
 # monitor_s3은 이미 저장 완료
