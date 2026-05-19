@@ -360,4 +360,4 @@ print(f"    에이전트={_coord_patterns.get('total_agents', 0)}개  "
 
 monitor.save_to_file("ch05_group_b")
 print("\n결과 저장 완료: results/ch05_group_b.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

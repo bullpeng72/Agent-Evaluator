@@ -386,19 +386,23 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
         return
 
     print()
-    hdr = f"  {'Metric':<18}  {'First':>9}  {'Last':>10}  {'slope/run':>10}  {'Trend':<14}  Points"
+    hdr = f"  {'Metric':<18}  {'First':>9}  {'Last':>10}  {'slope/run':>11}  {'Trend':<14}  Points"
     print(hdr)
-    print(f"  {'─' * 18}  {'─' * 9}  {'─' * 10}  {'─' * 10}  {'─' * 14}  ─────")
+    print(f"  {'─' * 18}  {'─' * 9}  {'─' * 10}  {'─' * 11}  {'─' * 14}  ─────")
+
+    _dir_color = {"improving": G, "degrading": RD, "stable": D}
 
     for trend, mkey in active:
         unit = _METRIC_UNIT.get(mkey, "")
         icon = _direction_icon(trend.direction)
-        dlabel = _direction_label(trend.direction)
+        # ANSI 코드 적용 전에 패딩 → 터미널 표시 너비 기준으로 정렬 유지
+        _col = _dir_color.get(trend.direction, "")
+        dlabel = f"{_col}{trend.direction:<12}{R}" if _col else f"{trend.direction:<12}"
         slope_str = f"{trend.slope:+.3f}{unit}/run"
         print(
             f"  {trend.label:<18}  {_fmt(trend.first_val, unit):>9}  "
-            f"{_fmt(trend.last_val, unit):>10}  {slope_str:>10}  "
-            f"{icon} {dlabel:<12}  {trend.data_points}"
+            f"{_fmt(trend.last_val, unit):>10}  {slope_str:>11}  "
+            f"{icon} {dlabel}  {trend.data_points}"
         )
 
     print()

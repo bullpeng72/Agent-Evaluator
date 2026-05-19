@@ -108,7 +108,10 @@ def _load_metrics(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
     p95_raw = latency_block.get("p95")
     if p95_raw is not None:
         try:
-            metrics["p95_latency"] = float(p95_raw)
+            p95_val = float(p95_raw)
+            # 0.0 은 레이턴시 미측정(LatencyTracker 미사용)을 의미하므로 None 처리
+            if p95_val > 0.0:
+                metrics["p95_latency"] = p95_val
         except (TypeError, ValueError):
             pass
 

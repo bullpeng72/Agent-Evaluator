@@ -204,4 +204,4 @@ print_harness_console_report(report)
 
 monitor.save_to_file("ch03_harness_basics")
 print(f"결과 저장 완료: results/ch03_harness_basics.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

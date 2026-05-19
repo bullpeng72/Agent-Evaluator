@@ -203,7 +203,7 @@ result = create_taskresult(
 |------|--------|------|
 | `ragas>=0.4.0` | ✅ | EvaluationDataset, SingleTurnSample API supported |
 | `[crewai,autogen]` pydantic conflict | 🟡 | Silently downgrades to pydantic 2.11.x |
-| `arize-phoenix` | 🟡 | Pin `<14.7.0` — 14.7+ installs pydantic-ai metapackage (170+ pkgs) |
+| `arize-phoenix` | ✅ | v15.4.0 안전 — pydantic-ai 호환성 해결됨 (이전 `<14.7.0` 핀 해제) |
 | `AnswerRelevancy` embeddings | 🟡 | Auto-configured only with OpenAI key |
 
 ---

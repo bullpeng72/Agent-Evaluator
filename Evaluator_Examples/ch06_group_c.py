@@ -227,4 +227,4 @@ if _score is not None:
 
 monitor.save_to_file("ch06_group_c")
 print("\n결과 저장 완료: results/ch06_group_c.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
