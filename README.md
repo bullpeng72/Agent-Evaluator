@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1529,6 +1529,13 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.3 (2026-05-20) — HTML Report Consistency · harness_groups Serialization Fix
+
+- 🐛 **HTML Consistency Fix**: `generate_comprehensive_html_report()` had hardcoded `has_rag=False` and `has_conversation=False`; Gate E used wrong tracker attribute names — all 7 bugs fixed so live-monitor HTML and export HTML render identical sections.
+- 🐛 **harness_groups Serialization**: `_append_report_data()` was not writing `extra_metrics.harness_groups` to JSON, causing dashboard export HTML to use the loader's approximate fallback formula (Gate A = (TCR+Accuracy)/2) instead of actual InstructionConfig/SLAConfig scores. Added one-line fix to serialize precomputed values.
+- 🔧 **ch01 Example Cleanup**: Removed Section 5 (L1 tracker direct-use example) to simplify the introductory chapter.
+- 🐛 **CLI/Trend Fixes**: Fixed `gate` command `p95_latency` unset handling, `trend` ANSI alignment, and `dashboard` argument parsing.
 
 ### v0.9.2 (2026-05-15) — GPT-5 Standardization · Token Parameter Modernization
 

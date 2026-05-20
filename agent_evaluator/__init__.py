@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.7.9
+Agent Evaluator SDK v0.9.3
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -38,7 +38,7 @@ Quick Start (Decorator):
     >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.9.1"
+__version__ = "0.9.3"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
