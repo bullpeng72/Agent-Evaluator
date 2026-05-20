@@ -76,6 +76,10 @@ docs/_build/
 # Generated evaluation results
 results/
 
+# 임시 검증 및 디버그 파일
+resultsch21_trend.json
+Evaluator_Examples/Test.py
+
 # Golden datasets — 생성 파일만 무시, 정적 시나리오 파일은 추적
 data/golden_datasets/*
 !data/golden_datasets/agentic_tool_selection.json
