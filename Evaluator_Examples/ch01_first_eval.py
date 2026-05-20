@@ -23,7 +23,7 @@ Book Chapter 01 — AI에이전트 평가란 무엇인가
 
 의존성: pip install agent-evaluator
 실행:   python Evaluator_Examples/ch01_first_eval.py
-결과:   results/ch01_*.json  →  agent-eval dashboard --results results/
+결과:   results/ch01_*.json  →  agent-eval dashboard results/
 """
 
 import random
@@ -349,7 +349,7 @@ print("    ch01_sla_eval.json           — 섹션 3 SLA 위반 (Group D)")
 print("    ch01_harness_eval.json       — 섹션 4 Gate 배포 판정")
 print()
 print("  대시보드 확인:")
-print("    agent-eval dashboard --results results/")
+print("    agent-eval dashboard results/")
 print()
 print("─" * 62)
 print("다음: Ch02 — QuickEval 5분 첫 평가  (ch02_quickstart.py)")

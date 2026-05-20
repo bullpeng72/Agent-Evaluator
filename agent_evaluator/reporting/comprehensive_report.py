@@ -708,12 +708,28 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
 
     sec_html = ""
     try:
-        input_sec = monitor.input_sanitizer.get_sanitization_metrics() if hasattr(monitor, 'input_sanitizer') else {}
-        output_leak = monitor.output_leakage_detector.get_leakage_metrics() if hasattr(monitor, 'output_leakage_detector') else {}
-        tool_auth = monitor.tool_auth_tracker.get_authorization_metrics() if hasattr(monitor, 'tool_auth_tracker') else {}
-        priv_esc = monitor.privilege_escalation_detector.get_escalation_metrics() if hasattr(monitor, 'privilege_escalation_detector') else {}
-        chain_atk = monitor.tool_chain_attack_detector.get_attack_metrics() if hasattr(monitor, 'tool_chain_attack_detector') else {}
-        sec_html = _build_security_kpis(input_sec, output_leak, tool_auth, priv_esc, chain_atk)
+        _inp  = getattr(monitor, 'input_sanitizer', None)
+        _out  = getattr(monitor, 'output_leakage_detector', None)
+        _auth = getattr(monitor, 'tool_authorizer', None)
+        _priv = getattr(monitor, 'privilege_escalation_detector', None)
+        _atk  = getattr(monitor, 'tool_chain_attack_detector', None)
+        # 보안 트래커가 하나도 활성화되지 않았으면 섹션 미표시 (RF 경로와 동일 동작)
+        _any_active = any(t is not None for t in [_inp, _out, _auth, _priv, _atk])
+        if _any_active:
+            # 이벤트 0건이면 RF 경로와 동일하게 빈 dict 처리
+            def _sec_or_empty(d: Dict, total_key: str) -> Dict:
+                return d if d and d.get(total_key, 0) > 0 else {}
+            _is = _inp.get_security_stats()    if _inp  is not None else {}
+            _ol = _out.get_leakage_stats()     if _out  is not None else {}
+            _ta = _auth.get_compliance_stats() if _auth is not None else {}
+            _pe = _priv.get_escalation_stats() if _priv is not None else {}
+            _ca = _atk.get_attack_stats()      if _atk  is not None else {}
+            input_sec   = _sec_or_empty(_is, "total_inputs_evaluated")
+            output_leak = _sec_or_empty(_ol, "total_outputs_evaluated")
+            tool_auth   = _sec_or_empty(_ta, "total_tool_calls")
+            priv_esc    = _sec_or_empty(_pe, "total_evaluations")
+            chain_atk   = _sec_or_empty(_ca, "total_chains_analyzed")
+            sec_html = _build_security_kpis(input_sec, output_leak, tool_auth, priv_esc, chain_atk)
     except Exception:
         pass
 
@@ -1462,10 +1478,18 @@ def generate_comprehensive_html_report(monitor) -> str:
 
     # RAG / advanced flags
     has_advanced = bool(adv_metrics)
-    has_rag = False
     rag_metrics: Dict = {}
-    has_conversation = False
+    try:
+        rag_metrics = monitor.rag_metrics or {}
+    except Exception:
+        pass
+    has_rag = any(len(v) > 0 for v in rag_metrics.values())
     conversation_sessions: list = []
+    try:
+        conversation_sessions = list(monitor.conversation_sessions) or []
+    except Exception:
+        pass
+    has_conversation = bool(conversation_sessions)
 
     # Build HTML
     parts = [

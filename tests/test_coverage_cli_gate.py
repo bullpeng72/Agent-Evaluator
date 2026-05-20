@@ -458,19 +458,19 @@ class TestPrintTable:
         gate_results = [self._make_gate_result(active=False, passed=True)]
         _print_table(gate_results, "result.json")
         out = capsys.readouterr().out
-        assert "임계값 기준이 지정되지 않았습니다" in out
+        assert "No thresholds specified" in out
 
     def test_print_all_pass(self, capsys):
         gate_results = [self._make_gate_result(active=True, passed=True)]
         _print_table(gate_results, "result.json")
         out = capsys.readouterr().out
-        assert "모든 기준 통과" in out
+        assert "All checks passed" in out
 
     def test_print_fail(self, capsys):
         gate_results = [self._make_gate_result(active=True, passed=False, current=70.0)]
         _print_table(gate_results, "result.json")
         out = capsys.readouterr().out
-        assert "품질 기준 미달" in out
+        assert "Quality gate failed" in out
 
     def test_print_regression_warning(self, capsys):
         gate_results = [self._make_gate_result(active=True, passed=True)]
@@ -484,14 +484,14 @@ class TestPrintTable:
         }]
         _print_table(gate_results, "result.json", regressions)
         out = capsys.readouterr().out
-        assert "회귀" in out
+        assert "regressions detected" in out
 
     def test_print_skip_when_current_none(self, capsys):
         gate_results = [self._make_gate_result(active=True, passed=False, current=None)]
         _print_table(gate_results, "result.json")
         out = capsys.readouterr().out
-        # SKIP 메시지 포함 또는 품질 기준 미달
-        assert "SKIP" in out or "품질 기준 미달" in out
+        # SKIP 메시지 포함 또는 gate failed
+        assert "SKIP" in out or "Quality gate failed" in out
 
     def test_regression_only_warning_message(self, capsys):
         gate_results = [self._make_gate_result(active=True, passed=True)]
@@ -501,7 +501,7 @@ class TestPrintTable:
         }]
         _print_table(gate_results, "result.json", regressions)
         out = capsys.readouterr().out
-        assert "임계값은 통과했으나 회귀 감지" in out
+        assert "regressions detected" in out
 
 
 # ===========================================================================
