@@ -924,8 +924,7 @@ class QuickEval:
 
         if failures:
             msg = "QuickEval quality gate failed:\n" + "\n".join(f"  - {f}" for f in failures)
-            logger.error(msg)
-            print(msg)
+            print(msg, file=sys.stderr)
             sys.exit(1)
 
         return True
