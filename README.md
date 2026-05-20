@@ -1532,101 +1532,35 @@ mypy agent_evaluator/          # type check
 
 ### v0.9.3 (2026-05-20) — HTML Report Consistency · harness_groups Serialization Fix
 
-- 🐛 **HTML Consistency Fix**: `generate_comprehensive_html_report()` had hardcoded `has_rag=False` and `has_conversation=False`; Gate E used wrong tracker attribute names — all 7 bugs fixed so live-monitor HTML and export HTML render identical sections.
-- 🐛 **harness_groups Serialization**: `_append_report_data()` was not writing `extra_metrics.harness_groups` to JSON, causing dashboard export HTML to use the loader's approximate fallback formula (Gate A = (TCR+Accuracy)/2) instead of actual InstructionConfig/SLAConfig scores. Added one-line fix to serialize precomputed values.
-- 🔧 **ch01 Example Cleanup**: Removed Section 5 (L1 tracker direct-use example) to simplify the introductory chapter.
-- 🐛 **CLI/Trend Fixes**: Fixed `gate` command `p95_latency` unset handling, `trend` ANSI alignment, and `dashboard` argument parsing.
+- 🐛 `generate_comprehensive_html_report()` hardcoded flags (`has_rag`, `has_conversation`) and Gate E tracker attribute errors fixed — live-monitor HTML and dashboard export HTML now render identically.
+- 🐛 `_append_report_data()` now serializes `extra_metrics.harness_groups` to JSON, preventing the loader from using an approximate fallback formula (Gate A = (TCR+Accuracy)/2) for dashboard exports.
 
 ### v0.9.2 (2026-05-15) — GPT-5 Standardization · Token Parameter Modernization
 
-- ✨ **GPT-5 Standardization**: Set `gpt-5-nano` as the default OpenAI model project-wide, including library config and all 26 examples.
-- 🔧 **Modern Token Parameters**: Implemented `max_completion_tokens` for OpenAI API calls (GPT-5 compatible) while maintaining `max_tokens` for Anthropic.
-- 📝 **Example Modernization**: Updated all 26 `Evaluator_Examples/` with OpenAI SDK snippets and latest model IDs (`gpt-5-nano`).
-- 🔧 **Pricing Update**: Refined cost estimation for `gpt-5-nano` ($0.05/$0.40 per 1M tokens) in `llm_judge.py` and documentation.
-- 🔧 **Environment Templates**: Modernized `.env.example` to accurately map all 26 book chapter examples to required variables.
+- ✨ `gpt-5-nano` adopted as default OpenAI model across library config and all 26 examples; `max_completion_tokens` implemented for GPT-5 API compatibility.
+- 🔧 Pricing updated for `gpt-5-nano` ($0.05/$0.40 per 1M tokens); `.env.example` modernized with per-chapter variable mappings for all 26 book chapters.
 
-### v0.9.1 (2026-04-27) — Dependency restructure · pip resolver optimization
+### v0.9.1 (2026-04-27) — Dependency Restructure · pip Resolver Optimization
 
-- 🔧 `pyproject.toml` dependency restructure: reduced base install to 5 core packages, split fastapi · otel · pdfplumber into `[serve]` · `[otel]` · `[pdf]` · `[sdk]` extras
-- 🔧 `arize-phoenix>=14.0.0,<14.7.0` upper bound fixed — prevents pydantic-ai metapackage (170+ packages) from auto-installing from 14.7.0+, `[sdk]` package count 170→90
-- 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` range narrowed — minimizes pip resolver search space (openai candidates 277→37)
-- 📝 Updated Docs example file references (21→26, ch01/ch02 filename corrections)
+- 🔧 Base install reduced to 5 core packages; `[serve]` · `[otel]` · `[pdf]` · `[sdk]` extras split — `[sdk]` transitive package count reduced from 170 to 90.
+- 🔧 `arize-phoenix<14.7.0` upper bound pinned (prevents pydantic-ai metapackage pull); openai/langchain ranges narrowed for faster pip resolution (openai candidates 277→37).
 
-### v0.8.5 (2026-04-23) — SDK bug fixes
+### v0.8.x (2026-04-13~23) — Harness Config Unification · Decorator Refactor · Stability
 
-- Fixed silent `TypeError` suppression bug for dict-type `tokens_used` in `eval_efficiency()`
-- Fixed `EfficiencyConfig` `cost_unit`/`target_cost_per_completion` design error (USD→tokens scale)
-- `CostPredictabilityConfig` — isolated CV by separating `task_type` per agent, Gate D 0.640→0.876
-- `ch10_group_g.py` — fixed `EvalMetadata(extra={...})` injection path, Gate G warn→pass
+- ✨ 33 Harness Config unified card format; Dashboard reorganized into 3-tier hierarchy with Gate correlation heatmap (7×7 Pearson) and failure cascade tracking; 16 Gate columns added to CSV export.
+- 🔧 `RetryConfig` · `LLMJudgeConfig` · `SecurityConfig` structs introduced; `AGENT_EVALUATOR_JUDGE_PROVIDER` env var added; `LLMJudge` multi-model escalation and auto-disable on consecutive errors.
+- 🐛 Accuracy F1 overhaul (Token Overlap → harmonic mean); `EfficiencyConfig` / `CostPredictabilityConfig` calculation bugs fixed; example files reorganized into 26 chapter-based `chXX_*.py` structure.
 
-### v0.8.4 (2026-04-21) — Example files fully reorganized into chapter-based structure
+### v0.7.x (2026-04-01~13) — 3 Decorators · 21 Frameworks · OTEL/Phoenix
 
-- Example files fully reorganized from 11 → 17 `chXX_topic.py` chapter-based naming
-- Added missing trackers to `ch05`, `ch07`, `ch10`, `ch02` (WorkflowExecution · Latency · TokenEconomy · AnomalyDetector · CostTracker)
-- Synchronized Phoenix `service_name` and result filenames to chapter numbers
-- Fixed missing `create_taskresult` import bug in `ch05_group_b.py`
+- ✨ 3 decorator types completed (`@agent_eval` · `@batch_eval` · `@conversation_eval`) with `QuickEval` one-stop facade; 21 framework adapters (LangChain · CrewAI · AutoGen · OpenAI · Anthropic · etc.).
+- ✨ `agent-eval monitor` — Arize Phoenix OTEL real-time monitoring; `agent-eval trend` — regression detection with `--fail-on-regression` CI/CD integration.
+- 🐛 Critical security tracker bug fixes; LLMJudge G-Eval custom criteria and `faithfulness` scoring added.
 
-### v0.8.3 (2026-04-21) — LLMJudge stability · Gate improvements · Security tracker expansion
+### v0.6.x (2026-03-21~04-01) — SDK Stabilization
 
-- Auto-disable LLMJudge on consecutive errors (3 consecutive failures → restored via `reset_errors()`)
-- Store `None` instead of `0` when `faithfulness` is missing — prevents score pollution
-- Introduced `AGENT_EVALUATOR_JUDGE_PROVIDER` env var (`auto` / `openai` / `anthropic`)
-- Added `llm_blend_weight` to `GoalAlignmentConfig` · `PlanConfig` (LLM-rule blend ratio, default 0.5)
-- Added `LLMJudge.ajudge()` async method
-- Fixed `LLMJudgeConfig.sample_rate` decorator propagation bug
-- `agent-eval gate --min-gate-score / --group-weights` — weighted composite Gate A–G score judgment
-- `agent-eval trend` cost trend analysis (`total_cost`, `--fail-on-regression` integration)
-- `OutputLeakageDetector(excluded_unix_paths=[...])` — customizable system path exclusion list
-- Added `sample_rate` parameter to security trackers (high-traffic performance optimization)
-- Added `deadlock_by_type` classification to Group B · `insufficient_data_warnings` to Gate D
-- `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — multi-model auto-escalation
+- LangChain · LangGraph · CrewAI · AutoGen integration · FastAPI dashboard · LLMJudge · ConversationSession
 
-### v0.8.2 (2026-04-17) — Harness Config 33 unified format · Dashboard UI improvements
-
-- Unified icon · formula · threshold badge format for all 33 Harness Config cards; added `08_harness_eval.py` example
-- Dashboard Nav reorganized into 3-tier hierarchy; added Gate correlation heatmap (7×7 Pearson) · failure cascade tracking
-- HTML report fully reorganized around Gate A–G; added 16 Gate columns to CSV export
-- Group classification fix: StateConsistencyConfig · DeadlockConfig moved Group F→B
-- Added 2 test files (52 files, 2,465+)
-
-### v0.8.1 (2026-04-14) — Decorator parameter restructuring
-
-- Introduced 3 structs: `RetryConfig` · `LLMJudgeConfig` · `SecurityConfig`; removed individual parameters
-- Unified naming: `enable_hallucination` → `enable_hallucination_detection`
-- Added 548 tests; restructured 72→49 files
-
-### v0.8.0 (2026-04-13) — Accuracy metrics overhaul
-
-- Replaced Token Overlap with F1 (harmonic mean); unified Char Similarity to Levenshtein
-- task_type-aware completion_score: code_generation AST parsing, tool_use returns 0.6 if unused
-
-### v0.7.9 (2026-04-13) — RunTrendAnalyzer · arize-phoenix compatibility fix
-
-- `RunTrendAnalyzer` + `agent-eval trend` — trend analysis · `--fail-on-regression` CI/CD integration
-- Fixed arize-phoenix version constraint conflict
-
-### v0.7.8 (2026-04-12) — SDK built-in by default
-
-- `pip install agent-evaluator` alone enables LLMJudge · dashboard · OTEL
-
-### v0.7.7 (2026-04-11) — Decorator bug fixes · thread safety
-
-- Fixed `agent_eval` preset parameter not applied bug; added `threading.Lock` to 5 Layer 2 trackers
-
-### v0.7.6 (2026-04-10) — LLMJudge G-Eval/Ragas replacement
-
-- `judge_criteria` G-Eval custom scoring; auto-adds `faithfulness` when `rag_mode=True`
-
-### v0.7.0–v0.7.5 (2026-04-01~09) — OTEL/Phoenix · 3 decorators · QuickEval
-
-- `agent-eval monitor` CLI · Arize Phoenix real-time monitoring
-- Completed 3 decorators (`agent_eval` · `batch_eval` · `conversation_eval`) · `QuickEval` facade
-- 21 framework adapters · critical security tracker bug fixes (CRITICAL)
-
-### v0.6.x (2026-03-21~04-01) — SDK stabilization
-
-- LangChain/LangGraph/CrewAI/AutoGen · FastAPI dashboard · LLMJudge · ConversationSession
-
-### v0.2.x–v0.5.x — Initial implementation
+### v0.2.x–v0.5.x — Initial Implementation
 
 - 25 Layer 1/2/3 trackers · initial `evaluation_session` implementation
