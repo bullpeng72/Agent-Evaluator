@@ -6761,6 +6761,10 @@ class PerformanceMonitor:
         data['security_metrics'] = report.security_metrics if isinstance(report.security_metrics, dict) else {}
         data['recommendations'] = report.recommendations if isinstance(report.recommendations, list) else []
         data['alerts'] = report.alerts if isinstance(report.alerts, list) else []
+        # harness_groups를 JSON에 저장 — loader의 fallback 재계산을 방지하고
+        # export HTML과 save_to_file HTML이 동일한 값을 표시하도록 보장
+        if isinstance(report.extra_metrics, dict) and report.extra_metrics:
+            data['extra_metrics'] = report.extra_metrics
 
         # Add completion_tracker data
         data['completion_tracker'] = {
