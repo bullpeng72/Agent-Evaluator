@@ -3234,10 +3234,11 @@ class PerformanceMonitor:
         _sec_score = sum(_all_e_scores) / len(_all_e_scores)
 
         # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
-        _tool_coverage = 0.0
+        _tool_coverage: Optional[float] = None
         try:
             _tc_stats = self.tool_call_analyzer.get_efficiency_stats()
-            _tool_coverage = _tc_stats.get("success_rate", 0.0) / 100.0
+            if _tc_stats.get("total_calls", 0) > 0:
+                _tool_coverage = _tc_stats.get("success_rate", 0.0) / 100.0
         except Exception:
             pass
 
@@ -3282,7 +3283,9 @@ class PerformanceMonitor:
             sum(_la_scores) / len(_la_scores) if _la_scores else None
         )
 
-        _obs_vals: _List[float] = [_tool_coverage]
+        _obs_vals: _List[float] = []
+        if _tool_coverage is not None:
+            _obs_vals.append(_tool_coverage)
         if hall_rate is not None:
             _obs_vals.append(max(0.0, 1.0 - float(hall_rate)))
         if avg_obs_custom is not None:
@@ -3293,7 +3296,7 @@ class PerformanceMonitor:
             _obs_vals.append(avg_error_diagnosis)
         if _avg_latency_attribution is not None:
             _obs_vals.append(_avg_latency_attribution)
-        _obs_score = sum(_obs_vals) / len(_obs_vals)
+        _obs_score = sum(_obs_vals) / len(_obs_vals) if _obs_vals else 0.0
 
         # ── F 그룹: 멀티에이전트 조율 ──
         _coord_data: Optional[float] = None
@@ -3431,7 +3434,7 @@ class PerformanceMonitor:
                 "avg_conflict_resolution": round(_avg_conflict_res, 4) if _avg_conflict_res is not None else None,
             }, f_score=True),
             "G": _g(_g_s, "Observability", {
-                "tool_coverage": round(_tool_coverage, 4),
+                "tool_coverage": round(_tool_coverage, 4) if _tool_coverage is not None else None,
                 "hallucination_rate": hall_rate,
                 "avg_observability_score": round(avg_obs_custom, 4) if avg_obs_custom is not None else None,
                 "avg_explainability": round(avg_explainability, 4) if avg_explainability is not None else None,

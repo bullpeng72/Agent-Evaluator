@@ -294,6 +294,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 .footer{margin-top:48px;padding-top:20px;border-top:1px solid #e5e7eb;text-align:center;color:#9ca3af;font-size:12px}
 
 @media print{.container{padding:16px}.gate-section{break-inside:avoid}}
+
+/* Score Breakdown */
+.score-breakdown{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:0 0 18px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.bd-header{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.bd-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;white-space:nowrap}
+.bd-formula{font-size:11px;color:#475569;font-family:monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;overflow-x:auto;white-space:nowrap;max-width:100%}
+.bd-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+.bd-table th{background:#f8fafc;padding:5px 10px;text-align:left;font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;border-bottom:1px solid #e2e8f0}
+.bd-table td{padding:5px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.bd-table tr:last-child td{border-bottom:none}
+.bd-ok>td:first-child::before{content:'✓ ';color:#10b981;font-weight:700}
+.bd-na>td{color:#9ca3af!important;font-style:italic}
+.bd-na>td:first-child::before{content:'— ';color:#cbd5e1}
+.bd-contrib{font-weight:600;font-family:monospace;font-size:12px}
+.bd-always{font-size:10px;color:#6b7280;font-style:italic}
+.bd-result{font-size:12px;color:#374151;background:#f8fafc;border-radius:6px;padding:8px 14px;border-left:3px solid #94a3b8;margin-top:2px}
+.bd-result strong{font-size:15px;font-weight:800}
 </style>
 </head>
 <body>
@@ -337,6 +354,292 @@ def _build_scorecard(harness_groups: Dict[str, Any]) -> str:
             f'</div>'
         )
     return '<div class="scorecard">' + ''.join(cards) + '</div>'
+
+
+# ---------------------------------------------------------------------------
+# Score Breakdown widget
+# ---------------------------------------------------------------------------
+
+def _bd_row(label: str, raw_str: Optional[str], contrib: Optional[float],
+            always: bool = False, note: str = "") -> str:
+    """Single row for the score breakdown table."""
+    if contrib is None:
+        reason = note or "Not measured"
+        return (
+            f'<tr class="bd-na">'
+            f'<td>{label}</td>'
+            f'<td>—</td>'
+            f'<td class="bd-contrib">—</td>'
+            f'<td style="font-size:10px">{reason}</td>'
+            f'</tr>'
+        )
+    c_pct = f"{contrib * 100:.1f}%"
+    c_col = "#10b981" if contrib >= 0.8 else ("#f59e0b" if contrib >= 0.6 else "#ef4444")
+    always_tag = '<span class="bd-always">(always)</span>' if always else ""
+    note_cell = f'<td style="font-size:10px;color:#6b7280">{note}</td>' if note else "<td></td>"
+    return (
+        f'<tr class="bd-ok">'
+        f'<td>{label} {always_tag}</td>'
+        f'<td style="font-family:monospace;color:#374151">{raw_str}</td>'
+        f'<td class="bd-contrib" style="color:{c_col}">{c_pct}</td>'
+        f'{note_cell}'
+        f'</tr>'
+    )
+
+
+def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
+    """Build a score computation breakdown widget for a Gate detail section."""
+    if not harness_group:
+        return ""
+    score = harness_group.get("score")
+    if score is None:
+        return ""
+    details = harness_group.get("details") or {}
+    color = _GATE_COLORS.get(gate_key, "#6b7280")
+
+    rows: list = []
+    formula_parts: list = []
+    included_vals: list = []
+
+    def _add(label: str, raw_str: Optional[str], contrib: Optional[float],
+              formula_label: str = "", always: bool = False, note: str = "") -> None:
+        formula_parts.append(formula_label or label)
+        rows.append(_bd_row(label, raw_str, contrib, always=always, note=note))
+        if contrib is not None:
+            included_vals.append(contrib)
+
+    def _fmt_ratio(v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        try:
+            return f"{float(v):.3f}"
+        except (TypeError, ValueError):
+            return None
+
+    def _fmt_pct(v: Any, scale: float = 1.0) -> Optional[str]:
+        if v is None:
+            return None
+        try:
+            return f"{float(v) * scale:.1f}%"
+        except (TypeError, ValueError):
+            return None
+
+    if gate_key == "A":
+        tcr = details.get("tcr_pct")
+        c = tcr / 100.0 if tcr is not None else None
+        _add("Task Completion Rate (TCR)", _fmt_pct(tcr), c,
+             formula_label="TCR/100", always=True)
+        for dk, lbl, fl in [
+            ("avg_instruction_adherence", "Instruction Adherence (IFR)", "avg_IFR"),
+            ("avg_goal_alignment", "Goal Alignment", "avg_goal_alignment"),
+            ("avg_plan_coherence", "Plan Coherence", "avg_plan_coherence"),
+            ("avg_subtask_completion", "Subtask Completion", "avg_subtask_completion"),
+            ("avg_context_retention", "Context Retention", "avg_context_retention"),
+            ("avg_knowledge_retention", "Knowledge Retention", "avg_knowledge_retention"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl,
+                 note="Requires InstructionConfig" if dk == "avg_instruction_adherence" and v is None else "")
+        formula_str = "avg( TCR/100, avg_IFR, avg_goal_alignment, avg_plan_coherence, avg_subtask_completion, avg_context_retention, avg_knowledge_retention )"
+
+    elif gate_key == "B":
+        loop = details.get("loop_detection_rate")
+        c_loop = (1.0 - float(loop)) if loop is not None else 1.0
+        _add("Loop Prevention (1 − loop_rate)", _fmt_ratio(c_loop), c_loop,
+             formula_label="1−loop_rate", always=True)
+        deadlock_count = details.get("deadlock_count", 0) or 0
+        dl_score = details.get("avg_deadlock_score")
+        if deadlock_count > 0 and dl_score is not None:
+            _add("Deadlock Defense", _fmt_ratio(dl_score), dl_score,
+                 formula_label="avg_deadlock_score",
+                 note=f"{deadlock_count} deadlock(s) detected")
+        else:
+            _add("Deadlock Defense", _fmt_ratio(dl_score),
+                 None if deadlock_count == 0 else dl_score,
+                 formula_label="avg_deadlock_score",
+                 note="No deadlocks → not included in avg")
+        for dk, lbl, fl in [
+            ("avg_goal_alignment", "Goal Alignment", "avg_goal_alignment"),
+            ("avg_plan_coherence", "Plan Coherence", "avg_plan_coherence"),
+            ("avg_state_consistency", "State Consistency", "avg_state_consistency"),
+            ("avg_scope_score", "Scope Compliance", "avg_scope_score"),
+            ("avg_tool_parameter_safety", "Tool Parameter Safety", "avg_tool_param_safety"),
+            ("avg_context_window", "Context Window Efficiency", "avg_context_window"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        formula_str = "avg( 1−loop_rate, [deadlock_score if detected], avg_goal_alignment, avg_plan_coherence, avg_state_consistency, avg_scope_score, avg_tool_param_safety, avg_context_window )"
+
+    elif gate_key == "C":
+        tcr = details.get("tcr_pct")
+        c = tcr / 100.0 if tcr is not None else None
+        _add("Task Completion Rate (TCR)", _fmt_pct(tcr), c,
+             formula_label="TCR/100", always=True)
+        slabr = details.get("sla_breach_rate")
+        c_sla = (1.0 - float(slabr)) if slabr is not None else None
+        _add("SLA Compliance (1 − breach_rate)", _fmt_ratio(c_sla), c_sla,
+             formula_label="1−sla_breach_rate",
+             note="Requires SLAConfig" if slabr is None else "")
+        for dk, lbl, fl in [
+            ("avg_fault_tolerance", "Fault Tolerance", "avg_fault_tolerance"),
+            ("avg_reproducibility", "Reproducibility", "avg_reproducibility"),
+            ("avg_degradation", "Graceful Degradation", "avg_degradation"),
+            ("avg_retry_consistency", "Retry Consistency", "avg_retry_consistency"),
+            ("avg_idempotency", "Idempotency", "avg_idempotency"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency )"
+
+    elif gate_key == "D":
+        p95 = details.get("p95_latency_s")
+        try:
+            p95f = float(p95) if p95 is not None else None
+        except (TypeError, ValueError):
+            p95f = None
+        if p95f is not None and p95f > 0:
+            c_p95 = max(0.0, 1.0 - min(1.0, p95f / 10.0))
+            _add("P95 Latency Score (1 − P95/10s)", f"{p95f:.3f}s", c_p95,
+                 formula_label="1−P95/10s", always=True,
+                 note="10s baseline ceiling")
+        else:
+            _add("P95 Latency Score (1 − P95/10s)", "0.000s", None,
+                 formula_label="1−P95/10s",
+                 note="No latency data")
+        eff = details.get("avg_efficiency_ratio")
+        try:
+            efff = float(eff) if eff is not None else None
+        except (TypeError, ValueError):
+            efff = None
+        if efff is not None:
+            c_eff = min(1.0, efff * 1000.0)
+            _add("Efficiency Ratio (×1000, capped at 1.0)",
+                 f"{efff:.6f}", c_eff, formula_label="avg_efficiency_ratio×1000")
+        else:
+            _add("Efficiency Ratio", None, None,
+                 formula_label="avg_efficiency_ratio×1000",
+                 note="No tool calls / EfficiencyConfig not set")
+        for dk, lbl, fl in [
+            ("avg_budget_score", "Resource Budget Score", "avg_budget_score"),
+            ("ttft_variability_score", "TTFT Variability Score", "ttft_variability_score"),
+            ("avg_cost_predictability", "Cost Predictability", "avg_cost_predictability"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        formula_str = "avg( 1−P95/10s, avg_efficiency_ratio×1000, avg_budget_score, ttft_variability_score, avg_cost_predictability )"
+
+    elif gate_key == "E":
+        threat_count = details.get("threat_count", 0) or 0
+        # Threat-free rate: stored as threat_count but contribution = 1-count/n
+        # When count=0 contribution=1.0; otherwise show note
+        c_threat = 1.0 if threat_count == 0 else None
+        note_threat = "" if threat_count == 0 else f"{threat_count} threats detected — contribution = 1 − threats/total"
+        _add("Threat-Free Rate (1 − threats/total)",
+             f"{threat_count} threats", c_threat,
+             formula_label="1−threat_rate", always=True,
+             note=note_threat)
+        cvss = details.get("avg_cvss_weighted_score")
+        if cvss is not None:
+            c_cvss = max(0.0, 1.0 - float(cvss) / 10.0)
+            _add("CVSS Defense (1 − avg_cvss/10)", f"{float(cvss):.3f}", c_cvss,
+                 formula_label="1−avg_cvss/10")
+        else:
+            _add("CVSS Defense (1 − avg_cvss/10)", None, None,
+                 formula_label="1−avg_cvss/10", note="No CVSS-scored threats")
+        avg_comp = details.get("avg_compliance_score")
+        _add("Compliance Score", _fmt_ratio(avg_comp), avg_comp,
+             formula_label="avg_compliance_score")
+        priv = details.get("privilege_escalation_rate")
+        c_priv = (1.0 - float(priv)) if priv is not None else None
+        _add("Privilege Escalation Defense (1 − rate)",
+             _fmt_pct(priv), c_priv, formula_label="1−priv_esc_rate")
+        chain = details.get("chain_attack_rate")
+        c_chain = (1.0 - float(chain)) if chain is not None else None
+        _add("Attack Chain Defense (1 − rate)",
+             _fmt_pct(chain), c_chain, formula_label="1−chain_attack_rate")
+        tr = details.get("avg_threat_response")
+        _add("Threat Response Score", _fmt_ratio(tr), tr,
+             formula_label="avg_threat_response")
+        formula_str = "avg( 1−threat_rate, [1−cvss/10], [compliance], [1−priv_esc_rate], [1−chain_rate], [leakage_defense], [injection_defense], [threat_response] )"
+
+    elif gate_key == "F":
+        for dk, lbl, fl in [
+            ("avg_consensus", "Consensus Rate", "avg_consensus"),
+            ("avg_propagation", "Propagation Accuracy", "avg_propagation"),
+            ("avg_role_compliance", "Agent Role Compliance", "avg_role_compliance"),
+            ("avg_conflict_resolution", "Conflict Resolution Rate", "avg_conflict_resolution"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        formula_str = "avg( avg_consensus, avg_propagation, avg_role_compliance, avg_conflict_resolution )"
+
+    elif gate_key == "G":
+        tc = details.get("tool_coverage")
+        if tc is not None:
+            _add("Tool Coverage (success_rate)", _fmt_ratio(tc), tc,
+                 formula_label="tool_coverage")
+        else:
+            _add("Tool Coverage", None, None,
+                 formula_label="tool_coverage",
+                 note="Excluded — no tool calls recorded (tool_use tasks only)")
+        for dk, lbl, fl in [
+            ("avg_explainability", "Explainability", "avg_explainability"),
+            ("avg_observability_score", "Observability Score", "avg_observability_score"),
+            ("avg_error_diagnosis", "Error Diagnosis", "avg_error_diagnosis"),
+            ("avg_latency_attribution", "Latency Attribution", "avg_latency_attribution"),
+        ]:
+            v = details.get(dk)
+            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        hall = details.get("hallucination_rate")
+        if hall is not None:
+            c_hall = max(0.0, 1.0 - float(hall))
+            _add("Hallucination Defense (1 − rate)", _fmt_pct(hall), c_hall,
+                 formula_label="1−hallucination_rate")
+        else:
+            _add("Hallucination Defense (1 − rate)", None, None,
+                 formula_label="1−hallucination_rate",
+                 note="Requires enable_hallucination_detection=True")
+        formula_str = "avg( [tool_coverage if tools used], avg_explainability, avg_observability_score, avg_error_diagnosis, avg_latency_attribution, [1−hallucination_rate] )"
+
+    else:
+        return ""
+
+    if not included_vals:
+        return ""
+
+    # Result line
+    score_pct = float(score) * 100
+    score_col = "#10b981" if score_pct >= 80 else ("#f59e0b" if score_pct >= 60 else "#ef4444")
+    if len(included_vals) == 1:
+        comp_expr = f"{included_vals[0]:.3f}"
+    else:
+        terms = " + ".join(f"{v:.3f}" for v in included_vals)
+        comp_expr = f"( {terms} ) ÷ {len(included_vals)}"
+    result_html = (
+        f'<div class="bd-result">'
+        f'Gate {gate_key} Score&nbsp;=&nbsp;{comp_expr}&nbsp;=&nbsp;'
+        f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
+        f'&nbsp;<span style="font-size:11px;color:#6b7280">({len(included_vals)} component(s) averaged)</span>'
+        f'</div>'
+    )
+
+    rows_html = "".join(rows)
+    return (
+        f'<div class="score-breakdown">'
+        f'<div class="bd-header">'
+        f'<span class="bd-label">Score Breakdown</span>'
+        f'<span class="bd-formula">{formula_str}</span>'
+        f'</div>'
+        f'<table class="bd-table">'
+        f'<thead><tr>'
+        f'<th>Component</th><th>Raw Value</th>'
+        f'<th>Contribution</th><th>Note</th>'
+        f'</tr></thead>'
+        f'<tbody>{rows_html}</tbody>'
+        f'</table>'
+        f'{result_html}'
+        f'</div>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +738,11 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass InstructionConfig · GoalAlignmentConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("A", harness_a)
     return (
         f'<div class="gate-section" id="gate-a" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate A &nbsp;<span style="font-size:14px;color:#374151">Goal Achievement</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'<div class="kpis">{kpis}</div>'
         f'{type_table}'
         f'{hall_html}'
@@ -521,9 +826,11 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass LoopDetectionConfig · ScopeConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("B", harness_b)
     return (
         f'<div class="gate-section" id="gate-b" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate B &nbsp;<span style="font-size:14px;color:#374151">Behavioral Integrity</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{tool_html}'
         f'{harness_block}'
         f'</div>'
@@ -591,9 +898,11 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass FaultToleranceConfig · ReproducibilityConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("C", harness_c)
     return (
         f'<div class="gate-section" id="gate-c" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate C &nbsp;<span style="font-size:14px;color:#374151">Reliability</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{retry_html}'
         f'{harness_block}'
         f'</div>'
@@ -686,9 +995,24 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass SLAConfig · EfficiencyConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("D", harness_d)
+
+    # insufficient_data_warnings notice
+    insuf = (harness_d.get("details") or {}).get("insufficient_data_warnings")
+    insuf_html = ""
+    if insuf:
+        warn_items = "".join(f"<li style='margin:2px 0'>{w}</li>" for w in insuf)
+        insuf_html = (
+            f'<div class="ibox warn" style="font-size:12px;margin-bottom:12px">'
+            f'<strong>Insufficient Data Warnings</strong>'
+            f'<ul style="margin:6px 0 0 16px;line-height:1.8">{warn_items}</ul></div>'
+        )
+
     return (
         f'<div class="gate-section" id="gate-d" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">Performance Contract</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
+        f'{insuf_html}'
         f'{lat_html}'
         f'{tok_html}'
         f'{harness_block}'
@@ -753,9 +1077,11 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ThreatSeverityConfig · ComplianceConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("E", harness_e)
     return (
         f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">Security Boundary</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{sec_html}'
         f'{harness_block}'
         f'</div>'
@@ -802,9 +1128,11 @@ def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ThreatSeverityConfig · ComplianceConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("E", harness_e)
     return (
         f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">Security Boundary</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{sec_html}'
         f'{harness_block}'
         f'</div>'
@@ -941,9 +1269,11 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ConsensusConfig · AgentRoleConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("F", harness_f)
     return (
         f'<div class="gate-section" id="gate-f" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate F &nbsp;<span style="font-size:14px;color:#374151">Multi-Agent Coordination</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{coord_html}'
         f'{harness_block}'
         f'</div>'
@@ -1087,9 +1417,11 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass ExplainabilityConfig · ObservabilityConfig to your decorator to enable detailed metrics.</div>'
 
+    breakdown = _build_score_breakdown("G", harness_g)
     return (
         f'<div class="gate-section" id="gate-g" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate G &nbsp;<span style="font-size:14px;color:#374151">Observability</span>&nbsp;{badge}</h2>'
+        f'{breakdown}'
         f'{quality_html}'
         f'{judge_html}'
         f'{harness_block}'
