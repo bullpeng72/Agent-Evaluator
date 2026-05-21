@@ -172,11 +172,13 @@ def print_harness_console_report(report):
             print(f"  {gk}    {icon} {name:<26} {status_icon}{gate:^6} {score:>8.3f}   {bar}")
     
     # 요약 지표 추가
-    summary = data.get("summary", {})
+    tcr_val = (data.get("accuracy_metrics") or {}).get("tcr", {}).get("tcr", 0.0)
+    acc_val = (data.get("accuracy_metrics") or {}).get("accuracy_scores", {}).get("overall_accuracy", 0.0)
+    p95_val = (data.get("efficiency_metrics") or {}).get("latency", {}).get("p95", 0.0)
     print("─" * 68)
-    print(f"  [요약] TCR: {summary.get('task_completion_rate',0)*100:>5.1f}%  |  "
-          f"Acc: {summary.get('accuracy',0)*100:>5.1f}%  |  "
-          f"P95: {summary.get('latency_p95',0):>5.3f}s")
+    print(f"  [요약] TCR: {tcr_val:>5.1f}%  |  "
+          f"Acc: {acc_val:>5.1f}%  |  "
+          f"P95: {p95_val:>5.3f}s")
     print("═" * 68 + "\n")
 
 # 실행 부분
