@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -398,6 +399,23 @@ def _check_regression(
 _SEP = "━" * 48
 _SEP_THIN = "─" * 40
 
+_ANSI_ESC = re.compile(r"\033\[[0-9;]*m")
+
+
+def _vlen(s: str) -> int:
+    """ANSI 이스케이프 코드를 제외한 표시 문자 수를 반환한다."""
+    return len(_ANSI_ESC.sub("", s))
+
+
+def _pad_right(s: str, width: int) -> str:
+    """ANSI 코드를 고려해 오른쪽 공백을 채운다."""
+    return s + " " * max(0, width - _vlen(s))
+
+
+def _pad_left(s: str, width: int) -> str:
+    """ANSI 코드를 고려해 왼쪽 공백을 채운다."""
+    return " " * max(0, width - _vlen(s)) + s
+
 
 def _fmt_value(val: Optional[float], unit: str) -> str:
     """지표값을 사람이 읽기 좋은 형태로 포맷한다."""
@@ -480,7 +498,7 @@ def _print_composite_gate(
             score_str = f"{RD}{score:.3f}{R}"
             status_str = f"{RD}fail{R}"
         weight_str = f"×{w:.1f}" if weights else f"{D}×1.0{R}"
-        print(f"  {name:<26}  {score_str:>7}  {weight_str:>8}  {status_str}")
+        print(f"  {name:<26}  {_pad_left(score_str, 7)}  {_pad_left(weight_str, 8)}  {status_str}")
     print()
     if composite is None:
         print(f"  {D}Composite score: N/A (no Harness data){R}")
@@ -548,7 +566,7 @@ def _print_table(
                 result_str = f"{RD}❌ FAIL{R}"
                 delta_str = f"{RD}{_fmt_delta(g['current'], g['threshold'], g['direction'], g['unit'])}{R}"
 
-            print(f"  {label_str:<22}  {cur_str:<11}  {thr_str:<12}  {delta_str:<10}  {result_str}")
+            print(f"  {label_str:<22}  {_pad_right(cur_str, 11)}  {_pad_right(thr_str, 12)}  {_pad_right(delta_str, 10)}  {result_str}")
 
         print()
 

@@ -29,11 +29,307 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+import re
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["QuickEval", "HarnessEvaluationGate"]
+__all__ = ["QuickEval", "HarnessEvaluationGate", "CompareResult"]
+
+# ---------------------------------------------------------------------------
+# ANSI helpers (터미널 색상 — 미지원 환경에서는 공백 문자열)
+# ---------------------------------------------------------------------------
+def _ansi_support() -> bool:
+    import sys, os
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and os.name != "nt"
+
+_USE_COLOR = _ansi_support()
+_G  = "\033[32m" if _USE_COLOR else ""   # green
+_Y  = "\033[33m" if _USE_COLOR else ""   # yellow
+_RD = "\033[31m" if _USE_COLOR else ""   # red
+_B  = "\033[1m"  if _USE_COLOR else ""   # bold
+_R  = "\033[0m"  if _USE_COLOR else ""   # reset
+_D  = "\033[2m"  if _USE_COLOR else ""   # dim
+_C  = "\033[36m" if _USE_COLOR else ""   # cyan
+
+_ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+
+def _vlen(s: str) -> int:
+    return len(_ANSI_RE.sub("", s))
+
+def _pad_right(s: str, w: int) -> str:
+    return s + " " * max(0, w - _vlen(s))
+
+def _pad_left(s: str, w: int) -> str:
+    return " " * max(0, w - _vlen(s)) + s
+
+
+# ---------------------------------------------------------------------------
+# CompareResult
+# ---------------------------------------------------------------------------
+
+class CompareResult:
+    """QuickEval.compare() 반환값.
+
+    ``print(result)`` 시 컬러 비교 테이블을 출력하고,
+    ``result["delta"]["tcr"]`` 처럼 기존 dict 접근도 그대로 지원한다.
+
+    Attributes:
+        self_name:  첫 번째 eval의 레이블 (기본 "eval_a").
+        other_name: 두 번째 eval의 레이블 (기본 "eval_b").
+        winner:     "self" | "other" | "tie" — 더 높은 TCR 기준.
+
+    Example::
+
+        result = eval_a.compare(eval_b)
+        print(result)                       # 테이블 출력
+        result["delta"]["tcr"]              # -32.5
+        result.winner                       # 'other'
+        result.to_dict()                    # 기존 raw dict
+    """
+
+    # (key, 표시명, 단위, 방향)  방향: "high"=높을수록 좋음, "low"=낮을수록 좋음
+    _ROWS = [
+        ("tcr",              "TCR",            "%",   "high"),
+        ("accuracy",         "Accuracy",       "%",   "high"),
+        ("quality_avg",      "Quality Avg",    "%",   "high"),
+        ("hallucination_rate","Hallucination", "%",   "low"),
+        ("p95_latency",      "P95 Latency",    "s",   "low"),
+        ("avg_latency",      "Avg Latency",    "s",   "low"),
+        ("total_cost_usd",   "Cost",           "USD", "low"),
+        ("total_tokens",     "Total Tokens",   "",    "low"),
+        ("total_tasks",      "Total Tasks",    "",    ""),
+    ]
+
+    def __init__(
+        self,
+        self_summary: Dict[str, Any],
+        other_summary: Dict[str, Any],
+        delta: Dict[str, Any],
+        self_name: str = "eval_a",
+        other_name: str = "eval_b",
+    ) -> None:
+        self._self   = self_summary
+        self._other  = other_summary
+        self._delta  = delta
+        self.self_name  = self_name
+        self.other_name = other_name
+
+    # ------------------------------------------------------------------
+    # dict 호환
+    # ------------------------------------------------------------------
+
+    def __getitem__(self, key: str) -> Any:
+        mapping = {"self": self._self, "other": self._other, "delta": self._delta}
+        if key not in mapping:
+            raise KeyError(key)
+        return mapping[key]
+
+    def __contains__(self, key: object) -> bool:
+        return key in ("self", "other", "delta")
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(("self", "other", "delta"))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def to_dict(self) -> Dict[str, Any]:
+        """기존 raw dict 구조로 반환한다."""
+        return {"self": self._self, "other": self._other, "delta": self._delta}
+
+    # ------------------------------------------------------------------
+    # winner 판정
+    # ------------------------------------------------------------------
+
+    @property
+    def winner(self) -> str:
+        """TCR 기준 우세한 쪽. "self" | "other" | "tie"."""
+        st = self._self.get("tcr", 0.0) or 0.0
+        ot = self._other.get("tcr", 0.0) or 0.0
+        if st > ot:
+            return "self"
+        if ot > st:
+            return "other"
+        return "tie"
+
+    def _winner_label(self) -> str:
+        w = self.winner
+        if w == "self":
+            return self.self_name
+        if w == "other":
+            return self.other_name
+        return "tie"
+
+    # ------------------------------------------------------------------
+    # 포맷 헬퍼
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _fmt(val: Any, unit: str) -> str:
+        if val is None:
+            return "N/A"
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return str(val)
+        if unit == "%":
+            return f"{v:.1f}%"
+        if unit == "s":
+            return f"{v:.3f}s"
+        if unit == "USD":
+            return f"${v:.4f}"
+        if unit == "":
+            return f"{int(v):,}"
+        return f"{v:.2f}"
+
+    @staticmethod
+    def _fmt_delta(val: Any, unit: str, direction: str) -> str:
+        if val is None:
+            return "N/A"
+        try:
+            v = float(val)
+        except (TypeError, ValueError):
+            return str(val)
+
+        sign = "+" if v > 0 else ""
+        if unit == "%":
+            raw = f"{sign}{v:.1f}pp"
+        elif unit == "s":
+            raw = f"{sign}{v:.3f}s"
+        elif unit == "USD":
+            raw = f"{sign}${v:.4f}"
+        else:
+            raw = f"{sign}{int(v):,}" if unit == "" else f"{sign}{v:.2f}"
+
+        if direction == "":
+            return f"{_D}{raw}{_R}"
+
+        good = (direction == "high" and v > 0) or (direction == "low" and v < 0)
+        bad  = (direction == "high" and v < 0) or (direction == "low" and v > 0)
+        arrow = " ▲" if v > 0 else (" ▼" if v < 0 else "")
+        if good:
+            return f"{_G}{raw}{arrow}{_R}"
+        if bad:
+            return f"{_RD}{raw}{arrow}{_R}"
+        return f"{_D}{raw}{_R}"
+
+    # ------------------------------------------------------------------
+    # 테이블 렌더링
+    # ------------------------------------------------------------------
+
+    def _build_table(self) -> str:
+        meta_s = self._self.get("_meta", {})
+        meta_o = self._other.get("_meta", {})
+
+        COL_METRIC = 18
+        COL_VAL    = 14
+        COL_DELTA  = 14
+        SEP  = "═" * (COL_METRIC + COL_VAL * 2 + COL_DELTA + 8)
+        SEP2 = "─" * (COL_METRIC + COL_VAL * 2 + COL_DELTA + 8)
+
+        lines: List[str] = []
+        lines.append(f"  {_B}{SEP}{_R}")
+        lines.append(f"  {_B}QuickEval Comparison{_R}")
+        lines.append(f"  {SEP}")
+        lines.append("")
+
+        # 헤더
+        h_metric = _pad_right(f"{_B}Metric{_R}", COL_METRIC)
+        h_self   = _pad_right(f"{_B}{self.self_name}{_R}", COL_VAL)
+        h_other  = _pad_right(f"{_B}{self.other_name}{_R}", COL_VAL)
+        h_delta  = f"{_B}Delta (a−b){_R}"
+        lines.append(f"  {h_metric}  {h_self}  {h_other}  {h_delta}")
+        lines.append(f"  {SEP2}")
+
+        active_rows = 0
+        for key, label, unit, direction in self._ROWS:
+            sv = self._self.get(key)
+            ov = self._other.get(key)
+
+            # computed 여부 확인
+            meta_key = f"{key}_computed"
+            s_computed = meta_s.get(meta_key, True)
+            o_computed = meta_o.get(meta_key, True)
+
+            # 양쪽 모두 0이고 computed=False이면 스킵
+            sv_f = float(sv) if sv is not None else 0.0
+            ov_f = float(ov) if ov is not None else 0.0
+            if sv_f == 0.0 and ov_f == 0.0 and not s_computed and not o_computed:
+                continue
+
+            active_rows += 1
+            dv = self._delta.get(key)
+
+            s_fmt = self._fmt(sv, unit)
+            o_fmt = self._fmt(ov, unit)
+            d_fmt = self._fmt_delta(dv, unit, direction)
+
+            # 승자 강조
+            if direction in ("high", "low") and sv is not None and ov is not None:
+                if direction == "high":
+                    s_better = sv_f > ov_f
+                else:
+                    s_better = sv_f < ov_f
+                o_better = not s_better and sv_f != ov_f
+
+                if s_better:
+                    s_fmt = f"{_G}{s_fmt} ✓{_R}"
+                elif o_better:
+                    o_fmt = f"{_G}{o_fmt} ✓{_R}"
+
+            col_metric = _pad_right(label, COL_METRIC)
+            col_s      = _pad_right(s_fmt, COL_VAL)
+            col_o      = _pad_right(o_fmt, COL_VAL)
+            lines.append(f"  {col_metric}  {col_s}  {col_o}  {d_fmt}")
+
+        lines.append(f"  {SEP}")
+
+        # 승자 배너
+        w = self.winner
+        winner_label = self._winner_label()
+        tcr_s = self._self.get("tcr", 0.0) or 0.0
+        tcr_o = self._other.get("tcr", 0.0) or 0.0
+        acc_s = self._self.get("accuracy", 0.0) or 0.0
+        acc_o = self._other.get("accuracy", 0.0) or 0.0
+        dtcr  = self._delta.get("tcr", 0.0) or 0.0
+        dacc  = self._delta.get("accuracy", 0.0) or 0.0
+
+        if w == "tie":
+            lines.append(f"  {_Y}{_B}🤝  Tie  (TCR equal){_R}")
+        else:
+            tcr_diff  = abs(dtcr)
+            acc_diff  = abs(dacc)
+            detail_parts = []
+            if tcr_diff  > 0: detail_parts.append(f"TCR {tcr_diff:+.1f}pp")
+            if acc_diff  > 0: detail_parts.append(f"Accuracy {acc_diff:+.1f}pp")
+            detail = ", ".join(detail_parts) if detail_parts else ""
+            lines.append(
+                f"  {_G}{_B}🏆  {winner_label} wins"
+                + (f"  ({detail})" if detail else "")
+                + f"{_R}"
+            )
+
+        lines.append(f"  {SEP}")
+        lines.append("")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # dunder
+    # ------------------------------------------------------------------
+
+    def __str__(self) -> str:
+        return self._build_table()
+
+    def __repr__(self) -> str:
+        return (
+            f"CompareResult(winner={self.winner!r}, "
+            f"self_tcr={self._self.get('tcr')}, "
+            f"other_tcr={self._other.get('tcr')})"
+        )
 
 
 class _QuickEvalBatchShortcut:
@@ -1035,34 +1331,36 @@ class QuickEval:
             "_meta": _meta,  # V: 계산 가능 여부 메타데이터
         }
 
-    def compare(self, other: "QuickEval") -> Dict[str, Any]:
+    def compare(
+        self,
+        other: "QuickEval",
+        self_name: str = "eval_a",
+        other_name: str = "eval_b",
+    ) -> "CompareResult":
         """두 QuickEval 인스턴스의 주요 지표를 비교한다 (D1).
 
         Args:
-            other: 비교 대상 :class:`QuickEval` 인스턴스.
+            other:      비교 대상 :class:`QuickEval` 인스턴스.
+            self_name:  이 인스턴스의 표시 레이블 (기본 "eval_a").
+            other_name: other 인스턴스의 표시 레이블 (기본 "eval_b").
 
         Returns:
-            ``{"self": {...}, "other": {...}, "delta": {...}}`` 구조.
-            ``delta`` 는 ``self - other`` 기준이며 양수가 self 가 더 좋음을 의미한다.
+            :class:`CompareResult` — ``print()`` 시 비교 테이블을 출력한다.
+            기존 dict 접근(``result["delta"]["tcr"]``)도 그대로 동작한다.
 
         Example::
 
-            baseline = QuickEval("results/baseline/")
-            # ... baseline 평가 실행 ...
-
-            candidate = QuickEval("results/candidate/")
-            # ... candidate 평가 실행 ...
-
-            diff = baseline.compare(candidate)
-            print(f"TCR change: {diff['delta']['tcr']:+.1f}%")
+            result = eval_a.compare(eval_b, self_name="v1", other_name="v2")
+            print(result)                    # 컬러 비교 테이블
+            result["delta"]["tcr"]           # -32.5
+            result.winner                    # 'other'
+            result.to_dict()                 # 기존 raw dict
         """
-        def _summary(qe: "QuickEval") -> Dict[str, Any]:
-            return qe.summary()
-
-        s = _summary(self)
-        o = _summary(other)
+        s = self.summary()
+        o = other.summary()
         delta: Dict[str, Any] = {}
-        for key in ("tcr", "accuracy", "avg_latency", "total_tokens", "total_tasks"):
+        for key in ("tcr", "accuracy", "avg_latency", "total_tokens", "total_tasks",
+                    "quality_avg", "hallucination_rate", "p95_latency", "total_cost_usd"):
             sv = s.get(key, 0.0)
             ov = o.get(key, 0.0)
             try:
@@ -1070,7 +1368,7 @@ class QuickEval:
             except (TypeError, ValueError):
                 delta[key] = None
 
-        return {"self": s, "other": o, "delta": delta}
+        return CompareResult(s, o, delta, self_name=self_name, other_name=other_name)
 
     # -----------------------------------------------------------------------
     # E1-E6: v0.7.9 신규 QuickEval 메서드

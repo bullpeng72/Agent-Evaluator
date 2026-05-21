@@ -108,10 +108,12 @@ print("  HarnessEvaluationGate는 33개 Config 전체를 포함한 정밀 판정
 monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 
 # InstructionConfig: 응답에 "완료" 또는 "처리" 키워드가 반드시 포함되어야 함
+# violation_weight=0.5: 위반 1건당 IFR 50% 차감 → 기본값(0.1)보다 엄격한 기준
 # SLAConfig: p95 응답 시간 2초 이하
 instruction_cfg = InstructionConfig(
     required_keywords=["완료", "처리"],
-    fail_on_violation=True,       # 위반 시 해당 태스크 success=False → TCR 반영
+    fail_on_violation=True,
+    violation_weight=0.5,          # IFR = max(0, 1 − violation_count × 0.5)
 )
 sla_cfg = SLAConfig(p95_ms=2000)
 
@@ -124,20 +126,16 @@ def task_agent(question: str, ground_truth: str = "") -> str:
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
     responses = {
-        "파일 삭제해줘":    "파일 삭제 처리 완료되었습니다.",          # ✅ 키워드 포함
-        "보고서 만들어줘":  "보고서 작성 처리 완료되었습니다.",         # ✅ 키워드 포함
-        "메일 보내줘":      "메일 발송 완료했습니다.",                  # ✅ 키워드 포함
-        "데이터 분석해줘":  "분석 결과: 평균 42.5, 분산 8.3입니다.",    # ❌ 키워드 없음 → FAIL
-        "번역해줘":         "번역 결과: Hello, world.",               # ❌ 키워드 없음 → FAIL
+        "파일 삭제해줘":    "파일 삭제 처리 완료되었습니다.",    # ✅ 키워드 포함 → IFR 1.0
+        "보고서 만들어줘":  "보고서 작성 중입니다.",             # ❌ 키워드 없음 → IFR 0.5
+        "데이터 분석해줘":  "분석 결과: 평균 425입니다.",        # ❌ 키워드 없음 → IFR 0.5
     }
     return responses.get(question, "요청을 처리 완료했습니다.")
 
 TASK_CASES = [
     ("파일 삭제해줘",   "삭제 완료"),
     ("보고서 만들어줘", "작성 완료"),
-    ("메일 보내줘",    "발송 완료"),
     ("데이터 분석해줘", "분석 완료"),
-    ("번역해줘",       "번역 완료"),
 ]
 
 print()
@@ -147,27 +145,30 @@ for question, gt in TASK_CASES:
     flag = "✅" if has_kw else "❌ InstructionConfig 위반"
     print(f"  {flag}  Q: {question:<14s}  →  {resp}")
 
-report_h = monitor_h.generate_report()
-tcr_h = report_h.to_dict().get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
-print(f"\n  TCR: {tcr_h:.1f}%  (키워드 위반 2건 → success=False → TCR 하락)")
-
-# HarnessEvaluationGate — 33개 Config 전체 종합 판정
-print("\n  [Gate] HarnessEvaluationGate(report).enforce()")
-gate_h = HarnessEvaluationGate(report_h)
-try:
-    gate_h.enforce()
-    print("  ✅ Gate 통과")
-except SystemExit:
-    print("  ❌ Gate 실패 — InstructionConfig 위반으로 배포 차단")
-
+# 저장을 Gate 판정 전에 먼저 수행 — sys.exit(1)이 호출되어도 결과 파일이 보존됨
 monitor_h.save_to_file("ch02_harness")
 print("  저장: results/ch02_harness.json + .html")
+
+report_h = monitor_h.generate_report()
+tcr_h = report_h.to_dict().get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+print(f"\n  TCR: {tcr_h:.1f}%  avg_IFR: (1.0+0.5+0.5)/3=0.667  Gate A≈0.583")
+
+# HarnessEvaluationGate — required_groups=["A"]로 Gate A만 판정
+# Gate A = (TCR/100 + avg_IFR) / 2 = (0.50 + 0.667) / 2 ≈ 0.583 < 0.7 → FAIL
+print("\n  [Gate] HarnessEvaluationGate(report_h, required_groups=[\"A\"]).enforce()")
+gate_h = HarnessEvaluationGate(report_h, required_groups=["A"])
+try:
+    gate_h.enforce()
+    print("  ✅ Gate A 통과")
+except SystemExit:
+    print("  ❌ Gate A 실패 — score(0.583) < min_group_score(0.7) → 배포 차단")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 섹션 3 — §2.3 배포 판정 결과 이해: report.to_dict()
 # ──────────────────────────────────────────────────────────────────────────────
 print("\n=== 섹션 3: 배포 판정 결과 읽기 — report.to_dict() (§2.3) ===")
+print("  required_groups=[\"A\"]로 Gate A만 enforce; 아래 진단 루프는 A–G 전체 표시")
 print("  report.to_dict()의 키 경로 패턴을 익혀두면 CI 스크립트 작성이 쉬워진다")
 
 d = report_h.to_dict()

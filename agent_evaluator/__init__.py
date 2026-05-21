@@ -175,7 +175,7 @@ from .decorators import (
 )
 
 # Task 6: QuickEval — 원스톱 평가 Facade
-from .quick_eval import QuickEval, HarnessEvaluationGate
+from .quick_eval import QuickEval, HarnessEvaluationGate, CompareResult
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
@@ -417,6 +417,7 @@ __all__ = [
     # QuickEval Facade + HarnessEvaluationGate
     'QuickEval',
     'HarnessEvaluationGate',
+    'CompareResult',
 
     # Golden Set Builder (Phase 3-A — lazy)
     'GoldenSetBuilder',
