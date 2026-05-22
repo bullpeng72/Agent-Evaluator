@@ -49,7 +49,7 @@ monitor.save_to_file("eval")   # eval.json + eval.html — includes Gate A–G j
 |------|------|-------------------|----------------------|
 | **A** 🟢 | **Goal Achievement** | Instruction compliance · goal alignment · plan consistency · context retention | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
 | **B** 🔵 | **Behavioral Integrity** | Loop detection · scope deviation · tool safety · state consistency · deadlock detection | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
-| **C** 🟡 | **Reliability** | Reproducibility · error recovery rate · quality floor · idempotency | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
+| **C** 🟡 | **Reliability** | Reproducibility · error recovery rate · hallucination faithfulness · quality floor · idempotency | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
 | **D** 🔵 | **Performance Contract** | SLA compliance · token efficiency · TTFT variability · cost predictability | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
 | **E** 🔴 | **Security Boundary** | Threat severity · compliance · threat response behavior | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
 | **F** 🟣 | **Multi-Agent Coordination** | Inter-agent consensus · information propagation accuracy · role compliance · conflict resolution | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
@@ -1529,6 +1529,13 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.4 (2026-05-22) — Gate Attribution Correction · HTML Report Score Breakdown Fix
+
+- 🐛 `AccuracyEvaluator` (`overall_accuracy / 100`) now correctly contributes to Gate A `_a_vals` — previously omitted despite CLAUDE.md indicating this behavior.
+- 🐛 `HallucinationDetector` now contributes to Gate C `_rel_vals` (faithfulness, `1 − hall_rate`) in addition to Gate G `_obs_vals`. Previously Gate G contribution was silently broken due to a non-existent `get_hallucination_stats()` call.
+- 🐛 HTML report score breakdown (`_build_score_breakdown`) now shows **Accuracy Score** row in Gate A and **Hallucination Faithfulness** row in Gate C — previously these score components were invisible in the breakdown widget.
+- 🐛 Gate G breakdown: `hallucination_rate` percentage display corrected from "0.3%" → "30.0%" (0-1 scale normalized to 100).
 
 ### v0.9.3 (2026-05-20) — HTML Report Consistency · harness_groups Serialization Fix
 

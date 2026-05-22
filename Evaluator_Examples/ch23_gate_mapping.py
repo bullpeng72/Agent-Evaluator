@@ -209,7 +209,7 @@ print("""
   PerformanceMonitor는 공유 저장소 역할만 하고,
   Config는 각 에이전트 함수 단위로 지정한다.
 
-  monitor = PerformanceMonitor(output_dir="results/")
+  monitor = PerformanceMonitor(output_dir="results/", use_korean_tokenizer=True)
 
   # Gate A + B + D + F 적용 예시
   @agent_eval(monitor, task_type="qa",
@@ -225,6 +225,7 @@ print("""
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
+    use_korean_tokenizer=True,
 )
 
 

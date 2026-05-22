@@ -51,7 +51,7 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | Gate | Native 지표 | 트래커 클래스 | 활성화 |
 |------|-------------|---------------|--------|
 | **A** | Task Completion Rate (TCR) | `TaskCompletionTracker` | 기본 |
-| **A** | Accuracy | `AccuracyEvaluator` | 기본 |
+| **A** | Accuracy (overall_accuracy → _a_vals) | `AccuracyEvaluator` | 기본 |
 | **B** | Tool Call Efficiency | `ToolCallAnalyzer` | 기본 |
 | **C** | Retry & Error Recovery | `RetryCorrectionTracker` | 기본 |
 | **D** | Latency (P50·P90·P95·P99·TTFT) | `LatencyTracker` | 기본 |
@@ -65,15 +65,17 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | **F** | Agent Coordination | `AgentCoordinationTracker` | 기본 |
 | **F** | Workflow Execution | `WorkflowExecutionTracker` | 기본 |
 | **G** | Response Quality (5차원) | `ResponseQualityEvaluator` | 기본 |
-| **G** | Hallucination Rate (규칙 기반) | `HallucinationDetector` | `enable_hallucination_detection=True` |
-| **G** | Context Recall (근사) | `HallucinationDetector` | `rag_mode=True` |
-| **G** | Context Precision (근사) | `HallucinationDetector` | `rag_mode=True` |
+| **C+G** | Hallucination Rate (규칙 기반) | `HallucinationDetector` | `enable_hallucination_detection=True` |
+| **C+G** | Context Recall (근사) | `HallucinationDetector` | `rag_mode=True` |
+| **C+G** | Context Precision (근사) | `HallucinationDetector` | `rag_mode=True` |
 | **L3** | completeness · relevance · factual | `LLMJudge` | `llm_judge=LLMJudgeConfig()` |
 | **L3** | toxicity · bias · safety_score | `LLMJudge` | `llm_judge=LLMJudgeConfig()` |
 | **L3** | Faithfulness *(Ragas 대체, v0.7.6+)* | `LLMJudge` | `rag_mode=True` + `llm_judge=LLMJudgeConfig()` |
 | **L3** | G-Eval 커스텀 기준 *(DeepEval 대체, v0.7.6+)* | `LLMJudge` | `llm_judge=LLMJudgeConfig(criteria=[...])` |
 | **L3** | Hallucination Score (NLI) | DeepEval | `HybridPerformanceMonitor` |
 | **L3** | Answer Relevancy / Faithfulness / Context P·R | DeepEval·Ragas | `HybridPerformanceMonitor` |
+
+> **C+G**: `HallucinationDetector`는 Gate C(신뢰성 — 출력 사실 충실성, `_rel_vals`)와 Gate G(관측성 — 환각률 모니터링, `_obs_vals`) 양쪽에 점수를 기여한다. 실제 감지 건수(`_detections`)가 0이면 두 Gate 모두에 미기여.
 
 > LLMJudge(L3)는 기본 설치에 포함. DeepEval·Ragas는 `pip install agent-evaluator[eval]` 필요.
 
@@ -330,6 +332,7 @@ loop_detection=LoopDetectionConfig(
 | 지표 | Gate C 연관성 |
 |------|---------------|
 | **Retry & Error Recovery** | 실제 오류 후 재시도 성공률 측정 — FaultToleranceConfig의 원시 신호 |
+| **Hallucination Rate** | 출력 사실 충실성 — `1 − hall_rate`가 `_rel_vals`에 직접 기여 (감지 건수 > 0인 경우만) |
 
 > **공식**: `retry_success_rate = succeeded_after_retry / retried_tasks × 100`  
 > 🟢 ≥80% / 🟡 60–80% / 🔴 <60%  
@@ -681,14 +684,14 @@ consensus=ConsensusConfig(
 
 **"에이전트의 내부 동작을 이해하고 디버깅할 수 있는가?"**
 
-운영 환경에서 에이전트 장애를 빠르게 진단하기 위한 관문입니다. Response Quality와 Hallucination Rate Native 지표가 응답 품질의 관찰 가능한 신호를 제공합니다.
+운영 환경에서 에이전트 장애를 빠르게 진단하기 위한 관문입니다. Response Quality Native 지표가 응답 품질의 관찰 가능한 신호를 제공합니다.
 
 ### 연결된 Native 지표
 
 | 지표 | Gate G 연관성 |
 |------|---------------|
 | **Response Quality (5차원)** | 관찰 가능한 품질 차원 — Relevance·Completeness·Accuracy·Clarity·Usefulness |
-| **Hallucination Rate** | 환각 발생 패턴 — 내부 지식 오류 관찰 신호 |
+| **Hallucination Rate** | 환각 모니터링 신호 — `1 − hall_rate`가 `_obs_vals`에 기여 (Gate C에도 동시 기여, 자세한 내용은 [Hallucination Rate 레퍼런스](#hallucination-rate-규칙-기반) 참조) |
 
 > **Quality Score 공식**: `Σ(dimension_score × weight)`, 범위 0–5  
 > 🟢 ≥4.5 (A) / 🟡 4.0–4.5 (B) / 🟠 3.5–4.0 (C) / 🔴 <3.0 (F)  
@@ -905,7 +908,7 @@ report.to_dict()["tcr_data"]["successful_tasks"]     # int
 
 ### Accuracy
 
-**Gate A 핵심 지표**
+**Gate A 핵심 지표** — `overall_accuracy / 100` 값이 Gate A `_a_vals`에 직접 기여 (AccuracyEvaluator 평가 건수 > 0인 경우)
 
 **공식 — QA (가중 조합)**
 
@@ -1234,7 +1237,7 @@ stats = monitor.quality_evaluator.get_quality_metrics()
 
 ### Hallucination Rate (규칙 기반)
 
-**Gate G 연관 지표**
+**Gate C + G 연관 지표** — 활성화 시 `1 − hall_rate`가 Gate C `_rel_vals`(신뢰성)와 Gate G `_obs_vals`(관측성) 양쪽에 기여. 실제 감지 건수(`_detections`)가 0이면 두 Gate 모두 미기여.
 
 활성화: `PerformanceMonitor(enable_hallucination_detection=True)`
 
@@ -1410,6 +1413,7 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 | Tool Call Efficiency | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata.tool_calls |
 | **Gate C — 신뢰성** | | | | |
 | Retry & Error Recovery | ✅ `retry=RetryConfig(max=N)` | ❌ | ❌ | `RetryConfig(max>1)` + 실제 재시도 |
+| Hallucination Rate (C) | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | `enable_hallucination_detection=True` + context 존재 시 Gate C에 기여 |
 | **Gate D — 성능 계약** | | | | |
 | Latency (p50/p95/p99) | ✅ 자동 | ✅ 자동 | ✅ 자동 | 항상 (실행 시간 자동 측정) |
 | TTFT | ✅ generator | ✅ `streaming_mode` | ❌ | generator 리턴 또는 스트리밍 모드 |
@@ -1426,7 +1430,7 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 | Workflow Execution | ✅ `framework="langchain/langgraph"` | ❌ | ❌ | LangChain/LangGraph 어댑터 |
 | **Gate G — 관찰 가능성** | | | | |
 | Response Quality (5차원) | ✅ 자동 | ✅ 자동 | ✅ 자동 | response + question 존재 시 |
-| Hallucination Rate | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context + `enable_hallucination_detection=True` |
+| Hallucination Rate (G) | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context + `enable_hallucination_detection=True` — Gate C에도 동시 기여 |
 | **L3 / LLM Judge** | | | | |
 | LLM Judge (5차원) | ✅ `llm_judge=LLMJudgeConfig()` | ❌ | ❌ | 기본 설치에 포함 |
 | Faithfulness | ✅ `rag_mode` + `llm_judge=LLMJudgeConfig()` | ❌ | ❌ | context 존재 시 자동 추가 |

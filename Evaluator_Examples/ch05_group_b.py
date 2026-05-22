@@ -65,6 +65,7 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,
     enable_security_metrics=False,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -188,7 +189,7 @@ print(f"  섹션 2 완료: {len(BEHAVIORAL_CASES) * 5}건 기록")
 
 # ── 역케이스: Gate B FAIL 유도 (Loop + StateConsistency + Scope) ──────────────
 # Gate B = [1-loop_rate, avg_sc, avg_scope] 평균 → 셋 다 0이면 Gate B = 0.0 FAIL
-_monitor_b_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_b_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 _b_state = {"user_role": "admin", "locked_tables": ["users", "payments"]}
 # _b_state_good은 매 호출 전 상태 복원에 사용하는 원본 스냅샷
 # 리스트를 슬라이싱으로 복사해 _b_state와 객체를 완전히 분리
@@ -271,6 +272,8 @@ for name, success, steps in WORKFLOWS:
         task_type="planning",
         tokens_used={"input": 160, "output": 40, "total": 200},
         chain_steps=[{"name": s, "success": success or i < 2} for i, s in enumerate(steps)],
+    
+        use_korean_tokenizer=True,
     )
     monitor.record_task(result)
     print(f"  [{name}] {'✅' if success else '❌'}  단계: {steps}")

@@ -73,7 +73,7 @@ print("  AccuracyEvaluator는 TokenF1·Jaccard·LCS·Char 4중 알고리즘으�
 print("  의미 거리에 비례한 연속 점수를 계산합니다.\n")
 print("  질문: '한국의 수도는?'  정답 기준: '서울'\n")
 
-monitor_s1 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_s1 = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # §1.4 코드 예시 재현: 의미는 같지만 표현이 다른 응답들
 # - assert: 정답 문자열과 정확히 일치해야 통과 → 표현 변형 시 전부 실패
@@ -99,6 +99,8 @@ for label, resp in CAPITAL_RESPONSES:
         ground_truth=GT_CAPITAL,
         execution_time=0.05,
         task_type="qa",
+    
+        use_korean_tokenizer=True,
     )
     monitor_s1.record_task(result)
     naive = "✅" if resp == GT_CAPITAL else "❌"
@@ -132,6 +134,7 @@ print("  시나리오: 의약품 복용 안내 RAG 에이전트\n")
 monitor_s2 = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_hallucination_detection=True,  # Group C — HallucinationDetector 활성화
+    use_korean_tokenizer=True,
 )
 
 # 동일 컨텍스트에 대한 충실 응답 / 환각 응답 / 혼합 응답
@@ -205,7 +208,7 @@ print("  SLAConfig(p95_ms=...) 선언 → P95 레이턴시 초과 시 Gate D FAI
 print("  (예제는 실행 시간 단축을 위해 ms 단위로 비율 재현합니다.)\n")
 print("  SLA 기준: P95 100ms 이내  |  정상 15건(10~50ms) + 급증 5건(150~250ms)\n")
 
-monitor_s3 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_s3 = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 sla_cfg = SLAConfig(
     p95_ms=100,            # P95 100ms 이내 (실 서비스라면 2,000ms)
@@ -257,7 +260,7 @@ print("  ① Config 선언 → ② @agent_eval로 Tracker 자동 수집 → ③ 
 print("  InstructionConfig: 키워드 미포함 응답 → TCR 저하 (Group A)")
 print("  SLAConfig: P95 응답 초과 → Gate D FAIL (Group D)\n")
 
-monitor_s4 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_s4 = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # ① Config — 배포 기준을 코드로 선언
 instruction_cfg = InstructionConfig(

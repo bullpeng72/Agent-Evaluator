@@ -57,7 +57,7 @@ except Exception:
 # ===========================================================================
 def _make_week_file(filename: str, accuracy_rate: float, n: int = 25):
     """비교용 더미 주간 결과 파일을 생성한다."""
-    monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+    monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
     for i in range(n):
         is_correct = random.random() < accuracy_rate
         r = create_taskresult(
@@ -68,6 +68,8 @@ def _make_week_file(filename: str, accuracy_rate: float, n: int = 25):
             execution_time=1.2 + random.uniform(0.0, 0.5) if filename.endswith("a") else 1.8 + random.uniform(0.0, 0.8),
             task_type="qa",
             tokens_used={"input": 80, "output": 30, "total": 110},
+        
+            use_korean_tokenizer=True,
         )
         monitor.record_task(r)
     monitor.save_to_file(filename)
@@ -269,12 +271,14 @@ for metric, value in MONTHLY_METRICS.items():
 # ===========================================================================
 # 최종 저장
 # ===========================================================================
-monitor_final = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_final = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 for q, gt in [("주간 리뷰 테스트", "테스트 완료"), ("월간 집계 테스트", "집계 완료")]:
     monitor_final.record_task(create_taskresult(
         task_id=f"review_{hash(q)%100:03d}",
         question=q, response=gt, ground_truth=gt,
         execution_time=0.1, task_type="qa",
+    
+        use_korean_tokenizer=True,
     ))
 
 monitor_final.save_to_file("ch17_weekly_review")

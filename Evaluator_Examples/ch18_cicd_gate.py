@@ -101,6 +101,7 @@ monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
     enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
+    use_korean_tokenizer=True,
 )
 
 # ── 그룹별 아이콘 ──────────────────────────────────────────────────────────────

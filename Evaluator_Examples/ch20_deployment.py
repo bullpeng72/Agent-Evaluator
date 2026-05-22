@@ -83,6 +83,7 @@ monitor_v1 = PerformanceMonitor(
     enable_security_metrics=True,
     ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5, min_samples=5),
     cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5),
+    use_korean_tokenizer=True,
 )
 
 monitor_v2 = PerformanceMonitor(
@@ -90,6 +91,7 @@ monitor_v2 = PerformanceMonitor(
     enable_security_metrics=True,
     ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5, min_samples=5),
     cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5),
+    use_korean_tokenizer=True,
 )
 
 print("=== 에이전트 버전 비교: v1 vs v2 ===\n")

@@ -199,6 +199,8 @@ print("""
                   has_error=has_error, error_message=error_msg,
                   extra={"phase": "content_writing",
                          "word_count": getattr(result, "word_count", 0) if result else 0},
+              
+                  use_korean_tokenizer=True,
               ))
           return result   # 원본 반환값 그대로
 
@@ -284,6 +286,8 @@ class ContentWriterAdapterDemo:
                     "section_id": section.id,
                     "word_count": result.word_count if result else 0,
                 },
+            
+                use_korean_tokenizer=True,
             ))
         return result   # 원본과 완전히 동일한 반환값
 
@@ -293,7 +297,7 @@ class ContentWriterAdapterDemo:
 
 
 # ── 위임 어댑터 실습 ──────────────────────────────────────────────────────────
-monitor_adapter = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_adapter = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 base_agent = MockContentWriterAgent()
 writer = ContentWriterAdapterDemo(

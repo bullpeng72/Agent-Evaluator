@@ -335,11 +335,12 @@ body.light #file-select option{background:#f0f2ff;}
 <!-- ═══ 5. Gate A — 목표 달성 ═══ -->
 <section id="sl-gate-A">
   <h2>Gate A — Goal Achievement <span class="gate-pill gate-pill-na" id="gA-pill">—</span></h2>
-  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+  <div class="kpi-row kpi-row-5" style="margin-bottom:8px">
     <div class="kpi-box gate-border-A"><div class="kpi-lbl">Gate A Score</div><div class="kpi-val" id="gA-score">—</div></div>
     <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="gA-tcr">—</div><div class="kpi-sub">Task Completion Rate</div></div>
     <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="gA-acc">—</div></div>
     <div class="kpi-box"><div class="kpi-lbl">Full Success</div><div class="kpi-val c-green" id="gA-full">—</div><div class="kpi-sub">tasks</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Quality Avg</div><div class="kpi-val" id="gA-qual-avg">—</div><div class="kpi-sub">/ 5.0</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
@@ -351,8 +352,21 @@ body.light #file-select option{background:#f0f2ff;}
       </div>
     </div>
     <div>
-      <div class="bar-title">Harness A Detailed Scores</div>
-      <div id="gA-harness"></div>
+      <div class="bar-title">Response Quality (5 Dimensions)</div>
+      <div id="gA-quality-dims"></div>
+      <div id="gA-quality-gauge-wrap" style="display:none;margin-top:8px">
+        <div style="font-size:11px;color:var(--tc2);margin-bottom:4px;font-weight:600">Overall Quality Score (/ 5.0)</div>
+        <div class="gauge-track"><div class="gauge-fill" id="gA-quality-gauge-fill" style="width:0%;background:#10b981"></div></div>
+        <div class="gauge-lbls"><span>0</span><span id="gA-quality-avg-val" style="color:#10b981;font-weight:700"></span><span>5.0</span></div>
+      </div>
+      <div id="gA-quality-nodata" class="no-data" style="display:none">
+        <div class="no-data-icon">📊</div>
+        <div style="font-size:11px">ResponseQualityEvaluator inactive</div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="bar-title">Harness A Detailed Scores</div>
+        <div id="gA-harness"></div>
+      </div>
     </div>
   </div>
   <div class="bottom-line" id="gA-bottom"></div>
@@ -515,25 +529,15 @@ body.light #file-select option{background:#f0f2ff;}
 <!-- ═══ 11. Gate G — 관측가능성 ═══ -->
 <section id="sl-gate-G">
   <h2>Gate G — Observability <span class="gate-pill gate-pill-na" id="gG-pill">—</span></h2>
-  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+  <div class="kpi-row kpi-row-3" style="margin-bottom:8px">
     <div class="kpi-box gate-border-G"><div class="kpi-lbl">Gate G Score</div><div class="kpi-val" id="gG-score">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Quality Average</div><div class="kpi-val" id="gG-qual-avg">—</div><div class="kpi-sub">/ 5.0</div></div>
     <div class="kpi-box"><div class="kpi-lbl">LLM Judge Score</div><div class="kpi-val" id="gG-judge">—</div><div class="kpi-sub">When measured</div></div>
     <div class="kpi-box"><div class="kpi-lbl">Faithfulness</div><div class="kpi-val" id="gG-faith">—</div><div class="kpi-sub">In RAG mode</div></div>
   </div>
   <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="bar-title">Response Quality 5 Dimensions</div>
-      <div id="gG-quality-dims"></div>
-      <div id="gG-quality-gauge-wrap" style="display:none;margin-top:8px">
-        <div style="font-size:11px;color:var(--tc2);margin-bottom:4px;font-weight:600">Overall Quality Score (/ 5.0)</div>
-        <div class="gauge-track"><div class="gauge-fill" id="gG-quality-gauge-fill" style="width:0%;background:#06b6d4"></div></div>
-        <div class="gauge-lbls"><span>0</span><span id="gG-quality-avg-val" style="color:#06b6d4;font-weight:700"></span><span>5.0</span></div>
-      </div>
-      <div id="gG-quality-nodata" class="no-data" style="display:none">
-        <div class="no-data-icon">📊</div>
-        <div style="font-size:11px">ResponseQualityEvaluator inactive</div>
-      </div>
+      <div class="bar-title">LLM Judge Details</div>
+      <div id="gG-judge-detail"></div>
     </div>
     <div>
       <div class="bar-title">Harness G Detailed Scores</div>
@@ -869,11 +873,10 @@ function deriveNativeGateScores(d) {
   const gFVals  = [coordSR, wfSR].filter(v => v != null && v >= 0);
   const gF      = d.has_agentic && gFVals.length ? gFVals.reduce((a,b)=>a+b,0)/gFVals.length : null;
 
-  // Gate G: quality avg
-  const qualAvg = qual.avg_score;
+  // Gate G: LLM Judge only (quality moved to Gate A)
   const judgeAvg = d.llm_judge?.avg_overall;
-  const gGVals = [qualAvg != null ? qualAvg/5*100 : null, judgeAvg != null ? judgeAvg/5*100 : null].filter(v=>v!=null);
-  const gG = gGVals.length ? gGVals.reduce((a,b)=>a+b,0)/gGVals.length : (qualAvg != null ? qualAvg/5*100 : 50);
+  const gGVals = [judgeAvg != null ? judgeAvg/5*100 : null].filter(v=>v!=null);
+  const gG = gGVals.length ? gGVals.reduce((a,b)=>a+b,0)/gGVals.length : null;
 
   return { A: gA, B: gB, C: gC, D: gD, E: gE, F: gF, G: gG };
 }
@@ -920,6 +923,8 @@ function renderGateA(d, typeStats, tcr_v, acc_v) {
   const hg = d.harness_groups || {};
   const ns = deriveNativeGateScores(d);
   const gScore = hg['A']?.score ?? hg['A']?.overall_score ?? ns.A;
+  const qual = d.quality_detail || {};
+  const qualAvg = qual.avg_score;
 
   updateGatePill('gA-pill', gScore);
 
@@ -928,6 +933,8 @@ function renderGateA(d, typeStats, tcr_v, acc_v) {
   setKpi('gA-tcr', fmtPct(tcr_v), tcr_v>=90?'c-green':tcr_v>=70?'c-yellow':'c-red');
   setKpi('gA-acc', fmtPct(acc_v), acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red');
   set('gA-full', d.accuracy_metrics?.tcr?.full_success || 0);
+  setKpi('gA-qual-avg', qualAvg != null ? qualAvg.toFixed(2) : '—',
+    qualAvg >= 4 ? 'c-green' : qualAvg >= 3 ? 'c-yellow' : 'c-red');
 
   // type completion bars
   const typeBars = Object.entries(typeStats)
@@ -941,11 +948,40 @@ function renderGateA(d, typeStats, tcr_v, acc_v) {
     </div>`;
   }).join('');
 
+  // Quality 5 Dimensions
+  const dims = [
+    ['Accuracy',     qual.accuracy_score],
+    ['Completeness', qual.completeness_score],
+    ['Clarity',      qual.clarity_score],
+    ['Relevance',    qual.relevance_score],
+    ['Creativity',   qual.creativity_score],
+  ];
+  const hasQual = dims.some(([,v]) => v != null && v > 0);
+  if (hasQual) {
+    document.getElementById('gA-quality-dims').innerHTML = dims.map(([lbl,v]) => {
+      const pct = v != null ? Math.round(v/5*100) : 0;
+      const col = pct>=70?'#4ade80':pct>=50?'#06b6d4':'#f87171';
+      return `<div class="qdim-row">
+        <div class="qdim-lbl">${lbl.split(' ')[0]}</div>
+        <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="qdim-val">${v!=null?v.toFixed(1):'—'}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('gA-quality-gauge-wrap').style.display = '';
+    document.getElementById('gA-quality-gauge-fill').style.width = `${Math.round((qualAvg||0)/5*100)}%`;
+    document.getElementById('gA-quality-avg-val').textContent = `${(qualAvg||0).toFixed(2)} / 5.0`;
+    document.getElementById('gA-quality-nodata').style.display = 'none';
+  } else {
+    document.getElementById('gA-quality-nodata').style.display = 'flex';
+    document.getElementById('gA-quality-gauge-wrap').style.display = 'none';
+  }
+
   document.getElementById('gA-harness').innerHTML = harnessGroupHtml('A', hg);
 
   const worstType = Object.entries(typeStats).sort((a,b) => (a[1].ok/a[1].n)-(b[1].ok/b[1].n))[0];
   document.getElementById('gA-bottom').innerHTML =
     `<strong>Gate A:</strong> TCR ${fmtPct(tcr_v)} · Accuracy ${fmtPct(acc_v)}` +
+    (qualAvg != null ? ` · Quality Avg ${qualAvg.toFixed(2)}/5.0` : '') +
     (worstType ? ` · Lowest type: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
 }
 
@@ -1165,50 +1201,42 @@ function renderGateG(d, qual) {
   const ns    = deriveNativeGateScores(d);
   const gScore = hg['G']?.score ?? hg['G']?.overall_score ?? ns.G;
   updateGatePill('gG-pill', gScore);
-  const qualAvg  = qual.avg_score;
   const judgeAvg = judge.avg_overall;
   const faithful = judge.avg_faithfulness;
 
   setKpi('gG-score', gScore != null ? Math.round(gScore) + '%' : '—',
     gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
-  setKpi('gG-qual-avg', qualAvg != null ? qualAvg.toFixed(2) : '—',
-    qualAvg >= 4 ? 'c-green' : qualAvg >= 3 ? 'c-yellow' : 'c-red');
   set('gG-judge',  judgeAvg  != null ? judgeAvg.toFixed(2)  + ' / 5' : '—');
   set('gG-faith',  faithful  != null ? faithful.toFixed(2)  + ' / 5' : '—');
 
-  // Quality dims
-  const dims = [
-    ['Accuracy',     qual.accuracy_score],
-    ['Completeness', qual.completeness_score],
-    ['Clarity',      qual.clarity_score],
-    ['Relevance',    qual.relevance_score],
-    ['Creativity',   qual.creativity_score],
-  ];
-  const hasQual = dims.some(([,v]) => v != null && v > 0);
-  if (hasQual) {
-    document.getElementById('gG-quality-dims').innerHTML = dims.map(([lbl,v]) => {
-      const pct = v != null ? Math.round(v/5*100) : 0;
-      const col = pct>=70?'#4ade80':pct>=50?'#06b6d4':'#f87171';
-      return `<div class="qdim-row">
-        <div class="qdim-lbl">${lbl.split(' ')[0]}</div>
-        <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
-        <div class="qdim-val">${v!=null?v.toFixed(1):'—'}</div>
-      </div>`;
-    }).join('');
-    document.getElementById('gG-quality-gauge-wrap').style.display = '';
-    document.getElementById('gG-quality-gauge-fill').style.width = `${Math.round((qualAvg||0)/5*100)}%`;
-    document.getElementById('gG-quality-avg-val').textContent = `${(qualAvg||0).toFixed(2)} / 5.0`;
-    document.getElementById('gG-quality-nodata').style.display = 'none';
-  } else {
-    document.getElementById('gG-quality-nodata').style.display = 'flex';
-    document.getElementById('gG-quality-gauge-wrap').style.display = 'none';
+  // LLM Judge detail
+  const judgeDetail = document.getElementById('gG-judge-detail');
+  if (judgeDetail) {
+    if (judgeAvg != null) {
+      const jDims = [
+        ['Overall',      judge.avg_overall],
+        ['Completeness', judge.avg_completeness],
+        ['Relevance',    judge.avg_relevance],
+        ['Factual',      judge.avg_factual_consistency],
+      ];
+      judgeDetail.innerHTML = jDims.filter(([,v])=>v!=null).map(([lbl,v]) => {
+        const pct = Math.round(v/5*100);
+        const col = pct>=70?'#4ade80':pct>=50?'#06b6d4':'#f87171';
+        return `<div class="qdim-row">
+          <div class="qdim-lbl">${lbl}</div>
+          <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
+          <div class="qdim-val">${v.toFixed(2)}/5</div>
+        </div>`;
+      }).join('') || '<div style="font-size:11px;color:var(--tc2)">No LLM Judge data</div>';
+    } else {
+      judgeDetail.innerHTML = '<div style="font-size:11px;color:var(--tc2)">LLM Judge not enabled — set <code>enable_llm_judge=True</code></div>';
+    }
   }
 
   document.getElementById('gG-harness').innerHTML = harnessGroupHtml('G', hg);
 
   document.getElementById('gG-bottom').innerHTML =
-    `<strong>Gate G:</strong> Quality Avg ${qualAvg != null ? qualAvg.toFixed(2)+'/5.0' : '—'}` +
-    (judgeAvg != null ? ` · LLM Judge ${judgeAvg.toFixed(2)}/5` : '') +
+    `<strong>Gate G:</strong> LLM Judge ${judgeAvg != null ? judgeAvg.toFixed(2)+'/5' : '—'}` +
     (faithful != null ? ` · Faithfulness ${faithful.toFixed(2)}/5` : '');
 }
 

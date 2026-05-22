@@ -58,6 +58,7 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,
     enable_security_metrics=False,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -201,7 +202,7 @@ conflict_resolver_agent("에이전트 간 disagree 발생 — 충돌 해결 필�
 print(f"  섹션 6 완료: {len(COORDINATION_CASES) * 4 + 1}건 기록")
 
 # ── 역케이스: Gate F FAIL 유도 (PropagationConfig) ───────────────────────────
-_monitor_f_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_f_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(
     _monitor_f_fail, task_type="multi_agent", task_id_prefix="f_fail_propagation",

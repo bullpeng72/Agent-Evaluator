@@ -61,6 +61,7 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,
     enable_security_metrics=False,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -181,7 +182,7 @@ for q, gt in OBSERVABILITY_CASES:
 print(f"  섹션 7 완료: {len(OBSERVABILITY_CASES) * 4}건 기록")
 
 # ── 역케이스: Gate G FAIL 유도 (ErrorDiagnosisConfig) ────────────────────────
-_monitor_g_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_g_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(
     _monitor_g_fail, task_type="qa", task_id_prefix="g_fail_diag",
@@ -221,7 +222,7 @@ if _score is not None:
 # ===========================================================================
 print("\n=== 섹션 추가A: 이상 탐지 (AnomalyDetector) ===")
 
-monitor_anomaly = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_anomaly = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 detector = AnomalyDetector(baseline_window=25, detection_window=5)
 
 _BASELINE_QA = [
@@ -240,6 +241,8 @@ for i in range(30):
         execution_time=round(random.gauss(1.2, 0.3), 3),
         task_type="qa",
         tokens_used={"input": 100, "output": 40, "total": 140},
+    
+        use_korean_tokenizer=True,
     )
     monitor_anomaly.record_task(r)
 
@@ -257,6 +260,8 @@ for label, lat, resp, tok in ANOMALY_CASES:
         response=resp, ground_truth="정상 응답",
         execution_time=lat, task_type="qa",
         tokens_used={"input": tok, "output": tok // 5, "total": tok + tok // 5},
+    
+        use_korean_tokenizer=True,
     )
     monitor_anomaly.record_task(r)
     print(f"  [{label}] lat={lat:.1f}s  tok={tok}  기록 완료")
@@ -302,13 +307,15 @@ _COST_RATES = {
     "gpt-4o-mini":     {"input": 0.00015, "output": 0.0006},
 }
 
-monitor_cost = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_cost = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 for model, tokens in MODEL_USAGES:
     result = create_taskresult(
         task_id=f"cost_{model[:8]}",
         question="비용 추적 테스트", response="응답", ground_truth="응답",
         execution_time=1.5, task_type="qa",
         tokens_used=tokens,
+    
+        use_korean_tokenizer=True,
     )
     monitor_cost.record_task(result)
 

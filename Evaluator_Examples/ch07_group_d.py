@@ -67,6 +67,7 @@ monitor = PerformanceMonitor(
     enable_transparency=True,
     ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5, min_samples=5),
     cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5),
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -188,6 +189,7 @@ _monitor_d_fail = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=80.0, max_p95_p50_ratio=1.8, min_samples=5),
     cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.15, min_samples=5),
+    use_korean_tokenizer=True,
 )
 _d_ttft = [30, 950, 40, 880, 25, 920, 35]
 _d_tokens = [(15, 20), (800, 600), (20, 25), (750, 580), (18, 18), (820, 640), (22, 30)]
@@ -237,7 +239,7 @@ import random as _rand
 
 # 정규 분포에 이상치 추가 — 현실적 지연 패턴
 # ※ 별도 monitor 사용: 이상치(8.5s, 12.0s)가 Gate D SLA 집계를 오염하지 않도록 분리
-_monitor_lat = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_lat = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 latencies = [_rand.gauss(1.2, 0.4) for _ in range(15)] + [8.5, 12.0]
 latencies = [max(0.1, lat) for lat in latencies]
 
@@ -250,6 +252,8 @@ for i, lat in enumerate(latencies):
         execution_time=round(lat, 3),
         task_type="qa",
         tokens_used={"input": 50, "output": 20, "total": 70},
+    
+        use_korean_tokenizer=True,
     )
     _monitor_lat.record_task(result)
 
@@ -262,7 +266,7 @@ print(f"  p50={float(_lat_rep.get('p50',0)):.2f}s  p95={float(_lat_rep.get('p95'
 print("\n=== 섹션 추가B: 토큰 경제성 & 비용 추정 ===")
 
 # ※ 별도 monitor 사용: 토큰 데모 태스크가 Gate D 집계를 오염하지 않도록 분리
-_monitor_tok = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_tok = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 TOKEN_MODELS = [
     ("gpt-5-nano",   {"input": 800, "output": 200, "total": 1000, "model": "gpt-5-nano"}),
@@ -279,6 +283,8 @@ for model_name, tokens in TOKEN_MODELS:
         execution_time=round(_rand.uniform(1.0, 3.0), 3),
         task_type="qa",
         tokens_used=tokens,
+    
+        use_korean_tokenizer=True,
     )
     _monitor_tok.record_task(result)
     print(f"  [{model_name:<12s}] 총 {tokens['total']:4d} 토큰")

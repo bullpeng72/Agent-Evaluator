@@ -108,6 +108,7 @@ sdk = [
     # 14.7.0부터 pydantic-ai(메타패키지 → 전체 LLM provider 170개+) 의존성 추가됨 → 상한 고정
     "arize-phoenix>=14.0.0,<14.7.0",
     "pdfplumber>=0.10.0,<1.0.0",
+    "kiwipiepy>=0.17.0",
 ]
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -133,6 +134,7 @@ examples = [
     "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
     "langchain-openai>=1.0.0,<2.0.0",
+    "kiwipiepy>=0.17.0",
 ]
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -148,6 +150,7 @@ eval = [
     "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
     "langchain-openai>=1.0.0,<2.0.0",
+    "kiwipiepy>=0.17.0",
 ]
 # LangChain / LangGraph 통합 (중간, ~30개 패키지)
 # langchain 1.x LCEL Runnable 기반, BaseCallbackHandler 실시간 추적

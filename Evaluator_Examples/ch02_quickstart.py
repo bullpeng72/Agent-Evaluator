@@ -105,7 +105,7 @@ print("\n=== 섹션 2: Harness Config — InstructionConfig + SLAConfig (§2.3) 
 print("  QuickEval.gate()는 TCR·정확도 단순 임계값")
 print("  HarnessEvaluationGate는 33개 Config 전체를 포함한 정밀 판정")
 
-monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # InstructionConfig: 응답에 "완료" 또는 "처리" 키워드가 반드시 포함되어야 함
 # violation_weight=0.5: 위반 1건당 IFR 50% 차감 → 기본값(0.1)보다 엄격한 기준
@@ -204,7 +204,7 @@ else:
 # ──────────────────────────────────────────────────────────────────────────────
 print("\n=== 섹션 4: 출력 시나리오 — 터미널 vs 파일 (§2.6) ===")
 
-monitor_t = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_t = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # 단건 태스크 직접 생성 (create_taskresult는 accuracy_score를 자동 계산)
 result_t = create_taskresult(
@@ -214,6 +214,8 @@ result_t = create_taskresult(
     ground_truth="서울",
     execution_time=0.8,
     task_type="qa",
+
+    use_korean_tokenizer=True,
 )
 monitor_t.record_task(result_t)
 

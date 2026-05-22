@@ -51,7 +51,7 @@ from pathlib import Path
 #
 #   import agent_evaluator as ae
 #   from agent_evaluator.decorators import conversation_eval, flush_conversation, EvalMetadata, get_eval_ctx
-#   # 이후: ae.PerformanceMonitor()  ae.agent_eval(...)  ae.RetryConfig(...)
+#   # 이후: ae.PerformanceMonitor(, use_korean_tokenizer=True)  ae.agent_eval(...)  ae.RetryConfig(...)
 from agent_evaluator import (
     PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel,
     GoalAlignmentConfig, PlanConfig,
@@ -78,6 +78,7 @@ except Exception:
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -492,6 +493,7 @@ try:
                 output_dir=_OUTPUT_DIR,
                 enable_llm_judge=True,
                 judge_model=None,
+                use_korean_tokenizer=True,
             )
 
             @agent_eval(
@@ -539,6 +541,7 @@ try:
                 enable_llm_judge=True,
                 judge_model=None,
                 judge_sample_rate=1.0,
+                use_korean_tokenizer=True,
             )
 
             @agent_eval(

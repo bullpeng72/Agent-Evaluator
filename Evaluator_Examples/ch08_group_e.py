@@ -63,6 +63,7 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,
     enable_security_metrics=True,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -155,6 +156,7 @@ print(f"  섹션 5 완료: {len(SECURITY_CASES) * 3}건 기록")
 _monitor_e_fail = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
+    use_korean_tokenizer=True,
 )
 
 @agent_eval(
@@ -197,7 +199,7 @@ if _score is not None:
 # ===========================================================================
 # 섹션 추가: 보안 트래커 직접 사용
 #
-# PerformanceMonitor(enable_security_metrics=True)가 자동 사용하는 5개 보안 트래커를
+# PerformanceMonitor(enable_security_metrics=True, use_korean_tokenizer=True)가 자동 사용하는 5개 보안 트래커를
 # 직접 인스턴스화해 독립 실행합니다.
 #
 # InputSanitizationTracker  → evaluate_input()  + get_security_stats()

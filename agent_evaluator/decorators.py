@@ -4102,6 +4102,7 @@ def _build_and_record(
             context=effective_context,
             model_name=effective_model,
             partial_reason=_partial_reason,
+            use_korean_tokenizer=getattr(monitor, "_use_korean_tokenizer", False),
         )
 
         # Anthropic 응답 토큰 주입 (create_taskresult_from_execution 는 Anthropic 미지원)

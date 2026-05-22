@@ -146,7 +146,7 @@ GOLDEN_DATASET = [
 ]
 
 # CI PR 검증 시뮬레이션
-ci_monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+ci_monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 print("  PR 검증 — 골든 데이터셋 10건 재현 평가:")
 for item in GOLDEN_DATASET:
     # 실제 환경에서는 여기서 실제 에이전트를 호출
@@ -161,6 +161,8 @@ for item in GOLDEN_DATASET:
         execution_time=exec_time,
         task_type="qa",
         metadata={"source": "golden_dataset", "ci_run": True},
+    
+        use_korean_tokenizer=True,
     )
     ci_monitor.record_task(result)
 
@@ -304,7 +306,7 @@ print("""  weekly_review.py (cron: 매주 월요일 09:00)
 """)
 
 # 실제 주간 리뷰 결과를 ch26 결과에 기록
-weekly_monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+weekly_monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 for w in WEEKLY_DATA:
     result = create_taskresult(
@@ -324,6 +326,8 @@ for w in WEEKLY_DATA:
             "cost_drift_pct": round((w["cost_usd"] - WEEKLY_DATA[0]["cost_usd"]) /
                                     WEEKLY_DATA[0]["cost_usd"] * 100, 1),
         },
+    
+        use_korean_tokenizer=True,
     )
     weekly_monitor.record_task(result)
 

@@ -112,7 +112,7 @@ print(f"    agent-eval gate results/eval.json --tcr {config.get('tcr', 85):.1f} 
 print("\n=== 섹션 2: HarnessEvaluationGate — Gate별 임계값 선언 및 판정 ===")
 
 # ---- 2-A: 정상 에이전트 시나리오 (PASS 예상) ----
-monitor_pass = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_pass = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 sla_cfg = SLAConfig(
     p95_ms=5000,
@@ -153,7 +153,7 @@ for g in ["A", "D"]:
         print(f"    Gate {g}: score={gd['score']:.3f} → {gd.get('status', 'n/a')}")
 
 # ---- 2-B: 엄격한 임계값 시나리오 (FAIL 유도) ----
-monitor_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 strict_sla = SLAConfig(
     p95_ms=100,           # 100ms — 매우 엄격
@@ -212,7 +212,7 @@ accuracy_alert = SimpleTaskAlertRule(
     cooldown=0,
 )
 
-monitor_alert = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_alert = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(monitor_alert, task_type="qa",
             alert_rules=[latency_alert, accuracy_alert])

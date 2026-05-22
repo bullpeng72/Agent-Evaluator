@@ -261,7 +261,7 @@ for item in RISK_ANALYSIS:
 # ===========================================================================
 print("\n=== 섹션 5: 측정 단위 추출 3원칙 ===")
 
-monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # 원칙 1: 원자성 — 섹션별 vs 강의 전체
 print("\n  [원칙 1: 원자성] 하나의 TaskResult = 하나의 의미 있는 동작")
@@ -301,6 +301,8 @@ for i, (section_name, outcome) in enumerate(zip(SECTION_NAMES, LEARNING_OUTCOMES
             "agent":         "content_writer",
             "section_index": i + 1,
         },
+    
+        use_korean_tokenizer=True,
     )
     monitor.record_task(result)
 

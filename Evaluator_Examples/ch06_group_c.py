@@ -57,6 +57,7 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=True,   # Gate C: HallucinationDetector 활성화
     enable_security_metrics=False,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -186,7 +187,7 @@ for q, gt in RELIABILITY_CASES:
 print(f"  섹션 3 완료: ~{len(RELIABILITY_CASES) * 4}건 기록")
 
 # ── 역케이스: Gate C FAIL 유도 (IdempotencyConfig) ───────────────────────────
-_monitor_c_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+_monitor_c_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(
     _monitor_c_fail, task_type="tool_use", task_id_prefix="c_fail_idempotency",

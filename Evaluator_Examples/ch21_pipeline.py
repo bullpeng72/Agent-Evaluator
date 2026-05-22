@@ -123,6 +123,7 @@ print("=" * 60)
 monitor_ci = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
+    use_korean_tokenizer=True,
 )
 
 @agent_eval(
@@ -207,6 +208,7 @@ monitor_prod = PerformanceMonitor(
     enable_security_metrics=True,
     auto_save=True,
     auto_save_interval=10,
+    use_korean_tokenizer=True,
 )
 
 anomaly_detector = AnomalyDetector(baseline_window=20, detection_window=5)
@@ -272,6 +274,8 @@ for i, (q, gt) in enumerate(PROD_CASES):
         execution_time=round(random.gauss(0.8, 0.2) if i < 12 else random.gauss(4.0, 0.5), 3),
         task_type="qa",
         tokens_used={"input": 80, "output": 20, "total": 100},
+    
+        use_korean_tokenizer=True,
     )
     monitor_prod.record_task(result)
     cost_tracker.record(

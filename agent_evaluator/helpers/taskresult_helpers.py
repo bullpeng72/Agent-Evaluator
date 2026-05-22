@@ -522,6 +522,7 @@ def create_taskresult_from_execution(
     model_name: str = "",
     metadata: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
+    use_korean_tokenizer: bool = False,
     **extra_fields: Any,
 ):
     """
@@ -625,11 +626,16 @@ def create_taskresult_from_execution(
     )
 
     # 4. accuracy_score 동적 계산 (4가지 유사도 메트릭 조합)
-    accuracy = calculate_accuracy_score(
-        response=response,
-        ground_truth=ground_truth,
-        method="combined"
-    )
+    if use_korean_tokenizer:
+        from agent_evaluator.core.trackers.layer1 import AccuracyEvaluator
+        _ae = AccuracyEvaluator(use_korean_tokenizer=True)
+        accuracy = _ae._calculate_accuracy(ground_truth, response, task_type) if ground_truth else 0.0
+    else:
+        accuracy = calculate_accuracy_score(
+            response=response,
+            ground_truth=ground_truth,
+            method="combined"
+        )
 
     # 5. partial_reason 자동 추론 (사용자가 직접 지정하지 않은 경우)
     if partial_reason is None and completion < 1.0:

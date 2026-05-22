@@ -62,6 +62,7 @@ monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
     enable_transparency=True,
+    use_korean_tokenizer=True,
 )
 
 print("\n=== Ch03 Harness Gate A–G 기초 개요 ===")

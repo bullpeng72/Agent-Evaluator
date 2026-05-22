@@ -97,6 +97,23 @@ agent_evaluator/
 
 Gate A–G results stored under `extra_metrics.harness_groups` in JSON result files.
 
+### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
+
+| Tracker | Gate | 기여 배열 | 조건 |
+|---------|------|----------|------|
+| `TaskCompletionTracker` | A, C | `_a_vals`, `_rel_vals` | 항상 |
+| `AccuracyEvaluator` | **A** | `_a_vals` | `_evaluations` 건수 > 0 (overall_accuracy / 100 정규화) |
+| `LatencyTracker` | D | `_perf_vals` | 항상 |
+| `TokenEconomyTracker` | D | `_perf_vals` | 항상 |
+| `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | `_detections` 건수 > 0 (`1 − rate`) |
+| `RetryCorrectionTracker` | C | `_rel_vals` | SLAConfig 설정 시 |
+| `ToolCallAnalyzer` | B, G | `_bint_vals`, `_obs_vals` | tool_calls 기록 시 |
+| `WorkflowExecutionTracker` | B | `_bint_vals` | chain_steps 기록 시 |
+| Security Trackers (5종) | E | `_all_e_scores` | `enable_security_metrics=True` |
+| `AgentCoordinationTracker` | F | `_f_vals` | agent_interactions 기록 시 |
+| `ToolSelectionTracker` | F | `_f_vals` | expected_tools 지정 시 |
+| `ResponseQualityEvaluator` | — | quality_metrics 별도 집계 | Gate 점수 미포함 |
+
 ---
 
 ## Key Usage Patterns

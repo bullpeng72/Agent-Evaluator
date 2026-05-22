@@ -440,7 +440,15 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
             v = details.get(dk)
             _add(lbl, _fmt_ratio(v), v, formula_label=fl,
                  note="Requires InstructionConfig" if dk == "avg_instruction_adherence" and v is None else "")
-        formula_str = "avg( TCR/100, avg_IFR, avg_goal_alignment, avg_plan_coherence, avg_subtask_completion, avg_context_retention, avg_knowledge_retention )"
+        acc_a = details.get("avg_accuracy")
+        if acc_a is not None:
+            _add("Accuracy Score (AccuracyEvaluator)", _fmt_ratio(acc_a), acc_a,
+                 formula_label="avg_accuracy")
+        else:
+            _add("Accuracy Score (AccuracyEvaluator)", None, None,
+                 formula_label="avg_accuracy",
+                 note="No accuracy evaluations recorded")
+        formula_str = "avg( TCR/100, avg_IFR, avg_goal_alignment, avg_plan_coherence, avg_subtask_completion, avg_context_retention, avg_knowledge_retention, avg_accuracy )"
 
     elif gate_key == "B":
         loop = details.get("loop_detection_rate")
@@ -489,7 +497,16 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
         ]:
             v = details.get(dk)
             _add(lbl, _fmt_ratio(v), v, formula_label=fl)
-        formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency )"
+        hall_c = details.get("hallucination_rate")
+        if hall_c is not None:
+            c_hall_c = max(0.0, 1.0 - float(hall_c))
+            _add("Hallucination Faithfulness (1 − rate)", _fmt_pct(hall_c, scale=100.0), c_hall_c,
+                 formula_label="1−hallucination_rate")
+        else:
+            _add("Hallucination Faithfulness (1 − rate)", None, None,
+                 formula_label="1−hallucination_rate",
+                 note="Requires enable_hallucination_detection=True")
+        formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, 1−hallucination_rate )"
 
     elif gate_key == "D":
         p95 = details.get("p95_latency_s")
@@ -593,7 +610,7 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
         hall = details.get("hallucination_rate")
         if hall is not None:
             c_hall = max(0.0, 1.0 - float(hall))
-            _add("Hallucination Defense (1 − rate)", _fmt_pct(hall), c_hall,
+            _add("Hallucination Defense (1 − rate)", _fmt_pct(hall, scale=100.0), c_hall,
                  formula_label="1−hallucination_rate")
         else:
             _add("Hallucination Defense (1 − rate)", None, None,
@@ -648,7 +665,7 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
 
 def _build_gate_a(tcr: float, success_rate: float, acc: float,
                   accuracy_metrics: Dict, hallucination_data: Dict,
-                  harness_a: Dict) -> str:
+                  harness_a: Dict, quality_metrics: Dict = {}) -> str:
     color = _GATE_COLORS["A"]
     gate_status = (harness_a.get("gate") or harness_a.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -738,6 +755,49 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass InstructionConfig · GoalAlignmentConfig to your decorator to enable detailed metrics.</div>'
 
+    # Response Quality (5 Dimensions)
+    quality_html = ""
+    if not quality_metrics or quality_metrics.get("total_evaluated", 0) == 0:
+        quality_html = (
+            f'<h3>Response Quality (5 Dimensions)</h3>'
+            + _not_tested("No response quality evaluation data collected.")
+        )
+    else:
+        avg_score = quality_metrics.get("avg_total_score", 0)
+        dim_scores = quality_metrics.get("dimension_scores", {})
+        dimensions = [
+            ("relevance", "Relevance"),
+            ("completeness", "Completeness"),
+            ("accuracy", "Accuracy"),
+            ("clarity", "Clarity"),
+            ("usefulness", "Usefulness"),
+        ]
+        rows = ""
+        for dk, dlabel in dimensions:
+            v = dim_scores.get(dk)
+            if v is not None:
+                pct_v = float(v) / 5 * 100
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">{dlabel}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-weight:600;'
+                    f'color:{_score_color(pct_v,80,60)}">{float(v):.2f}/5.0</td>'
+                    f'</tr>'
+                )
+        kpi_html = (
+            f'<div class="kpi"><div class="kpi-lbl">Avg Quality Score</div>'
+            f'<div class="kpi-val" style="color:{_score_color(float(avg_score)/5*100,0.8,0.6)}">'
+            f'{float(avg_score):.2f}/5</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
+            f'<div class="kpi-val">{quality_metrics.get("total_evaluated", 0)}</div></div>'
+        )
+        quality_html = (
+            f'<h3>Response Quality (5 Dimensions)</h3>'
+            f'<div class="kpis">{kpi_html}</div>'
+            + (f'<table class="mtable"><thead><tr><th>Dimension</th><th>Avg</th></tr></thead>'
+               f'<tbody>{rows}</tbody></table>' if rows else "")
+        )
+
     breakdown = _build_score_breakdown("A", harness_a)
     return (
         f'<div class="gate-section" id="gate-a" style="border-left-color:{color}">'
@@ -746,6 +806,7 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
         f'<div class="kpis">{kpis}</div>'
         f'{type_table}'
         f'{hall_html}'
+        f'{quality_html}'
         f'{harness_block}'
         f'</div>'
     )
@@ -1290,48 +1351,6 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     gate_status = (harness_g.get("gate") or harness_g.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
 
-    quality_html = ""
-    if not quality_metrics or quality_metrics.get("total_evaluated", 0) == 0:
-        quality_html = (
-            f'<h3>Response Quality (5 Dimensions)</h3>'
-            + _not_tested("No response quality evaluation data collected.")
-        )
-    if quality_metrics and quality_metrics.get("total_evaluated", 0) > 0:
-        avg_score = quality_metrics.get("avg_total_score", 0)
-        dim_scores = quality_metrics.get("dimension_scores", {})
-        dimensions = [
-            ("relevance", "Relevance"),
-            ("completeness", "Completeness"),
-            ("accuracy", "Accuracy"),
-            ("clarity", "Clarity"),
-            ("usefulness", "Usefulness"),
-        ]
-        rows = ""
-        for dk, dlabel in dimensions:
-            v = dim_scores.get(dk)
-            if v is not None:
-                pct_v = float(v) / 5 * 100
-                rows += (
-                    f'<tr>'
-                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">{dlabel}</td>'
-                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-weight:600;'
-                    f'color:{_score_color(pct_v,80,60)}">{float(v):.2f}/5.0</td>'
-                    f'</tr>'
-                )
-        kpi_html = (
-            f'<div class="kpi"><div class="kpi-lbl">Avg Quality Score</div>'
-            f'<div class="kpi-val" style="color:{_score_color(float(avg_score)/5*100,0.8,0.6)}">'
-            f'{float(avg_score):.2f}/5</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
-            f'<div class="kpi-val">{quality_metrics.get("total_evaluated", 0)}</div></div>'
-        )
-        quality_html = (
-            f'<h3>Response Quality (5 Dimensions)</h3>'
-            f'<div class="kpis">{kpi_html}</div>'
-            f'<table class="mtable"><thead><tr><th>Dimension</th><th>Avg</th></tr></thead>'
-            f'<tbody>{rows}</tbody></table>'
-        )
-
     # LLM Judge
     judge_html = ""
     if not llm_judge_data:
@@ -1422,7 +1441,6 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
         f'<div class="gate-section" id="gate-g" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate G &nbsp;<span style="font-size:14px;color:#374151">Observability</span>&nbsp;{badge}</h2>'
         f'{breakdown}'
-        f'{quality_html}'
         f'{judge_html}'
         f'{harness_block}'
         f'</div>'
@@ -1828,7 +1846,7 @@ def generate_comprehensive_html_report(monitor) -> str:
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups),
         _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {})),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {})),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
@@ -1961,7 +1979,7 @@ def generate_html_from_result_file(rf) -> str:
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups),
         _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {})),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {})),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),

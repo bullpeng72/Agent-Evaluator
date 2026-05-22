@@ -78,6 +78,7 @@ monitor = PerformanceMonitor(
     anomaly_baseline_window=30,        # 50건 중 앞 30건을 기준선으로
     anomaly_detection_window=10,       # 나머지 10건을 현재 상태로 비교
     enable_transparency=True,          # 투명성 탭: 메트릭 계산 Traces 자동 생성
+    use_korean_tokenizer=True,
 )
 
 # ===========================================================================
@@ -116,6 +117,8 @@ for i, (acc, success, lat, tok) in enumerate(PATTERNS):
         execution_time=round(lat, 3),
         task_type="qa",
         tokens_used={"input": tok, "output": tok // 5, "total": tok + tok // 5} if tok else {"input": 0, "output": 0, "total": 0},
+    
+        use_korean_tokenizer=True,
     )
     monitor.record_task(result)
 

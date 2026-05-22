@@ -92,6 +92,7 @@ if EVAL_AVAILABLE:
         ragas_model="gpt-4o-mini",
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
+        use_korean_tokenizer=True,
     )
     print("  HybridPerformanceMonitor 활성화 — DeepEval + Ragas 실평가")
     print("  대시보드 '외부평가' 탭에 실제 점수가 표시됩니다")
@@ -100,6 +101,7 @@ else:
     monitor = PerformanceMonitor(
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
+        use_korean_tokenizer=True,
     )
     if not _OPENAI_KEY:
         print("  OPENAI_API_KEY 미설정 — PerformanceMonitor 사용 (데모 외부평가 데이터 주입)")
@@ -133,6 +135,8 @@ for task_type, question, ground_truth, response, context in TRACING_CASES:
         execution_time=round(1.0 + len(response) * 0.01, 2),
         task_type=task_type,
         tokens_used={"input": 120, "output": len(response.split()), "total": 120 + len(response.split())},
+    
+        use_korean_tokenizer=True,
     )
 
     if EVAL_AVAILABLE:

@@ -101,7 +101,7 @@ print("\n" + "=" * 55)
 print("섹션 2 — Harness Config Gate A–G 데이터 생성")
 print("=" * 55)
 
-monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(
     monitor_h,
@@ -146,7 +146,7 @@ print("\n" + "=" * 55)
 print("섹션 3 — AnomalyDetector + CostTracker 데이터 생성")
 print("=" * 55)
 
-monitor_a = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_a = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 # baseline_window=15: 앞 15개를 기준선으로, detection_window=5: 뒤 5개(이상치 포함)로 탐지
 anomaly_detector = AnomalyDetector(baseline_window=15, detection_window=5)
 cost_tracker = CostTracker(budget_per_day=5.0)
@@ -163,6 +163,8 @@ for i, lat in enumerate(latencies):
         execution_time=round(max(0.1, lat), 3),
         task_type="qa",
         tokens_used={"input": 80, "output": 20, "total": 100},
+    
+        use_korean_tokenizer=True,
     )
     monitor_a.record_task(result)
     cost_tracker.record("openai", "gpt-5-nano", cost_usd=0.00005)
@@ -193,6 +195,7 @@ if has_api:
         output_dir=_OUTPUT_DIR,
         enable_llm_judge=True,
         judge_sample_rate=1.0,
+        use_korean_tokenizer=True,
     )
 
     @agent_eval(monitor_llm, task_type="qa", task_id_prefix="dash_judge")

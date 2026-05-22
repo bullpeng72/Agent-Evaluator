@@ -66,7 +66,9 @@ except Exception:
 # create_taskresult() 헬퍼는 accuracy_score·completion_score를 자동 계산한다.
 # TaskResult 직접 생성보다 권장되는 방식이다.
 # ===========================================================================
-print("\n=== 섹션 1: create_taskresult() 기본 사용 ===")
+print("\n=== 섹션 1: create_taskresult(
+        use_korean_tokenizer=True,
+    ) 기본 사용 ===")
 
 # 기본 QA TaskResult — 자동 점수 계산
 r_qa = create_taskresult(
@@ -77,6 +79,8 @@ r_qa = create_taskresult(
     execution_time=0.85,
     task_type="qa",
     tokens_used={"input": 20, "output": 10, "total": 30},
+
+    use_korean_tokenizer=True,
 )
 print(f"  [QA]      accuracy={r_qa.accuracy_score:.3f}  completion={r_qa.completion_score:.3f}")
 
@@ -88,6 +92,8 @@ r_code = create_taskresult(
     ground_truth="sorted_list = sorted(my_list)",
     execution_time=1.2,
     task_type="code_generation",
+
+    use_korean_tokenizer=True,
 )
 print(f"  [Code]    accuracy={r_code.accuracy_score:.3f}  completion={r_code.completion_score:.3f}")
 
@@ -99,6 +105,8 @@ r_tool_no_calls = create_taskresult(
     ground_truth="오늘 서울 날씨는 맑음입니다.",
     execution_time=0.5,
     task_type="tool_use",
+
+    use_korean_tokenizer=True,
 )
 r_tool_with_calls = create_taskresult(
     task_id="tool_demo_002",
@@ -108,6 +116,8 @@ r_tool_with_calls = create_taskresult(
     execution_time=1.8,
     task_type="tool_use",
     tool_calls=[{"tool_name": "weather_api", "success": True}],
+
+    use_korean_tokenizer=True,
 )
 print(f"  [Tool/no] completion={r_tool_no_calls.completion_score:.3f}  (도구 미사용 → 부분 완료)")
 print(f"  [Tool/ok] completion={r_tool_with_calls.completion_score:.3f}  (도구 사용 → 더 높은 완료)")
@@ -126,7 +136,7 @@ print(f"  직렬화 → 복원: task_id={r_restored.task_id}  accuracy={r_restor
 # ===========================================================================
 print("\n=== 섹션 2: task_type별 데이터 설계 패턴 ===")
 
-monitor_types = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_types = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 TYPE_CASES = [
     # (task_type, question, response, ground_truth, tool_calls)
@@ -150,7 +160,9 @@ for task_type, q, resp, gt, tool_calls in TYPE_CASES:
     }
     if tool_calls:
         kwargs["tool_calls"] = tool_calls
-    r = create_taskresult(**kwargs)
+    r = create_taskresult(**kwargs,
+        use_korean_tokenizer=True,
+    )
     monitor_types.record_task(r)
     print(f"  [{task_type:<22}] acc={r.accuracy_score:.3f}  comp={r.completion_score:.3f}")
 
@@ -166,7 +178,7 @@ print(f"  ▶ tool_use는 tool_calls 포함 여부와 accuracy에 따라 complet
 # ===========================================================================
 print("\n=== 섹션 3: 골든 데이터셋 구축 (QA + RAG + Tool Selection) ===")
 
-monitor_golden = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor_golden = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # GoldenSetBuilder: source_dir = 평가 결과 JSON 위치, output_dir = 골든 데이터 저장 위치
 builder = GoldenSetBuilder(
@@ -196,6 +208,8 @@ for q, resp, gt, lat, desc in QA_DEFINITIONS:
         question=q, response=resp, ground_truth=gt,
         execution_time=lat, task_type="qa",
         tokens_used={"input": 80, "output": 30, "total": 110},
+    
+        use_korean_tokenizer=True,
     )
     monitor_golden.record_task(r)
     golden_tasks.append(r)
@@ -244,6 +258,8 @@ for i, (q, ctx, resp, gt, lat) in enumerate(RAG_DEFINITIONS):
         question=q, response=resp, ground_truth=gt, context=ctx,
         execution_time=lat, task_type="information_retrieval",
         tokens_used={"input": 120, "output": 50, "total": 170},
+    
+        use_korean_tokenizer=True,
     )
     monitor_golden.record_task(r)
     rag_tasks.append(r)
@@ -274,6 +290,8 @@ for q, used, expected, lat in TOOL_DEFINITIONS:
         tokens_used={"input": 100, "output": 40, "total": 140},
         tool_calls=[{"tool_name": t, "success": True} for t in used],
         expected_tools=expected,
+    
+        use_korean_tokenizer=True,
     )
     monitor_golden.record_task(r)
     tool_tasks.append(r)

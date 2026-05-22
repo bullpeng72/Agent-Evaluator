@@ -121,10 +121,10 @@ print("""
   [분산 모니터] — 피해야 할 패턴
   ─────────────────────────────────────────────────────────
   class ContentWriter:
-      _monitor = PerformanceMonitor("results/")  # 에이전트별 별도
+      _monitor = PerformanceMonitor("results/", use_korean_tokenizer=True)  # 에이전트별 별도
 
   class QAAgent:
-      _monitor = PerformanceMonitor("results/")  # 각자 따로 생성
+      _monitor = PerformanceMonitor("results/", use_korean_tokenizer=True)  # 각자 따로 생성
 
   문제: Gate F(다중 에이전트 조율)는 단일 monitor를 공유해야 집계된다.
        분산 모니터에서는 에이전트 간 전파 데이터가 분리돼 Gate F 측정 불가.
@@ -171,6 +171,7 @@ def build_lecture_monitor(
         judge_sample_rate=0.2,
         auto_save=True,
         auto_save_interval=5,
+        use_korean_tokenizer=True,
     )
 
 
@@ -275,6 +276,8 @@ class ContentAnalyzerAdapter:
                 has_error=has_error, error_message=error_msg,
                 extra={"phase": "content_analysis", "topic": topic,
                        "key_topics_count": len(key_topics)},
+            
+                use_korean_tokenizer=True,
             ))
         return result
 
@@ -316,6 +319,8 @@ class CurriculumDesignerAdapter:
                        "audience_level": audience_level,
                        "duration_requested": duration, "duration_actual": total_time,
                        "sections_count": len(sections)},
+            
+                use_korean_tokenizer=True,
             ))
         return result
 
@@ -356,6 +361,8 @@ class ContentWriterAdapter:
                     "word_count": result.word_count if result else 0,
                     "audience_level": getattr(curriculum, "audience_level", ""),
                 },
+            
+                use_korean_tokenizer=True,
             ))
         return result
 
@@ -388,6 +395,8 @@ class QualityEvaluatorAdapter:
             extra={"phase": "quality_evaluation", "overall_score": overall,
                    "passed": passed, "threshold": threshold,
                    **{f"dim_{k}": v for k, v in dim_scores.items()}},
+        
+            use_korean_tokenizer=True,
         ))
         return result
 
@@ -572,6 +581,8 @@ for section, audience_level in SECTIONS_BUG:
             "phase": "content_writing",
             "audience_level": audience_level,   # 버그: "" → Gate F 전파 실패
         },
+    
+        use_korean_tokenizer=True,
     ))
     al_status = "✅ 전파됨" if audience_level else "❌ 누락"
     print(f"  섹션 {section.id}: {section.title:<22}  audience_level={al_status}")
@@ -608,6 +619,8 @@ for section, _ in SECTIONS_BUG:
             "phase": "content_writing",
             "audience_level": "intermediate",   # ← 수정: 항상 전파
         },
+    
+        use_korean_tokenizer=True,
     ))
 
 report_fixed = monitor_fixed.generate_report()
