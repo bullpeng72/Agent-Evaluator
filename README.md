@@ -1461,7 +1461,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 2,465+ test functions, 51 files
+├── tests/                       # 2,465+ test functions, 53 files
 └── pyproject.toml
 ```
 
@@ -1530,15 +1530,12 @@ mypy agent_evaluator/          # type check
 
 ## Changelog
 
-### v0.9.4 (2026-05-22) — Gate Attribution Correction · HTML Report Score Breakdown Fix
+### v0.9.3 (2026-05-23) — Gate Attribution Correction · HTML Report Score Breakdown · harness_groups Serialization Fix
 
 - 🐛 `AccuracyEvaluator` (`overall_accuracy / 100`) now correctly contributes to Gate A `_a_vals` — previously omitted despite CLAUDE.md indicating this behavior.
 - 🐛 `HallucinationDetector` now contributes to Gate C `_rel_vals` (faithfulness, `1 − hall_rate`) in addition to Gate G `_obs_vals`. Previously Gate G contribution was silently broken due to a non-existent `get_hallucination_stats()` call.
 - 🐛 HTML report score breakdown (`_build_score_breakdown`) now shows **Accuracy Score** row in Gate A and **Hallucination Faithfulness** row in Gate C — previously these score components were invisible in the breakdown widget.
 - 🐛 Gate G breakdown: `hallucination_rate` percentage display corrected from "0.3%" → "30.0%" (0-1 scale normalized to 100).
-
-### v0.9.3 (2026-05-20) — HTML Report Consistency · harness_groups Serialization Fix
-
 - 🐛 `generate_comprehensive_html_report()` hardcoded flags (`has_rag`, `has_conversation`) and Gate E tracker attribute errors fixed — live-monitor HTML and dashboard export HTML now render identically.
 - 🐛 `_append_report_data()` now serializes `extra_metrics.harness_groups` to JSON, preventing the loader from using an approximate fallback formula (Gate A = (TCR+Accuracy)/2) for dashboard exports.
 

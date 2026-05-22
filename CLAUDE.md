@@ -227,7 +227,7 @@ result = create_taskresult(
 
 ## Testing
 
-**51 files, 2,465+ test functions** in `tests/`.
+**53 files, 2,465+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
