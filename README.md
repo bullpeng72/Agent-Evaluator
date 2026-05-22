@@ -1489,11 +1489,11 @@ agent-evaluator/
 | `[serve]` | `python-multipart` | ≥0.0.9, <1.0.0 | `agent-eval dashboard` |
 | `[otel]` | `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
 | `[otel]` | `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
-| `[otel]` | `arize-phoenix` | ≥14.0.0, <14.7.0 | Phoenix real-time monitoring² |
+| `[otel]` | `arize-phoenix` | ≥15.4.0 | Phoenix real-time monitoring² |
 | `[pdf]` | `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
 | **`[sdk]`** | serve + otel + pdf | — | **All CLI features (recommended)** |
 
-² `arize-phoenix` upper bound `<14.7.0` — 14.7.0+ pulls pydantic-ai metapackage (170+ packages).
+² `arize-phoenix` pinned to `>=15.4.0` — v15.4.0 removed the pydantic-ai metapackage dependency (170+ packages).
 
 **Optional extras** (see [## Installation](#installation) for install commands)
 
@@ -1547,7 +1547,7 @@ mypy agent_evaluator/          # type check
 ### v0.9.1 (2026-04-27) — Dependency Restructure · pip Resolver Optimization
 
 - 🔧 Base install reduced to 5 core packages; `[serve]` · `[otel]` · `[pdf]` · `[sdk]` extras split — `[sdk]` transitive package count reduced from 170 to 90.
-- 🔧 `arize-phoenix<14.7.0` upper bound pinned (prevents pydantic-ai metapackage pull); openai/langchain ranges narrowed for faster pip resolution (openai candidates 277→37).
+- 🔧 `arize-phoenix<14.7.0` upper bound pinned to prevent pydantic-ai metapackage pull (lifted in v0.9.3 — resolved in arize-phoenix v15.4.0); openai/langchain ranges narrowed for faster pip resolution (openai candidates 277→37).
 
 ### v0.8.x (2026-04-13~23) — Harness Config Unification · Decorator Refactor · Stability
 

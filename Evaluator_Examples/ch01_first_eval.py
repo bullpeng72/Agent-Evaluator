@@ -121,19 +121,19 @@ print("        → '완전히 오답'은 낮고, '어순 변형'은 높게 측�
 #
 # §1.2: "검색된 문서에는 올바른 정보가 있었지만, 에이전트는 문서의 내용을
 #        벗어난 정보를 생성했습니다."
-#       필요했던 평가: HallucinationDetector — Group C 신뢰성
+#       필요했던 평가: HallucinationDetector — Gate C 신뢰성
 # ===========================================================================
 print("\n" + "=" * 62)
 print("섹션 2 — RAG 환각 탐지  (§1.2 사례①)")
 print("=" * 62)
 print("  §1.2 사례①: 의료 RAG 에이전트가 컨텍스트를 벗어난 복용량을 답했습니다.")
 print("  enable_hallucination_detection=True → HallucinationDetector 자동 동작")
-print("  컨텍스트와 응답 간 사실 일치도를 Group C(신뢰성) 차원에서 측정합니다.\n")
+print("  컨텍스트와 응답 간 사실 일치도를 Gate C(신뢰성) 차원에서 측정합니다.\n")
 print("  시나리오: 의약품 복용 안내 RAG 에이전트\n")
 
 monitor_s2 = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
-    enable_hallucination_detection=True,  # Group C — HallucinationDetector 활성화
+    enable_hallucination_detection=True,  # Gate C — HallucinationDetector 활성화
     use_korean_tokenizer=True,
 )
 
@@ -193,7 +193,7 @@ print("  → 환각 탐지 결과는 results/ch01_first_eval.html Harness Gate C
 # 고객 지원 에이전트의 레이턴시 급증 시나리오.
 # §1.2: "특정 유형의 질의에서 에이전트가 도구를 평균 12번 호출"
 #       "평소 2초 이내 → 피크 타임 30초 이상"
-#       필요했던 평가: LatencyTracker + SLAConfig — Group D 성능계약
+#       필요했던 평가: LatencyTracker + SLAConfig — Gate D 성능계약
 #
 # 여기서는 실행 시간 단축을 위해 ms 단위로 비율만 재현합니다.
 #   정상 응답:   10~50ms   (비율상 2초 이내에 해당)
@@ -257,8 +257,8 @@ print("섹션 4 — Harness 3요소 종합  (§1.3)")
 print("=" * 62)
 print("  § 1.3의 Tracker × Config × Gate 패턴을 직접 실행합니다.")
 print("  ① Config 선언 → ② @agent_eval로 Tracker 자동 수집 → ③ Gate 판정")
-print("  InstructionConfig: 키워드 미포함 응답 → TCR 저하 (Group A)")
-print("  SLAConfig: P95 응답 초과 → Gate D FAIL (Group D)\n")
+print("  InstructionConfig: 키워드 미포함 응답 → TCR 저하 (Gate A)")
+print("  SLAConfig: P95 응답 초과 → Gate D FAIL (Gate D)\n")
 
 monitor_s4 = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
@@ -347,8 +347,8 @@ monitor_s4.save_to_file("ch01_harness_eval")
 print()
 print("  저장된 파일:")
 print("    ch01_first_eval.json        — 섹션 1 assert vs 정확도 점수")
-print("    ch01_hallucination_eval.json — 섹션 2 환각 탐지 (Group C)")
-print("    ch01_sla_eval.json           — 섹션 3 SLA 위반 (Group D)")
+print("    ch01_hallucination_eval.json — 섹션 2 환각 탐지 (Gate C)")
+print("    ch01_sla_eval.json           — 섹션 3 SLA 위반 (Gate D)")
 print("    ch01_harness_eval.json       — 섹션 4 Gate 배포 판정")
 print()
 print("  대시보드 확인:")
