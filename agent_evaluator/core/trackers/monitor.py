@@ -308,6 +308,8 @@ class PerformanceMonitor:
         # ⚡ Lazy initialization: 디렉토리는 실제 저장 시점에 생성
         # self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        self._use_korean_tokenizer: bool = use_korean_tokenizer
+
         # Layer 1: Basic trackers (Native Metrics)
         self.tcr_tracker = TaskCompletionTracker()
         self.accuracy_evaluator = AccuracyEvaluator(
@@ -2826,6 +2828,19 @@ class PerformanceMonitor:
             _a_vals.append(avg_context_r)
         if avg_knowledge_ret is not None:
             _a_vals.append(avg_knowledge_ret)
+
+        # overall_accuracy → Gate A (AccuracyEvaluator 직접 기여, 0-1 스케일로 정규화)
+        _avg_accuracy_a: Optional[float] = None
+        try:
+            _acc_evals_a = self.accuracy_evaluator._evaluations
+            _acc_measured_a = [e for e in _acc_evals_a if e.get("accuracy") is not None]
+            if _acc_measured_a:
+                _acc_scores_a = self.accuracy_evaluator.get_accuracy_scores()
+                _avg_accuracy_a = float(_acc_scores_a.get("overall_accuracy", 0.0)) / 100.0
+                _a_vals.append(_avg_accuracy_a)
+        except Exception:
+            pass
+
         _a_score = float(sum(_a_vals) / len(_a_vals))
 
         # ── B 그룹: 행동 무결성 (loop, goal_alignment, plan_coherence, state_consistency, deadlock) ──
@@ -2944,6 +2959,18 @@ class PerformanceMonitor:
         except Exception:
             pass
 
+        # hall_rate: Gate C(신뢰성)와 Gate G(관측성) 양쪽에서 사용 — 여기서 한 번만 계산 (0-1 스케일)
+        # 실제 감지 건수가 있을 때만 설정 — 감지 자체가 없으면 None 유지 (점수에 미기여)
+        hall_rate = None
+        try:
+            if self.hallucination_detector._detections:
+                _hall_data = self.hallucination_detector.get_hallucination_rate()
+                _hall_overall = _hall_data.get("overall_rate")  # 0-100 percentage
+                if _hall_overall is not None:
+                    hall_rate = float(_hall_overall) / 100.0
+        except Exception:
+            pass
+
         _rel_vals: _List[float] = [tcr_pct / 100.0]
 
         _sla_results = [
@@ -3009,6 +3036,10 @@ class PerformanceMonitor:
         )
         if _avg_idempotency is not None:
             _rel_vals.append(_avg_idempotency)
+
+        # hallucination → Gate C (신뢰성 — 출력 사실 충실성)
+        if hall_rate is not None:
+            _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
         _rel_score = sum(_rel_vals) / len(_rel_vals) if _rel_vals else (tcr_pct / 100.0)
 
@@ -3242,13 +3273,6 @@ class PerformanceMonitor:
         except Exception:
             pass
 
-        hall_rate = None
-        try:
-            _hall_stats = self.hallucination_detector.get_hallucination_stats()
-            hall_rate = _hall_stats.get("hallucination_rate")
-        except Exception:
-            pass
-
         _obs_custom_scores = [
             t.extra["observability"]["observability_score"]
             for t in tasks
@@ -3375,6 +3399,7 @@ class PerformanceMonitor:
         groups: Dict[str, Any] = {
             "A": _g(_a_s, "Goal Achievement", {
                 "tcr_pct": round(tcr_pct_a, 2),
+                "avg_accuracy": round(_avg_accuracy_a, 4) if _avg_accuracy_a is not None else None,
                 "tasks_with_ifr": len(_ifr_scores),
                 "avg_instruction_adherence": round(avg_ifr, 4) if avg_ifr is not None else None,
                 "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
@@ -3405,6 +3430,7 @@ class PerformanceMonitor:
                 "avg_degradation": round(_avg_degradation, 4) if _avg_degradation is not None else None,
                 "avg_retry_consistency": round(_avg_retry_consistency, 4) if _avg_retry_consistency is not None else None,
                 "avg_idempotency": round(_avg_idempotency, 4) if _avg_idempotency is not None else None,
+                "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
             }),
             "D": _g(_d_s, "Performance Contract", {
                 "p95_latency_s": round(_p95, 4),
