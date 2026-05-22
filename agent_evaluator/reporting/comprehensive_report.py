@@ -664,8 +664,8 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _build_gate_a(tcr: float, success_rate: float, acc: float,
-                  accuracy_metrics: Dict, hallucination_data: Dict,
-                  harness_a: Dict, quality_metrics: Dict = {}) -> str:
+                  accuracy_metrics: Dict, harness_a: Dict,
+                  quality_metrics: Dict = {}) -> str:
     color = _GATE_COLORS["A"]
     gate_status = (harness_a.get("gate") or harness_a.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -705,30 +705,6 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
             f'<h3>Accuracy by Task Type</h3>'
             f'<table class="mtable"><thead><tr><th>Task Type</th><th>Accuracy</th></tr></thead>'
             f'<tbody>{type_rows}</tbody></table>'
-        )
-
-    # Hallucination
-    hall_html = ""
-    hall_rate = 0.0
-    _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
-    if not _hall_measured:
-        hall_html = (
-            f'<h3>Hallucination Detection</h3>'
-            + _not_tested("Hallucination detection is not enabled — "
-                          "measure it with <code>enable_hallucination_detection=True</code>.")
-        )
-    if _hall_measured:
-        hall_rate = float(hallucination_data.get("overall_rate") or 0)
-        hall_pct = hall_rate  # overall_rate is already a percentage (0–100 scale)
-        hall_col = _score_color(100 - hall_pct)
-        hall_html = (
-            f'<h3>Hallucination Detection</h3>'
-            f'<div class="kpis">'
-            f'<div class="kpi"><div class="kpi-lbl">Hallucination Rate</div>'
-            f'<div class="kpi-val" style="color:{hall_col}">{hall_pct:.1f}%</div></div>'
-            f'<div class="kpi"><div class="kpi-lbl">Safe Rate</div>'
-            f'<div class="kpi-val" style="color:{_score_color(100 - hall_pct)}">{100 - hall_pct:.1f}%</div></div>'
-            f'</div>'
         )
 
     # Harness A detail
@@ -805,7 +781,6 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
         f'{breakdown}'
         f'<div class="kpis">{kpis}</div>'
         f'{type_table}'
-        f'{hall_html}'
         f'{quality_html}'
         f'{harness_block}'
         f'</div>'
@@ -902,7 +877,7 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
 # Gate C — Reliability
 # ---------------------------------------------------------------------------
 
-def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
+def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict = {}) -> str:
     color = _GATE_COLORS["C"]
     gate_status = (harness_c.get("gate") or harness_c.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -959,12 +934,36 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass FaultToleranceConfig · ReproducibilityConfig to your decorator to enable detailed metrics.</div>'
 
+    # Hallucination Detection
+    hall_html = ""
+    _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
+    if not _hall_measured:
+        hall_html = (
+            f'<h3>Hallucination Detection</h3>'
+            + _not_tested("Hallucination detection is not enabled — "
+                          "measure it with <code>enable_hallucination_detection=True</code>.")
+        )
+    else:
+        hall_rate = float(hallucination_data.get("overall_rate") or 0)
+        hall_pct = hall_rate  # overall_rate is already a percentage (0–100 scale)
+        hall_col = _score_color(100 - hall_pct)
+        hall_html = (
+            f'<h3>Hallucination Detection</h3>'
+            f'<div class="kpis">'
+            f'<div class="kpi"><div class="kpi-lbl">Hallucination Rate</div>'
+            f'<div class="kpi-val" style="color:{hall_col}">{hall_pct:.1f}%</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">Safe Rate</div>'
+            f'<div class="kpi-val" style="color:{_score_color(100 - hall_pct)}">{100 - hall_pct:.1f}%</div></div>'
+            f'</div>'
+        )
+
     breakdown = _build_score_breakdown("C", harness_c)
     return (
         f'<div class="gate-section" id="gate-c" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate C &nbsp;<span style="font-size:14px;color:#374151">Reliability</span>&nbsp;{badge}</h2>'
         f'{breakdown}'
         f'{retry_html}'
+        f'{hall_html}'
         f'{harness_block}'
         f'</div>'
     )
@@ -1846,9 +1845,9 @@ def generate_comprehensive_html_report(monitor) -> str:
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups),
         _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {}), quality_metrics),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {})),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
         _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
@@ -1979,9 +1978,9 @@ def generate_html_from_result_file(rf) -> str:
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups),
         _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {}), quality_metrics),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {})),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
         _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),

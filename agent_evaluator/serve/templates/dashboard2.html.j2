@@ -1386,187 +1386,6 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
-  <!-- Hallucination subsection -->
-  <div id="s-hallucination" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 Hallucination Detection<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C Reliability</span></span><div class="sdiv-line"></div></div>
-  <div x-data="{
-    selK:null,
-    meta:{
-      hall_rate:{label:'Hallucination Rate',unit:'%',desc:'Ratio of tasks with detected hallucination indicators. Measures how often the agent generates false or unsourced information; a key risk metric for reliable AI service operations.',hint:'flagged / evaluated × 100'},
-      evaluated:{label:'Evaluated',unit:'tasks',desc:'Number of tasks analyzed for hallucination detection (Layer 1 only). Check DeepEval hallucination in the External Evaluation tab.',hint:'hallucination_detail.detections.length'},
-      flagged:{label:'Flagged',unit:'tasks',desc:'Number of tasks with one or more hallucination indicators detected. Responses with numerical mismatch, unsupported claims, or context inconsistency patterns; candidates for human review.',hint:'hallucination_detail.detections.filter(d=>d.hallucination_rate>0).length'},
-      types:{label:'Indicator Types',unit:'types',desc:'Number of distinct hallucination indicator types observed in this evaluation. More diverse types suggest the agent\'s hallucination issues are widespread rather than isolated to a specific cause.',hint:'hallucination_detail.indicator_types keys'},
-    },
-    formula(k,d){
-      const dets=(d.hallucination_detail?.detections||[]).filter(x=>x.source!=='deepeval');
-      const ev=dets.length;
-      const fl=dets.filter(x=>(x.hallucination_rate||0)>0).length;
-      if(k==='hall_rate')return `Hallucination Rate = flagged / evaluated × 100 (Layer 1 only)\n= ${fl} / ${ev} = ${ev?((fl/ev)*100).toFixed(1):0}%`;
-      if(k==='evaluated')return `Evaluated = ${ev} tasks (Layer 1 detections)\nDeepEval records: see External Evaluation tab`;
-      if(k==='flagged')return `Flagged = ${fl} tasks (hallucination_rate > 0)\nHallucination Rate = ${ev?((fl/ev)*100).toFixed(1):0}%`;
-      const typesSet={};dets.filter(x=>(x.hallucination_rate||0)>0).forEach(det=>{new Set((det.indicators||[]).map(i=>i.type||'unknown')).forEach(t=>{typesSet[t]=(typesSet[t]||0)+1;});});
-      if(k==='types')return `Indicator Types = ${Object.keys(typesSet).length}\n(per flagged task, detection count by indicator type)`;
-      return '';
-    },
-    items(k,d){
-      const dets=(d.hallucination_detail?.detections||[]).filter(x=>x.source!=='deepeval');
-      if(k==='types'){
-        // detection 1건 = 1행 (indicator 여러 개는 배지 묶음으로 표시) → 탐지 건수와 동일
-        const sevRank={high:3,medium:2,low:1};
-        return dets.filter(det=>(det.hallucination_rate||0)>0).map((det,i)=>{
-          const inds=det.indicators||[];
-          const types=[...new Set(inds.map(x=>x.type||'unknown'))];
-          const maxSev=inds.reduce((a,b)=>(sevRank[b.severity]||0)>(sevRank[a]||0)?b.severity:a,'low');
-          return {_key:'t'+i,task_id:det.task_id,question:det.question||'(no question)',indicator_types:types,severity:maxSev,hall_rate:det.hallucination_rate||0};
-        });
-      }
-      const filtered=(k==='flagged'||k==='hall_rate')?dets.filter(det=>(det.hallucination_rate||0)>0):dets;
-      // tasks에서 response/ground_truth cross-reference
-      const taskMap={};(d.tasks||[]).forEach(t=>{taskMap[t.task_id]=t;});
-      return filtered.map((det,i)=>{
-        const tk=taskMap[det.task_id]||{};
-        return {_key:'d'+i,task_id:det.task_id,question:det.question||tk.question||'(no question)',hall_rate:det.hallucination_rate||0,ind_count:(det.indicators||[]).length,indicators:det.indicators||[],context:det.context||null,response_sentences:det.response_sentences||0,response:tk.response||null,ground_truth:tk.ground_truth||null};
-      });
-    },
-    filterLabel(k){return {hall_rate:'Flagged tasks',evaluated:'All tasks',flagged:'Flagged',types:'Flagged'}[k]||'All';}
-  }">
-    <div class="kpi-grid">
-      <div class="kpi kpi-act" :class="{sel:selK==='hall_rate'}" @click="selK=selK==='hall_rate'?null:'hall_rate'">
-        <div class="kpi-lbl">Hallucination Rate</div>
-        <div class="kpi-val" :style="`color:${_hallG(data)===0?'var(--green)':_hallG(data)<=thresholds.hall_max*100?'var(--yellow)':'var(--red)'}`"
-             x-text="_hallG(data).toFixed(1)+'%'"></div>
-        <div class="kpi-sub" x-text="_hallG(data)===0?'✓ Safe':_hallG(data)<=thresholds.hall_max*100?'⚠ Caution':'🚨 Critical'"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='evaluated'}" @click="selK=selK==='evaluated'?null:'evaluated'">
-        <div class="kpi-lbl">Evaluated</div>
-        <div class="kpi-val" x-text="(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval').length"></div>
-        <div class="kpi-sub muted">Layer 1</div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='flagged'}" @click="selK=selK==='flagged'?null:'flagged'">
-        <div class="kpi-lbl">Flagged</div>
-        <div class="kpi-val" style="color:var(--orange)" x-text="(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval'&&(d.hallucination_rate||0)>0).length"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='types'}" @click="selK=selK==='types'?null:'types'">
-        <div class="kpi-lbl">Types</div>
-        <div class="kpi-val" x-text="(()=>{const s=new Set();(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval'&&(d.hallucination_rate||0)>0).forEach(d=>(d.indicators||[]).forEach(i=>s.add(i.type||'unknown')));return s.size;})()"></div>
-      </div>
-    </div>
-    <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
-      <template x-if="selK">
-        <div>
-          <div class="panel-header">
-            <span class="val-md" x-text="meta[selK]?.label||selK"></span>
-            <span class="tag-sm" x-text="meta[selK]?.unit?'Unit: '+meta[selK].unit:''"></span>
-            <button class="btn-close" @click="selK=null">×</button>
-          </div>
-          <div class="grid-2-divider">
-            <div class="panel-bg2-r">
-              <div class="label-upper">Description</div>
-              <div class="body-text" x-text="meta[selK]?.desc||''"></div>
-            </div>
-            <div class="panel-bg3">
-              <div class="label-upper">📐 Calculation</div>
-              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK,data)"></div>
-            </div>
-          </div>
-          <div class="panel-bg">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase" x-text="selK==='types'?'Flagged Task List (by type)':selK==='evaluated'?'Evaluation Records':'Detection List'"></span>
-              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="selK==='types'?items(selK,data).length+' flagged tasks':items(selK,data).length+' tasks'"></span>
-            </div>
-            <!-- types → per-detection card list (1건=1행, indicator 배지 묶음) -->
-            <template x-if="selK==='types'">
-              <div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
-                <template x-for="det in items(selK,data)" :key="det._key">
-                  <div style="border:1px solid var(--border);border-radius:6px;padding:8px 12px;background:var(--bg2)">
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-                      <span class="dtx-id" x-text="det.task_id"></span>
-                      <template x-for="tp in det.indicator_types" :key="tp">
-                        <span style="font-size:10px;font-weight:600;background:rgba(239,68,68,0.1);color:var(--red);padding:1px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25)" x-text="tp"></span>
-                      </template>
-                      <span :class="det.severity==='high'?'badge-ng':det.severity==='medium'?'badge-warn':'badge-gray'" style="margin-left:auto" x-text="det.severity"></span>
-                    </div>
-                    <div style="font-size:11px;color:var(--text2);line-height:1.6;word-break:break-all" x-text="det.question"></div>
-                  </div>
-                </template>
-              </div>
-            </template>
-            <!-- hall_rate/flagged/evaluated → detection card list -->
-            <template x-if="selK!=='types'">
-              <div>
-                <template x-if="(data.hallucination_detail?.detections||[]).some((d,i,a)=>a.findIndex(x=>x.task_id===d.task_id)!==i)">
-                  <div style="font-size:11px;color:var(--orange);padding:4px 8px;background:rgba(245,158,11,0.08);border-radius:4px;margin-bottom:6px">
-                    ⚠ Multiple detection records for same task — Layer 1 (native) and Layer 3 (DeepEval) results are mixed. Rows without questions are Layer 3 adapter records.
-                  </div>
-                </template>
-                <div style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
-                  <template x-for="det in items(selK,data)" :key="det._key">
-                    <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden"
-                         :style="(det.hall_rate>0&&det.ind_count===0)?'border-color:rgba(245,158,11,0.5)':''">
-                      <!-- 헤더: 태스크 ID + 환각률 -->
-                      <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border)">
-                        <span class="dtx-id" x-text="det.task_id"></span>
-                        <span style="margin-left:auto;font-size:13px;font-weight:700"
-                              :style="`color:${(det.hall_rate||0)>=0.5?'var(--red)':(det.hall_rate||0)>0?'var(--orange)':'var(--green)'}`"
-                              x-text="((det.hall_rate||0)*100).toFixed(0)+'%'"></span>
-                        <template x-if="det.response_sentences>0">
-                          <span class="text-xs-muted" x-text="det.response_sentences+' sentences'"></span>
-                        </template>
-                      </div>
-                      <!-- 질문 + 답변 2열 -->
-                      <div class="grid-2-divider">
-                        <div style="padding:8px 12px;border-right:1px solid var(--border)">
-                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Question</div>
-                          <div style="font-size:12px;color:var(--text1);line-height:1.6;word-break:break-all" x-text="det.question"></div>
-                        </div>
-                        <div style="padding:8px 12px">
-                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Agent Response</div>
-                          <template x-if="det.response">
-                            <div style="font-size:12px;color:var(--text1);line-height:1.6;word-break:break-all" x-text="det.response"></div>
-                          </template>
-                          <template x-if="!det.response">
-                            <div class="text-muted">No response data</div>
-                          </template>
-                          <template x-if="det.ground_truth">
-                            <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">
-                              <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:2px">Ground Truth</div>
-                              <div style="font-size:11px;color:var(--green);line-height:1.5;word-break:break-all" x-text="det.ground_truth"></div>
-                            </div>
-                          </template>
-                        </div>
-                      </div>
-                      <!-- 컨텍스트 (있을 때만) -->
-                      <template x-if="det.context">
-                        <div style="padding:6px 12px;background:rgba(99,102,241,0.04);border-bottom:1px solid var(--border)">
-                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:2px">Reference Context</div>
-                          <div style="font-size:11px;color:var(--text2);line-height:1.5;word-break:break-all" x-text="det.context"></div>
-                        </div>
-                      </template>
-                      <!-- 지표 유형 배지 -->
-                      <div style="padding:7px 12px;display:flex;flex-wrap:wrap;gap:5px;align-items:center">
-                        <template x-if="det.indicators.length===0">
-                          <span style="font-size:11px;color:var(--orange)"
-                                x-text="det.hall_rate>0?'⚠ Hallucination rate > 0 · No detailed indicators (SDK anomaly)':'No indicators (normal)'"></span>
-                        </template>
-                        <template x-for="(ind,ii) in det.indicators" :key="ii">
-                          <span :class="ind.severity==='high'?'badge-ng':ind.severity==='medium'?'badge-warn':'badge-gray'"
-                                x-text="(ind.type||'unknown')+(ind.severity?' · '+ind.severity:'')"></span>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-      </template>
-    </div>
-    <div class="cbox" style="margin-top:8px">
-      <div class="ct">Hallucination Indicator Type Distribution</div>
-      <div id="d2-q-hall-type" style="min-width:0;width:100%;min-height:80px"></div>
-    </div>
-  </div>
-
   <!-- ── LLM Judge 섹션 (enable_llm_judge=True 일 때만 표시) ── -->
   <template x-if="data?.llm_judge?.judged_count > 0">
     <div x-data="{
@@ -3061,6 +2880,187 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="cg" style="margin-top:8px">
       <div class="cbox"><div class="ct">Retry Count Distribution</div><div id="d2-rel-retry-hist" class="plt-chart"></div></div>
       <div class="cbox"><div class="ct">Retry Rate by Task Type</div><div id="d2-rel-retry-type" class="plt-chart"></div></div>
+    </div>
+  </div>
+
+  <!-- Hallucination subsection -->
+  <div id="s-hallucination" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 Hallucination Detection<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C Reliability</span></span><div class="sdiv-line"></div></div>
+  <div x-data="{
+    selK:null,
+    meta:{
+      hall_rate:{label:'Hallucination Rate',unit:'%',desc:'Ratio of tasks with detected hallucination indicators. Measures how often the agent generates false or unsourced information; a key risk metric for reliable AI service operations.',hint:'flagged / evaluated × 100'},
+      evaluated:{label:'Evaluated',unit:'tasks',desc:'Number of tasks analyzed for hallucination detection (Layer 1 only). Check DeepEval hallucination in the External Evaluation tab.',hint:'hallucination_detail.detections.length'},
+      flagged:{label:'Flagged',unit:'tasks',desc:'Number of tasks with one or more hallucination indicators detected. Responses with numerical mismatch, unsupported claims, or context inconsistency patterns; candidates for human review.',hint:'hallucination_detail.detections.filter(d=>d.hallucination_rate>0).length'},
+      types:{label:'Indicator Types',unit:'types',desc:'Number of distinct hallucination indicator types observed in this evaluation. More diverse types suggest the agent\'s hallucination issues are widespread rather than isolated to a specific cause.',hint:'hallucination_detail.indicator_types keys'},
+    },
+    formula(k,d){
+      const dets=(d.hallucination_detail?.detections||[]).filter(x=>x.source!=='deepeval');
+      const ev=dets.length;
+      const fl=dets.filter(x=>(x.hallucination_rate||0)>0).length;
+      if(k==='hall_rate')return `Hallucination Rate = flagged / evaluated × 100 (Layer 1 only)\n= ${fl} / ${ev} = ${ev?((fl/ev)*100).toFixed(1):0}%`;
+      if(k==='evaluated')return `Evaluated = ${ev} tasks (Layer 1 detections)\nDeepEval records: see External Evaluation tab`;
+      if(k==='flagged')return `Flagged = ${fl} tasks (hallucination_rate > 0)\nHallucination Rate = ${ev?((fl/ev)*100).toFixed(1):0}%`;
+      const typesSet={};dets.filter(x=>(x.hallucination_rate||0)>0).forEach(det=>{new Set((det.indicators||[]).map(i=>i.type||'unknown')).forEach(t=>{typesSet[t]=(typesSet[t]||0)+1;});});
+      if(k==='types')return `Indicator Types = ${Object.keys(typesSet).length}\n(per flagged task, detection count by indicator type)`;
+      return '';
+    },
+    items(k,d){
+      const dets=(d.hallucination_detail?.detections||[]).filter(x=>x.source!=='deepeval');
+      if(k==='types'){
+        // detection 1건 = 1행 (indicator 여러 개는 배지 묶음으로 표시) → 탐지 건수와 동일
+        const sevRank={high:3,medium:2,low:1};
+        return dets.filter(det=>(det.hallucination_rate||0)>0).map((det,i)=>{
+          const inds=det.indicators||[];
+          const types=[...new Set(inds.map(x=>x.type||'unknown'))];
+          const maxSev=inds.reduce((a,b)=>(sevRank[b.severity]||0)>(sevRank[a]||0)?b.severity:a,'low');
+          return {_key:'t'+i,task_id:det.task_id,question:det.question||'(no question)',indicator_types:types,severity:maxSev,hall_rate:det.hallucination_rate||0};
+        });
+      }
+      const filtered=(k==='flagged'||k==='hall_rate')?dets.filter(det=>(det.hallucination_rate||0)>0):dets;
+      // tasks에서 response/ground_truth cross-reference
+      const taskMap={};(d.tasks||[]).forEach(t=>{taskMap[t.task_id]=t;});
+      return filtered.map((det,i)=>{
+        const tk=taskMap[det.task_id]||{};
+        return {_key:'d'+i,task_id:det.task_id,question:det.question||tk.question||'(no question)',hall_rate:det.hallucination_rate||0,ind_count:(det.indicators||[]).length,indicators:det.indicators||[],context:det.context||null,response_sentences:det.response_sentences||0,response:tk.response||null,ground_truth:tk.ground_truth||null};
+      });
+    },
+    filterLabel(k){return {hall_rate:'Flagged tasks',evaluated:'All tasks',flagged:'Flagged',types:'Flagged'}[k]||'All';}
+  }">
+    <div class="kpi-grid">
+      <div class="kpi kpi-act" :class="{sel:selK==='hall_rate'}" @click="selK=selK==='hall_rate'?null:'hall_rate'">
+        <div class="kpi-lbl">Hallucination Rate</div>
+        <div class="kpi-val" :style="`color:${_hallG(data)===0?'var(--green)':_hallG(data)<=thresholds.hall_max*100?'var(--yellow)':'var(--red)'}`"
+             x-text="_hallG(data).toFixed(1)+'%'"></div>
+        <div class="kpi-sub" x-text="_hallG(data)===0?'✓ Safe':_hallG(data)<=thresholds.hall_max*100?'⚠ Caution':'🚨 Critical'"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='evaluated'}" @click="selK=selK==='evaluated'?null:'evaluated'">
+        <div class="kpi-lbl">Evaluated</div>
+        <div class="kpi-val" x-text="(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval').length"></div>
+        <div class="kpi-sub muted">Layer 1</div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='flagged'}" @click="selK=selK==='flagged'?null:'flagged'">
+        <div class="kpi-lbl">Flagged</div>
+        <div class="kpi-val" style="color:var(--orange)" x-text="(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval'&&(d.hallucination_rate||0)>0).length"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='types'}" @click="selK=selK==='types'?null:'types'">
+        <div class="kpi-lbl">Types</div>
+        <div class="kpi-val" x-text="(()=>{const s=new Set();(data.hallucination_detail?.detections||[]).filter(d=>d.source!=='deepeval'&&(d.hallucination_rate||0)>0).forEach(d=>(d.indicators||[]).forEach(i=>s.add(i.type||'unknown')));return s.size;})()"></div>
+      </div>
+    </div>
+    <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+      <template x-if="selK">
+        <div>
+          <div class="panel-header">
+            <span class="val-md" x-text="meta[selK]?.label||selK"></span>
+            <span class="tag-sm" x-text="meta[selK]?.unit?'Unit: '+meta[selK].unit:''"></span>
+            <button class="btn-close" @click="selK=null">×</button>
+          </div>
+          <div class="grid-2-divider">
+            <div class="panel-bg2-r">
+              <div class="label-upper">Description</div>
+              <div class="body-text" x-text="meta[selK]?.desc||''"></div>
+            </div>
+            <div class="panel-bg3">
+              <div class="label-upper">📐 Calculation</div>
+              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK,data)"></div>
+            </div>
+          </div>
+          <div class="panel-bg">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase" x-text="selK==='types'?'Flagged Task List (by type)':selK==='evaluated'?'Evaluation Records':'Detection List'"></span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="selK==='types'?items(selK,data).length+' flagged tasks':items(selK,data).length+' tasks'"></span>
+            </div>
+            <!-- types → per-detection card list (1건=1행, indicator 배지 묶음) -->
+            <template x-if="selK==='types'">
+              <div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+                <template x-for="det in items(selK,data)" :key="det._key">
+                  <div style="border:1px solid var(--border);border-radius:6px;padding:8px 12px;background:var(--bg2)">
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
+                      <span class="dtx-id" x-text="det.task_id"></span>
+                      <template x-for="tp in det.indicator_types" :key="tp">
+                        <span style="font-size:10px;font-weight:600;background:rgba(239,68,68,0.1);color:var(--red);padding:1px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.25)" x-text="tp"></span>
+                      </template>
+                      <span :class="det.severity==='high'?'badge-ng':det.severity==='medium'?'badge-warn':'badge-gray'" style="margin-left:auto" x-text="det.severity"></span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text2);line-height:1.6;word-break:break-all" x-text="det.question"></div>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <!-- hall_rate/flagged/evaluated → detection card list -->
+            <template x-if="selK!=='types'">
+              <div>
+                <template x-if="(data.hallucination_detail?.detections||[]).some((d,i,a)=>a.findIndex(x=>x.task_id===d.task_id)!==i)">
+                  <div style="font-size:11px;color:var(--orange);padding:4px 8px;background:rgba(245,158,11,0.08);border-radius:4px;margin-bottom:6px">
+                    ⚠ Multiple detection records for same task — Layer 1 (native) and Layer 3 (DeepEval) results are mixed. Rows without questions are Layer 3 adapter records.
+                  </div>
+                </template>
+                <div style="max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+                  <template x-for="det in items(selK,data)" :key="det._key">
+                    <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden"
+                         :style="(det.hall_rate>0&&det.ind_count===0)?'border-color:rgba(245,158,11,0.5)':''">
+                      <!-- 헤더: 태스크 ID + 환각률 -->
+                      <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--bg2);border-bottom:1px solid var(--border)">
+                        <span class="dtx-id" x-text="det.task_id"></span>
+                        <span style="margin-left:auto;font-size:13px;font-weight:700"
+                              :style="`color:${(det.hall_rate||0)>=0.5?'var(--red)':(det.hall_rate||0)>0?'var(--orange)':'var(--green)'}`"
+                              x-text="((det.hall_rate||0)*100).toFixed(0)+'%'"></span>
+                        <template x-if="det.response_sentences>0">
+                          <span class="text-xs-muted" x-text="det.response_sentences+' sentences'"></span>
+                        </template>
+                      </div>
+                      <!-- 질문 + 답변 2열 -->
+                      <div class="grid-2-divider">
+                        <div style="padding:8px 12px;border-right:1px solid var(--border)">
+                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Question</div>
+                          <div style="font-size:12px;color:var(--text1);line-height:1.6;word-break:break-all" x-text="det.question"></div>
+                        </div>
+                        <div style="padding:8px 12px">
+                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Agent Response</div>
+                          <template x-if="det.response">
+                            <div style="font-size:12px;color:var(--text1);line-height:1.6;word-break:break-all" x-text="det.response"></div>
+                          </template>
+                          <template x-if="!det.response">
+                            <div class="text-muted">No response data</div>
+                          </template>
+                          <template x-if="det.ground_truth">
+                            <div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)">
+                              <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:2px">Ground Truth</div>
+                              <div style="font-size:11px;color:var(--green);line-height:1.5;word-break:break-all" x-text="det.ground_truth"></div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                      <!-- 컨텍스트 (있을 때만) -->
+                      <template x-if="det.context">
+                        <div style="padding:6px 12px;background:rgba(99,102,241,0.04);border-bottom:1px solid var(--border)">
+                          <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:2px">Reference Context</div>
+                          <div style="font-size:11px;color:var(--text2);line-height:1.5;word-break:break-all" x-text="det.context"></div>
+                        </div>
+                      </template>
+                      <!-- 지표 유형 배지 -->
+                      <div style="padding:7px 12px;display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+                        <template x-if="det.indicators.length===0">
+                          <span style="font-size:11px;color:var(--orange)"
+                                x-text="det.hall_rate>0?'⚠ Hallucination rate > 0 · No detailed indicators (SDK anomaly)':'No indicators (normal)'"></span>
+                        </template>
+                        <template x-for="(ind,ii) in det.indicators" :key="ii">
+                          <span :class="ind.severity==='high'?'badge-ng':ind.severity==='medium'?'badge-warn':'badge-gray'"
+                                x-text="(ind.type||'unknown')+(ind.severity?' · '+ind.severity:'')"></span>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="cbox" style="margin-top:8px">
+      <div class="ct">Hallucination Indicator Type Distribution</div>
+      <div id="d2-q-hall-type" style="min-width:0;width:100%;min-height:80px"></div>
     </div>
   </div>
 
@@ -6616,8 +6616,8 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div style="font-size:10px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:6px 8px;font-family:monospace;line-height:1.8">
             KPI Header (TCR · Accuracy · Latency)<br>
             Harness Gate A–G Scorecard<br>
-            Gate A: Goal Achievement (TCR · Accuracy · Hallucination)<br>
-            Gate B–G: Reliability · Performance · Security · Coordination · Observability<br>
+            Gate A: Goal Achievement (TCR · Accuracy · Response Quality)<br>
+            Gate B–G: Reliability (+ Hallucination) · Performance · Security · Coordination · Observability<br>
             Improvement recommendations · Overall conclusions
             <template x-if="data?.has_agentic">
               <span><br>Gate B/F Agentic (tool selection · multi-agent)</span>
@@ -10088,7 +10088,6 @@ function app2() {
           {id:'s-quality-group-a', label:'TCR · Accuracy'},
           {id:'s-instruction-adh', label:'Instruction Adherence'},
           {id:'s-goal-align',      label:'Goal Alignment'},
-          {id:'s-hallucination',   label:'Hallucination Analysis'},
         ],
         badge: d => { const g=(d.harness_groups||{}).A; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'NA'; },
         badgeColor: d => { const g=(d.harness_groups||{}).A; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
@@ -10120,6 +10119,9 @@ function app2() {
       /* ── Group C · 신뢰성 ─────────────────────────────── */
       { id:'_gC', group:true, label:'C · Reliability', hkey:'C' },
       { id:'reliability',  label:'Reproducibility · Stability · Retry',  icon:'🔁', scope:'file',
+        anchors:[
+          {id:'s-hallucination', label:'Hallucination Analysis'},
+        ],
         badge: d => {
           /* 실제 재시도/오류 데이터가 없으면 NA — Group C 점수는 vacuously 1.0이 될 수 있음 */
           const hasRel = (d.tasks||[]).some(t=>t.attempts>1) ||
