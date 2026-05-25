@@ -27,7 +27,7 @@ from agent_evaluator import (
     PerformanceMonitor,
     create_taskresult,
     setup_otel,
-    # Group B — Behavioral Integrity
+    # Gate B — Behavioral Integrity
     LoopDetectionConfig,
     ScopeConfig,
     ToolParameterSafetyConfig,
@@ -69,9 +69,9 @@ monitor = PerformanceMonitor(
 )
 
 # ===========================================================================
-# 섹션 2: Group B — Behavioral Integrity
+# 섹션 2: Gate B — Behavioral Integrity
 # ===========================================================================
-print("\n=== 섹션 2: Group B — Behavioral Integrity ===")
+print("\n=== 섹션 2: Gate B — Behavioral Integrity ===")
 
 
 @agent_eval(

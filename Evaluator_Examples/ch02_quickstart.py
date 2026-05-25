@@ -51,7 +51,7 @@ eval_q = QuickEval(_OUTPUT_DIR)
 
 # 단계 2 — 에이전트 함수에 데코레이터 적용
 #   @eval_q.qa = task_type="qa"로 설정된 @agent_eval 단축형
-#   AccuracyEvaluator(Group A) + LatencyTracker(Group D) 자동 활성
+#   AccuracyEvaluator(Gate A) + LatencyTracker(Gate D) 자동 활성
 @eval_q.qa
 def my_agent(question: str, ground_truth: str = "") -> str:
     """평가 대상 에이전트. 실제 프로젝트에서는 LLM 호출로 교체하세요."""
