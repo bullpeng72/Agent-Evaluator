@@ -3385,7 +3385,9 @@ class PerformanceMonitor:
         _d_s = round(float(_perf_score), 4)
         _e_s = round(float(_sec_score), 4)
         _f_s = round(_f_score, 4) if _f_score is not None else None
-        _g_s = round(float(_obs_score), 4)
+        # _obs_vals가 빈 배열이면 Gate G 데이터 없음 — None으로 처리해 _scored에서 제외
+        # (빈 배열일 때 _obs_score=0.0으로 고정되어 항상 fail로 집계되던 버그 수정)
+        _g_s = round(float(_obs_score), 4) if _obs_vals else None
 
         # overall: 유효 그룹 점수 평균
         _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]

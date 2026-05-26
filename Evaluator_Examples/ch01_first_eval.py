@@ -121,7 +121,7 @@ print("        → '완전히 오답'은 낮고, '어순 변형'은 높게 측�
 #
 # §1.2: "검색된 문서에는 올바른 정보가 있었지만, 에이전트는 문서의 내용을
 #        벗어난 정보를 생성했습니다."
-#       필요했던 평가: HallucinationDetector — Gate C 신뢰성
+#       필요했던 평가: HallucinationDetector — Gate C 신뢰성 + Gate G 운영관측성
 # ===========================================================================
 print("\n" + "=" * 62)
 print("섹션 2 — RAG 환각 탐지  (§1.2 사례①)")
@@ -133,7 +133,7 @@ print("  시나리오: 의약품 복용 안내 RAG 에이전트\n")
 
 monitor_s2 = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
-    enable_hallucination_detection=True,  # Gate C — HallucinationDetector 활성화
+    enable_hallucination_detection=True,  # Gate C/G — HallucinationDetector 활성화
     use_korean_tokenizer=True,
 )
 

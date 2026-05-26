@@ -2510,16 +2510,17 @@ def eval_subtask_completion(
 
     completed: List[str] = []
     incomplete: List[str] = []
+    non_empty_lines = [l for l in response_lower.split("\n") if l.strip()]
 
-    for subtask in expected_subtasks:
+    for i, subtask in enumerate(expected_subtasks):
         subtask_lower = subtask.lower()
+        # 1차: 서브태스크 이름이 응답 어딘가에 포함되면 완료
         found = subtask_lower in response_lower
-        if not found:
-            # Check completion markers near subtask mention
-            for marker in completion_markers:
-                if marker.lower() in response_lower and subtask_lower in response_lower:
+        if not found and completion_markers:
+            # 2차(위치 기반): 이름이 없을 때 N번째 서브태스크 → 응답의 N번째 비어있지 않은 줄에 완료 마커가 있으면 완료
+            if i < len(non_empty_lines):
+                if any(m.lower() in non_empty_lines[i] for m in completion_markers):
                     found = True
-                    break
         if found:
             completed.append(subtask)
         else:
@@ -2528,13 +2529,15 @@ def eval_subtask_completion(
     completion_rate = len(completed) / len(expected_subtasks) if expected_subtasks else 1.0
 
     # Ordering check: verify completed tasks appear in expected order in response
+    # 위치 기반 마커로 완료된 태스크(이름이 응답에 없음)는 순서 검사에서 제외
     ordering_ok = True
     if check_ordering and len(completed) >= 2:
         positions: List[int] = []
         for task in completed:
             pos = response_lower.find(task.lower())
-            positions.append(pos)
-        ordering_ok = all(positions[i] <= positions[i + 1] for i in range(len(positions) - 1))
+            if pos >= 0:
+                positions.append(pos)
+        ordering_ok = all(positions[i] <= positions[i + 1] for i in range(len(positions) - 1)) if len(positions) >= 2 else True
 
     min_rate = float(getattr(config, "min_completion_rate", 0.8))
     return {
@@ -3133,6 +3136,12 @@ def eval_knowledge_retention(
         Dict with keys: retention_score, retained_facts, forgotten_facts,
         seed_facts_count, retention_threshold.  사실이 없으면 ``None`` 반환.
     """
+    # check_from_turn: 현재 턴이 기준 미만이면 평가 건너뜀
+    check_from = int(getattr(config, "check_from_turn", 3))
+    current_turn = len(conversation_history) + 1 if conversation_history else 1
+    if current_turn < check_from:
+        return None
+
     facts: List[str] = list(config.facts_to_retain or [])
 
     if not facts and conversation_history:

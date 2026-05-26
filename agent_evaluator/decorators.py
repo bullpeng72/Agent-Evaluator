@@ -306,7 +306,7 @@ class PlanConfig:
     use_llm_scoring: bool = False                     # LLM-as-Judge 계획 품질 채점 (opt-in)
     llm_blend_weight: float = 0.5                     # LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only)
     min_steps: int = 2                                # 최소 계획 단계 수
-    max_steps: int = 20                               # 최대 계획 단계 수
+    max_steps: int = 15                               # 최대 계획 단계 수
 
 
 # ---------------------------------------------------------------------------

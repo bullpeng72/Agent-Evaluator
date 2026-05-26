@@ -904,9 +904,12 @@ class LLMJudge:
             user_msg = _build_user_message(question, response, context, self.max_context_chars)
             pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
 
+            # gpt-5-nano 등 추론 모델은 내부 chain-of-thought에 대량의 토큰을 소비하므로
+            # max_completion_tokens=512 예산이 추론 단계에서 소진돼 content가 빈 문자열이 됨.
+            # 8192로 상향해 추론 완료 후 실제 응답이 출력되도록 함.
             completion = client.chat.completions.create(
                 model=model,
-                max_completion_tokens=512,  # GPT-5+ 권장 파라미터 사용
+                max_completion_tokens=8192,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_msg},
