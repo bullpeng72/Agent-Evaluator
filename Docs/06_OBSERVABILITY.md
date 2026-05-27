@@ -130,7 +130,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 | 💬 **멀티턴 대화** | `@conversation_eval` |
 | ⚡ **성능** | 기본 (항상) |
 | 🤖 **에이전틱** | `task_type="tool_use"` + 응답에 `tool_calls` 포함 |
-| 🔁 **재현성·안정성** | Harness Group C Config (`FaultToleranceConfig` 등) 전달 |
+| 🔁 **재현성·안정성** | Harness Gate C Config (`FaultToleranceConfig` 등) 전달 |
 | 🔒 **보안** | `security=SecurityConfig()` 또는 `enable_security_metrics=True` |
 | 🏗 **Harness Gate** | `@agent_eval`에 Harness Config 파라미터 전달 |
 

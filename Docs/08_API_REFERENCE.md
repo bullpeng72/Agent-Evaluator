@@ -1124,8 +1124,10 @@ from agent_evaluator import ToolCallAnalyzer
 
 analyzer = ToolCallAnalyzer()
 analyzer.record(task_result)
-stats = analyzer.get_stats()
-# {"total_calls": int, "success_rate": float, "avg_calls_per_task": float}
+stats = analyzer.get_efficiency_stats()
+# {"total_calls": int, "unique_tools": int, "success_rate": float,
+#  "avg_calls_per_task": float, "avg_efficiency_score": float,
+#  "total_redundant_calls": int, "redundancy_rate": float, "failure_rate": float}
 ```
 
 ### ToolSelectionTracker

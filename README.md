@@ -1068,17 +1068,17 @@ def rag_agent(question, context="", ground_truth=""): ...
 
 ### Harness Engineering — 33 Configs, 7 Gate Groups (A–G)
 
-Pass Harness Configs as `@agent_eval` decorator parameters and `PerformanceMonitor` auto-aggregates them. Visualize group-level pass/warn/fail in the dashboard **Harness Gate** tab.
+Pass Harness Configs as `@agent_eval` decorator parameters and `PerformanceMonitor` auto-aggregates them. Visualize gate-level pass/warn/fail in the dashboard **Harness Gate** tab.
 
 ```python
 from agent_evaluator import (
-    InstructionConfig, GoalAlignmentConfig, PlanConfig,   # Group A
-    LoopDetectionConfig, StateConsistencyConfig,           # Group B
-    FaultToleranceConfig, GracefulDegradationConfig,       # Group C
-    SLAConfig, EfficiencyConfig,                           # Group D
-    ThreatSeverityConfig, ComplianceConfig,                # Group E
-    ConsensusConfig, AgentRoleConfig,                      # Group F
-    ExplainabilityConfig, ObservabilityConfig,             # Group G
+    InstructionConfig, GoalAlignmentConfig, PlanConfig,   # Gate A
+    LoopDetectionConfig, StateConsistencyConfig,           # Gate B
+    FaultToleranceConfig, GracefulDegradationConfig,       # Gate C
+    SLAConfig, EfficiencyConfig,                           # Gate D
+    ThreatSeverityConfig, ComplianceConfig,                # Gate E
+    ConsensusConfig, AgentRoleConfig,                      # Gate F
+    ExplainabilityConfig, ObservabilityConfig,             # Gate G
 )
 
 @agent_eval(monitor, task_type="qa",

@@ -112,7 +112,7 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 > **Accuracy 공식 (QA)**: `0.4 × TokenF1 + 0.3 × Jaccard + 0.2 × LCS + 0.1 × CharSimilarity`  
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group A (6개)
+### Harness Config — Gate A (6개)
 
 #### `InstructionConfig` — 지시 이행률 · 이탈 감지
 
@@ -227,7 +227,7 @@ instructions=InstructionConfig(
 
 > 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group B (6개)
+### Harness Config — Gate B (6개)
 
 #### `LoopDetectionConfig` — 반복 루프 탐지
 
@@ -338,7 +338,7 @@ loop_detection=LoopDetectionConfig(
 > 🟢 ≥80% / 🟡 60–80% / 🔴 <60%  
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group C (5개)
+### Harness Config — Gate C (5개)
 
 #### `ReproducibilityConfig` — 동일 입력 반복 실행 일관성
 
@@ -434,7 +434,7 @@ reproducibility=ReproducibilityConfig(
 > **비용 공식**: `Cost = (input_tokens × input_price + output_tokens × output_price) / 1000`  
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group D (5개)
+### Harness Config — Gate D (5개)
 
 #### `SLAConfig` — SLA 응답시간 임계값 · P95/P99 위반율
 
@@ -540,7 +540,7 @@ sla=SLAConfig(
 
 > → 상세 탐지 패턴·API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group E (3개)
+### Harness Config — Gate E (3개)
 
 #### `ThreatSeverityConfig` — 위협 심각도 분류 · 임계값 차단
 
@@ -610,7 +610,7 @@ PII 노출 및 컴플라이언스 프레임워크 위반을 측정합니다.
 
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group F (4개)
+### Harness Config — Gate F (4개)
 
 #### `ConsensusConfig` — 에이전트 간 합의율 · 분쟁 탐지
 
@@ -697,7 +697,7 @@ consensus=ConsensusConfig(
 > 🟢 ≥4.5 (A) / 🟡 4.0–4.5 (B) / 🟠 3.5–4.0 (C) / 🔴 <3.0 (F)  
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 
-### Harness Config — Group G (4개)
+### Harness Config — Gate G (4개)
 
 #### `ExplainabilityConfig` — 추론 과정 설명 가능성
 
