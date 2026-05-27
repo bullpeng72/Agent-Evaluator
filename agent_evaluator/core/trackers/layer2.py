@@ -101,6 +101,7 @@ class ToolCallAnalyzer(BaseTracker):
 
     def __init__(self):
         self._executions: List[Dict[str, Any]] = []
+        self._all_tool_names: set = set()  # 전체 누적 고유 도구명 집합
         self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
@@ -123,6 +124,7 @@ class ToolCallAnalyzer(BaseTracker):
         """Clear all execution records."""
         with self._lock:
             self._executions.clear()
+            self._all_tool_names.clear()
 
     def analyze_execution(
         self,
@@ -204,6 +206,7 @@ class ToolCallAnalyzer(BaseTracker):
 
         with self._lock:
             self._executions.append(metrics)
+            self._all_tool_names.update(tool_names)
         return metrics
 
     def _count_redundant_calls(self, tool_calls: List) -> int:
@@ -232,7 +235,7 @@ class ToolCallAnalyzer(BaseTracker):
         """Get tool call efficiency statistics"""
         if not self._executions:
             return {
-                "total_calls": 0, "success_rate": 0.0,
+                "total_calls": 0, "unique_tools": 0, "success_rate": 0.0,
                 "avg_duration": 0.0, "avg_calls_per_task": 0.0,
                 "avg_efficiency_score": 0.0,  # 0 = no data, not 100 (unmeasured ≠ perfect)
                 "total_redundant_calls": 0,
@@ -245,6 +248,7 @@ class ToolCallAnalyzer(BaseTracker):
 
         return {
             "total_calls": total_calls,  # Added for dashboard
+            "unique_tools": len(self._all_tool_names),
             "success_rate": round((1 - df["failed_calls"].sum() / total_calls) * 100, 2) if total_calls > 0 else 0,  # Added
             "avg_duration": round(df["avg_call_duration"].dropna().mean(), 3)
             if "avg_call_duration" in df.columns and df["avg_call_duration"].notna().any() else 0.0,
