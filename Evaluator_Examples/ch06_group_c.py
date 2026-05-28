@@ -117,6 +117,9 @@ else:
         ),
     )
     def rag_faithfulness_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+        #   예) return client.chat.completions.create(model="gpt-5-nano",
+        #        messages=[{"role":"user","content":question}]).choices[0].message.content
         # 에이전트 응답은 mock — LLMJudge가 이 응답의 faithfulness를 LLM으로 채점
         if context:
             return f"주어진 문맥을 바탕으로 답변드립니다. {question} — 문맥: {context[:40]}"
