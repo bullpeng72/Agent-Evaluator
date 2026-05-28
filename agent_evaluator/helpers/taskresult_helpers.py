@@ -1231,6 +1231,8 @@ def eval_loop_detection(
     tool_calls: List[Dict[str, Any]],
     chain_steps: Optional[List[Dict[str, Any]]],
     config: Any,
+    response: Optional[str] = None,
+    previous_responses: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """도구 호출 패턴에서 루프(연속 반복·윈도우 중복)를 감지.
 
@@ -1238,6 +1240,8 @@ def eval_loop_detection(
         tool_calls: 도구 호출 리스트. 각 항목은 {"name": str, ...} 형식.
         chain_steps: 체인 단계 리스트 (LangChain 등). 없으면 None.
         config: LoopDetectionConfig 인스턴스.
+        response: 현재 응답 텍스트 (check_response_loop=True 시 사용).
+        previous_responses: 이전 응답 텍스트 목록 (check_response_loop=True 시 사용).
 
     Returns:
         {detected, loop_type, loop_at_step, loop_tool}
@@ -1245,38 +1249,50 @@ def eval_loop_detection(
     source = tool_calls or []
     names = [tc.get("name", "") for tc in source if isinstance(tc, dict)]
 
-    if not names:
-        return {"detected": False, "loop_type": None, "loop_at_step": None, "loop_tool": None}
+    if names:
+        # 1. 연속 반복 감지
+        consecutive = 1
+        for i in range(1, len(names)):
+            if names[i] == names[i - 1]:
+                consecutive += 1
+                if consecutive >= config.consecutive_repeat_threshold:
+                    return {
+                        "detected": True,
+                        "loop_type": "consecutive_repeat",
+                        "loop_at_step": i - consecutive + 2,
+                        "loop_tool": names[i],
+                    }
+            else:
+                consecutive = 1
 
-    # 1. 연속 반복 감지
-    consecutive = 1
-    for i in range(1, len(names)):
-        if names[i] == names[i - 1]:
-            consecutive += 1
-            if consecutive >= config.consecutive_repeat_threshold:
+        # 2. 윈도우 중복 감지
+        window = config.window_size
+        threshold = config.duplicate_in_window_threshold
+        for i in range(len(names) - window + 1):
+            window_names = names[i:i + window]
+            from collections import Counter
+            counts = Counter(window_names)
+            for tool, count in counts.items():
+                if count >= threshold:
+                    return {
+                        "detected": True,
+                        "loop_type": "window_duplicate",
+                        "loop_at_step": i + window_names.index(tool),
+                        "loop_tool": tool,
+                    }
+
+    # 3. 응답 텍스트 유사도 루프 감지 (check_response_loop=True 시)
+    if getattr(config, "check_response_loop", False) and response and previous_responses:
+        _sim_threshold = float(getattr(config, "response_similarity_threshold", 0.95))
+        for _prev in previous_responses:
+            _sim = _token_overlap_ratio(response, _prev)
+            if _sim >= _sim_threshold:
                 return {
                     "detected": True,
-                    "loop_type": "consecutive_repeat",
-                    "loop_at_step": i - consecutive + 2,
-                    "loop_tool": names[i],
-                }
-        else:
-            consecutive = 1
-
-    # 2. 윈도우 중복 감지
-    window = config.window_size
-    threshold = config.duplicate_in_window_threshold
-    for i in range(len(names) - window + 1):
-        window_names = names[i:i + window]
-        from collections import Counter
-        counts = Counter(window_names)
-        for tool, count in counts.items():
-            if count >= threshold:
-                return {
-                    "detected": True,
-                    "loop_type": "window_duplicate",
-                    "loop_at_step": i + window_names.index(tool),
-                    "loop_tool": tool,
+                    "loop_type": "response_similarity",
+                    "loop_at_step": None,
+                    "loop_tool": None,
+                    "similarity": round(_sim, 4),
                 }
 
     return {"detected": False, "loop_type": None, "loop_at_step": None, "loop_tool": None}
@@ -1380,6 +1396,15 @@ def eval_fault_tolerance(
     if not failed_indices:
         return {"failures_detected": False, "fallback_attempts": 0, "recovery_rate": 1.0, "grade": "good"}
 
+    # check_fallback_attempts=False: 폴백 탐지 건너뜀
+    if not getattr(config, "check_fallback_attempts", True):
+        return {
+            "failures_detected": True,
+            "fallback_attempts": 0,
+            "recovery_rate": 0.0,
+            "grade": "untracked",
+        }
+
     # expected_fallback_tools: {failed_tool_name: [allowed_fallback_names]}
     expected_fallbacks: Dict[str, List[str]] = getattr(config, "expected_fallback_tools", {}) or {}
 
@@ -1427,6 +1452,10 @@ def eval_fault_tolerance(
     }
     if wrong_fallbacks:
         result_dict["wrong_fallbacks"] = wrong_fallbacks
+    # score_recovery_quality=True: grade를 0~1 점수로 변환해 추가
+    if getattr(config, "score_recovery_quality", True):
+        _grade_to_score = {"good": 1.0, "partial": 0.5, "wrong_fallback": 0.2, "poor": 0.0, "none": 1.0, "untracked": 0.5}
+        result_dict["recovery_quality_score"] = _grade_to_score.get(grade, 0.5)
     return result_dict
 
 
@@ -1667,6 +1696,13 @@ def eval_sla(
         "ttft_ok": ttft_ok,
         "execution_time_s": round(execution_time_s, 4),
         "cost_usd": round(float(cost_usd), 6) if cost_usd is not None else None,
+        # 세션 수준 집계에 필요한 Config 요약 (_compute_harness_groups에서 사용)
+        "_config": {
+            "breach_window": int(getattr(config, "breach_window", 10)),
+            "warn_threshold": int(getattr(config, "warn_threshold", 2)),
+            "fail_threshold": int(getattr(config, "fail_threshold", 5)),
+            "budget_usd": getattr(config, "budget_usd", None),
+        },
     }
 
 
@@ -2936,6 +2972,19 @@ def eval_resource_budget(
         "time_utilization": round(time_util, 4) if time_util is not None else None,
         "over_budget": over_budget,
         "warnings": warnings_list,
+        # 세션 수준 rollover 집계에 필요한 Config 요약
+        "_config": {
+            "rollover": bool(getattr(config, "rollover", False)),
+            "max_tokens": getattr(config, "max_tokens", None),
+            "max_cost_usd": getattr(config, "max_cost_usd", None),
+            "max_execution_time_ms": getattr(config, "max_execution_time_ms", None),
+        },
+        # rollover 계산용 실제 소비량 보존
+        "_consumed": {
+            "tokens": float(tokens_used) if task_succeeded or count_failed else 0.0,
+            "cost_usd": float(cost_usd) if (task_succeeded or count_failed) and cost_usd is not None else 0.0,
+            "time_ms": float(elapsed_ms),
+        },
     }
 
 
@@ -3111,13 +3160,17 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
     penalty = len(set(dangerous_calls)) * 0.25
     safety_score = max(0.0, 1.0 - penalty) if checked_calls > 0 else 1.0
 
-    return {
+    result: Dict[str, Any] = {
         "safety_score": round(safety_score, 4),
         "dangerous_calls": dangerous_calls,
         "violations": violations,
         "checked_calls": checked_calls,
         "violation_count": len(violations),
     }
+    # fail_on_dangerous=True: 위험 호출 감지 시 태스크 실패로 처리
+    if getattr(config, "fail_on_dangerous", False) and dangerous_calls:
+        result["fail_task"] = True
+    return result
 
 
 def eval_knowledge_retention(
@@ -3231,6 +3284,10 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
         "attempts": attempts,
         "succeeded": success,
         "retry_efficient": success and attempts <= 2,
+        # 세션 수준 집계에 필요한 Config 요약
+        "_config": {
+            "group_by_task_prefix": bool(getattr(config, "group_by_task_prefix", True)),
+        },
     }
 
 

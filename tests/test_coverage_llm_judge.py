@@ -286,8 +286,8 @@ class TestEstimateCost:
     def test_claude_pricing(self):
         judge = LLMJudge(model="claude-haiku-4-5-20251001")
         cost = judge._estimate_cost(1000, 1000)
-        # haiku: input=0.00025, output=0.00125 per 1k tokens
-        expected = (1000 / 1000 * 0.00025) + (1000 / 1000 * 0.00125)
+        # claude-haiku-4-5: input=0.001, output=0.005 per 1k tokens
+        expected = (1000 / 1000 * 0.001) + (1000 / 1000 * 0.005)
         assert cost == pytest.approx(expected, rel=1e-4)
 
 
@@ -416,13 +416,15 @@ class TestParseJudgeResponse:
         result = judge._parse_judge_response("t1", raw, 0.0, context_available=True)
         assert result["scores"]["faithfulness"] == 4
 
-    def test_faithfulness_missing_defaults_zero_with_warning(self, caplog):
+    def test_faithfulness_missing_defaults_none_with_warning(self, caplog):
         judge = self._judge()
         raw = self._valid_json()  # no faithfulness key
         import logging
         with caplog.at_level(logging.WARNING, logger="agent_evaluator.integrations.llm_judge"):
             result = judge._parse_judge_response("t1", raw, 0.0, context_available=True)
-        assert result["scores"]["faithfulness"] == 0
+        # H5: missing faithfulness recorded as None (excluded from avg) to avoid score pollution
+        assert result["scores"]["faithfulness"] is None
+        assert "faithfulness" in caplog.text.lower()
 
     def test_criteria_scores_parsed(self):
         judge = self._judge()

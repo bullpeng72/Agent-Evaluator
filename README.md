@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1529,6 +1529,14 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.4 (2026-05-28) — Parallel Execution Bug Fixes · macOS NFD Filename Fix
+
+- 🐛 `@batch_eval(concurrency=N)` sync path: positional argument calls silently returned empty strings — added `questions_arg in kwargs` guard to match async path behavior (falls back to sequential).
+- 🐛 `@batch_eval(concurrency=N)` async path: `item_timeout` parameter was ignored; per-item `asyncio.wait_for` now uses `item_timeout` with fallback to batch `timeout`.
+- 🐛 `@batch_eval(concurrency=N)` async path: `on_item_error` callback was never invoked on item failure — now called consistently with sync path.
+- 🐛 `@batch_eval(concurrency=N)` sync + async: `contexts_arg` and `expected_tools_arg` lists were passed whole to every worker instead of being sliced to `[i]` — each parallel item now receives exactly its own context and expected tools.
+- 🐛 `build_pdf_chapters.py` glob pattern: macOS APFS stores filenames in NFD; `rglob(f"*{arg}*.md")` with NFC pattern failed to match Korean filenames (e.g. `서문`) — pattern now normalized to NFD before glob.
 
 ### v0.9.3 (2026-05-23) — Gate Attribution Correction · HTML Report Score Breakdown · harness_groups Serialization Fix
 

@@ -2983,6 +2983,36 @@ class PerformanceMonitor:
         if _sla_breach_rate is not None:
             _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
 
+        # breach_window/warn_threshold/fail_threshold: 최근 window 내 연속 breach 감지
+        _sla_window_penalty: float = 0.0
+        if _sla_results:
+            _sla_cfg_summary = next(
+                (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
+            )
+            _breach_window = int(_sla_cfg_summary.get("breach_window", 10))
+            _warn_thr = int(_sla_cfg_summary.get("warn_threshold", 2))
+            _fail_thr = int(_sla_cfg_summary.get("fail_threshold", 5))
+            _recent = _sla_results[-_breach_window:]
+            _recent_breach_count = sum(1 for s in _recent if not s.get("sla_met", True))
+            if _recent_breach_count >= _fail_thr:
+                _sla_window_penalty = 0.3   # Gate D 점수 30% 감점
+            elif _recent_breach_count >= _warn_thr:
+                _sla_window_penalty = 0.1   # 10% 감점
+
+        # budget_usd: 세션 전체 누적 비용 예산 초과 감지
+        _sla_budget_penalty: float = 0.0
+        if _sla_results:
+            _budget_usd = (_sla_cfg_summary if _sla_results else {}).get("budget_usd")
+            if _budget_usd is not None:
+                _total_session_cost = sum(
+                    float(t.extra.get("cost_usd") or 0.0)
+                    for t in tasks
+                    if (t.extra or {}).get("sla") is not None
+                )
+                if _total_session_cost > float(_budget_usd):
+                    _overage = _total_session_cost / max(float(_budget_usd), 1e-9) - 1.0
+                    _sla_budget_penalty = min(0.3, _overage * 0.1)
+
         # reproducibility → Group C
         _repro_scores = [
             t.extra["reproducibility"]["score"]
@@ -2994,10 +3024,12 @@ class PerformanceMonitor:
             _rel_vals.append(avg_reproducibility)
 
         # fault_tolerance recovery_rate → Group C
+        # grade="none" 제외: tool_calls가 없어 평가 자체가 불가한 경우 집계에서 제외
         _ft_scores = [
             t.extra["fault_tolerance"]["recovery_rate"]
             for t in tasks
             if (t.extra or {}).get("fault_tolerance") is not None
+            and t.extra["fault_tolerance"].get("grade") != "none"
         ]
         avg_ft: Optional[float] = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
         if avg_ft is not None:
@@ -3014,14 +3046,38 @@ class PerformanceMonitor:
             _rel_vals.append(_avg_degradation)
 
         # retry_consistency → Group C (Phase 5)
-        _rc_scores = [
-            t.extra.get("retry_consistency", {}).get("consistency_score")
-            for t in tasks
+        # group_by_task_prefix=True: task_id 접두사 기준으로 그룹화 후 그룹별 평균 산출
+        _rc_tasks_with_score = [
+            t for t in tasks
             if (t.extra or {}).get("retry_consistency") is not None
         ]
-        _avg_retry_consistency: Optional[float] = (
-            sum(_rc_scores) / len(_rc_scores) if _rc_scores else None
-        )
+        _avg_retry_consistency: Optional[float] = None
+        if _rc_tasks_with_score:
+            _use_prefix = any(
+                (t.extra.get("retry_consistency") or {}).get("_config", {}).get("group_by_task_prefix", True)
+                for t in _rc_tasks_with_score
+            )
+            if _use_prefix:
+                # task_id를 '_' 기준으로 앞 2세그먼트를 접두사로 사용
+                _rc_by_prefix: Dict[str, _List[float]] = {}
+                for _t in _rc_tasks_with_score:
+                    _tid = str(getattr(_t, "task_id", "") or "")
+                    _parts = _tid.rsplit("_", 1)
+                    _prefix = _parts[0] if len(_parts) > 1 else _tid
+                    _sc = _t.extra["retry_consistency"].get("consistency_score")
+                    if _sc is not None:
+                        _rc_by_prefix.setdefault(_prefix, []).append(float(_sc))
+                _group_avgs = [
+                    sum(v) / len(v) for v in _rc_by_prefix.values() if v
+                ]
+                _avg_retry_consistency = sum(_group_avgs) / len(_group_avgs) if _group_avgs else None
+            else:
+                _rc_scores = [
+                    t.extra["retry_consistency"].get("consistency_score")
+                    for t in _rc_tasks_with_score
+                ]
+                _rc_scores_f = [s for s in _rc_scores if s is not None]
+                _avg_retry_consistency = sum(_rc_scores_f) / len(_rc_scores_f) if _rc_scores_f else None
         if _avg_retry_consistency is not None:
             _rel_vals.append(_avg_retry_consistency)
 
@@ -3071,12 +3127,45 @@ class PerformanceMonitor:
         avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
 
         # resource_budget → Group D (Phase 4)
-        _budget_scores = [
-            t.extra.get("resource_budget", {}).get("budget_score")
-            for t in tasks
-            if (t.extra or {}).get("resource_budget") is not None
-        ]
-        _avg_budget: Optional[float] = sum(_budget_scores) / len(_budget_scores) if _budget_scores else None
+        _rb_tasks = [t for t in tasks if (t.extra or {}).get("resource_budget") is not None]
+        _avg_budget: Optional[float] = None
+        if _rb_tasks:
+            _rb_cfg = (_rb_tasks[-1].extra.get("resource_budget") or {}).get("_config", {})
+            _use_rollover = bool(_rb_cfg.get("rollover", False))
+            if _use_rollover and _rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms"):
+                # rollover=True: 태스크별 개별 예산 대신 세션 누적 소비를 전체 한도와 비교
+                _total_tokens_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("tokens", 0))
+                    for t in _rb_tasks
+                )
+                _total_cost_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("cost_usd", 0))
+                    for t in _rb_tasks
+                )
+                _total_time_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("time_ms", 0))
+                    for t in _rb_tasks
+                )
+                _n_tasks = max(len(_rb_tasks), 1)
+                # 총 한도 = 개별 한도 × 태스크 수 (rollover: 미사용분이 이후로 이월)
+                _max_tok = (_rb_cfg.get("max_tokens") or 0) * _n_tasks
+                _max_cost = (_rb_cfg.get("max_cost_usd") or 0.0) * _n_tasks
+                _max_time = (_rb_cfg.get("max_execution_time_ms") or 0.0) * _n_tasks
+                _utils: _List[float] = []
+                if _max_tok > 0:
+                    _utils.append(_total_tokens_consumed / _max_tok)
+                if _max_cost > 0:
+                    _utils.append(_total_cost_consumed / _max_cost)
+                if _max_time > 0:
+                    _utils.append(_total_time_consumed / _max_time)
+                _avg_budget = max(0.0, 1.0 - max(_utils)) if _utils else None
+            else:
+                _budget_scores = [
+                    t.extra["resource_budget"].get("budget_score")
+                    for t in _rb_tasks
+                ]
+                _budget_scores_f = [s for s in _budget_scores if s is not None]
+                _avg_budget = sum(_budget_scores_f) / len(_budget_scores_f) if _budget_scores_f else None
 
         # TTFT variability — TTFTVariabilityConfig 파라미터 우선 사용
         _ttft_cfg = ttft_variability_config
@@ -3127,27 +3216,47 @@ class PerformanceMonitor:
         _cost_cfg = cost_predictability_config
         _cost_min_samples: int = int(getattr(_cost_cfg, "min_samples", 5)) if _cost_cfg else 5
         _cost_max_cv: float = float(getattr(_cost_cfg, "max_coefficient_of_variation", 0.3)) if _cost_cfg else 0.3
+        _cost_metric: str = str(getattr(_cost_cfg, "cost_metric", "tokens")) if _cost_cfg else "tokens"
+        _outlier_mult: float = float(getattr(_cost_cfg, "outlier_multiplier", 3.0)) if _cost_cfg else 3.0
+
+        def _filter_outliers(values: _List[float], multiplier: float) -> _List[float]:
+            """mean ± multiplier * std 범위 밖의 값을 제거한다."""
+            if len(values) < 4:
+                return values
+            _mean = statistics.mean(values)
+            _std = statistics.stdev(values)
+            if _std == 0:
+                return values
+            return [v for v in values if abs(v - _mean) <= multiplier * _std]
 
         _avg_cost_predictability: Optional[float] = None
         if len(tasks) >= _cost_min_samples:
             _costs_by_type: Dict[str, _List[float]] = {}
             for _ct in tasks:
                 _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
-                _tu = _ct.tokens_used or 0
-                if isinstance(_tu, dict):
-                    _cv_cost = float(_tu.get("total", 0) or _tu.get("output", 0) or 0)
-                else:
-                    try:
-                        _cv_cost = float(_tu)
-                    except (TypeError, ValueError):
-                        _cv_cost = 0.0
+                # cost_metric: "tokens" | "usd" | "time_ms"
+                if _cost_metric == "usd":
+                    _cv_cost = float((_ct.extra or {}).get("cost_usd") or 0.0)
+                elif _cost_metric == "time_ms":
+                    _cv_cost = float((_ct.execution_time or 0.0) * 1000.0)
+                else:  # "tokens" (default)
+                    _tu = _ct.tokens_used or 0
+                    if isinstance(_tu, dict):
+                        _cv_cost = float(_tu.get("total", 0) or _tu.get("output", 0) or 0)
+                    else:
+                        try:
+                            _cv_cost = float(_tu)
+                        except (TypeError, ValueError):
+                            _cv_cost = 0.0
                 _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
             _cv_scores_d: _List[float] = []
             for _costs_list in _costs_by_type.values():
-                if len(_costs_list) >= 2:
-                    _cv_mean = statistics.mean(_costs_list)
+                # outlier_multiplier로 이상치 제거 후 CV 계산
+                _filtered = _filter_outliers(_costs_list, _outlier_mult)
+                if len(_filtered) >= 2:
+                    _cv_mean = statistics.mean(_filtered)
                     if _cv_mean > 0:
-                        _cv_std = statistics.stdev(_costs_list)
+                        _cv_std = statistics.stdev(_filtered)
                         _cv_val = _cv_std / _cv_mean
                         # Config의 max_cv를 임계값으로 사용: CV가 max_cv 이하면 1.0
                         _cv_score_d = max(0.0, 1.0 - _cv_val / max(_cost_max_cv, 0.01))
@@ -3188,6 +3297,8 @@ class PerformanceMonitor:
         if _avg_cost_predictability is not None:
             _perf_vals.append(_avg_cost_predictability)
         _perf_score = sum(_perf_vals) / len(_perf_vals) if _perf_vals else 0.5
+        # SLA breach_window/budget_usd 패널티 적용
+        _perf_score = max(0.0, _perf_score - _sla_window_penalty - _sla_budget_penalty)
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
         sec_threats = security_metrics.get("threat_count", 0) or 0

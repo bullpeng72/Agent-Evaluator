@@ -1124,7 +1124,7 @@ class TestLLMJudgeConfig:
         cfg = LLMJudgeConfig()
         assert cfg.model is None
         assert cfg.criteria is None
-        assert cfg.sample_rate == 1.0
+        assert cfg.sample_rate == 0.1
 
     def test_custom_values(self):
         """LLMJudgeConfig 커스텀 값 검증"""

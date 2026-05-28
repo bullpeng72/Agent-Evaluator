@@ -602,6 +602,9 @@ class LLMJudge:
     def _load_budget_state(self) -> tuple:
         """파일에서 당일 예산 상태 로드. 파일 없거나 오류면 (today, 0.0) 반환."""
         if self._budget_storage_path is None:
+            today = date.today()
+            if self._budget_day != today:
+                return today, 0.0
             return self._budget_day, self._budget_spent
         try:
             if self._budget_storage_path.exists():

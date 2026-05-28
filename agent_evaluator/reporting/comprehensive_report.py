@@ -877,7 +877,8 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
 # Gate C — Reliability
 # ---------------------------------------------------------------------------
 
-def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict = {}) -> str:
+def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict = {},
+                  llm_judge_data: Any = None) -> str:
     color = _GATE_COLORS["C"]
     gate_status = (harness_c.get("gate") or harness_c.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -957,6 +958,42 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
             f'</div>'
         )
 
+    # LLM Judge Faithfulness (RAG mode — rag_mode=True 시 자동 측정)
+    faith_html = ""
+    if llm_judge_data is not None:
+        try:
+            if hasattr(llm_judge_data, "avg_faithfulness"):
+                faith_val = getattr(llm_judge_data, "avg_faithfulness", None)
+                faith_count = getattr(llm_judge_data, "judged_count", 0)
+                faith_model = getattr(llm_judge_data, "model", "—") or "—"
+            elif isinstance(llm_judge_data, dict):
+                faith_val = llm_judge_data.get("avg_faithfulness")
+                # dict는 "count" 또는 "judged_count" 키 모두 허용
+                faith_count = llm_judge_data.get("judged_count") or llm_judge_data.get("count", 0)
+                faith_model = llm_judge_data.get("model", "—") or "—"
+            else:
+                faith_val = faith_count = faith_model = None
+            if faith_val is not None and faith_count:
+                faith_pct = float(faith_val) * 20  # 0-5 → 0-100
+                faith_html = (
+                    f'<h3>LLM Judge — Faithfulness (RAG)</h3>'
+                    f'<div class="kpis">'
+                    f'<div class="kpi"><div class="kpi-lbl">Faithfulness Score</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(faith_pct)}">'
+                    f'{float(faith_val):.2f}/5</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Evaluated</div>'
+                    f'<div class="kpi-val">{faith_count} tasks</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
+                    f'<div class="kpi-val" style="font-size:11px">{faith_model}</div></div>'
+                    f'</div>'
+                    f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">'
+                    f'LLM-as-judge faithfulness: measures how well all claims in the response are supported '
+                    f'by the retrieved context, scored 0–5 (5 = fully grounded). '
+                    f'Activated when <code>rag_mode=True</code> + <code>LLMJudgeConfig</code> is set.</p>'
+                )
+        except Exception:
+            pass
+
     breakdown = _build_score_breakdown("C", harness_c)
     return (
         f'<div class="gate-section" id="gate-c" style="border-left-color:{color}">'
@@ -964,6 +1001,7 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
         f'{breakdown}'
         f'{retry_html}'
         f'{hall_html}'
+        f'{faith_html}'
         f'{harness_block}'
         f'</div>'
     )
@@ -1365,6 +1403,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
             completeness = None
             relevance = None
             factual = None
+            faithfulness = None
             model_name = "—"
             # Support both LLMJudgeData (dataclass) and dict summary
             if hasattr(llm_judge_data, "judged_count"):
@@ -1373,6 +1412,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                 completeness = getattr(llm_judge_data, "avg_completeness", None)
                 relevance = getattr(llm_judge_data, "avg_relevance", None)
                 factual = getattr(llm_judge_data, "avg_factual_consistency", None)
+                faithfulness = getattr(llm_judge_data, "avg_faithfulness", None)
                 model_name = getattr(llm_judge_data, "model", "—") or "—"
             elif isinstance(llm_judge_data, dict):
                 judged_count = llm_judge_data.get("count", 0)
@@ -1380,6 +1420,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                 completeness = llm_judge_data.get("avg_completeness")
                 relevance = llm_judge_data.get("avg_relevance")
                 factual = llm_judge_data.get("avg_factual_consistency")
+                faithfulness = llm_judge_data.get("avg_faithfulness")
                 model_name = llm_judge_data.get("model", "—") or "—"
             if judged_count == 0:
                 judge_html = (
@@ -1395,6 +1436,14 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                     scale = 10 if fv <= 10 else 100
                     return f"{fv:.2f}/{scale}"
                 ov_100 = float(overall) * 10 if overall is not None and float(overall) <= 10 else float(overall or 0)
+                faith_kpi = ""
+                if faithfulness is not None:
+                    faith_pct = float(faithfulness) * 10  # 0-5 → 0-50 (percentage-ish scale)
+                    faith_kpi = (
+                        f'<div class="kpi"><div class="kpi-lbl">Faithfulness (RAG)</div>'
+                        f'<div class="kpi-val" style="color:{_score_color(faith_pct * 2)}">'
+                        f'{_judge_val(faithfulness)}</div></div>'
+                    )
                 judge_kpis = (
                     f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
                     f'<div class="kpi-val">{judged_count}</div></div>'
@@ -1407,6 +1456,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                     f'<div class="kpi-val">{_judge_val(relevance)}</div></div>'
                     f'<div class="kpi"><div class="kpi-lbl">Factual Consistency</div>'
                     f'<div class="kpi-val">{_judge_val(factual)}</div></div>'
+                    + faith_kpi +
                     f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
                     f'<div class="kpi-val" style="font-size:11px">{model_name}</div></div>'
                 )
@@ -1814,16 +1864,67 @@ def generate_comprehensive_html_report(monitor) -> str:
         tool_selection_stats or coordination_stats or workflow_stats
     )
 
-    # LLM Judge
+    # LLM Judge — 두 가지 소스를 시도한다:
+    # 1) monitor.llm_judge (enable_llm_judge=True 로 생성된 영속 인스턴스)
+    # 2) monitor.tasks 개별 레코드 (per-call LLMJudgeConfig 패턴 — lazy-init 후 제거됨)
     llm_judge_data = None
     try:
         _judge = getattr(monitor, "llm_judge", None)
         if _judge:
-            summary = _judge.get_summary()
-            if summary.get("count", 0) > 0:
-                llm_judge_data = summary
+            _summary = _judge.get_summary()
+            if _summary.get("count", 0) > 0:
+                # get_summary() 반환값은 avg_scores 중첩 형태 → 보고서가 기대하는 flat 형태로 변환
+                _avs = _summary.get("avg_scores") or {}
+                llm_judge_data = {
+                    "count":                   _summary["count"],
+                    "avg_overall":             _avs.get("overall"),
+                    "avg_completeness":        _avs.get("completeness"),
+                    "avg_relevance":           _avs.get("relevance"),
+                    "avg_factual_consistency": _avs.get("factual_consistency"),
+                    "avg_faithfulness":        _avs.get("faithfulness") or None,
+                    "avg_criteria_overall":    _avs.get("criteria_overall"),
+                    "total_cost_usd":          _summary.get("total_cost_usd", 0.0),
+                    "model":                   getattr(_judge, "model", "—") or "—",
+                }
     except Exception:
         pass
+
+    # Fallback: per-task records (LLMJudgeConfig per-call 패턴)
+    if llm_judge_data is None:
+        try:
+            _tasks = getattr(monitor, "tasks", []) or []
+            _judged = [
+                t.llm_judge for t in _tasks
+                if getattr(t, "llm_judge", None)
+                and not t.llm_judge.get("skipped")
+                and t.llm_judge.get("scores")
+            ]
+            if _judged:
+                _dims = ["completeness", "relevance", "factual_consistency", "overall",
+                         "toxicity", "bias", "faithfulness", "criteria_overall"]
+                _avs2: Dict = {}
+                for _d in _dims:
+                    _vs = [
+                        r["scores"][_d] for r in _judged
+                        if r.get("scores") and _d in r["scores"]
+                        and isinstance(r["scores"][_d], (int, float))
+                    ]
+                    if _vs:
+                        _avs2[_d] = round(sum(_vs) / len(_vs), 3)
+                _model2 = next((r.get("model") for r in _judged if r.get("model")), "—")
+                llm_judge_data = {
+                    "count":                   len(_judged),
+                    "avg_overall":             _avs2.get("overall"),
+                    "avg_completeness":        _avs2.get("completeness"),
+                    "avg_relevance":           _avs2.get("relevance"),
+                    "avg_factual_consistency": _avs2.get("factual_consistency"),
+                    "avg_faithfulness":        _avs2.get("faithfulness") or None,
+                    "avg_criteria_overall":    _avs2.get("criteria_overall"),
+                    "total_cost_usd":          round(sum(r.get("cost_usd", 0.0) for r in _judged), 6),
+                    "model":                   _model2 or "—",
+                }
+        except Exception:
+            pass
 
     # RAG / advanced flags
     has_advanced = bool(adv_metrics)
@@ -1847,7 +1948,7 @@ def generate_comprehensive_html_report(monitor) -> str:
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
         _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
@@ -1980,7 +2081,7 @@ def generate_html_from_result_file(rf) -> str:
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
         _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
         _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),

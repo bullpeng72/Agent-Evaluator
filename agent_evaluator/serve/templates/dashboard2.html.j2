@@ -2591,8 +2591,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     avg_idempotency:{label:'Idempotency',desc:'Penalizes non-idempotent tool calls (create/delete/update) and rewards duplicate detection when IdempotencyConfig is set.',hint:'1.0 when no non-idempotent calls | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
     avg_reproducibility:{label:'Reproducibility',desc:'Average response similarity across N repeated runs with the same input when ReproducibilityConfig is set.',hint:'Average token F1 similarity | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
     avg_fault_tolerance:{label:'Fault Tolerance',desc:'Tracks fallback tool usage after tool failure when FaultToleranceConfig is set.',hint:'Fallback recovery rate | 🟢 ≥0.8 🟡 ≥0.5 🔴 <0.5'},
+    llm_faithfulness:{label:'Faithfulness (LLM Judge)',desc:'LLM-as-judge measure of how faithfully the RAG response is grounded in retrieved context. Auto-added when rag_mode=True + LLMJudgeConfig is set. Score 0–5; 5 = all claims supported by context.',hint:'avg_faithfulness from LLMJudge | 🟢 ≥4.0 🟡 ≥2.5 🔴 <2.5'},
   },
   formula(k,d){
+    if(k==='llm_faithfulness'){
+      const v=d.llm_judge?.avg_faithfulness;
+      return v!=null?`Faithfulness = ${v.toFixed(2)} / 5\nJudge: ${d.llm_judge?.model||'—'}\nScored: ${d.llm_judge?.judged_count||0} tasks`:'No LLM Judge data';
+    }
     const dt=(d.harness_groups?.C||{}).details||{};
     const v=dt[k];
     if(v==null) return 'No data';
@@ -2640,6 +2645,16 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="gC.details?.avg_fault_tolerance!=null?((gC.details.avg_fault_tolerance)*100).toFixed(1)+'%':'—'"></div>
           <div class="kpi-sub muted">FaultTolerance</div>
         </div>
+        <!-- LLM Judge Faithfulness — rag_mode=True + LLMJudgeConfig 시 표시 -->
+        <template x-if="(data.llm_judge?.avg_faithfulness||0) > 0">
+          <div class="kpi kpi-act" :class="{sel:selK==='llm_faithfulness'}" @click="selK=selK==='llm_faithfulness'?null:'llm_faithfulness'">
+            <div class="kpi-lbl">Faithfulness (LLM)</div>
+            <div class="kpi-val"
+                 :style="`color:${(data.llm_judge.avg_faithfulness||0)>=4?'var(--green)':(data.llm_judge.avg_faithfulness||0)>=2.5?'var(--yellow)':'var(--red)'}`"
+                 x-text="(data.llm_judge.avg_faithfulness||0).toFixed(2)+'/5'"></div>
+            <div class="kpi-sub muted">LLMJudge RAG</div>
+          </div>
+        </template>
       </div>
       <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
         <template x-if="selK">

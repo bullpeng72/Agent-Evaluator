@@ -3464,18 +3464,6 @@ class SimpleTaskAlertRule:
     class_level_cooldown: bool = False  # D3: True 이면 같은 이름의 모든 인스턴스 공유 쿨다운
     _last_fired: float = field(default=0.0, init=False, repr=False)
     _lock: "threading.Lock" = field(default_factory=threading.Lock, init=False, repr=False)
-    # D3: 클래스 수준 공유 쿨다운 상태 — name → last_fired
-    _class_cooldown_state: "Dict[str, float]" = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
-    _class_cooldown_lock: "threading.Lock" = field(
-        default_factory=threading.Lock, init=False, repr=False, compare=False
-    )
-
-    # D3: 클래스 수준 공유 쿨다운 저장소 (모든 인스턴스 공유)
-    _CLASS_COOLDOWN: "Dict[str, float]" = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
 
     def __post_init__(self) -> None:
         # D3: 클래스 수준 공유 쿨다운 dict 는 클래스 변수로 관리
@@ -4200,7 +4188,20 @@ def _build_and_record(
                 from agent_evaluator.helpers.taskresult_helpers import eval_loop_detection
                 _ld_calls = task_result.tool_calls or []
                 _ld_chain = task_result.extra.get("chain_steps") if task_result.extra else None
-                _ld_result = eval_loop_detection(_ld_calls, _ld_chain, loop_detection)
+                # check_response_loop: 이전 응답과 유사도 비교를 위해 최근 응답 목록 전달
+                _ld_response = task_result.response if task_result.response else None
+                _ld_prev_responses: list = []
+                if getattr(loop_detection, "check_response_loop", False):
+                    _mon = monitor if not isinstance(monitor, list) else (monitor[0] if monitor else None)
+                    if _mon is not None:
+                        _ld_prev_responses = [
+                            str(t.response) for t in list(getattr(_mon, "tasks", []))[-10:]
+                            if t.response is not None
+                        ]
+                _ld_result = eval_loop_detection(
+                    _ld_calls, _ld_chain, loop_detection,
+                    response=_ld_response, previous_responses=_ld_prev_responses,
+                )
                 _p1_extra["loop_detection"] = _ld_result
                 # on_loop_detected: "fail" → success=False, "warn" → logger 경고
                 _on_loop = getattr(loop_detection, "on_loop_detected", "record")
@@ -4529,9 +4530,13 @@ def _build_and_record(
         if tool_parameter_safety is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_tool_parameter_safety
-                _p5_extra["tool_parameter_safety"] = eval_tool_parameter_safety(
+                _tps_result = eval_tool_parameter_safety(
                     task_result.tool_calls, tool_parameter_safety
                 )
+                _p5_extra["tool_parameter_safety"] = _tps_result
+                # fail_on_dangerous=True: 위험 호출 감지 시 태스크 실패로 처리
+                if _tps_result.get("fail_task"):
+                    task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
                 logger.debug("ToolParameterSafetyConfig evaluation failed (ignored): %s", _e)
 
@@ -5522,15 +5527,17 @@ def agent_eval(
                 # ReproducibilityConfig: 추가 실행 수집
                 if reproducibility is not None and not has_error:
                     _repro_responses = [str(caller_result) if caller_result is not None else ""]
-                    _extra_runs = max(0, (getattr(reproducibility, "runs", 3) or 3) - 1)
-                    for _ in range(_extra_runs):
-                        try:
-                            _ex_raw = func(*args, **kwargs)
-                            _ex_resp, _ = _split_raw(_ex_raw)
-                            _repro_responses.append(str(_ex_resp) if _ex_resp is not None else "")
-                        except Exception as _re:
-                            logger.debug("reproducibility 추가 실행 실패 (무시): %s", _re)
-                            _repro_responses.append("")
+                    if not getattr(reproducibility, "skip_side_effects", False):
+                        _extra_runs = max(0, (getattr(reproducibility, "runs", 3) or 3) - 1)
+                        for _ in range(_extra_runs):
+                            try:
+                                _ex_raw = func(*args, **kwargs)
+                                _ex_resp, _ = _split_raw(_ex_raw)
+                                _repro_responses.append(str(_ex_resp) if _ex_resp is not None else "")
+                            except Exception as _re:
+                                logger.debug("reproducibility 추가 실행 실패 (무시): %s", _re)
+                                _repro_responses.append("")
+                    # skip_side_effects=True: 추가 실행 skip → run_count=1, score=1.0 반환
                 return caller_result
             except Exception:
                 raise
@@ -7124,7 +7131,8 @@ def batch_eval(
 
             try:
                 # concurrency>0: 항목별 병렬 실행 (asyncio.gather for async, ThreadPoolExecutor for sync)
-                if concurrency > 0 and not is_async and len(questions) > 0:
+                # async 경로와 동일하게 questions_arg in kwargs 조건 추가 — positional 호출 시 TypeError 방지
+                if concurrency > 0 and not is_async and questions_arg in kwargs and len(questions) > 0:
                     import concurrent.futures as _futures_mod
                     _max_w = concurrency if concurrency > 0 else len(questions)
 
@@ -7132,6 +7140,10 @@ def batch_eval(
                         _kw = dict(kwargs)
                         _kw[questions_arg] = [questions[i]]
                         _kw[ground_truths_arg] = [ground_truths[i]] if i < len(ground_truths) else []
+                        if contexts_arg and contexts_arg in _kw and isinstance(_kw.get(contexts_arg), list):
+                            _kw[contexts_arg] = [contexts[i]] if contexts and i < len(contexts) else []
+                        if expected_tools_arg and expected_tools_arg in _kw and isinstance(_kw.get(expected_tools_arg), list):
+                            _kw[expected_tools_arg] = [expected_tools_list[i]] if expected_tools_list and i < len(expected_tools_list) else []
                         _r = func(*args, **_kw)
                         return _r[0] if isinstance(_r, list) and _r else _r
 
@@ -7270,16 +7282,22 @@ def batch_eval(
                     async def _call_one(i: int) -> Any:
                         _kw = {**kwargs, questions_arg: [questions[i]]}
                         _kw[ground_truths_arg] = [ground_truths[i]] if i < len(ground_truths) else []
+                        if contexts_arg and contexts_arg in _kw and isinstance(_kw.get(contexts_arg), list):
+                            _kw[contexts_arg] = [contexts[i]] if contexts and i < len(contexts) else []
+                        if expected_tools_arg and expected_tools_arg in _kw and isinstance(_kw.get(expected_tools_arg), list):
+                            _kw[expected_tools_arg] = [expected_tools_list[i]] if expected_tools_list and i < len(expected_tools_list) else []
+                        # item_timeout 우선, 없으면 배치 전체 timeout 사용
+                        _item_wait = item_timeout if item_timeout is not None else timeout
                         if _sem:
                             async with _sem:
                                 _r = await (
-                                    asyncio.wait_for(func(*args, **_kw), timeout=timeout)
-                                    if timeout else func(*args, **_kw)
+                                    asyncio.wait_for(func(*args, **_kw), timeout=_item_wait)
+                                    if _item_wait else func(*args, **_kw)
                                 )
                         else:
                             _r = await (
-                                asyncio.wait_for(func(*args, **_kw), timeout=timeout)
-                                if timeout else func(*args, **_kw)
+                                asyncio.wait_for(func(*args, **_kw), timeout=_item_wait)
+                                if _item_wait else func(*args, **_kw)
                             )
                         return _r[0] if isinstance(_r, list) and _r else _r
 
@@ -7288,12 +7306,21 @@ def batch_eval(
                         return_exceptions=True,
                     )
                     responses = []
-                    for _r in gathered:
+                    for _i, _r in enumerate(gathered):
                         if isinstance(_r, BaseException):
                             responses.append("")
                             if not has_error:
                                 has_error = True
                                 error_msg = str(_r)
+                            if on_item_error is not None:
+                                try:
+                                    on_item_error(
+                                        _i,
+                                        questions[_i] if _i < len(questions) else "",
+                                        _r,
+                                    )
+                                except Exception as _oie_exc:
+                                    logger.debug("on_item_error 콜백 실패 (무시): %s", _oie_exc)
                         else:
                             responses.append(_r)
                 elif timeout is not None:  # Gap X: 비동기 배치 timeout (순차)

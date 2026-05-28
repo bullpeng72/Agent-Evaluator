@@ -128,7 +128,7 @@ class TestConfigDataclasses:
         assert cfg.check_executability is True
         assert cfg.available_tools == []
         assert cfg.min_steps == 2
-        assert cfg.max_steps == 20
+        assert cfg.max_steps == 15
 
     def test_plan_config_custom(self):
         cfg = PlanConfig(
