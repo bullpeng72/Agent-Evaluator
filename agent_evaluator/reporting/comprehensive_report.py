@@ -497,16 +497,24 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
         ]:
             v = details.get(dk)
             _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        llm_faith_c = details.get("avg_llm_faithfulness")
         hall_c = details.get("hallucination_rate")
-        if hall_c is not None:
+        if llm_faith_c is not None:
+            # LLM Judge faithfulness 우선 사용 (0–5 → /5 정규화)
+            c_faith_c = max(0.0, min(1.0, float(llm_faith_c) / 5.0))
+            _add("LLM Faithfulness (faith/5) ★", f"{float(llm_faith_c):.2f}/5", c_faith_c,
+                 formula_label="avg_llm_faithfulness/5")
+            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, avg_llm_faithfulness/5 )"
+        elif hall_c is not None:
             c_hall_c = max(0.0, 1.0 - float(hall_c))
             _add("Hallucination Faithfulness (1 − rate)", _fmt_pct(hall_c, scale=100.0), c_hall_c,
                  formula_label="1−hallucination_rate")
+            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, 1−hallucination_rate )"
         else:
-            _add("Hallucination Faithfulness (1 − rate)", None, None,
-                 formula_label="1−hallucination_rate",
-                 note="Requires enable_hallucination_detection=True")
-        formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, 1−hallucination_rate )"
+            _add("Faithfulness", None, None,
+                 formula_label="llm_faithfulness/5 or 1−hallucination_rate",
+                 note="LLMJudgeConfig 또는 enable_hallucination_detection=True 필요")
+            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, [faithfulness] )"
 
     elif gate_key == "D":
         p95 = details.get("p95_latency_s")
@@ -935,7 +943,50 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass FaultToleranceConfig · ReproducibilityConfig to your decorator to enable detailed metrics.</div>'
 
-    # Hallucination Detection
+    # LLM Judge Faithfulness 값 먼저 추출 — Hallucination 섹션 표시 여부 결정에 사용
+    faith_html = ""
+    _faith_val: Any = None
+    _faith_used_for_score = bool(harness_c.get("details", {}).get("avg_llm_faithfulness"))
+    if llm_judge_data is not None:
+        try:
+            if hasattr(llm_judge_data, "avg_faithfulness"):
+                _faith_val = getattr(llm_judge_data, "avg_faithfulness", None)
+                faith_count = getattr(llm_judge_data, "judged_count", 0)
+                faith_model = getattr(llm_judge_data, "model", "—") or "—"
+            elif isinstance(llm_judge_data, dict):
+                _faith_val = llm_judge_data.get("avg_faithfulness")
+                faith_count = llm_judge_data.get("judged_count") or llm_judge_data.get("count", 0)
+                faith_model = llm_judge_data.get("model", "—") or "—"
+            else:
+                _faith_val = faith_count = faith_model = None
+            if _faith_val is not None and faith_count:
+                faith_pct = float(_faith_val) * 20  # 0-5 → 0-100
+                score_badge = (
+                    ' <span style="font-size:11px;background:#d1fae5;color:#065f46;'
+                    'padding:1px 6px;border-radius:4px;vertical-align:middle">★ Gate C 점수 반영</span>'
+                    if _faith_used_for_score else ""
+                )
+                faith_html = (
+                    f'<h3>LLM Judge — Faithfulness (RAG){score_badge}</h3>'
+                    f'<div class="kpis">'
+                    f'<div class="kpi"><div class="kpi-lbl">Faithfulness Score</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(faith_pct)}">'
+                    f'{float(_faith_val):.2f}/5</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Evaluated</div>'
+                    f'<div class="kpi-val">{faith_count} tasks</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
+                    f'<div class="kpi-val" style="font-size:11px">{faith_model}</div></div>'
+                    f'</div>'
+                    f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">'
+                    f'LLM-as-judge faithfulness: measures how well all claims in the response are supported '
+                    f'by the retrieved context, scored 0–5 (5 = fully grounded). '
+                    f'Activated when <code>rag_mode=True</code> + <code>LLMJudgeConfig</code> is set. '
+                    f'When present, this score replaces Hallucination Detection in the Gate C calculation.</p>'
+                )
+        except Exception:
+            pass
+
+    # Hallucination Detection — LLM faithfulness 가 Gate C에 사용된 경우 "폴백 미사용" 표시
     hall_html = ""
     _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
     if not _hall_measured:
@@ -948,8 +999,14 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
         hall_rate = float(hallucination_data.get("overall_rate") or 0)
         hall_pct = hall_rate  # overall_rate is already a percentage (0–100 scale)
         hall_col = _score_color(100 - hall_pct)
+        _hall_title = (
+            "Hallucination Detection"
+            if not _faith_used_for_score
+            else 'Hallucination Detection <span style="font-size:11px;background:#fef3c7;color:#92400e;'
+                 'padding:1px 6px;border-radius:4px;vertical-align:middle">NLP fallback — not used in score</span>'
+        )
         hall_html = (
-            f'<h3>Hallucination Detection</h3>'
+            f'<h3>{_hall_title}</h3>'
             f'<div class="kpis">'
             f'<div class="kpi"><div class="kpi-lbl">Hallucination Rate</div>'
             f'<div class="kpi-val" style="color:{hall_col}">{hall_pct:.1f}%</div></div>'
@@ -957,42 +1014,6 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
             f'<div class="kpi-val" style="color:{_score_color(100 - hall_pct)}">{100 - hall_pct:.1f}%</div></div>'
             f'</div>'
         )
-
-    # LLM Judge Faithfulness (RAG mode — rag_mode=True 시 자동 측정)
-    faith_html = ""
-    if llm_judge_data is not None:
-        try:
-            if hasattr(llm_judge_data, "avg_faithfulness"):
-                faith_val = getattr(llm_judge_data, "avg_faithfulness", None)
-                faith_count = getattr(llm_judge_data, "judged_count", 0)
-                faith_model = getattr(llm_judge_data, "model", "—") or "—"
-            elif isinstance(llm_judge_data, dict):
-                faith_val = llm_judge_data.get("avg_faithfulness")
-                # dict는 "count" 또는 "judged_count" 키 모두 허용
-                faith_count = llm_judge_data.get("judged_count") or llm_judge_data.get("count", 0)
-                faith_model = llm_judge_data.get("model", "—") or "—"
-            else:
-                faith_val = faith_count = faith_model = None
-            if faith_val is not None and faith_count:
-                faith_pct = float(faith_val) * 20  # 0-5 → 0-100
-                faith_html = (
-                    f'<h3>LLM Judge — Faithfulness (RAG)</h3>'
-                    f'<div class="kpis">'
-                    f'<div class="kpi"><div class="kpi-lbl">Faithfulness Score</div>'
-                    f'<div class="kpi-val" style="color:{_score_color(faith_pct)}">'
-                    f'{float(faith_val):.2f}/5</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">Evaluated</div>'
-                    f'<div class="kpi-val">{faith_count} tasks</div></div>'
-                    f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
-                    f'<div class="kpi-val" style="font-size:11px">{faith_model}</div></div>'
-                    f'</div>'
-                    f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">'
-                    f'LLM-as-judge faithfulness: measures how well all claims in the response are supported '
-                    f'by the retrieved context, scored 0–5 (5 = fully grounded). '
-                    f'Activated when <code>rag_mode=True</code> + <code>LLMJudgeConfig</code> is set.</p>'
-                )
-        except Exception:
-            pass
 
     breakdown = _build_score_breakdown("C", harness_c)
     return (

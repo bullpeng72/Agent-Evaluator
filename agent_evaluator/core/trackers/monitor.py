@@ -3102,8 +3102,11 @@ class PerformanceMonitor:
             and not (t.llm_judge or {}).get("skipped")
             and isinstance((t.llm_judge or {}).get("scores", {}).get("faithfulness"), (int, float))
         ]
-        if _faith_scores:
-            _rel_vals.append(max(0.0, min(1.0, sum(_faith_scores) / len(_faith_scores) / 5.0)))
+        _avg_llm_faithfulness: Optional[float] = (
+            sum(_faith_scores) / len(_faith_scores) if _faith_scores else None
+        )
+        if _avg_llm_faithfulness is not None:
+            _rel_vals.append(max(0.0, min(1.0, _avg_llm_faithfulness / 5.0)))
         elif hall_rate is not None:
             _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
@@ -3553,6 +3556,7 @@ class PerformanceMonitor:
                 "avg_degradation": round(_avg_degradation, 4) if _avg_degradation is not None else None,
                 "avg_retry_consistency": round(_avg_retry_consistency, 4) if _avg_retry_consistency is not None else None,
                 "avg_idempotency": round(_avg_idempotency, 4) if _avg_idempotency is not None else None,
+                "avg_llm_faithfulness": round(_avg_llm_faithfulness, 4) if _avg_llm_faithfulness is not None else None,
                 "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
             }),
             "D": _g(_d_s, "Performance Contract", {
