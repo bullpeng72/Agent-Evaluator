@@ -3093,8 +3093,18 @@ class PerformanceMonitor:
         if _avg_idempotency is not None:
             _rel_vals.append(_avg_idempotency)
 
-        # hallucination → Gate C (신뢰성 — 출력 사실 충실성)
-        if hall_rate is not None:
+        # 출력 사실 충실성 → Gate C (우선순위 대체: LLM Judge > HallucinationDetector)
+        # LLM Judge faithfulness(0–5)가 있으면 /5 정규화 후 사용; 없으면 1−hall_rate 폴백
+        _faith_scores = [
+            float(t.llm_judge["scores"]["faithfulness"])
+            for t in tasks
+            if getattr(t, "llm_judge", None)
+            and not (t.llm_judge or {}).get("skipped")
+            and isinstance((t.llm_judge or {}).get("scores", {}).get("faithfulness"), (int, float))
+        ]
+        if _faith_scores:
+            _rel_vals.append(max(0.0, min(1.0, sum(_faith_scores) / len(_faith_scores) / 5.0)))
+        elif hall_rate is not None:
             _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
         _rel_score = sum(_rel_vals) / len(_rel_vals) if _rel_vals else (tcr_pct / 100.0)

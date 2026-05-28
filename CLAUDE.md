@@ -105,7 +105,8 @@ Gate A–G results stored under `extra_metrics.harness_groups` in JSON result fi
 | `AccuracyEvaluator` | **A** | `_a_vals` | `_evaluations` 건수 > 0 (overall_accuracy / 100 정규화) |
 | `LatencyTracker` | D | `_perf_vals` | 항상 |
 | `TokenEconomyTracker` | D | `_perf_vals` | 항상 |
-| `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | `_detections` 건수 > 0 (`1 − rate`) |
+| `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | LLM Judge faithfulness 없을 때 폴백 (`1 − rate`) |
+| `LLMJudge` (faithfulness) | **C** | `_rel_vals` | per-task faithfulness 기록 시 우선 사용 (`score / 5` 정규화); HallucinationDetector 대체 |
 | `RetryCorrectionTracker` | C | `_rel_vals` | SLAConfig 설정 시 |
 | `ToolCallAnalyzer` | B, G | `_bint_vals`, `_obs_vals` | tool_calls 기록 시 |
 | `WorkflowExecutionTracker` | B | `_bint_vals` | chain_steps 기록 시 |
