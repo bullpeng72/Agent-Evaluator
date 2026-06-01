@@ -1514,8 +1514,9 @@ class PerformanceMonitor:
                     response=_eff_response,
                     context=context or task_result.context,
                 )
-                # Attach judge scores so they are serialised into JSON output.
-                if not judge_result.get("skipped") and judge_result.get("scores"):
+                # Attach all judge results (scored, skipped, error) so callers can inspect the outcome.
+                # Gate C scoring in _compute_harness_groups already filters out skipped entries.
+                if judge_result:
                     task_result = dataclasses.replace(task_result, llm_judge=judge_result)
             except (AttributeError, KeyError, TypeError) as _judge_exc:
                 logger.warning(

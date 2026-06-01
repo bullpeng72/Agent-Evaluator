@@ -200,6 +200,9 @@ if has_api:
 
     @agent_eval(monitor_llm, task_type="qa", task_id_prefix="dash_judge")
     def judge_agent(question: str, ground_truth: str = "") -> str:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+        #   예) return client.chat.completions.create(model="gpt-5-nano",
+        #        messages=[{"role":"user","content":question}]).choices[0].message.content
         return f"이 질문에 대한 포괄적이고 근거 있는 답변입니다: {question}"
 
     for question, gt in QA_CASES[:3]:

@@ -242,6 +242,9 @@ monitor = PerformanceMonitor(
 )
 def goal_aligned_writer(question: str, ground_truth: str = "") -> str:
     """Gate A — 목표 달성 에이전트."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(0.2 + random.uniform(0, 0.3))
     return f"학습목표: {ground_truth}에 대한 내용입니다. {question}을 다음과 같이 설명합니다."
 
@@ -255,6 +258,9 @@ def goal_aligned_writer(question: str, ground_truth: str = "") -> str:
 )
 def loop_safe_writer(question: str, ground_truth: str = "") -> str:
     """Gate B — 루프 안전 에이전트."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(0.2 + random.uniform(0, 0.3))
     return f"search → write → revise 순으로 처리: {question}"
 

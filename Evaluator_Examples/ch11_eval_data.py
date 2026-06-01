@@ -42,7 +42,7 @@ from agent_evaluator import (
     AdaptivePolicy,
     SamplingStage,
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -66,9 +66,7 @@ except Exception:
 # create_taskresult() 헬퍼는 accuracy_score·completion_score를 자동 계산한다.
 # TaskResult 직접 생성보다 권장되는 방식이다.
 # ===========================================================================
-print("\n=== 섹션 1: create_taskresult(
-        use_korean_tokenizer=True,
-    ) 기본 사용 ===")
+print("\n=== 섹션 1: create_taskresult(use_korean_tokenizer=True) 기본 사용 ===")
 
 # 기본 QA TaskResult — 자동 점수 계산
 r_qa = create_taskresult(

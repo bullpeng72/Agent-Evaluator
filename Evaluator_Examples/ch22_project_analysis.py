@@ -29,7 +29,6 @@ from pathlib import Path
 
 from agent_evaluator import (
     PerformanceMonitor,
-    QuickEval,
     create_taskresult,
     setup_otel,
 )

@@ -89,7 +89,7 @@ if EVAL_AVAILABLE:
         use_deepeval=True,
         use_ragas=True,
         deepeval_model="gpt-5-nano",
-        ragas_model="gpt-4o-mini",
+        ragas_model="gpt-5-nano",
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
         use_korean_tokenizer=True,
@@ -498,7 +498,7 @@ try:
 
     # ── DeepEvalAdapter ───────────────────────────────────────────────────
     print("  [1] DeepEvalAdapter")
-    deepeval_adapter = DeepEvalAdapter(model="gpt-4o-mini", threshold=0.5)
+    deepeval_adapter = DeepEvalAdapter(model="gpt-5-nano", threshold=0.5)
     if not deepeval_adapter.is_available():
         print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
     else:

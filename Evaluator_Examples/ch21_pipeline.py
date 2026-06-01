@@ -49,7 +49,7 @@ from agent_evaluator import (
     ErrorDiagnosisConfig,
     ConflictResolutionConfig,
 )
-from agent_evaluator.decorators import agent_eval, EvalMetadata
+from agent_evaluator import agent_eval, EvalMetadata
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 from agent_evaluator.config import load_env
 
