@@ -207,6 +207,8 @@ monitor_fail = PerformanceMonitor(output_dir="results/", use_korean_tokenizer=Tr
     ),
 )
 def goal_failing_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 이 함수는 Gate A FAIL을 시연하는 역케이스입니다.
+    #   실제 에이전트에서는 expected_format 준수 + required_keywords 포함 + 목표 도구 사용이 필요합니다.
     # JSON 형식 미준수, required_keywords 없음, 목표 도구(analyze_tool) 미사용
     return f"네, {question} 처리했습니다."
 
@@ -229,6 +231,8 @@ def goal_failing_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def context_forgetting_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 이 함수는 Gate A FAIL을 시연하는 역케이스입니다.
+    #   실제 에이전트에서는 key_entities를 응답에 반드시 포함해야 합니다.
     # 핵심 엔티티를 전혀 언급하지 않음 → context_retention_score=0.0
     return f"이 주제에 대해 AI 업계에서 연구 중입니다. {question}"
 
