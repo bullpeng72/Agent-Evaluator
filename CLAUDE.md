@@ -24,6 +24,7 @@ pip install -e ".[examples]"  # all examples runnable (sdk + eval)
 # CLI
 agent-eval init                                           # API key setup wizard
 agent-eval check                                          # config status
+agent-eval version                                        # version info
 agent-eval dashboard                                      # FastAPI dashboard (port 8765)
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval dataset build results/ --min-score 0.8         # golden dataset
@@ -69,18 +70,37 @@ Layer 3 — Hybrid (optional deps: DeepEval / Ragas)
 ```
 agent_evaluator/
 ├── decorators.py          # agent_eval · batch_eval · conversation_eval + 33 Harness Config dataclasses
-├── quick_eval.py          # QuickEval facade
+│                          # EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder
+├── quick_eval.py          # QuickEval facade + HarnessEvaluationGate
+├── config.py              # get_settings · init_from_app · load_env
+├── exceptions.py          # AgentEvaluatorError 계층
 ├── core/
 │   ├── trackers/
 │   │   ├── base.py        # BaseTracker, TaskResult, EvaluationReport, TaskType
 │   │   ├── layer1.py      # Layer 1 trackers
 │   │   ├── layer2.py      # Layer 2 trackers
 │   │   ├── security.py    # Security trackers
-│   │   └── monitor.py     # PerformanceMonitor (central orchestrator)
-│   └── hybrid_monitor.py
-├── integrations/llm_judge.py
-├── cli/main.py            # CLI entry point
-└── serve/server.py        # FastAPI dashboard
+│   │   ├── monitor.py     # PerformanceMonitor (central orchestrator)
+│   │   ├── conversation.py# ConversationSession, ConversationMetrics, ConversationTurn
+│   │   └── feedback.py    # ImplicitFeedbackTracker
+│   ├── monitor_context.py # evaluation_session · hybrid_evaluation_session · async_evaluation_session
+│   └── hybrid_monitor.py  # HybridPerformanceMonitor (DeepEval/Ragas 통합)
+├── integrations/
+│   ├── llm_judge.py       # LLMJudge (native)
+│   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
+│   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
+│   ├── dspy_integration.py
+│   └── pydanticai_integration.py
+├── anomaly/               # AnomalyDetector · AnomalyEvent
+├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
+├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator
+├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
+├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
+├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·trend)
+└── serve/
+    ├── server.py          # FastAPI dashboard (103 routes)
+    └── routers/           # alerts · anomaly · config · conversation · cost · data · export
+                           # feedback · golden · stream · transparency · webhook
 ```
 
 ### Harness Gate Config Groups (33 total)
@@ -144,6 +164,8 @@ QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 ### PerformanceMonitor
 
 ```python
+from agent_evaluator import PerformanceMonitor
+
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=False,  # default False
@@ -161,6 +183,11 @@ monitor.save_to_file("evaluation")  # JSON + HTML
 ### Harness Config in Decorator
 
 ```python
+from agent_evaluator import (
+    PerformanceMonitor, agent_eval,
+    InstructionConfig, LoopDetectionConfig, SLAConfig, ExplainabilityConfig,
+)
+
 @agent_eval(monitor, task_type="qa",
     instructions=InstructionConfig(required_keywords=["Seoul"], fail_on_violation=True),
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
@@ -170,23 +197,142 @@ monitor.save_to_file("evaluation")  # JSON + HTML
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
+### EvalMetadata — 함수 내부에서 메타데이터 주입
+
+```python
+from agent_evaluator import agent_eval
+from agent_evaluator.decorators import EvalMetadata
+
+@agent_eval(monitor, task_type="qa")
+def agent(question: str, ground_truth: str = "") -> tuple:
+    response = f"응답: {question}"
+    return response, EvalMetadata(
+        extra={"ttft_ms": 120.5},
+        tokens_used={"input": 50, "output": 100, "total": 150},
+    )
+```
+
+### ConversationSession
+
+```python
+from agent_evaluator import evaluation_session
+
+with evaluation_session("results/eval.json") as monitor:
+    task = create_taskresult(task_id="t1", question="...", response="...", execution_time=1.2)
+    monitor.record_task(task)
+```
+
 ### LLMJudge
 
 ```python
+from agent_evaluator import LLMJudge
+
 judge = LLMJudge(model="claude-haiku-4-5-20251001", sample_rate=0.1)
 result = judge.judge("t1", question="...", response="...", context="...")
 # result["scores"]["overall"] · ["faithfulness"] · ["criteria_overall"]
+
+# LLMJudge 결과 접근 (monitor에서)
+summary = monitor.llm_judge.get_summary()
+# → {"avg_scores": {"overall": float, "criteria_scores": {...}}, "sample_count": int}
 ```
 
 ### create_taskresult helper
 
 ```python
 from agent_evaluator import create_taskresult
+
 result = create_taskresult(
     task_id="task_001", question="...", response="...",
     ground_truth="...", execution_time=1.23, task_type="qa",
 )
 ```
+
+### HarnessEvaluationGate
+
+```python
+from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
+
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report)
+result = gate.evaluate()   # 인수 없음
+# result: {"passed": bool, "groups": {"A": {"score": float|None, "status": str, "passed": bool}},
+#          "violations": [...], "summary": {"total_groups": int, "passed_groups": int, "overall_score": float|None}}
+```
+
+---
+
+## SDK 유효 파라미터 레퍼런스
+
+### PerformanceMonitor 유효 파라미터
+
+```
+output_dir, pricing, model_name, session_label
+enable_transparency, enable_hallucination_detection, enable_security_metrics
+security_config, enabled_security_trackers
+enable_llm_judge, judge_model, judge_sample_rate, judge_criteria
+judge_budget_per_day, judge_budget_storage_path
+judge_max_context_chars, judge_escalation_model, judge_escalation_threshold, judge_seed
+use_korean_tokenizer, use_semantic_hallucination, semantic_weight
+enable_anomaly_detection, anomaly_baseline_window, anomaly_detection_window
+auto_save, auto_save_interval, auto_save_filename
+enable_otel_child_spans, ttft_variability_config, cost_predictability_config
+```
+
+### @agent_eval 유효 파라미터
+
+```
+task_type, question_arg, ground_truth_arg, task_id_prefix, context_arg
+expected_tools_arg, expected_tools, framework, model_name
+score_fn, completion_fn, task_id_fn, sample_rate
+on_record, on_error, timeout, enabled
+alert_rules, flush_every, preset
+retry (RetryConfig), llm_judge (LLMJudgeConfig), security (SecurityConfig)
+custom_parser, enable_hallucination_detection, rag_mode
+enable_anomaly_detection, ttft_seconds, alert_error_mode
+instructions, loop_detection, goal_alignment, reproducibility, fault_tolerance, plan_tracking
+sla, threat_severity, efficiency, state_consistency, deadlock, observability
+consensus, scope, context_retention, explainability, subtask_tracking, propagation
+agent_role, graceful_degradation, compliance, resource_budget, conflict_resolution
+tool_parameter_safety, knowledge_retention, retry_consistency, error_diagnosis, idempotency
+threat_response, context_window, latency_attribution
+```
+
+---
+
+## SDK 고정 사실 (검증 기준)
+
+- Native Tracker: **25개** | Harness Config: **33개** | Gate: **7개** (A–G)
+- 버전: **v0.9.4** (Beta) | Python: **3.8+**
+- 테스트: **53개** 파일, **2,400+** 테스트 함수
+- 대시보드: **103개** API 라우트 (FastAPI)
+- `from agent_evaluator import agent_eval` — 올바른 import 경로  
+  `from agent_evaluator.decorators import agent_eval` — 내부 모듈 (직접 import 비권장)
+- Gate별 Tracker 수: A=3, B=2, C=2, D=2, E=5, F=2, G=0 (합계 16 + 운영지원 9 = 25)
+- HallucinationDetector 귀속: 개념=Gate C(신뢰성) | SDK 집계=Gate C(_rel_vals) + Gate G(_obs_vals)
+- AccuracyEvaluator 귀속: Gate A 직접 기여 (_a_vals, 0-100→0-1 정규화)
+- **PlanConfig 기본값**: `max_steps=15`, `min_steps=2` (decorators.py 308-309)
+- **PlanConfig 지원 JSON 형식**: `{"steps": [...]}` 또는 `{"plan": [...]}` (plan 키가 직접 리스트)  
+  ❌ `{"plan": {"steps": [...]}}` 중첩 dict 구조는 파싱 불가
+- **Gate G 집계 조건**: `_obs_vals` 빈 배열이면 Gate G `score=None` (집계 제외, fail 아님)
+- **report.to_dict()["extra_metrics"]**: `harness_groups`만 포함. `llm_judge` 키 없음  
+  LLMJudge 결과 접근: `monitor.llm_judge.get_summary()` → `avg_scores` → `criteria_scores`
+- **HarnessEvaluationGate 위치**: `agent_evaluator/quick_eval.py`  
+  `gate.evaluate()` 인수 없음. 반환: `{passed, groups, violations, summary}`
+- **SLAConfig 이중 기여**: Gate D Config이지만 breach_rate는 Gate C `_rel_vals`에 기여  
+  Gate D score는 `LatencyTracker` 실측 P95 > 0 이어야 산출됨 (`_perf_vals` 필요)
+- **TTFTVariabilityConfig·CostPredictabilityConfig**: `@agent_eval` 파라미터가 아닌  
+  `PerformanceMonitor(ttft_variability_config=..., cost_predictability_config=...)` 수준 설정
+
+---
+
+## Gate A Tracker 귀속 (자주 틀리는 항목)
+
+| Tracker | 귀속 | 비고 |
+|---------|------|------|
+| `TaskCompletionTracker` | Gate A + C | 직접 기여 |
+| `AccuracyEvaluator` | **Gate A** | direct (`_a_vals`) |
+| `ResponseQualityEvaluator` | Gate A 연관 | quality_metrics 별도 집계, Gate A **점수 미포함** |
+| `HallucinationDetector` | **Gate C + G** | Gate A **아님** |
 
 ---
 
@@ -221,14 +367,14 @@ result = create_taskresult(
 |------|--------|------|
 | `ragas>=0.4.0` | ✅ | EvaluationDataset, SingleTurnSample API supported |
 | `[crewai,autogen]` pydantic conflict | 🟡 | Silently downgrades to pydantic 2.11.x |
-| `arize-phoenix` | ✅ | v15.4.0 안전 — pydantic-ai 호환성 해결됨 (이전 `<14.7.0` 핀 해제) |
+| `arize-phoenix>=15.4.0` | ✅ | pydantic-ai 호환성 해결됨 (이전 `<14.7.0` 핀 해제) |
 | `AnswerRelevancy` embeddings | 🟡 | Auto-configured only with OpenAI key |
 
 ---
 
 ## Testing
 
-**53 files, 2,465+ test functions** in `tests/`.
+**53 files, 2,400+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
