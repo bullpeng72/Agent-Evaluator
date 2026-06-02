@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1461,7 +1461,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 2,465+ test functions, 53 files
+├── tests/                       # 2,452+ test functions, 53 files
 └── pyproject.toml
 ```
 
@@ -1520,7 +1520,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (2,465+)
+pytest                          # run tests (2,452+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1529,6 +1529,18 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.5 (2026-06-02) — CLAUDE.md Rewrite · Import Path Fix · Model Name Modernization
+
+- 📝 CLAUDE.md fully rewritten in English with accurate SDK facts (v0.9.4→v0.9.5 sync, 103 dashboard routes, Phase 6 Harness Config params added).
+- 🔧 Example files `ch11`, `ch14`, `ch21`: `from agent_evaluator.decorators import agent_eval` → `from agent_evaluator import agent_eval` (public API path).
+- 🔧 `ch22`: removed unused `QuickEval` import.
+- 🔧 `ch19`: `ragas_model` / `DeepEvalAdapter model` updated `gpt-4o-mini` → `gpt-5-nano`.
+- 🔧 `ch15`, `ch23`: added `TODO(현업 적용)` comments to mock agent functions.
+- 🐛 `monitor.py`: `judge_result` attachment condition relaxed to `if judge_result` — skipped results now serialized into `TaskResult.llm_judge` so Gate C filtering in `_compute_harness_groups` works correctly.
+- 🐛 Gate C: LLM faithfulness usage now accurately reflected in dashboard and HTML reports.
+- ✨ `ToolCallAnalyzer`: added `unique_tools` cumulative aggregation.
+- 🐛 Gate G always-fail bug fixed · LLMJudge token budget · PlanConfig default values corrected.
 
 ### v0.9.4 (2026-05-28) — Parallel Execution Bug Fixes · macOS NFD Filename Fix
 

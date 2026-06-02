@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.4 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.5 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -302,7 +302,7 @@ threat_response, context_window, latency_attribution
 ## SDK Fixed Facts (Authoritative Reference)
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
-- Version: **v0.9.4** (Beta) | Python: **3.8+**
+- Version: **v0.9.5** (Beta) | Python: **3.8+**
 - Tests: **53 files**, **2,400+** test functions
 - Dashboard: **103** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
