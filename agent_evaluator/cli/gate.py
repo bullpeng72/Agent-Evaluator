@@ -206,6 +206,41 @@ def _parse_group_weights(weights_str: Optional[str]) -> Dict[str, float]:
     return result
 
 
+def _parse_gate_thresholds(thresholds_str: Optional[str]) -> Dict[str, float]:
+    """'A:0.8,D:0.9,E:0.95' 형식 문자열을 Gate별 임계값 dict로 파싱한다.
+
+    Args:
+        thresholds_str: 쉼표 구분 'Gate:Score' 쌍. None 이면 빈 dict 반환.
+
+    Returns:
+        {"A": 0.8, "D": 0.9, ...}
+
+    Raises:
+        ValueError: 형식이 잘못된 경우.
+    """
+    if not thresholds_str:
+        return {}
+    result: Dict[str, float] = {}
+    for token in thresholds_str.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        parts = token.split(":")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid gate-thresholds format: '{token}'. Example: A:0.8,D:0.9")
+        gate_key = parts[0].strip().upper()
+        if gate_key not in "ABCDEFG" or len(gate_key) != 1:
+            raise ValueError(f"Invalid Gate key: '{gate_key}'. Must be one of A–G.")
+        try:
+            val = float(parts[1].strip())
+        except ValueError:
+            raise ValueError(f"Score is not a number: '{parts[1]}'")
+        if not (0.0 <= val <= 1.0):
+            raise ValueError(f"Gate score must be 0.0–1.0, got {val}")
+        result[gate_key] = val
+    return result
+
+
 def _compute_composite_gate(
     groups: Dict[str, Optional[float]],
     weights: Dict[str, float],
@@ -752,6 +787,49 @@ def cmd_gate(args: argparse.Namespace) -> int:
             "composite": composite,
         }
 
+    # ── Gate별 개별 임계값 검증 (--gate-thresholds) ──────────────────────────
+    gate_threshold_violations: List[str] = []
+    gate_threshold_str = getattr(args, "gate_thresholds", None)
+    if gate_threshold_str:
+        try:
+            gate_thresholds = _parse_gate_thresholds(gate_threshold_str)
+        except ValueError as exc:
+            print(f"{RD}❌ --gate-thresholds error: {exc}{R}", file=sys.stderr)
+            return 1
+        required_gates_raw = getattr(args, "required_gates", None)
+        required_set = (
+            set(g.strip().upper() for g in required_gates_raw.split(","))
+            if required_gates_raw else None
+        )
+        fail_on_warn = getattr(args, "fail_on_gate_warn", False)
+        harness_raw = (data.get("extra_metrics") or {}).get("harness_groups", {})
+        min_gate_fallback = getattr(args, "min_gate_score", None)
+        for gate_id in "ABCDEFG":
+            if required_set is not None and gate_id not in required_set:
+                continue
+            gate_data = harness_raw.get(gate_id)
+            if not isinstance(gate_data, dict):
+                continue
+            score = gate_data.get("score")
+            if score is None:
+                continue
+            threshold = gate_thresholds.get(gate_id, min_gate_fallback)
+            if threshold is None:
+                continue
+            score_f = float(score)
+            status = gate_data.get("status", "")
+            passed = score_f >= threshold
+            if fail_on_warn and status == "warn":
+                passed = False
+            if not passed:
+                reason = f"status={status}" if (fail_on_warn and status == "warn") else f"{score_f:.3f} < {threshold:.3f}"
+                gate_threshold_violations.append(f"Gate {gate_id}: {reason}")
+
+        if gate_threshold_violations:
+            print(f"\n{RD}Gate 임계값 미달:{R}", file=sys.stderr)
+            for v in gate_threshold_violations:
+                print(f"  {RD}✗ {v}{R}", file=sys.stderr)
+
     # ── 회귀 감지 ───────────────────────────────────────────────────────────
     regressions: List[Dict[str, Any]] = []
     fail_on_regression = getattr(args, "fail_on_regression", None)
@@ -787,5 +865,9 @@ def cmd_gate(args: argparse.Namespace) -> int:
         composite = composite_result.get("composite")
         if composite is not None and composite < composite_result["min_score"]:
             return 1
+
+    # Gate별 임계값 위반
+    if gate_threshold_violations:
+        return 1
 
     return 0

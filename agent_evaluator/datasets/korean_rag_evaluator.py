@@ -71,6 +71,7 @@ class EvaluationResult:
     evaluation_time: float = 0.0
     error: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    tokens_used: Optional[Dict[str, int]] = None
 
 
 @dataclass
@@ -343,6 +344,7 @@ class KoreanRAGEvaluator:
                 )
 
             # 3. 결과 생성
+            tokens = self._extract_tokens(rag_response)
             result = EvaluationResult(
                 qa_id=qa.qa_id,
                 question=qa.question,
@@ -354,7 +356,8 @@ class KoreanRAGEvaluator:
                 context_recall=metrics.get("context_recall"),
                 context_precision=metrics.get("context_precision"),
                 answer_similarity=metrics.get("answer_similarity"),
-                metadata=rag_response.metadata
+                metadata=rag_response.metadata,
+                tokens_used=tokens,
             )
 
             return result
@@ -630,6 +633,41 @@ class KoreanRAGEvaluator:
 
         return str(filepath)
 
+    @staticmethod
+    def _extract_tokens(response_obj: Any) -> Optional[Dict[str, int]]:
+        """다양한 LLM SDK 응답 객체에서 토큰 수를 추출한다.
+
+        지원 포맷:
+        - Anthropic: ``usage.input_tokens`` / ``usage.output_tokens``
+        - OpenAI:    ``usage.prompt_tokens`` / ``usage.completion_tokens``
+        - 범용:      ``usage.input`` / ``usage.output``
+
+        Returns:
+            ``{"input": int, "output": int, "total": int}`` 또는 None (추출 불가).
+        """
+        usage = getattr(response_obj, "usage", None)
+        if usage is None:
+            return None
+        try:
+            # Anthropic SDK
+            if hasattr(usage, "input_tokens"):
+                inp = int(usage.input_tokens)
+                out = int(usage.output_tokens)
+                return {"input": inp, "output": out, "total": inp + out}
+            # OpenAI SDK
+            if hasattr(usage, "prompt_tokens"):
+                inp = int(usage.prompt_tokens)
+                out = int(usage.completion_tokens)
+                return {"input": inp, "output": out, "total": inp + out}
+            # 범용 fallback
+            if hasattr(usage, "input") and hasattr(usage, "output"):
+                inp = int(usage.input)
+                out = int(usage.output)
+                return {"input": inp, "output": out, "total": inp + out}
+        except (TypeError, ValueError, AttributeError):
+            pass
+        return None
+
     def _record_to_monitor(self, qa: QAPair, result: EvaluationResult):
         """Hybrid Monitor에 기록"""
         if not self.monitor:
@@ -642,7 +680,7 @@ class KoreanRAGEvaluator:
             completion_score=1.0 if result.error is None else 0.0,
             accuracy_score=result.answer_similarity or 0.0,
             execution_time=result.evaluation_time,
-            tokens_used={"input": 0, "output": 0, "total": 0},  # TODO: track tokens
+            tokens_used=result.tokens_used or {"input": 0, "output": 0, "total": 0},
             tool_calls=[],
             attempts=1,
             errors=[result.error] if result.error else [],

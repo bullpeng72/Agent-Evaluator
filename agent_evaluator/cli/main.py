@@ -933,6 +933,25 @@ def main() -> None:
             "Used with --min-gate-score."
         ),
     )
+    gate_p.add_argument(
+        "--gate-thresholds", metavar="THRESHOLDS", dest="gate_thresholds",
+        help=(
+            "Per-gate minimum score thresholds (0.0–1.0). "
+            "Format: 'A:0.8,D:0.9,E:0.95'. "
+            "Gates not listed fall back to --min-gate-score."
+        ),
+    )
+    gate_p.add_argument(
+        "--required-gates", metavar="GATES", dest="required_gates",
+        help=(
+            "Comma-separated list of Gates to check. "
+            "Format: 'A,D,E'. Default: all Gates with data."
+        ),
+    )
+    gate_p.add_argument(
+        "--fail-on-gate-warn", action="store_true", dest="fail_on_gate_warn",
+        help="Treat Gate status 'warn' as failure.",
+    )
 
     # dataset subcommand
     ds_p = sub.add_parser(

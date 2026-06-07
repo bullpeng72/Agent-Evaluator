@@ -1461,7 +1461,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 2,452+ test functions, 53 files
+├── tests/                       # 2,465+ test functions, 51 files
 └── pyproject.toml
 ```
 

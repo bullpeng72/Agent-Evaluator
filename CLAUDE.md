@@ -24,7 +24,7 @@ pip install -e ".[examples]"  # all examples runnable (sdk + eval)
 # CLI
 agent-eval init                                           # API key setup wizard
 agent-eval check                                          # config status
-agent-eval version                                        # version info
+agent-eval --version                                      # version info
 agent-eval dashboard                                      # FastAPI dashboard (port 8765)
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval dataset build results/ --min-score 0.8         # golden dataset
@@ -303,7 +303,7 @@ threat_response, context_window, latency_attribution
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
 - Version: **v0.9.5** (Beta) | Python: **3.8+**
-- Tests: **53 files**, **2,400+** test functions
+- Tests: **51 files**, **2,465+** test functions
 - Dashboard: **103** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
@@ -374,7 +374,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**53 files, 2,400+ test functions** in `tests/`.
+**51 files, 2,465+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

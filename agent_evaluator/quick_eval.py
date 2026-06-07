@@ -992,6 +992,11 @@ class QuickEval:
         token_efficiency_min: Optional[float] = None,
         tool_f1_min: Optional[float] = None,
         coordination_success_rate_min: Optional[float] = None,
+        # Harness Gate A~G 점수 기반 판정
+        gate_min: Optional[float] = None,
+        gate_thresholds: Optional[Dict[str, float]] = None,
+        required_gates: Optional[List[str]] = None,
+        fail_on_gate_warn: bool = False,
         **thresholds: float,
     ) -> Union[bool, Dict[str, Any]]:
         """CI/CD 품질 게이팅 — 임계값 미달 시 ``SystemExit`` 발생.
@@ -1002,8 +1007,15 @@ class QuickEval:
             config_file: JSON 파일 경로.  ``{"tcr": 85, "accuracy": 70, "latency_p95": 5.0}``
                 형태의 임계값을 읽는다.  직접 지정한 파라미터가 파일 값보다 우선한다.
             dry_run: ``True`` 이면 ``sys.exit()`` 를 호출하지 않고 결과를 dict 로 반환한다.
-                ``{"passed": bool, "results": {metric: {"current": float, "threshold": float,
-                "passed": bool}}}`` 형식.
+                ``{"passed": bool, "results": {...}, "gate_results": {...}}`` 형식.
+            gate_min: 모든 Harness Gate(A~G)에 적용할 최소 점수 (0.0–1.0).
+                ``gate_thresholds`` 에 없는 Gate의 기본 임계값으로도 사용된다.
+            gate_thresholds: Gate별 개별 최소 점수 dict.
+                예: ``{"A": 0.8, "D": 0.9, "E": 0.95}``.
+                지정된 Gate만 검사하며 ``gate_min`` 보다 우선 적용된다.
+            required_gates: 검사 대상 Gate 목록. 미지정 시 데이터가 있는 Gate 전체.
+                예: ``["A", "D", "E"]``.
+            fail_on_gate_warn: ``True`` 이면 Gate 상태가 ``"warn"`` 이어도 실패로 처리.
             **thresholds: 추가 임계값 (``latency_p95=5.0`` 등).
 
         Returns:
@@ -1019,6 +1031,8 @@ class QuickEval:
             eval.gate(config_file=".thresholds.json")               # 파일에서 임계값 로드
             eval.gate(config_file=".thresholds.json", tcr=90)       # 파일 tcr을 90으로 override
             result = eval.gate(tcr=85, accuracy=70, dry_run=True)   # 종료 없이 결과 확인
+            eval.gate(gate_min=0.7, gate_thresholds={"D": 0.9})     # Gate D는 0.9, 나머지는 0.7
+            eval.gate(gate_thresholds={"A": 0.8}, required_gates=["A", "D"])  # A·D만 검사
         """
         import json
         import os
@@ -1212,11 +1226,50 @@ class QuickEval:
                     f"Coordination success rate {_csr:.4f} < required {coordination_success_rate_min}"
                 )
 
+        # Harness Gate A~G 점수 기반 판정
+        gate_run_results: Dict[str, Any] = {}
+        if gate_min is not None or gate_thresholds:
+            d = report.to_dict() if hasattr(report, "to_dict") else {}
+            harness = (d.get("extra_metrics") or {}).get("harness_groups", {})
+            _gate_thresholds = gate_thresholds or {}
+            _required = set(g.upper() for g in required_gates) if required_gates else None
+            for gate_id in "ABCDEFG":
+                if _required is not None and gate_id not in _required:
+                    continue
+                gate_data = harness.get(gate_id)
+                if not isinstance(gate_data, dict):
+                    continue
+                score = gate_data.get("score")
+                if score is None:
+                    continue
+                threshold = _gate_thresholds.get(gate_id, gate_min)
+                if threshold is None:
+                    continue
+                score_f = float(score)
+                status = gate_data.get("status", "")
+                _gate_passed = score_f >= threshold
+                if fail_on_gate_warn and status == "warn":
+                    _gate_passed = False
+                gate_run_results[gate_id] = {
+                    "score": round(score_f, 4),
+                    "threshold": threshold,
+                    "status": status,
+                    "passed": _gate_passed,
+                }
+                if not _gate_passed:
+                    failures.append(
+                        f"Gate {gate_id} score {score_f:.3f} < required {threshold:.3f}"
+                        + (f" (status={status})" if fail_on_gate_warn and status == "warn" else "")
+                    )
+
         if dry_run:
-            return {
+            result: Dict[str, Any] = {
                 "passed": len(failures) == 0,
                 "results": dry_run_results,
             }
+            if gate_run_results:
+                result["gate_results"] = gate_run_results
+            return result
 
         if failures:
             msg = "QuickEval quality gate failed:\n" + "\n".join(f"  - {f}" for f in failures)
