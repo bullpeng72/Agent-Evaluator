@@ -4482,7 +4482,8 @@ def _build_and_record(
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_compliance
                 _p4_extra["compliance"] = eval_compliance(
-                    task_result.response, task_result.question, compliance
+                    task_result.response, task_result.question, compliance,
+                    task_extra=dict(task_result.extra or {}),
                 )
             except Exception as _e:
                 logger.debug("ComplianceConfig evaluation failed (ignored): %s", _e)

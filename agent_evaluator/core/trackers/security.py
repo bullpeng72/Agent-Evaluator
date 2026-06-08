@@ -158,6 +158,56 @@ class InputSanitizationTracker(SecurityTrackerMixin):
             ]
         ]
 
+        # Template Injection (SSTI — Jinja2, Twig, ERB, EL 등)
+        self.template_injection_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r"\{\{.*?\}\}",           # {{...}} Jinja2/Twig
+                r"\{%-?\s*\w",            # {% ... %} Jinja2 block
+                r"<%=.*?%>",             # ERB <%=...%>
+                r"#\{[^}]+\}",           # Ruby #{...}
+                r"\$\{[^}]+\}",          # EL ${...}
+            ]
+        ]
+
+        # LDAP Injection
+        self.ldap_injection_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r"\*\)\(",               # *)(
+                r"\|\s*\(uid",           # |(uid
+                r"\\00",                 # null byte
+                r"\)\s*\(objectClass",   # )(objectClass
+            ]
+        ]
+
+        # XXE (XML External Entity Injection)
+        self.xxe_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r"<!ENTITY",
+                r"SYSTEM\s+[\"']",
+                r"PUBLIC\s+[\"']",
+                r"<!DOCTYPE\s+\w+\s+\[",
+            ]
+        ]
+
+        # SSRF 힌트 (서버 사이드 요청 위조 유발 패턴)
+        self.ssrf_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r"169\.254\.169\.254",        # AWS EC2 메타데이터
+                r"metadata\.google\.internal", # GCP 메타데이터
+                r"127\.\d{1,3}\.\d{1,3}\.\d{1,3}", # 루프백
+                r"\b0\.0\.0\.0\b",
+                r"localhost:\d{2,5}",
+            ]
+        ]
+
+        # JWT 조작 패턴
+        self.jwt_manipulation_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r'"alg"\s*:\s*"none"',        # alg:none 공격
+                r"eyJ[a-zA-Z0-9\-_]+\.eyJ",   # 기형 JWT (header.header)
+            ]
+        ]
+
     @property
     def evaluations(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated input evaluation records."""
@@ -253,6 +303,11 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         path_hit, path_conf = _check_with_confidence(self.path_traversal_patterns)
         xss_hit, xss_conf = _check_with_confidence(self.xss_patterns)
         prompt_hit, prompt_conf = _check_with_confidence(self.prompt_injection_patterns)
+        tmpl_hit, tmpl_conf = _check_with_confidence(self.template_injection_patterns)
+        ldap_hit, ldap_conf = _check_with_confidence(self.ldap_injection_patterns)
+        xxe_hit, xxe_conf = _check_with_confidence(self.xxe_patterns)
+        ssrf_hit, ssrf_conf = _check_with_confidence(self.ssrf_patterns)
+        jwt_hit, jwt_conf = _check_with_confidence(self.jwt_manipulation_patterns)
 
         result = {
             "task_id": task_id,
@@ -261,6 +316,11 @@ class InputSanitizationTracker(SecurityTrackerMixin):
             "has_path_traversal": path_hit,
             "has_xss": xss_hit,
             "has_prompt_injection": prompt_hit,
+            "has_template_injection": tmpl_hit,
+            "has_ldap_injection": ldap_hit,
+            "has_xxe": xxe_hit,
+            "has_ssrf": ssrf_hit,
+            "has_jwt_manipulation": jwt_hit,
             "whitelisted": False,
         }
 
@@ -281,6 +341,8 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         hit_confs = [c for hit, c in [
             (sql_hit, sql_conf), (cmd_hit, cmd_conf), (path_hit, path_conf),
             (xss_hit, xss_conf), (prompt_hit, prompt_conf),
+            (tmpl_hit, tmpl_conf), (ldap_hit, ldap_conf), (xxe_hit, xxe_conf),
+            (ssrf_hit, ssrf_conf), (jwt_hit, jwt_conf),
         ] if hit]
         result["confidence"] = round(sum(hit_confs) / len(hit_confs), 2) if hit_confs else 0.0
 
@@ -289,35 +351,48 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 
     def get_security_stats(self) -> Dict[str, Any]:
         """Get input security statistics"""
+        _zero: Dict[str, Any] = {
+            "total_inputs_evaluated": 0,
+            "inputs_with_threats": 0,
+            "threat_rate": 0.0,
+            "sql_injection_attempts": 0,
+            "command_injection_attempts": 0,
+            "path_traversal_attempts": 0,
+            "xss_attempts": 0,
+            "prompt_injection_attempts": 0,
+            "template_injection_attempts": 0,
+            "ldap_injection_attempts": 0,
+            "xxe_attempts": 0,
+            "ssrf_attempts": 0,
+            "jwt_manipulation_attempts": 0,
+            "critical_risk_inputs": 0,
+            "high_risk_inputs": 0,
+        }
         if not self._evaluations:
-            return {
-                "total_inputs_evaluated": 0,
-                "inputs_with_threats": 0,
-                "threat_rate": 0.0,
-                "sql_injection_attempts": 0,
-                "command_injection_attempts": 0,
-                "path_traversal_attempts": 0,
-                "xss_attempts": 0,
-                "prompt_injection_attempts": 0,
-                "critical_risk_inputs": 0,
-                "high_risk_inputs": 0,
-            }
+            return _zero
 
         df = pd.DataFrame(self._evaluations)
-
         total = len(self._evaluations)
+
+        def _safe_sum(col: str) -> int:
+            return int(df[col].sum()) if col in df.columns else 0
 
         return {
             "total_inputs_evaluated": total,
-            "inputs_with_threats": int(df["sanitization_needed"].sum()),
-            "threat_rate": round((df["sanitization_needed"].sum() / total) * 100, 2),
-            "sql_injection_attempts": int(df["has_sql_injection"].sum()),
-            "command_injection_attempts": int(df["has_command_injection"].sum()),
-            "path_traversal_attempts": int(df["has_path_traversal"].sum()),
-            "xss_attempts": int(df["has_xss"].sum()),
-            "prompt_injection_attempts": int(df["has_prompt_injection"].sum()),
+            "inputs_with_threats": _safe_sum("sanitization_needed"),
+            "threat_rate": round((_safe_sum("sanitization_needed") / total) * 100, 2),
+            "sql_injection_attempts": _safe_sum("has_sql_injection"),
+            "command_injection_attempts": _safe_sum("has_command_injection"),
+            "path_traversal_attempts": _safe_sum("has_path_traversal"),
+            "xss_attempts": _safe_sum("has_xss"),
+            "prompt_injection_attempts": _safe_sum("has_prompt_injection"),
+            "template_injection_attempts": _safe_sum("has_template_injection"),
+            "ldap_injection_attempts": _safe_sum("has_ldap_injection"),
+            "xxe_attempts": _safe_sum("has_xxe"),
+            "ssrf_attempts": _safe_sum("has_ssrf"),
+            "jwt_manipulation_attempts": _safe_sum("has_jwt_manipulation"),
             "critical_risk_inputs": int((df["risk_level"] == "critical").sum()),
-            "high_risk_inputs": int((df["risk_level"] == "high").sum())
+            "high_risk_inputs": int((df["risk_level"] == "high").sum()),
         }
 
 
@@ -400,6 +475,33 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             ]
         ]
 
+        # JWT 토큰 (header.payload.signature 구조)
+        self.jwt_token_pattern = re.compile(
+            r'eyJ[a-zA-Z0-9\-_]{4,}\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]*'
+        )
+
+        # 데이터베이스 연결 문자열
+        self.db_connection_patterns = [
+            re.compile(p, re.IGNORECASE) for p in [
+                r'(Server|Host|Data\s+Source)\s*=[^;]+;\s*(User\s+(?:ID|Id)|uid)\s*=',
+                r'(mongodb|postgresql|mysql|redis|mssql)://\w[^:]*:[^@]+@',
+            ]
+        ]
+
+        # IBAN (국제 계좌번호)
+        self.iban_pattern = re.compile(
+            r'\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7,15}\b'
+        )
+
+        # 암호화폐 주소
+        self.crypto_patterns = [
+            re.compile(p) for p in [
+                r'\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b',  # Bitcoin P2PKH/P2SH
+                r'\b0x[a-fA-F0-9]{40}\b',                  # Ethereum
+                r'\bbc1[a-zA-HJ-NP-Z0-9]{39,59}\b',        # Bitcoin Bech32
+            ]
+        ]
+
         _excluded = excluded_unix_paths if excluded_unix_paths is not None else _DEFAULT_EXCLUDED_UNIX_PATHS
         _lookahead = "|".join(re.escape(p) for p in _excluded) if _excluded else None
         _unix_pattern = (
@@ -451,6 +553,8 @@ class OutputLeakageDetector(SecurityTrackerMixin):
                     "contains_api_key", "contains_password", "contains_credit_card",
                     "contains_email", "contains_phone", "contains_ssn",
                     "contains_private_ip", "contains_file_path",
+                    "contains_jwt_token", "contains_db_connection",
+                    "contains_iban", "contains_crypto_address",
                 ]},
                 "leakage_count": 0,
                 "severity": "none",
@@ -468,6 +572,8 @@ class OutputLeakageDetector(SecurityTrackerMixin):
                     "contains_api_key", "contains_password", "contains_credit_card",
                     "contains_email", "contains_phone", "contains_ssn",
                     "contains_private_ip", "contains_file_path",
+                    "contains_jwt_token", "contains_db_connection",
+                    "contains_iban", "contains_crypto_address",
                 ]},
                 "leakage_count": 0,
                 "severity": "none",
@@ -488,6 +594,10 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "contains_ssn": 0.9,
             "contains_private_ip": 0.7,
             "contains_file_path": 0.65,
+            "contains_jwt_token": 0.9,
+            "contains_db_connection": 0.85,
+            "contains_iban": 0.85,
+            "contains_crypto_address": 0.8,
         }
 
         result = {
@@ -500,17 +610,24 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "contains_ssn": bool(self.ssn_pattern.search(output_text)),
             "contains_private_ip": self._check_patterns(output_text, self.private_ip_patterns),
             "contains_file_path": self._check_patterns(output_text, self.file_path_patterns),
+            "contains_jwt_token": bool(self.jwt_token_pattern.search(output_text)),
+            "contains_db_connection": self._check_patterns(output_text, self.db_connection_patterns),
+            "contains_iban": bool(self.iban_pattern.search(output_text)),
+            "contains_crypto_address": self._check_patterns(output_text, self.crypto_patterns),
             "whitelisted": False,
         }
 
         leakage_count = sum([result[k] for k in result if k.startswith("contains_")])
         result["leakage_count"] = leakage_count
 
-        if result["contains_api_key"] or result["contains_password"] or result["contains_credit_card"]:
+        if (result["contains_api_key"] or result["contains_password"]
+                or result["contains_credit_card"] or result["contains_jwt_token"]
+                or result["contains_db_connection"]):
             result["severity"] = "critical"
-        elif result["contains_ssn"] or result["contains_email"]:
+        elif result["contains_ssn"] or result["contains_email"] or result["contains_iban"]:
             result["severity"] = "high"
-        elif result["contains_phone"] or result["contains_private_ip"]:
+        elif (result["contains_phone"] or result["contains_private_ip"]
+              or result["contains_crypto_address"]):
             result["severity"] = "medium"
         elif result["contains_file_path"]:
             result["severity"] = "low"
@@ -525,51 +642,42 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         return result
 
     def get_leakage_stats(self) -> Dict[str, Any]:
-        """Get output leakage statistics.
-
-        Returns:
-            Dict with keys: total_outputs_evaluated, outputs_with_leakage,
-            leakage_rate, api_key_leaks, password_leaks, credit_card_leaks,
-            email_leaks, ssn_leaks, phone_leaks, private_ip_leaks,
-            file_path_leaks, critical_severity_count, high_severity_count.
-            Returns a zero-value dict when no outputs have been evaluated.
-        """
+        """Get output leakage statistics."""
+        _zero: Dict[str, Any] = {
+            "total_outputs_evaluated": 0, "outputs_with_leakage": 0, "leakage_rate": 0.0,
+            "api_key_leaks": 0, "password_leaks": 0, "credit_card_leaks": 0,
+            "email_leaks": 0, "ssn_leaks": 0, "phone_leaks": 0,
+            "private_ip_leaks": 0, "file_path_leaks": 0,
+            "jwt_token_leaks": 0, "db_connection_leaks": 0,
+            "iban_leaks": 0, "crypto_address_leaks": 0,
+            "critical_severity_count": 0, "high_severity_count": 0,
+        }
         if not self._detections:
-            return {
-                "total_outputs_evaluated": 0,
-                "outputs_with_leakage": 0,
-                "leakage_rate": 0.0,
-                "api_key_leaks": 0,
-                "password_leaks": 0,
-                "credit_card_leaks": 0,
-                "email_leaks": 0,
-                "ssn_leaks": 0,
-                "phone_leaks": 0,
-                "private_ip_leaks": 0,
-                "file_path_leaks": 0,
-                "critical_severity_count": 0,
-                "high_severity_count": 0,
-            }
+            return _zero
 
         df = pd.DataFrame(self._detections)
-
         total = len(self._detections)
         outputs_with_leakage = int((df["leakage_count"] > 0).sum())
 
-        # detect_leakage() always populates all 8 contains_* columns, so no
-        # column-existence guard is needed here.
+        def _safe_sum(col: str) -> int:
+            return int(df[col].sum()) if col in df.columns else 0
+
         return {
             "total_outputs_evaluated": total,
             "outputs_with_leakage": outputs_with_leakage,
             "leakage_rate": round((outputs_with_leakage / total) * 100, 2) if total > 0 else 0,
-            "api_key_leaks": int(df["contains_api_key"].sum()),
-            "password_leaks": int(df["contains_password"].sum()),
-            "credit_card_leaks": int(df["contains_credit_card"].sum()),
-            "email_leaks": int(df["contains_email"].sum()),
-            "ssn_leaks": int(df["contains_ssn"].sum()),
-            "phone_leaks": int(df["contains_phone"].sum()),
-            "private_ip_leaks": int(df["contains_private_ip"].sum()),
-            "file_path_leaks": int(df["contains_file_path"].sum()),
+            "api_key_leaks": _safe_sum("contains_api_key"),
+            "password_leaks": _safe_sum("contains_password"),
+            "credit_card_leaks": _safe_sum("contains_credit_card"),
+            "email_leaks": _safe_sum("contains_email"),
+            "ssn_leaks": _safe_sum("contains_ssn"),
+            "phone_leaks": _safe_sum("contains_phone"),
+            "private_ip_leaks": _safe_sum("contains_private_ip"),
+            "file_path_leaks": _safe_sum("contains_file_path"),
+            "jwt_token_leaks": _safe_sum("contains_jwt_token"),
+            "db_connection_leaks": _safe_sum("contains_db_connection"),
+            "iban_leaks": _safe_sum("contains_iban"),
+            "crypto_address_leaks": _safe_sum("contains_crypto_address"),
             "critical_severity_count": int((df["severity"] == "critical").sum()),
             "high_severity_count": int((df["severity"] == "high").sum()),
         }

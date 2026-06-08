@@ -1657,19 +1657,30 @@ class PerformanceMonitor:
             if self.enable_security_metrics:
                 _sec_q = _eff_request or task_result.question
                 _sec_r = _eff_response or task_result.response
+                # 보안 Tracker 결과를 task_result.extra에 저장하기 위한 dict
+                _sec_extra: Dict[str, Any] = dict(task_result.extra or {})
+
                 # Layer 1: Input Sanitization — 입력 텍스트 위협 스캔
                 if self.input_sanitizer is not None and _sec_q:
                     try:
-                        self.input_sanitizer.evaluate_input(task_result.task_id, _sec_q)
+                        _is_r = self.input_sanitizer.evaluate_input(task_result.task_id, _sec_q)
+                        if _is_r and not _is_r.get("sampled_out"):
+                            _sec_extra["input_sanitization"] = _is_r
                     except Exception as _sec_exc:
                         logger.debug("InputSanitizationTracker failed (ignored): %s", _sec_exc)
+
                 # Layer 1: Output Leakage Detection — 출력 내 민감정보 탐지
                 if self.output_leakage_detector is not None and _sec_r:
                     try:
-                        self.output_leakage_detector.detect_leakage(task_result.task_id, _sec_r)
+                        _ol_r = self.output_leakage_detector.detect_leakage(task_result.task_id, _sec_r)
+                        if _ol_r and not _ol_r.get("sampled_out"):
+                            _sec_extra["output_leakage"] = _ol_r
                     except Exception as _sec_exc:
                         logger.debug("OutputLeakageDetector failed (ignored): %s", _sec_exc)
+
                 # Layer 1: Tool Authorization — 각 도구 호출 권한 검사
+                _ta_total = 0
+                _ta_violations = 0
                 if self.tool_authorizer is not None and task_result.tool_calls:
                     for _stc in task_result.tool_calls:
                         try:
@@ -1679,17 +1690,30 @@ class PerformanceMonitor:
                             else:
                                 _stc_name = str(_stc)
                                 _stc_params = {}
-                            self.tool_authorizer.track_tool_call(task_result.task_id, _stc_name, _stc_params or None)
+                            _ta_r = self.tool_authorizer.track_tool_call(task_result.task_id, _stc_name, _stc_params or None)
+                            _ta_total += 1
+                            if _ta_r and _ta_r.get("violation_type") is not None:
+                                _ta_violations += 1
                         except Exception as _sec_exc:
                             logger.debug("ToolAuthorizationTracker failed (ignored): %s", _sec_exc)
+                    if _ta_total > 0:
+                        _sec_extra["tool_authorization"] = {
+                            "unauthorized_calls": _ta_violations,
+                            "total_calls": _ta_total,
+                            "compliance_rate": round((_ta_total - _ta_violations) / _ta_total, 4),
+                        }
+
                 # Layer 2: Privilege Escalation — 도구 체인의 권한 상승 패턴 감지
                 if self.privilege_escalation_detector is not None and task_result.tool_calls:
                     try:
-                        self.privilege_escalation_detector.analyze_privilege_chain(
+                        _pe_r = self.privilege_escalation_detector.analyze_privilege_chain(
                             task_result.task_id, task_result.tool_calls
                         )
+                        if _pe_r:
+                            _sec_extra["privilege_escalation"] = _pe_r
                     except Exception as _sec_exc:
                         logger.debug("PrivilegeEscalationDetector failed (ignored): %s", _sec_exc)
+
                 # Layer 2: Tool Chain Attack — 연속 도구 호출 공격 패턴 감지
                 if self.tool_chain_attack_detector is not None and task_result.tool_calls:
                     try:
@@ -1699,9 +1723,19 @@ class PerformanceMonitor:
                                 _sec_tool_seq.append(_stc.get("tool_name") or _stc.get("tool") or _stc.get("name", "unknown"))
                             else:
                                 _sec_tool_seq.append(str(_stc))
-                        self.tool_chain_attack_detector.analyze_tool_chain(task_result.task_id, _sec_tool_seq)
+                        _tc_r = self.tool_chain_attack_detector.analyze_tool_chain(task_result.task_id, _sec_tool_seq)
+                        if _tc_r:
+                            _sec_extra["tool_chain_attack"] = _tc_r
                     except Exception as _sec_exc:
                         logger.debug("ToolChainAttackDetector failed (ignored): %s", _sec_exc)
+
+                # 보안 Tracker 결과를 task_result.extra에 반영 (frozen dataclass → replace 패턴)
+                if _sec_extra != (task_result.extra or {}):
+                    task_result = dataclasses.replace(task_result, extra=_sec_extra)
+                    # add_task()가 이미 실행된 후이므로 tcr_tracker._tasks[-1]도 교체
+                    _tcr_list = getattr(self.tcr_tracker, "_tasks", None)
+                    if _tcr_list and _tcr_list[-1].task_id == task_result.task_id:
+                        _tcr_list[-1] = task_result
 
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
@@ -3315,7 +3349,14 @@ class PerformanceMonitor:
         _perf_score = max(0.0, _perf_score - _sla_window_penalty - _sla_budget_penalty)
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
-        sec_threats = security_metrics.get("threat_count", 0) or 0
+        # threat_count를 task.extra에서 직접 계산 (security_metrics에 해당 키 없음)
+        sec_threats = sum(
+            1 for t in tasks
+            if (t.extra or {}).get("input_sanitization", {}).get("sanitization_needed")
+            or int((t.extra or {}).get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
+            or (t.extra or {}).get("privilege_escalation", {}).get("escalation_detected")
+            or (t.extra or {}).get("tool_chain_attack", {}).get("is_suspicious_chain")
+        )
         _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
         _cvss_scores = [
             t.extra["threat_severity"]["weighted_score"]
@@ -3337,30 +3378,30 @@ class PerformanceMonitor:
 
         _priv_esc_count = sum(
             1 for t in tasks
-            if t.extra and t.extra.get("privilege_escalation", {}).get("detected")
+            if t.extra and t.extra.get("privilege_escalation", {}).get("escalation_detected")
         )
         if _priv_esc_count > 0 or any(t.extra and "privilege_escalation" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - _priv_esc_count / max(n, 1)))
 
         _chain_attack_count = sum(
             1 for t in tasks
-            if t.extra and t.extra.get("tool_chain_attack", {}).get("detected")
+            if t.extra and t.extra.get("tool_chain_attack", {}).get("is_suspicious_chain")
         )
         if _chain_attack_count > 0 or any(t.extra and "tool_chain_attack" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - _chain_attack_count / max(n, 1)))
 
         _leakage_count = sum(
-            int(t.extra.get("output_leakage", {}).get("leak_count", 0))
+            int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0)
             for t in tasks if t.extra
         )
         if any(t.extra and "output_leakage" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - min(1.0, _leakage_count / max(n, 1))))
 
         _injection_count = sum(
-            int(t.extra.get("input_injection", {}).get("threat_count", 0))
+            int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0)
             for t in tasks if t.extra
         )
-        if any(t.extra and "input_injection" in t.extra for t in tasks):
+        if any(t.extra and "input_sanitization" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - min(1.0, _injection_count / max(n, 1))))
 
         if _cvss_scores:
