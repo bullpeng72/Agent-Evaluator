@@ -27,7 +27,7 @@ from pathlib import Path
 from agent_evaluator import (
     PerformanceMonitor,
     setup_otel,
-    # Group E — Security Boundary
+    # Gate E — Security Boundary
     ThreatSeverityConfig,
     ComplianceConfig,
     ThreatResponseConfig,
@@ -67,9 +67,9 @@ monitor = PerformanceMonitor(
 )
 
 # ===========================================================================
-# 섹션 5: Group E — Security Boundary
+# 섹션 5: Gate E — Security Boundary
 # ===========================================================================
-print("\n=== 섹션 5: Group E — Security Boundary ===")
+print("\n=== 섹션 5: Gate E — Security Boundary ===")
 
 
 @agent_eval(
