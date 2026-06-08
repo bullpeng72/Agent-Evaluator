@@ -283,7 +283,7 @@ priv_detector = PrivilegeEscalationDetector(min_jump_to_flag=2)
 _priv_cases = [
     ("priv_safe",     ["search_docs", "summarize", "report"]),               # 정상 (read)
     ("priv_escalate", ["read_file", "execute_command", "access_admin_db"]),  # 에스컬레이션
-    ("priv_lateral",  ["get_token", "modify_permissions", "access_database"]),
+    ("priv_small_jump", ["get_token", "modify_permissions", "access_database"]),
 ]
 for tid, tools in _priv_cases:
     priv_result = priv_detector.analyze_privilege_chain(tid, tools)
@@ -304,8 +304,8 @@ chain_detector = ToolChainAttackDetector(
 _chain_cases = [
     ("chain_normal",  ["search", "analyze", "report"]),                          # 정상 (화이트리스트)
     ("chain_exfil",   ["query_database", "encode_data", "http_post"]),           # 데이터 유출
-    ("chain_lateral", ["steal_credential", "ssh_connect", "escalate_priv"]),     # 수평 이동
-    ("chain_evasion", ["audit_log", "clear_history", "wipe_evidence"]),          # 방어 우회
+    ("chain_lateral", ["get_credential", "server_connect", "remote_execute"]),    # 수평 이동
+    ("chain_evasion", ["read_log", "clear_events", "delete_artifacts"]),         # 방어 우회
 ]
 for tid, tools in _chain_cases:
     chain_result = chain_detector.analyze_tool_chain(tid, tools)
