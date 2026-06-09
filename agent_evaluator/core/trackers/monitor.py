@@ -220,6 +220,8 @@ class PerformanceMonitor:
         cost_predictability_config: Optional[Any] = None,
         # Gate A TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Config 지표의 상대 중요도 조정
         gate_a_tcr_weight: float = 0.4,
+        # Gate C TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Reliability Config 지표의 상대 중요도 조정
+        gate_c_tcr_weight: float = 0.4,
     ):
         """
         Initialize Performance Monitor
@@ -341,6 +343,7 @@ class PerformanceMonitor:
         self._ttft_variability_config = ttft_variability_config
         self._cost_predictability_config = cost_predictability_config
         self._gate_a_tcr_weight = max(0.0, min(1.0, float(gate_a_tcr_weight)))
+        self._gate_c_tcr_weight = max(0.0, min(1.0, float(gate_c_tcr_weight)))
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -2927,49 +2930,7 @@ class PerformanceMonitor:
         )
         _loop_rate = _loop_counts / n
 
-        avg_goal_align: Optional[float] = None
-        _goal_vals: _List[float] = []
-        for _t in tasks:
-            _ga2 = ((_t.extra or {}).get("goal_alignment") or {})
-            if not _ga2:
-                continue
-            _ga2_score_raw = _ga2.get("score")
-            if _ga2_score_raw is None:  # goal_tool_map 불일치·미측정 → 집계 제외
-                continue
-            _ga2_score = float(_ga2_score_raw)
-            if _ga2.get("use_llm_scoring"):
-                _lj2 = ((_t.extra or {}).get("llm_judge") or {})
-                _rel2 = (_lj2.get("scores") or {}).get("relevance")
-                if _rel2 is not None:
-                    try:
-                        _w2 = max(0.0, min(1.0, float(_ga2.get("llm_blend_weight", 0.5))))
-                        _ga2_score = _ga2_score * (1 - _w2) + (float(_rel2) / 5.0) * _w2
-                    except (TypeError, ValueError):
-                        pass
-            _goal_vals.append(_ga2_score)
-        if _goal_vals:
-            avg_goal_align = sum(_goal_vals) / len(_goal_vals)
-
-        avg_plan: Optional[float] = None
-        _plan_vals_b: _List[float] = []
-        for _t in tasks:
-            _pc2 = ((_t.extra or {}).get("plan_coherence") or {})
-            if not _pc2:
-                continue
-            _pc2_score = float(_pc2.get("score", 0.0))
-            if _pc2.get("use_llm_scoring"):
-                _lj_pc2 = ((_t.extra or {}).get("llm_judge") or {})
-                _rel_pc2 = (_lj_pc2.get("scores") or {}).get("relevance")
-                if _rel_pc2 is not None:
-                    try:
-                        _w_pc2 = max(0.0, min(1.0, float(_pc2.get("llm_blend_weight", 0.5))))
-                        _pc2_score = _pc2_score * (1 - _w_pc2) + (float(_rel_pc2) / 5.0) * _w_pc2
-                    except (TypeError, ValueError):
-                        pass
-            _plan_vals_b.append(_pc2_score)
-        if _plan_vals_b:
-            avg_plan = sum(_plan_vals_b) / len(_plan_vals_b)
-
+        # avg_goal_a / avg_plan_a: Gate A에서 이미 계산됨 — Gate B details에서 진단용으로 재참조
         _sc_scores = [
             t.extra["state_consistency"]["consistency_score"]
             for t in tasks
@@ -2980,6 +2941,8 @@ class PerformanceMonitor:
             1 for t in tasks
             if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
         )
+        # DeadlockConfig가 설정된(deadlock extra 존재하는) 태스크 수: 분모 및 score 포함 여부 결정
+        _n_dl_tasks = sum(1 for t in tasks if (t.extra or {}).get("deadlock") is not None)
         _deadlock_by_type: Dict[str, int] = {}
         for _t in tasks:
             _dl = (_t.extra or {}).get("deadlock", {})
@@ -3018,8 +2981,9 @@ class PerformanceMonitor:
         _bint_vals = [max(0.0, 1.0 - _loop_rate)]
         if avg_sc is not None:
             _bint_vals.append(avg_sc)
-        if _deadlock_count > 0:
-            _bint_vals.append(max(0.0, 1.0 - _deadlock_count / n))
+        # _n_dl_tasks > 0: DeadlockConfig 설정된 태스크 존재 시 항상 포함 (정상 상태=1.0, 탐지 시 감점)
+        if _n_dl_tasks > 0:
+            _bint_vals.append(max(0.0, 1.0 - _deadlock_count / _n_dl_tasks))
         if avg_scope_score is not None:
             _bint_vals.append(avg_scope_score)
         if avg_tool_param_safety is not None:
@@ -3082,7 +3046,7 @@ class PerformanceMonitor:
             _budget_usd = (_sla_cfg_summary if _sla_results else {}).get("budget_usd")
             if _budget_usd is not None:
                 _total_session_cost = sum(
-                    float(t.extra.get("cost_usd") or 0.0)
+                    float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
                     for t in tasks
                     if (t.extra or {}).get("sla") is not None
                 )
@@ -3100,14 +3064,21 @@ class PerformanceMonitor:
         if avg_reproducibility is not None:
             _rel_vals.append(avg_reproducibility)
 
-        # fault_tolerance recovery_rate → Group C
+        # fault_tolerance → Group C
         # grade="none" 제외: tool_calls가 없어 평가 자체가 불가한 경우 집계에서 제외
-        _ft_scores = [
-            t.extra["fault_tolerance"]["recovery_rate"]
-            for t in tasks
-            if (t.extra or {}).get("fault_tolerance") is not None
-            and t.extra["fault_tolerance"].get("grade") != "none"
-        ]
+        # recovery_quality_score 우선 사용 (grade 세분화 반영: wrong_fallback=0.2 등)
+        # 없으면 raw recovery_rate 폴백
+        _ft_scores = []
+        for _ft_t in tasks:
+            _ft = (_ft_t.extra or {}).get("fault_tolerance")
+            if _ft is None or _ft.get("grade") == "none":
+                continue
+            _ft_sc = (
+                _ft["recovery_quality_score"]
+                if "recovery_quality_score" in _ft
+                else _ft.get("recovery_rate", 1.0)
+            )
+            _ft_scores.append(float(_ft_sc))
         avg_ft: Optional[float] = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
         if avg_ft is not None:
             _rel_vals.append(avg_ft)
@@ -3135,18 +3106,37 @@ class PerformanceMonitor:
                 for t in _rc_tasks_with_score
             )
             if _use_prefix:
-                # task_id를 '_' 기준으로 앞 2세그먼트를 접두사로 사용
-                _rc_by_prefix: Dict[str, _List[float]] = {}
+                # task_id를 '_' 기준으로 접두사별 그룹화 후 그룹별 평균 산출
+                # 정렬 후 첫→마지막 accuracy delta로 cross-task 개선/저하 보너스/페널티 적용
+                _rc_by_prefix: Dict[str, _List] = {}
                 for _t in _rc_tasks_with_score:
                     _tid = str(getattr(_t, "task_id", "") or "")
                     _parts = _tid.rsplit("_", 1)
                     _prefix = _parts[0] if len(_parts) > 1 else _tid
                     _sc = _t.extra["retry_consistency"].get("consistency_score")
                     if _sc is not None:
-                        _rc_by_prefix.setdefault(_prefix, []).append(float(_sc))
-                _group_avgs = [
-                    sum(v) / len(v) for v in _rc_by_prefix.values() if v
-                ]
+                        _rc_by_prefix.setdefault(_prefix, []).append({
+                            "score": float(_sc),
+                            "task_id": _tid,
+                            "accuracy": float(getattr(_t, "accuracy_score", 0.0) or 0.0),
+                            "config": (_t.extra["retry_consistency"].get("_config") or {}),
+                        })
+                _group_avgs = []
+                for _rc_entries in _rc_by_prefix.values():
+                    if not _rc_entries:
+                        continue
+                    _rc_entries.sort(key=lambda e: e["task_id"])
+                    _rc_avg = sum(e["score"] for e in _rc_entries) / len(_rc_entries)
+                    if len(_rc_entries) >= 2:
+                        _rc_cfg = _rc_entries[0]["config"]
+                        _imp_thr = float(_rc_cfg.get("improvement_threshold", 0.1))
+                        _penalize = bool(_rc_cfg.get("penalize_degradation", True))
+                        _acc_delta = _rc_entries[-1]["accuracy"] - _rc_entries[0]["accuracy"]
+                        if _acc_delta >= _imp_thr:
+                            _rc_avg = min(1.0, _rc_avg + 0.1)
+                        elif _acc_delta < -_imp_thr and _penalize:
+                            _rc_avg = max(0.0, _rc_avg - 0.1)
+                    _group_avgs.append(_rc_avg)
                 _avg_retry_consistency = sum(_group_avgs) / len(_group_avgs) if _group_avgs else None
             else:
                 _rc_scores = [
@@ -3187,7 +3177,20 @@ class PerformanceMonitor:
         elif hall_rate is not None:
             _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
-        _rel_score = sum(_rel_vals) / len(_rel_vals) if _rel_vals else (tcr_pct / 100.0)
+        # Gate C: TCR(index 0)와 Config 지표를 gate_c_tcr_weight로 가중 평균
+        if _rel_vals:
+            _tcr_c = _rel_vals[0]
+            _config_c_vals = _rel_vals[1:]
+            if _config_c_vals:
+                _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
+                _rel_score = (
+                    self._gate_c_tcr_weight * _tcr_c
+                    + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
+                )
+            else:
+                _rel_score = float(_tcr_c)
+        else:
+            _rel_score = tcr_pct / 100.0
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
         _p95 = 0.0
@@ -3222,7 +3225,7 @@ class PerformanceMonitor:
         if _rb_tasks:
             _rb_cfg = (_rb_tasks[-1].extra.get("resource_budget") or {}).get("_config", {})
             _use_rollover = bool(_rb_cfg.get("rollover", False))
-            if _use_rollover and _rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms"):
+            if _use_rollover and (_rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms")):
                 # rollover=True: 태스크별 개별 예산 대신 세션 누적 소비를 전체 한도와 비교
                 _total_tokens_consumed = sum(
                     float((t.extra["resource_budget"].get("_consumed") or {}).get("tokens", 0))
@@ -3294,9 +3297,18 @@ class PerformanceMonitor:
 
             if len(_ttft_clean) >= 2:
                 _ttft_stddev = statistics.stdev(_ttft_clean)
-                _ttft_p50 = sorted(_ttft_clean)[len(_ttft_clean) // 2]
-                _p95_idx = int(0.95 * len(_ttft_clean))
-                _ttft_p95 = sorted(_ttft_clean)[min(_p95_idx, len(_ttft_clean) - 1)]
+                _ttft_sorted_clean = sorted(_ttft_clean)
+                _n_clean = len(_ttft_sorted_clean)
+                # p50: 짝수 N에서 두 중앙값 평균 (정확한 중앙값)
+                _mid = _n_clean // 2
+                _ttft_p50 = (
+                    (_ttft_sorted_clean[_mid - 1] + _ttft_sorted_clean[_mid]) / 2.0
+                    if _n_clean % 2 == 0
+                    else _ttft_sorted_clean[_mid]
+                )
+                # p95: nearest-rank (ceil 기반) — int(0.95 * N)은 N=20n일 때 max를 반환하는 off-by-one 있음
+                _p95_idx = min(int(math.ceil(0.95 * _n_clean)) - 1, _n_clean - 1)
+                _ttft_p95 = _ttft_sorted_clean[_p95_idx]
                 _ttft_ratio = _ttft_p95 / max(_ttft_p50, 1.0)
                 _std_score = max(0.0, 1.0 - _ttft_stddev / max(_ttft_max_std, 1.0))
                 _ratio_score = max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_ttft_max_ratio - 1.0, 1.0))
@@ -3332,7 +3344,11 @@ class PerformanceMonitor:
                 else:  # "tokens" (default)
                     _tu = _ct.tokens_used or 0
                     if isinstance(_tu, dict):
-                        _cv_cost = float(_tu.get("total", 0) or _tu.get("output", 0) or 0)
+                        _cv_cost = float(
+                            _tu.get("total")
+                            or (_tu.get("input", 0) + _tu.get("output", 0))
+                            or 0
+                        )
                     else:
                         try:
                             _cv_cost = float(_tu)
@@ -3386,9 +3402,10 @@ class PerformanceMonitor:
             _perf_vals.append(_avg_ttft_variability)
         if _avg_cost_predictability is not None:
             _perf_vals.append(_avg_cost_predictability)
-        _perf_score = sum(_perf_vals) / len(_perf_vals) if _perf_vals else 0.5
-        # SLA breach_window/budget_usd 패널티 적용
-        _perf_score = max(0.0, _perf_score - _sla_window_penalty - _sla_budget_penalty)
+        _perf_score: Optional[float] = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
+        # SLA breach_window/budget_usd 패널티 적용 (데이터 있을 때만)
+        if _perf_score is not None:
+            _perf_score = max(0.0, _perf_score - _sla_window_penalty - _sla_budget_penalty)
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
         # threat_count를 task.extra에서 직접 계산 (security_metrics에 해당 키 없음)
@@ -3600,7 +3617,7 @@ class PerformanceMonitor:
         _a_s = round(_a_score, 4)
         _b_s = round(float(_bint_score), 4)
         _c_s = round(float(_rel_score), 4)
-        _d_s = round(float(_perf_score), 4)
+        _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
         _e_s = round(float(_sec_score), 4)
         _f_s = round(_f_score, 4) if _f_score is not None else None
         # _obs_vals가 빈 배열이면 Gate G 데이터 없음 — None으로 처리해 _scored에서 제외
@@ -3633,18 +3650,19 @@ class PerformanceMonitor:
             "B": _g(_b_s, "Behavioral Integrity", {
                 "loop_detection_rate": round(_loop_rate, 4),
                 "loop_count": _loop_counts,
-                "avg_goal_alignment": round(avg_goal_align, 4) if avg_goal_align is not None else None,
-                "avg_plan_coherence": round(avg_plan, 4) if avg_plan is not None else None,
+                "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
+                "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
                 "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
                 "deadlock_count": _deadlock_count,
                 "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
-                "avg_deadlock_score": round(max(0.0, 1.0 - _deadlock_count / max(n, 1)), 4),
+                "avg_deadlock_score": round(max(0.0, 1.0 - _deadlock_count / max(_n_dl_tasks, 1)), 4) if _n_dl_tasks > 0 else None,
                 "avg_scope_score": round(avg_scope_score, 4) if avg_scope_score is not None else None,
                 "avg_tool_parameter_safety": round(avg_tool_param_safety, 4) if avg_tool_param_safety is not None else None,
                 "avg_context_window": round(_avg_context_window, 4) if _avg_context_window is not None else None,
             }),
             "C": _g(_c_s, "Reliability", {
                 "tcr_pct": round(tcr_pct, 2),
+                "gate_c_tcr_weight": self._gate_c_tcr_weight,
                 "sla_breach_rate": round(_sla_breach_rate, 4) if _sla_breach_rate is not None else None,
                 "sla_breach_count": _sla_breach_count if _sla_results else None,
                 "avg_reproducibility": round(avg_reproducibility, 4) if avg_reproducibility is not None else None,

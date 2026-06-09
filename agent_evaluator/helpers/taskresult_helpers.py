@@ -1223,9 +1223,8 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
     if config.min_words is not None and word_len < config.min_words:
         violations.append(f"단어 수 부족: {word_len} < {config.min_words}")
         length_ok = False
-    if any(k in ("max_chars", "min_chars", "max_words", "min_words") for k in
-           [k for k in ("max_chars", "min_chars", "max_words", "min_words")
-            if getattr(config, k, None) is not None]):
+    if any(getattr(config, k, None) is not None
+           for k in ("max_chars", "min_chars", "max_words", "min_words")):
         checks["length"] = length_ok
 
     # 4. 금지 문구 검사
@@ -1334,12 +1333,12 @@ def eval_loop_detection(
                 consecutive = 1
 
         # 2. 윈도우 중복 감지
+        from collections import Counter as _WinCounter
         window = config.window_size
         threshold = config.duplicate_in_window_threshold
         for i in range(len(names) - window + 1):
             window_names = names[i:i + window]
-            from collections import Counter
-            counts = Counter(window_names)
+            counts = _WinCounter(window_names)
             for tool, count in counts.items():
                 if count >= threshold:
                     return {
@@ -1621,6 +1620,11 @@ def eval_plan_coherence(
 
     # 5. 실행 가능성 (available_tools가 있으면 각 단계에서 도구 언급 비율)
     executability_score = 1.0
+    if config.check_executability and not config.available_tools:
+        logger.warning(
+            "PlanConfig: check_executability=True이지만 available_tools가 비어 있어 "
+            "실행 가능성 검사를 건너뜁니다. available_tools를 지정하면 이 검사를 활성화할 수 있습니다."
+        )
     if config.check_executability and config.available_tools:
         executable = 0
         for step in steps:
@@ -1640,8 +1644,8 @@ def eval_plan_coherence(
     if config.check_executability and config.available_tools:
         components.append(executability_score)
     if not components:
-        # 모든 체크가 비활성이거나 question 부재 — 계산 가능한 컴포넌트만 사용
-        components = [ordering_score, executability_score] if not question else [goal_coverage, ordering_score, executability_score]
+        # 모든 체크가 명시적으로 비활성화된 경우 — 의미 있는 점수를 계산할 수 없음
+        return None
     score = sum(components) / len(components)
 
     # min_steps / max_steps 위반 페널티 (이탈량에 비례, 최대 0.30)
@@ -1682,6 +1686,11 @@ def compute_reproducibility_score(
     """
     run_count = len(responses)
     if run_count < 2:
+        if run_count == 1:
+            logger.warning(
+                "compute_reproducibility_score: run_count=1이면 재현성을 측정할 수 없습니다. "
+                "ReproducibilityConfig(runs=2) 이상으로 설정하세요. score=1.0 반환."
+            )
         return {"score": 1.0, "variance": 0.0, "pairwise_scores": [], "run_count": run_count}
 
     def _sim(a: str, b: str) -> float:
@@ -1744,8 +1753,8 @@ def eval_sla(
     actual_ms = execution_time_s * 1000.0
     breaches: List[str] = []
 
-    latency_ok = actual_ms <= p95_ms
-    if not latency_ok:
+    latency_ok = actual_ms <= p95_ms and actual_ms <= p99_ms
+    if actual_ms > p95_ms:
         breaches.append(f"latency {actual_ms:.0f}ms > p95 {p95_ms:.0f}ms")
     if actual_ms > p99_ms:
         breaches.append(f"latency {actual_ms:.0f}ms > p99 {p99_ms:.0f}ms")
@@ -1761,7 +1770,11 @@ def eval_sla(
     if token_limit is not None:
         _total_tokens: int = 0
         if isinstance(tokens_used, dict):
-            _total_tokens = int(tokens_used.get("total", 0) or tokens_used.get("output", 0) or 0)
+            _total_tokens = int(
+                tokens_used.get("total")
+                or (tokens_used.get("input", 0) + tokens_used.get("output", 0))
+                or 0
+            )
         else:
             try:
                 _total_tokens = int(tokens_used or 0)
@@ -1943,7 +1956,11 @@ def eval_efficiency(
     penalize_failed: bool = getattr(config, "penalize_failed_tokens", True)
 
     _tokens_int: int = (
-        int(tokens_used.get("total", 0) or tokens_used.get("output", 0) or 0)
+        int(
+            tokens_used.get("total")
+            or (tokens_used.get("input", 0) + tokens_used.get("output", 0))
+            or 0
+        )
         if isinstance(tokens_used, dict)
         else int(tokens_used or 0)
     )
@@ -2096,16 +2113,47 @@ def eval_state_consistency(
     }
 
 
+def _normalize_agent_interactions(
+    agent_interactions: Any,
+) -> Dict[Any, Any]:
+    """agent_interactions를 eval_deadlock이 처리할 수 있는 dict 포맷으로 정규화.
+
+    List[Dict] 형식 (EvalMetadata.agent_interactions) → {(from, to): {"calls": N, "successes": M}}
+    dict 형식은 그대로 반환.
+    """
+    if isinstance(agent_interactions, list):
+        result: Dict[Any, Any] = {}
+        for item in agent_interactions:
+            if not isinstance(item, dict):
+                continue
+            _from = item.get("from_agent") or item.get("from", "")
+            _to = item.get("to_agent") or item.get("to", "")
+            if not _from or not _to:
+                continue
+            key = (_from, _to)
+            if key not in result:
+                result[key] = {"calls": 0, "successes": 0}
+            result[key]["calls"] += 1
+            if bool(item.get("success", True)):
+                result[key]["successes"] += 1
+        return result
+    if isinstance(agent_interactions, dict):
+        return agent_interactions
+    return {}
+
+
 def eval_deadlock(
     tool_calls: List[Dict[str, Any]],
-    agent_interactions: Optional[Dict[str, Any]],
+    agent_interactions: Any,
     config: Any,
 ) -> Dict[str, Any]:
     """다중 에이전트 교착(deadlock) 탐지.
 
     Args:
         tool_calls: TaskResult.tool_calls 리스트.
-        agent_interactions: AgentCoordinationTracker가 기록한 상호작용 딕셔너리.
+        agent_interactions: 에이전트 상호작용 정보. List[Dict] 또는 Dict 형식 모두 지원.
+            - List 형식: [{"from_agent": str, "to_agent": str, "success": bool, ...}]
+            - Dict 형식: {(caller, callee): count} 또는 {agent: {"calls": N, "successes": M}}
         config: DeadlockConfig 인스턴스.
 
     Returns:
@@ -2117,6 +2165,9 @@ def eval_deadlock(
     max_depth = getattr(config, "max_delegation_depth", 10)
     check_livelock = getattr(config, "check_livelock", False)
     livelock_window = max(2, int(getattr(config, "livelock_window", 6) or 6))
+
+    # List 포맷을 dict 포맷으로 정규화
+    agent_interactions = _normalize_agent_interactions(agent_interactions)
 
     deadlock_detected = False
     deadlock_type: Optional[str] = None
@@ -2179,20 +2230,30 @@ def eval_deadlock(
                     break
 
     # starvation 탐지: 에이전트가 N회 이상 호출됐으나 완료 없음
+    # success 정보가 있는 항목만 starvation 판별에 사용 (tuple/int 포맷은 호출 수만 알고 성공 여부 불명)
     if check_starvation and agent_interactions:
         call_counts: Dict[str, int] = {}
         success_counts: Dict[str, int] = {}
+        has_success_info: Dict[str, bool] = {}  # 에이전트별 success 정보 보유 여부
         for key, val in agent_interactions.items():
             if isinstance(key, (tuple, list)) and len(key) == 2:
                 callee = str(key[1])
-                call_counts[callee] = call_counts.get(callee, 0) + (int(val) if isinstance(val, (int, float)) else 1)
+                if isinstance(val, dict):
+                    # _normalize_agent_interactions가 변환한 {"calls": N, "successes": M} 포맷
+                    call_counts[callee] = call_counts.get(callee, 0) + int(val.get("calls", 0) or 0)
+                    success_counts[callee] = success_counts.get(callee, 0) + int(val.get("successes", 0) or 0)
+                    has_success_info[callee] = True
+                else:
+                    # 원시 숫자 포맷: success 정보 없음 → starvation 판별 불가
+                    call_counts[callee] = call_counts.get(callee, 0) + (int(val) if isinstance(val, (int, float)) else 1)
             elif isinstance(key, str):
                 if isinstance(val, dict):
                     call_counts[key] = int(val.get("calls", 0) or 0)
                     success_counts[key] = int(val.get("successes", 0) or 0)
+                    has_success_info[key] = True
 
         for agent, count in call_counts.items():
-            if count >= starvation_threshold:
+            if count >= starvation_threshold and has_success_info.get(agent, False):
                 s = success_counts.get(agent, 0)
                 if s == 0:
                     starved_agents.append(agent)
@@ -2213,13 +2274,18 @@ def eval_deadlock(
         ]
         _all_names = [n for n in _all_names if n]
         if len(_all_names) >= livelock_window:
-            _half = livelock_window // 2
             for _i in range(len(_all_names) - livelock_window + 1):
                 _win = _all_names[_i:_i + livelock_window]
-                # Oscillating pattern: first half == second half (e.g. A,B,A,B)
-                if _half >= 1 and _win[:_half] == _win[_half:2 * _half]:
-                    deadlock_detected = True
-                    deadlock_type = "livelock"
+                # 임의 주기 p(2 ≤ p ≤ window//2) 패턴이 윈도우 전체를 채우는지 확인
+                # 예: [A,B,A,B,A,B] → p=2, [A,B,C,A,B,C] → p=3
+                _wlen = len(_win)
+                for _p in range(2, _wlen // 2 + 1):
+                    _pat = _win[:_p]
+                    if all(_win[_j] == _pat[_j % _p] for _j in range(_wlen)):
+                        deadlock_detected = True
+                        deadlock_type = "livelock"
+                        break
+                if deadlock_detected:
                     break
 
     return {
@@ -2455,10 +2521,18 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
     in_scope = len(violations) == 0
     scope_score = 1.0 if in_scope else max(0.0, 1.0 - len(violations) * 0.2)
 
+    # violation_tools: forbidden/out_of_scope 타입만 tool name 추출 (excess_calls:5 같은 숫자 제외)
+    _vt: List[str] = []
+    for _v in violations:
+        if _v.startswith("forbidden:") or _v.startswith("out_of_scope:"):
+            _tool = _v.split(":", 1)[-1]
+            if _tool and _tool not in _vt:
+                _vt.append(_tool)
+
     return {
         "in_scope": in_scope,
         "violations": violations,
-        "violation_tools": list(set(t.split(":")[-1] for t in violations)),
+        "violation_tools": _vt,
         "excess_calls": excess_calls,
         "unique_tools": unique_tools,
         "scope_score": round(scope_score, 4),
@@ -2481,10 +2555,21 @@ def eval_context_retention(
     """
     response_lower = response.lower() if response else ""
 
-    key_entities = getattr(config, "key_entities", []) or []
+    key_entities = list(getattr(config, "key_entities", []) or [])
     check_original_goal = getattr(config, "check_original_goal", True)
     entity_weight = getattr(config, "entity_weight", 0.6)
     goal_weight = getattr(config, "goal_weight", 0.4)
+
+    # key_entities 미지정 + context 제공 시 context에서 엔티티 자동 추출
+    if not key_entities and context:
+        _auto: List[str] = []
+        _auto.extend(re.findall(r'\b\d{2,}\b', context))
+        _auto.extend(re.findall(r'\b[A-Z][a-z]+\b', context))
+        _auto.extend(re.findall(r'[가-힣]{2,}', context))
+        _seen_e: Dict[str, None] = {}
+        for _e in _auto:
+            _seen_e[_e] = None
+        key_entities = list(_seen_e.keys())[:20]
 
     # Entity retention
     entities_retained: List[str] = []
@@ -2526,7 +2611,7 @@ def eval_context_retention(
     goal_score = 1.0 if goal_retained else 0.0
 
     if key_entities:
-        retention_score = entity_weight * entity_score + goal_weight * goal_score
+        retention_score = min(1.0, max(0.0, entity_weight * entity_score + goal_weight * goal_score))
     else:
         # key_entities 없음: entity 파트 제외하고 goal만으로 평가
         retention_score = goal_score
@@ -2683,9 +2768,13 @@ def eval_subtask_completion(
         # 1차: 단어 경계 매칭 (substring 부분 일치 False Positive 방지)
         found = _is_subtask_found(subtask_lower, response_lower)
         if not found and completion_markers:
-            # 2차(위치 기반): 이름이 없을 때 N번째 서브태스크 → 응답의 N번째 비어있지 않은 줄에 완료 마커가 있으면 완료
+            # 2차(위치 기반): 이름 매칭 실패 시 N번째 줄 + 마커 + 서브태스크 이름 토큰 동시 검사
             if i < len(non_empty_lines):
-                if any(m.lower() in non_empty_lines[i] for m in completion_markers):
+                line = non_empty_lines[i]
+                has_marker = any(m.lower() in line for m in completion_markers)
+                subtask_tokens = [t for t in subtask_lower.split() if len(t) >= 2]
+                has_name_signal = bool(subtask_tokens) and any(t in line for t in subtask_tokens)
+                if has_marker and has_name_signal:
                     found = True
         if found:
             completed.append(subtask)
@@ -2932,19 +3021,25 @@ def eval_graceful_degradation(
 
     # Timeout fallback detection
     timeout_fallback = False
-    if config.detect_timeout_fallback and tool_calls:
-        tool_names_fb = []
-        for tc in tool_calls:
-            if isinstance(tc, dict):
-                n = tc.get("name") or tc.get("tool", "")
-            elif hasattr(tc, "name"):
-                n = getattr(tc, "name", "")
-            else:
-                n = str(tc)
-            tool_names_fb.append(n)
-        timeout_fallback = any(
-            "fallback" in n.lower() or "default" in n.lower() for n in tool_names_fb
-        )
+    if config.detect_timeout_fallback:
+        # Check 1: execution_time이 timeout_threshold_ms를 초과하면 타임아웃으로 판정
+        _timeout_ms = getattr(config, "timeout_threshold_ms", None)
+        if _timeout_ms is not None and execution_time > float(_timeout_ms):
+            timeout_fallback = True
+        # Check 2: 도구명에 "fallback"/"default" 포함 여부
+        if not timeout_fallback and tool_calls:
+            tool_names_fb = []
+            for tc in tool_calls:
+                if isinstance(tc, dict):
+                    n = tc.get("name") or tc.get("tool", "")
+                elif hasattr(tc, "name"):
+                    n = getattr(tc, "name", "")
+                else:
+                    n = str(tc)
+                tool_names_fb.append(n)
+            timeout_fallback = any(
+                "fallback" in n.lower() or "default" in n.lower() for n in tool_names_fb
+            )
 
     return {
         "degradation_score": round(score, 4),
@@ -3331,9 +3426,9 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
             for key, spec in schema.items():
                 if not isinstance(args, dict):
                     continue
-                val = args.get(key)
-                if val is None:
+                if key not in args:
                     continue
+                val = args[key]
                 if "type" in spec:
                     expected_type = spec["type"]
                     if expected_type == "int" and not isinstance(val, int):
@@ -3470,11 +3565,11 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
         consistency_score = efficiency
     else:
         # Failed despite retries — use accuracy as consistency proxy
-        consistency_score = max(0.0, accuracy - config.improvement_threshold)
-        # Only apply degradation penalty when accuracy is strictly below threshold
-        # (agent produced no improvement; consistent degradation is penalized)
+        # penalize_degradation=True: accuracy 자체에서 추가 0.1 감점 (improvement_threshold 미달 시)
         if config.penalize_degradation and accuracy < config.improvement_threshold:
-            consistency_score = max(0.0, accuracy - config.improvement_threshold - 0.1)
+            consistency_score = max(0.0, accuracy - 0.1)
+        else:
+            consistency_score = max(0.0, accuracy - config.improvement_threshold)
 
     return {
         "consistency_score": round(consistency_score, 4),
@@ -3484,6 +3579,8 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
         # 세션 수준 집계에 필요한 Config 요약
         "_config": {
             "group_by_task_prefix": bool(getattr(config, "group_by_task_prefix", True)),
+            "improvement_threshold": float(getattr(config, "improvement_threshold", 0.1)),
+            "penalize_degradation": bool(getattr(config, "penalize_degradation", True)),
         },
     }
 

@@ -592,6 +592,7 @@ class GracefulDegradationConfig:
     ])
     quality_floor: float = 0.3
     detect_timeout_fallback: bool = True
+    timeout_threshold_ms: Optional[float] = None  # detect_timeout_fallback 실행 시간 기준(ms); None이면 도구명만 검사
     empty_response_penalty: float = 1.0
     check_error_acknowledgment: bool = True
 
@@ -4358,10 +4359,10 @@ def _build_and_record(
         if deadlock is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_deadlock
-                _ai = (task_result.extra or {}).get("agent_interactions") or {}
+                _ai = (task_result.extra or {}).get("agent_interactions") or []
                 _dl_result = eval_deadlock(
                     task_result.tool_calls or [],
-                    _ai if isinstance(_ai, dict) else {},
+                    _ai,
                     deadlock,
                 )
                 _harness_extra["deadlock"] = _dl_result

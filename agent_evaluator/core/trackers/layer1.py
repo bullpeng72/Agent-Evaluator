@@ -346,9 +346,10 @@ class AccuracyEvaluator(BaseTracker):
     def _calculate_accuracy(self, ground_truth: Any, prediction: Any,
                            task_type: str) -> float:
         """Calculate accuracy based on task type"""
-        if task_type == TaskType.QA.value:
+        _canonical = _TASK_TYPE_ALIASES.get(task_type, task_type)
+        if _canonical == TaskType.QA.value:
             return self._qa_accuracy(ground_truth, prediction)
-        elif task_type == TaskType.CODE_GENERATION.value:
+        elif _canonical == TaskType.CODE_GENERATION.value:
             return self._code_accuracy(ground_truth, prediction)
         else:
             return self._general_accuracy(ground_truth, prediction)
@@ -452,35 +453,24 @@ class AccuracyEvaluator(BaseTracker):
             Similarity score (0.0 - 1.0)
         """
         try:
-            # Parse both code snippets
             tree1 = ast.parse(code1)
             tree2 = ast.parse(code2)
 
-            # Compare AST structures
-            dump1 = ast.dump(tree1)
-            dump2 = ast.dump(tree2)
-
-            if dump1 == dump2:
+            if ast.dump(tree1) == ast.dump(tree2):
                 return 1.0
 
-            # Partial match: count matching nodes
-            nodes1 = dump1.split(',')
-            nodes2 = dump2.split(',')
+            # Node-type multiset Jaccard: counts each AST node type occurrence.
+            # Avoids false splits caused by commas inside string literals in ast.dump().
+            from collections import Counter as _Counter
+            counter1: _Counter = _Counter(type(node).__name__ for node in ast.walk(tree1))
+            counter2: _Counter = _Counter(type(node).__name__ for node in ast.walk(tree2))
 
-            # Calculate Jaccard similarity of AST nodes
-            set1 = set(nodes1)
-            set2 = set(nodes2)
+            intersection = sum((counter1 & counter2).values())
+            union = sum((counter1 | counter2).values())
 
-            intersection = len(set1 & set2)
-            union = len(set1 | set2)
-
-            jaccard_score = intersection / union if union > 0 else 0.0
-
-            # AST match should be weighted high (90-100% if structures are similar)
-            return jaccard_score
+            return intersection / union if union > 0 else 0.0
 
         except SyntaxError:
-            # If either code has syntax errors, AST comparison fails
             return 0.0
         except (ValueError, RecursionError) as e:
             logger.warning("AST comparison error for code snippet: %s", e)
@@ -506,11 +496,7 @@ class AccuracyEvaluator(BaseTracker):
         if not norm1:
             return 0.0
 
-        # Simple character overlap
-        matches = sum(1 for c1, c2 in zip(norm1, norm2) if c1 == c2)
-        max_len = max(len(norm1), len(norm2))
-
-        return matches / max_len if max_len > 0 else 0.0
+        return _qa_char_similarity(norm1, norm2)
 
     def _general_accuracy(self, ground_truth: Any, prediction: Any) -> float:
         """General accuracy"""

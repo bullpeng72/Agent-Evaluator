@@ -119,21 +119,27 @@ Gate A–G results stored under `extra_metrics.harness_groups` in JSON result fi
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
-| Tracker | Gate | Array | Condition |
-|---------|------|-------|-----------|
-| `TaskCompletionTracker` | A, C | `_a_vals`, `_rel_vals` | always |
-| `AccuracyEvaluator` | **A** | `_a_vals` | when `_evaluations` count > 0 (overall_accuracy / 100 normalized) |
+| Tracker | Gate | 기여 방식 | 조건 |
+|---------|------|-----------|------|
+| `TaskCompletionTracker` | A, C | `_a_vals[0]` (TCR 컴포넌트), `_rel_vals` | always |
+| `AccuracyEvaluator` | **A** | `_a_vals[0]` 블렌딩 (`0.6×TCR + 0.4×Accuracy`) | `_evaluations` count > 0 |
+| `ResponseQualityEvaluator` | **A** | `_a_vals` 추가 (relevance+completeness 평균 / 5, 0→1 정규화) | quality dims 측정 시 |
 | `LatencyTracker` | D | `_perf_vals` | always |
 | `TokenEconomyTracker` | D | `_perf_vals` | always |
-| `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | fallback when no LLM Judge faithfulness (`1 − rate`) |
-| `LLMJudge` (faithfulness) | **C** | `_rel_vals` | takes priority when per-task faithfulness is recorded (`score / 5` normalized); replaces HallucinationDetector |
-| `RetryCorrectionTracker` | C | `_rel_vals` | when SLAConfig is set |
-| `ToolCallAnalyzer` | B, G | `_bint_vals`, `_obs_vals` | when tool_calls are recorded |
-| `WorkflowExecutionTracker` | B | `_bint_vals` | when chain_steps are recorded |
+| `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | LLM Judge faithfulness 없을 때 폴백 (`1 − rate`) |
+| `LLMJudge` (faithfulness) | **C** | `_rel_vals` | per-task faithfulness 기록 시 우선 적용 (`score / 5` 정규화); HallucinationDetector 대체 |
+| `RetryCorrectionTracker` | C | `_rel_vals` | SLAConfig 설정 시 |
+| `ToolCallAnalyzer` | B, G | `_bint_vals`, `_obs_vals` | tool_calls 기록 시 |
+| `WorkflowExecutionTracker` | B | `_bint_vals` | chain_steps 기록 시 |
 | Security Trackers (5) | E | `_all_e_scores` | `enable_security_metrics=True` |
-| `AgentCoordinationTracker` | F | `_f_vals` | when agent_interactions are recorded |
-| `ToolSelectionTracker` | F | `_f_vals` | when expected_tools is specified |
-| `ResponseQualityEvaluator` | — | quality_metrics aggregated separately | not included in Gate score |
+| `AgentCoordinationTracker` | F | `_f_vals` | agent_interactions 기록 시 |
+| `ToolSelectionTracker` | F | `_f_vals` | expected_tools 지정 시 |
+
+> **Gate A 가중치 구조**: `_a_score = gate_a_tcr_weight × _a_vals[0] + (1 − gate_a_tcr_weight) × mean(나머지)`.  
+> 기본값 `gate_a_tcr_weight=0.4` — `PerformanceMonitor(gate_a_tcr_weight=...)` 으로 조정 가능.  
+> **Gate C 가중치 구조**: `_rel_score = gate_c_tcr_weight × _rel_vals[0] + (1 − gate_c_tcr_weight) × mean(나머지)`.  
+> 기본값 `gate_c_tcr_weight=0.4` — `PerformanceMonitor(gate_c_tcr_weight=...)` 으로 조정 가능.  
+> Gate B details에 `avg_goal_alignment` / `avg_plan_coherence`가 표시되지만, 이는 Gate A 계산값을 재참조하는 진단용이며 Gate B **점수에는 포함되지 않는다**.
 
 ---
 
@@ -276,6 +282,7 @@ use_korean_tokenizer, use_semantic_hallucination, semantic_weight
 enable_anomaly_detection, anomaly_baseline_window, anomaly_detection_window
 auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
+gate_a_tcr_weight, gate_c_tcr_weight
 ```
 
 ### @agent_eval Valid Parameters
@@ -309,7 +316,7 @@ threat_response, context_window, latency_attribution
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
 - Tracker count per Gate: A=3, B=2, C=2, D=2, E=5, F=2, G=0 (16 gate-contributing + 9 operational = 25)
 - HallucinationDetector attribution: conceptually Gate C (Reliability) | SDK score contribution: Gate C (`_rel_vals`) + Gate G (`_obs_vals`)
-- AccuracyEvaluator attribution: direct Gate A contribution (`_a_vals`, normalized 0-100 → 0-1)
+- AccuracyEvaluator attribution: Gate A `_a_vals[0]` 블렌딩 (`0.6×TCR + 0.4×Accuracy`) — 별도 항목 추가가 아닌 TCR 컴포넌트에 혼합
 - **PlanConfig defaults**: `max_steps=15`, `min_steps=2` (decorators.py lines 308-309)
 - **PlanConfig supported JSON formats**: `{"steps": [...]}` or `{"plan": [...]}` (plan key must be a direct list)  
   ❌ `{"plan": {"steps": [...]}}` nested dict structure cannot be parsed
@@ -329,10 +336,14 @@ threat_response, context_window, latency_attribution
 
 | Tracker | Attribution | Notes |
 |---------|-------------|-------|
-| `TaskCompletionTracker` | Gate A + C | direct contribution |
-| `AccuracyEvaluator` | **Gate A** | direct (`_a_vals`) |
-| `ResponseQualityEvaluator` | Gate A related | quality_metrics aggregated separately — **not included** in Gate A score |
+| `TaskCompletionTracker` | Gate A + C | `_a_vals[0]` TCR 컴포넌트 직접 기여 |
+| `AccuracyEvaluator` | **Gate A** | `_a_vals[0]` 블렌딩 — `0.6×TCR + 0.4×Accuracy` (별도 항목이 아님) |
+| `ResponseQualityEvaluator` | **Gate A** | relevance + completeness 평균 / 5 → `_a_vals` 추가 항목 |
 | `HallucinationDetector` | **Gate C + G** | **not** Gate A |
+
+**GoalAlignmentConfig 주의사항**: 기본값 `ignore_no_tool_tasks=True` — 도구 호출이 없는 태스크는 goal_alignment 평가에서 제외된다. QA·대화형 에이전트처럼 tool을 호출하지 않는 경우 `avg_goal_a = None`이 되어 Gate A 점수에 전혀 반영되지 않는다. 비도구 에이전트에 GoalAlignmentConfig를 사용하려면 `ignore_no_tool_tasks=False`로 설정해야 한다.
+
+**AccuracyEvaluator `task_type` 매핑**: `"coding"` → `"code_generation"`으로 자동 정규화되어 AST 비교 평가가 적용된다. 두 값 모두 `_code_accuracy`로 라우팅된다.
 
 ---
 
