@@ -1712,10 +1712,15 @@ class PerformanceMonitor:
                         except Exception as _sec_exc:
                             logger.debug("ToolAuthorizationTracker failed (ignored): %s", _sec_exc)
                     if _ta_total > 0:
+                        # unauthorized_calls: 순수하게 허용 목록 외 도구 호출 횟수만 집계.
+                        # restricted_tool · dangerous_params 위반은 별도 키로 분리해
+                        # eval_threat_severity의 CVSS 계산에서 중복 계상을 방지한다.
+                        _ta_unauthorized_only = _ta_violations - _ta_restricted - _ta_dangerous
                         _sec_extra["tool_authorization"] = {
-                            "unauthorized_calls": _ta_violations,
+                            "unauthorized_calls": _ta_unauthorized_only,
                             "restricted_calls": _ta_restricted,
                             "dangerous_param_calls": _ta_dangerous,
+                            "total_violations": _ta_violations,
                             "total_calls": _ta_total,
                             "compliance_rate": round((_ta_total - _ta_violations) / _ta_total, 4),
                         }
@@ -3494,10 +3499,22 @@ class PerformanceMonitor:
             sum(_tr_scores) / len(_tr_scores) if _tr_scores else None
         )
 
-        _all_e_scores = _e_base_scores + _native_e_scores
-        if _avg_threat_response is not None:
-            _all_e_scores = _all_e_scores + [_avg_threat_response]
-        _sec_score = sum(_all_e_scores) / len(_all_e_scores)
+        # enable_security_metrics=False + 보안 Harness Config 데이터 없음 → 측정값 없음 → None
+        # (보안 비활성 상태의 _sec_score_raw=1.0이 Gate E를 무조건 통과시키는 오탐 방지)
+        _has_security_config_data = bool(
+            _cvss_scores
+            or _avg_compliance is not None
+            or _avg_threat_response is not None
+            or _native_e_scores
+        )
+        _sec_score: Optional[float]
+        if not self.enable_security_metrics and not _has_security_config_data:
+            _sec_score = None
+        else:
+            _all_e_scores = _e_base_scores + _native_e_scores
+            if _avg_threat_response is not None:
+                _all_e_scores = _all_e_scores + [_avg_threat_response]
+            _sec_score = sum(_all_e_scores) / len(_all_e_scores)
 
         # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
         _tool_coverage: Optional[float] = None
@@ -3509,24 +3526,30 @@ class PerformanceMonitor:
             pass
 
         _obs_custom_scores = [
-            t.extra["observability"]["observability_score"]
-            for t in tasks
-            if (t.extra or {}).get("observability") is not None
+            s for s in (
+                (t.extra or {}).get("observability", {}).get("observability_score")
+                for t in tasks
+                if (t.extra or {}).get("observability") is not None
+            ) if s is not None
         ]
         avg_obs_custom = sum(_obs_custom_scores) / len(_obs_custom_scores) if _obs_custom_scores else None
 
         _expl_vals = [
-            t.extra["explainability"]["score"]
-            for t in tasks
-            if (t.extra or {}).get("explainability") is not None
+            s for s in (
+                (t.extra or {}).get("explainability", {}).get("score")
+                for t in tasks
+                if (t.extra or {}).get("explainability") is not None
+            ) if s is not None
         ]
         avg_explainability: Optional[float] = sum(_expl_vals) / len(_expl_vals) if _expl_vals else None
 
         # error_diagnosis → Group G (Phase 5)
         _ed_scores = [
-            t.extra.get("error_diagnosis", {}).get("diagnosis_score")
-            for t in tasks
-            if (t.extra or {}).get("error_diagnosis") is not None
+            s for s in (
+                t.extra.get("error_diagnosis", {}).get("diagnosis_score")
+                for t in tasks
+                if (t.extra or {}).get("error_diagnosis") is not None
+            ) if s is not None
         ]
         avg_error_diagnosis: Optional[float] = (
             sum(_ed_scores) / len(_ed_scores) if _ed_scores else None
@@ -3534,9 +3557,11 @@ class PerformanceMonitor:
 
         # latency_attribution → Group G (Phase 6)
         _la_scores = [
-            t.extra.get("latency_attribution", {}).get("attribution_score")
-            for t in tasks
-            if t.extra and t.extra.get("latency_attribution")
+            s for s in (
+                t.extra.get("latency_attribution", {}).get("attribution_score")
+                for t in tasks
+                if t.extra and t.extra.get("latency_attribution")
+            ) if s is not None
         ]
         _avg_latency_attribution: Optional[float] = (
             sum(_la_scores) / len(_la_scores) if _la_scores else None
@@ -3545,7 +3570,9 @@ class PerformanceMonitor:
         _obs_vals: _List[float] = []
         if _tool_coverage is not None:
             _obs_vals.append(_tool_coverage)
-        if hall_rate is not None:
+        # hall_rate → Gate G: LLMJudge faithfulness 비활성 시에만 사용
+        # (LLMJudge 활성 시 faithfulness가 Gate C에 귀속되므로 Gate G 이중 반영 방지)
+        if hall_rate is not None and _avg_llm_faithfulness is None:
             _obs_vals.append(max(0.0, 1.0 - float(hall_rate)))
         if avg_obs_custom is not None:
             _obs_vals.append(avg_obs_custom)
@@ -3558,13 +3585,26 @@ class PerformanceMonitor:
         _obs_score = sum(_obs_vals) / len(_obs_vals) if _obs_vals else 0.0
 
         # ── F 그룹: 멀티에이전트 조율 ──
+        # Fix1+2: self.coordination_tracker(없는 속성) + get_coordination_stats()(없는 메서드) 수정
+        # calculate_coordination_score()의 overall_score(0-10)를 /10으로 정규화
         _coord_data: Optional[float] = None
         try:
-            _coord_stats = self.coordination_tracker.get_coordination_stats()
-            _n_agents = _coord_stats.get("unique_agents", 0)
-            _n_interactions = _coord_stats.get("total_interactions", 0)
-            if _n_interactions > 0:
-                _coord_data = float(min(1.0, _n_agents / max(_n_interactions, 1)))
+            _coord_score_data = self.agent_coordination_tracker.calculate_coordination_score()
+            if _coord_score_data.get("total_interactions", 0) > 0:
+                _coord_data = float(min(1.0, max(0.0,
+                    _coord_score_data.get("overall_score", 0.0) / 10.0
+                )))
+        except Exception:
+            pass
+
+        # Fix7: ToolSelectionTracker → Gate F (avg_f1_score 0-100 → /100 정규화)
+        _ts_data: Optional[float] = None
+        try:
+            _ts_stats = self.tool_selection_tracker.get_accuracy_stats()
+            if _ts_stats.get("total_evaluations", 0) > 0:
+                _ts_f1 = _ts_stats.get("avg_f1_score")
+                if _ts_f1 is not None:
+                    _ts_data = float(min(1.0, max(0.0, _ts_f1 / 100.0)))
         except Exception:
             pass
 
@@ -3603,6 +3643,8 @@ class PerformanceMonitor:
         _f_vals: _List[float] = []
         if _coord_data is not None:
             _f_vals.append(_coord_data)
+        if _ts_data is not None:
+            _f_vals.append(_ts_data)
         if avg_consensus is not None:
             _f_vals.append(avg_consensus)
         if avg_propagation is not None:
@@ -3618,7 +3660,7 @@ class PerformanceMonitor:
         _b_s = round(float(_bint_score), 4)
         _c_s = round(float(_rel_score), 4)
         _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
-        _e_s = round(float(_sec_score), 4)
+        _e_s = round(float(_sec_score), 4) if _sec_score is not None else None
         _f_s = round(_f_score, 4) if _f_score is not None else None
         # _obs_vals가 빈 배열이면 Gate G 데이터 없음 — None으로 처리해 _scored에서 제외
         # (빈 배열일 때 _obs_score=0.0으로 고정되어 항상 fail로 집계되던 버그 수정)
@@ -3704,6 +3746,8 @@ class PerformanceMonitor:
                 "avg_threat_response": round(_avg_threat_response, 4) if _avg_threat_response is not None else None,
             }),
             "F": _g(_f_s, "Multi-Agent Coordination", {
+                "coordination_score": round(_coord_data, 4) if _coord_data is not None else None,
+                "avg_tool_selection_f1": round(_ts_data, 4) if _ts_data is not None else None,
                 "avg_consensus": round(avg_consensus, 4) if avg_consensus is not None else None,
                 "avg_propagation": round(avg_propagation, 4) if avg_propagation is not None else None,
                 "avg_role_compliance": round(_avg_role, 4) if _avg_role is not None else None,

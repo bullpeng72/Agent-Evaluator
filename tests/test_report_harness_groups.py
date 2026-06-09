@@ -156,7 +156,8 @@ class TestGenerateReportHarnessGroups:
         group_e = report.extra_metrics["harness_groups"]["E"]
         assert group_e["name"] == "Security Boundary"
         assert "score" in group_e
-        assert 0.0 <= group_e["score"] <= 1.0
+        # enable_security_metrics=False + 보안 Config 없음 → score=None (측정값 없음)
+        assert group_e["score"] is None or (0.0 <= group_e["score"] <= 1.0)
 
     def test_harness_group_f_structure(self, monitor_with_tasks):
         report = monitor_with_tasks.generate_report()
@@ -221,7 +222,7 @@ class TestHarnessGroupsValues:
         assert group_a["score"] >= 0.5
 
     def test_group_e_no_security_threats(self):
-        """보안 위협이 없으면 Group E score = 1.0."""
+        """보안 비활성 + 보안 Config 없음 → Group E score = None (측정값 없음)."""
         m = PerformanceMonitor(enable_security_metrics=False)
         t = create_taskresult(
             task_id="t1",
@@ -233,8 +234,9 @@ class TestHarnessGroupsValues:
         m.record_task(t)
         report = m.generate_report()
         group_e = report.extra_metrics["harness_groups"]["E"]
-        assert group_e["score"] == pytest.approx(1.0, abs=0.01)
-        assert group_e["status"] == "pass"
+        # enable_security_metrics=False + 보안 Harness Config 미설정 → 측정값 없으므로 None
+        assert group_e["score"] is None
+        assert group_e["status"] == "n/a"
 
     def test_group_b_loop_detection_rate(self):
         """루프 감지 태스크가 많으면 Group B score가 낮다."""

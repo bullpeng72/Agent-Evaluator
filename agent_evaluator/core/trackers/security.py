@@ -237,13 +237,13 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 - has_path_traversal (bool)
                 - has_xss (bool)
                 - has_prompt_injection (bool)
-                - risk_level (str): threat severity —
-                  ``"critical"`` (threat_count ≥ 3) |
-                  ``"high"`` (threat_count == 2) |
-                  ``"medium"`` (threat_count == 1) |
-                  ``"low"`` (threat_count == 0)
+                - risk_level (str): threat severity based on CVSS weight sum —
+                  ``"critical"`` (cvss_sum ≥ 9.0) |
+                  ``"high"`` (cvss_sum ≥ 7.0) |
+                  ``"medium"`` (cvss_sum > 0) |
+                  ``"low"`` (no threats)
                 - sanitization_needed (bool): True if any threat was detected
-                - threat_count (int): number of distinct threat types found (0-5)
+                - threat_count (int): number of distinct threat types found (0-10)
         """
         # Sampling check — skip this call probabilistically to reduce overhead
         if self._sample_rate < 1.0 and random.random() > self._sample_rate:
@@ -285,15 +285,12 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         # Each category returns (detected: bool, confidence: float).
         def _check_with_confidence(patterns: list) -> tuple:
             for pattern in patterns:
-                if (pattern.search(input_text)
-                        if hasattr(pattern, "search")
-                        else re.search(pattern, input_text)):
-                    # Patterns with longer, more specific matches get higher confidence.
-                    match = (pattern.search(input_text)
-                             if hasattr(pattern, "search")
-                             else re.search(pattern, input_text))
-                    match_len = len(match.group(0)) if match else 0
+                match = (pattern.search(input_text)
+                         if hasattr(pattern, "search")
+                         else re.search(pattern, input_text))
+                if match:
                     # Confidence: 0.5 base + up to 0.5 scaled by match specificity (≥10 chars = 1.0)
+                    match_len = len(match.group(0))
                     confidence = min(1.0, 0.5 + match_len / 20)
                     return True, round(confidence, 2)
             return False, 0.0

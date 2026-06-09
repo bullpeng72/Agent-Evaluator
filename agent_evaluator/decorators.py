@@ -472,6 +472,17 @@ class ScopeConfig:
     max_unique_tools: Optional[int] = None
     fail_on_violation: bool = False
 
+    def __post_init__(self) -> None:
+        overlap = set(self.allowed_tools) & set(self.forbidden_tools)
+        if overlap:
+            import warnings
+            warnings.warn(
+                f"ScopeConfig: tools appear in both allowed_tools and forbidden_tools: {sorted(overlap)}. "
+                "They will be treated as forbidden.",
+                UserWarning,
+                stacklevel=2,
+            )
+
 
 @dataclasses.dataclass
 class ContextRetentionConfig:
