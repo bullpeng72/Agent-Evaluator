@@ -2936,10 +2936,12 @@ class PerformanceMonitor:
         _loop_rate = _loop_counts / n
 
         # avg_goal_a / avg_plan_a: Gate A에서 이미 계산됨 — Gate B details에서 진단용으로 재참조
+        # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
         _sc_scores = [
             t.extra["state_consistency"]["consistency_score"]
             for t in tasks
             if (t.extra or {}).get("state_consistency") is not None
+            and t.extra["state_consistency"].get("consistency_score") is not None
         ]
         avg_sc = sum(_sc_scores) / len(_sc_scores) if _sc_scores else None
         _deadlock_count = sum(
@@ -3214,7 +3216,9 @@ class PerformanceMonitor:
                 continue
             if "calibrated_score" in _eff:
                 _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
-            _eff_ratios.append(float(_eff.get("efficiency_ratio", 0.0)))
+            _er = _eff.get("efficiency_ratio")
+            if _er is not None:  # cost_value=0(측정 불가) → None 제외
+                _eff_ratios.append(float(_er))
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
             avg_eff_calibrated: Optional[float] = (

@@ -1996,9 +1996,11 @@ def eval_efficiency(
     # 실패한 태스크 패널티 (completion_score=0 이면 비용은 낭비)
     penalized = penalize_failed and completion_score < 0.1
 
-    # efficiency = completion_score / cost (cost가 0이면 1.0 반환)
+    # efficiency = completion_score / cost
+    # cost_value=0은 tokens_used=0/None 등 측정 불가 상황 — ratio=None으로 집계 제외
+    ratio: Optional[float]
     if cost_value <= 0:
-        ratio = 1.0
+        ratio = None
     else:
         ratio = completion_score / cost_value
 
@@ -2007,7 +2009,7 @@ def eval_efficiency(
         ratio = 0.0
 
     # cost_per_completion: completion_score 1.0 달성에 필요한 비용 추정
-    cost_per_completion = cost_value / completion_score if completion_score > 0 else float("inf")
+    cost_per_completion = cost_value / completion_score if cost_value > 0 and completion_score > 0 else float("inf")
 
     # target_cost_per_completion 기반 calibrated_score 계산
     # warn_ratio / fail_ratio: 목표 대비 몇 배 비싸면 경고/실패로 판정할지
@@ -2036,7 +2038,7 @@ def eval_efficiency(
             efficiency_grade = "fail"
 
     result: Dict[str, Any] = {
-        "efficiency_ratio": round(ratio, 8),
+        "efficiency_ratio": round(ratio, 8) if ratio is not None else None,
         "cost_value": round(cost_value, 4),
         "cost_unit": cost_unit,
         "cost_per_completion": round(cost_per_completion, 4) if cost_per_completion != float("inf") else None,
@@ -3485,16 +3487,23 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
                 if key not in args:
                     continue
                 val = args[key]
+                _schema_violated = False
                 if "type" in spec:
                     expected_type = spec["type"]
                     if expected_type == "int" and not isinstance(val, int):
                         violations.append(f"type_mismatch:{name}.{key}:expected_int")
+                        _schema_violated = True
                     elif expected_type == "str" and not isinstance(val, str):
                         violations.append(f"type_mismatch:{name}.{key}:expected_str")
+                        _schema_violated = True
                 if "max" in spec and isinstance(val, (int, float)) and val > spec["max"]:
                     violations.append(f"value_exceeds_max:{name}.{key}:{val}>{spec['max']}")
+                    _schema_violated = True
                 if "min" in spec and isinstance(val, (int, float)) and val < spec["min"]:
                     violations.append(f"value_below_min:{name}.{key}:{val}<{spec['min']}")
+                    _schema_violated = True
+                if _schema_violated and name not in dangerous_calls:
+                    dangerous_calls.append(name)
 
     penalty = len(set(dangerous_calls)) * 0.25
     safety_score = max(0.0, 1.0 - penalty) if checked_calls > 0 else 1.0
@@ -3621,11 +3630,15 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
         consistency_score = efficiency
     else:
         # Failed despite retries — use accuracy as consistency proxy
-        # penalize_degradation=True: accuracy 자체에서 추가 0.1 감점 (improvement_threshold 미달 시)
-        if config.penalize_degradation and accuracy < config.improvement_threshold:
-            consistency_score = max(0.0, accuracy - 0.1)
+        if config.penalize_degradation:
+            # threshold 미달 시 추가 감점 (accuracy - 0.1), 초과 시 threshold 차감
+            if accuracy < config.improvement_threshold:
+                consistency_score = max(0.0, accuracy - 0.1)
+            else:
+                consistency_score = max(0.0, accuracy - config.improvement_threshold)
         else:
-            consistency_score = max(0.0, accuracy - config.improvement_threshold)
+            # penalize_degradation=False: 패널티 없음 — accuracy 그대로 사용
+            consistency_score = accuracy
 
     return {
         "consistency_score": round(consistency_score, 4),
