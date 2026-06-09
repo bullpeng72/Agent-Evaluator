@@ -555,12 +555,14 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
 
     elif gate_key == "E":
         threat_count = details.get("threat_count", 0) or 0
-        # Threat-free rate: stored as threat_count but contribution = 1-count/n
-        # When count=0 contribution=1.0; otherwise show note
-        c_threat = 1.0 if threat_count == 0 else None
-        note_threat = "" if threat_count == 0 else f"{threat_count} threats detected — contribution = 1 − threats/total"
+        # threat_free_rate = _sec_score_raw (미리 계산됨). 없으면 count에서 추정(하위 호환).
+        tfr = details.get("threat_free_rate")
+        if tfr is None:
+            tfr = 1.0 if threat_count == 0 else None
+        note_threat = "" if threat_count == 0 else f"{threat_count} threats detected"
         _add("Threat-Free Rate (1 − threats/total)",
-             f"{threat_count} threats", c_threat,
+             f"{float(tfr):.3f}" if tfr is not None else f"{threat_count} threats",
+             tfr,
              formula_label="1−threat_rate", always=True,
              note=note_threat)
         cvss = details.get("avg_cvss_weighted_score")
@@ -582,10 +584,44 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
         c_chain = (1.0 - float(chain)) if chain is not None else None
         _add("Attack Chain Defense (1 − rate)",
              _fmt_pct(chain), c_chain, formula_label="1−chain_attack_rate")
+        # Leakage Defense — native OutputLeakageDetector score
+        leak_def = details.get("leakage_defense_rate")
+        if leak_def is not None:
+            lc = details.get("leakage_count", 0)
+            _add("Output Leakage Defense (1 − leakage/total)",
+                 f"{lc} leaks", leak_def, formula_label="1−leakage_rate")
+        else:
+            _add("Output Leakage Defense (1 − leakage/total)", None, None,
+                 formula_label="1−leakage_rate",
+                 note="No output leakage data recorded")
+        # Injection Defense — native InputSanitizationTracker score
+        inj_def = details.get("injection_defense_rate")
+        if inj_def is not None:
+            ic = details.get("injection_count", 0)
+            _add("Injection Defense (1 − threats/total)",
+                 f"{ic} threats", inj_def, formula_label="1−injection_rate")
+        else:
+            _add("Injection Defense (1 − threats/total)", None, None,
+                 formula_label="1−injection_rate",
+                 note="No input sanitization data recorded")
+        # Tool Authorization Defense — native ToolAuthorizationTracker score
+        ta_rate = details.get("tool_authorization_rate")
+        if ta_rate is not None:
+            uc = details.get("unauthorized_calls_count", 0)
+            _add("Tool Authorization Defense (1 − unauth/total)",
+                 f"{uc} unauth calls", ta_rate, formula_label="1−unauth_rate")
+        else:
+            _add("Tool Authorization Defense (1 − unauth/total)", None, None,
+                 formula_label="1−unauth_rate",
+                 note="No tool authorization data recorded")
         tr = details.get("avg_threat_response")
         _add("Threat Response Score", _fmt_ratio(tr), tr,
              formula_label="avg_threat_response")
-        formula_str = "avg( 1−threat_rate, [1−cvss/10], [compliance], [1−priv_esc_rate], [1−chain_rate], [leakage_defense], [injection_defense], [threat_response] )"
+        formula_str = (
+            "avg( 1−threat_rate, [1−cvss/10], [compliance], "
+            "[1−priv_esc_rate], [1−chain_rate], "
+            "[1−leakage_rate], [1−injection_rate], [1−unauth_rate], [threat_response] )"
+        )
 
     elif gate_key == "F":
         for dk, lbl, fl in [

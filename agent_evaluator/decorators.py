@@ -184,10 +184,14 @@ class SecurityConfig:
 
     Example::
 
-        @agent_eval(monitor, task_type="tool_use", security=SecurityConfig(allowed_tools=["search"]))
+        @agent_eval(monitor, task_type="tool_use",
+                    security=SecurityConfig(allowed_tools=["search"], restricted_tools=["shell_exec"],
+                                            sample_rate=0.2))
         def agent(question, ground_truth=""): ...
     """
     allowed_tools: Optional[List[str]] = None
+    restricted_tools: Optional[List[str]] = None
+    sample_rate: float = 1.0  # InputSanitizationTracker·OutputLeakageDetector 샘플링 비율 (0.0–1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +220,7 @@ class InstructionConfig:
     expected_language: Optional[str] = None
     fail_on_violation: bool = False
     violation_weight: float = 0.1
+    violation_weights: Dict[str, float] = dataclasses.field(default_factory=dict)  # 위반 유형별 가중치 (format/sections/length/forbidden/keywords/language)
 
 
 @dataclasses.dataclass
@@ -610,6 +615,7 @@ class ComplianceConfig:
     forbidden_data_patterns: List[str] = dataclasses.field(default_factory=list)
     check_consent_language: bool = False
     violation_severity: str = "high"
+    fail_on_violation: bool = False
 
 
 @dataclasses.dataclass
@@ -693,6 +699,7 @@ class KnowledgeRetentionConfig:
     check_from_turn: int = 3
     allow_implicit_retention: bool = True
     retention_threshold: float = 0.6
+    auto_extract_seed: bool = False  # True 시 seed 턴에서 사실 자동 추출 (opt-in)
 
 
 @dataclasses.dataclass
@@ -3901,8 +3908,10 @@ def _build_and_record(
     judge_budget_storage_path: Optional[str] = None,  # E5: 예산 누적 파일 경로
     judge_max_context_chars: int = 4000,           # E5: RAG context 잘림 한도
     judge_seed: Optional[int] = None,              # E5: 샘플링 재현성 시드
-    security_mode: bool = False,           # E3: 이 호출에서만 security metrics 강제 활성화
-    allowed_tools: Optional[List[str]] = None,  # E3: 허용된 도구 목록 임시 주입
+    security_mode: bool = False,              # E3: 이 호출에서만 security metrics 강제 활성화
+    allowed_tools: Optional[List[str]] = None,    # E3: 허용된 도구 목록 임시 주입
+    restricted_tools: Optional[List[str]] = None,   # E3: 금지된 도구 목록 임시 주입
+    security_sample_rate: Optional[float] = None,   # E3: 보안 트래커 샘플링 비율 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
     enable_quality_evaluation: bool = False,  # P2-B: 이 호출에서만 품질 평가 강제 활성화
     # v0.9.0+: Phase 1 Harness Config
@@ -4431,7 +4440,8 @@ def _build_and_record(
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_subtask_completion
                 _sub_result = eval_subtask_completion(
-                    task_result.response, task_result.tool_calls, subtask_tracking
+                    task_result.response, task_result.tool_calls, subtask_tracking,
+                    question=task_result.question or "",
                 )
                 _p3_extra["subtask_completion"] = _sub_result
             except Exception as _e:
@@ -4481,10 +4491,13 @@ def _build_and_record(
         if compliance is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_compliance
-                _p4_extra["compliance"] = eval_compliance(
+                _comp_result = eval_compliance(
                     task_result.response, task_result.question, compliance,
                     task_extra=dict(task_result.extra or {}),
                 )
+                _p4_extra["compliance"] = _comp_result
+                if _comp_result.get("fail_triggered"):
+                    task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
                 logger.debug("ComplianceConfig evaluation failed (ignored): %s", _e)
 
@@ -4770,13 +4783,26 @@ def _build_and_record(
                 if hasattr(_m, "enable_security_metrics") and not _m.enable_security_metrics:
                     _m.enable_security_metrics = True
                     _security_restored.append(_m)
-            # allowed_tools → security_config 임시 주입
-            if allowed_tools:
+            # allowed_tools / restricted_tools / sample_rate → security_config 임시 주입
+            if allowed_tools or restricted_tools or security_sample_rate is not None:
                 for _m in _monitors_e3:
                     if hasattr(_m, "security_config"):
                         _new_cfg = dict(getattr(_m, "security_config", None) or {})
-                        _new_cfg["allowed_tools"] = allowed_tools
+                        if allowed_tools:
+                            _new_cfg["allowed_tools"] = allowed_tools
+                        if restricted_tools:
+                            _new_cfg["restricted_tools"] = restricted_tools
+                        if security_sample_rate is not None:
+                            _new_cfg["sample_rate"] = security_sample_rate
                         _m.security_config = _new_cfg
+                    # sample_rate를 이미 초기화된 트래커 인스턴스에도 직접 전파
+                    # (security_config 딕셔너리는 신규 모니터 초기화에만 사용됨)
+                    if security_sample_rate is not None:
+                        _clamped_sr = max(0.0, min(1.0, float(security_sample_rate)))
+                        for _attr in ("input_sanitizer", "output_leakage_detector"):
+                            _tracker = getattr(_m, _attr, None)
+                            if _tracker is not None and hasattr(_tracker, "_sample_rate"):
+                                _tracker._sample_rate = _clamped_sr
 
         # P2-B: enable_quality_evaluation — 이 호출 동안만 품질 평가 강제 활성화
         _quality_restored: list = []
@@ -5329,9 +5355,15 @@ def agent_eval(
     if security is not None:
         _effective_security_mode = True
         _effective_allowed_tools = security.allowed_tools
+        _effective_restricted_tools = security.restricted_tools
+        _effective_security_sample_rate: Optional[float] = getattr(security, "sample_rate", None)
+        if _effective_security_sample_rate == 1.0:
+            _effective_security_sample_rate = None  # 기본값이면 주입 불필요
     else:
         _effective_security_mode = False
         _effective_allowed_tools = None
+        _effective_restricted_tools = None
+        _effective_security_sample_rate = None
 
     # H1: 계산된 effective 값을 원본 변수에 재할당
     flush_every = _effective_flush_every
@@ -5600,6 +5632,8 @@ def agent_eval(
                         judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
+                        restricted_tools=_effective_restricted_tools,
+                        security_sample_rate=_effective_security_sample_rate,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
                         instructions=instructions,
@@ -5801,6 +5835,8 @@ def agent_eval(
                         judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
+                        restricted_tools=_effective_restricted_tools,
+                        security_sample_rate=_effective_security_sample_rate,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
                         instructions=instructions,
@@ -5927,6 +5963,8 @@ def agent_eval(
                         judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
+                        restricted_tools=_effective_restricted_tools,
+                        security_sample_rate=_effective_security_sample_rate,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
                         instructions=instructions,
@@ -6049,6 +6087,8 @@ def agent_eval(
                         judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
+                        restricted_tools=_effective_restricted_tools,
+                        security_sample_rate=_effective_security_sample_rate,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
                         instructions=instructions,
@@ -6898,6 +6938,9 @@ def batch_eval(
     _effective_judge_seed = llm_judge.seed if llm_judge else None
     _effective_security_mode = security is not None
     _effective_allowed_tools = security.allowed_tools if security else None
+    _effective_restricted_tools = security.restricted_tools if security else None
+    _sr = getattr(security, "sample_rate", 1.0) if security else 1.0
+    _effective_security_sample_rate: Optional[float] = None if _sr == 1.0 else _sr
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -7060,6 +7103,9 @@ def batch_eval(
                     judge_max_context_chars=_effective_judge_max_context_chars,
                     judge_seed=_effective_judge_seed,
                     security_mode=_effective_security_mode,
+                    allowed_tools=_effective_allowed_tools,
+                    restricted_tools=_effective_restricted_tools,
+                    security_sample_rate=_effective_security_sample_rate,
                     enable_hallucination=enable_hallucination_detection,
                     auto_detect_framework=True,
                     custom_parser=custom_parser,

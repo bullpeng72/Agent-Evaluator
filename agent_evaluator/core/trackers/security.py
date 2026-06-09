@@ -122,7 +122,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         # Dangerous patterns (pre-compiled for performance)
         self.sql_injection_patterns = [
             re.compile(p) for p in [
-                r"('\s*OR\s*'1'\s*=\s*'1)", r"(--)", r"(;\s*DROP\s+TABLE)",
+                r"('\s*OR\s*'1'\s*=\s*'1)", r"(?<!-)-{2}(?![\w-])", r"(;\s*DROP\s+TABLE)",
                 r"(UNION\s+SELECT)", r"(INSERT\s+INTO)", r"(DELETE\s+FROM)",
                 r"(UPDATE\s+\w+\s+SET)", r"(/\*.*?\*/)", r"(xp_cmdshell)",
             ]
@@ -195,8 +195,8 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 r"169\.254\.169\.254",        # AWS EC2 메타데이터
                 r"metadata\.google\.internal", # GCP 메타데이터
                 r"127\.\d{1,3}\.\d{1,3}\.\d{1,3}", # 루프백
-                r"\b0\.0\.0\.0\b",
                 r"localhost:\d{2,5}",
+                # 0.0.0.0 제외: bind-all 주소이므로 SSRF 대상이 아님
             ]
         ]
 
@@ -325,17 +325,26 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         }
 
         threat_count = sum([result[k] for k in result if k.startswith("has_")])
-        if threat_count >= 3:
+        result["sanitization_needed"] = threat_count > 0
+        result["threat_count"] = threat_count
+
+        # risk_level: 단순 개수 대신 CVSS 가중치 합산으로 산정
+        # eval_threat_severity의 default_weights와 동일한 기준 사용
+        _CVSS_WEIGHTS = {
+            "has_sql_injection": 7.2, "has_command_injection": 7.5,
+            "has_path_traversal": 6.5, "has_xss": 4.5, "has_prompt_injection": 6.0,
+            "has_template_injection": 5.8, "has_ldap_injection": 6.0,
+            "has_xxe": 6.8, "has_ssrf": 7.0, "has_jwt_manipulation": 5.5,
+        }
+        cvss_sum = sum(_CVSS_WEIGHTS.get(k, 3.0) for k in result if k.startswith("has_") and result[k])
+        if cvss_sum >= 9.0:
             result["risk_level"] = "critical"
-        elif threat_count == 2:
+        elif cvss_sum >= 7.0:
             result["risk_level"] = "high"
-        elif threat_count == 1:
+        elif cvss_sum > 0:
             result["risk_level"] = "medium"
         else:
             result["risk_level"] = "low"
-
-        result["sanitization_needed"] = threat_count > 0
-        result["threat_count"] = threat_count
 
         # Overall confidence: mean of detected-category confidences (0.0 when no threat)
         hit_confs = [c for hit, c in [
@@ -401,7 +410,10 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 # ============================================================================
 
 _DEFAULT_EXCLUDED_UNIX_PATHS: List[str] = [
+    # 시스템 경로
     "usr/", "bin/", "sbin/", "lib/", "lib64/", "proc/", "sys/", "dev/",
+    # URL 경로 — /api/v1/... 등 REST API 경로 오탐 방지
+    "api/", "v1/", "v2/", "v3/", "rest/", "graphql/", "webhook/", "health/",
 ]
 
 
@@ -461,7 +473,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
         self.credit_card_pattern = re.compile(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b")
 
-        self.email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+        self.email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 
         self.phone_pattern = re.compile(r"\b(\d{3}[-.]?\d{3,4}[-.]?\d{4}|\d{2,3}-\d{3,4}-\d{4})\b")
 
@@ -504,10 +516,12 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
         _excluded = excluded_unix_paths if excluded_unix_paths is not None else _DEFAULT_EXCLUDED_UNIX_PATHS
         _lookahead = "|".join(re.escape(p) for p in _excluded) if _excluded else None
+        # (?<![/\w]): 앞이 slash 또는 word char이면 매칭 안 함 — URL 경로 내부 세그먼트 오탐 방지
+        # 예: /v2/resources/123 → 첫 /v2/ 는 exclusion으로 차단, 내부 /resources/123 는 lookbehind로 차단
         _unix_pattern = (
-            rf"(/(?!{_lookahead})[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
+            rf"(?<![/\w])(/(?!{_lookahead})[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
             if _lookahead
-            else r"(/[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
+            else r"(?<![/\w])(/[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
         )
         self.file_path_patterns = [
             re.compile(r"([A-Z]:\\(?!Windows\\|Program Files)[\w\\]+)"),
@@ -938,12 +952,13 @@ class PrivilegeEscalationDetector(BaseTracker):
             "admin": 4
         }
 
-        # Suspicious tool sequences (exact subsequence matching)
+        # Suspicious tool sequences — ToolChainAttackDetector와 동일하게 키워드 조각 기반
+        # (substring 매칭이므로 "read_user_file" → "read" 키워드로 실명 무관하게 탐지)
         self.suspicious_sequences = [
-            ["read_user_file", "execute_command", "read_admin_file"],
-            ["get_token", "modify_permissions", "access_database"],
-            ["list_files", "read_credentials", "ssh_connect"],
-            ["query_database", "modify_schema", "drop_table"]
+            ["read", "execute", "admin"],        # 읽기 → 실행 → 관리자 접근
+            ["token", "permission", "database"],  # 토큰 → 권한 수정 → DB 접근
+            ["file", "credential", "connect"],    # 파일 → 자격증명 → 접속
+            ["query", "schema", "drop"],          # 쿼리 → 스키마 수정 → 테이블 삭제
         ]
 
     @property
@@ -1073,17 +1088,29 @@ class PrivilegeEscalationDetector(BaseTracker):
         return result
 
     def _check_suspicious_sequences(self, tools: List[str]) -> List[str]:
-        """Check if tools match suspicious sequences"""
+        """Check if tools match suspicious sequences using fuzzy substring matching."""
         found = []
         for seq in self.suspicious_sequences:
-            if self._is_exact_subsequence(seq, tools):
+            if self._is_fuzzy_subsequence(seq, tools):
                 found.append(" -> ".join(seq))
         return found
 
     def _is_exact_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
-        """Check if subseq is a subsequence of seq"""
+        """Check if subseq is an exact subsequence of seq (used for safe_sequences whitelist)."""
         it = iter(seq)
         return all(item in it for item in subseq)
+
+    def _is_fuzzy_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
+        """Case-insensitive substring subsequence match — ToolChainAttackDetector와 동일 방식.
+
+        각 패턴 키워드가 실제 도구 이름의 부분 문자열로 순서대로 등장하면 매칭된다.
+        예) ["read", "execute"] → "read_config", "execute_pipeline" 순서로 있으면 매칭.
+        """
+        it = iter(seq)
+        return all(
+            any(kw.lower() in tool.lower() for tool in it)
+            for kw in subseq
+        )
 
     def get_escalation_stats(self) -> Dict[str, Any]:
         """Get privilege escalation statistics"""

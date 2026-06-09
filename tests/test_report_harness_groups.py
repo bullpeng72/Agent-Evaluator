@@ -349,22 +349,29 @@ class TestComputeHarnessGroupsDirect:
         assert len(hg) > 0
 
     def test_group_e_with_security_threats(self):
-        """security_metrics에 threat_count가 있으면 Group E score 감소."""
+        """task.extra에 보안 위협 데이터가 있으면 Group E score 감소."""
+        import dataclasses
         m = PerformanceMonitor()
         t = create_taskresult(
             task_id="t1", question="q", response="r", ground_truth="r",
             execution_time=1.0
         )
+        # input_sanitization 위협 탐지 결과를 task.extra에 직접 주입
+        t = dataclasses.replace(t, extra={
+            "input_sanitization": {
+                "has_sql_injection": True,
+                "threat_count": 1,
+                "sanitization_needed": True,
+            }
+        })
         m.record_task(t)
-        # 직접 _compute_harness_groups 호출
-        from agent_evaluator.core.trackers.monitor import PerformanceMonitor as PM
         layer1 = m._collect_layer1_metrics()
         layer2 = m._collect_layer2_metrics()
         result = m._compute_harness_groups(
             tasks=list(m.tasks),
             layer1=layer1,
             layer2=layer2,
-            security_metrics={"threat_count": 5},
+            security_metrics={},
         )
         assert result["E"]["score"] < 1.0
 
