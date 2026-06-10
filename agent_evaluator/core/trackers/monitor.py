@@ -3071,9 +3071,10 @@ class PerformanceMonitor:
 
         # reproducibility → Group C
         _repro_scores = [
-            t.extra["reproducibility"]["score"]
+            float(t.extra.get("reproducibility", {}).get("score"))
             for t in tasks
             if (t.extra or {}).get("reproducibility") is not None
+            and (t.extra or {}).get("reproducibility", {}).get("score") is not None
         ]
         avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
         if avg_reproducibility is not None:
@@ -3100,9 +3101,10 @@ class PerformanceMonitor:
 
         # graceful_degradation → Group C (Phase 4)
         _deg_scores = [
-            t.extra.get("graceful_degradation", {}).get("degradation_score")
+            float(t.extra.get("graceful_degradation", {}).get("degradation_score"))
             for t in tasks
             if (t.extra or {}).get("graceful_degradation") is not None
+            and (t.extra or {}).get("graceful_degradation", {}).get("degradation_score") is not None
         ]
         _avg_degradation: Optional[float] = sum(_deg_scores) / len(_deg_scores) if _deg_scores else None
         if _avg_degradation is not None:
@@ -3165,9 +3167,10 @@ class PerformanceMonitor:
 
         # idempotency → Group C (Phase 6)
         _idem_scores = [
-            t.extra.get("idempotency", {}).get("idempotency_score")
+            float(t.extra.get("idempotency", {}).get("idempotency_score"))
             for t in tasks
             if t.extra and t.extra.get("idempotency")
+            and t.extra.get("idempotency", {}).get("idempotency_score") is not None
         ]
         _avg_idempotency: Optional[float] = (
             sum(_idem_scores) / len(_idem_scores) if _idem_scores else None

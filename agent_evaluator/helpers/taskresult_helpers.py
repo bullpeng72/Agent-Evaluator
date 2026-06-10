@@ -3061,7 +3061,7 @@ def eval_graceful_degradation(
 
     # Compute degradation score
     if is_empty:
-        score = max(0.0, 1.0 - config.empty_response_penalty)
+        score = max(config.quality_floor, max(0.0, 1.0 - config.empty_response_penalty))
         mode = "empty"
     elif has_error and has_partial_result:
         score = max(config.quality_floor, 0.6)
