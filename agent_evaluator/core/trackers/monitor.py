@@ -2827,7 +2827,7 @@ class PerformanceMonitor:
                 _rel = _lj_scores.get("relevance")
                 if _rel is not None:
                     try:
-                        _rel_norm = float(_rel) / 5.0  # 0-5 → 0-1 정규화
+                        _rel_norm = min(1.0, max(0.0, float(_rel) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
                         _w = max(0.0, min(1.0, float(_ga.get("llm_blend_weight", 0.5))))
                         _ga_score = _ga_score * (1 - _w) + _rel_norm * _w
                     except (TypeError, ValueError):

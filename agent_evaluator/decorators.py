@@ -500,6 +500,7 @@ class ContextRetentionConfig:
     check_original_goal: bool = True
     entity_weight: float = 0.6
     goal_weight: float = 0.4
+    goal_overlap_threshold: float = 0.3  # 원래 목표 키워드 오버랩 임계값 (낮을수록 관대)
 
 
 @dataclasses.dataclass

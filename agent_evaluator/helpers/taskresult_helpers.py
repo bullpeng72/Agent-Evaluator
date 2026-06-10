@@ -2658,7 +2658,7 @@ def eval_context_retention(
         q_sig = {t for t in (q_tokens - stopwords) if len(t) >= 2}
         if q_sig:
             overlap = len(q_sig & r_tokens) / len(q_sig)
-            goal_retained = overlap >= 0.3
+            goal_retained = overlap >= float(getattr(config, "goal_overlap_threshold", 0.3))
         else:
             goal_retained = True
 
