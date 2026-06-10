@@ -2804,9 +2804,10 @@ class PerformanceMonitor:
             pass
 
         _ifr_scores = [
-            t.extra["instruction_adherence"]["score"]
+            float(t.extra.get("instruction_adherence", {}).get("score"))
             for t in tasks
             if (t.extra or {}).get("instruction_adherence") is not None
+            and (t.extra or {}).get("instruction_adherence", {}).get("score") is not None
         ]
         avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
 
@@ -2854,24 +2855,27 @@ class PerformanceMonitor:
         avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
 
         _subtask_vals = [
-            t.extra["subtask_completion"]["completion_rate"]
+            float(t.extra.get("subtask_completion", {}).get("completion_rate"))
             for t in tasks
             if (t.extra or {}).get("subtask_completion") is not None
+            and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
         ]
         avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
 
         _cr_vals = [
-            t.extra["context_retention"]["retention_score"]
+            float(t.extra.get("context_retention", {}).get("retention_score"))
             for t in tasks
             if (t.extra or {}).get("context_retention") is not None
+            and (t.extra or {}).get("context_retention", {}).get("retention_score") is not None
         ]
         avg_context_r = sum(_cr_vals) / len(_cr_vals) if _cr_vals else None
 
         # knowledge_retention → Group A (Phase 5)
         _kr_vals = [
-            t.extra.get("knowledge_retention", {}).get("retention_score")
+            float(t.extra.get("knowledge_retention", {}).get("retention_score"))
             for t in tasks
             if (t.extra or {}).get("knowledge_retention") is not None
+            and t.extra.get("knowledge_retention", {}).get("retention_score") is not None
         ]
         avg_knowledge_ret: Optional[float] = sum(_kr_vals) / len(_kr_vals) if _kr_vals else None
 

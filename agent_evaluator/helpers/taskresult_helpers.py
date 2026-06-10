@@ -1281,9 +1281,9 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
             for check_type, passed in checks.items()
             if not passed
         )
-        score = max(0.0, 1.0 - total_penalty)
+        score = min(1.0, max(0.0, 1.0 - total_penalty))
     else:
-        score = max(0.0, 1.0 - violation_count * config.violation_weight)
+        score = min(1.0, max(0.0, 1.0 - violation_count * config.violation_weight))
 
     return {
         "score": score,
