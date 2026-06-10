@@ -3220,8 +3220,7 @@ class PerformanceMonitor:
 
         # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
         _eff_calibrated_vals: _List[float] = []
-        _eff_ratios: _List[float] = []
-        _eff_cost_unit: str = "tokens"  # 정규화 계수 선택용 (usd vs tokens/time_ms)
+        _eff_ratios_by_unit: Dict[str, _List[float]] = {}  # unit → ratios (단위 혼재 방지)
         for _t in tasks:
             _eff = ((_t.extra or {}).get("efficiency") or {})
             if not _eff:
@@ -3230,9 +3229,15 @@ class PerformanceMonitor:
                 _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
             _er = _eff.get("efficiency_ratio")
             if _er is not None:  # cost_value=0(측정 불가) → None 제외
-                _eff_ratios.append(float(_er))
-            if _eff.get("cost_unit"):
-                _eff_cost_unit = str(_eff["cost_unit"])
+                _unit = str(_eff.get("cost_unit") or "tokens")
+                _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
+        # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
+        _eff_ratios: _List[float] = max(
+            _eff_ratios_by_unit.values(), key=len, default=[]
+        )
+        _eff_cost_unit: str = next(
+            (u for u, v in _eff_ratios_by_unit.items() if v is _eff_ratios), "tokens"
+        )
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
             avg_eff_calibrated: Optional[float] = (
@@ -3334,7 +3339,7 @@ class PerformanceMonitor:
                 _ttft_p95 = _ttft_sorted_clean[_p95_idx]
                 _ttft_ratio = _ttft_p95 / max(_ttft_p50, 1.0)
                 _std_score = max(0.0, 1.0 - _ttft_stddev / max(_ttft_max_std, 1.0))
-                _ratio_score = max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_ttft_max_ratio - 1.0, 1.0))
+                _ratio_score = min(1.0, max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_ttft_max_ratio - 1.0, 1.0)))
                 _avg_ttft_variability = (_std_score + _ratio_score) / 2.0
 
         # cost_predictability — CostPredictabilityConfig 파라미터 우선 사용
@@ -3446,15 +3451,17 @@ class PerformanceMonitor:
         _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
         # CVSS weighted_score는 여러 위협의 합산이므로 10.0으로 캡핑 후 정규화
         _cvss_scores = [
-            min(t.extra["threat_severity"]["weighted_score"], 10.0)
+            min(float(t.extra.get("threat_severity", {}).get("weighted_score")), 10.0)
             for t in tasks
             if (t.extra or {}).get("threat_severity") is not None
+            and (t.extra or {}).get("threat_severity", {}).get("weighted_score") is not None
         ]
         # compliance → Group E (Phase 4)
         _compliance_scores = [
-            t.extra.get("compliance", {}).get("compliance_score")
+            float(t.extra.get("compliance", {}).get("compliance_score"))
             for t in tasks
             if (t.extra or {}).get("compliance") is not None
+            and (t.extra or {}).get("compliance", {}).get("compliance_score") is not None
         ]
         _avg_compliance: Optional[float] = (
             sum(_compliance_scores) / len(_compliance_scores) if _compliance_scores else None
@@ -3512,9 +3519,10 @@ class PerformanceMonitor:
 
         # threat_response → Group E (Phase 6)
         _tr_scores = [
-            t.extra.get("threat_response", {}).get("response_score")
+            float(t.extra.get("threat_response", {}).get("response_score"))
             for t in tasks
             if t.extra and t.extra.get("threat_response")
+            and t.extra.get("threat_response", {}).get("response_score") is not None
         ]
         _avg_threat_response: Optional[float] = (
             sum(_tr_scores) / len(_tr_scores) if _tr_scores else None
@@ -3630,32 +3638,36 @@ class PerformanceMonitor:
             pass
 
         _consensus_scores = [
-            t.extra["consensus"]["consensus_score"]
+            float(t.extra.get("consensus", {}).get("consensus_score"))
             for t in tasks
             if (t.extra or {}).get("consensus") is not None
+            and (t.extra or {}).get("consensus", {}).get("consensus_score") is not None
         ]
         avg_consensus: Optional[float] = sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
 
         _prop_vals = [
-            t.extra["propagation"]["fidelity_score"]
+            float(t.extra.get("propagation", {}).get("fidelity_score"))
             for t in tasks
             if (t.extra or {}).get("propagation") is not None
+            and (t.extra or {}).get("propagation", {}).get("fidelity_score") is not None
         ]
         avg_propagation: Optional[float] = sum(_prop_vals) / len(_prop_vals) if _prop_vals else None
 
         # agent_role → Group F (Phase 4)
         _role_scores = [
-            t.extra.get("agent_role", {}).get("role_compliance_score")
+            float(t.extra.get("agent_role", {}).get("role_compliance_score"))
             for t in tasks
             if (t.extra or {}).get("agent_role") is not None
+            and (t.extra or {}).get("agent_role", {}).get("role_compliance_score") is not None
         ]
         _avg_role: Optional[float] = sum(_role_scores) / len(_role_scores) if _role_scores else None
 
         # conflict_resolution → Group F (Phase 4)
         _conflict_scores = [
-            t.extra.get("conflict_resolution", {}).get("resolution_score")
+            float(t.extra.get("conflict_resolution", {}).get("resolution_score"))
             for t in tasks
             if (t.extra or {}).get("conflict_resolution") is not None
+            and (t.extra or {}).get("conflict_resolution", {}).get("resolution_score") is not None
         ]
         _avg_conflict_res: Optional[float] = (
             sum(_conflict_scores) / len(_conflict_scores) if _conflict_scores else None

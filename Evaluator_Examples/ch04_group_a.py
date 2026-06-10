@@ -27,9 +27,9 @@ from agent_evaluator import (
     PerformanceMonitor,
     PlanConfig,
     SubtaskConfig,
+    agent_eval,
     load_env,
 )
-from agent_evaluator.decorators import agent_eval
 
 load_env()
 
@@ -250,7 +250,7 @@ def run_fail_scenarios() -> None:
     d = report_fail.to_dict()
     harness = (d.get("extra_metrics") or {}).get("harness_groups", {})
     gate_a = harness.get("A", {})
-    print(f"Gate A 점수: {gate_a.get('score', 'n/a'):.3f}  ← 약 34% 예상")
+    print(f"Gate A 점수: {gate_a.get('score', 'n/a'):.3f}  ← 약 46% 예상")
     print(f"Gate A 상태: {gate_a.get('status', 'n/a')}")
     print("→ results/ch04_group_a_fail.json + .html")
 

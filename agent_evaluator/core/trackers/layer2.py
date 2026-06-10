@@ -901,7 +901,7 @@ class AgentCoordinationTracker(BaseTracker):
         # Score calculation (0-10 scale)
         # success_rate(0-100) → /10 → (0-10), then weight by _COORD_WEIGHT_SUCCESS
         diversity_score = min(len(agents) / self._ideal_agent_count, 1.0) * _COORD_SCORE_SCALE
-        balance_score = (len(type_counts) / _COORD_IDEAL_INTERACTION_TYPES) * _COORD_SCORE_SCALE
+        balance_score = min(len(type_counts) / _COORD_IDEAL_INTERACTION_TYPES, 1.0) * _COORD_SCORE_SCALE
 
         coordination_score = (
             success_rate * _COORD_WEIGHT_SUCCESS / _COORD_SCORE_SCALE +

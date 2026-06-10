@@ -27,6 +27,8 @@ from agent_evaluator import (
     PerformanceMonitor,
     create_taskresult,
     setup_otel,
+    agent_eval,
+    EvalMetadata,
     # Gate B — Behavioral Integrity
     LoopDetectionConfig,
     ScopeConfig,
@@ -40,7 +42,6 @@ from agent_evaluator import (
     ToolSelectionTracker,
     AgentCoordinationTracker,
 )
-from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")

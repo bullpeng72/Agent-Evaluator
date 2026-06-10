@@ -23,23 +23,24 @@ import socket
 from pathlib import Path
 
 import os
-from agent_evaluator.config import load_env
-
-load_env()
-
 from agent_evaluator import (
     PerformanceMonitor,
     setup_otel,
     LLMJudgeConfig,
     create_taskresult,
-    # Group C — Reliability
+    load_env,
+    agent_eval,
+    EvalMetadata,
+    RetryConfig,
+    # Gate C — Reliability
     FaultToleranceConfig,
     GracefulDegradationConfig,
     ReproducibilityConfig,
     RetryConsistencyConfig,
     IdempotencyConfig,
 )
-from agent_evaluator.decorators import agent_eval, RetryConfig, EvalMetadata
+
+load_env()
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -174,9 +175,9 @@ print(f"  태스크당 평균 시도: {_retries.get('avg_attempts_per_task', 0):
 print(f"  섹션 2-b 완료: {len(_retry_cases)}건 기록")
 
 # ===========================================================================
-# 섹션 3: Group C — Reliability
+# 섹션 3: Gate C — Reliability
 # ===========================================================================
-print("\n=== 섹션 3: Group C — Reliability ===")
+print("\n=== 섹션 3: Gate C — Reliability ===")
 
 
 _fault_call_count = {"n": 0}

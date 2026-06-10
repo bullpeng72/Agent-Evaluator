@@ -27,6 +27,7 @@ from pathlib import Path
 from agent_evaluator import (
     PerformanceMonitor,
     setup_otel,
+    agent_eval,
     # Gate E — Security Boundary
     ThreatSeverityConfig,
     ComplianceConfig,
@@ -38,7 +39,6 @@ from agent_evaluator import (
     PrivilegeEscalationDetector,
     ToolChainAttackDetector,
 )
-from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")

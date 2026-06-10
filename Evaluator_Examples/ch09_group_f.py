@@ -27,13 +27,14 @@ from pathlib import Path
 from agent_evaluator import (
     PerformanceMonitor,
     setup_otel,
-    # Group F — Multi-Agent Coordination
+    agent_eval,
+    EvalMetadata,
+    # Gate F — Multi-Agent Coordination
     ConsensusConfig,
     PropagationConfig,
     AgentRoleConfig,
     ConflictResolutionConfig,
 )
-from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -62,9 +63,9 @@ monitor = PerformanceMonitor(
 )
 
 # ===========================================================================
-# 섹션 6: Group F — Multi-Agent Coordination
+# 섹션 6: Gate F — Multi-Agent Coordination
 # ===========================================================================
-print("\n=== 섹션 6: Group F — Multi-Agent Coordination ===")
+print("\n=== 섹션 6: Gate F — Multi-Agent Coordination ===")
 
 
 # ── 갭 보완: ConsensusConfig 실계산 ───────────────────────────────────────────

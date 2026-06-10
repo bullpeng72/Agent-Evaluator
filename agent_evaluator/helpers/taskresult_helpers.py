@@ -2375,7 +2375,7 @@ def eval_observability(
     tc_count = len(tool_calls or [])
     otel_spans = extra.get("otel_spans") or extra.get("span_count")
     if check_continuity and tc_count > 0:
-        span_count = int(otel_spans or 0)
+        span_count = max(0, int(float(otel_spans or 0)))
         trace_coverage = min(1.0, span_count / tc_count) if tc_count > 0 else 1.0
     else:
         trace_coverage = 1.0  # tool_calls 없으면 완전 커버
@@ -2881,7 +2881,7 @@ def eval_propagation(
     check_in_response = bool(getattr(config, "check_in_response", True))
     check_in_tool_calls = getattr(config, "check_in_tool_calls", False)
     penalize_distortion = getattr(config, "penalize_distortion", True)
-    similarity_threshold = float(getattr(config, "similarity_threshold", 1.0))
+    similarity_threshold = float(getattr(config, "similarity_threshold", 0.7))
     source_agent = str(getattr(config, "source_agent", "") or "")
 
     if not key_facts:
@@ -4013,12 +4013,12 @@ def eval_latency_attribution(
     tool_latencies = extra.get(config.tool_latency_key, {}) or {}
     tool_ms: float = 0.0
     if isinstance(tool_latencies, dict):
-        tool_ms = sum(float(v) for v in tool_latencies.values() if v is not None)
+        tool_ms = sum(float(v) for v in tool_latencies.values() if v is not None and float(v) >= 0)
     elif isinstance(tool_latencies, (int, float)):
         tool_ms = float(tool_latencies)
 
-    model_ms = float(extra.get(config.model_latency_key, 0.0) or 0.0)
-    network_ms = float(extra.get(config.network_latency_key, 0.0) or 0.0)
+    model_ms = max(0.0, float(extra.get(config.model_latency_key, 0.0) or 0.0))
+    network_ms = max(0.0, float(extra.get(config.network_latency_key, 0.0) or 0.0))
 
     total = max(execution_time_ms, 1.0)
     attributed = tool_ms + model_ms + network_ms

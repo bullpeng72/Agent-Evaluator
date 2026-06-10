@@ -31,14 +31,15 @@ from agent_evaluator import (
     PerformanceMonitor,
     create_taskresult,
     setup_otel,
-    # Group D — Performance Contract
+    agent_eval,
+    EvalMetadata,
+    # Gate D — Performance Contract
     SLAConfig,
     EfficiencyConfig,
     ResourceBudgetConfig,
     TTFTVariabilityConfig,
     CostPredictabilityConfig,
 )
-from agent_evaluator import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -71,9 +72,9 @@ monitor = PerformanceMonitor(
 )
 
 # ===========================================================================
-# 섹션 4: Group D — Performance Contract
+# 섹션 4: Gate D — Performance Contract
 # ===========================================================================
-print("\n=== 섹션 4: Group D — Performance Contract ===")
+print("\n=== 섹션 4: Gate D — Performance Contract ===")
 
 
 @agent_eval(

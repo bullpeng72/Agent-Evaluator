@@ -42,8 +42,8 @@ from agent_evaluator import (
     ComplianceConfig,
     PropagationConfig,
     ExplainabilityConfig,
+    agent_eval, RetryConfig, EvalMetadata,
 )
-from agent_evaluator.decorators import agent_eval, RetryConfig, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
