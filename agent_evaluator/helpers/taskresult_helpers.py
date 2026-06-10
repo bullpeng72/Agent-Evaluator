@@ -1361,6 +1361,8 @@ def eval_loop_detection(
     if getattr(config, "check_response_loop", False) and response and previous_responses:
         _sim_threshold = float(getattr(config, "response_similarity_threshold", 0.95))
         for _prev in previous_responses:
+            if not isinstance(_prev, str):
+                continue
             _sim = _token_overlap_ratio(response, _prev)
             if _sim >= _sim_threshold:
                 _detected_loops.append({
@@ -3491,7 +3493,7 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
                 _schema_violated = False
                 if "type" in spec:
                     expected_type = spec["type"]
-                    if expected_type == "int" and not isinstance(val, int):
+                    if expected_type == "int" and (isinstance(val, bool) or not isinstance(val, int)):
                         violations.append(f"type_mismatch:{name}.{key}:expected_int")
                         _schema_violated = True
                     elif expected_type == "str" and not isinstance(val, str):

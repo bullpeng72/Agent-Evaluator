@@ -2963,17 +2963,19 @@ class PerformanceMonitor:
                 _deadlock_by_type[_dtype] = _deadlock_by_type.get(_dtype, 0) + 1
 
         _scope_vals = [
-            t.extra["scope"]["scope_score"]
+            float(t.extra.get("scope", {}).get("scope_score"))
             for t in tasks
             if (t.extra or {}).get("scope") is not None
+            and (t.extra or {}).get("scope", {}).get("scope_score") is not None
         ]
         avg_scope_score = sum(_scope_vals) / len(_scope_vals) if _scope_vals else None
 
         # tool_parameter_safety → Group B (Phase 5)
         _tps_vals = [
-            t.extra.get("tool_parameter_safety", {}).get("safety_score")
+            float(t.extra.get("tool_parameter_safety", {}).get("safety_score"))
             for t in tasks
             if (t.extra or {}).get("tool_parameter_safety") is not None
+            and (t.extra or {}).get("tool_parameter_safety", {}).get("safety_score") is not None
         ]
         avg_tool_param_safety: Optional[float] = (
             sum(_tps_vals) / len(_tps_vals) if _tps_vals else None
@@ -2981,9 +2983,10 @@ class PerformanceMonitor:
 
         # context_window → Group B (Phase 6)
         _cw_scores = [
-            t.extra.get("context_window", {}).get("context_window_score")
+            float(t.extra.get("context_window", {}).get("context_window_score"))
             for t in tasks
             if t.extra and t.extra.get("context_window")
+            and t.extra.get("context_window", {}).get("context_window_score") is not None
         ]
         _avg_context_window: Optional[float] = (
             sum(_cw_scores) / len(_cw_scores) if _cw_scores else None
