@@ -3210,6 +3210,7 @@ class PerformanceMonitor:
         # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
         _eff_calibrated_vals: _List[float] = []
         _eff_ratios: _List[float] = []
+        _eff_cost_unit: str = "tokens"  # 정규화 계수 선택용 (usd vs tokens/time_ms)
         for _t in tasks:
             _eff = ((_t.extra or {}).get("efficiency") or {})
             if not _eff:
@@ -3219,6 +3220,8 @@ class PerformanceMonitor:
             _er = _eff.get("efficiency_ratio")
             if _er is not None:  # cost_value=0(측정 불가) → None 제외
                 _eff_ratios.append(float(_er))
+            if _eff.get("cost_unit"):
+                _eff_cost_unit = str(_eff["cost_unit"])
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
             avg_eff_calibrated: Optional[float] = (
@@ -3401,9 +3404,12 @@ class PerformanceMonitor:
             # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
             _perf_vals.append(avg_eff_calibrated)
         elif avg_eff_ratio is not None:
-            # Normalize: token-based ratio ~0.001 maps to 1.0; remove conditional to avoid score
-            # reversal near the 0.001 boundary (e.g. 0.002 → 0.002 vs 0.0009 → 0.9).
-            _norm_eff = min(1.0, avg_eff_ratio * 1000.0)
+            # Normalize: token/time_ms ratio ~0.001 maps to 1.0.
+            # USD ratio is ~100-1000; $0.01/completion = threshold (ratio=100 → 1.0).
+            if _eff_cost_unit == "usd":
+                _norm_eff = min(1.0, avg_eff_ratio * 0.01)
+            else:
+                _norm_eff = min(1.0, avg_eff_ratio * 1000.0)
             _perf_vals.append(_norm_eff)
         if _avg_budget is not None:
             _perf_vals.append(_avg_budget)

@@ -2005,7 +2005,8 @@ def eval_efficiency(
         ratio = completion_score / cost_value
 
     # 패널티 적용: 완전 실패 태스크는 ratio를 0으로 처리
-    if penalized:
+    # cost_value=0(ratio=None)인 경우는 측정 불가이므로 패널티 대상에서 제외
+    if penalized and ratio is not None:
         ratio = 0.0
 
     # cost_per_completion: completion_score 1.0 달성에 필요한 비용 추정
