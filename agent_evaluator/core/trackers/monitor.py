@@ -2848,7 +2848,8 @@ class PerformanceMonitor:
                 if _rel_pc is not None:
                     try:
                         _w_pc = max(0.0, min(1.0, float(_pc.get("llm_blend_weight", 0.5))))
-                        _pc_score = _pc_score * (1 - _w_pc) + (float(_rel_pc) / 5.0) * _w_pc
+                        _rel_norm_pc = min(1.0, max(0.0, float(_rel_pc) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
+                        _pc_score = _pc_score * (1 - _w_pc) + _rel_norm_pc * _w_pc
                     except (TypeError, ValueError):
                         pass
             _plan_a_vals.append(_pc_score)
