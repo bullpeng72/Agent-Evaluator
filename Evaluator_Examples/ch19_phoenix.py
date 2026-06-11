@@ -110,7 +110,7 @@ else:
     print("  대시보드 '외부평가' 탭: 목업 데이터로 UI 구조 확인 가능")
 
 from agent_evaluator import create_taskresult
-from agent_evaluator.decorators import agent_eval, EvalMetadata
+from agent_evaluator import agent_eval, EvalMetadata
 
 # ===========================================================================
 # 섹션 1: Tracing — 스팬 전송 + Annotations

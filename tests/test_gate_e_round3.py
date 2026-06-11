@@ -449,7 +449,7 @@ class TestGateEFormulaConsistency:
         if actual_score is None:
             return
 
-        html = _build_score_breakdown("E", gate_e, actual_score)
+        html = _build_score_breakdown("E", gate_e)
         # HTML에서 "component(s) averaged" 텍스트 내 숫자 추출
         import re
         m = re.search(r"\((\d+) component\(s\) averaged\)", html)

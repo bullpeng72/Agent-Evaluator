@@ -78,7 +78,7 @@ from agent_evaluator import (
     ExplainabilityConfig,
     ObservabilityConfig,
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval
 
 # ---------------------------------------------------------------------------
 # Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)

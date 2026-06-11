@@ -49,7 +49,7 @@ from agent_evaluator import (
     PerformanceMonitor, create_taskresult, setup_otel,
     SimpleTaskAlertRule, ImplicitFeedbackTracker,
 )
-from agent_evaluator.decorators import agent_eval, batch_eval, eval_context
+from agent_evaluator import agent_eval, batch_eval, eval_context
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
 try:
@@ -237,7 +237,7 @@ print(f"  dry_run(slow_response, lat=6.0s): triggered={triggered}")
 print("\n=== 섹션 4: AlertRuleBuilder 팩토리 ===")
 
 try:
-    from agent_evaluator.decorators import AlertRuleBuilder
+    from agent_evaluator import AlertRuleBuilder
 
     builder_rules = [
         AlertRuleBuilder.when_accuracy_below(

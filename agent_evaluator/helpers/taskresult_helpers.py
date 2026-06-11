@@ -34,6 +34,11 @@ _RE_ENGLISH_CHARS = re.compile(r'[a-zA-Z]')
 _RE_NORM_SPECIAL = re.compile(r'[^\w\s]')   # 특수문자 제거 (\w covers Korean in Python 3)
 _RE_NORM_WHITESPACE = re.compile(r'\s+')
 
+def _clamp01(v: float) -> float:
+    """Clamp value to [0.0, 1.0]."""
+    return max(0.0, min(1.0, v))
+
+
 # ---------------------------------------------------------------------------
 # Pre-compiled patterns for validate_input_security()
 # ---------------------------------------------------------------------------
@@ -1281,9 +1286,9 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
             for check_type, passed in checks.items()
             if not passed
         )
-        score = min(1.0, max(0.0, 1.0 - total_penalty))
+        score = _clamp01(1.0 - total_penalty)
     else:
-        score = min(1.0, max(0.0, 1.0 - violation_count * config.violation_weight))
+        score = _clamp01(1.0 - violation_count * config.violation_weight)
 
     return {
         "score": score,
@@ -2667,7 +2672,7 @@ def eval_context_retention(
     goal_score = 1.0 if goal_retained else 0.0
 
     if key_entities:
-        retention_score = min(1.0, max(0.0, entity_weight * entity_score + goal_weight * goal_score))
+        retention_score = _clamp01(entity_weight * entity_score + goal_weight * goal_score)
     else:
         # key_entities 없음: entity 파트 제외하고 goal만으로 평가
         retention_score = goal_score

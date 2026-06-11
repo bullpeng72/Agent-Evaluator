@@ -61,7 +61,7 @@ from agent_evaluator import (
     create_taskresult,
     setup_otel,
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
