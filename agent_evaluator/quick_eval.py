@@ -1742,7 +1742,7 @@ class QuickEval:
         harness_groups = (report.extra_metrics or {}).get("harness_groups", {})
 
         if not harness_groups:
-            print("[harness_gate] No harness data available — skipping gate")
+            logger.warning("[harness_gate] No harness data available — skipping gate")
             return {"passed": True, "groups": {}, "failed_groups": []}
 
         results: Dict[str, Any] = {}
