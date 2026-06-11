@@ -1834,6 +1834,8 @@ def eval_sla(
             "warn_threshold": int(getattr(config, "warn_threshold", 2)),
             "fail_threshold": int(getattr(config, "fail_threshold", 5)),
             "budget_usd": getattr(config, "budget_usd", None),
+            # Gate D p95 정규화 임계값으로 사용 (_compute_harness_groups에서 참조)
+            "p95_ms": float(getattr(config, "p95_ms", 5000.0) or 5000.0),
         },
     }
 

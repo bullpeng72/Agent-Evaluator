@@ -866,6 +866,13 @@ class ContextWindowConfig:
     repetition_threshold: int = 3
     min_information_density: float = 0.3
 
+    def __post_init__(self) -> None:
+        if self.warn_at_pct >= self.saturated_at_pct:
+            raise ValueError(
+                f"ContextWindowConfig: warn_at_pct ({self.warn_at_pct}) must be "
+                f"< saturated_at_pct ({self.saturated_at_pct})"
+            )
+
 
 @dataclasses.dataclass
 class LatencyAttributionConfig:

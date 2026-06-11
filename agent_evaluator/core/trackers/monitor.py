@@ -2812,12 +2812,14 @@ class PerformanceMonitor:
         avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
 
         _goal_a_vals: _List[float] = []
+        _goal_a_excluded = 0
         for _t in tasks:
             _ga = ((_t.extra or {}).get("goal_alignment") or {})
             if not _ga:
                 continue
             _ga_score_raw = _ga.get("score")
             if _ga_score_raw is None:   # goal_tool_map 불일치·미측정 태스크 → 집계 제외
+                _goal_a_excluded += 1
                 continue
             _ga_score = float(_ga_score_raw)
             # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
@@ -2834,6 +2836,12 @@ class PerformanceMonitor:
                         pass
             _goal_a_vals.append(_ga_score)
         avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
+        if avg_goal_a is None and _goal_a_excluded > 1:
+            logger.warning(
+                "[Gate A] GoalAlignmentConfig: %d task(s) all excluded (score=None). "
+                "For non-tool agents, set GoalAlignmentConfig(ignore_no_tool_tasks=False).",
+                _goal_a_excluded,
+            )
 
         _plan_a_vals: _List[float] = []
         for _t in tasks:
@@ -3058,7 +3066,7 @@ class PerformanceMonitor:
         # budget_usd: 세션 전체 누적 비용 예산 초과 감지
         _sla_budget_penalty: float = 0.0
         if _sla_results:
-            _budget_usd = (_sla_cfg_summary if _sla_results else {}).get("budget_usd")
+            _budget_usd = _sla_cfg_summary.get("budget_usd")
             if _budget_usd is not None:
                 _total_session_cost = sum(
                     float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
@@ -3087,7 +3095,9 @@ class PerformanceMonitor:
         _ft_scores = []
         for _ft_t in tasks:
             _ft = (_ft_t.extra or {}).get("fault_tolerance")
-            if _ft is None or _ft.get("grade") == "none":
+            # "none": tool_calls 없어 평가 불가 → 제외
+            # "untracked": check_fallback_attempts=False로 의도적 추적 비활성 → 제외
+            if _ft is None or _ft.get("grade") in ("none", "untracked"):
                 continue
             _ft_sc = (
                 _ft["recovery_quality_score"]
@@ -3208,6 +3218,7 @@ class PerformanceMonitor:
             else:
                 _rel_score = float(_tcr_c)
         else:
+            # _rel_vals는 TCR로 항상 초기화되므로 이 분기는 실제로 도달하지 않는다.
             _rel_score = tcr_pct / 100.0
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
@@ -3235,8 +3246,9 @@ class PerformanceMonitor:
         _eff_ratios: _List[float] = max(
             _eff_ratios_by_unit.values(), key=len, default=[]
         )
-        _eff_cost_unit: str = next(
-            (u for u, v in _eff_ratios_by_unit.items() if v is _eff_ratios), "tokens"
+        _eff_cost_unit: str = (
+            max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
+            if _eff_ratios_by_unit else "tokens"
         )
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
@@ -3415,7 +3427,13 @@ class PerformanceMonitor:
 
         _perf_vals: _List[float] = []
         if _p95 > 0:
-            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / 10.0)))
+            # SLAConfig.p95_ms가 있으면 그 값을 임계값으로 사용, 없으면 기본 10s 기준
+            _p95_threshold_s = 10.0
+            if _sla_results:
+                _p95_ms_cfg = _sla_cfg_summary.get("p95_ms")
+                if _p95_ms_cfg:
+                    _p95_threshold_s = float(_p95_ms_cfg) / 1000.0
+            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / max(_p95_threshold_s, 1.0))))
         if avg_eff_calibrated is not None:
             # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
             _perf_vals.append(avg_eff_calibrated)
@@ -3506,16 +3524,24 @@ class PerformanceMonitor:
         if any(t.extra and "tool_authorization" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - min(1.0, _unauth_count / max(n, 1))))
 
+        # _sec_score_raw: 트래커가 활성화되어 있고 per-tracker 점수(_native_e_scores)가 없을 때만 포함.
+        # _native_e_scores가 있으면 동일 이벤트가 이중 집계되므로 제외.
+        # enable_security_metrics=False이면 sec_threats=0 → _sec_score_raw=1.0 고정(무의미) → 제외.
+        _include_sec_raw = self.enable_security_metrics and not _native_e_scores
         if _cvss_scores:
             avg_cvss = sum(_cvss_scores) / len(_cvss_scores)
             _cvss_normalized = max(0.0, 1.0 - avg_cvss / 10.0)
-            _e_base_scores: _List[float] = [_sec_score_raw, _cvss_normalized]
+            _e_base_scores: _List[float] = (
+                [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
+            )
             if _avg_compliance is not None:
                 _e_base_scores.append(_avg_compliance)
         elif _avg_compliance is not None:
-            _e_base_scores = [_sec_score_raw, _avg_compliance]
+            _e_base_scores = (
+                [_sec_score_raw, _avg_compliance] if _include_sec_raw else [_avg_compliance]
+            )
         else:
-            _e_base_scores = [_sec_score_raw]
+            _e_base_scores = [_sec_score_raw] if _include_sec_raw else []
 
         # threat_response → Group E (Phase 6)
         _tr_scores = [
@@ -3611,7 +3637,7 @@ class PerformanceMonitor:
             _obs_vals.append(avg_error_diagnosis)
         if _avg_latency_attribution is not None:
             _obs_vals.append(_avg_latency_attribution)
-        _obs_score = sum(_obs_vals) / len(_obs_vals) if _obs_vals else 0.0
+        _obs_score: Optional[float] = sum(_obs_vals) / len(_obs_vals) if _obs_vals else None
 
         # ── F 그룹: 멀티에이전트 조율 ──
         # Fix1+2: self.coordination_tracker(없는 속성) + get_coordination_stats()(없는 메서드) 수정
@@ -3695,9 +3721,8 @@ class PerformanceMonitor:
         _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
         _e_s = round(float(_sec_score), 4) if _sec_score is not None else None
         _f_s = round(_f_score, 4) if _f_score is not None else None
-        # _obs_vals가 빈 배열이면 Gate G 데이터 없음 — None으로 처리해 _scored에서 제외
-        # (빈 배열일 때 _obs_score=0.0으로 고정되어 항상 fail로 집계되던 버그 수정)
-        _g_s = round(float(_obs_score), 4) if _obs_vals else None
+        # _obs_score=None이면 Gate G 데이터 없음 → _scored에서 제외
+        _g_s = round(float(_obs_score), 4) if _obs_score is not None else None
 
         # overall: 유효 그룹 점수 평균
         _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]
@@ -3725,8 +3750,9 @@ class PerformanceMonitor:
             "B": _g(_b_s, "Behavioral Integrity", {
                 "loop_detection_rate": round(_loop_rate, 4),
                 "loop_count": _loop_counts,
-                "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
-                "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
+                # 아래 두 항목은 Gate A 계산값 재참조(진단용) — Gate B 점수에는 포함되지 않는다.
+                "gate_a_ref__avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
+                "gate_a_ref__avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
                 "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
                 "deadlock_count": _deadlock_count,
                 "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
