@@ -30,13 +30,13 @@ from agent_evaluator import (
     setup_otel,
     AnomalyDetector, AnomalyEvent,
     CostTracker, AdaptivePolicy, SamplingStage,
-    # Group G — Observability
+    agent_eval, EvalMetadata,
+    # Gate G — Observability
     ExplainabilityConfig,
     ObservabilityConfig,
     ErrorDiagnosisConfig,
     LatencyAttributionConfig,
 )
-from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -65,9 +65,9 @@ monitor = PerformanceMonitor(
 )
 
 # ===========================================================================
-# 섹션 7: Group G — Observability
+# 섹션 7: Gate G — Observability
 # ===========================================================================
-print("\n=== 섹션 7: Group G — Observability ===")
+print("\n=== 섹션 7: Gate G — Observability ===")
 
 
 @agent_eval(

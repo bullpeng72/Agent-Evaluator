@@ -1252,13 +1252,13 @@ class ResponseQualityEvaluator(BaseTracker):
         high_quality_count = len(df[df["grade"].isin(["A", "B"])])
 
         # Calculate dimension averages
-        dimension_averages = {
-            dim: round(
-                df["dimension_scores"].apply(lambda x: x[dim]).mean(),
-                2
-            )
-            for dim in self.dimensions.keys()
-        }
+        dimension_averages = {}
+        for _dim in self.dimensions.keys():
+            _dim_vals = [
+                float(x[_dim]) for x in df["dimension_scores"]
+                if isinstance(x, dict) and x.get(_dim) is not None
+            ]
+            dimension_averages[_dim] = round(sum(_dim_vals) / len(_dim_vals), 2) if _dim_vals else 0.0
 
         # Create quality distribution by score ranges
         quality_distribution = {}

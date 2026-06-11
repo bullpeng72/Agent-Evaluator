@@ -129,8 +129,8 @@ Gate A–G results stored under `extra_metrics.harness_groups` in JSON result fi
 | `HallucinationDetector` | **C + G** | `_rel_vals`, `_obs_vals` | LLM Judge faithfulness 없을 때 폴백 (`1 − rate`) |
 | `LLMJudge` (faithfulness) | **C** | `_rel_vals` | per-task faithfulness 기록 시 우선 적용 (`score / 5` 정규화); HallucinationDetector 대체 |
 | `RetryCorrectionTracker` | C | `_rel_vals` | SLAConfig 설정 시 |
-| `ToolCallAnalyzer` | B, G | `_bint_vals`, `_obs_vals` | tool_calls 기록 시 |
-| `WorkflowExecutionTracker` | B | `_bint_vals` | chain_steps 기록 시 |
+| `ToolCallAnalyzer` | G | `_obs_vals` — `success_rate / 100` (0→1 정규화) | tool_calls 기록 시 |
+| `WorkflowExecutionTracker` | — | (gate score 미기여) | chain_steps 추적·분석 전용 |
 | Security Trackers (5) | E | `_all_e_scores` | `enable_security_metrics=True` |
 | `AgentCoordinationTracker` | F | `_f_vals` — `calculate_coordination_score().overall_score / 10` (0→1 정규화) | agent_interactions 기록 시 |
 | `ToolSelectionTracker` | F | `_f_vals` — `avg_f1_score / 100` (0→1 정규화) | expected_tools 지정 시 |
@@ -317,7 +317,7 @@ threat_response, context_window, latency_attribution
 - Dashboard: **103** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
-- Tracker count per Gate: A=3, B=2, C=2, D=2, E=5, F=2, G=0 (16 gate-contributing + 9 operational = 25)
+- Tracker count per Gate: A=3, B=0, C=2, D=2, E=5, F=2, G=1 (15 gate-contributing + 10 operational = 25)
 - HallucinationDetector attribution: conceptually Gate C (Reliability) | SDK score contribution: Gate C (`_rel_vals`) + Gate G (`_obs_vals`)
 - AccuracyEvaluator attribution: Gate A `_a_vals[0]` 블렌딩 (`0.6×TCR + 0.4×Accuracy`) — 별도 항목 추가가 아닌 TCR 컴포넌트에 혼합
 - **PlanConfig defaults**: `max_steps=15`, `min_steps=2` (decorators.py lines 308-309)
