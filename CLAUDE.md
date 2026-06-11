@@ -313,7 +313,7 @@ threat_response, context_window, latency_attribution
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
 - Version: **v0.9.5** (Beta) | Python: **3.8+**
-- Tests: **51 files**, **2,465+** test functions
+- Tests: **52 files**, **2,499+** test functions
 - Dashboard: **103** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
@@ -388,7 +388,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**51 files, 2,465+ test functions** in `tests/`.
+**52 files, 2,499+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
