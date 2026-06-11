@@ -52,10 +52,8 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 |------|-------------|---------------|--------|
 | **A** | Task Completion Rate (TCR) | `TaskCompletionTracker` | 기본 |
 | **A** | Accuracy (overall_accuracy → _a_vals) | `AccuracyEvaluator` | 기본 |
-| **B** | Tool Call Efficiency | `ToolCallAnalyzer` | 기본 |
-| **C** | Retry & Error Recovery | `RetryCorrectionTracker` | 기본 |
+| **A** | Response Quality (5차원) | `ResponseQualityEvaluator` | 기본 |
 | **D** | Latency (P50·P90·P95·P99·TTFT) | `LatencyTracker` | 기본 |
-| **D** | Token Economy & Cost | `TokenEconomyTracker` | 기본 |
 | **E** | Input Sanitization | `InputSanitizationTracker` | `enable_security_metrics=True` |
 | **E** | Output Leakage | `OutputLeakageDetector` | `enable_security_metrics=True` |
 | **E** | Tool Authorization | `ToolAuthorizationTracker` | `enable_security_metrics=True` |
@@ -63,8 +61,7 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | **E** | Tool Chain Attack | `ToolChainAttackDetector` | `enable_security_metrics=True` |
 | **F** | Tool Selection Accuracy | `ToolSelectionTracker` | 기본 |
 | **F** | Agent Coordination | `AgentCoordinationTracker` | 기본 |
-| **F** | Workflow Execution | `WorkflowExecutionTracker` | 기본 |
-| **G** | Response Quality (5차원) | `ResponseQualityEvaluator` | 기본 |
+| **G** | Tool Call Success Rate | `ToolCallAnalyzer` | 기본 |
 | **C+G** | Hallucination Rate (규칙 기반) | `HallucinationDetector` | `enable_hallucination_detection=True` |
 | **C+G** | Context Recall (근사) | `HallucinationDetector` | `rag_mode=True` |
 | **C+G** | Context Precision (근사) | `HallucinationDetector` | `rag_mode=True` |
@@ -76,6 +73,8 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | **L3** | Answer Relevancy / Faithfulness / Context P·R | DeepEval·Ragas | `HybridPerformanceMonitor` |
 
 > **C+G**: `HallucinationDetector`는 Gate C(신뢰성 — 출력 사실 충실성, `_rel_vals`)와 Gate G(관측성 — 환각률 모니터링, `_obs_vals`) 양쪽에 점수를 기여한다. 실제 감지 건수(`_detections`)가 0이면 두 Gate 모두에 미기여.
+
+> **Operational 전용 트래커** (Gate 점수에 기여하지 않음): `RetryCorrectionTracker` (재시도 횟수·패턴 추적), `TokenEconomyTracker` (토큰 비용 추적·보고), `WorkflowExecutionTracker` (체인 단계·분기 추적). 이들의 데이터는 리포트와 대시보드에 표시되지만 Gate A–G 점수 산출에는 포함되지 않는다.
 
 > LLMJudge(L3)는 기본 설치에 포함. DeepEval·Ragas는 `pip install agent-evaluator[eval]` 필요.
 
@@ -164,7 +163,7 @@ instructions=InstructionConfig(
 | `check_step_ordering` | `bool` | `True` | 단계 순서 논리성 확인 |
 | `check_executability` | `bool` | `True` | 각 단계가 사용 가능한 도구로 실행 가능한지 확인 |
 | `min_steps` | `int` | `2` | 최소 계획 단계 수 |
-| `max_steps` | `int` | `20` | 최대 계획 단계 수 |
+| `max_steps` | `int` | `15` | 최대 계획 단계 수 |
 | `use_llm_scoring` | `bool` | `False` | LLM-as-Judge 계획 품질 채점 (opt-in) |
 | `llm_blend_weight` | `float` | `0.5` | LLM judge 블렌딩 비중 |
 | `plan_field` | `str` | `"plan"` | 응답에서 플랜 추출할 JSON 필드명 |
@@ -331,7 +330,7 @@ loop_detection=LoopDetectionConfig(
 
 | 지표 | Gate C 연관성 |
 |------|---------------|
-| **Retry & Error Recovery** | 실제 오류 후 재시도 성공률 측정 — FaultToleranceConfig의 원시 신호 |
+| **Fault Tolerance** | 도구 호출 실패 후 복구율 — tool_calls 성공/실패 데이터가 FaultToleranceConfig의 원시 신호 (RetryCorrectionTracker는 gate score 미기여) |
 | **Hallucination Rate** | 출력 사실 충실성 — `1 − hall_rate`가 `_rel_vals`에 직접 기여 (감지 건수 > 0인 경우만) |
 
 > **공식**: `retry_success_rate = succeeded_after_retry / retried_tasks × 100`  
@@ -597,16 +596,16 @@ PII 노출 및 컴플라이언스 프레임워크 위반을 측정합니다.
 
 **"복수의 에이전트가 효과적으로 협력하여 목표를 달성하는가?"**
 
-멀티에이전트 시스템의 배포 판단 관문입니다. Agent Coordination, Tool Selection, Workflow Execution Native 지표가 실제 협력 품질을 측정하고, Harness Config F 그룹이 합격 기준을 정의합니다.
+멀티에이전트 시스템의 배포 판단 관문입니다. Agent Coordination, Tool Selection Native 지표가 실제 협력 품질을 측정하고, Harness Config F 그룹이 합격 기준을 정의합니다.
 
 ### 연결된 Native 지표
 
 | 지표 | 핵심 역할 | 배포 기준 |
 |------|-----------|-----------|
-| **Tool Selection Accuracy** | F1 기반 도구 선택 정확도 | 🟢 ≥90% / 🟡 80–90% / 🔴 <80% |
-| **Agent Coordination** | 에이전트 간 상호작용 성공률 | 🟢 ≥8/10 / 🟡 6–8 / 🔴 <6 |
-| **Workflow Execution** | 워크플로우 단계 완주율 | 🟢 ≥90% / 🟡 80–90% / 🔴 <80% |
-| **Tool Call Efficiency** | 불필요한 도구 호출 비율 | 🟢 ≥90% / 🟡 80–90% / 🔴 <80% |
+| **Tool Selection Accuracy** | F1 기반 도구 선택 정확도 — `avg_f1_score / 100`이 `_f_vals`에 기여 | 🟢 ≥90% / 🟡 80–90% / 🔴 <80% |
+| **Agent Coordination** | 에이전트 간 조율 점수 — `overall_score / 10`이 `_f_vals`에 기여 | 🟢 ≥8/10 / 🟡 6–8 / 🔴 <6 |
+
+> **주의**: WorkflowExecutionTracker와 ToolCallAnalyzer(Tool Call Efficiency)는 gate score 미기여 — 각각 chain_steps 추적 전용, Gate G 기여 지표임
 
 > → 상세 API는 [Native Tracker 레퍼런스](#native-tracker-레퍼런스) 참조
 

@@ -662,4 +662,3 @@ if dataset_id:
 | 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
 | 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
-I_REFERENCE.md) |

@@ -50,14 +50,12 @@ from pathlib import Path
 #    모든 Public API를 ae.XXX 형태로 접근 가능.
 #
 #   import agent_evaluator as ae
-#   from agent_evaluator.decorators import conversation_eval, flush_conversation, EvalMetadata, get_eval_ctx
+#   from agent_evaluator import conversation_eval, flush_conversation, EvalMetadata, get_eval_ctx
 #   # 이후: ae.PerformanceMonitor(, use_korean_tokenizer=True)  ae.agent_eval(...)  ae.RetryConfig(...)
 from agent_evaluator import (
     PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel,
     GoalAlignmentConfig, PlanConfig,
     ConversationSession, ConversationMetrics,
-)
-from agent_evaluator.decorators import (
     agent_eval, batch_eval, conversation_eval,
     flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig, LLMJudgeConfig,
 )

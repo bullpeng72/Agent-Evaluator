@@ -33,7 +33,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agent_evaluator import PerformanceMonitor, setup_otel
-from agent_evaluator.decorators import agent_eval, batch_eval, EvalMetadata
+from agent_evaluator import agent_eval, batch_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")

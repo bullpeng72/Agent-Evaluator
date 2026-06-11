@@ -31,7 +31,7 @@ from agent_evaluator import (
     ConsensusConfig, AgentRoleConfig,                 # Gate F — Multi-Agent Coordination
     ExplainabilityConfig, ObservabilityConfig,        # Gate G — Observability
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval
 
 @agent_eval(monitor, task_type="qa",
     instructions=InstructionConfig(required_keywords=["Seoul"], fail_on_violation=True),
@@ -1520,7 +1520,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (2,452+)
+pytest                          # run tests (2,499+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check

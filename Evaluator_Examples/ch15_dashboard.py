@@ -35,7 +35,7 @@ from agent_evaluator import (
     InstructionConfig,
     ExplainabilityConfig,
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval
 from agent_evaluator.config import load_env
 
 load_env()
