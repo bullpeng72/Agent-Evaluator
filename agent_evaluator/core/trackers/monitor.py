@@ -2848,7 +2848,7 @@ class PerformanceMonitor:
             _pc = ((_t.extra or {}).get("plan_coherence") or {})
             if not _pc:
                 continue
-            _pc_score = float(_pc.get("score", 0.0))
+            _pc_score = float(_pc.get("score") or 0.0)  # score=None 방어 (float(None) → TypeError)
             # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
             if _pc.get("use_llm_scoring"):
                 _lj_pc = ((_t.extra or {}).get("llm_judge") or {})

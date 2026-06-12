@@ -1425,7 +1425,13 @@ def eval_goal_alignment(
     score = 0.0
 
     if not tool_names:
-        return {"score": 0.0, "method": "no_tools", "misaligned": [], "aligned_tools": [], "unaligned_tools": []}
+        return {
+            "score": 0.0, "method": "no_tools",
+            "misaligned": [], "aligned_tools": [], "unaligned_tools": [],
+            "below_threshold": True,
+            "use_llm_scoring": bool(getattr(config, "use_llm_scoring", False)),
+            "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
+        }
 
     # goal_tool_map 방식
     if config.goal_tool_map:
@@ -2697,7 +2703,7 @@ def eval_context_retention(
         _auto: List[str] = []
         _auto.extend(re.findall(r'\b\d{2,}\b', context))
         _auto.extend(re.findall(r'\b[A-Z][a-z]+\b', context))
-        _auto.extend(re.findall(r'[가-힣]{2,}', context))
+        _auto.extend(re.findall(r'[가-힣]{3,}', context))  # 2글자는 기능어 오염 — knowledge_retention과 동일 기준
         _seen_e: Dict[str, None] = {}
         for _e in _auto:
             _seen_e[_e] = None
@@ -2878,16 +2884,23 @@ def eval_subtask_completion(
     check_ordering = getattr(config, "check_ordering", False)
     auto_extract = getattr(config, "auto_extract", False)
 
-    # Auto-extract numbered/bullet steps from question (NOT response) to avoid self-reference bias
+    # Auto-extract numbered/bullet steps from question (NOT response) to avoid self-reference bias.
+    # response를 소스로 쓰면 추출된 단계가 response 자체에서 항상 발견되어 completion_rate=1.0 고착
     if auto_extract and not expected_subtasks:
-        source = question if question else response
-        lines = source.split("\n") if source else []
-        extracted: List[str] = []
-        for line in lines:
-            line = line.strip()
-            if _re.match(r"^(\d+[.)]\s+|\-\s+|\*\s+|•\s+)", line) and len(line) > 3:
-                extracted.append(_re.sub(r"^(\d+[.)]\s+|\-\s+|\*\s+|•\s+)", "", line).strip())
-        expected_subtasks = extracted[:20]
+        if not question:
+            logger.warning(
+                "SubtaskConfig(auto_extract=True): question이 비어 있어 서브태스크를 "
+                "추출할 수 없습니다. response를 소스로 쓰면 자기참조 편향이 발생하므로 "
+                "건너뜁니다. expected_subtasks를 직접 지정하거나 question을 전달하세요."
+            )
+        else:
+            lines = question.split("\n")
+            extracted: List[str] = []
+            for line in lines:
+                line = line.strip()
+                if _re.match(r"^(\d+[.)]\s+|\-\s+|\*\s+|•\s+)", line) and len(line) > 3:
+                    extracted.append(_re.sub(r"^(\d+[.)]\s+|\-\s+|\*\s+|•\s+)", "", line).strip())
+            expected_subtasks = extracted[:20]
 
     if not expected_subtasks:
         return {
