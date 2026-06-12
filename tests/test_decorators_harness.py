@@ -24,6 +24,7 @@ from agent_evaluator.decorators import (
     ReproducibilityConfig,
     FaultToleranceConfig,
     PlanConfig,
+    KnowledgeRetentionConfig,
 )
 from agent_evaluator.helpers.taskresult_helpers import (
     eval_instruction_adherence,
@@ -867,6 +868,36 @@ class TestHarnessEdgeCases:
         # "reporting done" — "report" in "reporting"은 substring이지만 경계 매칭 실패
         result = eval_subtask_completion("reporting done here", [], cfg)
         assert result["completion_rate"] == 0.0  # false positive 없음
+
+    def test_latin_ratio_excludes_nonletter_chars(self):
+        # `[\]^_`` 등 비문자가 latin_ratio에 포함되지 않아야 함 — expected_language="en" false-pass 방지
+        cfg = InstructionConfig(expected_language="en")
+        # 영문자 없이 백틱·대괄호만 있는 응답 → latin_ratio ≈ 0 → lang_ok=False
+        result = eval_instruction_adherence("```[주석] 한국어 응답입니다.```", cfg)
+        assert result["checks"]["language"] is False  # 비문자가 Latin으로 오산정되지 않음
+
+    def test_knowledge_retention_implicit_coverage_denominator(self):
+        # implicit retention: 분모는 long_tokens(len>=2)만 → 1글자 토큰이 분모를 부풀리지 않음
+        from agent_evaluator.decorators import KnowledgeRetentionConfig
+        from agent_evaluator.helpers.taskresult_helpers import eval_knowledge_retention
+        cfg = KnowledgeRetentionConfig(
+            facts_to_retain=["I am sorry"],   # tokens: ["i","am","sorry"] → long: ["am","sorry"]
+            check_from_turn=1,
+        )
+        # "am sorry" 포함 응답 → long_tokens 기준 coverage=2/2=1.0 → retained
+        result = eval_knowledge_retention("I am very sorry about that", [], cfg)
+        assert result is not None
+        assert "I am sorry" in result["retained_facts"]
+
+    def test_dimension_averages_none_for_unmeasured(self):
+        # 미측정 차원은 0.0 대신 None 반환 — Gate A _rqe_a=0.0 포함 방지
+        from agent_evaluator import PerformanceMonitor
+        m = PerformanceMonitor()
+        metrics = m.quality_evaluator.get_quality_metrics()
+        # 평가 없음 → dimension_averages 비어 있음 (0.0 sentinel 아님)
+        dim_avgs = metrics.get("dimension_averages", {})
+        for k, v in dim_avgs.items():
+            assert v is None, f"dimension_averages['{k}'] should be None when not measured, got {v}"
 
     def test_fault_tolerance_all_fail(self):
         cfg = FaultToleranceConfig()

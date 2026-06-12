@@ -1258,7 +1258,7 @@ class ResponseQualityEvaluator(BaseTracker):
                 float(x[_dim]) for x in df["dimension_scores"]
                 if isinstance(x, dict) and x.get(_dim) is not None
             ]
-            dimension_averages[_dim] = round(sum(_dim_vals) / len(_dim_vals), 2) if _dim_vals else 0.0
+            dimension_averages[_dim] = round(sum(_dim_vals) / len(_dim_vals), 2) if _dim_vals else None
 
         # Create quality distribution by score ranges
         quality_distribution = {}
