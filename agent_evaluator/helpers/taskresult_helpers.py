@@ -1469,7 +1469,8 @@ def eval_goal_alignment(
         question_lower = question.lower()
         mapped: set = set()
         for goal_kw, expected_tools in config.goal_tool_map.items():
-            if goal_kw.lower() in question_lower:
+            # 경계 인식 매칭 — "search" in "research" 류 false positive 방지
+            if _is_fact_retained_in_text(goal_kw.lower(), question_lower):
                 mapped.update(t.lower() for t in expected_tools)
         if mapped:
             for t in tool_names:
@@ -1678,12 +1679,14 @@ def eval_plan_coherence(
 
     # 3. 목표 커버리지 (기능어 제거 후 의미 토큰만 비교)
     goal_coverage = 0.0
+    _has_q_tokens = False  # stopword 필터 후 의미 토큰 존재 여부 추적
     if config.check_goal_coverage and question:
         _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
         q_tokens = {t for t in (_q_raw - _GOAL_STOPWORDS) if len(t) >= 2}
         plan_text = " ".join(steps).lower()
         plan_tokens = set(re.sub(r"[^\w\s]", "", plan_text).split())
         if q_tokens:
+            _has_q_tokens = True
             goal_coverage = len(q_tokens & plan_tokens) / len(q_tokens)
 
     # 4. 단계 순서: 번호 목록이면 1.0, 아니면 순서 접속사 비율로 평가
@@ -1718,9 +1721,9 @@ def eval_plan_coherence(
         executability_score = executable / step_count if step_count else 0.0
 
     # 최종 점수: 활성화된 체크만 평균 (비활성 체크를 0.0으로 포함하면 최대 점수가 제한됨)
-    # check_goal_coverage=True라도 question이 빈 문자열이면 goal_coverage=0.0이 되어
-    # 에이전트 잘못 없이 점수를 낮추므로 별도 플래그로 분리
-    _can_goal = config.check_goal_coverage and bool(question)
+    # check_goal_coverage=True라도 question이 빈 문자열이거나 stopword만 있으면 goal_coverage=0.0이 되어
+    # 에이전트 잘못 없이 점수를 낮추므로 별도 플래그로 분리 (_has_q_tokens: 의미 토큰 존재 여부)
+    _can_goal = config.check_goal_coverage and bool(question) and _has_q_tokens
     components = []
     if _can_goal:
         components.append(goal_coverage)
