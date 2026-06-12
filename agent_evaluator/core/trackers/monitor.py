@@ -222,6 +222,8 @@ class PerformanceMonitor:
         gate_a_tcr_weight: float = 0.4,
         # Gate C TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Reliability Config 지표의 상대 중요도 조정
         gate_c_tcr_weight: float = 0.4,
+        # Gate B 루프 감지 가중치 (0.0~1.0, 기본 0.0 = 단순 평균) — 루프 감지와 나머지 5개 지표의 상대 중요도 조정
+        gate_b_loop_weight: float = 0.0,
     ):
         """
         Initialize Performance Monitor
@@ -344,6 +346,7 @@ class PerformanceMonitor:
         self._cost_predictability_config = cost_predictability_config
         self._gate_a_tcr_weight = max(0.0, min(1.0, float(gate_a_tcr_weight)))
         self._gate_c_tcr_weight = max(0.0, min(1.0, float(gate_c_tcr_weight)))
+        self._gate_b_loop_weight = max(0.0, min(1.0, float(gate_b_loop_weight)))
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -2848,7 +2851,10 @@ class PerformanceMonitor:
             _pc = ((_t.extra or {}).get("plan_coherence") or {})
             if not _pc:
                 continue
-            _pc_score = float(_pc.get("score") or 0.0)  # score=None 방어 (float(None) → TypeError)
+            _pc_score_raw = _pc.get("score")
+            if _pc_score_raw is None:
+                continue
+            _pc_score = float(_pc_score_raw)
             # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
             if _pc.get("use_llm_scoring"):
                 _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
@@ -3009,23 +3015,29 @@ class PerformanceMonitor:
         # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
         # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
         _has_loop_data = any((t.extra or {}).get("loop_detection") is not None for t in tasks)
-        _bint_vals: List[float] = []
-        if _has_loop_data:
-            _bint_vals.append(max(0.0, 1.0 - _loop_rate))
-        if avg_sc is not None:
-            _bint_vals.append(avg_sc)
-        # _n_dl_tasks > 0: DeadlockConfig 설정된 태스크 존재 시 항상 포함 (정상 상태=1.0, 탐지 시 감점)
-        if _n_dl_tasks > 0:
-            _bint_vals.append(max(0.0, 1.0 - _deadlock_count / _n_dl_tasks))
-        if avg_scope_score is not None:
-            _bint_vals.append(avg_scope_score)
-        if avg_tool_param_safety is not None:
-            _bint_vals.append(avg_tool_param_safety)
-        if _avg_context_window is not None:
-            _bint_vals.append(_avg_context_window)
-        _bint_score: Optional[float] = (
-            sum(_bint_vals) / len(_bint_vals) if _bint_vals else None
+        _loop_score: Optional[float] = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
+        _deadlock_score: Optional[float] = (
+            max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
         )
+        _other_bint_vals = [
+            v for v in [avg_sc, _deadlock_score, avg_scope_score, avg_tool_param_safety, _avg_context_window]
+            if v is not None
+        ]
+
+        _gate_b_lw = self._gate_b_loop_weight
+        if _gate_b_lw > 0.0 and _loop_score is not None and _other_bint_vals:
+            # 루프 감지 가중치 적용 — gate_a_tcr_weight·gate_c_tcr_weight와 동일 패턴
+            _bint_score: Optional[float] = (
+                _gate_b_lw * _loop_score
+                + (1.0 - _gate_b_lw) * (sum(_other_bint_vals) / len(_other_bint_vals))
+            )
+        elif _gate_b_lw > 0.0 and _loop_score is not None:
+            # 루프 데이터만 있는 경우 loop score 그대로
+            _bint_score = _loop_score
+        else:
+            # 기본값(0.0): 가용 지표 단순 평균 (backward compatible)
+            _all_bint = ([_loop_score] if _loop_score is not None else []) + _other_bint_vals
+            _bint_score = sum(_all_bint) / len(_all_bint) if _all_bint else None
 
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         tcr_pct = 0.0
@@ -3769,6 +3781,7 @@ class PerformanceMonitor:
             "B": _g(_b_s, "Behavioral Integrity", {
                 "loop_detection_rate": round(_loop_rate, 4),
                 "loop_count": _loop_counts,
+                "gate_b_loop_weight": self._gate_b_loop_weight,
                 # 아래 두 항목은 Gate A 계산값 재참조(진단용) — Gate B 점수에는 포함되지 않는다.
                 "gate_a_ref__avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
                 "gate_a_ref__avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,

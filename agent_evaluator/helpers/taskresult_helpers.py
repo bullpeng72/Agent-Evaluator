@@ -1729,7 +1729,7 @@ def eval_plan_coherence(
     if config.check_executability and config.available_tools:
         executable = 0
         for step in steps:
-            if any(t.lower() in step.lower() for t in config.available_tools):
+            if any(_is_fact_retained_in_text(t.lower(), step.lower()) for t in config.available_tools):
                 executable += 1
         executability_score = executable / step_count if step_count else 0.0
 
@@ -2797,6 +2797,19 @@ def eval_context_retention(
             goal_retained = True
 
     goal_score = 1.0 if goal_retained else 0.0
+
+    # goal도 entity도 측정하지 않은 경우 — Gate A avg_context_r에서 제외 (0.0 포함 방지)
+    # check_original_goal=False + key_entities=[] 또는 question="" + key_entities=[] 케이스
+    if not key_entities and not (check_original_goal and question):
+        return {
+            "retention_score": None,
+            "entities_retained": [],
+            "entities_lost": [],
+            "entity_retention_rate": None,
+            "goal_retained": None,
+            "threshold_met": None,
+            "no_checks": True,
+        }
 
     if key_entities:
         # 가중치 합으로 나누어 정규화: entity_weight + goal_weight ≠ 1.0 이면 점수가 왜곡됨
@@ -4127,22 +4140,26 @@ def eval_context_window(
         _rpf = getattr(config, "repetition_penalty_factor", 2.0)
         repetition_score = max(0.0, 1.0 - repetition_ratio * _rpf)
 
-    # Information density: unique word ratio
+    # Information density: unique word ratio (빈 응답은 0.0 — 정보 없음)
     if words:
         unique_ratio = len(set(words)) / len(words)
         information_density = unique_ratio
     else:
-        information_density = 1.0
+        information_density = 0.0
 
     density_ok = information_density >= config.min_information_density
 
-    # Combined score: use continuous density ratio instead of binary 1.0/0.5
+    # Combined score — ContextWindowConfig 가중치 사용 (없으면 기본값 0.5/0.3/0.2)
     min_density = max(config.min_information_density, 1e-9)
     density_score = min(1.0, information_density / min_density)
+    _sat_w = getattr(config, "saturation_weight", 0.5)
+    _rep_w = getattr(config, "repetition_weight", 0.3)
+    _den_w = getattr(config, "density_weight", 0.2)
+    _total_w = _sat_w + _rep_w + _den_w or 1.0
     combined = (
-        saturation_score * 0.5
-        + repetition_score * 0.3
-        + density_score * 0.2
+        saturation_score * _sat_w / _total_w
+        + repetition_score * _rep_w / _total_w
+        + density_score * _den_w / _total_w
     )
 
     return {

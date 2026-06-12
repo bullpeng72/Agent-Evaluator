@@ -31,6 +31,7 @@ from agent_evaluator.helpers.taskresult_helpers import (
     eval_goal_alignment,
     eval_fault_tolerance,
     eval_plan_coherence,
+    eval_context_retention,
     compute_reproducibility_score,
 )
 
@@ -485,6 +486,20 @@ class TestEvalPlanCoherence:
             assert "ordering_score" in result
             assert "executability_score" in result
 
+    def test_executability_no_false_positive_substring(self):
+        # "get" ⊂ "budget" 서브스트링 오탐 방지 — 경계 인식 매칭 확인
+        cfg = PlanConfig(
+            check_executability=True,
+            available_tools=["get"],
+            check_goal_coverage=False,
+            check_step_ordering=False,
+        )
+        resp = "1. Set budget\n2. Review results\n3. Finalize report"
+        result = eval_plan_coherence(resp, "budget review", cfg)
+        if result is not None:
+            # "get" is NOT a word boundary match in "budget" → executability_score should be 0.0
+            assert result["executability_score"] == 0.0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 7: compute_reproducibility_score 단위 테스트
@@ -807,6 +822,21 @@ class TestHarnessEdgeCases:
         result = compute_reproducibility_score(["same", "same"])
         assert result["score"] == pytest.approx(1.0, abs=0.01)
         assert result["run_count"] == 2
+
+    def test_context_retention_noop_returns_none_score(self):
+        # check_original_goal=False + no entities → 측정 불가 → retention_score=None (Gate A 제외)
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        result = eval_context_retention("some response", "what is X", "", cfg)
+        assert result["retention_score"] is None
+        assert result.get("no_checks") is True
+
+    def test_context_retention_empty_question_noop_returns_none_score(self):
+        # question="" + no entities → 측정 불가 → retention_score=None (Gate A 제외)
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=True)
+        result = eval_context_retention("some response", "", "", cfg)
+        assert result["retention_score"] is None
 
     def test_fault_tolerance_all_fail(self):
         cfg = FaultToleranceConfig()
