@@ -1445,6 +1445,11 @@ def eval_goal_alignment(
                     "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
                     "keyword_overlap_advisory": False,
                 }
+            logger.warning(
+                "GoalAlignmentConfig: goal_tool_map의 키워드가 질문(%r...)과 일치하지 않습니다. "
+                "keyword_overlap으로 폴백합니다. goal_tool_map 키를 질문에 맞게 조정하세요.",
+                question[:40],
+            )
             method = "keyword_overlap"
 
     # goal_tool_map 없이 keyword_overlap 폴백: 도구명이 영어 약어이면 False Negative 가능성 있음
@@ -3368,15 +3373,17 @@ def eval_resource_budget(
         elif util >= config.warn_at_pct:
             warnings_list.append(f"warn:{name}:{util:.1%}")
 
-    # Budget score: worst-case utilization drives score
+    # Budget score: worst-case utilization drives score.
+    # If no limits are configured, return None so Gate D excludes this from aggregation
+    # rather than inflating the score with an artificial 1.0.
     utils = [u for u in [token_util, cost_util, time_util] if u is not None]
     if utils:
-        budget_score = max(0.0, 1.0 - max(utils))
+        budget_score: Optional[float] = max(0.0, 1.0 - max(utils))
     else:
-        budget_score = 1.0
+        budget_score = None
 
     return {
-        "budget_score": round(budget_score, 4),
+        "budget_score": round(budget_score, 4) if budget_score is not None else None,
         "token_utilization": round(token_util, 4) if token_util is not None else None,
         "cost_utilization": round(cost_util, 4) if cost_util is not None else None,
         "time_utilization": round(time_util, 4) if time_util is not None else None,
@@ -3700,17 +3707,15 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
     accuracy = float(getattr(task_result, "accuracy_score", 0.0) or 0.0)
 
     if success:
-        # Success in fewer attempts = better consistency
-        efficiency = max(0.0, 1.0 - (attempts - 1) * 0.15)
+        # Success in fewer attempts = better consistency.
+        # Floor at 0.1 so a successful task (however many retries) never scores 0.0
+        # like a complete failure does.
+        efficiency = max(0.1, 1.0 - (attempts - 1) * 0.15)
         consistency_score = efficiency
     else:
         # Failed despite retries — use accuracy as consistency proxy
         if config.penalize_degradation:
-            # threshold 미달 시 추가 감점 (accuracy - 0.1), 초과 시 threshold 차감
-            if accuracy < config.improvement_threshold:
-                consistency_score = max(0.0, accuracy - 0.1)
-            else:
-                consistency_score = max(0.0, accuracy - config.improvement_threshold)
+            consistency_score = max(0.0, accuracy - config.improvement_threshold)
         else:
             # penalize_degradation=False: 패널티 없음 — accuracy 그대로 사용
             consistency_score = accuracy
@@ -4094,6 +4099,22 @@ def eval_latency_attribution(
 
     model_ms = max(0.0, float(extra.get(config.model_latency_key, 0.0) or 0.0))
     network_ms = max(0.0, float(extra.get(config.network_latency_key, 0.0) or 0.0))
+
+    # If the task is very fast (<10ms) and no component data was provided,
+    # unattributed_penalty would fire falsely (the 1ms floor inflates unattributed_ratio
+    # to 1.0 for sub-ms tasks). Return None so Gate G excludes this task.
+    _has_component_data = tool_ms > 0 or model_ms > 0 or network_ms > 0
+    if not _has_component_data and execution_time_ms < 10.0:
+        return {
+            "attribution_score": None,
+            "tool_ratio": 0.0,
+            "model_ratio": 0.0,
+            "network_ratio": 0.0,
+            "unattributed_ratio": 1.0,
+            "bottleneck": "unattributed",
+            "tool_ms": 0.0,
+            "model_ms": 0.0,
+        }
 
     total = max(execution_time_ms, 1.0)
     attributed = tool_ms + model_ms + network_ms

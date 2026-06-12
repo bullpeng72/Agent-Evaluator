@@ -3215,20 +3215,17 @@ class PerformanceMonitor:
             _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
         # Gate C: TCR(index 0)와 Config 지표를 gate_c_tcr_weight로 가중 평균
-        if _rel_vals:
-            _tcr_c = _rel_vals[0]
-            _config_c_vals = _rel_vals[1:]
-            if _config_c_vals:
-                _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
-                _rel_score = (
-                    self._gate_c_tcr_weight * _tcr_c
-                    + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
-                )
-            else:
-                _rel_score = float(_tcr_c)
+        # _rel_vals는 TCR로 항상 초기화되므로 항상 non-empty.
+        _tcr_c = _rel_vals[0]
+        _config_c_vals = _rel_vals[1:]
+        if _config_c_vals:
+            _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
+            _rel_score = (
+                self._gate_c_tcr_weight * _tcr_c
+                + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
+            )
         else:
-            # _rel_vals는 TCR로 항상 초기화되므로 이 분기는 실제로 도달하지 않는다.
-            _rel_score = tcr_pct / 100.0
+            _rel_score = float(_tcr_c)
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
         _p95 = 0.0
