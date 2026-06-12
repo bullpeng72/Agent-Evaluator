@@ -3668,6 +3668,8 @@ class PerformanceMonitor:
             for t in tasks
             if (t.extra or {}).get("consensus") is not None
             and (t.extra or {}).get("consensus", {}).get("consensus_score") is not None
+            # method="single": 단일 에이전트 → 합의 측정 불가 → Gate F 집계에서 제외
+            and (t.extra or {}).get("consensus", {}).get("method") != "single"
         ]
         avg_consensus: Optional[float] = sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
 
