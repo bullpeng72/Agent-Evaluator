@@ -80,7 +80,7 @@ class TestConfigDataclasses:
         cfg = LoopDetectionConfig()
         assert cfg.consecutive_repeat_threshold == 3
         assert cfg.window_size == 5
-        assert cfg.duplicate_in_window_threshold == 2
+        assert cfg.duplicate_in_window_threshold == 3
         assert cfg.check_response_loop is False
         assert cfg.response_similarity_threshold == 0.95
         assert cfg.on_loop_detected == "record"
@@ -209,6 +209,12 @@ class TestEvalInstructionAdherence:
         result = eval_instruction_adherence("I don't know the answer.", cfg)
         assert result["checks"]["forbidden"] is False
         assert result["violation_count"] > 0
+
+    def test_forbidden_phrases_no_false_positive_substring(self):
+        # "hate" ⊂ "whatever" 서브스트링 오탐 방지 — 경계 인식 매칭 사용 확인
+        cfg = InstructionConfig(forbidden_phrases=["hate"])
+        result = eval_instruction_adherence("whatever you prefer", cfg)
+        assert result["checks"]["forbidden"] is True  # "hate"가 단어 경계로 존재하지 않음
 
     def test_required_keywords_pass(self):
         cfg = InstructionConfig(required_keywords=["answer", "42"])
@@ -361,6 +367,15 @@ class TestEvalGoalAlignment:
         if result is not None:
             assert "score" in result
             assert "method" in result
+
+    def test_keyword_overlap_stopword_only_question_returns_none(self):
+        # 질문이 stopword만으로 구성되면 score=None — Gate A avg_goal_a 오염 방지
+        cfg = GoalAlignmentConfig(use_keyword_overlap=True, ignore_no_tool_tasks=False)
+        tools = self._make_tool_calls(["search", "summarize"])
+        result = eval_goal_alignment("what is the", tools, cfg)
+        assert result is not None
+        assert result["score"] is None
+        assert result["method"] == "keyword_overlap_no_tokens"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

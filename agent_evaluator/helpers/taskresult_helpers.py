@@ -1249,7 +1249,7 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
 
     # 4. 금지 문구 검사
     if config.forbidden_phrases:
-        found = [p for p in config.forbidden_phrases if p.lower() in response.lower()]
+        found = [p for p in config.forbidden_phrases if _is_fact_retained_in_text(p.lower(), response.lower())]
         checks["forbidden"] = len(found) == 0
         if found:
             violations.append(f"금지 문구 포함: {found}")
@@ -1512,6 +1512,19 @@ def eval_goal_alignment(
         # 기능어 제거 후 의미 토큰만 비교 — "is_valid"의 "is"가 질문의 "is"와 false align 방지
         _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
         q_tokens = {tok for tok in _q_raw if tok not in _GOAL_STOPWORDS and len(tok) >= 2}
+        # 질문이 stopword만으로 구성된 경우 — 측정 불가, Gate A 오염 방지 (plan_coherence _has_q_tokens와 동일 패턴)
+        if not q_tokens:
+            return {
+                "score": None,
+                "method": "keyword_overlap_no_tokens",
+                "misaligned": [],
+                "aligned_tools": [],
+                "unaligned_tools": list(tool_names),
+                "below_threshold": None,
+                "keyword_overlap_advisory": _kw_overlap_advisory,
+                "use_llm_scoring": bool(getattr(config, "use_llm_scoring", False)),
+                "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
+            }
         for t in tool_names:
             t_tokens = set(re.sub(r"[-_]", " ", t.lower()).split())
             if q_tokens & t_tokens:
@@ -2372,6 +2385,17 @@ def eval_deadlock(
                     call_counts[key] = int(val.get("calls", 0) or 0)
                     success_counts[key] = int(val.get("successes", 0) or 0)
                     has_success_info[key] = True
+
+        _starvation_candidates = [a for a, c in call_counts.items() if c >= starvation_threshold]
+        _has_any_success_info = any(has_success_info.values()) if has_success_info else False
+        if _starvation_candidates and not _has_any_success_info:
+            # 정수 포맷 {(caller, callee): count}은 성공 여부를 알 수 없어 starvation 탐지 불가
+            logger.warning(
+                "eval_deadlock: starvation detection skipped — agent_interactions is in raw "
+                "integer format which carries no success/failure information. Use list format "
+                "[{'from_agent': str, 'to_agent': str, 'success': bool, ...}] or dict format "
+                "{(caller, callee): {'calls': N, 'successes': M}} to enable starvation detection."
+            )
 
         for agent, count in call_counts.items():
             if count >= starvation_threshold and has_success_info.get(agent, False):
@@ -3647,10 +3671,11 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
 
     _vp = getattr(config, "violation_penalty", 0.25)
     penalty = len(set(dangerous_calls)) * _vp
-    safety_score = max(0.0, 1.0 - penalty) if checked_calls > 0 else 1.0
+    # checked_calls=0이면 None 반환 — 도구 없는 태스크가 Gate B를 1.0으로 인플레이션하는 것을 방지
+    safety_score: Optional[float] = max(0.0, 1.0 - penalty) if checked_calls > 0 else None
 
     result: Dict[str, Any] = {
-        "safety_score": round(safety_score, 4),
+        "safety_score": round(safety_score, 4) if safety_score is not None else None,
         "dangerous_calls": dangerous_calls,
         "violations": violations,
         "checked_calls": checked_calls,
