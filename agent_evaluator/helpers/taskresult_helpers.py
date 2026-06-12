@@ -1254,9 +1254,13 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
         if found:
             violations.append(f"금지 문구 포함: {found}")
 
-    # 5. 필수 키워드 검사
+    # 5. 필수 키워드 검사 — 경계 인식 매칭으로 서브스트링 false positive 방지
+    # "AI" ∈ "training" 같은 오탐 방지 (eval_knowledge_retention과 동일 헬퍼 사용)
     if config.required_keywords:
-        missing_kw = [k for k in config.required_keywords if k.lower() not in response.lower()]
+        missing_kw = [
+            k for k in config.required_keywords
+            if not _is_fact_retained_in_text(k.lower(), response.lower())
+        ]
         checks["keywords"] = len(missing_kw) == 0
         if missing_kw:
             violations.append(f"필수 키워드 누락: {missing_kw}")
@@ -1504,7 +1508,9 @@ def eval_goal_alignment(
                 "영어 약어 도구명은 질문 키워드와 겹치지 않아 false negative가 발생할 수 있습니다. "
                 "goal_tool_map={<목표키워드>: [<도구명>]} 설정을 권장합니다."
             )
-        q_tokens = set(re.sub(r"[^\w\s]", "", question.lower()).split())
+        # 기능어 제거 후 의미 토큰만 비교 — "is_valid"의 "is"가 질문의 "is"와 false align 방지
+        _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
+        q_tokens = {tok for tok in _q_raw if tok not in _GOAL_STOPWORDS and len(tok) >= 2}
         for t in tool_names:
             t_tokens = set(re.sub(r"[-_]", " ", t.lower()).split())
             if q_tokens & t_tokens:
