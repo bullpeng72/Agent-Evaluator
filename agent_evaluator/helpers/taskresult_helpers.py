@@ -1318,7 +1318,16 @@ def eval_loop_detection(
     Returns:
         {detected, loop_type, loop_at_step, loop_tool}
     """
-    source = tool_calls or []
+    # chain_steps 우선 사용 (LangChain 등 체인 형식: "action" 또는 "name" 키).
+    # tool_calls는 chain_steps가 없을 때 폴백.
+    if chain_steps:
+        source = [
+            {"name": (s.get("action") or s.get("name") or str(s))}
+            for s in chain_steps
+            if isinstance(s, dict) and (s.get("action") or s.get("name"))
+        ]
+    else:
+        source = tool_calls or []
     names = [tc.get("name", "") for tc in source if isinstance(tc, dict)]
 
     _detected_loops: List[Dict[str, Any]] = []
@@ -1601,7 +1610,13 @@ def eval_plan_coherence(
     try:
         parsed = _json.loads(response)
         if isinstance(parsed, dict):
-            raw_steps = parsed.get(config.steps_field) or parsed.get(config.plan_field)
+            # sentinel으로 키 존재 여부와 빈 리스트를 구분:
+            # steps_field=[] (빈 계획)와 steps_field 키 부재(→ plan_field 폴백)를 다르게 처리
+            _MISSING = object()
+            _raw = parsed.get(config.steps_field, _MISSING)
+            if _raw is _MISSING:
+                _raw = parsed.get(config.plan_field)
+            raw_steps = _raw
             if isinstance(raw_steps, list):
                 steps = [str(s) for s in raw_steps]
         elif isinstance(parsed, list):
@@ -3225,18 +3240,21 @@ def eval_compliance(
 
     # PII category scan — OutputLeakageDetector 결과가 있으면 해당 결과를 우선 사용
     _OL_KEY_MAP: Dict[str, str] = {
-        "api_key": "contains_api_key",
-        "password": "contains_password",
-        "credit_card": "contains_credit_card",
-        "email": "contains_email",
-        "phone": "contains_phone",
-        "ssn": "contains_ssn",
-        "private_ip": "contains_private_ip",
-        "file_path": "contains_file_path",
-        "jwt_token": "contains_jwt_token",
-        "db_connection": "contains_db_connection",
-        "iban": "contains_iban",
+        "api_key":        "contains_api_key",
+        "password":       "contains_password",
+        "credit_card":    "contains_credit_card",
+        "email":          "contains_email",
+        "phone":          "contains_phone",
+        "ssn":            "contains_ssn",
+        "private_ip":     "contains_private_ip",
+        "ip_address":     "contains_private_ip",   # PII pattern alias → OL key
+        "file_path":      "contains_file_path",
+        "jwt_token":      "contains_jwt_token",
+        "db_connection":  "contains_db_connection",
+        "iban":           "contains_iban",
         "crypto_address": "contains_crypto_address",
+        # 아래 카테고리는 OL에 해당 키가 없어 직접 스캔으로 폴백 (미래 OL 확장 시 제거)
+        # "name", "address", "passport", "korean_phone", "korean_rrn" → fallback to _PII_PATTERNS scan
     }
     for category in (config.pii_categories or []):
         detected = False

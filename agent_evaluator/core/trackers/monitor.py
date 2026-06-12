@@ -3400,6 +3400,9 @@ class PerformanceMonitor:
                             _cv_cost = float(_tu)
                         except (TypeError, ValueError):
                             _cv_cost = 0.0
+                # 미측정(None→0.0) 태스크를 집계에 포함하면 CV가 허위 팽창하므로 제외
+                if _cv_cost <= 0.0:
+                    continue
                 _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
             _cv_scores_d: _List[float] = []
             for _costs_list in _costs_by_type.values():
