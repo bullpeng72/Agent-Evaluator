@@ -2271,13 +2271,22 @@ def eval_deadlock(
             rec_stack.discard(node)
             return False
 
-        for node in list(adj.keys()):
-            if node not in visited:
-                if _dfs(node, []):
-                    deadlock_detected = True
-                    deadlock_type = "circular"
-                    cycle_path = found_cycle[:]
-                    break
+        # Python 기본 재귀 한도(1000) 초과 방지: 노드 수 상한을 넘으면 DFS 생략
+        _MAX_DFS_NODES = 500
+        if len(adj) > _MAX_DFS_NODES:
+            logger.warning(
+                "eval_deadlock: agent graph has %d nodes (> %d), skipping cycle "
+                "detection to prevent RecursionError",
+                len(adj), _MAX_DFS_NODES,
+            )
+        else:
+            for node in list(adj.keys()):
+                if node not in visited:
+                    if _dfs(node, []):
+                        deadlock_detected = True
+                        deadlock_type = "circular"
+                        cycle_path = found_cycle[:]
+                        break
 
     # starvation 탐지: 에이전트가 N회 이상 호출됐으나 완료 없음
     # success 정보가 있는 항목만 starvation 판별에 사용 (tuple/int 포맷은 호출 수만 알고 성공 여부 불명)
@@ -2382,8 +2391,9 @@ def eval_observability(
         "execution_time": execution_time_s,
     }
     # extra에 추가 속성이 있으면 포함 — 기본 속성(task_id/task_type/execution_time)은 덮어쓰지 않음
+    # dict 값(예: {"model": "gpt-4"})도 속성으로 인정 — 존재 여부는 값 타입이 아닌 None 여부로만 판단
     for _k, _v in extra.items():
-        if not isinstance(_v, dict) and _k not in actual_attrs and _v is not None:
+        if _k not in actual_attrs and _v is not None:
             actual_attrs[_k] = _v
 
     # 필수 속성 체크
@@ -2500,6 +2510,15 @@ def eval_consensus(
         consensus_score = 1.0 if (total_pairs > 0 and agree_count == total_pairs) else 0.0
     elif method == "weighted" and agent_weights:
         # 가중 합의: 쌍의 두 에이전트 가중치 평균으로 weighted ratio 계산
+        # agent_weights 키가 실제 names와 하나도 일치하지 않으면 경고 (사실상 majority 동작)
+        if not any(n in agent_weights for n in names):
+            logger.warning(
+                "eval_consensus: method='weighted'이지만 agent_weights 키 %s가 "
+                "agent_names %s와 일치하지 않아 모든 가중치가 1.0으로 폴백됩니다. "
+                "ConsensusConfig(agent_weights={'<name>': weight}) 에서 키를 "
+                "agent_names와 동일하게 설정하세요.",
+                list(agent_weights.keys()), names,
+            )
         _w_agree = 0.0
         _w_total = 0.0
         for _pair in agreement_pairs:
@@ -3168,8 +3187,9 @@ _PII_PATTERNS: Dict[str, str] = {
     "ip_address": r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b",
     "korean_phone": r"\b01[016789]-\d{3,4}-\d{4}\b",
     "korean_rrn": r"\b\d{6}-[1-4]\d{6}\b",
-    # 이름: "홍길동", "Kim Sungwoo", "John Smith" 등 — 2~4개 한글 연속 또는 영문 성+이름 패턴
-    "name": r"(?:[가-힣]{2,4})|(?:\b[A-Z][a-z]+ [A-Z][a-z]+\b)",
+    # 이름: "홍길동", "Kim Sungwoo", "John Smith" 등 — 3~4개 한글 연속 또는 영문 성+이름 패턴
+    # 2글자 한글은 "가격", "방법", "결과" 등 일반 단어와 구분 불가 → false positive 다발로 3글자 이상만 탐지
+    "name": r"(?:[가-힣]{3,4})|(?:\b[A-Z][a-z]+ [A-Z][a-z]+\b)",
     # 주소: 한국 주소(시/도/구/동/로/길) 또는 영문 번지수+도로명 패턴
     "address": r"(?:[가-힣]+(?:시|도|구|군|동|읍|면|로|길)\s*\d+)|(?:\b\d+\s+[A-Z][a-zA-Z\s]+(?:St|Ave|Rd|Blvd|Dr|Ln|Way)\.?\b)",
 }
@@ -3794,11 +3814,13 @@ def eval_idempotency(
             tool_names.append(name)
 
     # Check for non-idempotent tool patterns
+    # 토큰 단위 매칭: "recreate_session"에서 "create"가 오탐되지 않도록 구분자(_-/.)로 분리 후 정확 매칭
     non_idempotent_tools: List[str] = []
+    _idem_sep_re = re.compile(r"[_\-\/\.\s]+")
     for tool_name in tool_names:
-        tool_lower = tool_name.lower()
+        _parts = _idem_sep_re.split(tool_name.lower())
         for pattern in (config.non_idempotent_patterns or []):
-            if pattern.lower() in tool_lower:
+            if pattern.lower() in _parts:
                 non_idempotent_tools.append(tool_name)
                 break
 

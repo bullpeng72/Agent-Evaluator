@@ -3003,7 +3003,12 @@ class PerformanceMonitor:
         )
 
         # avg_goal_align / avg_plan: Gate A 직접 기여 항목 — Gate B 이중 집계 제거 (진단 목적으로만 유지)
-        _bint_vals = [max(0.0, 1.0 - _loop_rate)]
+        # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
+        # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
+        _has_loop_data = any((t.extra or {}).get("loop_detection") is not None for t in tasks)
+        _bint_vals: List[float] = []
+        if _has_loop_data:
+            _bint_vals.append(max(0.0, 1.0 - _loop_rate))
         if avg_sc is not None:
             _bint_vals.append(avg_sc)
         # _n_dl_tasks > 0: DeadlockConfig 설정된 태스크 존재 시 항상 포함 (정상 상태=1.0, 탐지 시 감점)
@@ -3015,7 +3020,9 @@ class PerformanceMonitor:
             _bint_vals.append(avg_tool_param_safety)
         if _avg_context_window is not None:
             _bint_vals.append(_avg_context_window)
-        _bint_score = sum(_bint_vals) / len(_bint_vals)
+        _bint_score: Optional[float] = (
+            sum(_bint_vals) / len(_bint_vals) if _bint_vals else None
+        )
 
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         tcr_pct = 0.0
@@ -3720,7 +3727,7 @@ class PerformanceMonitor:
 
         # ── 그룹별 결과 모음 ──
         _a_s = round(_a_score, 4)
-        _b_s = round(float(_bint_score), 4)
+        _b_s = round(float(_bint_score), 4) if _bint_score is not None else None
         _c_s = round(float(_rel_score), 4)
         _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
         _e_s = round(float(_sec_score), 4) if _sec_score is not None else None
