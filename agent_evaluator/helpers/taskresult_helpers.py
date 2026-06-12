@@ -139,6 +139,21 @@ def _is_subtask_find_pos(subtask_lower: str, response_lower: str) -> int:
 # 사실 보존 검사용 1자 조사 허용 목록: 복합어 접미사(군/계/화/적/성/…)와 구분
 _KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야아')
 
+# goal_coverage / goal_retained 계산 시 제거할 기능어 목록
+# eval_plan_coherence 와 eval_context_retention 에서 공유
+_GOAL_STOPWORDS: frozenset = frozenset({
+    # 영어 기능어
+    "what", "is", "are", "was", "were", "the", "a", "an",
+    "how", "why", "when", "where", "who", "which",
+    "do", "does", "did", "can", "could", "will", "would", "should", "be",
+    # 한국어 조사·후치사 (독립 토큰)
+    "이", "의", "을", "를", "은", "는", "에서", "에게", "에", "으로", "로",
+    "도", "만", "과", "와", "이랑", "랑", "처럼", "보다", "까지", "부터", "마다",
+    # 한국어 의문문·높임말 어미 (space-split 후 독립 토큰)
+    "있나요", "있습니까", "해주세요", "알려주세요", "어떻습니까", "입니까",
+    "인가요", "무엇입니까", "무엇인가요", "어떤가요", "어떻게",
+})
+
 
 def _is_fact_retained_in_text(fact_lower: str, text_lower: str) -> bool:
     """사실 보존 검사용 경계 매칭 (`_is_subtask_found`보다 엄격).
@@ -1277,6 +1292,17 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
         if not lang_ok:
             violations.append(f"응답 언어가 '{expected_lang}' 아님 (ko_ratio={korean_ratio:.2f}, en_ratio={latin_ratio:.2f})")
 
+    # 설정된 검사 항목이 없으면 score=None — Gate A avg_ifr 집계에서 제외
+    # (eval_plan_coherence가 components 없을 때 None을 반환하는 것과 동일 패턴)
+    if not checks:
+        return {
+            "score": None,
+            "violations": [],
+            "violation_count": 0,
+            "checks": {},
+            "fail_on_violation": config.fail_on_violation,
+        }
+
     violation_count = len(violations)
     violation_weights_map = getattr(config, "violation_weights", {}) or {}
     if violation_weights_map:
@@ -1644,10 +1670,11 @@ def eval_plan_coherence(
     if step_count < config.min_steps or step_count > config.max_steps:
         pass  # 기록은 하되 점수에 반영
 
-    # 3. 목표 커버리지
+    # 3. 목표 커버리지 (기능어 제거 후 의미 토큰만 비교)
     goal_coverage = 0.0
     if config.check_goal_coverage and question:
-        q_tokens = set(re.sub(r"[^\w\s]", "", question.lower()).split())
+        _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
+        q_tokens = {t for t in (_q_raw - _GOAL_STOPWORDS) if len(t) >= 2}
         plan_text = " ".join(steps).lower()
         plan_tokens = set(re.sub(r"[^\w\s]", "", plan_text).split())
         if q_tokens:
@@ -2709,11 +2736,12 @@ def eval_context_retention(
             _seen_e[_e] = None
         key_entities = list(_seen_e.keys())[:20]
 
-    # Entity retention
+    # Entity retention — 경계 인식 매칭으로 false positive 방지
+    # eval_knowledge_retention과 동일한 _is_fact_retained_in_text 사용
     entities_retained: List[str] = []
     entities_lost: List[str] = []
     for entity in key_entities:
-        if entity.lower() in response_lower:
+        if _is_fact_retained_in_text(entity.lower(), response_lower):
             entities_retained.append(entity)
         else:
             entities_lost.append(entity)
@@ -2722,24 +2750,13 @@ def eval_context_retention(
     if key_entities:
         entity_score = len(entities_retained) / len(key_entities)
 
-    # Goal retention: check if key question words appear in response
+    # Goal retention: 구두점 제거 후 기능어 필터링한 의미 토큰이 응답에 포함되는지 확인
     goal_retained = False
     if check_original_goal and question:
-        q_tokens = set(question.lower().split())
-        r_tokens = set(response_lower.split())
-        stopwords = {
-            # 영어 기능어
-            "what", "is", "the", "a", "an", "how", "why", "when", "where", "who",
-            "do", "does", "did", "can", "could", "will", "would", "should", "be",
-            # 한국어 조사·후치사
-            "이", "의", "을", "를", "은", "는", "에서", "에게", "에", "으로", "로",
-            "도", "만", "과", "와", "이랑", "랑", "처럼", "보다", "까지", "부터", "마다",
-            # 한국어 의문문·높임말 어미 (space-split 후 독립 토큰)
-            "있나요", "있습니까", "해주세요", "알려주세요", "어떻습니까", "입니까",
-            "인가요", "무엇입니까", "무엇인가요", "어떤가요", "어떻게",
-        }
-        # 1글자 토큰 추가 제거 (단독 조사 누락 보완)
-        q_sig = {t for t in (q_tokens - stopwords) if len(t) >= 2}
+        _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
+        r_tokens = set(re.sub(r"[^\w\s]", "", response_lower).split())
+        # _GOAL_STOPWORDS 공유 (eval_plan_coherence와 동일 기준) + 1글자 토큰 제거
+        q_sig = {t for t in (_q_raw - _GOAL_STOPWORDS) if len(t) >= 2}
         if q_sig:
             overlap = len(q_sig & r_tokens) / len(q_sig)
             goal_retained = overlap >= float(getattr(config, "goal_overlap_threshold", 0.3))

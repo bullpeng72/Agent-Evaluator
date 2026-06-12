@@ -766,7 +766,8 @@ class TestHarnessEdgeCases:
     def test_instruction_adherence_no_exception_on_empty_config(self):
         cfg = InstructionConfig()
         result = eval_instruction_adherence("some response", cfg)
-        assert result["score"] == 1.0
+        # 검사 항목 없음 → score=None (Gate A avg_ifr 집계 제외)
+        assert result["score"] is None
         assert result["violation_count"] == 0
 
     def test_loop_detection_dict_tool_calls(self):
