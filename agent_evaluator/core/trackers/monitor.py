@@ -2948,7 +2948,10 @@ class PerformanceMonitor:
             1 for t in tasks
             if (t.extra or {}).get("loop_detection", {}).get("detected", False)
         )
-        _loop_rate = _loop_counts / n
+        # LoopDetectionConfig가 설정된 태스크 수를 분모로 사용 — DeadlockConfig와 동일 패턴
+        # 전체 n을 사용하면 부분 배포 시 루프율이 희석되어 Gate B가 허위 부풀려짐
+        _n_loop_tasks = sum(1 for t in tasks if (t.extra or {}).get("loop_detection") is not None)
+        _loop_rate = _loop_counts / _n_loop_tasks if _n_loop_tasks > 0 else 0.0
 
         # avg_goal_a / avg_plan_a: Gate A에서 이미 계산됨 — Gate B details에서 진단용으로 재참조
         # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
@@ -3436,12 +3439,17 @@ class PerformanceMonitor:
 
         _perf_vals: _List[float] = []
         if _p95 > 0:
-            # SLAConfig.p95_ms가 있으면 그 값을 임계값으로 사용, 없으면 기본 10s 기준
+            # SLAConfig.p95_ms 전체 평균을 임계값으로 사용 (태스크별 설정 혼재 시 last-task-wins 방지)
+            # 없으면 기본 10s 기준
             _p95_threshold_s = 10.0
             if _sla_results:
-                _p95_ms_cfg = _sla_cfg_summary.get("p95_ms")
-                if _p95_ms_cfg:
-                    _p95_threshold_s = float(_p95_ms_cfg) / 1000.0
+                _p95_ms_values = [
+                    float(s["_config"]["p95_ms"])
+                    for s in _sla_results
+                    if s.get("_config") and s["_config"].get("p95_ms")
+                ]
+                if _p95_ms_values:
+                    _p95_threshold_s = sum(_p95_ms_values) / len(_p95_ms_values) / 1000.0
             _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / max(_p95_threshold_s, 1.0))))
         if avg_eff_calibrated is not None:
             # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)

@@ -3287,10 +3287,12 @@ def eval_compliance(
         question_text = question or ""
         for category in pii_detected:
             pii_pattern = _PII_PATTERNS.get(category)
-            # A match in the question means the PII was already provided — not a minimization issue
-            already_in_question = bool(
-                pii_pattern and re.search(pii_pattern, question_text, re.IGNORECASE)
-            )
+            # _PII_PATTERNS에 패턴이 없는 카테고리(OL 전용: private_ip, file_path, jwt_token 등)는
+            # 질문 포함 여부를 확인할 수 없으므로 보수적으로 "이미 포함"으로 처리 (false positive 방지)
+            if pii_pattern is None:
+                already_in_question = True
+            else:
+                already_in_question = bool(re.search(pii_pattern, question_text, re.IGNORECASE))
             if not already_in_question:
                 # Replace the existing pii: entry with a more specific data_minimization: entry
                 # rather than adding a second violation for the same category
