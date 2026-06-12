@@ -142,10 +142,14 @@ _KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야�
 # goal_coverage / goal_retained 계산 시 제거할 기능어 목록
 # eval_plan_coherence 와 eval_context_retention 에서 공유
 _GOAL_STOPWORDS: frozenset = frozenset({
-    # 영어 기능어
+    # 영어 기능어 (조동사·be동사)
     "what", "is", "are", "was", "were", "the", "a", "an",
     "how", "why", "when", "where", "who", "which",
     "do", "does", "did", "can", "could", "will", "would", "should", "be",
+    # 영어 전치사·접속사·지시사 — 문장 시작 대문자("In", "At", "Of" 등) auto-extract 오염 방지
+    "in", "at", "of", "for", "with", "by", "from", "on", "to",
+    "not", "but", "or", "and", "if", "as",
+    "this", "that", "these", "those", "it", "its",
     # 한국어 조사·후치사 (독립 토큰)
     "이", "의", "을", "를", "은", "는", "에서", "에게", "에", "으로", "로",
     "도", "만", "과", "와", "이랑", "랑", "처럼", "보다", "까지", "부터", "마다",
@@ -1222,7 +1226,7 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
 
     # 2. 섹션 검사
     if config.required_sections:
-        missing = [s for s in config.required_sections if s.lower() not in response.lower()]
+        missing = [s for s in config.required_sections if not _is_fact_retained_in_text(s.lower(), response.lower())]
         checks["sections"] = len(missing) == 0
         if missing:
             violations.append(f"필수 섹션 누락: {missing}")
@@ -2676,6 +2680,18 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
         if name:
             tool_names.append(name)
 
+    # B-13: 도구 없으면 scope_score=None — ToolParameterSafetyConfig/ContextWindowConfig와 동일 패턴
+    # tool_calls=[]로 trivially satisfied된 1.0이 Gate B를 허위 인플레이션하는 것을 방지
+    if not tool_names:
+        return {
+            "in_scope": True,  # 위반 없음 (도구 미사용)
+            "violations": [],
+            "violation_tools": [],
+            "excess_calls": 0,
+            "unique_tools": [],
+            "scope_score": None,  # 측정 데이터 없음 — 집계에서 제외
+        }
+
     violations: List[str] = []
     forbidden_tools = getattr(config, "forbidden_tools", []) or []
     allowed_tools = getattr(config, "allowed_tools", []) or []
@@ -2713,8 +2729,9 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
     else:
         # forbidden/out_of_scope: 위반 건수 × penalty
         _tool_viol_count = sum(1 for v in violations if v.startswith("forbidden:") or v.startswith("out_of_scope:"))
-        # excess_calls: 초과량에 비례 (0.05 × 초과 횟수, 최대 penalty * 2)
-        _excess_call_pen = min(_vp * 2, excess_calls * 0.05) if excess_calls > 0 else 0.0
+        # B-14: excess_calls penalty를 _vp 기반으로 통일 (_vp × 0.25/call — _vp 변경에 비례 반응)
+        # 이전 하드코딩 0.05는 _vp=0.2일 때만 우연히 일관됐으나 _vp 변경 시 비례성 깨짐
+        _excess_call_pen = min(_vp * 2, excess_calls * (_vp * 0.25)) if excess_calls > 0 else 0.0
         # excess_unique_tools: 초과 고유 도구 수 비례 (excess_unique × penalty)
         _excess_unique_pen = min(_vp * 2, excess_unique * _vp) if excess_unique > 0 else 0.0
         scope_score = max(0.0, 1.0 - _tool_viol_count * _vp - _excess_call_pen - _excess_unique_pen)
@@ -2767,7 +2784,11 @@ def eval_context_retention(
         _seen_e: Dict[str, None] = {}
         for _e in _auto:
             _seen_e[_e] = None
-        key_entities = list(_seen_e.keys())[:20]
+        # 문장 시작 기능어("The", "In", "An" 등) 제거 — entity_score 허위 상향 방지
+        key_entities = [
+            e for e in list(_seen_e.keys())[:20]
+            if e.lower() not in _GOAL_STOPWORDS and len(e) >= 2
+        ]
 
     # Entity retention — 경계 인식 매칭으로 false positive 방지
     # eval_knowledge_retention과 동일한 _is_fact_retained_in_text 사용
@@ -2986,9 +3007,9 @@ def eval_subtask_completion(
             # 2차(위치 기반): 이름 매칭 실패 시 N번째 줄 + 마커 + 서브태스크 이름 토큰 동시 검사
             if i < len(non_empty_lines):
                 line = non_empty_lines[i]
-                has_marker = any(m.lower() in line for m in completion_markers)
+                has_marker = any(_is_fact_retained_in_text(m.lower(), line) for m in completion_markers)
                 subtask_tokens = [t for t in subtask_lower.split() if len(t) >= 2]
-                has_name_signal = bool(subtask_tokens) and any(t in line for t in subtask_tokens)
+                has_name_signal = bool(subtask_tokens) and any(_is_fact_retained_in_text(t, line) for t in subtask_tokens)
                 if has_marker and has_name_signal:
                     found = True
         if found:

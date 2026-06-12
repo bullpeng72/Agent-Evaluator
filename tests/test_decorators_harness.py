@@ -32,6 +32,7 @@ from agent_evaluator.helpers.taskresult_helpers import (
     eval_fault_tolerance,
     eval_plan_coherence,
     eval_context_retention,
+    eval_subtask_completion,
     compute_reproducibility_score,
 )
 
@@ -184,6 +185,12 @@ class TestEvalInstructionAdherence:
         result = eval_instruction_adherence("Just some text.", cfg)
         assert result["checks"]["sections"] is False
         assert result["violation_count"] > 0
+
+    def test_required_sections_no_false_positive_substring(self):
+        # "AI" ⊂ "said" (s-a-i-d) 서브스트링 오탐 방지 — 경계 인식 매칭 확인
+        cfg = InstructionConfig(required_sections=["AI"])
+        result = eval_instruction_adherence("I said nothing about artificial intelligence.", cfg)
+        assert result["checks"]["sections"] is False  # "AI" 섹션이 없음
 
     def test_max_chars_pass(self):
         cfg = InstructionConfig(max_chars=100)
@@ -837,6 +844,29 @@ class TestHarnessEdgeCases:
         cfg = ContextRetentionConfig(check_original_goal=True)
         result = eval_context_retention("some response", "", "", cfg)
         assert result["retention_score"] is None
+
+    def test_context_retention_autoextract_filters_stopwords(self):
+        # auto-extract: "The", "In" 같은 문장 시작 기능어는 entity 목록에서 제외
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        context = "The capital is Seoul. In Korea, population is large."
+        # "Seoul"은 고유명사 → 추출; "The", "In" 등 기능어 → 제외
+        result = eval_context_retention("Seoul is the answer.", "", context, cfg)
+        # "The", "In" 등이 entities에 포함되지 않아야 함 (entity_score 허위 상향 방지)
+        retained_lower = [e.lower() for e in result["entities_retained"] + result["entities_lost"]]
+        assert "the" not in retained_lower
+        assert "in" not in retained_lower
+
+    def test_subtask_marker_no_false_positive_substring(self):
+        # "report" ⊂ "reporting" — 2차 마커 체크에서도 경계 인식 매칭 확인
+        from agent_evaluator.decorators import SubtaskConfig
+        cfg = SubtaskConfig(
+            expected_subtasks=["create report"],
+            completion_markers=["done"],
+        )
+        # "reporting done" — "report" in "reporting"은 substring이지만 경계 매칭 실패
+        result = eval_subtask_completion("reporting done here", [], cfg)
+        assert result["completion_rate"] == 0.0  # false positive 없음
 
     def test_fault_tolerance_all_fail(self):
         cfg = FaultToleranceConfig()
