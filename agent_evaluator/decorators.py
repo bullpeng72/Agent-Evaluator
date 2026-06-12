@@ -394,6 +394,17 @@ class StateConsistencyConfig:
     unchanged_keys: List[str] = dataclasses.field(default_factory=list)
     fail_on_unexpected_change: bool = False
 
+    def __post_init__(self) -> None:
+        if self.state_fn is None and (self.expected_changes or self.unchanged_keys):
+            import warnings
+            warnings.warn(
+                "StateConsistencyConfig: expected_changes 또는 unchanged_keys가 설정되어 있지만 "
+                "state_fn=None이어서 상태 수집이 이루어지지 않습니다. "
+                "state_fn=lambda: {...} 를 지정하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
+
 
 @dataclasses.dataclass
 class DeadlockConfig:

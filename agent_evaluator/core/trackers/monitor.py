@@ -2868,6 +2868,8 @@ class PerformanceMonitor:
             for t in tasks
             if (t.extra or {}).get("subtask_completion") is not None
             and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
+            # subtask_count=0: expected_subtasks 미설정 → completion_rate=1.0이 의미 없으므로 제외
+            and int((t.extra or {}).get("subtask_completion", {}).get("subtask_count", 0)) > 0
         ]
         avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
 
