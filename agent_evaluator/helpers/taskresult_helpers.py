@@ -139,6 +139,12 @@ def _is_subtask_find_pos(subtask_lower: str, response_lower: str) -> int:
 # 사실 보존 검사용 1자 조사 허용 목록: 복합어 접미사(군/계/화/적/성/…)와 구분
 _KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야아')
 
+# 숫자 뒤에 바로 붙는 한국어 단위 문자 허용 목록.
+# 예: "2024년", "50개", "100명", "1500원", "3월", "25일"
+# Python의 한글은 \w (isalnum=True) 이므로 \b 경계가 성립하지 않아
+# \b\d{2,}\b 패턴은 한글 단위 접미 숫자를 추출하지 못함 — 이 셋으로 보완.
+_KOREAN_UNITS = frozenset('년월일개명원억만천백위층번호')
+
 # goal_coverage / goal_retained 토큰 비교 시 조사 제거용 (긴 조사 우선)
 # eval_plan_coherence · eval_context_retention 에서 공유
 _KR_PARTICLE_SUFFIXES: tuple = (
@@ -186,7 +192,9 @@ def _is_fact_retained_in_text(fact_lower: str, text_lower: str) -> bool:
     `_is_subtask_found`의 after 조건은 모든 한글을 조사로 허용하므로,
     단어 끝이 한글인 사실(예: '제품')이 복합어('제품군') 앞에 오면 false positive가 발생한다.
     이 헬퍼는 after가 한글일 때 1자 조사 목록에 포함된 것만 허용한다.
+    숫자 사실(예: "2024", "50")은 한국어 단위 접미사(_KOREAN_UNITS: 년·개·명·원 등)도 허용한다.
     """
+    _is_numeric = fact_lower.isdigit()
     idx = 0
     while True:
         pos = text_lower.find(fact_lower, idx)
@@ -198,8 +206,11 @@ def _is_fact_retained_in_text(fact_lower: str, text_lower: str) -> bool:
         if before_ok:
             if after is None or not after.isalnum():
                 return True
-            if '가' <= after <= '힣' and after in _KOREAN_PARTICLES_1:
-                return True
+            if '가' <= after <= '힣':
+                if after in _KOREAN_PARTICLES_1:
+                    return True
+                if _is_numeric and after in _KOREAN_UNITS:
+                    return True
         idx = pos + 1
 
 
@@ -1425,7 +1436,8 @@ def eval_loop_detection(
                     ):
                         _detected_loops.append({
                             "loop_type": "window_duplicate",
-                            "loop_at_step": i + window_names.index(tool),
+                            # B-49: consecutive_repeat.loop_at_step는 1-indexed이므로 통일
+                            "loop_at_step": i + window_names.index(tool) + 1,
                             "loop_tool": tool,
                         })
 
@@ -2869,7 +2881,7 @@ def eval_context_retention(
     # key_entities 미지정 + context 제공 시 context에서 엔티티 자동 추출
     if not key_entities and context:
         _auto: List[str] = []
-        _auto.extend(re.findall(r'\b\d{2,}\b', context))
+        _auto.extend(re.findall(r'\d{2,}', context))
         _auto.extend(re.findall(r'\b[A-Z][a-z]+\b', context))
         _auto.extend(re.findall(r'[가-힣]{3,}', context))  # 2글자는 기능어 오염 — knowledge_retention과 동일 기준
         # 문장 시작 기능어("The", "In", "An" 등) 제거는 dedup 단계에서 — eval_knowledge_retention과 동일 패턴
@@ -3794,10 +3806,12 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
         # Forbidden argument keys
         # B-38: forbidden_argument_keys[tool_name] 값이 None이면 'for None' → TypeError.
         # 값이 None이거나 이터러블이 아니면 안전하게 건너뜀.
+        # B-48: 중복 키가 있으면 같은 위반이 violations에 중복 등록되어 violation_count가 부풀려짐.
+        # set()으로 중복 제거 후 이터레이션하여 위반 건수를 정확히 보고한다.
         _fak = config.forbidden_argument_keys or {}
         _fak_list = _fak.get(name) if name in _fak else None
         if _fak_list is not None and hasattr(_fak_list, "__iter__"):
-            for forbidden_key in _fak_list:
+            for forbidden_key in dict.fromkeys(_fak_list):  # B-48: 순서 보존 dedup
                     if isinstance(args, dict) and forbidden_key in args:
                         violations.append(f"forbidden_arg_key:{name}:{forbidden_key}")
                         if name not in dangerous_calls:
@@ -3810,6 +3824,10 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
                 if not isinstance(args, dict):
                     continue
                 if key not in args:
+                    continue
+                # B-50: spec이 dict가 아니면 (int/str/None 등) 'type' in spec → TypeError.
+                # 타입 어노테이션상 Dict[str, Dict[str, Any]]이지만 런타임 강제 없으므로 방어적 건너뜀.
+                if not isinstance(spec, dict):
                     continue
                 val = args[key]
                 _schema_violated = False
@@ -3879,7 +3897,7 @@ def eval_knowledge_retention(
         for turn in seed:
             text = turn.get("user", "") or turn.get("content", "") or ""
             # Numbers (2+ digits)
-            facts.extend(re.findall(r'\b\d{2,}\b', text))
+            facts.extend(re.findall(r'\d{2,}', text))
             # Capitalized words (potential proper nouns) — 2+ chars
             facts.extend(re.findall(r'\b[A-Z][a-z]{1,}\b', text))
             # Korean nouns: kiwipiepy NNG/NNP 필터 우선, 없으면 3글자 이상 한자어 패턴 폴백

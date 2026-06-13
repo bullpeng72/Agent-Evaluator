@@ -36,6 +36,8 @@ from agent_evaluator.helpers.taskresult_helpers import (
     eval_subtask_completion,
     compute_reproducibility_score,
     _kr_strip_particle,
+    _is_fact_retained_in_text,
+    _KOREAN_UNITS,
 )
 
 
@@ -1316,3 +1318,128 @@ class TestHarnessEdgeCases:
         agent("question")
         t = monitor.tasks[-1]
         assert t is not None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bug R33: 한국어 단위 접미 숫자 추출·보존 검사 버그 회귀 테스트
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestKoreanUnitNumberExtraction:
+    """R33 Fix: r'\\b\\d{2,}\\b' → r'\\d{2,}' 패턴 수정 회귀 테스트.
+
+    Python의 \\b는 한글을 \\w로 처리하므로 숫자 직후 한글 단위('년','개','명','원' 등)가
+    오면 \\b 경계가 성립하지 않아 숫자를 전혀 추출하지 못한다.
+    수정 패턴 r'\\d{2,}'는 경계 조건 없이 2자리 이상 숫자를 추출한다.
+    """
+
+    def test_context_retention_extracts_year_followed_by_korean_unit(self):
+        # "2024년" — \\b\\d{2,}\\b 버그 시 key_entities에 "2024"가 포함되지 않아
+        # "2024년에 설립됨" 응답에서 retention_score = 0.0 (false negative)
+        # key_entities=[] + context 제공 시 auto-extraction 트리거됨
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        context = "2024년 서울에서 50개 사용"
+        response = "2024년에 서울에서 50개가 사용되었습니다."
+        result = eval_context_retention(response, "", context, cfg)
+        all_entities = result["entities_retained"] + result["entities_lost"]
+        assert "2024" in all_entities, (
+            "r'\\b\\d{2,}\\b' 버그: '2024년'에서 '2024'를 추출하지 못함 — "
+            "r'\\d{2,}' 수정 후에는 key_entities에 포함되어야 함"
+        )
+        assert "50" in all_entities, (
+            "r'\\b\\d{2,}\\b' 버그: '50개'에서 '50'을 추출하지 못함"
+        )
+
+    def test_context_retention_korean_number_retained_in_response(self):
+        # auto_extract로 추출한 "2024"가 응답 "2024년에는"에서 보존 확인되어야 함
+        # _is_fact_retained_in_text 버그 시 "2024"가 "2024년에는"에서 False 반환 → entities_lost
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(
+            key_entities=["2024"],
+            check_original_goal=False,
+        )
+        result = eval_context_retention("2024년에는 서울에서 진행됩니다.", "", "", cfg)
+        assert "2024" in result["entities_retained"], (
+            "_is_fact_retained_in_text 버그: '2024'가 '2024년에는'에서 찾히지 않음 — "
+            "_KOREAN_UNITS 단위 허용 수정 후에는 entities_retained에 있어야 함"
+        )
+
+    def test_context_retention_count_and_person_units(self):
+        # "50개", "100명" — 개(count)·명(person) 단위도 올바르게 추출·보존되어야 함
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(
+            key_entities=["50", "100"],
+            check_original_goal=False,
+        )
+        result = eval_context_retention("50개 제품과 100명이 참여합니다.", "", "", cfg)
+        assert "50" in result["entities_retained"], (
+            "'50'이 '50개'에서 보존 확인 실패 — _KOREAN_UNITS 미포함 버그 회귀"
+        )
+        assert "100" in result["entities_retained"], (
+            "'100'이 '100명'에서 보존 확인 실패 — _KOREAN_UNITS 미포함 버그 회귀"
+        )
+
+    def test_knowledge_retention_extracts_numbers_with_korean_units(self):
+        # auto_extract_seed=True: history에서 "2024년"·"1500원" 숫자를 facts로 추출
+        from agent_evaluator.decorators import KnowledgeRetentionConfig
+        from agent_evaluator.helpers.taskresult_helpers import eval_knowledge_retention
+        cfg = KnowledgeRetentionConfig(
+            auto_extract_seed=True,
+            seed_turns=1,
+            check_from_turn=1,
+        )
+        history = [{"user": "2024년에 1500원으로 구매했다"}]
+        response = "2024년 구매 내역과 1500원 결제가 확인됩니다."
+        result = eval_knowledge_retention(response, history, cfg)
+        assert result is not None, "숫자 facts가 추출되어야 하므로 None이 아님"
+        retained = result.get("retained_facts", [])
+        assert any("2024" in f for f in retained), (
+            r"\b\d{2,}\b 버그: '2024년'에서 '2024' 미추출 → retained_facts에 없음 — "
+            r"\d{2,} 수정 후 포함되어야 함"
+        )
+
+
+class TestIsFactRetainedInTextKoreanUnits:
+    """R33 Fix: _is_fact_retained_in_text에서 숫자+한국어단위 조합 처리 버그 회귀 테스트."""
+
+    def test_numeric_fact_before_nyen_is_found(self):
+        # "2024"가 "2024년에는" 에서 찾혀야 함 (이전: '년'이 _KOREAN_PARTICLES_1에 없어 False)
+        assert _is_fact_retained_in_text("2024", "2024년에는 진행됩니다") is True, (
+            "'2024'가 '2024년에는'에서 찾히지 않음 — _KOREAN_UNITS 단위 허용 미적용 버그 회귀"
+        )
+
+    def test_numeric_fact_before_gae_is_found(self):
+        assert _is_fact_retained_in_text("50", "총 50개의 제품") is True, (
+            "'50'이 '50개'에서 찾히지 않음"
+        )
+
+    def test_numeric_fact_before_myeong_is_found(self):
+        assert _is_fact_retained_in_text("100", "회의에 100명이 참석") is True, (
+            "'100'이 '100명'에서 찾히지 않음"
+        )
+
+    def test_numeric_fact_before_won_is_found(self):
+        assert _is_fact_retained_in_text("1500", "예산은 1500원입니다") is True, (
+            "'1500'이 '1500원'에서 찾히지 않음"
+        )
+
+    def test_korean_unit_constants_include_common_units(self):
+        # 핵심 단위 문자가 _KOREAN_UNITS에 포함되어 있는지 확인
+        for unit in ('년', '월', '일', '개', '명', '원', '위', '층'):
+            assert unit in _KOREAN_UNITS, f"'{unit}'이 _KOREAN_UNITS에 없음"
+
+    def test_non_numeric_fact_particle_check_unchanged(self):
+        # 비숫자 사실은 여전히 조사만 허용 (기존 동작 회귀 방지)
+        # "서울이" → '이' in _KOREAN_PARTICLES_1 → True
+        assert _is_fact_retained_in_text("서울", "서울이 수도") is True
+        # "서울군" → '군' not in _KOREAN_PARTICLES_1 and not numeric → False
+        assert _is_fact_retained_in_text("서울", "서울군에 위치") is False, (
+            "비숫자 사실 '서울'이 복합어 '서울군'에서 false positive 발생 — 기존 엄격 검사 회귀"
+        )
+
+    def test_single_digit_not_extracted_by_auto_pattern(self):
+        # r'\\d{2,}' 는 1자리 숫자 미추출 (의도적 동작 유지)
+        import re
+        matches = re.findall(r'\d{2,}', "3월 1일 제1회 행사")
+        assert "3" not in matches, "1자리 숫자 '3'이 추출되면 안 됨"
+        assert "1" not in matches, "1자리 숫자 '1'이 추출되면 안 됨"
