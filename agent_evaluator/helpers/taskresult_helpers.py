@@ -1764,7 +1764,8 @@ def eval_plan_coherence(
         # JSON 배열 파싱 성공 시 인덱스 순서가 이미 확정됨 — 번호 목록과 동등하게 처리.
         # JSON steps의 순서는 데이터 구조 자체가 보장하므로, sequential marker 검사를 건너뜀.
         is_numbered = _from_json or bool(re.search(r"^\s*\d+[.)]\s", response or "", re.MULTILINE))
-        if is_numbered:
+        # step_count <= 1: 단일 단계 플랜은 정의상 순서 문제가 없음 — marker 검사 의미 없음
+        if is_numbered or step_count <= 1:
             ordering_score = 1.0
         else:
             sequential_markers = [

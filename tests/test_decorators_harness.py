@@ -615,6 +615,60 @@ class TestEvalPlanCoherence:
         if r4 is not None:
             assert r4["executability_score"] is None, "available_tools=[]이면 executability_score=None이어야 함"
 
+    def test_single_step_plain_text_ordering_score_is_one(self):
+        # Bug R32: step_count=1 인 비JSON·비번호 플랜은 순서 문제가 정의상 없음에도
+        # sequential marker 검사에서 0.0을 받던 버그.
+        # Fix: step_count <= 1 → ordering_score=1.0 (trivially ordered)
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+            min_steps=1,  # 1-step 허용
+        )
+        # 단일 불릿 단계 — JSON 아님, 번호 없음, sequential marker 없음
+        single_bullet = "- Gather all required data"
+        result = eval_plan_coherence(single_bullet, "gather data", cfg)
+        assert result is not None, "단일 불릿 단계가 파싱되어야 함"
+        assert result["ordering_score"] == 1.0, (
+            f"1-step 플랜의 ordering_score가 1.0이어야 하지만 {result['ordering_score']} — "
+            "sequential marker 없다는 이유로 0.0이 반환되던 버그 회귀"
+        )
+
+    def test_single_step_score_not_halved_by_ordering_zero(self):
+        # 1-step 플랜에서 ordering_score=0.0 이 goal_coverage와 평균되어
+        # score가 절반으로 억제되던 Gate A 오염 시나리오 회귀 방지
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=True,
+            check_executability=False,
+            min_steps=1,
+        )
+        single_step = "- Gather data"
+        result = eval_plan_coherence(single_step, "gather data", cfg)
+        assert result is not None
+        # goal_coverage >= some non-zero value, ordering_score=1.0 → score > 0.5
+        # Without fix, score = (goal_coverage + 0.0)/2 ≤ 0.5
+        assert result["ordering_score"] == 1.0
+        assert result["score"] > 0.5, (
+            "1-step 플랜 score가 0.5를 초과해야 함 — ordering_score=0.0 이 평균에 포함되던 버그"
+        )
+
+    def test_multi_step_plain_text_ordering_still_uses_markers(self):
+        # 2개 이상의 비번호·비JSON 단계는 여전히 sequential marker 기반으로 평가 (회귀 방지)
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        # 마커 없는 2-step 불릿
+        no_markers = "- Do A\n- Do B"
+        result = eval_plan_coherence(no_markers, "something", cfg)
+        if result is not None:
+            # step_count >= 2이면 marker 검사 적용 — 마커 없으므로 0.0
+            assert result["ordering_score"] == 0.0, (
+                "2-step 비번호 비JSON 플랜에서 마커 없으면 ordering_score=0.0이어야 함 (회귀)"
+            )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 6-B: 한국어 조사 탈락 매칭 테스트
