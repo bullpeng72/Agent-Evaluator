@@ -1176,6 +1176,71 @@ class TestHarnessEdgeCases:
         result_mid = eval_instruction_adherence("Some text\n- item one", cfg)
         assert result_mid["checks"]["format"] is True
 
+    def test_plan_coherence_json_dict_steps_ordering_score_not_zero(self):
+        # Bug R31: JSON {"steps":[...]} 형식에서 파싱한 단계는 배열 인덱스로 순서가 확정됨.
+        # 이전 코드: is_numbered = bool(re.search(numbering pattern, json_string)) → False
+        # → sequential markers 검사 → step descriptions에 "then"/"next" 없음 → ordering_score=0.0
+        # Fix: _from_json=True → is_numbered=True → ordering_score=1.0
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        plan_json = json.dumps({"steps": ["Gather data", "Analyze results", "Write report"]})
+        result = eval_plan_coherence(plan_json, "gather analyze", cfg)
+        assert result is not None, "JSON 플랜은 steps가 3개이므로 None이 아니어야 함"
+        assert result["ordering_score"] == 1.0, (
+            f"JSON 배열에서 파싱한 플랜의 ordering_score가 1.0이어야 하지만 {result['ordering_score']} — "
+            "_from_json 플래그 없이 sequential marker 검사가 적용되어 0.0으로 억제되던 버그 회귀"
+        )
+
+    def test_plan_coherence_json_bare_list_ordering_score_not_zero(self):
+        # JSON 베어 리스트 형식도 동일하게 _from_json=True → ordering_score=1.0
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        plan_bare = json.dumps(["Step A", "Step B", "Step C"])
+        result = eval_plan_coherence(plan_bare, "step complete", cfg)
+        assert result is not None
+        assert result["ordering_score"] == 1.0, (
+            "JSON 베어 리스트에서 파싱한 플랜의 ordering_score가 1.0이어야 함"
+        )
+
+    def test_plan_coherence_plain_text_without_numbers_ordering_uses_markers(self):
+        # 비JSON·비번호 목록은 여전히 sequential marker 검사를 사용해야 함 (회귀 방지)
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        # "then"/"next" 마커 없는 일반 텍스트 → ordering_score가 marker 기반으로 낮아야 함
+        plain = "Do first task. Do second task. Do third task."
+        result = eval_plan_coherence(plain, "task", cfg)
+        if result is not None:
+            # is_numbered=False, _from_json=False → sequential markers 검사 적용
+            # → "first"/"second"는 sequential marker가 아니므로 낮거나 0
+            assert result["ordering_score"] is not None
+
+    def test_goal_alignment_no_measurement_method_returns_none_score(self):
+        # Bug R31: goal_tool_map={} + use_keyword_overlap=False → method="none"
+        # 이전 코드: score=0.0 반환 → Gate A avg_goal_a에 거짓 0.0이 포함됨
+        # Fix: method=="none" → score=None 반환으로 Gate A 집계에서 제외
+        cfg = GoalAlignmentConfig(
+            use_keyword_overlap=False,   # keyword_overlap 비활성
+            goal_tool_map={},            # goal_tool_map 미설정 (기본값)
+            ignore_no_tool_tasks=False,
+        )
+        tools = [{"name": "some_tool", "success": True}]
+        result = eval_goal_alignment("do something with some tool", tools, cfg)
+        assert result is not None, "tool_calls 있으면 None이 아닌 dict 반환 필요"
+        assert result["score"] is None, (
+            f"측정 방법이 없을 때 score가 None이어야 하지만 {result['score']} — "
+            "method='none'에서 score=0.0이 반환되어 Gate A를 허위 억제하던 버그 회귀"
+        )
+        assert result["method"] == "no_measurement"
+
     def test_agent_eval_with_none_harness_params(self, monitor=None):
         """None harness params → 기존 동작."""
         if monitor is None:

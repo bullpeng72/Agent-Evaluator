@@ -1568,6 +1568,18 @@ def eval_goal_alignment(
                 unaligned_tools.append(t)
         score = len(aligned_tools) / len(tool_names) if tool_names else 0.0
 
+    # goal_tool_map도 keyword_overlap도 모두 비활성화된 경우 — 측정이 수행되지 않음.
+    # score=0.0을 반환하면 Gate A에 거짓 0.0이 포함되어 점수를 왜곡하므로 score=None 반환.
+    if method == "none":
+        return {
+            "score": None, "method": "no_measurement",
+            "misaligned": [], "aligned_tools": [], "unaligned_tools": list(tool_names),
+            "below_threshold": None,
+            "keyword_overlap_advisory": False,
+            "use_llm_scoring": bool(getattr(config, "use_llm_scoring", False)),
+            "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
+        }
+
     misaligned = unaligned_tools
     threshold = getattr(config, "alignment_threshold", 0.6) or 0.6
     below_threshold = score < threshold
@@ -1692,6 +1704,7 @@ def eval_plan_coherence(
     import json as _json
 
     steps: List[str] = []
+    _from_json = False  # JSON 배열에서 파싱 성공 여부 — 순서가 인덱스에 내재됨
 
     # 1. JSON 파싱 시도
     try:
@@ -1706,8 +1719,10 @@ def eval_plan_coherence(
             raw_steps = _raw
             if isinstance(raw_steps, list):
                 steps = [str(s) for s in raw_steps]
+                _from_json = True
         elif isinstance(parsed, list):
             steps = [str(s) for s in parsed]
+            _from_json = True
     except Exception:
         pass
 
@@ -1746,7 +1761,9 @@ def eval_plan_coherence(
 
     # 4. 단계 순서: 번호 목록이면 1.0, 아니면 순서 접속사 비율로 평가
     if config.check_step_ordering:
-        is_numbered = bool(re.search(r"^\s*\d+[.)]\s", response or "", re.MULTILINE))
+        # JSON 배열 파싱 성공 시 인덱스 순서가 이미 확정됨 — 번호 목록과 동등하게 처리.
+        # JSON steps의 순서는 데이터 구조 자체가 보장하므로, sequential marker 검사를 건너뜀.
+        is_numbered = _from_json or bool(re.search(r"^\s*\d+[.)]\s", response or "", re.MULTILINE))
         if is_numbered:
             ordering_score = 1.0
         else:
@@ -3751,7 +3768,11 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
         # Dangerous pattern check
         # B-21: re.error(잘못된 정규식)를 패턴 단위로 포착 — 하나의 bad regex가 전체 TPS 평가를 무음 실패시키는 것 방지
         # B-20: 동일 (name, pattern) 조합은 violations에 1회만 추가 — eval_scope(B-16)의 per-unique 패턴과 통일
+        # B-45/46 방어: __post_init__에서 걸러지지 않은 빈 문자열·None에 대한 2차 가드
+        # (직접 eval_ 호출 또는 __post_init__ 우회 시에도 안전하게 동작)
         for pattern in (config.dangerous_patterns or []):
+            if not isinstance(pattern, str) or not pattern.strip():
+                continue  # 빈 문자열·None: 항상 매치되거나 TypeError → 건너뜀
             try:
                 _matched = re.search(pattern, args_str, re.IGNORECASE)
             except re.error as _re_err:
