@@ -908,6 +908,25 @@ class TestHarnessEdgeCases:
         assert result is not None
         assert "I am sorry" in result["retained_facts"]
 
+    def test_knowledge_retention_autoextract_filters_stopwords(self):
+        # auto_extract_seed=True: 문장 시작 기능어("The", "In", "What" 등)가 facts에 포함되면
+        # 응답 어디서나 발견되어 retention_score 허위 상향 — stopword 필터로 제거되어야 함
+        from agent_evaluator.decorators import KnowledgeRetentionConfig
+        from agent_evaluator.helpers.taskresult_helpers import eval_knowledge_retention
+        cfg = KnowledgeRetentionConfig(
+            auto_extract_seed=True,
+            seed_turns=1,
+            check_from_turn=1,
+        )
+        # 기능어만 있는 텍스트 — "The", "What", "In", "Is" 모두 _GOAL_STOPWORDS
+        history = [{"user": "The meeting is scheduled. What should I do? In the morning."}]
+        response = "Okay, the meeting is confirmed."
+        result = eval_knowledge_retention(response, history, cfg)
+        # 기능어 전부 필터링 → facts=[] → None 반환 (0.0 또는 1.0이 아님)
+        assert result is None, (
+            f"stopword-only auto_extract should return None, not {result}"
+        )
+
     def test_dimension_averages_none_for_unmeasured(self):
         # 미측정 차원은 0.0 대신 None 반환 — Gate A _rqe_a=0.0 포함 방지
         from agent_evaluator import PerformanceMonitor
