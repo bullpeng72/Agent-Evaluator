@@ -1740,6 +1740,9 @@ def eval_plan_coherence(
 
     # 2. 번호 매기기 패턴 추출 (1. / 2. / - / *)
     if not steps:
+        # JSON 파싱으로 빈 배열이 나왔더라도 여기서 plain text 폴백 사용 시 _from_json을 리셋.
+        # 그렇지 않으면 bullet-point 단계가 JSON 배열인 것처럼 ordering_score=1.0을 얻어 오판.
+        _from_json = False
         numbered = re.findall(r"^\s*(?:\d+[.)]\s*|[-*]\s+)(.+)", response, re.MULTILINE)
         if numbered:
             steps = [s.strip() for s in numbered]
@@ -2882,7 +2885,7 @@ def eval_context_retention(
     if not key_entities and context:
         _auto: List[str] = []
         _auto.extend(re.findall(r'\d{2,}', context))
-        _auto.extend(re.findall(r'\b[A-Z][a-z]+\b', context))
+        _auto.extend(re.findall(r'\b[A-Z][a-z]+', context))
         _auto.extend(re.findall(r'[가-힣]{3,}', context))  # 2글자는 기능어 오염 — knowledge_retention과 동일 기준
         # 문장 시작 기능어("The", "In", "An" 등) 제거는 dedup 단계에서 — eval_knowledge_retention과 동일 패턴
         # [:20] 제한은 필터 후 적용해야 의미 있는 엔티티 20개를 보장 (필터 전 적용 시 기능어가 슬롯 차지)
@@ -3745,9 +3748,12 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
 
     for tc in (tool_calls or []):
         if isinstance(tc, dict):
+            # B-51: tc["function"]이 string일 때 (tc.get("function") or {}).get("name")
+            # → str.get() → AttributeError. dict 여부 확인 후 분기.
+            _tc_fn = tc.get("function")
             name = (
                 tc.get("name") or tc.get("tool")
-                or (tc.get("function") or {}).get("name", "")
+                or (_tc_fn.get("name", "") if isinstance(_tc_fn, dict) else (_tc_fn or ""))
                 or ""
             )
             args = (
@@ -3899,7 +3905,7 @@ def eval_knowledge_retention(
             # Numbers (2+ digits)
             facts.extend(re.findall(r'\d{2,}', text))
             # Capitalized words (potential proper nouns) — 2+ chars
-            facts.extend(re.findall(r'\b[A-Z][a-z]{1,}\b', text))
+            facts.extend(re.findall(r'\b[A-Z][a-z]{1,}', text))
             # Korean nouns: kiwipiepy NNG/NNP 필터 우선, 없으면 3글자 이상 한자어 패턴 폴백
             try:
                 from kiwipiepy import Kiwi as _Kiwi
@@ -4078,7 +4084,10 @@ def eval_idempotency(
     tool_names: List[str] = []
     for tc in (tool_calls or []):
         if isinstance(tc, dict):
-            name = tc.get("name") or tc.get("tool") or (tc.get("function") or {}).get("name", "")
+            # B-51: tc["function"]이 string이면 str.get() → AttributeError
+            _fn = tc.get("function")
+            name = (tc.get("name") or tc.get("tool")
+                    or (_fn.get("name", "") if isinstance(_fn, dict) else (_fn or "")))
         elif hasattr(tc, "name"):
             name = getattr(tc, "name", "")
         else:

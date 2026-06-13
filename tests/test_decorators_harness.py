@@ -1443,3 +1443,149 @@ class TestIsFactRetainedInTextKoreanUnits:
         matches = re.findall(r'\d{2,}', "3월 1일 제1회 행사")
         assert "3" not in matches, "1자리 숫자 '3'이 추출되면 안 됨"
         assert "1" not in matches, "1자리 숫자 '1'이 추출되면 안 됨"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bug R34: 영어 고유명사+한국어 조사 추출 버그 / JSON 빈 배열 _from_json 오전파 버그
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestEnglishProperNounKoreanParticleExtraction:
+    """R34 Fix: r'\\b[A-Z][a-z]+\\b' → r'\\b[A-Z][a-z]+' 패턴 수정 회귀 테스트.
+
+    Python의 \\b는 한글을 \\w로 처리하므로 영어 대문자 단어('Seoul', 'Claude' 등) 직후
+    한국어 조사('에서', '이', '를' 등)가 오면 끝 \\b 경계가 성립하지 않아 고유명사를 추출하지 못한다.
+    eval_context_retention의 auto-extract와 eval_knowledge_retention의 auto_extract_seed
+    양쪽에서 발생하는 동일 버그.
+    """
+
+    def test_context_retention_extracts_proper_noun_before_korean_particle(self):
+        # "Seoul에서" — \\b[A-Z][a-z]+\\b 버그 시 key_entities에 "Seoul"이 포함되지 않음
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        context = "Seoul에서 Claude를 사용한 결과"
+        response = "Seoul에서 Claude를 활용했습니다."
+        result = eval_context_retention(response, "", context, cfg)
+        all_entities = result["entities_retained"] + result["entities_lost"]
+        assert "Seoul" in all_entities, (
+            r"\b[A-Z][a-z]+\b 버그: 'Seoul에서'에서 'Seoul'을 추출하지 못함 — "
+            r"\b[A-Z][a-z]+ 수정 후 key_entities에 포함되어야 함"
+        )
+        assert "Claude" in all_entities, (
+            r"\b[A-Z][a-z]+\b 버그: 'Claude를'에서 'Claude'를 추출하지 못함"
+        )
+
+    def test_context_retention_proper_noun_retained_with_korean_particle(self):
+        # 추출된 "Seoul"이 응답 "Seoul이 중요합니다"에서 보존 확인되어야 함
+        # _is_fact_retained_in_text: "이" in _KOREAN_PARTICLES_1 → True (기존 동작 유지)
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(
+            key_entities=["Seoul"],
+            check_original_goal=False,
+        )
+        result = eval_context_retention("Seoul이 중요합니다", "", "", cfg)
+        assert "Seoul" in result["entities_retained"], (
+            "'Seoul'이 'Seoul이 중요합니다'에서 보존으로 인식되지 않음 — "
+            "'이' in _KOREAN_PARTICLES_1 경로 회귀"
+        )
+
+    def test_context_retention_multiple_proper_nouns_korean_mixed(self):
+        # "Google이 발표한 Gemini와 Anthropic의 Claude" 에서 고유명사 4개 모두 추출
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        context = "Google이 발표한 Gemini와 Anthropic의 Claude"
+        result = eval_context_retention("Google, Gemini, Anthropic, Claude 모두 확인", "", context, cfg)
+        all_entities = result["entities_retained"] + result["entities_lost"]
+        for name in ("Google", "Gemini", "Anthropic", "Claude"):
+            assert name in all_entities, (
+                f"r'\\b[A-Z][a-z]+\\b' 버그: '{name}이/와/의'에서 '{name}'을 추출하지 못함"
+            )
+
+    def test_knowledge_retention_extracts_proper_noun_with_korean_particle(self):
+        # auto_extract_seed=True: history에서 "Seoul에서" 고유명사 추출
+        from agent_evaluator.decorators import KnowledgeRetentionConfig
+        from agent_evaluator.helpers.taskresult_helpers import eval_knowledge_retention
+        cfg = KnowledgeRetentionConfig(
+            auto_extract_seed=True,
+            seed_turns=1,
+            check_from_turn=1,
+        )
+        history = [{"user": "Seoul에서 Claude를 사용해 2024년 보고서를 작성했다"}]
+        response = "Seoul과 Claude를 활용한 분석 결과입니다."
+        result = eval_knowledge_retention(response, history, cfg)
+        assert result is not None, "고유명사 facts가 추출되어야 하므로 None이 아님"
+        retained = result.get("retained_facts", [])
+        assert any("Seoul" in f for f in retained), (
+            r"\b[A-Z][a-z]+\b 버그: 'Seoul에서'에서 'Seoul' 미추출 → retained_facts에 없음"
+        )
+
+    def test_old_pattern_versus_new_pattern_difference(self):
+        # r'\\b[A-Z][a-z]+\\b' vs r'\\b[A-Z][a-z]+' 차이 명시적 검증
+        import re
+        text = "Seoul에서 Google이 Samsung을 인수"
+        old = re.findall(r'\b[A-Z][a-z]+\b', text)
+        new = re.findall(r'\b[A-Z][a-z]+', text)
+        assert "Seoul" not in old, "구 패턴: 'Seoul에서'에서 'Seoul' 추출됨 → 버그 회귀"
+        assert "Seoul" in new, "신 패턴: 'Seoul에서'에서 'Seoul' 추출 실패"
+        assert "Google" not in old, "구 패턴: 'Google이'에서 'Google' 추출됨 → 버그 회귀"
+        assert "Google" in new, "신 패턴: 'Google이'에서 'Google' 추출 실패"
+
+
+class TestPlanCoherenceJsonEmptyArrayFallback:
+    """R34 Fix: JSON 빈 배열 fallback 시 _from_json 오전파 버그 회귀 테스트.
+
+    {"steps": []} JSON 응답에서 _from_json=True가 설정된 후 bullet-point 폴백 경로로
+    진행될 때 _from_json이 리셋되지 않아 bullet-point 단계가 JSON 배열처럼 ordering_score=1.0을
+    받는 버그. bullet-point 단계는 sequential marker 검사를 받아야 한다.
+    """
+
+    def test_json_empty_steps_with_bullet_response_uses_marker_check(self):
+        # {"steps": []} JSON + 응답 본문에 bullet(-) 단계 → _from_json 리셋 후 marker 검사
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        # JSON은 빈 steps, 응답 본문에 bullet-point 단계 (sequential marker 없음)
+        response = '{"steps": []}\n- do this\n- do that\n- finish'
+        result = eval_plan_coherence(response, "do task", cfg)
+        # bullet-point 단계 3개가 추출되어야 함 (not None)
+        assert result is not None, "bullet-point 단계가 추출되어 result가 있어야 함"
+        assert result["step_count"] == 3
+        # _from_json이 False로 리셋됐으므로 sequential marker 검사가 적용되어야 함
+        # marker 없는 bullet-point → ordering_score < 1.0 (is_numbered=False, step_count>1)
+        ordering = result.get("ordering_score")
+        if ordering is not None:
+            assert ordering < 1.0, (
+                f"JSON 빈 배열 fallback 시 _from_json=True 오전파 버그 회귀: "
+                f"bullet-point 단계가 ordering_score=1.0을 받음 (마커 없음인데 {ordering})"
+            )
+
+    def test_json_valid_steps_still_gets_from_json_true(self):
+        # 정상 JSON steps → _from_json=True → ordering_score=1.0 (회귀 방지)
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        import json
+        response = json.dumps({"steps": ["First step", "Second step", "Third step"]})
+        result = eval_plan_coherence(response, "", cfg)
+        assert result is not None
+        assert result["ordering_score"] == 1.0, (
+            "정상 JSON steps의 ordering_score가 1.0이어야 함 — _from_json=True 회귀"
+        )
+
+    def test_json_bare_list_still_gets_from_json_true(self):
+        # JSON 베어 리스트 → _from_json=True → ordering_score=1.0 (회귀 방지)
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        import json
+        response = json.dumps(["Step A", "Step B", "Step C"])
+        result = eval_plan_coherence(response, "", cfg)
+        assert result is not None
+        assert result["ordering_score"] == 1.0, (
+            "JSON 베어 리스트의 ordering_score가 1.0이어야 함 — _from_json=True 회귀"
+        )
