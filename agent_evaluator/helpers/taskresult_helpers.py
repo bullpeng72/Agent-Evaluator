@@ -137,7 +137,9 @@ def _is_subtask_find_pos(subtask_lower: str, response_lower: str) -> int:
 
 
 # 사실 보존 검사용 1자 조사 허용 목록: 복합어 접미사(군/계/화/적/성/…)와 구분
-_KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야아')
+# '으'는 독립 조사가 아니지만 '-으로/-으며/-으면' 등 복합 조사의 첫 음절로 반드시 등장하므로
+# 허용 목록에 포함. 예: "결론으로" → after='으' → 허용 (결론이 사실로서 보존됨)
+_KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야아으')
 
 # 숫자 뒤에 바로 붙는 한국어 단위 문자 허용 목록.
 # 예: "2024년", "50개", "100명", "1500원", "3월", "25일"
@@ -1787,8 +1789,10 @@ def eval_plan_coherence(
                 "then", "next", "after", "finally", "second", "third", "fourth", "fifth",
                 "다음", "그 다음", "이후", "마지막으로", "그런 다음",
             ]
+            # _is_subtask_found 사용: 한국어 조사 '으로' 등이 마커 뒤에 붙는 경우 허용
+            # (_is_fact_retained_in_text는 _KOREAN_PARTICLES_1만 허용해 '다음으로'가 '다음'과 불일치)
             steps_with_markers = sum(
-                1 for step in steps if any(_is_fact_retained_in_text(m, step.lower()) for m in sequential_markers)
+                1 for step in steps if any(_is_subtask_found(m, step.lower()) for m in sequential_markers)
             )
             ordering_score = min(1.0, steps_with_markers / max(step_count * 0.5, 1))
     else:

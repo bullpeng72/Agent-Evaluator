@@ -38,6 +38,7 @@ from agent_evaluator.helpers.taskresult_helpers import (
     _kr_strip_particle,
     _is_fact_retained_in_text,
     _KOREAN_UNITS,
+    _KOREAN_PARTICLES_1,
 )
 
 
@@ -1699,3 +1700,144 @@ class TestPlanCoherenceDictReturnValue:
             "dict answer 값의 번호 목록에서 steps 를 추출해야 하는데 plan_coherence=None"
         )
         assert plan.get("step_count", 0) == 3, f"3개 단계가 파싱되어야 함, got {plan.get('step_count')}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 12: _KOREAN_PARTICLES_1에 '으' 추가 회귀 테스트 (R36)
+# Bug: '으'가 _KOREAN_PARTICLES_1에 없어 '-으로' 조사가 붙은 한국어 단어를
+# _is_fact_retained_in_text가 매칭 실패하던 문제.
+# Fix: '으'를 _KOREAN_PARTICLES_1에 추가 (복합 조사 '-으로/-으며/-으면' 첫 음절).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestKoreanEuroParticle:
+    """-으로 조사 붙은 한국어 어절에서 _is_fact_retained_in_text 매칭 회귀 테스트."""
+
+    def test_euro_particle_in_particles_set(self):
+        # '으'가 _KOREAN_PARTICLES_1에 포함되어야 함
+        assert '으' in _KOREAN_PARTICLES_1, (
+            "'으'가 _KOREAN_PARTICLES_1에 없음 — '-으로' 조사 붙은 단어에서 사실 매칭 실패"
+        )
+
+    def test_fact_retained_when_followed_by_euro(self):
+        # '결론으로' → fact='결론' 매칭 성공
+        assert _is_fact_retained_in_text('결론', '결론으로서 최종 분석합니다') is True, (
+            "'결론으로서'에서 fact='결론' 매칭 실패 — '으' 미포함 시 false negative 발생"
+        )
+
+    def test_fact_retained_daeum_euro(self):
+        # '다음으로' → fact='다음' 매칭 성공 (순서 마커 + 조사)
+        assert _is_fact_retained_in_text('다음', '다음으로 진행합니다') is True, (
+            "'다음으로'에서 fact='다음' 매칭 실패"
+        )
+
+    def test_fact_retained_search_euro(self):
+        # '검색으로' → fact='검색' 매칭 성공 (goal_tool_map 키워드)
+        assert _is_fact_retained_in_text('검색', '데이터를 검색으로 찾아주세요') is True, (
+            "'검색으로'에서 fact='검색' 매칭 실패 — goal_tool_map 키워드 매칭 버그"
+        )
+
+    def test_compound_word_still_rejected(self):
+        # '제품군'은 compound — '제품' 매칭 불가 (기존 보호 유지 확인)
+        assert _is_fact_retained_in_text('제품', '제품군 분류') is False, (
+            "'제품군'에서 fact='제품' false positive — compound word 보호 훼손됨"
+        )
+
+    def test_verb_form_still_rejected(self):
+        # '결론짓다'는 동사 파생어 — '결론' 매칭 불가 ('짓'은 _KOREAN_PARTICLES_1에 없음)
+        assert _is_fact_retained_in_text('결론', '결론짓다') is False, (
+            "'결론짓다'에서 fact='결론' false positive — 동사 파생어 보호 훼손됨"
+        )
+
+    def test_instruction_keyword_with_euro_matches(self, monitor):
+        # InstructionConfig required_keywords 에서 '-으로' 조사 붙은 응답의 키워드 매칭
+        cfg = InstructionConfig(required_keywords=["결론"])
+
+        @agent_eval(monitor, task_type="qa", instructions=cfg)
+        def agent(question, ground_truth=""):
+            return "결론으로서 이 방법이 최선입니다"
+
+        agent("결론을 내려주세요", ground_truth="")
+        t = monitor.tasks[-1]
+        result = (t.extra or {}).get("instruction_adherence", {})
+        assert result.get("violation_count", 1) == 0, (
+            "응답 '결론으로서 ...'에서 required_keyword '결론'을 찾지 못함 — '으' 미포함 버그"
+        )
+
+    def test_goal_tool_map_keyword_with_euro_matches(self):
+        # eval_goal_alignment: goal_tool_map 키워드가 '-으로' 조사 붙어 질문에 등장할 때 매칭
+        cfg = GoalAlignmentConfig(
+            goal_tool_map={"검색": ["web_search"]},
+            use_keyword_overlap=False,
+            ignore_no_tool_tasks=False,
+        )
+        tools = [{"tool_name": "web_search"}]
+        result = eval_goal_alignment("데이터를 검색으로 찾아주세요", tools, cfg)
+        assert result is not None
+        assert result.get("score", 0.0) == 1.0, (
+            "질문 '검색으로'에서 goal_tool_map 키워드 '검색' 미매칭 — '으' 미포함 시 false negative "
+            f"(score={result.get('score')})"
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 13: eval_plan_coherence 순서 마커 탐지 회귀 테스트 (R36)
+# Bug: sequential marker 탐지에 _is_fact_retained_in_text 사용 시
+# '다음으로' 같이 '-으로' 가 붙은 마커를 인식 못해 ordering_score 저평가.
+# Fix: _is_subtask_found 로 교체 (한국어 모든 문자를 조사로 허용).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPlanCoherenceKoreanOrderingMarkers:
+    """한국어 순서 접속사('-으로' 조사 포함)를 포함한 ordering_score 회귀 테스트."""
+
+    def _cfg(self):
+        return PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+
+    def test_daeum_euro_counted_as_marker(self):
+        # '다음으로 처리' 단계에서 마커 '다음'이 인식되어야 함
+        response = "- 데이터 수집\n- 다음으로 처리\n- 마지막으로 저장"
+        result = eval_plan_coherence(response, "", self._cfg())
+        assert result is not None
+        assert result["ordering_score"] == 1.0, (
+            f"'다음으로' 를 순서 마커로 인식해야 ordering_score=1.0이어야 함, "
+            f"got {result['ordering_score']} — _is_fact_retained_in_text 사용 시 '으' 차단 버그"
+        )
+
+    def test_geu_daeum_euro_counted_as_marker(self):
+        # '그 다음으로' 마커 인식
+        response = "- 첫 번째 단계\n- 그 다음으로 처리\n- 마지막으로 완료"
+        result = eval_plan_coherence(response, "", self._cfg())
+        assert result is not None
+        assert result["ordering_score"] == 1.0, (
+            f"'그 다음으로' 마커 미인식 — ordering_score={result['ordering_score']}, expected=1.0"
+        )
+
+    def test_ordering_score_high_when_all_steps_have_markers(self):
+        # 모든 단계에 순서 마커 있을 때 ordering_score = 1.0
+        response = "- 다음으로 A 수행\n- 그 다음으로 B 처리\n- 마지막으로 C 저장"
+        result = eval_plan_coherence(response, "", self._cfg())
+        assert result is not None
+        assert result["ordering_score"] == pytest.approx(1.0), (
+            "모든 단계에 '-으로' 마커가 있는데 ordering_score < 1.0"
+        )
+
+    def test_no_marker_still_zero(self):
+        # 마커 없는 일반 bullet — ordering_score < 1.0 유지 (회귀 방지)
+        response = "- 데이터 수집\n- 전처리 수행\n- 모델 학습"
+        result = eval_plan_coherence(response, "", self._cfg())
+        assert result is not None
+        assert result["ordering_score"] < 1.0, (
+            "마커 없는 일반 bullet의 ordering_score가 1.0이어선 안 됨"
+        )
+
+    def test_english_markers_still_work(self):
+        # 영어 순서 접속사 ('then', 'next', 'finally') 도 정상 인식 (회귀 방지)
+        response = "- First collect data\n- Then process it\n- Finally save results"
+        result = eval_plan_coherence(response, "", self._cfg())
+        assert result is not None
+        assert result["ordering_score"] == pytest.approx(1.0), (
+            f"영어 순서 마커 'then'/'finally' 미인식 — ordering_score={result['ordering_score']}"
+        )
