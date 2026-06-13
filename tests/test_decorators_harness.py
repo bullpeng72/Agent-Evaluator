@@ -508,6 +508,25 @@ class TestEvalPlanCoherence:
             # "get" is NOT a word boundary match in "budget" → executability_score should be 0.0
             assert result["executability_score"] == 0.0
 
+    def test_ordering_markers_no_false_positive_substring(self):
+        # "after" ⊂ "thereafter", "second" ⊂ "secondary", "then" ⊂ "authenticate" — 오탐 방지
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+        # 각 스텝에 순서 마커가 부분 문자열로 포함되지만 독립 단어가 아님
+        resp = "1. Thereafter we proceed\n2. Secondary validation\n3. Authenticate the user"
+        result = eval_plan_coherence(resp, "validate", cfg)
+        # 번호 목록이므로 is_numbered=True → ordering_score=1.0 (번호 목록 최우선)
+        # → ordering_score가 부분문자열 오탐으로 1.0이 되어선 안 된다는 것을 확인하기 위해
+        # 번호 없는 버전으로 테스트
+        resp_unnumbered = "Thereafter we proceed. Secondary validation. Authenticate the user."
+        result2 = eval_plan_coherence(resp_unnumbered, "validate", cfg)
+        if result2 is not None:
+            # "thereafter"/"secondary"/"authenticate" 모두 독립 마커가 아님 → ordering_score=0.0
+            assert result2["ordering_score"] == 0.0
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 7: compute_reproducibility_score 단위 테스트

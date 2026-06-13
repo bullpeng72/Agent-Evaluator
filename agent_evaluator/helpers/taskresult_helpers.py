@@ -1717,7 +1717,7 @@ def eval_plan_coherence(
                 "다음", "그 다음", "이후", "마지막으로", "그런 다음",
             ]
             steps_with_markers = sum(
-                1 for step in steps if any(m in step.lower() for m in sequential_markers)
+                1 for step in steps if any(_is_fact_retained_in_text(m, step.lower()) for m in sequential_markers)
             )
             ordering_score = min(1.0, steps_with_markers / max(step_count * 0.5, 1))
     else:
