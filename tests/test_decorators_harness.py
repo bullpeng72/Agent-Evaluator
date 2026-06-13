@@ -1589,3 +1589,113 @@ class TestPlanCoherenceJsonEmptyArrayFallback:
         assert result["ordering_score"] == 1.0, (
             "JSON 베어 리스트의 ordering_score가 1.0이어야 함 — _from_json=True 회귀"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 11: @agent_eval dict-response 버그 회귀 테스트 (R35)
+# Bug: eval_instruction_adherence / eval_plan_coherence 가 str(raw_result) 를 사용해
+# LangChain dict 반환({"output": "...", "answer": "..."}) 시 Python repr 을 평가하던 문제.
+# Fix: task_result.response (프레임워크 추출 완료된 문자열) 를 사용하도록 수정.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestInstructionAdherenceDictReturnValue:
+    """dict 반환값을 가진 에이전트에서 InstructionConfig 평가 회귀 테스트."""
+
+    def test_instruction_keywords_found_in_dict_answer(self, monitor):
+        # LangChain 스타일 {"answer": "..."} 반환 시 실제 answer 문자열에서 키워드 검사해야 함.
+        # Bug 전: str({"answer": "Seoul is the capital"}) → "{'answer': 'Seoul is the capital'}"
+        #  → required_keyword "Seoul" 이 발견되긴 하지만, "answer" 등 노이즈 포함 문자열 평가
+        # Bug 케이스: required_keyword 가 dict repr 에만 존재하는 경우 false positive 발생
+        cfg = InstructionConfig(required_keywords=["capital"])
+
+        @agent_eval(monitor, task_type="qa", instructions=cfg)
+        def agent(question, ground_truth=""):
+            return {"answer": "Seoul is the capital of Korea"}
+
+        agent("What is the capital of Korea?", ground_truth="Seoul")
+        t = monitor.tasks[-1]
+        assert "instruction_adherence" in (t.extra or {}), "instruction_adherence 결과 없음"
+        result = t.extra["instruction_adherence"]
+        assert result["score"] == 1.0, (
+            f"dict 반환값의 answer 에서 키워드 'capital' 을 찾아야 함, score={result['score']}"
+        )
+        assert result["violation_count"] == 0
+
+    def test_instruction_format_json_from_dict_answer(self, monitor):
+        # {"answer": '{"result": "ok"}'} 반환 시 answer 값(JSON 문자열)으로 format 검사해야 함.
+        cfg = InstructionConfig(expected_format="json")
+
+        @agent_eval(monitor, task_type="qa", instructions=cfg)
+        def agent(question, ground_truth=""):
+            return {"answer": '{"result": "ok"}'}
+
+        agent("Return JSON", ground_truth="")
+        t = monitor.tasks[-1]
+        result = (t.extra or {}).get("instruction_adherence", {})
+        assert result.get("checks", {}).get("format") is True, (
+            "answer 값이 JSON 형식인데 format 검사 실패 — task_result.response 미사용 의심"
+        )
+
+    def test_instruction_keyword_missing_in_answer_key(self, monitor):
+        # answer 값에 키워드 없음 → violation 발생해야 함
+        cfg = InstructionConfig(required_keywords=["conclusion"])
+
+        @agent_eval(monitor, task_type="qa", instructions=cfg)
+        def agent(question, ground_truth=""):
+            return {"answer": "The result is positive"}
+
+        agent("Summarize", ground_truth="")
+        t = monitor.tasks[-1]
+        result = (t.extra or {}).get("instruction_adherence", {})
+        assert result.get("violation_count", 0) >= 1, (
+            "answer 값에 'conclusion' 없으므로 violation 이 있어야 함"
+        )
+
+
+class TestPlanCoherenceDictReturnValue:
+    """dict 반환값을 가진 에이전트에서 PlanConfig 평가 회귀 테스트."""
+
+    def test_plan_extracted_from_dict_output_json_steps(self, monitor):
+        # LangChain 스타일 {"output": '{"steps": ["A", "B", "C"]}'} 반환 시
+        # output 값(JSON 문자열)에서 steps 를 파싱해야 함.
+        # Bug 전: str({"output": '...'}) → Python repr → JSON 파싱 실패 → plan=None
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+
+        @agent_eval(monitor, task_type="planning", plan_tracking=cfg)
+        def agent(question, ground_truth=""):
+            return {"output": json.dumps({"steps": ["Step A", "Step B", "Step C"]})}
+
+        agent("Plan something", ground_truth="")
+        t = monitor.tasks[-1]
+        plan = (t.extra or {}).get("plan_coherence")
+        assert plan is not None, (
+            "dict output 값에서 JSON steps 를 파싱해야 하는데 plan_coherence=None "
+            "— task_result.response 미사용 의심 (str(raw_result) 는 Python repr)"
+        )
+        assert plan.get("step_count", 0) == 3, f"3개 단계가 파싱되어야 함, got {plan.get('step_count')}"
+        assert plan.get("ordering_score") == 1.0, "JSON 파싱 성공 시 ordering_score=1.0 이어야 함"
+
+    def test_plan_extracted_from_answer_key_numbered_list(self, monitor):
+        # {"answer": "1. fetch\n2. process\n3. save"} 반환 시
+        # answer 값에서 번호 목록으로 steps 를 추출해야 함.
+        cfg = PlanConfig(
+            check_step_ordering=True,
+            check_goal_coverage=False,
+            check_executability=False,
+        )
+
+        @agent_eval(monitor, task_type="planning", plan_tracking=cfg)
+        def agent(question, ground_truth=""):
+            return {"answer": "1. fetch data\n2. process data\n3. save results"}
+
+        agent("Plan the data pipeline", ground_truth="")
+        t = monitor.tasks[-1]
+        plan = (t.extra or {}).get("plan_coherence")
+        assert plan is not None, (
+            "dict answer 값의 번호 목록에서 steps 를 추출해야 하는데 plan_coherence=None"
+        )
+        assert plan.get("step_count", 0) == 3, f"3개 단계가 파싱되어야 함, got {plan.get('step_count')}"

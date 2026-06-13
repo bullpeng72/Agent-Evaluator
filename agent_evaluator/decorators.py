@@ -235,10 +235,81 @@ class LoopDetectionConfig:
     """
     consecutive_repeat_threshold: int = 3       # N회 연속 동일 도구 호출 시 루프 감지
     window_size: int = 5                         # 슬라이딩 윈도우 크기
-    duplicate_in_window_threshold: int = 2       # 윈도우 내 중복 도구 호출 허용 횟수
+    duplicate_in_window_threshold: int = 3       # 윈도우 내 중복 도구 호출 허용 횟수 (2는 정상 멀티스텝 에이전트에서 false positive 유발)
     check_response_loop: bool = False            # 응답 텍스트 루프 여부 추가 검사
     response_similarity_threshold: float = 0.95  # 응답 유사도 임계값 (check_response_loop=True 시)
     on_loop_detected: str = "record"             # "record"|"warn"|"fail"
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        _valid = {"record", "warn", "fail"}
+        if self.on_loop_detected not in _valid:
+            _w.warn(
+                f"LoopDetectionConfig: on_loop_detected={self.on_loop_detected!r} is not one of "
+                f"{sorted(_valid)}. Defaulting to 'record'.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.on_loop_detected = "record"
+        # B-17: threshold=0/1은 threshold=2와 동일하게 동작 — consecutive는 반복 분기 진입 시점에 이미 2
+        # consecutive_repeat_threshold < 2는 사용자 의도와 다르게 threshold=2로 작동하므로 보정
+        if self.consecutive_repeat_threshold < 2:
+            _w.warn(
+                f"LoopDetectionConfig: consecutive_repeat_threshold={self.consecutive_repeat_threshold} "
+                f"은 2 미만이므로 2로 보정됩니다. "
+                f"consecutive 카운터는 반복 발생 시점에 이미 2가 되어 0/1 임계값은 실질적으로 2와 동일하게 작동합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.consecutive_repeat_threshold = 2
+        if self.window_size < 2:
+            _w.warn(
+                f"LoopDetectionConfig: window_size={self.window_size} 은 2 미만이므로 2로 보정됩니다. "
+                f"크기 1 미만의 윈도우는 슬라이딩 중복 탐지에 의미가 없습니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.window_size = 2
+        # B-28: duplicate_in_window_threshold < 2 → count >= 1 조건이 항상 참이 되어
+        # 윈도우 내 모든 도구가 "window_duplicate" 루프로 오탐됨.
+        # 어떤 도구든 윈도우 내 최소 1번 등장하므로 threshold=1은 오탐을 유발한다.
+        if self.duplicate_in_window_threshold < 2:
+            _w.warn(
+                f"LoopDetectionConfig: duplicate_in_window_threshold={self.duplicate_in_window_threshold} "
+                f"< 2 이므로 2로 보정됩니다. "
+                f"count >= 1은 윈도우 내 어떤 도구에도 참이 되어 모든 도구가 window_duplicate로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.duplicate_in_window_threshold = 2
+        # B-35: duplicate_in_window_threshold > window_size → 윈도우 내 최대 count=window_size < threshold
+        # → count >= threshold가 절대 참이 될 수 없어 window_duplicate 탐지 영구 비활성화.
+        # 보정 대신 경고만 발행 (사용자가 의도적으로 threshold를 높여 window_dup을 비활성화할 수도 있으므로).
+        if self.duplicate_in_window_threshold > self.window_size:
+            _w.warn(
+                f"LoopDetectionConfig: duplicate_in_window_threshold={self.duplicate_in_window_threshold} "
+                f"> window_size={self.window_size} 이므로 window_duplicate 탐지가 영구 비활성화됩니다. "
+                f"크기 {self.window_size}의 윈도우에서 동일 도구의 최대 count는 {self.window_size}로 "
+                f"threshold를 절대 충족할 수 없습니다. "
+                f"window_dup 탐지를 활성화하려면 duplicate_in_window_threshold ≤ window_size로 설정하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
+        # B-26: response_similarity_threshold 범위 검증
+        # threshold=0.0 → similarity >= 0.0 항상 참 → 모든 응답 쌍이 루프로 탐지
+        # threshold>1.0 → similarity <= 1.0이므로 절대 탐지 불가
+        if self.check_response_loop:
+            if not (0.0 < self.response_similarity_threshold <= 1.0):
+                _corrected = max(0.01, min(1.0, self.response_similarity_threshold))
+                _w.warn(
+                    f"LoopDetectionConfig: response_similarity_threshold="
+                    f"{self.response_similarity_threshold} 은 (0, 1] 범위를 벗어납니다 "
+                    f"({_corrected:.2f}로 보정). "
+                    f"0.0이면 모든 응답이 루프로 탐지되고, 1.0 초과이면 동일 응답도 탐지되지 않습니다.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self.response_similarity_threshold = _corrected
 
 
 @dataclasses.dataclass
@@ -395,12 +466,27 @@ class StateConsistencyConfig:
     fail_on_unexpected_change: bool = False
 
     def __post_init__(self) -> None:
+        import warnings as _w
         if self.state_fn is None and (self.expected_changes or self.unchanged_keys):
-            import warnings
-            warnings.warn(
+            _w.warn(
                 "StateConsistencyConfig: expected_changes 또는 unchanged_keys가 설정되어 있지만 "
                 "state_fn=None이어서 상태 수집이 이루어지지 않습니다. "
                 "state_fn=lambda: {...} 를 지정하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
+        # B-23: unchanged_keys와 expected_changes에 동일한 key가 있으면 의미론 모순
+        # 같은 key에 대해 checks_total이 2번 카운트되어 consistency_score가 왜곡됨
+        # 예: unchanged_keys=['count'] + expected_changes={'count':1} →
+        #   count가 변경되면 invariant_violations 발생(불변 위반)과 동시에
+        #   expected change matched(기대 변화 일치)로 1패스/1실패 → score=0.5
+        _overlap = set(self.unchanged_keys) & set(self.expected_changes.keys())
+        if _overlap:
+            _w.warn(
+                f"StateConsistencyConfig: 다음 key가 unchanged_keys와 expected_changes 양쪽에 있습니다: "
+                f"{sorted(_overlap)}. unchanged_keys는 '변경 없음'을, expected_changes는 '변경 있음'을 "
+                f"기대하므로 서로 모순됩니다. 같은 key에 대해 checks_total이 2회 계산되어 "
+                f"consistency_score가 왜곡됩니다. 한쪽 목록에서 제거하세요.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -422,6 +508,48 @@ class DeadlockConfig:
     check_livelock: bool = False
     livelock_window: int = 6
     max_delegation_depth: int = 10
+    fail_on_deadlock: bool = False  # True: 교착 탐지 시 task_result.success=False 기록
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # B-32: starvation_threshold < 1 → count >= threshold 조건이 모든 호출에 참이 되어
+        # 단 1번 실패도 starvation으로 오탐. threshold는 "N회 이상 호출됐으나 성공 없음" 기준이므로
+        # 최소 1이어야 한다. 0 이하는 의미없는 값 — 1로 보정.
+        if self.check_starvation and self.starvation_threshold < 1:
+            _w.warn(
+                f"DeadlockConfig: starvation_threshold={self.starvation_threshold} < 1 이므로 "
+                f"1로 보정됩니다. "
+                f"starvation_threshold는 'N회 이상 호출되었으나 성공이 없을 때 starvation으로 판정'하는 "
+                f"최소 호출 횟수 기준입니다. 0 이하 값은 호출 여부와 무관하게 항상 orifitation을 유발합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.starvation_threshold = 1
+        # B-39: max_delegation_depth < 0 → delegation_depth(≥0) > max_depth(<0) 항상 참
+        # → 위임이 없어도 (delegation_depth=0 > -1=True) 항상 depth_exceeded=True 오탐
+        if self.max_delegation_depth < 0:
+            _w.warn(
+                f"DeadlockConfig: max_delegation_depth={self.max_delegation_depth} < 0 이므로 "
+                f"기본값 10으로 보정됩니다. "
+                f"음수 depth는 delegation_depth(≥0) > max_depth(<0)를 항상 참으로 만들어 "
+                f"위임이 없는 태스크도 deadlock_type=depth_exceeded로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.max_delegation_depth = 10
+        # B-24: livelock 탐지 루프는 range(2, window//2+1)로 주기 p를 순회
+        # 최소 주기 p=2를 탐지하려면 window >= 4 필요 (range(2,3) 이상)
+        # window=2,3 → range(2,2)=[] → 탐지 루프 비실행 → check_livelock=True여도 항상 미탐지
+        if self.check_livelock and self.livelock_window < 4:
+            import warnings as _w
+            _w.warn(
+                f"DeadlockConfig: check_livelock=True이지만 livelock_window={self.livelock_window} < 4 이므로 "
+                f"4로 보정됩니다. livelock 탐지는 최소 주기 p=2를 찾기 위해 window >= 4 가 필요합니다 "
+                f"(range(2, window//2+1) 가 비어 있으면 어떤 패턴도 탐지되지 않습니다).",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.livelock_window = 4
 
 
 @dataclasses.dataclass
@@ -485,15 +613,53 @@ class ScopeConfig:
     violation_penalty: float = 0.2  # 위반 1건당 penalty (forbidden/out_of_scope/excess)
 
     def __post_init__(self) -> None:
+        import warnings as _w
+        # B-34: allowed_tools=None / forbidden_tools=None → set(None) → TypeError 크래시
+        # default_factory=list가 기본이지만 명시적으로 None을 전달하면 발생.
+        # None은 "제한 없음(빈 리스트)"으로 정규화한다.
+        if self.allowed_tools is None:
+            self.allowed_tools = []
+        if self.forbidden_tools is None:
+            self.forbidden_tools = []
         overlap = set(self.allowed_tools) & set(self.forbidden_tools)
         if overlap:
-            import warnings
-            warnings.warn(
+            _w.warn(
                 f"ScopeConfig: tools appear in both allowed_tools and forbidden_tools: {sorted(overlap)}. "
                 "They will be treated as forbidden.",
                 UserWarning,
                 stacklevel=2,
             )
+        # B-36: max_tool_calls < 0 → excess_calls = len - negative → 부풀린 값 (len+|limit|)
+        # 예: max_tool_calls=-1, 1 call → excess_calls=2 (실제로는 초과 없음)
+        # 음수 한계는 의미 없으므로 None으로 보정해 검사 비활성화.
+        if self.max_tool_calls is not None and self.max_tool_calls < 0:
+            _w.warn(
+                f"ScopeConfig: max_tool_calls={self.max_tool_calls} < 0 이므로 None으로 보정됩니다. "
+                f"음수 한계는 excess_calls를 의도치 않게 부풀립니다 "
+                f"(excess = len(calls) - max = len + {abs(self.max_tool_calls)}). "
+                f"제한 없음으로 처리하려면 None을 사용하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.max_tool_calls = None
+        if self.max_unique_tools is not None and self.max_unique_tools < 0:
+            _w.warn(
+                f"ScopeConfig: max_unique_tools={self.max_unique_tools} < 0 이므로 None으로 보정됩니다. "
+                f"음수 한계는 excess_unique를 의도치 않게 부풀립니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.max_unique_tools = None
+        # B-25: violation_penalty < 0 → scope_score = max(0, 1 - count×음수) > 1.0 → Gate B 집계 왜곡
+        # ToolParameterSafetyConfig(B-22)와 동일 패턴으로 검증 통일
+        if self.violation_penalty <= 0:
+            _w.warn(
+                f"ScopeConfig: violation_penalty={self.violation_penalty} ≤ 0 이므로 "
+                f"기본값 0.2로 보정됩니다. 음수 penalty는 scope_score > 1.0을 만들어 Gate B 집계를 왜곡시킵니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.violation_penalty = 0.2
 
 
 @dataclasses.dataclass
@@ -707,6 +873,61 @@ class ToolParameterSafetyConfig:
     fail_on_dangerous: bool = False
     violation_penalty: float = 0.25  # 위험 도구 1개당 penalty (IdempotencyConfig.non_idempotent_penalty와 동일 역할)
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # B-22: violation_penalty < 0 → safety_score = max(0, 1 - penalty) > 1.0 → Gate B 집계 왜곡
+        # penalty는 "감점 비율"이므로 0 초과여야 의미 있음; 0이면 위험 도구 감지 불능
+        if self.violation_penalty <= 0:
+            _w.warn(
+                f"ToolParameterSafetyConfig: violation_penalty={self.violation_penalty} ≤ 0 이므로 "
+                f"기본값 0.25로 보정됩니다. 음수 penalty는 safety_score > 1.0을 만들어 Gate B 집계를 왜곡시킵니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.violation_penalty = 0.25
+        if self.max_argument_length <= 0:
+            _w.warn(
+                f"ToolParameterSafetyConfig: max_argument_length={self.max_argument_length} ≤ 0 이므로 "
+                f"기본값 2000으로 보정됩니다. 0 이하 값은 모든 비빈 인자를 'arg_too_long'으로 처리합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.max_argument_length = 2000
+        # B-45: dangerous_patterns에 빈 문자열("")이 있으면 re.search("", any_str)가 항상 매치됨
+        # → 모든 도구 호출이 "dangerous"로 표시되어 safety_score가 의도치 않게 급락
+        # B-46: dangerous_patterns에 None이 있으면 re.search(None, str) → TypeError
+        # → 외부 try/except Exception이 TypeError를 삼켜 평가 전체가 묵살됨
+        # 두 경우 모두 정규식으로 유효하지 않은 항목이므로 UserWarning 후 목록에서 제거한다.
+        _bad_patterns = [p for p in (self.dangerous_patterns or []) if not isinstance(p, str) or not p.strip()]
+        if _bad_patterns:
+            _w.warn(
+                f"ToolParameterSafetyConfig: dangerous_patterns에 빈 문자열 또는 None 항목이 있습니다: "
+                f"{_bad_patterns!r}. 해당 항목을 제거합니다. "
+                f"빈 문자열은 re.search('', str)이 항상 매치되어 모든 도구 호출을 위험으로 표시하고, "
+                f"None은 TypeError를 유발해 안전성 평가 전체가 묵살됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.dangerous_patterns = [p for p in (self.dangerous_patterns or []) if isinstance(p, str) and p.strip()]
+        # B-50: tool_schemas spec 값이 dict가 아니면 eval에서 TypeError → 평가 전체 묵살.
+        # __post_init__에서 조기 경고하여 사용자가 설정 오류를 빠르게 발견하도록 한다.
+        _bad_specs = [
+            f"{tool!r}.{param!r}"
+            for tool, schema in (self.tool_schemas or {}).items()
+            if isinstance(schema, dict)
+            for param, spec in schema.items()
+            if not isinstance(spec, dict)
+        ]
+        if _bad_specs:
+            _w.warn(
+                f"ToolParameterSafetyConfig: tool_schemas의 파라미터 spec이 dict가 아닙니다: "
+                f"{_bad_specs}. "
+                f"올바른 형식: {{\"type\": \"int\", \"min\": 0, \"max\": 100}}. "
+                f"잘못된 spec은 평가 시 건너뜁니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+
 
 @dataclasses.dataclass
 class KnowledgeRetentionConfig:
@@ -880,12 +1101,151 @@ class ContextWindowConfig:
     repetition_threshold: int = 3
     min_information_density: float = 0.3
     repetition_penalty_factor: float = 2.0  # 반복 비율 × 이 값이 감점 (기본 2.0: 50% 반복 시 score=0)
+    # combined score 가중치 (합계가 1.0이 아니면 자동 정규화)
+    saturation_weight: float = 0.5   # 포화도 가중치
+    repetition_weight: float = 0.3   # 반복 패턴 가중치
+    density_weight: float = 0.2      # 정보 밀도 가중치
 
     def __post_init__(self) -> None:
+        import warnings as _w
+        # B-37: warn_at_pct > 1.0 / saturated_at_pct > 1.0 → utilization(=tokens/window)은 정상 사용 시
+        # 0–1 범위이므로 임계값이 1.0을 크게 초과하면 포화 경고/탐지가 영구 비활성화됨.
+        # 예: warn_at_pct=75 (0-100% 범위로 착각) → utilization ≈ 0.004 << 75 → 절대 미발동.
+        if self.warn_at_pct > 1.0:
+            _w.warn(
+                f"ContextWindowConfig: warn_at_pct={self.warn_at_pct} > 1.0 이므로 "
+                f"기본값 0.7로 보정됩니다. "
+                f"warn_at_pct는 컨텍스트 창 사용률 분율(0–1)입니다 — 퍼센트(0–100)가 아닙니다. "
+                f"1.0 초과 값은 정상 사용 범위(utilization ≤ 1.0)에서 절대 발동되지 않아 "
+                f"포화 경고가 영구 비활성화됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.warn_at_pct = 0.7
+        if self.saturated_at_pct > 1.0:
+            _w.warn(
+                f"ContextWindowConfig: saturated_at_pct={self.saturated_at_pct} > 1.0 이므로 "
+                f"기본값 0.9로 보정됩니다. "
+                f"saturated_at_pct는 컨텍스트 창 사용률 분율(0–1)입니다 — 퍼센트(0–100)가 아닙니다. "
+                f"1.0 초과 값은 정상 사용 범위에서 절대 발동되지 않아 포화 탐지가 영구 비활성화됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.saturated_at_pct = 0.9
+        # B-47a: warn_at_pct < 0.0 → 음수 warning 임계값은 utilization(≥0)이 항상 초과
+        # → 0% 사용률도 warning 영역에 진입해 saturation_score < 1.0으로 과도한 패널티 발생.
+        # 예: warn=-0.3, sat=0.5 → 10% 사용률에서 score=0.25 (정상이면 ~1.0이어야 함).
+        if self.warn_at_pct < 0.0:
+            _w.warn(
+                f"ContextWindowConfig: warn_at_pct={self.warn_at_pct} < 0 이므로 0.0으로 보정됩니다. "
+                f"음수 warn_at_pct는 utilization(0 이상)이 항상 warning 영역에 진입하게 만들어 "
+                f"0% 사용률에서도 saturation_score < 1.0으로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.warn_at_pct = 0.0
+        # B-47b: saturated_at_pct <= 0.0 → utilization(≥0)이 항상 포화 임계값 이상
+        # → 1 token만 사용해도 is_saturated=True 오탐.
+        # 예: sat=-0.2 → utilization=0.00008 > -0.2 → 항상 saturation_score=0.0.
+        if self.saturated_at_pct <= 0.0:
+            _w.warn(
+                f"ContextWindowConfig: saturated_at_pct={self.saturated_at_pct} ≤ 0 이므로 "
+                f"기본값 0.9로 보정됩니다. "
+                f"0 이하 포화 임계값은 모든 utilization(≥0)을 항상 saturated로 만들어 "
+                f"모든 태스크가 is_saturated=True로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.saturated_at_pct = 0.9
+        # B-37/B-47 보정 후 순서 무결성 검사 (warn < saturated 보장)
         if self.warn_at_pct >= self.saturated_at_pct:
             raise ValueError(
                 f"ContextWindowConfig: warn_at_pct ({self.warn_at_pct}) must be "
                 f"< saturated_at_pct ({self.saturated_at_pct})"
+            )
+        # B-31: window_size_tokens ≤ 0 → eval_context_window에서 max(window_size_tokens, 1)=1로 대체
+        # → utilization = tokens/1 (매우 큰 값) → is_saturated=True 항상 오탐
+        # → window_utilization이 실제 비율이 아닌 절대 토큰 수로 표시됨
+        if self.window_size_tokens <= 0:
+            _w.warn(
+                f"ContextWindowConfig: window_size_tokens={self.window_size_tokens} ≤ 0 이므로 "
+                f"기본값 128000으로 보정됩니다. "
+                f"0 이하 값은 eval_context_window에서 분모가 1로 대체되어 "
+                f"모든 입력이 항상 is_saturated=True로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.window_size_tokens = 128000
+        # B-29: min_information_density > 1.0 → word-level density = unique/total ≤ 1.0 이므로
+        # density_ok가 항상 False가 되어 모든 응답이 "정보 밀도 부족"으로 오탐됨.
+        if self.min_information_density > 1.0:
+            _w.warn(
+                f"ContextWindowConfig: min_information_density={self.min_information_density} > 1.0 이므로 "
+                f"1.0으로 보정됩니다. "
+                f"단어 수준 정보 밀도(unique_words/total_words)는 항상 ≤ 1.0이므로 "
+                f"이 값을 초과하면 모든 응답이 '밀도 부족'으로 오탐됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.min_information_density = 1.0
+        elif self.min_information_density <= 0.0:
+            _w.warn(
+                f"ContextWindowConfig: min_information_density={self.min_information_density} ≤ 0 이므로 "
+                f"기본값 0.3으로 보정됩니다. "
+                f"0 이하 값은 모든 응답이 '밀도 충분'으로 간주되어 탐지가 비활성화됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.min_information_density = 0.3
+        # B-19: repetition_threshold < 2 → 모든 n-gram이 "반복"으로 집계되어 repetition_score=0.0 고정
+        # n-gram count는 항상 >= 1이므로 threshold=1은 "2번 이상 등장" 기준과 동일하게 작동해야 하는
+        # threshold=2와 구별되지 않음. 최소 2로 보정해 의미론 일관성 보장.
+        if self.repetition_threshold < 2:
+            _w.warn(
+                f"ContextWindowConfig: repetition_threshold={self.repetition_threshold} "
+                f"< 2 이므로 2로 보정됩니다. 1 이하 임계값은 모든 4-gram을 '반복'으로 간주해 "
+                f"repetition_score를 항상 0.0으로 만듭니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.repetition_threshold = 2
+        # B-40: repetition_penalty_factor <= 0 → repetition_score > 1.0 (음수) 또는 탐지 비활성화 (0)
+        # 음수 factor: 1.0 - ratio*neg = 1.0 + positive > 1.0 → max(0.0, ...) 가 1.0 초과를 막지 못함 → Gate B 집계 왜곡
+        # 0: 1.0 - ratio*0 = 1.0 항상 → 반복 아무리 많아도 repetition_score=1.0 → 탐지 비활성화
+        if self.repetition_penalty_factor <= 0.0:
+            _w.warn(
+                f"ContextWindowConfig: repetition_penalty_factor={self.repetition_penalty_factor} ≤ 0 이므로 "
+                f"기본값 2.0으로 보정됩니다. "
+                f"0은 반복 탐지를 영구 비활성화하고, 음수는 repetition_score > 1.0을 만들어 "
+                f"context_window_score가 1.0을 초과해 Gate B 집계를 왜곡시킵니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.repetition_penalty_factor = 2.0
+        # B-41: 개별 음수 가중치 → combined score < 0 또는 의미론 반전
+        # 음수 saturation_weight: 포화 상태(saturation_score=0.0)가 오히려 점수를 높이는 역설 발생
+        # max(0.0, combined)가 없으므로 음수 combined가 그대로 context_window_score로 저장됨 → Gate B 오염
+        for _wname, _wval, _wdefault in [
+            ("saturation_weight", self.saturation_weight, 0.5),
+            ("repetition_weight", self.repetition_weight, 0.3),
+            ("density_weight", self.density_weight, 0.2),
+        ]:
+            if _wval < 0.0:
+                _w.warn(
+                    f"ContextWindowConfig: {_wname}={_wval} < 0 이므로 기본값 {_wdefault}로 보정됩니다. "
+                    f"음수 가중치는 해당 지표의 페널티를 보너스로 반전시켜 context_window_score를 왜곡시킵니다.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                setattr(self, _wname, _wdefault)
+        _total_w = self.saturation_weight + self.repetition_weight + self.density_weight
+        if _total_w <= 0:
+            raise ValueError("ContextWindowConfig: saturation_weight + repetition_weight + density_weight must be > 0")
+        if abs(_total_w - 1.0) > 1e-6:
+            _w.warn(
+                f"ContextWindowConfig: weights sum to {_total_w:.4f} (not 1.0) — will be auto-normalized.",
+                UserWarning,
+                stacklevel=2,
             )
 
 
@@ -4218,7 +4578,7 @@ def _build_and_record(
         if instructions is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_instruction_adherence
-                _raw_response = str(raw_result) if raw_result is not None else ""
+                _raw_response = task_result.response or ""
                 _instr_result = eval_instruction_adherence(_raw_response, instructions)
                 _p1_extra["instruction_adherence"] = _instr_result
                 # fail_on_violation=True → success=False
@@ -4299,7 +4659,7 @@ def _build_and_record(
         if plan_tracking is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_plan_coherence
-                _raw_response = str(raw_result) if raw_result is not None else ""
+                _raw_response = task_result.response or ""
                 _plan_result = eval_plan_coherence(_raw_response, question, plan_tracking)
                 if _plan_result is not None:
                     _p1_extra["plan_coherence"] = _plan_result
@@ -4382,10 +4742,8 @@ def _build_and_record(
                 )
                 if _sc_result is not None:
                     _harness_extra["state_consistency"] = _sc_result
-                    if (
-                        getattr(state_consistency, "fail_on_unexpected_change", False)
-                        and (_sc_result.get("unexpected_changes") or _sc_result.get("invariant_violations"))
-                    ):
+                    # B-15: eval_state_consistency가 반환한 "failed" 키를 직접 사용 — 이중 조건 계산 제거
+                    if _sc_result.get("failed"):
                         task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
                 logger.debug("StateConsistencyConfig evaluation failed (ignored): %s", _e)
@@ -4400,6 +4758,8 @@ def _build_and_record(
                     deadlock,
                 )
                 _harness_extra["deadlock"] = _dl_result
+                if getattr(deadlock, "fail_on_deadlock", False) and _dl_result.get("deadlock_detected"):
+                    task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
                 logger.debug("DeadlockConfig evaluation failed (ignored): %s", _e)
 
@@ -4444,11 +4804,26 @@ def _build_and_record(
                 _scope_result = eval_scope(task_result.tool_calls, scope)
                 _p3_extra["scope"] = _scope_result
                 if scope.fail_on_violation and not _scope_result["in_scope"]:
-                    raise ValueError(f"Scope violation: {_scope_result['violations']}")
-            except ValueError:
-                raise
+                    task_result = dataclasses.replace(task_result, success=False)
             except Exception as _e:
                 logger.debug("ScopeConfig evaluation failed (ignored): %s", _e)
+
+        # B-11: ScopeConfig(Gate B)와 AgentRoleConfig(Gate F)가 동일 tool 목록을 정의하면 이중 페널티 발생
+        if scope is not None and agent_role is not None:
+            _sc_allowed = set(getattr(scope, "allowed_tools", []) or [])
+            _sc_forbidden = set(getattr(scope, "forbidden_tools", []) or [])
+            _ar_allowed = set(getattr(agent_role, "allowed_tools", []) or [])
+            _ar_forbidden = set(getattr(agent_role, "forbidden_tools", []) or [])
+            _ov_allowed = _sc_allowed & _ar_allowed
+            _ov_forbidden = _sc_forbidden & _ar_forbidden
+            if _ov_allowed or _ov_forbidden:
+                logger.warning(
+                    "ScopeConfig(Gate B)와 AgentRoleConfig(Gate F)에 동일한 tool 목록이 중복 정의되어 "
+                    "같은 위반이 Gate B와 Gate F 양쪽에 페널티로 반영됩니다. "
+                    "allowed 중복: %s / forbidden 중복: %s",
+                    sorted(_ov_allowed) or "없음",
+                    sorted(_ov_forbidden) or "없음",
+                )
 
         if context_retention is not None:
             try:
@@ -4670,16 +5045,22 @@ def _build_and_record(
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_context_window
                 _tok_dict = task_result.tokens_used or {}
-                _total_tok = (
-                    int(_tok_dict.get("total") or _tok_dict.get("input", 0) + _tok_dict.get("output", 0))
-                    if isinstance(_tok_dict, dict)
-                    else int(_tok_dict or 0)
-                )
-                _p6_extra["context_window"] = eval_context_window(
-                    task_result.response,
-                    _total_tok,
-                    context_window,
-                )
+                if isinstance(_tok_dict, dict):
+                    # B-6: is not None 체크 필수 — total=0이 falsy로 처리되어 input+output으로 대체되는 것 방지
+                    _raw_total = _tok_dict.get("total")
+                    _total_tok = (
+                        int(_raw_total) if _raw_total is not None
+                        else int(_tok_dict.get("input", 0) + _tok_dict.get("output", 0))
+                    )
+                else:
+                    _total_tok = int(_tok_dict or 0)
+                # B-5: 토큰 데이터 없으면 평가 생략 — _total_tok=0이 saturation_score=1.0으로 Gate B를 인플레이션
+                if _total_tok > 0:
+                    _p6_extra["context_window"] = eval_context_window(
+                        task_result.response,
+                        _total_tok,
+                        context_window,
+                    )
             except Exception as _e:
                 logger.debug("ContextWindowConfig evaluation failed (ignored): %s", _e)
 
