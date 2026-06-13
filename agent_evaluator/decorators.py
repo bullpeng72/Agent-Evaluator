@@ -410,6 +410,32 @@ class SLAConfig:
     budget_usd: Optional[float] = None
     token_limit: Optional[int] = None          # 태스크당 최대 허용 토큰 수 (None = 제한 없음)
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-10: 음수 SLA 임계값은 모든 태스크가 breach로 처리돼 Gate C를 0에 수렴시킴
+        if self.p95_ms < 0:
+            _w.warn(
+                f"SLAConfig: p95_ms={self.p95_ms} < 0 이므로 기본값 5000.0으로 보정됩니다. "
+                f"음수 SLA 임계값은 모든 태스크가 breach로 처리되어 Gate C를 0에 수렴시킵니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.p95_ms = 5000.0
+        if self.p99_ms < 0:
+            _w.warn(
+                f"SLAConfig: p99_ms={self.p99_ms} < 0 이므로 기본값 10000.0으로 보정됩니다. "
+                f"음수 SLA 임계값은 모든 태스크가 breach로 처리되어 Gate C를 0에 수렴시킵니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.p99_ms = 10000.0
+        # warn_threshold >= fail_threshold이면 경고 단계가 항상 실패로 처리됨
+        if self.warn_threshold >= self.fail_threshold:
+            _w.warn(
+                f"SLAConfig: warn_threshold={self.warn_threshold} >= "
+                f"fail_threshold={self.fail_threshold}. "
+                f"warn_threshold는 fail_threshold보다 작아야 합니다.",
+                UserWarning, stacklevel=2,
+            )
+
 
 @dataclasses.dataclass
 class ThreatSeverityConfig:
@@ -446,7 +472,7 @@ class EfficiencyConfig:
 
 @dataclasses.dataclass
 class StateConsistencyConfig:
-    """실행 전후 상태 일관성 검증 설정.
+    """실행 전후 상태 일관성 검증 설정 (Gate B — Behavioral Integrity).
 
     ``state_fn`` 은 실행 전후 각각 한 번씩 호출되어 현재 시스템 상태 딕셔너리를 반환해야 한다.
 
@@ -494,7 +520,7 @@ class StateConsistencyConfig:
 
 @dataclasses.dataclass
 class DeadlockConfig:
-    """다중 에이전트 교착(Deadlock) 탐지 설정.
+    """다중 에이전트 교착(Deadlock) 탐지 설정 (Gate B — Behavioral Integrity).
 
     Example::
 
@@ -1123,7 +1149,7 @@ class ThreatResponseConfig:
 
 @dataclasses.dataclass
 class ContextWindowConfig:
-    """컨텍스트 윈도우 활용 평가 설정 (Group B — Behavioral Integrity).
+    """컨텍스트 윈도우 활용 평가 설정 (Gate B — Behavioral Integrity).
 
     토큰 포화도, 반복 패턴, 정보 밀도를 측정하여 응답 품질을 평가한다.
 

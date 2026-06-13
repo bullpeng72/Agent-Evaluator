@@ -2116,3 +2116,304 @@ class TestReproducibilityMeasureValidation:
         assert result_invalid["score"] == pytest.approx(result_token_f1["score"]), (
             "잘못된 measure 폴백 결과가 token_f1 결과와 달라야 하지 않음"
         )
+
+
+# ===========================================================================
+# Section 15 — R39 BUG-C5 / BUG-C9 / BUG-C10 회귀 테스트
+# ===========================================================================
+
+import warnings as _w15
+
+from agent_evaluator.decorators import FaultToleranceConfig, SLAConfig
+from agent_evaluator.helpers.taskresult_helpers import (
+    eval_fault_tolerance,
+    eval_graceful_degradation,
+)
+
+
+class TestFaultToleranceWrongFallbackProportional:
+    """BUG-C5 회귀: wrong_fallback 비율 비례 점수 (이분법 제거)."""
+
+    def _make_cfg(self, expected: dict = None):
+        return FaultToleranceConfig(
+            expected_fallback_tools=expected or {},
+            score_recovery_quality=True,
+            partial_success_threshold=0.5,
+        )
+
+    def _make_tool_calls(self, pairs):
+        """pairs: [(failed_name, fallback_name, fallback_success), ...]"""
+        calls = []
+        for failed_name, fallback_name, fallback_success in pairs:
+            calls.append({"name": failed_name, "success": False})
+            calls.append({"name": fallback_name, "success": fallback_success})
+        return calls
+
+    def test_all_wrong_fallbacks_yields_02(self):
+        # 10회 폴백 모두 잘못된 도구 → wrong_rate=1.0 → score=0.2 (기존 이분법과 동일)
+        pairs = [("search", "wrong_tool", True)] * 5
+        cfg = self._make_cfg(expected={"search": ["correct_tool"]})
+        tool_calls = self._make_tool_calls(pairs)
+        result = eval_fault_tolerance(tool_calls, cfg)
+        assert result["grade"] == "wrong_fallback"
+        score = result.get("recovery_quality_score", None)
+        assert score is not None, "recovery_quality_score가 반환돼야 함"
+        assert score == pytest.approx(0.2, abs=0.01), (
+            f"all wrong → score=0.2 기대, got {score}"
+        )
+
+    def test_one_wrong_out_of_ten_blended_score(self):
+        # 10회 폴백 중 1회 잘못됨 → wrong_rate=0.1
+        # blended = 0.9 × recovery_rate + 0.1 × 0.2
+        # recovery_rate = 9/10 = 0.9 (잘못된 폴백 제외한 성공 폴백)
+        # blended ≈ 0.9 × 0.9 + 0.1 × 0.2 = 0.81 + 0.02 = 0.83
+        cfg = self._make_cfg(expected={"search": ["correct_tool"]})
+        tool_calls = []
+        # 9회 올바른 폴백 (성공)
+        for _ in range(9):
+            tool_calls.append({"name": "search", "success": False})
+            tool_calls.append({"name": "correct_tool", "success": True})
+        # 1회 잘못된 폴백
+        tool_calls.append({"name": "search", "success": False})
+        tool_calls.append({"name": "wrong_tool", "success": True})
+        result = eval_fault_tolerance(tool_calls, cfg)
+        assert result["grade"] == "wrong_fallback"
+        score = result.get("recovery_quality_score", None)
+        assert score is not None
+        # 기존 이분법(0.2)보다 훨씬 높아야 함
+        assert score > 0.5, (
+            f"10회 중 1회 wrong → score>0.5 기대 (비례 채점), got {score}"
+        )
+
+    def test_partial_wrong_score_between_02_and_full(self):
+        # 2회 폴백 중 1회 잘못됨 → score가 0.2~1.0 사이여야 함
+        cfg = self._make_cfg(expected={"tool_a": ["good_tool"]})
+        tool_calls = [
+            {"name": "tool_a", "success": False},
+            {"name": "good_tool", "success": True},
+            {"name": "tool_a", "success": False},
+            {"name": "bad_tool", "success": True},
+        ]
+        result = eval_fault_tolerance(tool_calls, cfg)
+        assert result["grade"] == "wrong_fallback"
+        score = result.get("recovery_quality_score", 0.0)
+        assert 0.2 < score < 1.0, (
+            f"부분 wrong → 0.2 < score < 1.0 기대, got {score}"
+        )
+
+    def test_wrong_fallback_rate_field_present(self):
+        # wrong_fallback_rate 필드가 result에 포함되어야 함
+        cfg = self._make_cfg(expected={"x": ["y"]})
+        tool_calls = [
+            {"name": "x", "success": False},
+            {"name": "z", "success": True},
+        ]
+        result = eval_fault_tolerance(tool_calls, cfg)
+        assert "wrong_fallback_rate" in result, (
+            "wrong_fallback_rate 필드가 result에 포함되어야 함"
+        )
+        assert result["wrong_fallback_rate"] == pytest.approx(1.0), (
+            "1회 중 1회 잘못 → wrong_fallback_rate=1.0"
+        )
+
+    def test_no_wrong_fallbacks_score_is_grade_based(self):
+        # 올바른 폴백만 있으면 grade="good" → score=1.0
+        cfg = self._make_cfg(expected={"search": ["backup_search"]})
+        tool_calls = [
+            {"name": "search", "success": False},
+            {"name": "backup_search", "success": True},
+        ]
+        result = eval_fault_tolerance(tool_calls, cfg)
+        assert result["grade"] in ("good", "partial")
+        score = result.get("recovery_quality_score", None)
+        assert score is not None
+        assert score >= 0.5, "올바른 폴백만 있으면 score >= 0.5"
+
+
+class TestGracefulDegradationPartialSelfReported:
+    """BUG-C9 회귀: has_error=False + partial marker → partial_self_reported mode."""
+
+    def _make_cfg(self, markers=None, quality_floor=0.3):
+        return GracefulDegradationConfig(
+            quality_floor=quality_floor,
+            partial_result_markers=markers or ["부분적으로", "partial", "incomplete"],
+            detect_timeout_fallback=False,
+        )
+
+    def test_no_error_partial_marker_mode_is_partial_self_reported(self):
+        # has_error=False, 응답에 "부분적으로" 포함 → mode="partial_self_reported"
+        cfg = self._make_cfg()
+        result = eval_graceful_degradation(
+            response="부분적으로 완료했습니다. 일부 데이터를 반환합니다.",
+            tool_calls=[],
+            has_error=False,
+            execution_time=100.0,
+            config=cfg,
+        )
+        assert result["mode"] == "partial_self_reported", (
+            f"has_error=False + partial marker → mode='partial_self_reported' 기대, got {result['mode']}"
+        )
+
+    def test_no_error_partial_marker_score_is_07(self):
+        cfg = self._make_cfg()
+        result = eval_graceful_degradation(
+            response="This is a partial result only.",
+            tool_calls=[],
+            has_error=False,
+            execution_time=50.0,
+            config=cfg,
+        )
+        assert result["degradation_score"] == pytest.approx(0.7, abs=0.01), (
+            f"partial_self_reported 점수=0.7 기대, got {result['degradation_score']}"
+        )
+
+    def test_no_error_no_partial_marker_is_normal(self):
+        # partial marker 없으면 normal mode (1.0)
+        cfg = self._make_cfg()
+        result = eval_graceful_degradation(
+            response="완전히 완료되었습니다.",
+            tool_calls=[],
+            has_error=False,
+            execution_time=50.0,
+            config=cfg,
+        )
+        assert result["mode"] == "normal"
+        assert result["degradation_score"] == pytest.approx(1.0)
+
+    def test_with_error_partial_marker_is_partial_not_self_reported(self):
+        # has_error=True + partial → mode="partial" (0.6), partial_self_reported(0.7) 아님
+        cfg = self._make_cfg()
+        result = eval_graceful_degradation(
+            response="부분적으로 완료, 오류 발생.",
+            tool_calls=[],
+            has_error=True,
+            execution_time=50.0,
+            config=cfg,
+        )
+        assert result["mode"] == "partial", (
+            f"has_error=True + partial marker → mode='partial' 기대, got {result['mode']}"
+        )
+        assert result["degradation_score"] == pytest.approx(0.6, abs=0.01)
+
+    def test_partial_self_reported_respects_quality_floor(self):
+        # quality_floor=0.8 → partial_self_reported score=max(0.8, 0.7)=0.8
+        cfg = self._make_cfg(quality_floor=0.8)
+        result = eval_graceful_degradation(
+            response="partial result returned.",
+            tool_calls=[],
+            has_error=False,
+            execution_time=50.0,
+            config=cfg,
+        )
+        assert result["mode"] == "partial_self_reported"
+        assert result["degradation_score"] == pytest.approx(0.8, abs=0.01), (
+            f"quality_floor=0.8 → score=0.8 기대, got {result['degradation_score']}"
+        )
+
+    def test_partial_self_reported_score_between_partial_and_normal(self):
+        # partial_self_reported(0.7) > has_error+partial(0.6), < normal(1.0)
+        cfg = self._make_cfg()
+        result_self = eval_graceful_degradation(
+            "incomplete response", [], False, 50.0, cfg
+        )
+        result_error = eval_graceful_degradation(
+            "incomplete error response", [], True, 50.0, cfg
+        )
+        result_normal = eval_graceful_degradation("complete response", [], False, 50.0, cfg)
+        score_self = result_self["degradation_score"]
+        score_error = result_error["degradation_score"]
+        score_normal = result_normal["degradation_score"]
+        assert score_error < score_self < score_normal, (
+            f"점수 순서: error({score_error}) < self({score_self}) < normal({score_normal}) 기대"
+        )
+
+
+class TestSLAConfigValidation:
+    """BUG-C10 회귀: SLAConfig 음수 임계값·threshold 순서 검증."""
+
+    def test_negative_p95_emits_warning_and_defaults(self):
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            cfg = SLAConfig(p95_ms=-100.0)
+        assert any("p95_ms" in str(warning.message) for warning in w), (
+            "p95_ms < 0 → UserWarning 발생해야 함"
+        )
+        assert cfg.p95_ms == pytest.approx(5000.0), (
+            f"p95_ms=-100 → 기본값 5000.0으로 보정 기대, got {cfg.p95_ms}"
+        )
+
+    def test_negative_p99_emits_warning_and_defaults(self):
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            cfg = SLAConfig(p99_ms=-500.0)
+        assert any("p99_ms" in str(warning.message) for warning in w), (
+            "p99_ms < 0 → UserWarning 발생해야 함"
+        )
+        assert cfg.p99_ms == pytest.approx(10000.0), (
+            f"p99_ms=-500 → 기본값 10000.0으로 보정 기대, got {cfg.p99_ms}"
+        )
+
+    def test_both_negative_emit_two_warnings(self):
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            cfg = SLAConfig(p95_ms=-1.0, p99_ms=-1.0)
+        sla_warnings = [warning for warning in w if issubclass(warning.category, UserWarning)]
+        assert len(sla_warnings) >= 2, (
+            f"p95_ms와 p99_ms 둘 다 음수 → 경고 2개 이상 기대, got {len(sla_warnings)}"
+        )
+        assert cfg.p95_ms == pytest.approx(5000.0)
+        assert cfg.p99_ms == pytest.approx(10000.0)
+
+    def test_valid_positive_values_no_warning(self):
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            cfg = SLAConfig(p95_ms=3000.0, p99_ms=6000.0)
+        sla_warnings = [
+            warning for warning in w
+            if issubclass(warning.category, UserWarning)
+            and "SLAConfig" in str(warning.message)
+        ]
+        assert not sla_warnings, "유효한 양수 값에서 SLAConfig UserWarning 없어야 함"
+        assert cfg.p95_ms == pytest.approx(3000.0)
+
+    def test_warn_threshold_eq_fail_threshold_emits_warning(self):
+        # warn_threshold == fail_threshold → UserWarning
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            SLAConfig(warn_threshold=5, fail_threshold=5)
+        assert any("warn_threshold" in str(warning.message) for warning in w), (
+            "warn_threshold==fail_threshold → UserWarning 발생해야 함"
+        )
+
+    def test_warn_threshold_gt_fail_threshold_emits_warning(self):
+        # warn_threshold > fail_threshold → UserWarning
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            SLAConfig(warn_threshold=8, fail_threshold=5)
+        assert any("warn_threshold" in str(warning.message) for warning in w), (
+            "warn_threshold > fail_threshold → UserWarning 발생해야 함"
+        )
+
+    def test_valid_threshold_ordering_no_warning(self):
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            SLAConfig(warn_threshold=2, fail_threshold=5)
+        sla_warnings = [
+            warning for warning in w
+            if issubclass(warning.category, UserWarning)
+            and "warn_threshold" in str(warning.message)
+        ]
+        assert not sla_warnings, "warn_threshold < fail_threshold → threshold 경고 없어야 함"
+
+    def test_zero_p95_no_warning(self):
+        # p95_ms=0.0은 음수가 아니므로 경고 없어야 함
+        with _w15.catch_warnings(record=True) as w:
+            _w15.simplefilter("always")
+            cfg = SLAConfig(p95_ms=0.0)
+        p95_warnings = [
+            warning for warning in w
+            if issubclass(warning.category, UserWarning)
+            and "p95_ms" in str(warning.message)
+        ]
+        assert not p95_warnings, "p95_ms=0.0은 음수 아님 → 경고 없어야 함"
+        assert cfg.p95_ms == pytest.approx(0.0)

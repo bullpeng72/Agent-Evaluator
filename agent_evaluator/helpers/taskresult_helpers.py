@@ -1695,8 +1695,19 @@ def eval_fault_tolerance(
         result_dict["wrong_fallbacks"] = wrong_fallbacks
     # score_recovery_quality=True: grade를 0~1 점수로 변환해 추가
     if getattr(config, "score_recovery_quality", True):
-        _grade_to_score = {"good": 1.0, "partial": 0.5, "wrong_fallback": 0.2, "poor": 0.0, "none": 1.0, "untracked": 0.5}
-        result_dict["recovery_quality_score"] = _grade_to_score.get(grade, 0.5)
+        if grade == "wrong_fallback":
+            # C-5: 이분법(any wrong → 0.2) 대신 wrong_fallback 비율에 비례한 블렌딩 점수 산출.
+            # wrong_rate = (잘못된 폴백 수) / (총 폴백 시도 수)
+            # blended = (1 - wrong_rate) × recovery_rate + wrong_rate × 0.2
+            # 예) 10회 폴백 중 1회 잘못 → wrong_rate=0.1 → score≈0.83 (0.2 대신)
+            # 예) 전부 잘못 → wrong_rate=1.0 → score=0.2 (기존과 동일)
+            _wrong_rate = len(wrong_fallbacks) / max(fallback_attempts, 1)
+            _blended = (1.0 - _wrong_rate) * recovery_rate + _wrong_rate * 0.2
+            result_dict["recovery_quality_score"] = round(min(1.0, max(0.0, _blended)), 4)
+            result_dict["wrong_fallback_rate"] = round(_wrong_rate, 4)
+        else:
+            _grade_to_score = {"good": 1.0, "partial": 0.5, "poor": 0.0, "none": 1.0, "untracked": 0.5}
+            result_dict["recovery_quality_score"] = _grade_to_score.get(grade, 0.5)
     return result_dict
 
 
@@ -2396,7 +2407,9 @@ def eval_deadlock(
     starvation_threshold = getattr(config, "starvation_threshold", 3)
     max_depth = getattr(config, "max_delegation_depth", 10)
     check_livelock = getattr(config, "check_livelock", False)
-    livelock_window = max(2, int(getattr(config, "livelock_window", 6) or 6))
+    # B-54: __post_init__(B-24)과 동일 기준 4로 맞춤 — window<4는 range(2, window//2+1)=[]로
+    # 탐지 루프가 실행되지 않아 livelock이 항상 미탐지됨. eval_deadlock 직접 호출 시 2차 방어선.
+    livelock_window = max(4, int(getattr(config, "livelock_window", 6) or 6))
 
     # List 포맷을 dict 포맷으로 정규화
     agent_interactions = _normalize_agent_interactions(agent_interactions)
@@ -3394,6 +3407,12 @@ def eval_graceful_degradation(
     elif has_error:
         score = config.quality_floor
         mode = "degraded"
+    elif has_partial_result:
+        # C-9: has_error=False이더라도 에이전트가 스스로 '부분 결과'를 명시한 경우 1.0 미만 처리.
+        # 예) "부분적으로 완료했습니다" 응답 → mode="partial_self_reported", score=0.7
+        # has_error=True 브랜치(0.6)보다 높되 완전 성공(1.0)보다 낮게 설정.
+        score = max(config.quality_floor, 0.7)
+        mode = "partial_self_reported"
     else:
         score = 1.0
         mode = "normal"
