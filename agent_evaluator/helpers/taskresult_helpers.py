@@ -2844,14 +2844,13 @@ def eval_context_retention(
         _auto.extend(re.findall(r'\b\d{2,}\b', context))
         _auto.extend(re.findall(r'\b[A-Z][a-z]+\b', context))
         _auto.extend(re.findall(r'[가-힣]{3,}', context))  # 2글자는 기능어 오염 — knowledge_retention과 동일 기준
+        # 문장 시작 기능어("The", "In", "An" 등) 제거는 dedup 단계에서 — eval_knowledge_retention과 동일 패턴
+        # [:20] 제한은 필터 후 적용해야 의미 있는 엔티티 20개를 보장 (필터 전 적용 시 기능어가 슬롯 차지)
         _seen_e: Dict[str, None] = {}
         for _e in _auto:
-            _seen_e[_e] = None
-        # 문장 시작 기능어("The", "In", "An" 등) 제거 — entity_score 허위 상향 방지
-        key_entities = [
-            e for e in list(_seen_e.keys())[:20]
-            if e.lower() not in _GOAL_STOPWORDS and len(e) >= 2
-        ]
+            if _e.lower() not in _GOAL_STOPWORDS and len(_e) >= 2:
+                _seen_e[_e] = None
+        key_entities = list(_seen_e.keys())[:20]
 
     # Entity retention — 경계 인식 매칭으로 false positive 방지
     # eval_knowledge_retention과 동일한 _is_fact_retained_in_text 사용

@@ -126,6 +126,10 @@ _RE_NON_WORD = re.compile(r'[^\w\s]')
 _QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
     "이", "가", "은", "는", "을", "를", "의", "에", "도", "로",
     "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
+    # 길이 2 이상이지만 내용어가 아닌 영어 기능어 — completeness 허위 상향 방지
+    "of", "or", "if", "by", "to", "as", "so", "it", "do", "no",
+    "be", "up", "my", "he", "we", "its", "for", "and", "but", "not",
+    "you", "she", "they", "this", "that", "with", "from", "have",
 })
 
 # TaskType → OpenInference span kind 매핑 (모듈 상수 — 매 호출마다 재생성 방지)

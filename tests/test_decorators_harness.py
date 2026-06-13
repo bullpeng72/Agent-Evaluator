@@ -1107,6 +1107,36 @@ class TestHarnessEdgeCases:
         assert result["failures_detected"]
         assert result["grade"] in ("poor", "partial", "good")  # grade depends on fallback detection logic
 
+    def test_context_retention_autoextract_limit_after_filter(self):
+        # [:20] 제한이 stopword 필터 전에 적용되면, 기능어 20개가 슬롯을 차지해
+        # 21번째 이후의 의미있는 엔티티가 key_entities에서 누락됨
+        # Fix: dedup 단계에서 필터 적용 → [:20]은 의미있는 엔티티에만 적용
+        from agent_evaluator.decorators import ContextRetentionConfig
+        stopword_caps = [
+            "The", "An", "Is", "Are", "Was", "Were", "What", "How", "Why", "When",
+            "Where", "Who", "Which", "Does", "Did", "Can", "Could", "Will", "Would", "Should",
+        ]  # 20개 고유 대문자 기능어 (모두 _GOAL_STOPWORDS에 소문자로 존재)
+        # "Pythonista" — 21번째에 배치; filter-before-limit 버그 시 [:20]이 이를 배제
+        context = " ".join(stopword_caps) + " Pythonista"
+        cfg = ContextRetentionConfig(check_original_goal=False)
+        result = eval_context_retention("Pythonista is great.", "", context, cfg)
+        all_entities = result["entities_retained"] + result["entities_lost"]
+        assert "Pythonista" in all_entities, (
+            "[:20] 제한이 필터 전에 적용되어 21번째 의미있는 엔티티 누락 — "
+            "filter-before-limit 버그 회귀"
+        )
+
+    def test_quality_eval_stopwords_includes_function_words(self):
+        # "of", "or", "by", "to" 등 2글자 영어 기능어가 expected_elements로 추출되면
+        # completeness 토큰 매칭에서 쉽게 충족되어 Gate A _rqe_a 점수 허위 상향
+        # Fix: _QUALITY_EVAL_STOPWORDS에 추가하여 auto-extraction 시 제외
+        from agent_evaluator.core.trackers.monitor import _QUALITY_EVAL_STOPWORDS
+        for word in ("of", "or", "if", "by", "to", "as", "so", "it", "be"):
+            assert word in _QUALITY_EVAL_STOPWORDS, (
+                f"'{word}' must be in _QUALITY_EVAL_STOPWORDS — "
+                "2글자 기능어가 completeness expected_elements에 포함되면 Gate A 과대평가"
+            )
+
     def test_agent_eval_with_none_harness_params(self, monitor=None):
         """None harness params → 기존 동작."""
         if monitor is None:
