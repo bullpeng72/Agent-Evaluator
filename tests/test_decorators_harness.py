@@ -35,6 +35,7 @@ from agent_evaluator.helpers.taskresult_helpers import (
     eval_context_retention,
     eval_subtask_completion,
     compute_reproducibility_score,
+    _kr_strip_particle,
 )
 
 
@@ -613,6 +614,67 @@ class TestEvalPlanCoherence:
         r4 = eval_plan_coherence(resp, "gather process output", cfg_empty_tools)
         if r4 is not None:
             assert r4["executability_score"] is None, "available_tools=[]이면 executability_score=None이어야 함"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 6-B: 한국어 조사 탈락 매칭 테스트
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestKrStripParticle:
+    """_kr_strip_particle 헬퍼 단위 테스트."""
+
+    def test_basic_particle_strip(self):
+        assert _kr_strip_particle("서울의") == "서울"
+        assert _kr_strip_particle("날씨를") == "날씨"
+        assert _kr_strip_particle("학교에서") == "학교"
+        assert _kr_strip_particle("서울에게") == "서울"
+
+    def test_non_korean_passthrough(self):
+        assert _kr_strip_particle("weather") == "weather"
+        assert _kr_strip_particle("Seoul") == "Seoul"
+        assert _kr_strip_particle("123") == "123"
+
+    def test_too_short_stem_no_strip(self):
+        # 조사를 제거하면 어근이 2글자 미만이 되는 경우 원형 유지
+        assert _kr_strip_particle("이에서") == "이에서"  # 어근 "이" = 1글자 → 유지
+
+    def test_plan_coherence_korean_particle_coverage(self):
+        # 질문에 조사 부착형 토큰, 계획에 어근 형태 — goal_coverage > 0 이어야 함
+        # 기존 버그: '서울의' ≠ '서울' → goal_coverage=0.0
+        # 수정 후: _kr_strip_particle('서울의')='서울' → plan에서 발견 → matched
+        cfg = PlanConfig(
+            check_goal_coverage=True,
+            check_step_ordering=False,
+            check_executability=False,
+        )
+        question = "서울의 날씨를 알려주세요"
+        response = "1. 날씨 정보를 검색합니다\n2. 서울 기온을 확인합니다\n3. 결과를 출력합니다"
+        result = eval_plan_coherence(response, question, cfg)
+        assert result is not None
+        # goal_coverage > 0: '서울의'→'서울', '날씨를'→'날씨' 모두 plan에서 발견
+        assert result["goal_coverage"] is not None
+        assert result["goal_coverage"] > 0.0, (
+            f"한국어 조사 탈락 매칭 실패: goal_coverage={result['goal_coverage']}"
+        )
+
+    def test_context_retention_korean_particle_goal(self):
+        # 질문의 조사 부착 토큰이 응답의 어근 형태와 매칭돼야 함
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(
+            key_entities=[],
+            check_original_goal=True,
+            goal_overlap_threshold=0.3,
+        )
+        question = "서울의 날씨를 알려주세요"
+        # 응답에 '서울'과 '날씨' (어근 형태)만 포함
+        response = "서울 날씨는 맑습니다."
+        result = eval_context_retention(response, question, "", cfg)
+        assert result is not None
+        assert result["retention_score"] is not None
+        # '서울의'→'서울', '날씨를'→'날씨' 모두 응답에서 어근으로 발견
+        assert result["goal_retained"] is True, (
+            f"한국어 조사 탈락 매칭 실패: goal_retained={result['goal_retained']}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

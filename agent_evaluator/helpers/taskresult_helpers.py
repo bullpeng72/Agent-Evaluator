@@ -139,6 +139,27 @@ def _is_subtask_find_pos(subtask_lower: str, response_lower: str) -> int:
 # 사실 보존 검사용 1자 조사 허용 목록: 복합어 접미사(군/계/화/적/성/…)와 구분
 _KOREAN_PARTICLES_1 = frozenset('이가을를은는에도만와과의로서야아')
 
+# goal_coverage / goal_retained 토큰 비교 시 조사 제거용 (긴 조사 우선)
+# eval_plan_coherence · eval_context_retention 에서 공유
+_KR_PARTICLE_SUFFIXES: tuple = (
+    "에서", "에게", "이랑", "으로", "처럼", "보다", "까지", "부터", "마다",  # 2글자
+    "은", "는", "이", "가", "을", "를", "에", "의", "로", "도", "만", "과", "와", "랑",  # 1글자
+)
+
+
+def _kr_strip_particle(tok: str) -> str:
+    """한국어 조사를 제거한 어근 반환 — 비한국어 토큰은 그대로 통과.
+
+    조사를 제거했을 때 어근이 2글자 미만이 되면 원형을 반환한다.
+    예: '서울의' → '서울',  '날씨를' → '날씨',  'weather' → 'weather'
+    """
+    if not any('가' <= c <= '힣' for c in tok):
+        return tok
+    for p in _KR_PARTICLE_SUFFIXES:
+        if tok.endswith(p) and len(tok) - len(p) >= 2:
+            return tok[:-len(p)]
+    return tok
+
 # goal_coverage / goal_retained 계산 시 제거할 기능어 목록
 # eval_plan_coherence 와 eval_context_retention 에서 공유
 _GOAL_STOPWORDS: frozenset = frozenset({
@@ -1713,7 +1734,14 @@ def eval_plan_coherence(
         plan_tokens = set(re.sub(r"[^\w\s]", "", plan_text).split())
         if q_tokens:
             _has_q_tokens = True
-            goal_coverage = len(q_tokens & plan_tokens) / len(q_tokens)
+            # 한국어 조사 탈락 매칭: '서울의'(질문) ↔ '서울'(계획) 같은 형태 차이 허용
+            # plan에 있는 토큰의 어근도 조회 집합에 추가
+            _plan_lookup = plan_tokens | {_kr_strip_particle(t) for t in plan_tokens}
+            _matched_goal = sum(
+                1 for qt in q_tokens
+                if qt in _plan_lookup or _kr_strip_particle(qt) in _plan_lookup
+            )
+            goal_coverage = _matched_goal / len(q_tokens)
 
     # 4. 단계 순서: 번호 목록이면 1.0, 아니면 순서 접속사 비율로 평가
     if config.check_step_ordering:
@@ -2849,7 +2877,13 @@ def eval_context_retention(
         q_sig = {t for t in (_q_raw - _GOAL_STOPWORDS) if len(t) >= 2}
         if q_sig:
             _can_check_goal = True
-            overlap = len(q_sig & r_tokens) / len(q_sig)
+            # 한국어 조사 탈락 매칭: '서울의'(질문) ↔ '서울'(응답) 같은 형태 차이 허용
+            _r_lookup = r_tokens | {_kr_strip_particle(t) for t in r_tokens}
+            _matched_sig = sum(
+                1 for qt in q_sig
+                if qt in _r_lookup or _kr_strip_particle(qt) in _r_lookup
+            )
+            overlap = _matched_sig / len(q_sig)
             goal_retained = overlap >= float(getattr(config, "goal_overlap_threshold", 0.3))
         else:
             # q_sig 비어 있으면 측정 불가 — goal_retained=True 유지(compat), 가드에서 걸러짐
