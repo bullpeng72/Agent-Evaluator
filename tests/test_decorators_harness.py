@@ -386,6 +386,47 @@ class TestEvalGoalAlignment:
         assert result["score"] is None
         assert result["method"] == "keyword_overlap_no_tokens"
 
+    def test_tool_name_key_format_supported(self):
+        # 데코레이터 내부 포맷("tool_name" 키)이 올바르게 인식되는지 검증
+        # 기존 "name" 키 포맷도 하위 호환 유지
+        cfg = GoalAlignmentConfig(use_keyword_overlap=True, ignore_no_tool_tasks=False)
+
+        # "tool_name" 포맷 (데코레이터 내부 포맷)
+        tools_toolname = [{"tool_name": "search", "success": True}]
+        r1 = eval_goal_alignment("search for data", tools_toolname, cfg)
+        assert r1 is not None
+        assert r1["score"] is not None
+        assert r1["score"] > 0, "tool_name 키 포맷의 도구 이름이 keyword_overlap으로 정렬돼야 함"
+
+        # "tool" 포맷도 지원
+        tools_tool = [{"tool": "search", "success": True}]
+        r2 = eval_goal_alignment("search for data", tools_tool, cfg)
+        assert r2 is not None
+        assert r2["score"] is not None
+        assert r2["score"] > 0, "tool 키 포맷의 도구 이름이 keyword_overlap으로 정렬돼야 함"
+
+        # "name" 포맷 (하위 호환)
+        tools_name = [{"name": "search", "success": True}]
+        r3 = eval_goal_alignment("search for data", tools_name, cfg)
+        assert r3 is not None
+        assert r3["score"] is not None
+        assert r3["score"] > 0, "name 키 포맷 하위 호환이 유지돼야 함"
+
+        # 모든 포맷이 동일한 점수를 반환해야 함
+        assert r1["score"] == r2["score"] == r3["score"]
+
+    def test_tool_name_key_goal_tool_map(self):
+        # goal_tool_map 방식에서도 "tool_name" 키 인식 검증
+        cfg = GoalAlignmentConfig(
+            use_keyword_overlap=False,
+            goal_tool_map={"search": ["web_search"]},
+            ignore_no_tool_tasks=False,
+        )
+        tools_toolname = [{"tool_name": "web_search", "success": True}]
+        result = eval_goal_alignment("search for data", tools_toolname, cfg)
+        assert result is not None
+        assert result["score"] > 0, "tool_name 포맷이 goal_tool_map에서도 정렬 인식돼야 함"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 5: eval_fault_tolerance 단위 테스트

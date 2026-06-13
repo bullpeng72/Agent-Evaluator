@@ -1362,7 +1362,9 @@ def eval_loop_detection(
         ]
     else:
         source = tool_calls or []
-    names = [tc.get("name", "") for tc in source if isinstance(tc, dict)]
+    # B-33: name="" (또는 name 키 없음)인 항목 제외 — 이름 없는 도구 호출은 동일 도구의 반복으로
+    # 볼 수 없으므로 루프 탐지 대상에서 제외. 미포함 시 name="" 3개가 consecutive loop으로 오탐.
+    names = [tc.get("name", "") for tc in source if isinstance(tc, dict) and tc.get("name")]
 
     _detected_loops: List[Dict[str, Any]] = []
 
@@ -1452,7 +1454,14 @@ def eval_goal_alignment(
     if not tool_calls and config.ignore_no_tool_tasks:
         return None
 
-    tool_names = [tc.get("name", "") for tc in (tool_calls or []) if isinstance(tc, dict)]
+    # "tool_name" / "tool" / "name" 순서로 키를 확인 — ToolCallAnalyzer와 동일 패턴
+    # 데코레이터가 생성하는 내부 포맷은 "tool_name", 사용자 직접 제공 포맷은 "name"이 일반적
+    tool_names = [
+        n for tc in (tool_calls or [])
+        if isinstance(tc, dict)
+        for n in [tc.get("tool_name") or tc.get("tool") or tc.get("name", "")]
+        if n  # 빈 문자열 제거
+    ]
     aligned_tools: List[str] = []
     unaligned_tools: List[str] = []
     method = "none"
