@@ -2815,22 +2815,25 @@ def eval_context_retention(
 
     # Goal retention: 구두점 제거 후 기능어 필터링한 의미 토큰이 응답에 포함되는지 확인
     goal_retained = False
+    _can_check_goal = False  # 의미 토큰이 존재해 실제로 goal 검사를 수행했을 때만 True
     if check_original_goal and question:
         _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
         r_tokens = set(re.sub(r"[^\w\s]", "", response_lower).split())
         # _GOAL_STOPWORDS 공유 (eval_plan_coherence와 동일 기준) + 1글자 토큰 제거
         q_sig = {t for t in (_q_raw - _GOAL_STOPWORDS) if len(t) >= 2}
         if q_sig:
+            _can_check_goal = True
             overlap = len(q_sig & r_tokens) / len(q_sig)
             goal_retained = overlap >= float(getattr(config, "goal_overlap_threshold", 0.3))
         else:
+            # q_sig 비어 있으면 측정 불가 — goal_retained=True 유지(compat), 가드에서 걸러짐
             goal_retained = True
 
     goal_score = 1.0 if goal_retained else 0.0
 
-    # goal도 entity도 측정하지 않은 경우 — Gate A avg_context_r에서 제외 (0.0 포함 방지)
-    # check_original_goal=False + key_entities=[] 또는 question="" + key_entities=[] 케이스
-    if not key_entities and not (check_original_goal and question):
+    # goal도 entity도 측정하지 않은 경우 — Gate A avg_context_r에서 제외 (0.0/1.0 포함 방지)
+    # _can_check_goal=False: check_original_goal=False / question="" / q_sig={} 케이스 모두 커버
+    if not key_entities and not _can_check_goal:
         return {
             "retention_score": None,
             "entities_retained": [],

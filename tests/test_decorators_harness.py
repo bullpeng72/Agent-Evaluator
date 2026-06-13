@@ -865,6 +865,17 @@ class TestHarnessEdgeCases:
         result = eval_context_retention("some response", "", "", cfg)
         assert result["retention_score"] is None
 
+    def test_context_retention_stopword_only_question_noop_returns_none_score(self):
+        # question이 stopword만으로 구성(q_sig={}) + key_entities=[] → retention_score=1.0 허위 상향 방지
+        # "How?" → "how" ∈ _GOAL_STOPWORDS → q_sig={} → _can_check_goal=False → no_checks=True
+        from agent_evaluator.decorators import ContextRetentionConfig
+        cfg = ContextRetentionConfig(check_original_goal=True)
+        result = eval_context_retention("The meeting is confirmed.", "How?", "", cfg)
+        assert result["retention_score"] is None, (
+            f"stopword-only question should yield retention_score=None, not {result['retention_score']}"
+        )
+        assert result.get("no_checks") is True
+
     def test_context_retention_autoextract_filters_stopwords(self):
         # auto-extract: "The", "In" 같은 문장 시작 기능어는 entity 목록에서 제외
         from agent_evaluator.decorators import ContextRetentionConfig
