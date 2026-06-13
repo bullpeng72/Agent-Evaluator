@@ -98,6 +98,45 @@ class TestResponseQualityEvaluator:
         r = repr(ev)
         assert "evaluations=1" in r
 
+    def test_relevance_strips_punctuation(self):
+        # Bug R30: "Korea?" in request should match "Korea" in response.
+        # Before fix: request_words={"korea?"}, response_words={"korea"} → overlap=0.
+        # After fix:  _RE_QA_PUNCTUATION strips punctuation → both become {"korea"} → overlap=1.
+        ev = ResponseQualityEvaluator()
+        result_with_punct = ev.evaluate_response(
+            task_id="t_punct",
+            response="Korea is a country in East Asia.",
+            request="Tell me about Korea?",
+            expected_elements=[],
+        )
+        result_no_punct = ev.evaluate_response(
+            task_id="t_no_punct",
+            response="Korea is a country in East Asia.",
+            request="Tell me about Korea",
+            expected_elements=[],
+        )
+        # Both should yield the same relevance — punctuation must not affect score.
+        assert result_with_punct["dimension_scores"]["relevance"] == \
+               result_no_punct["dimension_scores"]["relevance"], (
+            "구두점 있는 요청('Korea?')의 relevance가 구두점 없는 요청('Korea')과 달라야 하지 않음 "
+            "— _RE_QA_PUNCTUATION 미적용 시 false negative 발생"
+        )
+        # Sanity: relevance > 0 (request words appear in response)
+        assert result_with_punct["dimension_scores"]["relevance"] > 0.0
+
+    def test_relevance_response_trailing_period_normalized(self):
+        # "Asia." in response should match "Asia" in request after punctuation strip.
+        ev = ResponseQualityEvaluator()
+        result = ev.evaluate_response(
+            task_id="t_period",
+            response="The capital is Seoul.",
+            request="capital Seoul",
+            expected_elements=[],
+        )
+        assert result["dimension_scores"]["relevance"] > 0.0, (
+            "응답의 마침표('Seoul.')가 요청 단어('Seoul')와 매칭되지 않음 — 구두점 제거 후 매칭해야 함"
+        )
+
 
 # ===========================================================================
 # LatencyTracker

@@ -1123,8 +1123,10 @@ class ResponseQualityEvaluator(BaseTracker):
         word_count = len(response.split())
 
         # Relevance (keyword overlap)
-        request_words = set(request.lower().split())
-        response_words = set(response.lower().split())
+        # Strip punctuation so "Korea?" in request matches "Korea" in response,
+        # consistent with _normalize_qa_text used by AccuracyEvaluator.
+        request_words = set(_RE_QA_PUNCTUATION.sub('', request.lower()).split())
+        response_words = set(_RE_QA_PUNCTUATION.sub('', response.lower()).split())
 
         # CRITICAL FIX: Handle empty request_words to avoid zero division
         if not request_words:
