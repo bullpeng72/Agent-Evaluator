@@ -1137,6 +1137,45 @@ class TestHarnessEdgeCases:
                 "2글자 기능어가 completeness expected_elements에 포함되면 Gate A 과대평가"
             )
 
+    def test_context_retention_entity_only_score_not_capped_by_goal_weight(self):
+        # check_original_goal=False 또는 question="" 시 goal 검사 불가 → _can_check_goal=False
+        # 이때 goal_weight=0.4가 _w_sum에 포함되면 max retention_score = entity_weight = 0.6
+        # Fix: _can_check_goal=False 이면 entity score만으로 full 점수 산출
+        from agent_evaluator.decorators import ContextRetentionConfig
+        # key_entities=["Seoul"] + check_original_goal=False → goal 미측정
+        cfg = ContextRetentionConfig(key_entities=["Seoul"], check_original_goal=False)
+        # Seoul이 응답에 있음 → entity_score=1.0, 올바른 retention_score=1.0 (bug 시 0.6)
+        result = eval_context_retention("Seoul is the capital.", "", "", cfg)
+        assert result["retention_score"] == 1.0, (
+            f"check_original_goal=False인데 goal_weight 페널티로 retention_score={result['retention_score']} "
+            "— entity-only 시 1.0이어야 함 (goal_weight-in-denominator 버그 회귀)"
+        )
+        # 엔티티가 없는 경우도 확인: question="" → goal 측정 불가
+        cfg2 = ContextRetentionConfig(key_entities=["Seoul"])
+        result2 = eval_context_retention("Seoul is the capital.", "", "", cfg2)
+        assert result2["retention_score"] == 1.0, (
+            f"question='' → _can_check_goal=False인데 retention_score={result2['retention_score']} "
+            "— 1.0이어야 함"
+        )
+
+    def test_instruction_adherence_markdown_bullet_at_start(self):
+        # r"\n[-*]\s" 패턴은 응답 첫 줄 불릿을 탐지 못함 (앞에 \n 없음)
+        # Fix: r"(?:^|\n)[-*][ \t]" 로 교체 — 첫 줄 불릿도 탐지
+        cfg = InstructionConfig(expected_format="markdown")
+        # 불릿이 응답 시작에 있는 경우 — 이전 패턴에서 False Negative 발생
+        result_start = eval_instruction_adherence("- item one\n- item two", cfg)
+        assert result_start["checks"]["format"] is True, (
+            "첫 줄 불릿('-')이 markdown으로 탐지되지 않음 — r\"\\n[-*]\\s\" 누락 버그 회귀"
+        )
+        # * 불릿도 동일하게 확인
+        result_star = eval_instruction_adherence("* item one\n* item two", cfg)
+        assert result_star["checks"]["format"] is True, (
+            "첫 줄 '*' 불릿이 markdown으로 탐지되지 않음"
+        )
+        # 본문 중간 불릿 (기존 동작 유지)
+        result_mid = eval_instruction_adherence("Some text\n- item one", cfg)
+        assert result_mid["checks"]["format"] is True
+
     def test_agent_eval_with_none_harness_params(self, monitor=None):
         """None harness params → 기존 동작."""
         if monitor is None:
