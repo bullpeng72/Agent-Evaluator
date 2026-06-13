@@ -1763,9 +1763,14 @@ def eval_plan_coherence(
 
     return {
         "score": score,
-        "goal_coverage": goal_coverage,
-        "ordering_score": ordering_score,
-        "executability_score": executability_score,
+        # 비활성 체크는 None — 0.0/1.0 초기값이 "측정된 결과"처럼 오해되는 것을 방지
+        "goal_coverage": goal_coverage if _can_goal else None,
+        "ordering_score": ordering_score if config.check_step_ordering else None,
+        "executability_score": (
+            executability_score
+            if config.check_executability and bool(getattr(config, "available_tools", None))
+            else None
+        ),
         "step_count": step_count,
         "steps": steps,
         "min_steps_ok": min_steps_ok,
@@ -2168,6 +2173,17 @@ def eval_state_consistency(
         None이면 state_fn 없음. 그 외: {consistency_score, state_delta, unexpected_changes, invariant_violations}
     """
     if state_before is None or state_after is None:
+        return None
+
+    # B-30: state_fn()이 dict가 아닌 값을 반환하면 .keys() 호출 시 AttributeError 발생.
+    # 타입 어노테이션이 Dict이지만 런타임에서 강제되지 않으므로 방어적 타입 체크 추가.
+    if not isinstance(state_before, dict) or not isinstance(state_after, dict):
+        logger.warning(
+            "eval_state_consistency: state_fn()이 dict가 아닌 값을 반환했습니다 "
+            "(state_before=%s, state_after=%s). 상태 일관성 평가를 건너뜁니다.",
+            type(state_before).__name__,
+            type(state_after).__name__,
+        )
         return None
 
     expected_changes: Dict[str, Any] = getattr(config, "expected_changes", {}) or {}
@@ -2729,7 +2745,8 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
     excess_unique = 0
     if max_unique_tools is not None and len(unique_tools) > max_unique_tools:
         excess_unique = len(unique_tools) - max_unique_tools
-        violations.append(f"excess_unique_tools:{len(unique_tools)}")
+        # B-27: excess_calls와 동일하게 초과 수 기준 사용 — len(unique_tools)는 총합으로 오해 유발
+        violations.append(f"excess_unique_tools:{excess_unique}")
 
     in_scope = len(violations) == 0
     _vp = getattr(config, "violation_penalty", 0.2)

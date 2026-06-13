@@ -527,6 +527,52 @@ class TestEvalPlanCoherence:
             # "thereafter"/"secondary"/"authenticate" 모두 독립 마커가 아님 → ordering_score=0.0
             assert result2["ordering_score"] == 0.0
 
+    def test_disabled_check_fields_return_none(self):
+        # 비활성 체크 필드는 0.0/1.0 초기값 대신 None을 반환해야 함 (진단 혼동 방지)
+        resp = "1. Gather data\n2. Process\n3. Output results"
+
+        # goal_coverage: check_goal_coverage=False → None
+        cfg_no_goal = PlanConfig(
+            check_goal_coverage=False,
+            check_step_ordering=True,
+            check_executability=False,
+        )
+        r = eval_plan_coherence(resp, "process data", cfg_no_goal)
+        if r is not None:
+            assert r["goal_coverage"] is None, "check_goal_coverage=False이면 goal_coverage=None이어야 함"
+            assert r["ordering_score"] is not None, "check_step_ordering=True이면 ordering_score가 측정값이어야 함"
+
+        # ordering_score: check_step_ordering=False → None
+        cfg_no_order = PlanConfig(
+            check_goal_coverage=True,
+            check_step_ordering=False,
+            check_executability=False,
+        )
+        r2 = eval_plan_coherence(resp, "gather process output", cfg_no_order)
+        if r2 is not None:
+            assert r2["ordering_score"] is None, "check_step_ordering=False이면 ordering_score=None이어야 함"
+
+        # executability_score: check_executability=False → None
+        cfg_no_exec = PlanConfig(
+            check_goal_coverage=True,
+            check_step_ordering=True,
+            check_executability=False,
+        )
+        r3 = eval_plan_coherence(resp, "gather process output", cfg_no_exec)
+        if r3 is not None:
+            assert r3["executability_score"] is None, "check_executability=False이면 executability_score=None이어야 함"
+
+        # available_tools=[] (비어있음)인 경우에도 executability_score=None
+        cfg_empty_tools = PlanConfig(
+            check_goal_coverage=True,
+            check_step_ordering=True,
+            check_executability=True,
+            available_tools=[],
+        )
+        r4 = eval_plan_coherence(resp, "gather process output", cfg_empty_tools)
+        if r4 is not None:
+            assert r4["executability_score"] is None, "available_tools=[]이면 executability_score=None이어야 함"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Section 7: compute_reproducibility_score 단위 테스트
