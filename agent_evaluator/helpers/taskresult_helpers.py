@@ -1869,6 +1869,18 @@ def compute_reproducibility_score(
     Returns:
         {score, variance, pairwise_scores, run_count}
     """
+    # C-4: 인식 불가 measure 값 → 경고 없이 token_f1 폴백 시 사용자가 잘못된 값 지정 사실을 인식 못함
+    _VALID_MEASURES = {"token_f1", "jaccard", "exact"}
+    if measure not in _VALID_MEASURES:
+        import warnings as _w
+        _w.warn(
+            f"compute_reproducibility_score: measure={measure!r}는 유효하지 않습니다. "
+            f"유효한 값: {sorted(_VALID_MEASURES)}. 'token_f1'로 폴백합니다.",
+            UserWarning,
+            stacklevel=2,
+        )
+        measure = "token_f1"
+
     run_count = len(responses)
     if run_count < 2:
         if run_count == 0:

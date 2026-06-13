@@ -1841,3 +1841,278 @@ class TestPlanCoherenceKoreanOrderingMarkers:
         assert result["ordering_score"] == pytest.approx(1.0), (
             f"영어 순서 마커 'then'/'finally' 미인식 — ordering_score={result['ordering_score']}"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 14: Gate C 버그 회귀 테스트 (R38)
+#
+# BUG-C1: GracefulDegradationConfig 범위 초과 파라미터가 degradation_score > 1.0 생성
+#          → quality_floor > 1.0 / empty_response_penalty < 0 시 Gate C 오염
+# BUG-C2: IdempotencyConfig.non_idempotent_penalty < 0 → idempotency_score > 1.0
+#          → Gate C 오염
+# BUG-C3: ReproducibilityConfig(skip_side_effects=True) → run_count=1, score=1.0 반환
+#          → Gate C 집계에 미측정 데이터 포함 → 점수 인플레이션
+# BUG-C4: compute_reproducibility_score에 잘못된 measure 전달 시 UserWarning 없이
+#          token_f1로 묵시적 폴백 → 사용자가 오설정 사실을 인식 불가
+# ─────────────────────────────────────────────────────────────────────────────
+
+import warnings as _pytest_warnings
+
+from agent_evaluator.decorators import GracefulDegradationConfig, IdempotencyConfig
+from agent_evaluator.helpers.taskresult_helpers import (
+    eval_graceful_degradation,
+    eval_idempotency,
+)
+
+
+class TestGracefulDegradationConfigValidation:
+    """BUG-C1 회귀: GracefulDegradationConfig __post_init__ 범위 검증."""
+
+    def test_quality_floor_above_one_clamped_with_warning(self):
+        # quality_floor=1.5 → UserWarning + 1.0으로 클램핑
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            cfg = GracefulDegradationConfig(quality_floor=1.5)
+        assert any("quality_floor" in str(warning.message) for warning in w), (
+            "quality_floor=1.5에서 UserWarning이 발생해야 함"
+        )
+        assert cfg.quality_floor == 1.0, (
+            f"quality_floor=1.5는 1.0으로 클램핑되어야 함, got {cfg.quality_floor}"
+        )
+
+    def test_quality_floor_negative_clamped_with_warning(self):
+        # quality_floor=-0.1 → UserWarning + 0.0으로 클램핑
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            cfg = GracefulDegradationConfig(quality_floor=-0.1)
+        assert any("quality_floor" in str(warning.message) for warning in w), (
+            "quality_floor=-0.1에서 UserWarning이 발생해야 함"
+        )
+        assert cfg.quality_floor == 0.0, (
+            f"quality_floor=-0.1은 0.0으로 클램핑되어야 함, got {cfg.quality_floor}"
+        )
+
+    def test_empty_response_penalty_negative_clamped_with_warning(self):
+        # empty_response_penalty=-0.5 → UserWarning + 0.0으로 보정
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            cfg = GracefulDegradationConfig(empty_response_penalty=-0.5)
+        assert any("empty_response_penalty" in str(warning.message) for warning in w), (
+            "empty_response_penalty=-0.5에서 UserWarning이 발생해야 함"
+        )
+        assert cfg.empty_response_penalty == 0.0, (
+            f"empty_response_penalty=-0.5는 0.0으로 보정되어야 함, got {cfg.empty_response_penalty}"
+        )
+
+    def test_degradation_score_never_exceeds_one_with_invalid_floor(self):
+        # 보정 후 eval_graceful_degradation이 반환하는 score ≤ 1.0을 확인
+        with _pytest_warnings.catch_warnings(record=True):
+            _pytest_warnings.simplefilter("always")
+            cfg = GracefulDegradationConfig(quality_floor=2.0)
+        result = eval_graceful_degradation("", [], True, 100.0, cfg)
+        assert result["degradation_score"] <= 1.0, (
+            f"degradation_score={result['degradation_score']} > 1.0 — Gate C 오염 버그 재발"
+        )
+
+    def test_degradation_score_never_exceeds_one_with_negative_penalty(self):
+        # empty_response_penalty=-1.0 보정 후 score ≤ 1.0 확인
+        with _pytest_warnings.catch_warnings(record=True):
+            _pytest_warnings.simplefilter("always")
+            cfg = GracefulDegradationConfig(empty_response_penalty=-1.0)
+        result = eval_graceful_degradation("", [], False, 100.0, cfg)
+        assert result["degradation_score"] <= 1.0, (
+            f"degradation_score={result['degradation_score']} > 1.0 — 음수 penalty 보정 미적용"
+        )
+
+    def test_valid_defaults_produce_no_warning(self):
+        # 기본값으로 생성하면 UserWarning 없어야 함 (회귀 방지)
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            GracefulDegradationConfig()
+        assert not any("GracefulDegradationConfig" in str(warning.message) for warning in w), (
+            "기본값 GracefulDegradationConfig()에서 불필요한 UserWarning 발생"
+        )
+
+
+class TestIdempotencyConfigValidation:
+    """BUG-C2 회귀: IdempotencyConfig __post_init__ 음수 penalty 검증."""
+
+    def test_negative_penalty_clamped_to_default_with_warning(self):
+        # non_idempotent_penalty=-0.5 → UserWarning + 0.2로 보정
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            cfg = IdempotencyConfig(non_idempotent_penalty=-0.5)
+        assert any("non_idempotent_penalty" in str(warning.message) for warning in w), (
+            "non_idempotent_penalty=-0.5에서 UserWarning이 발생해야 함"
+        )
+        assert cfg.non_idempotent_penalty == 0.2, (
+            f"음수 penalty는 기본값 0.2로 보정되어야 함, got {cfg.non_idempotent_penalty}"
+        )
+
+    def test_idempotency_score_never_exceeds_one_with_negative_penalty(self):
+        # 보정 후 eval_idempotency가 반환하는 score ≤ 1.0 확인
+        with _pytest_warnings.catch_warnings(record=True):
+            _pytest_warnings.simplefilter("always")
+            cfg = IdempotencyConfig(non_idempotent_penalty=-1.0)
+        tool_calls = [{"name": "create_record", "success": True}]
+        result = eval_idempotency(tool_calls, "response", cfg)
+        assert result["idempotency_score"] <= 1.0, (
+            f"idempotency_score={result['idempotency_score']} > 1.0 — Gate C 오염 버그 재발"
+        )
+
+    def test_zero_penalty_allowed_no_warning(self):
+        # non_idempotent_penalty=0.0은 경계값이지만 허용 (음수가 아님)
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            cfg = IdempotencyConfig(non_idempotent_penalty=0.0)
+        assert not any("non_idempotent_penalty" in str(warning.message) for warning in w), (
+            "penalty=0.0은 허용값 — UserWarning 없어야 함"
+        )
+        assert cfg.non_idempotent_penalty == 0.0
+
+    def test_valid_defaults_produce_no_warning(self):
+        # 기본값으로 생성하면 UserWarning 없어야 함 (회귀 방지)
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            IdempotencyConfig()
+        assert not any("IdempotencyConfig" in str(warning.message) for warning in w), (
+            "기본값 IdempotencyConfig()에서 불필요한 UserWarning 발생"
+        )
+
+
+class TestReproducibilityGateCExclusion:
+    """BUG-C3 회귀: run_count=1 재현성 결과가 Gate C 집계에서 제외되어야 함."""
+
+    def test_run_count_one_excluded_from_gate_c(self):
+        # skip_side_effects=True → run_count=1, score=1.0 → Gate C 미포함 확인
+        monitor = PerformanceMonitor()
+
+        @agent_eval(monitor, task_type="qa",
+                    reproducibility=ReproducibilityConfig(runs=1))
+        def agent(question, ground_truth=""):
+            return "응답"
+
+        agent("테스트", ground_truth="응답")
+        # task.extra["reproducibility"]["run_count"] == 1 이어야 함
+        t = monitor.tasks[-1]
+        repro = (t.extra or {}).get("reproducibility", {})
+        assert repro.get("run_count", 2) < 2, (
+            "runs=1 설정 시 run_count=1이 기록되어야 함"
+        )
+
+    def test_run_count_one_score_not_inflated_in_gate_c(self):
+        # run_count=1 재현성(score=1.0)이 있는 경우와 없는 경우의 Gate C 점수 동일해야 함
+        # (미측정 데이터가 점수를 인플레이션시키지 않아야 함)
+        from agent_evaluator.core.trackers.base import TaskResult
+
+        def _make_monitor_with_task(include_repro_run1: bool) -> PerformanceMonitor:
+            m = PerformanceMonitor()
+            extra = (
+                {"reproducibility": {"score": 1.0, "run_count": 1, "variance": 0.0, "pairwise_scores": []}}
+                if include_repro_run1 else None
+            )
+            m.record_task(TaskResult(
+                task_id="t1", task_type="qa", question="Q", response="A",
+                execution_time=0.5, success=True, completion_score=0.8,
+                accuracy_score=0.8,
+                tokens_used={}, tool_calls=[], attempts=1, errors=[],
+                extra=extra,
+            ))
+            return m
+
+        m_with = _make_monitor_with_task(True)
+        m_without = _make_monitor_with_task(False)
+
+        report_with = m_with.generate_report()
+        report_without = m_without.generate_report()
+
+        score_with = report_with.to_dict()["extra_metrics"]["harness_groups"]["C"]["score"]
+        score_without = report_without.to_dict()["extra_metrics"]["harness_groups"]["C"]["score"]
+
+        assert score_with == score_without, (
+            f"run_count=1 재현성 데이터가 Gate C 점수를 변경해선 안 됨: "
+            f"with={score_with}, without={score_without}"
+        )
+
+    def test_run_count_two_included_in_gate_c(self):
+        # run_count=2인 정상 재현성은 Gate C에 반영되어야 함 (회귀 방지)
+        from agent_evaluator.core.trackers.base import TaskResult
+
+        m_with = PerformanceMonitor()
+        # score=0.5, run_count=2: 낮은 재현성 → Gate C 점수 하락해야 함
+        m_with.record_task(TaskResult(
+            task_id="t1", task_type="qa", question="Q", response="A",
+            execution_time=0.5, success=True, completion_score=0.8,
+            accuracy_score=0.8,
+            tokens_used={}, tool_calls=[], attempts=1, errors=[],
+            extra={"reproducibility": {"score": 0.5, "run_count": 2, "variance": 0.1, "pairwise_scores": [0.5]}},
+        ))
+
+        m_without = PerformanceMonitor()
+        m_without.record_task(TaskResult(
+            task_id="t1", task_type="qa", question="Q", response="A",
+            execution_time=0.5, success=True, completion_score=0.8,
+            accuracy_score=0.8,
+            tokens_used={}, tool_calls=[], attempts=1, errors=[],
+        ))
+
+        score_with = m_with.generate_report().to_dict()["extra_metrics"]["harness_groups"]["C"]["score"]
+        score_without = m_without.generate_report().to_dict()["extra_metrics"]["harness_groups"]["C"]["score"]
+
+        assert score_with < score_without, (
+            f"run_count=2, score=0.5인 재현성이 Gate C를 낮춰야 함: "
+            f"with_repro={score_with}, without_repro={score_without}"
+        )
+
+
+class TestReproducibilityMeasureValidation:
+    """BUG-C4 회귀: compute_reproducibility_score 잘못된 measure UserWarning 확인."""
+
+    def test_invalid_measure_emits_userwarning(self):
+        # measure="cosine"은 유효하지 않음 → UserWarning 발생해야 함
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            result = compute_reproducibility_score(["응답1", "응답2"], measure="cosine")
+        assert any("measure" in str(warning.message) for warning in w), (
+            "잘못된 measure='cosine'에서 UserWarning이 발생해야 함"
+        )
+        # 경고 후 token_f1로 폴백하여 점수를 정상 반환해야 함 (오류 없이)
+        assert "score" in result
+        assert 0.0 <= result["score"] <= 1.0
+
+    def test_valid_measure_token_f1_no_warning(self):
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            compute_reproducibility_score(["응답1", "응답1"], measure="token_f1")
+        assert not any(
+            "measure" in str(warning.message) and issubclass(warning.category, UserWarning)
+            for warning in w
+        ), "measure='token_f1'은 유효 — UserWarning 없어야 함"
+
+    def test_valid_measure_jaccard_no_warning(self):
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            compute_reproducibility_score(["응답1", "응답2"], measure="jaccard")
+        assert not any(
+            "measure" in str(warning.message) and issubclass(warning.category, UserWarning)
+            for warning in w
+        ), "measure='jaccard'은 유효 — UserWarning 없어야 함"
+
+    def test_valid_measure_exact_no_warning(self):
+        with _pytest_warnings.catch_warnings(record=True) as w:
+            _pytest_warnings.simplefilter("always")
+            compute_reproducibility_score(["응답1", "응답1"], measure="exact")
+        assert not any(
+            "measure" in str(warning.message) and issubclass(warning.category, UserWarning)
+            for warning in w
+        ), "measure='exact'은 유효 — UserWarning 없어야 함"
+
+    def test_invalid_measure_falls_back_to_token_f1_result(self):
+        # 잘못된 measure="edit_distance"로 호출한 결과가 token_f1 결과와 동일해야 함
+        with _pytest_warnings.catch_warnings(record=True):
+            _pytest_warnings.simplefilter("always")
+            result_invalid = compute_reproducibility_score(["abc def", "abc xyz"], measure="edit_distance")
+        result_token_f1 = compute_reproducibility_score(["abc def", "abc xyz"], measure="token_f1")
+        assert result_invalid["score"] == pytest.approx(result_token_f1["score"]), (
+            "잘못된 measure 폴백 결과가 token_f1 결과와 달라야 하지 않음"
+        )

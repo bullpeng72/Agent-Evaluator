@@ -3106,11 +3106,15 @@ class PerformanceMonitor:
                     _sla_budget_penalty = min(0.3, _overage * 0.1)
 
         # reproducibility → Group C
+        # C-3: run_count < 2 (skip_side_effects=True 또는 runs ≤ 1 오설정)이면
+        # compute_reproducibility_score는 score=1.0을 반환하지만 실제 재현성 측정이 이루어지지 않았음.
+        # 이 값을 Gate C에 포함하면 측정되지 않은 데이터가 점수를 인플레이션시키므로 제외한다.
         _repro_scores = [
             float(t.extra.get("reproducibility", {}).get("score"))
             for t in tasks
             if (t.extra or {}).get("reproducibility") is not None
             and (t.extra or {}).get("reproducibility", {}).get("score") is not None
+            and int((t.extra or {}).get("reproducibility", {}).get("run_count", 2)) >= 2
         ]
         avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
         if avg_reproducibility is not None:

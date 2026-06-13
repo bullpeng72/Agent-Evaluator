@@ -786,6 +786,30 @@ class GracefulDegradationConfig:
     empty_response_penalty: float = 1.0
     check_error_acknowledgment: bool = True
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-1: quality_floor > 1.0 → degradation_score > 1.0 → Gate C 집계 오염
+        # quality_floor < 0.0 → 음수 점수 가능 → 마찬가지로 오염
+        if not (0.0 <= self.quality_floor <= 1.0):
+            _w.warn(
+                f"GracefulDegradationConfig: quality_floor={self.quality_floor}는 [0.0, 1.0] 범위를 벗어납니다. "
+                f"클램핑합니다. quality_floor > 1.0이면 degradation_score가 1.0을 초과해 "
+                f"Gate C 집계를 왜곡합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.quality_floor = max(0.0, min(1.0, self.quality_floor))
+        # C-1: empty_response_penalty < 0.0 → 1.0 - negative > 1.0 → degradation_score > 1.0
+        if self.empty_response_penalty < 0.0:
+            _w.warn(
+                f"GracefulDegradationConfig: empty_response_penalty={self.empty_response_penalty} < 0 이므로 "
+                f"0.0으로 보정됩니다. 음수 값은 빈 응답의 degradation_score가 1.0을 초과해 "
+                f"Gate C 집계를 왜곡합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.empty_response_penalty = 0.0
+
 
 @dataclasses.dataclass
 class ComplianceConfig:
@@ -1039,6 +1063,20 @@ class IdempotencyConfig:
     non_idempotent_penalty: float = 0.2
     warn_on_non_idempotent: bool = True
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-2: non_idempotent_penalty < 0 → penalty 음수 → 1.0 - negative > 1.0
+        # → idempotency_score가 1.0을 초과해 Gate C 집계를 오염시킨다.
+        if self.non_idempotent_penalty < 0.0:
+            _w.warn(
+                f"IdempotencyConfig: non_idempotent_penalty={self.non_idempotent_penalty} < 0 이므로 "
+                f"기본값 0.2로 보정됩니다. 음수 penalty는 idempotency_score가 1.0을 초과해 "
+                f"Gate C 집계를 왜곡합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.non_idempotent_penalty = 0.2
+
 
 @dataclasses.dataclass
 class CostPredictabilityConfig:
@@ -1135,15 +1173,21 @@ class ContextWindowConfig:
         # B-47a: warn_at_pct < 0.0 → 음수 warning 임계값은 utilization(≥0)이 항상 초과
         # → 0% 사용률도 warning 영역에 진입해 saturation_score < 1.0으로 과도한 패널티 발생.
         # 예: warn=-0.3, sat=0.5 → 10% 사용률에서 score=0.25 (정상이면 ~1.0이어야 함).
+        # B-52: 이전 보정 목적지 0.0은 여전히 0%부터 warn zone을 시작시켜 정상 사용률에 과도한 페널티.
+        # warn > 1.0이면 0.7(기본값)로 복원하는 것과 일관되게, sat 기반으로 최대 0.7까지 복원.
+        # sat <= 0이면 step B-47b에서 0.9로 보정 예정이므로 effective_sat=0.9를 선제 반영.
         if self.warn_at_pct < 0.0:
+            _eff_sat = self.saturated_at_pct if self.saturated_at_pct > 0.0 else 0.9
+            _corrected_warn = min(0.7, max(0.0, _eff_sat - 0.05))
             _w.warn(
-                f"ContextWindowConfig: warn_at_pct={self.warn_at_pct} < 0 이므로 0.0으로 보정됩니다. "
+                f"ContextWindowConfig: warn_at_pct={self.warn_at_pct} < 0 이므로 "
+                f"{_corrected_warn}로 보정됩니다. "
                 f"음수 warn_at_pct는 utilization(0 이상)이 항상 warning 영역에 진입하게 만들어 "
                 f"0% 사용률에서도 saturation_score < 1.0으로 오탐됩니다.",
                 UserWarning,
                 stacklevel=2,
             )
-            self.warn_at_pct = 0.0
+            self.warn_at_pct = _corrected_warn
         # B-47b: saturated_at_pct <= 0.0 → utilization(≥0)이 항상 포화 임계값 이상
         # → 1 token만 사용해도 is_saturated=True 오탐.
         # 예: sat=-0.2 → utilization=0.00008 > -0.2 → 항상 saturation_score=0.0.
@@ -4751,7 +4795,9 @@ def _build_and_record(
         if deadlock is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_deadlock
-                _ai = (task_result.extra or {}).get("agent_interactions") or []
+                # B-53: EvalMetadata.agent_interactions → task_result.agent_interactions (직접 필드),
+                # extra dict에는 저장되지 않으므로 직접 필드를 우선 참조.
+                _ai = task_result.agent_interactions or (task_result.extra or {}).get("agent_interactions") or []
                 _dl_result = eval_deadlock(
                     task_result.tool_calls or [],
                     _ai,
@@ -4860,7 +4906,8 @@ def _build_and_record(
         if propagation is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_propagation
-                _agent_interactions = task_result.extra.get("agent_interactions", []) if task_result.extra else []
+                # B-53: EvalMetadata.agent_interactions → task_result.agent_interactions 직접 필드 우선 참조
+                _agent_interactions = task_result.agent_interactions or (task_result.extra.get("agent_interactions", []) if task_result.extra else [])
                 _prop_result = eval_propagation(
                     task_result.response, _agent_interactions, propagation
                 )
@@ -4934,8 +4981,9 @@ def _build_and_record(
         if conflict_resolution is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_conflict_resolution
+                # B-53: EvalMetadata.agent_interactions → task_result.agent_interactions 직접 필드 우선 참조
                 _agent_interactions_p4 = (
-                    task_result.extra.get("agent_interactions", []) if task_result.extra else []
+                    task_result.agent_interactions or (task_result.extra.get("agent_interactions", []) if task_result.extra else [])
                 )
                 _p4_extra["conflict_resolution"] = eval_conflict_resolution(
                     task_result.response, _agent_interactions_p4, conflict_resolution
