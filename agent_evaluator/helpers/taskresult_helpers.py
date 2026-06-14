@@ -2722,7 +2722,10 @@ def eval_consensus(
 
     method: str = getattr(config, "consensus_method", "majority") or "majority"
     agent_weights: Dict[str, float] = getattr(config, "agent_weights", {}) or {}
-    sim_threshold: float = getattr(config, "similarity_threshold", 0.7) or 0.7
+    # F-6: `or 0.7` falsy 패턴 — similarity_threshold=0.0 입력 시 0.7로 강제 override되는 버그
+    # ConsensusConfig.__post_init__이 0.0을 차단하지만 방어 코드로 명시적 None 체크로 수정
+    _raw_thresh = getattr(config, "similarity_threshold", None)
+    sim_threshold: float = float(_raw_thresh) if _raw_thresh is not None else 0.7
     select_best: bool = getattr(config, "select_consensus_response", False)
 
     names = agent_names or [str(i) for i in range(len(responses))]
@@ -3551,11 +3554,17 @@ def eval_compliance(
         # 아래 카테고리는 OL에 해당 키가 없어 직접 스캔으로 폴백 (미래 OL 확장 시 제거)
         # "name", "address", "passport", "korean_phone", "korean_rrn" → fallback to _PII_PATTERNS scan
     }
+    # E-7: 동일 OL 키에 매핑되는 카테고리 중복 방지 (예: "ip_address" + "private_ip" 동시 지정 시
+    # 둘 다 contains_private_ip를 읽어 동일 탐지를 2건으로 집계 → 0.40 과도 감점).
+    _seen_ol_keys: set = set()
     for category in (config.pii_categories or []):
         detected = False
         if _ol_available:
             ol_key = _OL_KEY_MAP.get(category)
             if ol_key is not None:
+                if ol_key in _seen_ol_keys:
+                    continue  # 동일 OL 키 중복 — 건너뜀
+                _seen_ol_keys.add(ol_key)
                 detected = bool(_ol.get(ol_key))
             else:
                 # category에 해당하는 OL 키가 없으면 직접 스캔
