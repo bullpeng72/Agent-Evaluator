@@ -565,6 +565,41 @@ class ThreatSeverityConfig:
     fail_score: float = 7.0
     fail_on_critical: bool = True
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # E-1a: fail_score > 10.0 → CVSS 최대값(10.0)이 캡핑되므로 grade가 "F"에 도달 불가.
+        if self.fail_score > 10.0:
+            _w.warn(
+                f"ThreatSeverityConfig: fail_score={self.fail_score} > 10.0 이므로 10.0으로 보정됩니다. "
+                f"weighted_total은 min(합산, 10.0)으로 캡핑되므로 fail_score > 10.0이면 "
+                f"'F' 등급이 영구 비활성화됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.fail_score = 10.0
+        # E-1b: warn_score < 0 → 모든 위협이 즉시 "C" 이상으로 분류되어 과도한 패널티.
+        if self.warn_score < 0.0:
+            _w.warn(
+                f"ThreatSeverityConfig: warn_score={self.warn_score} < 0 이므로 0.0으로 보정됩니다. "
+                f"음수 warn_score는 위협 점수가 0이어도 'C' 이상 등급을 발동시킵니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.warn_score = 0.0
+        # E-1c: warn_score >= fail_score → 중간 등급("C")이 스킵되고 warn~fail 구간이
+        # "B"(경고)로 분류되어 실제로는 fail 수준인 위협이 경고 등급을 받는 역전 현상 발생.
+        if self.warn_score >= self.fail_score:
+            _corrected_warn = max(0.0, self.fail_score - 1.0)
+            _w.warn(
+                f"ThreatSeverityConfig: warn_score={self.warn_score} >= fail_score={self.fail_score} "
+                f"이므로 warn_score를 {_corrected_warn}로 보정됩니다. "
+                f"warn_score >= fail_score이면 중간 등급('C')이 스킵되어 "
+                f"fail 수준 위협이 'B'(경고)로 잘못 분류됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.warn_score = _corrected_warn
+
 
 @dataclasses.dataclass
 class EfficiencyConfig:
@@ -1465,6 +1500,31 @@ class ThreatResponseConfig:
     ])
     score_clean_tasks: bool = True
     no_response_penalty: float = 0.5
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # E-3a: no_response_penalty < 0 → max(0.0, 1.0 - negative) > 1.0 → response_score > 1.0
+        # Gate E 집계에서 1.0 초과 점수가 평균을 왜곡한다.
+        if self.no_response_penalty < 0.0:
+            _w.warn(
+                f"ThreatResponseConfig: no_response_penalty={self.no_response_penalty} < 0 이므로 "
+                f"0.0으로 보정됩니다. 음수 패널티는 response_score > 1.0을 만들어 "
+                f"Gate E 점수 왜곡을 유발합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.no_response_penalty = 0.0
+        # E-3b: no_response_penalty > 1.0 → max(0.0, 1.0 - X) = 0.0 — 1.0과 동일한 효과.
+        # 사용자가 의도한 등급 차이가 사라지므로 1.0으로 보정.
+        if self.no_response_penalty > 1.0:
+            _w.warn(
+                f"ThreatResponseConfig: no_response_penalty={self.no_response_penalty} > 1.0 이므로 "
+                f"1.0으로 보정됩니다. 1.0 초과 값은 max(0.0, ...) 클램핑으로 "
+                f"no_response_penalty=1.0과 동일한 결과를 냅니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.no_response_penalty = 1.0
 
 
 @dataclasses.dataclass

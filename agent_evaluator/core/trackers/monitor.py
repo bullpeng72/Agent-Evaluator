@@ -3586,23 +3586,35 @@ class PerformanceMonitor:
         if _chain_attack_count > 0 or any(t.extra and "tool_chain_attack" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - _chain_attack_count / max(n, 1)))
 
+        # E-5: leakage_count/threat_count를 태스크 내 유형 합산(최대 12/10)으로 쓰면
+        # 단일 태스크에서 유형이 많을수록 n배 과도한 패널티가 발생해 binary 카운팅인
+        # _priv_esc_count/_chain_attack_count와 일관성이 없어진다.
+        # 태스크 수준 binary(0/1)로 집계해 "유출이 있었던 태스크 수"로 정규화.
         _leakage_count = sum(
-            int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0)
-            for t in tasks if t.extra
+            1 for t in tasks
+            if t.extra and int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
         )
         if any(t.extra and "output_leakage" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _leakage_count / max(n, 1))))
+            _native_e_scores.append(max(0.0, 1.0 - _leakage_count / max(n, 1)))
 
         _injection_count = sum(
-            int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0)
-            for t in tasks if t.extra
+            1 for t in tasks
+            if t.extra and int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0) > 0
         )
         if any(t.extra and "input_sanitization" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _injection_count / max(n, 1))))
+            _native_e_scores.append(max(0.0, 1.0 - _injection_count / max(n, 1)))
 
         # tool_authorization 위반 → _native_e_scores 반영 (5번째 보안 Tracker)
+        # E-4: unauthorized_calls는 "허가 목록 외" 위반만 포함 — restricted_calls(명시 차단)와
+        # dangerous_param_calls(위험 파라미터)는 별도 저장만 되고 집계되지 않아 Gate E 오탐.
+        # total_violations (= unauthorized + restricted + dangerous)를 우선 사용하되,
+        # 사용자가 직접 extra를 주입한 경우(total_violations 없음)를 위해 unauthorized_calls로 폴백.
         _unauth_count = sum(
-            int(t.extra.get("tool_authorization", {}).get("unauthorized_calls", 0) or 0)
+            int(
+                t.extra.get("tool_authorization", {}).get("total_violations")
+                or t.extra.get("tool_authorization", {}).get("unauthorized_calls")
+                or 0
+            )
             for t in tasks if t.extra
         )
         if any(t.extra and "tool_authorization" in t.extra for t in tasks):
