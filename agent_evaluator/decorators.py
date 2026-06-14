@@ -836,6 +836,30 @@ class ConsensusConfig:
                 UserWarning,
                 stacklevel=2,
             )
+        # F-G: consensus_method 유효값 검증 — 지원되지 않는 값은 majority로 폴백되지만
+        # eval_consensus 반환 dict에 입력값이 그대로 노출되어 사용자가 오동작을 인지하기 어려움
+        _valid_methods = {"majority", "weighted", "unanimity"}
+        if self.consensus_method not in _valid_methods:
+            _w.warn(
+                f"ConsensusConfig: consensus_method={self.consensus_method!r}은 지원하지 않는 값입니다. "
+                f"지원 값: {sorted(_valid_methods)}. "
+                f"'majority'로 보정됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.consensus_method = "majority"
+        # F-C: consensus_method='weighted'이지만 agent_weights가 비어 있으면
+        # eval_consensus의 `elif method == "weighted" and agent_weights:` 조건이 False가 되어
+        # 실제로는 majority 로직이 적용되고 반환 dict의 method 키만 'weighted'로 표시되는 불일치 발생
+        if self.consensus_method == "weighted" and not self.agent_weights:
+            _w.warn(
+                "ConsensusConfig: consensus_method='weighted'이지만 agent_weights={}입니다. "
+                "가중치가 없으면 majority 방식으로 폴백되어 가중 합의 측정이 동작하지 않습니다. "
+                "agent_weights={'에이전트명': 가중치} 형식으로 설정하세요. "
+                "예: agent_weights={'expert': 3.0, 'base': 1.0}",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -953,6 +977,19 @@ class ExplainabilityConfig:
     )
     min_reasoning_length: int = 20
     check_action_explanation_alignment: bool = False
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # BUG-G7 fix: min_reasoning_length < 0 → 길이 검사 `len(response) >= negative` 가 항상 True
+        # → 빈 응답도 reasoning 길이 기준 통과 → Gate G 인플레이션
+        if self.min_reasoning_length < 0:
+            _w.warn(
+                f"ExplainabilityConfig: min_reasoning_length={self.min_reasoning_length} < 0 이므로 "
+                f"기본값 20으로 보정됩니다. 음수 값은 길이 검사를 항상 통과시켜 Gate G를 인플레이션시킵니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.min_reasoning_length = 20
 
 
 @dataclasses.dataclass
@@ -1505,6 +1542,32 @@ class ErrorDiagnosisConfig:
     root_cause_weight: float = 0.5
     suggestion_weight: float = 0.2
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # BUG-G5 fix: 음수 가중치 → diagnosis_score가 음수 → Gate G 점수 음수 방지
+        for _attr, _default in [
+            ("acknowledgment_weight", 0.3),
+            ("root_cause_weight", 0.5),
+            ("suggestion_weight", 0.2),
+        ]:
+            if getattr(self, _attr) < 0.0:
+                _w.warn(
+                    f"ErrorDiagnosisConfig: {_attr}={getattr(self, _attr)} < 0 이므로 "
+                    f"기본값 {_default}으로 보정됩니다. 음수 가중치는 diagnosis_score를 음수로 만들어 "
+                    f"Gate G 점수를 왜곡합니다.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                setattr(self, _attr, _default)
+        # 가중치 합이 0이면 어떤 응답도 점수 없음 → 의도치 않은 Gate G 제외
+        if (self.acknowledgment_weight + self.root_cause_weight + self.suggestion_weight) == 0.0:
+            _w.warn(
+                "ErrorDiagnosisConfig: 모든 가중치(acknowledgment_weight + root_cause_weight + "
+                "suggestion_weight)의 합이 0.0입니다. diagnosis_score가 항상 0이 됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+
 
 # v0.9.3+: Phase 6 Harness Config 데이터클래스
 
@@ -1851,6 +1914,27 @@ class LatencyAttributionConfig:
     network_latency_key: str = "network_latency_ms"
     max_tool_time_ratio: float = 0.6
     max_unattributed_ratio: float = 0.3
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # BUG-G4 fix: 비율 값이 [0, 1] 범위 밖이면 Gate G 점수 왜곡
+        # > 1.0: 해당 penalty가 항상 0 → attribution_score 항상 1.0 (인플레이션)
+        # < 0.0: 해당 ratio가 항상 penalty 발생 → 완전 귀속 태스크도 감점 (디플레이션)
+        for _attr, _default in [
+            ("max_tool_time_ratio", 0.6),
+            ("max_unattributed_ratio", 0.3),
+        ]:
+            _val = getattr(self, _attr)
+            if not (0.0 <= _val <= 1.0):
+                _w.warn(
+                    f"LatencyAttributionConfig: {_attr}={_val} 은 [0.0, 1.0] 범위를 벗어납니다. "
+                    f"기본값 {_default}으로 보정됩니다. "
+                    f">1.0이면 해당 페널티가 항상 0이 되어 Gate G를 인플레이션시키고, "
+                    f"<0.0이면 완전 귀속 태스크도 감점되어 Gate G를 디플레이션시킵니다.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                setattr(self, _attr, _default)
 
 
 # ---------------------------------------------------------------------------
@@ -8033,6 +8117,21 @@ def batch_eval(
     def decorator(func: Callable) -> Callable:
         if not enabled:
             return func
+
+        # F-A: batch_eval은 consensus_responses를 각 항목에 전달하지 않으므로
+        # consensus=ConsensusConfig(...)를 설정해도 eval_consensus가 항상 건너뛰어짐
+        # (agent_eval 내부 조건: `if consensus is not None and consensus_responses:` → 항상 False)
+        if consensus is not None:
+            import warnings as _w_fa
+            _w_fa.warn(
+                "batch_eval에 consensus=ConsensusConfig(...)가 설정되어 있지만 "
+                "batch_eval은 각 항목에 consensus_responses를 주입하지 않으므로 "
+                "consensus 평가가 항상 건너뜁니다. "
+                "ConsensusConfig는 agent_eval의 consensus_responses= 파라미터와 함께 사용하거나, "
+                "배치 응답 목록을 직접 eval_consensus()에 전달하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         is_async = asyncio.iscoroutinefunction(func)
         sig = inspect.signature(func)

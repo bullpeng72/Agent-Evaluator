@@ -2651,12 +2651,18 @@ def eval_observability(
     Returns:
         {trace_coverage, missing_attributes, missing_audit_events, observability_score}
     """
-    required_attrs: List[str] = getattr(config, "required_span_attributes", [
-        "task_id", "task_type", "execution_time",
-    ]) or ["task_id", "task_type", "execution_time"]
+    # BUG-G2 fix: `or [...]` falsy trap — required_span_attributes=[] means "check nothing",
+    # must use explicit None check instead of truthy override.
+    _raw_attrs = getattr(config, "required_span_attributes", None)
+    required_attrs: List[str] = (
+        _raw_attrs if _raw_attrs is not None
+        else ["task_id", "task_type", "execution_time"]
+    )
     check_continuity: bool = getattr(config, "check_trace_continuity", True)
     audit_events: List[str] = getattr(config, "audit_events", []) or []
-    min_coverage: float = getattr(config, "min_coverage", 0.95) or 0.95
+    # BUG-G3 fix: `or 0.95` falsy trap — min_coverage=0.0 must not be overridden.
+    _raw_cov = getattr(config, "min_coverage", None)
+    min_coverage: float = _raw_cov if _raw_cov is not None else 0.95
 
     extra = task_result_extra or {}
     actual_attrs: Dict[str, Any] = {
@@ -2676,7 +2682,11 @@ def eval_observability(
 
     # trace 연속성: tool_calls 수 vs span 수 비교
     tc_count = len(tool_calls or [])
-    otel_spans = extra.get("otel_spans") or extra.get("span_count")
+    # BUG-G8 fix: `or` falsy trap — otel_spans=0(명시적 0 스팬)이 falsy라서
+    # span_count로 폴백되는 버그. 0은 "0개의 스팬을 기록했음"의 유효한 값이므로
+    # None과 구별해야 한다.
+    _raw_otel = extra.get("otel_spans")
+    otel_spans = _raw_otel if _raw_otel is not None else extra.get("span_count")
     if check_continuity and tc_count > 0:
         if otel_spans is None:
             logger.warning(
@@ -3284,8 +3294,13 @@ def eval_propagation(
             return True
         if similarity_threshold < 1.0:
             tokens = fl.split()
-            if tokens:
-                matched = sum(1 for t in tokens if len(t) >= 2 and t in text) / len(tokens)
+            # F-I: 분모를 len(tokens) 전체로 쓰면 len < 2 단어("I", "a")가 분자에서는 제외되고
+            # 분모에는 포함되어 match ratio가 과소 계산됨. 예: "I went" → "went" in text면
+            # matched = 1/2 = 0.5 < 0.7 → 미발견 판정 (오류).
+            # 분모도 len >= 2 토큰만 기준으로 계산.
+            valid_tokens = [t for t in tokens if len(t) >= 2]
+            if valid_tokens:
+                matched = sum(1 for t in valid_tokens if t in text) / len(valid_tokens)
                 return matched >= similarity_threshold
         return False
 
@@ -4158,10 +4173,13 @@ def eval_error_diagnosis(
     Returns:
         Dict with keys: diagnosis_score, acknowledged_failure, identified_root_cause,
         provided_suggestion, is_failure_case.
-        ``only_on_failure=True`` 이고 태스크가 성공했으면 ``None`` 반환.
+        태스크가 성공(오류 없음)이면 ``None`` 반환 — 성공 태스크는 진단 대상 없음.
+        ``only_on_failure=True`` 이면 명시적 스킵, ``False`` 이면 BUG-G6 방지를 위해
+        성공 태스크도 ``None`` 처리 (실패 마커 기반 점수 0.0으로 Gate G를 부당하게 낮추는 것 방지).
     """
-    # If only_on_failure=True and task succeeded without error, return None
-    if config.only_on_failure and task_success and not has_error:
+    # BUG-G6 fix: only_on_failure=False이더라도 성공 태스크(오류 없음)에는 실패 마커가 존재하지 않으므로
+    # 점수가 항상 0.0이 되어 Gate G를 부당하게 하락시킨다. 성공 태스크는 진단 대상이 없으므로 None을 반환.
+    if task_success and not has_error:
         return None
 
     response_lower = (response or "").lower()

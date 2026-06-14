@@ -3927,7 +3927,7 @@ class PerformanceMonitor:
             }, f_score=True),
             "G": _g(_g_s, "Observability", {
                 "tool_coverage": round(_tool_coverage, 4) if _tool_coverage is not None else None,
-                "hallucination_rate": hall_rate,
+                "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
                 "avg_observability_score": round(avg_obs_custom, 4) if avg_obs_custom is not None else None,
                 "avg_explainability": round(avg_explainability, 4) if avg_explainability is not None else None,
                 "avg_error_diagnosis": round(avg_error_diagnosis, 4) if avg_error_diagnosis is not None else None,
