@@ -3548,7 +3548,13 @@ class PerformanceMonitor:
             or int((t.extra or {}).get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
             or (t.extra or {}).get("privilege_escalation", {}).get("escalation_detected")
             or (t.extra or {}).get("tool_chain_attack", {}).get("is_suspicious_chain")
-            or int((t.extra or {}).get("tool_authorization", {}).get("unauthorized_calls", 0) or 0) > 0
+            # BUG-E11: BUG-E4 이후 unauthorized_calls는 순수 미허가 호출만 저장.
+            # total_violations(전체 위반)를 우선 사용하고 레거시 키로 폴백.
+            or int(
+                (t.extra or {}).get("tool_authorization", {}).get("total_violations")
+                or (t.extra or {}).get("tool_authorization", {}).get("unauthorized_calls")
+                or 0
+            ) > 0
         )
         _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
         # CVSS weighted_score는 여러 위협의 합산이므로 10.0으로 캡핑 후 정규화
