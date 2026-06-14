@@ -1983,22 +1983,29 @@ class TestIdempotencyConfigValidation:
 class TestReproducibilityGateCExclusion:
     """BUG-C3 회귀: run_count=1 재현성 결과가 Gate C 집계에서 제외되어야 함."""
 
-    def test_run_count_one_excluded_from_gate_c(self):
-        # skip_side_effects=True → run_count=1, score=1.0 → Gate C 미포함 확인
-        monitor = PerformanceMonitor()
+    def test_runs_one_clamped_to_two_by_post_init(self):
+        # BUG-C20 수정 후: runs=1은 __post_init__에서 2로 보정됨
+        # → 데코레이터가 1회 추가 실행 → run_count=2 → Gate C 정상 기여
+        import warnings as _wc3
+        with _wc3.catch_warnings(record=True) as wlist:
+            _wc3.simplefilter("always")
+            monitor = PerformanceMonitor()
 
-        @agent_eval(monitor, task_type="qa",
-                    reproducibility=ReproducibilityConfig(runs=1))
-        def agent(question, ground_truth=""):
-            return "응답"
+            @agent_eval(monitor, task_type="qa",
+                        reproducibility=ReproducibilityConfig(runs=1))
+            def agent(question, ground_truth=""):
+                return "응답"
 
         agent("테스트", ground_truth="응답")
-        # task.extra["reproducibility"]["run_count"] == 1 이어야 함
         t = monitor.tasks[-1]
         repro = (t.extra or {}).get("reproducibility", {})
-        assert repro.get("run_count", 2) < 2, (
-            "runs=1 설정 시 run_count=1이 기록되어야 함"
+        # runs=1이 2로 보정되었으므로 run_count=2가 기록되어야 함
+        assert repro.get("run_count", 0) == 2, (
+            "runs=1은 BUG-C20 수정으로 2로 보정되므로 run_count=2가 기록되어야 함"
         )
+        # 경고가 발행되어야 함
+        run_warnings = [w for w in wlist if "runs" in str(w.message)]
+        assert len(run_warnings) > 0, "runs=1 → 2 보정 시 UserWarning 발행 확인"
 
     def test_run_count_one_score_not_inflated_in_gate_c(self):
         # run_count=1 재현성(score=1.0)이 있는 경우와 없는 경우의 Gate C 점수 동일해야 함
@@ -2734,3 +2741,200 @@ class TestEvalSLAZeroThresholdPreservation:
 
         result = eval_sla(0.1, {}, None, _FakeSLACfg())
         assert result["sla_met"], "p95_ms=None → 폴백 5000.0 → 100ms 태스크 통과해야 함"
+
+
+# ===========================================================================
+# Section 17 — R42 BUG-C20 / BUG-C21 / BUG-C22 회귀 테스트
+# ===========================================================================
+
+import warnings as _w17
+
+from agent_evaluator.decorators import (
+    ReproducibilityConfig as _ReproCfg17,
+    SLAConfig as _SLAConfig17,
+)
+
+
+# ── BUG-C20: ReproducibilityConfig.runs < 2 → Gate C 왜곡 또는 unexpected 3회 실행 ──
+
+class TestReproducibilityRunsValidation:
+    """BUG-C20: runs < 2이면 경고 후 2로 보정."""
+
+    def test_runs_zero_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            _ReproCfg17(runs=0)
+        msgs = [str(x.message) for x in w]
+        assert any("runs=0" in m or "runs < 2" in m or "runs=0" in m for m in msgs), (
+            "runs=0은 (0 or 3)=3 폴백 트랩이므로 UserWarning을 발행해야 함"
+        )
+
+    def test_runs_zero_clamped_to_two(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17(runs=0)
+        assert cfg.runs == 2, "runs=0은 2로 보정되어야 함 — (0 or 3)=3 폴백 방지"
+
+    def test_runs_one_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            _ReproCfg17(runs=1)
+        msgs = [str(x.message) for x in w]
+        assert any("runs" in m for m in msgs), (
+            "runs=1이면 run_count=1 → score=1.0(미측정) → Gate C에 노이즈 기여 → 경고해야 함"
+        )
+
+    def test_runs_one_clamped_to_two(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17(runs=1)
+        assert cfg.runs == 2, "runs=1은 2로 보정되어야 함"
+
+    def test_runs_two_is_valid_no_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17(runs=2)
+        run_warnings = [x for x in w if "runs" in str(x.message).lower()]
+        assert len(run_warnings) == 0, "runs=2는 유효값이므로 runs 관련 경고 없어야 함"
+        assert cfg.runs == 2
+
+    def test_runs_default_three_no_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17()
+        run_warnings = [x for x in w if "runs" in str(x.message).lower()]
+        assert len(run_warnings) == 0, "기본값 runs=3은 유효하므로 경고 없어야 함"
+        assert cfg.runs == 3
+
+    def test_runs_five_valid(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17(runs=5)
+        run_warnings = [x for x in w if "runs" in str(x.message).lower()]
+        assert len(run_warnings) == 0
+        assert cfg.runs == 5
+
+    def test_runs_negative_also_clamped(self):
+        # runs=-1은 0보다 작아 invalid — runs < 2 경로로 2로 보정
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _ReproCfg17(runs=-1)
+        msgs = [str(x.message) for x in w]
+        assert any("runs" in m for m in msgs), "runs=-1은 경고해야 함"
+        assert cfg.runs == 2, "runs=-1은 2로 보정되어야 함"
+
+
+# ── BUG-C21: SLAConfig.breach_window <= 0 → list[-0:]=전체목록 → Gate D 패널티 과대 ──
+
+class TestSLABreachWindowValidation:
+    """BUG-C21: breach_window <= 0이면 경고 후 1로 보정."""
+
+    def test_breach_window_zero_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            _SLAConfig17(breach_window=0)
+        msgs = [str(x.message) for x in w]
+        assert any("breach_window" in m for m in msgs), (
+            "breach_window=0은 list[-0:]=list[0:]=전체목록이 되므로 경고해야 함"
+        )
+
+    def test_breach_window_zero_clamped_to_one(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(breach_window=0)
+        assert cfg.breach_window == 1, "breach_window=0은 1로 보정되어야 함"
+
+    def test_breach_window_negative_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            _SLAConfig17(breach_window=-5)
+        msgs = [str(x.message) for x in w]
+        assert any("breach_window" in m for m in msgs), "breach_window=-5 → 경고해야 함"
+
+    def test_breach_window_negative_clamped_to_one(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(breach_window=-5)
+        assert cfg.breach_window == 1, "breach_window=-5는 1로 보정되어야 함"
+
+    def test_breach_window_one_is_valid(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(breach_window=1)
+        bw_warnings = [x for x in w if "breach_window" in str(x.message)]
+        assert len(bw_warnings) == 0, "breach_window=1은 유효값이므로 경고 없어야 함"
+        assert cfg.breach_window == 1
+
+    def test_breach_window_default_ten_valid(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17()
+        bw_warnings = [x for x in w if "breach_window" in str(x.message)]
+        assert len(bw_warnings) == 0, "기본값 breach_window=10은 유효하므로 경고 없어야 함"
+        assert cfg.breach_window == 10
+
+
+# ── BUG-C22: SLAConfig.warn_threshold/fail_threshold <= 0 → 0건에도 패널티 ──
+
+class TestSLAThresholdNonPositiveValidation:
+    """BUG-C22: warn/fail_threshold <= 0이면 breach 없어도 패널티 발동."""
+
+    def test_fail_threshold_zero_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            # warn=2 >= fail=0이면 warn>=fail 경고도 발행 — fail_threshold 경고도 있어야 함
+            _SLAConfig17(warn_threshold=2, fail_threshold=0)
+        msgs = [str(x.message) for x in w]
+        assert any("fail_threshold" in m for m in msgs), (
+            "fail_threshold=0 → breach 0건에도 0.3 패널티 → 경고해야 함"
+        )
+
+    def test_fail_threshold_zero_clamped_to_one(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(warn_threshold=0, fail_threshold=0)
+        assert cfg.fail_threshold == 1, "fail_threshold=0은 1로 보정되어야 함"
+
+    def test_warn_threshold_zero_emits_warning(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            _SLAConfig17(warn_threshold=0, fail_threshold=5)
+        msgs = [str(x.message) for x in w]
+        assert any("warn_threshold" in m for m in msgs), (
+            "warn_threshold=0 → breach 0건에도 0.1 패널티 → 경고해야 함"
+        )
+
+    def test_warn_threshold_zero_clamped_to_one(self):
+        with _w17.catch_warnings(record=True):
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(warn_threshold=0, fail_threshold=5)
+        assert cfg.warn_threshold == 1, "warn_threshold=0은 1로 보정되어야 함"
+
+    def test_fail_threshold_negative_clamped(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(warn_threshold=0, fail_threshold=-3)
+        msgs = [str(x.message) for x in w]
+        assert any("fail_threshold" in m for m in msgs), "fail_threshold=-3 → 경고해야 함"
+        assert cfg.fail_threshold == 1
+
+    def test_warn_threshold_negative_clamped(self):
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(warn_threshold=-1, fail_threshold=5)
+        msgs = [str(x.message) for x in w]
+        assert any("warn_threshold" in m for m in msgs), "warn_threshold=-1 → 경고해야 함"
+        assert cfg.warn_threshold == 1
+
+    def test_valid_thresholds_no_warning(self):
+        # warn=2, fail=5 — 정상값
+        with _w17.catch_warnings(record=True) as w:
+            _w17.simplefilter("always")
+            cfg = _SLAConfig17(warn_threshold=2, fail_threshold=5)
+        thr_warnings = [
+            x for x in w
+            if "warn_threshold" in str(x.message) or "fail_threshold" in str(x.message)
+        ]
+        assert len(thr_warnings) == 0, "정상 threshold는 경고 없어야 함"
+        assert cfg.warn_threshold == 2
+        assert cfg.fail_threshold == 5

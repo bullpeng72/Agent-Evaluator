@@ -360,6 +360,19 @@ class ReproducibilityConfig:
                 UserWarning, stacklevel=2,
             )
             self.reproducibility_threshold = max(0.0, min(1.0, self.reproducibility_threshold))
+        # C-20: runs < 2 → run_count=1 → score=1.0(미측정) or (0 or 3) 폴백으로 3회 실행
+        # runs=0이 특히 위험: Python에서 (0 or 3)=3이므로 데코레이터가 함수를 2회 추가 호출하고
+        # Gate C에 예상치 못한 재현성 점수가 기여됨
+        if self.runs < 2:
+            _w.warn(
+                f"ReproducibilityConfig: runs={self.runs} < 2. "
+                f"재현성 측정은 최소 2회 실행이 필요합니다. "
+                f"runs=0이면 데코레이터의 (runs or 3) 폴백으로 실제 3회 실행이 발동되어 "
+                f"예상치 못한 함수 부작용과 Gate C 재현성 기여가 발생합니다. "
+                f"runs=2로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.runs = 2
 
 
 @dataclasses.dataclass
@@ -475,6 +488,34 @@ class SLAConfig:
                 f"latency_ok=False/True 판정이 직관에 반할 수 있습니다.",
                 UserWarning, stacklevel=2,
             )
+        # C-21: breach_window <= 0 — Python list[-0:] = list[0:] = 전체 목록
+        # breach_window=0이면 최근 N건 윈도우가 아닌 전체 결과를 기준으로 판정
+        if self.breach_window <= 0:
+            _w.warn(
+                f"SLAConfig: breach_window={self.breach_window} <= 0. "
+                f"breach_window=0이면 Python 슬라이싱 list[-0:]=list[0:]으로 인해 "
+                f"최근 {abs(self.breach_window) or '?'}건이 아닌 전체 SLA 기록을 윈도우로 사용하게 됩니다. "
+                f"Gate D 윈도우 패널티가 과대 적용됩니다. 1로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.breach_window = 1
+        # C-22: warn_threshold/fail_threshold <= 0 → breach 0건에도 패널티 항상 발동
+        if self.warn_threshold <= 0:
+            _w.warn(
+                f"SLAConfig: warn_threshold={self.warn_threshold} <= 0. "
+                f"breach가 0건이어도 warn 패널티(Gate D -0.1)가 항상 발동됩니다. "
+                f"1로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.warn_threshold = 1
+        if self.fail_threshold <= 0:
+            _w.warn(
+                f"SLAConfig: fail_threshold={self.fail_threshold} <= 0. "
+                f"breach가 0건이어도 fail 패널티(Gate D -0.3)가 항상 발동됩니다. "
+                f"1로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.fail_threshold = 1
 
 
 @dataclasses.dataclass
@@ -508,6 +549,54 @@ class EfficiencyConfig:
     penalize_failed_tokens: bool = True
     warn_ratio: float = 2.0
     fail_ratio: float = 4.0
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # D-1: cost_unit이 유효하지 않으면 efficiency_ratio 계산에서 "tokens" 폴백되지만
+        # 사용자가 오타임을 알 수 없어 의도와 다른 지표가 Gate D에 기여됨
+        _valid_units = ("tokens", "usd", "time_ms")
+        if self.cost_unit not in _valid_units:
+            _w.warn(
+                f"EfficiencyConfig: cost_unit={self.cost_unit!r}은 유효하지 않습니다. "
+                f"허용 값: {_valid_units}. 기본값 'tokens'로 보정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.cost_unit = "tokens"
+        # D-2: warn_ratio <= 0 또는 fail_ratio <= 0 → 계산식 내 max(warn_ratio-1.0, 1e-6)으로
+        # 처리되지만 사용자가 오류를 인식할 수 없음
+        if self.warn_ratio <= 0:
+            _w.warn(
+                f"EfficiencyConfig: warn_ratio={self.warn_ratio} <= 0 이므로 "
+                f"기본값 2.0으로 보정됩니다. warn_ratio는 목표 비용 대비 허용 배수(>1.0)여야 합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.warn_ratio = 2.0
+        if self.fail_ratio <= 0:
+            _w.warn(
+                f"EfficiencyConfig: fail_ratio={self.fail_ratio} <= 0 이므로 "
+                f"기본값 4.0으로 보정됩니다. fail_ratio는 목표 비용 대비 실패 판정 배수(>warn_ratio)여야 합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.fail_ratio = 4.0
+        # D-3: warn_ratio <= 1.0 → "목표 비용 이하에서도 warn" — excellent 구간(≤1.0)에서
+        # 바로 warn으로 넘어가 good 구간이 존재하지 않음 (의미 위반)
+        if self.warn_ratio <= 1.0:
+            _w.warn(
+                f"EfficiencyConfig: warn_ratio={self.warn_ratio} <= 1.0. "
+                f"warn_ratio는 목표 비용 대비 배수이므로 1.0 초과여야 합니다. "
+                f"현재 설정에서는 excellent(≤1.0x) 구간 바로 다음에 warn이 발동됩니다.",
+                UserWarning, stacklevel=2,
+            )
+        # D-4: warn_ratio >= fail_ratio → SLAConfig의 warn_threshold >= fail_threshold와 동일 결함.
+        # calibrated_score 계산에서 "warn" 단계가 스킵되어 good → fail로 직행함
+        if self.warn_ratio >= self.fail_ratio:
+            _w.warn(
+                f"EfficiencyConfig: warn_ratio={self.warn_ratio} >= fail_ratio={self.fail_ratio}. "
+                f"warn_ratio < fail_ratio 여야 합니다. "
+                f"현재 설정에서는 'warn' 효율 단계가 존재하지 않아 "
+                f"calibrated_score가 'good'에서 'fail'로 직행합니다.",
+                UserWarning, stacklevel=2,
+            )
 
 
 @dataclasses.dataclass
@@ -6131,7 +6220,7 @@ def agent_eval(
                 if reproducibility is not None and not has_error:
                     _repro_responses = [str(caller_result) if caller_result is not None else ""]
                     if not getattr(reproducibility, "skip_side_effects", False):
-                        _extra_runs = max(0, (getattr(reproducibility, "runs", 3) or 3) - 1)
+                        _extra_runs = max(0, getattr(reproducibility, "runs", 3) - 1)
                         for _ in range(_extra_runs):
                             try:
                                 _ex_raw = func(*args, **kwargs)
