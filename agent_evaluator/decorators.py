@@ -537,6 +537,17 @@ class SLAConfig:
                 UserWarning, stacklevel=2,
             )
             self.max_cost_per_task = 0.0
+        # C-27: budget_usd < 0 → 세션 누적 비용이 항상 음수 한도를 초과
+        # → max(budget_usd, 1e-9)로 0 나눗셈은 방어되나 _overage가 매우 큰 양수가 되어
+        #   Gate D budget penalty가 항상 최대(0.3)로 적용됨
+        if self.budget_usd is not None and self.budget_usd < 0.0:
+            _w.warn(
+                f"SLAConfig: budget_usd={self.budget_usd} < 0. "
+                f"세션 누적 비용이 항상 음수 예산을 초과하여 Gate D budget 패널티가 "
+                f"항상 최대(-0.3)로 적용됩니다. 0.0으로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.budget_usd = 0.0
 
 
 @dataclasses.dataclass
@@ -997,6 +1008,20 @@ class GracefulDegradationConfig:
                 stacklevel=2,
             )
             self.empty_response_penalty = 1.0
+        # C-28: timeout_threshold_ms < 0 → execution_time(≥0ms) > 음수 항상 True
+        # → 실제 타임아웃이 없어도 모든 태스크가 timeout_fallback=True로 오진됨.
+        # Gate C 점수에는 직접 영향 없으나 진단 결과를 심각하게 오도함.
+        # None으로 초기화해 timeout 시간 기반 검사 비활성화 (도구명 기반 검사만 유지).
+        if self.timeout_threshold_ms is not None and self.timeout_threshold_ms < 0:
+            _w.warn(
+                f"GracefulDegradationConfig: timeout_threshold_ms={self.timeout_threshold_ms} < 0. "
+                f"execution_time >= 0ms이므로 모든 태스크가 timeout_fallback=True로 오진됩니다. "
+                f"timeout_threshold_ms=None으로 보정해 시간 기반 타임아웃 검사를 비활성화합니다. "
+                f"도구명 기반 폴백 검사(detect_timeout_fallback=True + 도구명 'fallback'/'default')는 유지됩니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.timeout_threshold_ms = None
 
 
 @dataclasses.dataclass

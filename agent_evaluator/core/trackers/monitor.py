@@ -3312,10 +3312,22 @@ class PerformanceMonitor:
                     for t in _rb_tasks
                 )
                 _n_tasks = max(len(_rb_tasks), 1)
-                # 총 한도 = 개별 한도 × 태스크 수 (rollover: 미사용분이 이후로 이월)
-                _max_tok = (_rb_cfg.get("max_tokens") or 0) * _n_tasks
-                _max_cost = (_rb_cfg.get("max_cost_usd") or 0.0) * _n_tasks
-                _max_time = (_rb_cfg.get("max_execution_time_ms") or 0.0) * _n_tasks
+                # D-F: 총 한도는 태스크별 Config 합산 (last-task × n_tasks 오류 수정)
+                # 태스크마다 max_tokens 설정이 다를 수 있으므로 각 태스크의 Config 값을 개별 합산한다.
+                _max_tok = sum(
+                    int((t.extra["resource_budget"].get("_config") or {}).get("max_tokens") or 0)
+                    for t in _rb_tasks
+                )
+                _max_cost = sum(
+                    float((t.extra["resource_budget"].get("_config") or {}).get("max_cost_usd") or 0.0)
+                    for t in _rb_tasks
+                )
+                _max_time = sum(
+                    float(
+                        (t.extra["resource_budget"].get("_config") or {}).get("max_execution_time_ms") or 0.0
+                    )
+                    for t in _rb_tasks
+                )
                 _utils: _List[float] = []
                 if _max_tok > 0:
                     _utils.append(_total_tokens_consumed / _max_tok)
@@ -3349,6 +3361,20 @@ class PerformanceMonitor:
                     _ttft_values.append(float(_ttft))
                 except (TypeError, ValueError):
                     pass
+
+        # D-B: task.extra["ttft_ms"]에 데이터가 없으면 LatencyTracker._ttft_records를 폴백으로 사용.
+        # @agent_eval(ttft_seconds=N) 파라미터 또는 스트리밍 EvalStep이 측정한 per-task TTFT는
+        # LatencyTracker.track_ttft()에만 저장되고 task.extra에는 기록되지 않아
+        # TTFTVariabilityConfig가 완전히 작동하지 않는 문제를 수정한다.
+        # 폴백은 task.extra 데이터가 하나도 없을 때만 적용 (혼재 방지).
+        if not _ttft_values:
+            try:
+                for _rec in self.latency_tracker._ttft_records:
+                    _ttft_s = _rec.get("ttft")
+                    if _ttft_s is not None:
+                        _ttft_values.append(float(_ttft_s) * 1000.0)  # seconds → ms
+            except Exception:
+                pass
 
         _avg_ttft_variability: Optional[float] = None
         _ttft_stddev: Optional[float] = None
@@ -3416,11 +3442,19 @@ class PerformanceMonitor:
                 else:  # "tokens" (default)
                     _tu = _ct.tokens_used or 0
                     if isinstance(_tu, dict):
-                        _cv_cost = float(
-                            _tu.get("total")
-                            or (_tu.get("input", 0) + _tu.get("output", 0))
-                            or 0
-                        )
+                        # D-1: `_tu.get("total") or (input+output)` 패턴은 total=0(명시적 0토큰)을
+                        # falsy로 처리해 input+output 합산으로 폴백 → CV 집계 왜곡.
+                        # None-only 폴백으로 수정 (BUG-C23과 동일 패턴).
+                        _raw_total_cv = _tu.get("total")
+                        if _raw_total_cv is not None:
+                            try:
+                                _cv_cost = float(_raw_total_cv)
+                            except (TypeError, ValueError):
+                                _cv_cost = 0.0
+                        else:
+                            _cv_cost = float(
+                                _tu.get("input", 0) + _tu.get("output", 0)
+                            )
                     else:
                         try:
                             _cv_cost = float(_tu)
@@ -3451,6 +3485,16 @@ class PerformanceMonitor:
             _d_insufficient.append(
                 f"ttft_variability: {len(_ttft_values)} samples < min_samples={_ttft_min_samples}"
             )
+        # 아웃라이어 제거 후 2개 미만 남을 때 — _avg_ttft_variability=None으로 조용히 제외되므로 경고 추가
+        elif (
+            _ttft_values
+            and len(_ttft_values) >= _ttft_min_samples
+            and _avg_ttft_variability is None
+        ):
+            _d_insufficient.append(
+                f"ttft_variability: outlier removal reduced {len(_ttft_values)} samples to < 2 "
+                f"(remove_outliers={_ttft_remove_outliers}) — score excluded from Gate D"
+            )
         if len(tasks) < _cost_min_samples:
             _d_insufficient.append(
                 f"cost_predictability: {len(tasks)} tasks < min_samples={_cost_min_samples}"
@@ -3469,7 +3513,7 @@ class PerformanceMonitor:
                 _p95_ms_values = [
                     float(s["_config"]["p95_ms"])
                     for s in _sla_results
-                    if s.get("_config") and s["_config"].get("p95_ms")
+                    if s.get("_config") and s["_config"].get("p95_ms") is not None
                 ]
                 if _p95_ms_values:
                     _p95_threshold_s = sum(_p95_ms_values) / len(_p95_ms_values) / 1000.0
@@ -3819,6 +3863,8 @@ class PerformanceMonitor:
             }),
             "D": _g(_d_s, "Performance Contract", {
                 "p95_latency_s": round(_p95, 4),
+                # calibrated_score 우선 사용 시 두 값 모두 노출 (역추적 가능성 확보)
+                "avg_efficiency_calibrated_score": round(avg_eff_calibrated, 4) if avg_eff_calibrated is not None else None,
                 "avg_efficiency_ratio": round(avg_eff_ratio, 8) if avg_eff_ratio is not None else None,
                 "avg_budget_score": round(_avg_budget, 4) if _avg_budget is not None else None,
                 "ttft_variability_score": round(_avg_ttft_variability, 4) if _avg_ttft_variability is not None else None,

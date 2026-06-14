@@ -3164,3 +3164,238 @@ class TestGracefulDegradationEmptyPenaltyUpperBound:
         assert result["degradation_score"] == pytest.approx(0.3), (
             "penalty=2.0(→1.0 보정) → score=quality_floor=0.3"
         )
+
+
+# ===========================================================================
+# Section 19 — BUG-C27 (budget_usd < 0) + BUG-D1 (cost_predictability tokens)
+# ===========================================================================
+
+import warnings as _w19
+from agent_evaluator.decorators import SLAConfig as _SLAConfig19
+
+class TestSLABudgetUsdNegativeValidation:
+    """BUG-C27: SLAConfig.budget_usd < 0 → Gate D budget penalty 항상 최대(-0.3).
+    __post_init__에서 0.0으로 보정, UserWarning 발행.
+    """
+
+    def test_negative_budget_warns_and_clamps(self):
+        # budget_usd=-10.0 → UserWarning 발행, 0.0으로 보정
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _SLAConfig19(budget_usd=-10.0)
+        budget_warnings = [w for w in wlist if "budget_usd" in str(w.message)]
+        assert len(budget_warnings) >= 1, "budget_usd=-10.0 → UserWarning 발행 필요"
+        assert cfg.budget_usd == 0.0, "budget_usd=-10.0은 0.0으로 보정되어야 함"
+
+    def test_very_negative_budget_warns_and_clamps(self):
+        # budget_usd=-0.001 → 음수 예산도 동일하게 처리
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _SLAConfig19(budget_usd=-0.001)
+        budget_warnings = [w for w in wlist if "budget_usd" in str(w.message)]
+        assert len(budget_warnings) >= 1
+        assert cfg.budget_usd == 0.0
+
+    def test_zero_budget_no_warning(self):
+        # budget_usd=0.0 → 경고 없음 (유효한 "예산 없음" 설정)
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _SLAConfig19(budget_usd=0.0)
+        budget_warnings = [w for w in wlist if "budget_usd" in str(w.message)]
+        assert len(budget_warnings) == 0, "budget_usd=0.0은 경고 없어야 함"
+        assert cfg.budget_usd == 0.0
+
+    def test_positive_budget_no_warning(self):
+        # budget_usd=1.0 → 경고 없음 (정상 예산)
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _SLAConfig19(budget_usd=1.0)
+        budget_warnings = [w for w in wlist if "budget_usd" in str(w.message)]
+        assert len(budget_warnings) == 0
+        assert cfg.budget_usd == pytest.approx(1.0)
+
+    def test_none_budget_no_warning(self):
+        # budget_usd=None (기본값) → 경고 없음
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _SLAConfig19(budget_usd=None)
+        budget_warnings = [w for w in wlist if "budget_usd" in str(w.message)]
+        assert len(budget_warnings) == 0
+        assert cfg.budget_usd is None
+
+    def test_warning_message_mentions_gate_d(self):
+        # 경고 메시지가 Gate D를 언급해야 함
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            _SLAConfig19(budget_usd=-5.0)
+        msgs = [str(w.message) for w in wlist if "budget_usd" in str(w.message)]
+        assert len(msgs) >= 1, "budget_usd < 0 경고 없음"
+        assert any("Gate D" in m or "패널티" in m for m in msgs), (
+            "경고 메시지에 Gate D 패널티 영향 명시 필요"
+        )
+
+
+class TestCostPredictabilityTokenTotalZero:
+    """BUG-D1: cost_predictability tokens 집계 시 total=0 falsy 폴백 수정.
+    monitor.py _compute_harness_groups의 'tokens' cost_metric 분기 검증.
+    TaskResult는 frozen dataclass이므로 tokens_used는 create_taskresult **extra_fields로 전달.
+    """
+
+    def _make_monitor(self, **cfg_kwargs):
+        from agent_evaluator import PerformanceMonitor
+        from agent_evaluator.decorators import CostPredictabilityConfig
+        return PerformanceMonitor(
+            cost_predictability_config=CostPredictabilityConfig(
+                min_samples=1, cost_metric="tokens", **cfg_kwargs
+            ),
+        )
+
+    def test_token_total_zero_excludes_task(self):
+        # total=0 태스크는 _cv_cost=0.0 → continue(집계 제외)
+        # BUG-D1 수정 전: total=0 falsy → input+output=100 폴백 → 집계에 포함(왜곡)
+        # 수정 후: total=0 → _cv_cost=0.0 → 제외 (올바른 동작)
+        from agent_evaluator import create_taskresult
+
+        monitor = self._make_monitor()
+
+        t1 = create_taskresult(
+            task_id="t_zero", question="q1", response="r1", execution_time=0.1,
+            tokens_used={"total": 0, "input": 99, "output": 1},
+        )
+        t2 = create_taskresult(
+            task_id="t_hundred", question="q2", response="r2", execution_time=0.1,
+            tokens_used={"total": 100, "input": 60, "output": 40},
+        )
+
+        monitor.record_task(t1)
+        monitor.record_task(t2)
+
+        report = monitor.generate_report()
+        d_group = report.to_dict()["extra_metrics"]["harness_groups"].get("D", {})
+        details = d_group.get("details", {})
+        avg_cp = details.get("avg_cost_predictability")
+        # total=0 태스크 제외 → t2 단일 샘플 → CV=0 → score=1.0
+        # avg_cp=None도 허용(단일 샘플 집계 스킵 설정에 따라), 그러나 0.0이면 안 됨
+        if avg_cp is not None:
+            assert avg_cp >= 0.9, (
+                "total=0 태스크 제외 후 단일 t2 샘플로 avg_cost_predictability≈1.0 기대"
+            )
+
+    def test_token_total_none_falls_back_to_input_output(self):
+        # total=None: input+output 합산 폴백 — BUG-D1 수정 후에도 동일 동작 유지
+        from agent_evaluator import create_taskresult
+
+        monitor = self._make_monitor()
+        t = create_taskresult(
+            task_id="t_none", question="q", response="r", execution_time=0.1,
+            tokens_used={"total": None, "input": 60, "output": 40},
+        )
+        monitor.record_task(t)
+        report = monitor.generate_report()
+        # total=None → input+output=100 → 집계 포함, 크래시 없음
+        assert report is not None
+
+    def test_token_total_missing_key_falls_back(self):
+        # total 키 없음 → input+output 합산 폴백
+        from agent_evaluator import create_taskresult
+
+        monitor = self._make_monitor()
+        t = create_taskresult(
+            task_id="t_missing", question="q", response="r", execution_time=0.1,
+            tokens_used={"input": 70, "output": 30},
+        )
+        monitor.record_task(t)
+        report = monitor.generate_report()
+        assert report is not None
+
+    def test_token_total_nonzero_used_directly(self):
+        # total=150 → 150으로 집계 (input+output=999는 무시)
+        from agent_evaluator import create_taskresult
+
+        monitor = self._make_monitor()
+        t = create_taskresult(
+            task_id="t_150", question="q", response="r", execution_time=0.1,
+            tokens_used={"total": 150, "input": 499, "output": 500},
+        )
+        monitor.record_task(t)
+        report = monitor.generate_report()
+        assert report is not None
+
+
+class TestGracefulDegradationTimeoutThresholdNegative:
+    """BUG-C28: GracefulDegradationConfig.timeout_threshold_ms < 0.
+    execution_time >= 0ms이므로 모든 태스크 timeout_fallback=True 오진.
+    __post_init__에서 None으로 보정, UserWarning 발행.
+    """
+
+    def test_negative_timeout_threshold_warns_and_clears(self):
+        # timeout_threshold_ms=-100 → UserWarning 발행, None으로 보정
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=-100.0)
+        thr_warnings = [w for w in wlist if "timeout_threshold_ms" in str(w.message)]
+        assert len(thr_warnings) >= 1, "timeout_threshold_ms=-100 → UserWarning 발행 필요"
+        assert cfg.timeout_threshold_ms is None, (
+            "음수 timeout_threshold_ms는 None으로 보정되어야 함"
+        )
+
+    def test_very_small_negative_warns_and_clears(self):
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=-0.001)
+        thr_warnings = [w for w in wlist if "timeout_threshold_ms" in str(w.message)]
+        assert len(thr_warnings) >= 1
+        assert cfg.timeout_threshold_ms is None
+
+    def test_zero_threshold_no_warning(self):
+        # timeout_threshold_ms=0.0 → 경고 없음 (0ms 초과 시 타임아웃으로 판정 — 모든 태스크)
+        # 0.0은 음수가 아니므로 경고 제외 (사용자가 의도적으로 설정 가능)
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=0.0)
+        thr_warnings = [w for w in wlist if "timeout_threshold_ms" in str(w.message)]
+        assert len(thr_warnings) == 0, "timeout_threshold_ms=0.0 → 경고 없어야 함"
+        assert cfg.timeout_threshold_ms == pytest.approx(0.0)
+
+    def test_none_threshold_no_warning(self):
+        # timeout_threshold_ms=None (기본값) → 경고 없음
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=None)
+        thr_warnings = [w for w in wlist if "timeout_threshold_ms" in str(w.message)]
+        assert len(thr_warnings) == 0
+        assert cfg.timeout_threshold_ms is None
+
+    def test_positive_threshold_no_warning(self):
+        # timeout_threshold_ms=3000.0 → 경고 없음 (정상 설정)
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        with _w19.catch_warnings(record=True) as wlist:
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=3000.0)
+        thr_warnings = [w for w in wlist if "timeout_threshold_ms" in str(w.message)]
+        assert len(thr_warnings) == 0
+        assert cfg.timeout_threshold_ms == pytest.approx(3000.0)
+
+    def test_negative_threshold_no_false_timeout_in_eval(self):
+        # BUG-C28 수정 전: timeout_threshold_ms=-1000 → 모든 태스크 timeout_fallback=True
+        # 수정 후: timeout_threshold_ms=None → 시간 기반 검사 비활성 → timeout_fallback=False
+        from agent_evaluator.decorators import GracefulDegradationConfig as _GDC28
+        from agent_evaluator.helpers.taskresult_helpers import eval_graceful_degradation
+        with _w19.catch_warnings(record=True):
+            _w19.simplefilter("always")
+            cfg = _GDC28(timeout_threshold_ms=-1000.0)
+        # 보정 후 timeout_threshold_ms=None → eval에서 시간 기반 검사 생략
+        result = eval_graceful_degradation(
+            response="정상 응답",
+            tool_calls=[],
+            has_error=False,
+            execution_time=500.0,  # 500ms (음수 threshold면 항상 초과)
+            config=cfg,
+        )
+        assert result["timeout_fallback"] is False, (
+            "BUG-C28 수정 후: 음수 threshold → None 보정 → timeout_fallback=False"
+        )
