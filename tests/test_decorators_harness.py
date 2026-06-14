@@ -2417,3 +2417,320 @@ class TestSLAConfigValidation:
         ]
         assert not p95_warnings, "p95_ms=0.0은 음수 아님 → 경고 없어야 함"
         assert cfg.p95_ms == pytest.approx(0.0)
+
+
+# ===========================================================================
+# Section 16 — R40/R41 BUG-C11~C19 회귀 테스트
+# ===========================================================================
+
+import warnings as _w16
+
+from agent_evaluator.decorators import (
+    ReproducibilityConfig,
+    FaultToleranceConfig,
+    RetryConsistencyConfig,
+    SLAConfig as _SLAConfig16,
+    IdempotencyConfig,
+)
+from agent_evaluator.helpers.taskresult_helpers import eval_retry_consistency, eval_sla
+
+
+# ── BUG-C11: RetryConsistencyConfig.improvement_threshold 음수 → consistency_score > 1.0 ──
+
+class TestRetryConsistencyImprovementThresholdValidation:
+    """BUG-C11: improvement_threshold < 0 → Gate C 오염 방지."""
+
+    def test_negative_threshold_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            cfg = RetryConsistencyConfig(improvement_threshold=-0.2)
+        assert any("improvement_threshold" in str(warning.message) for warning in w), (
+            "improvement_threshold < 0 → UserWarning 발생해야 함"
+        )
+
+    def test_negative_threshold_clamped_to_zero(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = RetryConsistencyConfig(improvement_threshold=-0.5)
+        assert cfg.improvement_threshold == pytest.approx(0.0), (
+            f"improvement_threshold=-0.5 → 0.0으로 보정 기대, got {cfg.improvement_threshold}"
+        )
+
+    def test_valid_threshold_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            RetryConsistencyConfig(improvement_threshold=0.1)
+        rc_warnings = [x for x in w if "improvement_threshold" in str(x.message)]
+        assert not rc_warnings, "유효한 양수 임계값에서 경고 없어야 함"
+
+    def test_zero_threshold_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            RetryConsistencyConfig(improvement_threshold=0.0)
+        rc_warnings = [x for x in w if "improvement_threshold" in str(x.message)]
+        assert not rc_warnings, "improvement_threshold=0.0은 유효 — 경고 없어야 함"
+
+
+# ── BUG-C13: RetryConsistencyConfig.min_retry_count <= 0 → 의미 위반 ──
+
+class TestRetryConsistencyMinRetryCountValidation:
+    """BUG-C13: min_retry_count < 1 → 단일 시도 태스크 포함 오류."""
+
+    def test_zero_min_retry_count_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            RetryConsistencyConfig(min_retry_count=0)
+        assert any("min_retry_count" in str(x.message) for x in w), (
+            "min_retry_count=0 → UserWarning 발생해야 함"
+        )
+
+    def test_negative_min_retry_count_clamped_to_one(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = RetryConsistencyConfig(min_retry_count=-3)
+        assert cfg.min_retry_count == 1, (
+            f"min_retry_count=-3 → 1로 보정 기대, got {cfg.min_retry_count}"
+        )
+
+    def test_valid_min_retry_count_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            RetryConsistencyConfig(min_retry_count=2)
+        rc_warnings = [x for x in w if "min_retry_count" in str(x.message)]
+        assert not rc_warnings
+
+
+# ── BUG-C12: FaultToleranceConfig.partial_success_threshold 범위 위반 ──
+
+class TestFaultTolerancePartialSuccessThreshold:
+    """BUG-C12: partial_success_threshold < 0 → grade=good 과잉, > 1 → good 불가."""
+
+    def test_negative_threshold_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            FaultToleranceConfig(partial_success_threshold=-0.1)
+        assert any("partial_success_threshold" in str(x.message) for x in w), (
+            "partial_success_threshold < 0 → UserWarning 발생해야 함"
+        )
+
+    def test_negative_threshold_clamped_to_zero(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = FaultToleranceConfig(partial_success_threshold=-0.5)
+        assert cfg.partial_success_threshold == pytest.approx(0.0)
+
+    def test_above_one_threshold_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            FaultToleranceConfig(partial_success_threshold=1.5)
+        assert any("partial_success_threshold" in str(x.message) for x in w), (
+            "partial_success_threshold > 1.0 → UserWarning 발생해야 함"
+        )
+
+    def test_above_one_threshold_clamped(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = FaultToleranceConfig(partial_success_threshold=2.0)
+        assert cfg.partial_success_threshold == pytest.approx(1.0)
+
+    def test_valid_threshold_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            FaultToleranceConfig(partial_success_threshold=0.5)
+        ft_warnings = [x for x in w if "partial_success_threshold" in str(x.message)]
+        assert not ft_warnings
+
+
+# ── BUG-C14: ReproducibilityConfig.reproducibility_threshold 범위 위반 ──
+
+class TestReproducibilityThresholdValidation:
+    """BUG-C14: threshold > 1.0 → fail_on_low_reproducibility 항상 발동 → TCR 붕괴."""
+
+    def test_above_one_threshold_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            ReproducibilityConfig(reproducibility_threshold=1.5)
+        assert any("reproducibility_threshold" in str(x.message) for x in w)
+
+    def test_above_one_threshold_clamped_to_one(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = ReproducibilityConfig(reproducibility_threshold=1.5)
+        assert cfg.reproducibility_threshold == pytest.approx(1.0)
+
+    def test_negative_threshold_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            ReproducibilityConfig(reproducibility_threshold=-0.1)
+        assert any("reproducibility_threshold" in str(x.message) for x in w)
+
+    def test_negative_threshold_clamped_to_zero(self):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            cfg = ReproducibilityConfig(reproducibility_threshold=-0.5)
+        assert cfg.reproducibility_threshold == pytest.approx(0.0)
+
+    def test_valid_threshold_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            ReproducibilityConfig(reproducibility_threshold=0.85)
+        repro_warnings = [x for x in w if "reproducibility_threshold" in str(x.message)]
+        assert not repro_warnings
+
+
+# ── BUG-C15: SLAConfig p99_ms < p95_ms 역전 경고 ──
+
+class TestSLAConfigP99LessThanP95Warning:
+    """BUG-C15: p99_ms < p95_ms → 역전 경고."""
+
+    def test_inverted_thresholds_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            _SLAConfig16(p95_ms=10000.0, p99_ms=3000.0)
+        assert any("p99_ms" in str(x.message) and "p95_ms" in str(x.message) for x in w), (
+            "p99_ms < p95_ms → 역전 경고 발생해야 함"
+        )
+
+    def test_equal_thresholds_no_inversion_warning(self):
+        # p99_ms == p95_ms → 역전 아님 → 경고 없어야 함
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            _SLAConfig16(p95_ms=5000.0, p99_ms=5000.0)
+        inversion_warnings = [
+            x for x in w
+            if "p99_ms" in str(x.message) and "p95_ms" in str(x.message)
+        ]
+        assert not inversion_warnings, "p99==p95 → 역전 경고 없어야 함"
+
+    def test_normal_ordering_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            _SLAConfig16(p95_ms=3000.0, p99_ms=6000.0)
+        inversion_warnings = [
+            x for x in w
+            if "p99_ms" in str(x.message) and "p95_ms" in str(x.message)
+        ]
+        assert not inversion_warnings
+
+
+# ── BUG-C16: eval_retry_consistency 출력 [0,1] 클램핑 ──
+
+class TestRetryConsistencyOutputClamp:
+    """BUG-C16: consistency_score를 [0,1]로 클램핑 — defense-in-depth."""
+
+    def _make_task(self, accuracy=0.0, attempts=3, success=False):
+        from agent_evaluator.core.trackers.base import TaskResult
+        return TaskResult(
+            task_id="t1", task_type="qa", question="Q", response="A",
+            execution_time=0.5, success=success, completion_score=0.8,
+            accuracy_score=accuracy,
+            tokens_used={}, tool_calls=[], attempts=attempts, errors=[],
+        )
+
+    def test_consistency_score_never_exceeds_one(self):
+        # accuracy=1.0, penalize_degradation=False → 클램핑 없으면 score=1.0 (경계값)
+        cfg = RetryConsistencyConfig(min_retry_count=2, penalize_degradation=False)
+        task = self._make_task(accuracy=1.0, attempts=2, success=False)
+        result = eval_retry_consistency(task, cfg)
+        assert result is not None
+        assert result["consistency_score"] <= 1.0, (
+            f"consistency_score는 1.0 이하여야 함, got {result['consistency_score']}"
+        )
+
+    def test_consistency_score_never_below_zero(self):
+        cfg = RetryConsistencyConfig(min_retry_count=2, penalize_degradation=True)
+        task = self._make_task(accuracy=0.0, attempts=5, success=False)
+        result = eval_retry_consistency(task, cfg)
+        assert result is not None
+        assert result["consistency_score"] >= 0.0
+
+    def test_success_path_score_in_range(self):
+        cfg = RetryConsistencyConfig(min_retry_count=2)
+        task = self._make_task(accuracy=0.9, attempts=10, success=True)
+        result = eval_retry_consistency(task, cfg)
+        assert result is not None
+        sc = result["consistency_score"]
+        assert 0.0 <= sc <= 1.0, f"success 경로 score={sc}, [0,1] 기대"
+
+
+# ── BUG-C18: IdempotencyConfig.non_idempotent_penalty > 1.0 경고 ──
+
+class TestIdempotencyPenaltyUpperBoundWarning:
+    """BUG-C18: penalty > 1.0 → 비멱등 도구 1개만으로 score=0 → Gate C 과소."""
+
+    def test_penalty_above_one_emits_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            IdempotencyConfig(non_idempotent_penalty=1.5)
+        assert any("non_idempotent_penalty" in str(x.message) and "1.0" in str(x.message)
+                   for x in w), (
+            "non_idempotent_penalty=1.5 → UserWarning 발생해야 함"
+        )
+
+    def test_penalty_exactly_one_no_warning(self):
+        # penalty=1.0은 경계값 — 경고 없어야 함
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            IdempotencyConfig(non_idempotent_penalty=1.0)
+        high_warnings = [
+            x for x in w
+            if "non_idempotent_penalty" in str(x.message) and "1.0" in str(x.message)
+            and issubclass(x.category, UserWarning)
+            and "> 1.0" in str(x.message)
+        ]
+        assert not high_warnings, "penalty=1.0 → 상한 초과 경고 없어야 함"
+
+    def test_valid_penalty_no_warning(self):
+        with _w16.catch_warnings(record=True) as w:
+            _w16.simplefilter("always")
+            IdempotencyConfig(non_idempotent_penalty=0.2)
+        idem_warnings = [x for x in w if "non_idempotent_penalty" in str(x.message)]
+        assert not idem_warnings
+
+
+# ── BUG-C19: eval_sla p95_ms=0.0 덮어쓰기 방지 ──
+
+class TestEvalSLAZeroThresholdPreservation:
+    """BUG-C19: p95_ms=0.0 명시 설정이 5000.0으로 덮어쓰이지 않아야 함."""
+
+    def _make_sla_cfg(self, p95=5000.0, p99=10000.0):
+        with _w16.catch_warnings(record=True):
+            _w16.simplefilter("always")
+            return _SLAConfig16(p95_ms=p95, p99_ms=p99)
+
+    def test_p95_zero_all_tasks_breach(self):
+        # p95_ms=0.0 → 지연 0ms 초과 시 breach → 100ms 태스크는 breach여야 함
+        cfg = self._make_sla_cfg(p95=0.0, p99=10000.0)
+        result = eval_sla(
+            execution_time_s=0.1,  # 100ms
+            tokens_used={},
+            cost_usd=None,
+            config=cfg,
+        )
+        assert not result["sla_met"], (
+            "p95_ms=0.0 설정 시 100ms 태스크는 SLA breach여야 함 (0.0이 5000.0으로 덮어쓰이면 통과됨)"
+        )
+
+    def test_p95_normal_value_still_works(self):
+        # 정상값 p95_ms=3000.0 → 100ms 태스크는 통과
+        cfg = self._make_sla_cfg(p95=3000.0, p99=6000.0)
+        result = eval_sla(0.1, {}, None, cfg)
+        assert result["sla_met"], "p95_ms=3000.0 설정 시 100ms 태스크는 SLA 통과해야 함"
+
+    def test_p95_none_defaults_to_5000(self):
+        # p95_ms가 None으로 오면 5000.0 폴백
+        import dataclasses
+
+        class _FakeSLACfg:
+            p95_ms = None
+            p99_ms = 10000.0
+            max_cost_per_task = None
+            token_limit = None
+            ttft_ms = None
+            breach_window = 10
+            warn_threshold = 2
+            fail_threshold = 5
+            budget_usd = None
+
+        result = eval_sla(0.1, {}, None, _FakeSLACfg())
+        assert result["sla_met"], "p95_ms=None → 폴백 5000.0 → 100ms 태스크 통과해야 함"

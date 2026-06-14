@@ -1957,8 +1957,12 @@ def eval_sla(
     Returns:
         {sla_met, breaches, latency_ok, cost_ok, token_ok, ttft_ok, execution_time_s, cost_usd}
     """
-    p95_ms = getattr(config, "p95_ms", 5000.0) or 5000.0
-    p99_ms = getattr(config, "p99_ms", 10000.0) or 10000.0
+    # C-19: `or 5000.0` 패턴은 None/0.0 모두 폴백으로 처리해 p95_ms=0.0 명시 설정을 덮어씀
+    # None만 폴백하도록 수정: 0.0은 "지연 0ms 초과시 breach" 의미로 유효한 설정임
+    _p95_raw = getattr(config, "p95_ms", None)
+    _p99_raw = getattr(config, "p99_ms", None)
+    p95_ms = float(_p95_raw) if _p95_raw is not None else 5000.0
+    p99_ms = float(_p99_raw) if _p99_raw is not None else 10000.0
     max_cost = getattr(config, "max_cost_per_task", None)
     token_limit = getattr(config, "token_limit", None)
     ttft_threshold = getattr(config, "ttft_ms", None)
@@ -2022,7 +2026,8 @@ def eval_sla(
             "fail_threshold": int(getattr(config, "fail_threshold", 5)),
             "budget_usd": getattr(config, "budget_usd", None),
             # Gate D p95 정규화 임계값으로 사용 (_compute_harness_groups에서 참조)
-            "p95_ms": float(getattr(config, "p95_ms", 5000.0) or 5000.0),
+            # C-19 동일 수정: None만 폴백, 0.0은 유효한 설정
+            "p95_ms": p95_ms,
         },
     }
 
@@ -4029,8 +4034,10 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
             # penalize_degradation=False: 패널티 없음 — accuracy 그대로 사용
             consistency_score = accuracy
 
+    # C-16: defense-in-depth — accuracy_score > 1.0 이거나 penalize_degradation=False 경로에서
+    # consistency_score가 1.0을 초과할 수 있음. Config 검증(C11)과 무관하게 클램핑.
     return {
-        "consistency_score": round(consistency_score, 4),
+        "consistency_score": round(min(1.0, max(0.0, consistency_score)), 4),
         "attempts": attempts,
         "succeeded": success,
         "retry_efficient": success and attempts <= 2,

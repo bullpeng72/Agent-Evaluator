@@ -3249,6 +3249,9 @@ class PerformanceMonitor:
             )
         else:
             _rel_score = float(_tcr_c)
+        # C-17: defense-in-depth — 이전 버전 저장 데이터 또는 예상치 못한 경로에서
+        # _rel_vals 원소가 1.0을 초과할 경우 최종 집계값도 1.0을 초과할 수 있음.
+        _rel_score = max(0.0, min(1.0, _rel_score))
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
         _p95 = 0.0

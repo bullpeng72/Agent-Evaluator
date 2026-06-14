@@ -346,6 +346,21 @@ class ReproducibilityConfig:
     fail_on_low_reproducibility: bool = False        # 임계값 미달 시 success=False
     skip_side_effects: bool = False                  # 부수효과(DB쓰기 등) 있는 함수 건너뜀
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-14: threshold > 1.0 → fail_on_low_reproducibility 항상 발동 → 전체 TCR 붕괴 → Gate C 왜곡
+        # threshold < 0.0 → 임계값 사실상 무효화
+        if not (0.0 <= self.reproducibility_threshold <= 1.0):
+            _w.warn(
+                f"ReproducibilityConfig: reproducibility_threshold={self.reproducibility_threshold}는 "
+                f"[0.0, 1.0] 범위를 벗어납니다. 클램핑합니다. "
+                f"> 1.0이면 fail_on_low_reproducibility가 항상 발동해 모든 태스크가 실패 처리되어 "
+                f"TCR이 0에 수렴하고 Gate C 집계가 왜곡됩니다. "
+                f"< 0.0이면 임계값이 사실상 무효화됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.reproducibility_threshold = max(0.0, min(1.0, self.reproducibility_threshold))
+
 
 @dataclasses.dataclass
 class FaultToleranceConfig:
@@ -361,6 +376,21 @@ class FaultToleranceConfig:
     partial_success_threshold: float = 0.5           # 부분 성공 임계값 (0.0~1.0)
     score_recovery_quality: bool = True              # 폴백 복구 품질 채점
     expected_fallback_tools: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 도구명 → 폴백 도구 목록
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-12: partial_success_threshold < 0 → recovery_rate >= 음수 항상 True → grade="good"
+        # → recovery_quality_score=1.0 (0% 복구율에도) → Gate C 인플레이션
+        # > 1.0 → recovery_rate >= 1.0 초과 불가 → grade="good" 절대 부여 안 됨 → Gate C 과소
+        if not (0.0 <= self.partial_success_threshold <= 1.0):
+            _w.warn(
+                f"FaultToleranceConfig: partial_success_threshold={self.partial_success_threshold}는 "
+                f"[0.0, 1.0] 범위를 벗어납니다. 클램핑합니다. "
+                f"< 0이면 복구율 0%에도 grade='good'이 부여되어 Gate C를 인플레이션시킵니다. "
+                f"> 1이면 grade='good'이 절대 부여되지 않아 Gate C가 과소 산출됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.partial_success_threshold = max(0.0, min(1.0, self.partial_success_threshold))
 
 
 @dataclasses.dataclass
@@ -433,6 +463,16 @@ class SLAConfig:
                 f"SLAConfig: warn_threshold={self.warn_threshold} >= "
                 f"fail_threshold={self.fail_threshold}. "
                 f"warn_threshold는 fail_threshold보다 작아야 합니다.",
+                UserWarning, stacklevel=2,
+            )
+        # C-15: p99_ms < p95_ms 역전 — p95 breach 없이 p99 breach가 발생할 수 없어
+        # p99 임계값이 사실상 무효화되고 latency_ok 판정이 혼란스러워짐
+        if self.p99_ms < self.p95_ms:
+            _w.warn(
+                f"SLAConfig: p99_ms={self.p99_ms} < p95_ms={self.p95_ms}. "
+                f"일반적으로 p99 >= p95여야 합니다. "
+                f"현재 설정에서는 p99가 더 엄격한 임계값이 되어 "
+                f"latency_ok=False/True 판정이 직관에 반할 수 있습니다.",
                 UserWarning, stacklevel=2,
             )
 
@@ -1017,6 +1057,28 @@ class RetryConsistencyConfig:
     penalize_degradation: bool = True
     min_retry_count: int = 2
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # C-11: improvement_threshold < 0 → 실패 태스크의 consistency_score = max(0, accuracy+|thr|)
+        # accuracy가 높으면 1.0 초과 → Gate C 집계 오염 (e.g., accuracy=0.95, thr=-0.2 → 1.15)
+        if self.improvement_threshold < 0.0:
+            _w.warn(
+                f"RetryConsistencyConfig: improvement_threshold={self.improvement_threshold} < 0 이므로 "
+                f"0.0으로 보정됩니다. 음수 임계값은 실패 태스크의 consistency_score가 1.0을 초과해 "
+                f"Gate C 집계를 오염시킵니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.improvement_threshold = 0.0
+        # C-13: min_retry_count <= 0 → 단일 시도 태스크도 재시도 평가 대상 (의미 위반)
+        if self.min_retry_count < 1:
+            _w.warn(
+                f"RetryConsistencyConfig: min_retry_count={self.min_retry_count} < 1 이므로 "
+                f"1로 보정됩니다. min_retry_count <= 0이면 재시도가 없는 태스크도 평가 대상이 되어 "
+                f"재시도 효율성 지표가 부정확해집니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.min_retry_count = 1
+
 
 @dataclasses.dataclass
 class TTFTVariabilityConfig:
@@ -1102,6 +1164,16 @@ class IdempotencyConfig:
                 stacklevel=2,
             )
             self.non_idempotent_penalty = 0.2
+        # C-18: penalty > 1.0 → 비멱등 도구 1개만 있어도 idempotency_score=0.0 고정
+        # → 도구 수에 무관하게 Gate C 과소 산출 (Gate C deflation)
+        if self.non_idempotent_penalty > 1.0:
+            _w.warn(
+                f"IdempotencyConfig: non_idempotent_penalty={self.non_idempotent_penalty} > 1.0. "
+                f"비멱등 도구가 1개만 있어도 idempotency_score=0.0이 됩니다. "
+                f"도구 수에 비례한 감점이 필요하다면 penalty <= 1.0 / max_expected_tools 로 설정하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 @dataclasses.dataclass
@@ -5134,6 +5206,14 @@ def _build_and_record(
                         task_result.response,
                         _total_tok,
                         context_window,
+                    )
+                else:
+                    # B-55: 묵음 스킵 → debug 로그로 진단 가능하게. context_window 키가 extra에 없어
+                    # Gate B에 미기여하는 이유를 사용자가 파악하기 어려우므로 명시적으로 기록.
+                    logger.debug(
+                        "ContextWindowConfig: task_id=%s 토큰 수=0 — context_window 평가 생략 "
+                        "(Gate B 미기여). tokens_used를 EvalMetadata로 전달하면 평가가 활성화됩니다.",
+                        getattr(task_result, "task_id", "unknown"),
                     )
             except Exception as _e:
                 logger.debug("ContextWindowConfig evaluation failed (ignored): %s", _e)
