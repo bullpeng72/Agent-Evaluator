@@ -2938,3 +2938,229 @@ class TestSLAThresholdNonPositiveValidation:
         assert len(thr_warnings) == 0, "정상 threshold는 경고 없어야 함"
         assert cfg.warn_threshold == 2
         assert cfg.fail_threshold == 5
+
+
+# ===========================================================================
+# Section 18 — R43 BUG-C23 / BUG-C24 / BUG-C25 / BUG-C26 회귀 테스트
+# ===========================================================================
+
+import warnings as _w18
+
+from agent_evaluator.decorators import (
+    SLAConfig as _SLAConfig18,
+    GracefulDegradationConfig as _GDConfig18,
+)
+from agent_evaluator.helpers.taskresult_helpers import eval_sla, eval_graceful_degradation
+
+
+# ── BUG-C23: eval_sla 토큰 dict — total=0이 or 패턴으로 무시됨 ──
+
+class TestEvalSLATokenTotalZeroPreservation:
+    """BUG-C23: tokens_used={'total': 0}이 input+output 합산으로 폴백되지 않아야 함."""
+
+    def _cfg(self, token_limit=100):
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            return _SLAConfig18(token_limit=token_limit)
+
+    def test_total_zero_with_nonzero_input_output_passes(self):
+        # {"total": 0, "input": 50, "output": 100}: total=0이므로 0 <= 100 → token_ok=True
+        # (or 패턴이면 input+output=150 > 100 → token_ok=False — 버그)
+        cfg = self._cfg(token_limit=100)
+        result = eval_sla(
+            execution_time_s=0.1,
+            tokens_used={"total": 0, "input": 50, "output": 100},
+            cost_usd=None,
+            config=cfg,
+        )
+        assert result["token_ok"], (
+            "total=0이면 0 토큰 사용으로 token_limit=100 통과해야 함 "
+            "(or 패턴이면 input+output=150 > 100으로 false breach 발생)"
+        )
+        assert result["sla_met"], "token breach가 없으므로 sla_met=True여야 함"
+
+    def test_total_zero_only_no_fallback(self):
+        # {"total": 0} (input/output 키 없음): total=0 → 0 토큰
+        cfg = self._cfg(token_limit=50)
+        result = eval_sla(0.1, {"total": 0}, None, cfg)
+        assert result["token_ok"], "total=0이면 limit=50 통과해야 함"
+
+    def test_total_none_falls_back_to_input_output(self):
+        # {"total": None, "input": 30, "output": 40}: total=None → fallback → 70
+        cfg = self._cfg(token_limit=100)
+        result = eval_sla(0.1, {"total": None, "input": 30, "output": 40}, None, cfg)
+        assert result["token_ok"], "total=None → input+output=70 <= 100 → 통과"
+
+    def test_total_none_fallback_breach(self):
+        # {"total": None, "input": 80, "output": 80}: fallback=160 > 100 → breach
+        cfg = self._cfg(token_limit=100)
+        result = eval_sla(0.1, {"total": None, "input": 80, "output": 80}, None, cfg)
+        assert not result["token_ok"], "total=None → 160 > 100 → breach여야 함"
+
+    def test_total_missing_key_falls_back(self):
+        # {"input": 60, "output": 60}: "total" 키 없음 → fallback → 120 > 100 → breach
+        cfg = self._cfg(token_limit=100)
+        result = eval_sla(0.1, {"input": 60, "output": 60}, None, cfg)
+        assert not result["token_ok"], "total 키 없음 → input+output=120 > 100 → breach"
+
+    def test_total_nonzero_used_correctly(self):
+        # {"total": 150, "input": 50, "output": 60}: total=150 > 100 → breach
+        cfg = self._cfg(token_limit=100)
+        result = eval_sla(0.1, {"total": 150, "input": 50, "output": 60}, None, cfg)
+        assert not result["token_ok"], "total=150 > 100 → breach여야 함"
+
+    def test_no_token_limit_skips_check(self):
+        # token_limit=None이면 token_ok는 항상 True (검사 생략)
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(token_limit=None)
+        result = eval_sla(0.1, {"total": 9999}, None, cfg)
+        assert result["token_ok"], "token_limit=None → 검사 생략 → token_ok=True"
+
+
+# ── BUG-C24: SLAConfig.token_limit < 0 → 항상 토큰 breach ──
+
+class TestSLATokenLimitNegativeValidation:
+    """BUG-C24: token_limit < 0이면 경고 후 0으로 보정."""
+
+    def test_negative_token_limit_emits_warning(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            _SLAConfig18(token_limit=-1)
+        msgs = [str(x.message) for x in w]
+        assert any("token_limit" in m for m in msgs), (
+            "token_limit=-1 → 항상 breach → 경고해야 함"
+        )
+
+    def test_negative_token_limit_clamped_to_zero(self):
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(token_limit=-100)
+        assert cfg.token_limit == 0, "token_limit=-100은 0으로 보정되어야 함"
+
+    def test_zero_token_limit_valid_no_warning(self):
+        # token_limit=0: 0토큰 허용 — 극단적이지만 유효한 설정
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(token_limit=0)
+        tl_warnings = [x for x in w if "token_limit" in str(x.message)]
+        assert len(tl_warnings) == 0, "token_limit=0은 유효하므로 경고 없어야 함"
+        assert cfg.token_limit == 0
+
+    def test_positive_token_limit_valid(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(token_limit=1000)
+        tl_warnings = [x for x in w if "token_limit" in str(x.message)]
+        assert len(tl_warnings) == 0
+        assert cfg.token_limit == 1000
+
+
+# ── BUG-C25: SLAConfig.max_cost_per_task < 0 → 항상 비용 breach ──
+
+class TestSLAMaxCostNegativeValidation:
+    """BUG-C25: max_cost_per_task < 0이면 경고 후 0.0으로 보정."""
+
+    def test_negative_max_cost_emits_warning(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            _SLAConfig18(max_cost_per_task=-0.001)
+        msgs = [str(x.message) for x in w]
+        assert any("max_cost_per_task" in m for m in msgs), (
+            "max_cost_per_task=-0.001 → 모든 비용이 breach → 경고해야 함"
+        )
+
+    def test_negative_max_cost_clamped_to_zero(self):
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(max_cost_per_task=-5.0)
+        assert cfg.max_cost_per_task == 0.0, "max_cost_per_task=-5.0은 0.0으로 보정되어야 함"
+
+    def test_zero_max_cost_valid(self):
+        # max_cost_per_task=0.0: 비용 0 이하만 허용 → 사실상 무비용 강제
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(max_cost_per_task=0.0)
+        mc_warnings = [x for x in w if "max_cost_per_task" in str(x.message)]
+        assert len(mc_warnings) == 0, "max_cost_per_task=0.0은 유효하므로 경고 없어야 함"
+        assert cfg.max_cost_per_task == 0.0
+
+    def test_positive_max_cost_valid(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(max_cost_per_task=0.05)
+        mc_warnings = [x for x in w if "max_cost_per_task" in str(x.message)]
+        assert len(mc_warnings) == 0
+        assert cfg.max_cost_per_task == pytest.approx(0.05)
+
+    def test_eval_sla_after_clamping_no_false_breach(self):
+        # max_cost_per_task=-0.001 → 0.0으로 보정 → cost=0.001 > 0.0 → breach (예상된 결과)
+        # 주의: 보정 후 0.0은 여전히 모든 양수 비용에서 breach
+        # 이 테스트는 보정 전 음수값이 eval_sla에 도달하지 않음을 확인
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _SLAConfig18(max_cost_per_task=-0.001)
+        # 보정된 값은 0.0이므로 cost=0.0은 통과, cost>0.0은 breach
+        result = eval_sla(0.1, {}, cost_usd=0.0, config=cfg)
+        assert result["cost_ok"], "cost=0.0은 max_cost=0.0(보정값) 통과해야 함"
+
+
+# ── BUG-C26: GracefulDegradationConfig.empty_response_penalty > 1.0 ──
+
+class TestGracefulDegradationEmptyPenaltyUpperBound:
+    """BUG-C26: empty_response_penalty > 1.0은 1.0과 동일한 효과 → 경고 후 1.0으로 보정."""
+
+    def test_penalty_greater_than_one_emits_warning(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            _GDConfig18(empty_response_penalty=1.5)
+        msgs = [str(x.message) for x in w]
+        assert any("empty_response_penalty" in m for m in msgs), (
+            "empty_response_penalty=1.5 > 1.0은 1.0과 동일한 효과이므로 경고해야 함"
+        )
+
+    def test_penalty_greater_than_one_clamped(self):
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _GDConfig18(empty_response_penalty=2.0)
+        assert cfg.empty_response_penalty == 1.0, "penalty=2.0은 1.0으로 보정되어야 함"
+
+    def test_penalty_one_valid_no_warning(self):
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _GDConfig18(empty_response_penalty=1.0)
+        ep_warnings = [x for x in w if "empty_response_penalty" in str(x.message)]
+        assert len(ep_warnings) == 0, "penalty=1.0은 유효한 최대값이므로 경고 없어야 함"
+        assert cfg.empty_response_penalty == 1.0
+
+    def test_penalty_zero_valid(self):
+        # penalty=0.0: 빈 응답에 패널티 없음 → score=1.0
+        with _w18.catch_warnings(record=True) as w:
+            _w18.simplefilter("always")
+            cfg = _GDConfig18(empty_response_penalty=0.0)
+        ep_warnings = [x for x in w if "empty_response_penalty" in str(x.message)]
+        assert len(ep_warnings) == 0
+        result = eval_graceful_degradation("", [], has_error=False, execution_time=0.0, config=cfg)
+        assert result["degradation_score"] == pytest.approx(1.0), (
+            "penalty=0.0이면 빈 응답도 score=1.0(패널티 없음)"
+        )
+
+    def test_penalty_05_half_reduction(self):
+        # penalty=0.5: score = max(quality_floor=0.3, 0.5) = 0.5
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _GDConfig18(empty_response_penalty=0.5, quality_floor=0.3)
+        result = eval_graceful_degradation("", [], has_error=False, execution_time=0.0, config=cfg)
+        assert result["degradation_score"] == pytest.approx(0.5), (
+            "penalty=0.5 → score=max(0.3, 0.5)=0.5"
+        )
+
+    def test_penalty_after_clamping_same_as_one(self):
+        # penalty=2.0 → 보정 후 1.0 → empty score=quality_floor(0.3)
+        with _w18.catch_warnings(record=True):
+            _w18.simplefilter("always")
+            cfg = _GDConfig18(empty_response_penalty=2.0, quality_floor=0.3)
+        result = eval_graceful_degradation("", [], has_error=False, execution_time=0.0, config=cfg)
+        assert result["degradation_score"] == pytest.approx(0.3), (
+            "penalty=2.0(→1.0 보정) → score=quality_floor=0.3"
+        )

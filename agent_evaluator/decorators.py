@@ -516,6 +516,27 @@ class SLAConfig:
                 UserWarning, stacklevel=2,
             )
             self.fail_threshold = 1
+        # C-24: token_limit < 0 → _total_tokens <= negative 항상 False → 항상 토큰 breach
+        # → Gate C SLA breach rate = 1.0 (의도치 않은 Gate C 왜곡)
+        if self.token_limit is not None and self.token_limit < 0:
+            _w.warn(
+                f"SLAConfig: token_limit={self.token_limit} < 0. "
+                f"어떤 토큰 사용량도 이 한도를 충족할 수 없어 항상 SLA breach가 발생합니다. "
+                f"Gate C SLA breach rate가 1.0이 되어 Gate C 점수가 왜곡됩니다. "
+                f"0으로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.token_limit = 0
+        # C-25: max_cost_per_task < 0 → cost_usd <= negative 항상 False → 항상 비용 breach
+        if self.max_cost_per_task is not None and self.max_cost_per_task < 0.0:
+            _w.warn(
+                f"SLAConfig: max_cost_per_task={self.max_cost_per_task} < 0. "
+                f"비용이 항상 이 음수 한도를 초과하여 항상 SLA breach가 발생합니다. "
+                f"Gate C SLA breach rate가 1.0이 되어 Gate C 점수가 왜곡됩니다. "
+                f"0.0으로 보정합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.max_cost_per_task = 0.0
 
 
 @dataclasses.dataclass
@@ -964,6 +985,18 @@ class GracefulDegradationConfig:
                 stacklevel=2,
             )
             self.empty_response_penalty = 0.0
+        # C-26: empty_response_penalty > 1.0 → max(0.0, 1.0 - penalty) = 0.0 → quality_floor와 동일
+        # 1.0 초과 값은 수학적으로 추가 패널티 효과가 없으므로 사용자가 의도한 동작과 다를 수 있음
+        elif self.empty_response_penalty > 1.0:
+            _w.warn(
+                f"GracefulDegradationConfig: empty_response_penalty={self.empty_response_penalty} > 1.0. "
+                f"빈 응답의 degradation_score는 max(quality_floor, max(0.0, 1.0 - penalty))로 계산됩니다. "
+                f"penalty > 1.0이면 score=quality_floor={self.quality_floor}로 1.0과 동일한 결과가 됩니다. "
+                f"1.0으로 보정합니다.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.empty_response_penalty = 1.0
 
 
 @dataclasses.dataclass
@@ -1004,6 +1037,37 @@ class ResourceBudgetConfig:
     warn_at_pct: float = 0.8
     count_failed_tokens: bool = True
     rollover: bool = False
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # D-5: warn_at_pct > 1.0 → 경고가 예산 초과 이후에만 발동 (경고 기능 무력화)
+        if self.warn_at_pct > 1.0:
+            _w.warn(
+                f"ResourceBudgetConfig: warn_at_pct={self.warn_at_pct} > 1.0. "
+                f"warn_at_pct는 예산 사용률 분율(0–1)입니다 — 퍼센트(0–100)가 아닙니다. "
+                f"1.0 초과이면 예산을 이미 초과한 후에도 경고가 발동되지 않습니다. "
+                f"기본값 0.8로 보정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.warn_at_pct = 0.8
+        # D-6: warn_at_pct <= 0 → utilization(0 이상)이 항상 warn 영역에 진입
+        if self.warn_at_pct <= 0.0:
+            _w.warn(
+                f"ResourceBudgetConfig: warn_at_pct={self.warn_at_pct} <= 0. "
+                f"모든 리소스 사용이 즉시 warn으로 분류되어 경고가 무의미해집니다. "
+                f"기본값 0.8로 보정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.warn_at_pct = 0.8
+        # D-7: 모든 한도가 None이면 ResourceBudget 평가 자체가 집계에서 제외됨 (Gate D 미기여)
+        # 이것은 의도된 동작이지만 사용자가 놓치기 쉬우므로 경고
+        if self.max_tokens is None and self.max_cost_usd is None and self.max_execution_time_ms is None:
+            _w.warn(
+                f"ResourceBudgetConfig: max_tokens, max_cost_usd, max_execution_time_ms가 모두 None입니다. "
+                f"최소 하나 이상의 한도를 설정해야 Gate D resource_budget 점수가 산출됩니다. "
+                f"현재 설정에서는 budget_score=None이 되어 Gate D 집계에서 제외됩니다.",
+                UserWarning, stacklevel=2,
+            )
 
 
 @dataclasses.dataclass
@@ -1187,6 +1251,38 @@ class TTFTVariabilityConfig:
     min_samples: int = 5
     remove_outliers: bool = True
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # D-8: max_stddev_ms <= 0 → 1.0 - stddev / max(0, 1.0) 계산에서 _ttft_max_std=1.0으로 보정되나
+        # stddev가 1ms만 넘어도 std_score=0.0이 돼 TTFT 변동성 점수가 항상 0에 수렴
+        if self.max_stddev_ms <= 0:
+            _w.warn(
+                f"TTFTVariabilityConfig: max_stddev_ms={self.max_stddev_ms} <= 0 이므로 "
+                f"기본값 500.0으로 보정됩니다. 0 이하이면 1ms 편차만 있어도 std_score=0.0이 돼 "
+                f"TTFT 변동성 점수가 항상 0에 수렴합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.max_stddev_ms = 500.0
+        # D-9: max_p95_p50_ratio < 1.0 → ratio_score 계산에서 max_ratio - 1.0 ≤ 0
+        # max(max_p95_p50_ratio - 1.0, 1.0) 분모가 1.0으로 고정돼 ratio_score가 의도치 않게 낮아짐
+        if self.max_p95_p50_ratio < 1.0:
+            _w.warn(
+                f"TTFTVariabilityConfig: max_p95_p50_ratio={self.max_p95_p50_ratio} < 1.0. "
+                f"p95/p50 비율은 항상 ≥ 1.0이므로 max_p95_p50_ratio < 1.0이면 "
+                f"ratio_score 계산식의 분모가 1.0으로 고정돼 모든 TTFT가 score=0.0에 수렴합니다. "
+                f"기본값 3.0으로 보정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.max_p95_p50_ratio = 3.0
+        # D-10: min_samples <= 0 → len(_ttft_values) >= 0은 항상 True → min_samples 기능 무력화
+        if self.min_samples <= 0:
+            _w.warn(
+                f"TTFTVariabilityConfig: min_samples={self.min_samples} <= 0 이므로 "
+                f"기본값 5로 보정됩니다. 0 이하이면 TTFT 값 0건으로도 변동성 계산을 시도합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.min_samples = 5
+
 
 @dataclasses.dataclass
 class ErrorDiagnosisConfig:
@@ -1281,6 +1377,44 @@ class CostPredictabilityConfig:
     outlier_multiplier: float = 3.0
     min_samples: int = 5
     cost_metric: str = "tokens"  # "tokens" | "usd" | "time_ms"
+
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # D-11: cost_metric 유효하지 않은 값 → _compute_harness_groups에서 "tokens" 폴백되지만
+        # 사용자가 오타임을 알 수 없어 의도와 다른 지표로 CV가 계산됨
+        _valid_metrics = ("tokens", "usd", "time_ms")
+        if self.cost_metric not in _valid_metrics:
+            _w.warn(
+                f"CostPredictabilityConfig: cost_metric={self.cost_metric!r}은 유효하지 않습니다. "
+                f"허용 값: {_valid_metrics}. 기본값 'tokens'로 보정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.cost_metric = "tokens"
+        # D-12: max_coefficient_of_variation <= 0 → max(_cost_max_cv, 0.01)으로 보정되지만 경고 없음
+        if self.max_coefficient_of_variation <= 0:
+            _w.warn(
+                f"CostPredictabilityConfig: max_coefficient_of_variation={self.max_coefficient_of_variation} <= 0 이므로 "
+                f"기본값 0.3으로 보정됩니다. 0 이하이면 CV가 아주 작아도 score=0.0에 수렴합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.max_coefficient_of_variation = 0.3
+        # D-13: min_samples <= 0 → len(tasks) >= 0은 항상 True → min_samples 기능 무력화
+        if self.min_samples <= 0:
+            _w.warn(
+                f"CostPredictabilityConfig: min_samples={self.min_samples} <= 0 이므로 "
+                f"기본값 5로 보정됩니다. 0 이하이면 태스크 0건으로도 CV 계산을 시도합니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.min_samples = 5
+        # D-14: outlier_multiplier <= 0 → _filter_outliers가 모든 값을 이상치로 제거할 수 있음
+        if self.outlier_multiplier <= 0:
+            _w.warn(
+                f"CostPredictabilityConfig: outlier_multiplier={self.outlier_multiplier} <= 0 이므로 "
+                f"기본값 3.0으로 보정됩니다. 0 이하이면 모든 비용 값이 이상치로 제거돼 "
+                f"cost_predictability 점수가 산출되지 않습니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.outlier_multiplier = 3.0
 
 
 @dataclasses.dataclass

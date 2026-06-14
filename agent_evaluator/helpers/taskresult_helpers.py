@@ -1987,11 +1987,19 @@ def eval_sla(
     if token_limit is not None:
         _total_tokens: int = 0
         if isinstance(tokens_used, dict):
-            _total_tokens = int(
-                tokens_used.get("total")
-                or (tokens_used.get("input", 0) + tokens_used.get("output", 0))
-                or 0
-            )
+            # C-23: `tokens_used.get("total") or fallback` 패턴은 total=0(0토큰)을
+            # falsy로 처리해 input+output 합산으로 폴백 → 잘못된 breach 발생.
+            # None-only 폴백으로 수정: total=0은 유효한 "0 토큰 사용" 값임.
+            _raw_total = tokens_used.get("total")
+            if _raw_total is not None:
+                try:
+                    _total_tokens = int(_raw_total)
+                except (TypeError, ValueError):
+                    _total_tokens = 0
+            else:
+                _total_tokens = int(
+                    tokens_used.get("input", 0) + tokens_used.get("output", 0)
+                )
         else:
             try:
                 _total_tokens = int(tokens_used or 0)
@@ -3626,8 +3634,12 @@ def eval_resource_budget(
     count_failed = bool(getattr(config, "count_failed_tokens", True))
 
     # When count_failed_tokens=False and task failed, exclude token/cost from budget scoring
+    # D-A: cost_usd=None(미측정) 시 None이 그대로 전파되면 _utilization(None, limit)에서
+    # None/float → TypeError 발생. _consumed 저장과 동일하게 None→0.0 변환.
     _effective_tokens = float(tokens_used) if (count_failed or task_succeeded) else 0.0
-    _effective_cost = cost_usd if (count_failed or task_succeeded) else 0.0
+    _effective_cost = (
+        float(cost_usd) if (count_failed or task_succeeded) and cost_usd is not None else 0.0
+    )
 
     def _utilization(used: float, limit: Optional[float]) -> Optional[float]:
         if limit is None or limit <= 0:
