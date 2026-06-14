@@ -2202,8 +2202,15 @@ def eval_efficiency(
         if isinstance(tokens_used, dict)
         else int(tokens_used or 0)
     )
-    if cost_unit == "usd" and cost_usd is not None:
-        cost_value = float(cost_usd)
+    if cost_unit == "usd":
+        if cost_usd is not None:
+            cost_value = float(cost_usd)
+        else:
+            # D-D: cost_unit="usd"이지만 cost_usd 미측정 시 `else` 분기로 token 수가
+            # cost_value로 사용됨 → cost_unit 레이블("usd")과 실제 단위(tokens) 불일치.
+            # target_cost_per_completion이 USD 기준이면 비교 자체가 무의미.
+            # cost_value=0.0으로 설정 → ratio=None → Gate D 집계 제외.
+            cost_value = 0.0
     elif cost_unit == "time_ms":
         cost_value = execution_time_s * 1000.0
     else:
@@ -2236,7 +2243,16 @@ def eval_efficiency(
     calibrated_score: Optional[float] = None
     efficiency_grade: str = "n/a"
 
-    if target is not None and float(target) > 0 and cost_per_completion != float("inf"):
+    # D-C: penalized=True이면 efficiency_ratio=0.0(패널티)이지만 calibrated_score는
+    # 실제 cost_per_completion 기반으로 계산되어 의도치 않게 높은 값이 나올 수 있음.
+    # (예: completion=0.05, cost_usd=0.001, target=0.01 → calibrated_score=0.7 "good")
+    # Gate D는 calibrated_score 우선 사용하므로 실패 태스크가 좋은 점수를 받게 됨.
+    # 패널티 태스크는 calibrated_score도 0.0으로 명시해 두 경로 일관성 확보.
+    if penalized:
+        calibrated_score = 0.0
+        efficiency_grade = "penalized"
+
+    if not penalized and target is not None and float(target) > 0 and cost_per_completion != float("inf"):
         target_f = float(target)
         ratio_vs_target = cost_per_completion / target_f
         if ratio_vs_target <= 1.0:
