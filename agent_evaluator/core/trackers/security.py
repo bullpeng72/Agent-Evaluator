@@ -272,6 +272,13 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 "has_path_traversal": False,
                 "has_xss": False,
                 "has_prompt_injection": False,
+                # BUG-E15: 화이트리스트 결과에 확장 has_* 필드 누락 → None 반환으로 불일치.
+                # 일반 탐지 결과와 동일한 10개 has_* 필드 구조를 보장.
+                "has_template_injection": False,
+                "has_ldap_injection": False,
+                "has_xxe": False,
+                "has_ssrf": False,
+                "has_jwt_manipulation": False,
                 "risk_level": "low",
                 "sanitization_needed": False,
                 "threat_count": 0,
@@ -765,10 +772,9 @@ class ToolAuthorizationTracker(BaseTracker):
         allowed_tools: Optional[List[str]] = None,
         restricted_tools: Optional[List[str]] = None,
     ) -> None:
-        # Both attributes are always sets for type consistency.
-        # An empty allowed_tools set means "no whitelist applied" (checked via
-        # the sentinel: len == 0 → skip whitelist check).
-        # Pass allowed_tools=[] to explicitly block all tools.
+        # allowed_tools=None  → 화이트리스트 없음 (모든 도구 허용)
+        # allowed_tools=[]   → 모든 도구 차단 (BUG-E13: 빈 set이 falsy여서 체크 스킵되는 버그 수정)
+        # allowed_tools=[..] → 명시된 도구만 허용
         self.allowed_tools: Optional[set] = set(allowed_tools) if allowed_tools is not None else None
         self.restricted_tools: set = set(restricted_tools) if restricted_tools else set()
         self._tool_calls: List[Dict[str, Any]] = []
@@ -843,7 +849,9 @@ class ToolAuthorizationTracker(BaseTracker):
         }
 
         # Check if tool is in allowed list (whitelist)
-        if self.allowed_tools and tool_name not in self.allowed_tools:
+        # BUG-E13: `self.allowed_tools` 이 빈 set일 때 falsy → 체크 스킵 → 모든 도구 허용 버그.
+        # `is not None`으로 명시 체크 — None=화이트리스트 없음, []={} =모든 도구 차단.
+        if self.allowed_tools is not None and tool_name not in self.allowed_tools:
             result["is_authorized"] = False
             result["violation_type"] = "unauthorized_tool"
 

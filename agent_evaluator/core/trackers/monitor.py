@@ -1697,6 +1697,7 @@ class PerformanceMonitor:
                 _ta_violations = 0
                 _ta_restricted = 0
                 _ta_dangerous = 0
+                _ta_unauthorized_only = 0
                 if self.tool_authorizer is not None and task_result.tool_calls:
                     for _stc in task_result.tool_calls:
                         try:
@@ -1712,17 +1713,22 @@ class PerformanceMonitor:
                                 _vtype = _ta_r.get("violation_type")
                                 if _vtype is not None:
                                     _ta_violations += 1
-                                if _vtype == "restricted_tool":
+                                # BUG-E14: violation_type이 "dangerous_params"로 덮인 경우에도
+                                # is_restricted=True인 호출은 restricted_calls에 집계되어야 함.
+                                # elif 대신 is_restricted/has_dangerous_params 플래그로 직접 체크.
+                                if _ta_r.get("is_restricted"):
                                     _ta_restricted += 1
-                                elif _vtype == "dangerous_params":
+                                if _ta_r.get("has_dangerous_params"):
                                     _ta_dangerous += 1
+                                # unauthorized_only: restricted/dangerous 외 순수 미허가 호출
+                                if _vtype == "unauthorized_tool":
+                                    _ta_unauthorized_only += 1
                         except Exception as _sec_exc:
                             logger.debug("ToolAuthorizationTracker failed (ignored): %s", _sec_exc)
                     if _ta_total > 0:
-                        # unauthorized_calls: 순수하게 허용 목록 외 도구 호출 횟수만 집계.
-                        # restricted_tool · dangerous_params 위반은 별도 키로 분리해
-                        # eval_threat_severity의 CVSS 계산에서 중복 계상을 방지한다.
-                        _ta_unauthorized_only = _ta_violations - _ta_restricted - _ta_dangerous
+                        # unauthorized_calls: violation_type="unauthorized_tool"인 호출만 집계.
+                        # restricted_calls · dangerous_param_calls는 is_restricted/has_dangerous_params
+                        # 플래그 기반으로 독립 집계하여 복합 위반(restricted+dangerous)도 둘 다 반영.
                         _sec_extra["tool_authorization"] = {
                             "unauthorized_calls": _ta_unauthorized_only,
                             "restricted_calls": _ta_restricted,
