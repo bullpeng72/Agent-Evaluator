@@ -992,12 +992,15 @@ class AgentCoordinationTracker(BaseTracker):
                     pattern_confidence = (chain_like / total_agents) * 100
 
             # Mesh Pattern: Many-to-many connections
+            # F-H: 독립 if → Hub/Chain이 감지된 경우에도 Mesh가 항상 덮어쓰는 버그 수정.
+            # Hub → Chain → Mesh 우선순위 순서로 fallback되어야 하므로 elif로 변경.
+            # connection_density 계산은 패턴 확인에 관계없이 분석 목적으로 유지.
             unique_pairs = len({
                 tuple(sorted(k.split("->"))) for k in agent_pairs
             })
             max_possible_pairs = total_agents * (total_agents - 1) // 2  # Undirected
 
-            if max_possible_pairs > 0:
+            if pattern_type == "unknown" and max_possible_pairs > 0:
                 connection_density = unique_pairs / max_possible_pairs
                 if connection_density >= self._mesh_density_threshold:
                     pattern_type = "mesh"

@@ -181,11 +181,16 @@ for q, gt in OBSERVABILITY_CASES:
 
 print(f"  섹션 7 완료: {len(OBSERVABILITY_CASES) * 4}건 기록")
 
-# ── 역케이스: Gate G FAIL 유도 (ErrorDiagnosisConfig) ────────────────────────
+# ── 역케이스: Gate G FAIL 유도 (ExplainabilityConfig 추론 마커 없음) ──────────
 _monitor_g_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 @agent_eval(
-    _monitor_g_fail, task_type="qa", task_id_prefix="g_fail_diag",
+    _monitor_g_fail, task_type="reasoning", task_id_prefix="g_fail_expl",
+    explainability=ExplainabilityConfig(
+        require_reasoning=True,
+        min_reasoning_length=30,
+        reasoning_markers=["왜냐하면", "따라서", "because", "therefore"],
+    ),
     error_diagnosis=ErrorDiagnosisConfig(
         only_on_failure=False,
         acknowledgment_weight=0.3,
@@ -197,7 +202,7 @@ def _g_fail_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
-    return f"처리를 시도했으나 완료하지 못했습니다."  # 원인·해결책 전무
+    return "처리 완료."  # 추론 마커·오류 진단 마커 전무 → explainability=0.0
 
 for _q in ["데이터베이스 오류를 해결해줘", "네트워크 실패를 복구해줘", "실패 원인을 알려줘"]:
     _g_fail_agent(_q)
@@ -205,7 +210,7 @@ for _q in ["데이터베이스 오류를 해결해줘", "네트워크 실패를 
 _r = _monitor_g_fail.generate_report().to_dict()
 _s = (_r.get("extra_metrics") or {}).get("harness_groups", {}).get("G", {})
 _pct = f"{_s['score']*100:.1f}%" if _s.get("score") is not None else "n/a"
-print(f"  ▶ 역케이스 Gate G: {_pct}  {'FAIL 확인 ✓' if (_s.get('gate','').upper()=='FAIL') else '예상과 다름'}")
+print(f"  ▶ 역케이스 Gate G: {_pct}  {'FAIL 확인 ✓' if (_s.get('status','').upper()=='FAIL') else '예상과 다름'}")
 
 # Gate G 점수 출력
 _report = monitor.generate_report().to_dict()

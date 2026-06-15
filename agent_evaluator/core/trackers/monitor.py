@@ -126,6 +126,10 @@ _RE_NON_WORD = re.compile(r'[^\w\s]')
 _QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
     "이", "가", "은", "는", "을", "를", "의", "에", "도", "로",
     "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
+    # 길이 2 이상이지만 내용어가 아닌 영어 기능어 — completeness 허위 상향 방지
+    "of", "or", "if", "by", "to", "as", "so", "it", "do", "no",
+    "be", "up", "my", "he", "we", "its", "for", "and", "but", "not",
+    "you", "she", "they", "this", "that", "with", "from", "have",
 })
 
 # TaskType → OpenInference span kind 매핑 (모듈 상수 — 매 호출마다 재생성 방지)
@@ -222,6 +226,8 @@ class PerformanceMonitor:
         gate_a_tcr_weight: float = 0.4,
         # Gate C TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Reliability Config 지표의 상대 중요도 조정
         gate_c_tcr_weight: float = 0.4,
+        # Gate B 루프 감지 가중치 (0.0~1.0, 기본 0.0 = 단순 평균) — 루프 감지와 나머지 5개 지표의 상대 중요도 조정
+        gate_b_loop_weight: float = 0.0,
     ):
         """
         Initialize Performance Monitor
@@ -344,6 +350,7 @@ class PerformanceMonitor:
         self._cost_predictability_config = cost_predictability_config
         self._gate_a_tcr_weight = max(0.0, min(1.0, float(gate_a_tcr_weight)))
         self._gate_c_tcr_weight = max(0.0, min(1.0, float(gate_c_tcr_weight)))
+        self._gate_b_loop_weight = max(0.0, min(1.0, float(gate_b_loop_weight)))
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -1690,6 +1697,7 @@ class PerformanceMonitor:
                 _ta_violations = 0
                 _ta_restricted = 0
                 _ta_dangerous = 0
+                _ta_unauthorized_only = 0
                 if self.tool_authorizer is not None and task_result.tool_calls:
                     for _stc in task_result.tool_calls:
                         try:
@@ -1705,17 +1713,22 @@ class PerformanceMonitor:
                                 _vtype = _ta_r.get("violation_type")
                                 if _vtype is not None:
                                     _ta_violations += 1
-                                if _vtype == "restricted_tool":
+                                # BUG-E14: violation_type이 "dangerous_params"로 덮인 경우에도
+                                # is_restricted=True인 호출은 restricted_calls에 집계되어야 함.
+                                # elif 대신 is_restricted/has_dangerous_params 플래그로 직접 체크.
+                                if _ta_r.get("is_restricted"):
                                     _ta_restricted += 1
-                                elif _vtype == "dangerous_params":
+                                if _ta_r.get("has_dangerous_params"):
                                     _ta_dangerous += 1
+                                # unauthorized_only: restricted/dangerous 외 순수 미허가 호출
+                                if _vtype == "unauthorized_tool":
+                                    _ta_unauthorized_only += 1
                         except Exception as _sec_exc:
                             logger.debug("ToolAuthorizationTracker failed (ignored): %s", _sec_exc)
                     if _ta_total > 0:
-                        # unauthorized_calls: 순수하게 허용 목록 외 도구 호출 횟수만 집계.
-                        # restricted_tool · dangerous_params 위반은 별도 키로 분리해
-                        # eval_threat_severity의 CVSS 계산에서 중복 계상을 방지한다.
-                        _ta_unauthorized_only = _ta_violations - _ta_restricted - _ta_dangerous
+                        # unauthorized_calls: violation_type="unauthorized_tool"인 호출만 집계.
+                        # restricted_calls · dangerous_param_calls는 is_restricted/has_dangerous_params
+                        # 플래그 기반으로 독립 집계하여 복합 위반(restricted+dangerous)도 둘 다 반영.
                         _sec_extra["tool_authorization"] = {
                             "unauthorized_calls": _ta_unauthorized_only,
                             "restricted_calls": _ta_restricted,
@@ -2812,12 +2825,14 @@ class PerformanceMonitor:
         avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
 
         _goal_a_vals: _List[float] = []
+        _goal_a_excluded = 0
         for _t in tasks:
             _ga = ((_t.extra or {}).get("goal_alignment") or {})
             if not _ga:
                 continue
             _ga_score_raw = _ga.get("score")
             if _ga_score_raw is None:   # goal_tool_map 불일치·미측정 태스크 → 집계 제외
+                _goal_a_excluded += 1
                 continue
             _ga_score = float(_ga_score_raw)
             # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
@@ -2834,13 +2849,22 @@ class PerformanceMonitor:
                         pass
             _goal_a_vals.append(_ga_score)
         avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
+        if avg_goal_a is None and _goal_a_excluded > 1:
+            logger.warning(
+                "[Gate A] GoalAlignmentConfig: %d task(s) all excluded (score=None). "
+                "For non-tool agents, set GoalAlignmentConfig(ignore_no_tool_tasks=False).",
+                _goal_a_excluded,
+            )
 
         _plan_a_vals: _List[float] = []
         for _t in tasks:
             _pc = ((_t.extra or {}).get("plan_coherence") or {})
             if not _pc:
                 continue
-            _pc_score = float(_pc.get("score", 0.0))
+            _pc_score_raw = _pc.get("score")
+            if _pc_score_raw is None:
+                continue
+            _pc_score = float(_pc_score_raw)
             # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
             if _pc.get("use_llm_scoring"):
                 _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
@@ -2860,6 +2884,8 @@ class PerformanceMonitor:
             for t in tasks
             if (t.extra or {}).get("subtask_completion") is not None
             and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
+            # subtask_count=0: expected_subtasks 미설정 → completion_rate=1.0이 의미 없으므로 제외
+            and int((t.extra or {}).get("subtask_completion", {}).get("subtask_count", 0)) > 0
         ]
         avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
 
@@ -2938,7 +2964,10 @@ class PerformanceMonitor:
             1 for t in tasks
             if (t.extra or {}).get("loop_detection", {}).get("detected", False)
         )
-        _loop_rate = _loop_counts / n
+        # LoopDetectionConfig가 설정된 태스크 수를 분모로 사용 — DeadlockConfig와 동일 패턴
+        # 전체 n을 사용하면 부분 배포 시 루프율이 희석되어 Gate B가 허위 부풀려짐
+        _n_loop_tasks = sum(1 for t in tasks if (t.extra or {}).get("loop_detection") is not None)
+        _loop_rate = _loop_counts / _n_loop_tasks if _n_loop_tasks > 0 else 0.0
 
         # avg_goal_a / avg_plan_a: Gate A에서 이미 계산됨 — Gate B details에서 진단용으로 재참조
         # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
@@ -2993,19 +3022,32 @@ class PerformanceMonitor:
         )
 
         # avg_goal_align / avg_plan: Gate A 직접 기여 항목 — Gate B 이중 집계 제거 (진단 목적으로만 유지)
-        _bint_vals = [max(0.0, 1.0 - _loop_rate)]
-        if avg_sc is not None:
-            _bint_vals.append(avg_sc)
-        # _n_dl_tasks > 0: DeadlockConfig 설정된 태스크 존재 시 항상 포함 (정상 상태=1.0, 탐지 시 감점)
-        if _n_dl_tasks > 0:
-            _bint_vals.append(max(0.0, 1.0 - _deadlock_count / _n_dl_tasks))
-        if avg_scope_score is not None:
-            _bint_vals.append(avg_scope_score)
-        if avg_tool_param_safety is not None:
-            _bint_vals.append(avg_tool_param_safety)
-        if _avg_context_window is not None:
-            _bint_vals.append(_avg_context_window)
-        _bint_score = sum(_bint_vals) / len(_bint_vals)
+        # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
+        # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
+        _has_loop_data = any((t.extra or {}).get("loop_detection") is not None for t in tasks)
+        _loop_score: Optional[float] = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
+        _deadlock_score: Optional[float] = (
+            max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
+        )
+        _other_bint_vals = [
+            v for v in [avg_sc, _deadlock_score, avg_scope_score, avg_tool_param_safety, _avg_context_window]
+            if v is not None
+        ]
+
+        _gate_b_lw = self._gate_b_loop_weight
+        if _gate_b_lw > 0.0 and _loop_score is not None and _other_bint_vals:
+            # 루프 감지 가중치 적용 — gate_a_tcr_weight·gate_c_tcr_weight와 동일 패턴
+            _bint_score: Optional[float] = (
+                _gate_b_lw * _loop_score
+                + (1.0 - _gate_b_lw) * (sum(_other_bint_vals) / len(_other_bint_vals))
+            )
+        elif _gate_b_lw > 0.0 and _loop_score is not None:
+            # 루프 데이터만 있는 경우 loop score 그대로
+            _bint_score = _loop_score
+        else:
+            # 기본값(0.0): 가용 지표 단순 평균 (backward compatible)
+            _all_bint = ([_loop_score] if _loop_score is not None else []) + _other_bint_vals
+            _bint_score = sum(_all_bint) / len(_all_bint) if _all_bint else None
 
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         tcr_pct = 0.0
@@ -3058,7 +3100,7 @@ class PerformanceMonitor:
         # budget_usd: 세션 전체 누적 비용 예산 초과 감지
         _sla_budget_penalty: float = 0.0
         if _sla_results:
-            _budget_usd = (_sla_cfg_summary if _sla_results else {}).get("budget_usd")
+            _budget_usd = _sla_cfg_summary.get("budget_usd")
             if _budget_usd is not None:
                 _total_session_cost = sum(
                     float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
@@ -3070,11 +3112,15 @@ class PerformanceMonitor:
                     _sla_budget_penalty = min(0.3, _overage * 0.1)
 
         # reproducibility → Group C
+        # C-3: run_count < 2 (skip_side_effects=True 또는 runs ≤ 1 오설정)이면
+        # compute_reproducibility_score는 score=1.0을 반환하지만 실제 재현성 측정이 이루어지지 않았음.
+        # 이 값을 Gate C에 포함하면 측정되지 않은 데이터가 점수를 인플레이션시키므로 제외한다.
         _repro_scores = [
             float(t.extra.get("reproducibility", {}).get("score"))
             for t in tasks
             if (t.extra or {}).get("reproducibility") is not None
             and (t.extra or {}).get("reproducibility", {}).get("score") is not None
+            and int((t.extra or {}).get("reproducibility", {}).get("run_count", 2)) >= 2
         ]
         avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
         if avg_reproducibility is not None:
@@ -3087,7 +3133,9 @@ class PerformanceMonitor:
         _ft_scores = []
         for _ft_t in tasks:
             _ft = (_ft_t.extra or {}).get("fault_tolerance")
-            if _ft is None or _ft.get("grade") == "none":
+            # "none": tool_calls 없어 평가 불가 → 제외
+            # "untracked": check_fallback_attempts=False로 의도적 추적 비활성 → 제외
+            if _ft is None or _ft.get("grade") in ("none", "untracked"):
                 continue
             _ft_sc = (
                 _ft["recovery_quality_score"]
@@ -3196,19 +3244,20 @@ class PerformanceMonitor:
             _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
 
         # Gate C: TCR(index 0)와 Config 지표를 gate_c_tcr_weight로 가중 평균
-        if _rel_vals:
-            _tcr_c = _rel_vals[0]
-            _config_c_vals = _rel_vals[1:]
-            if _config_c_vals:
-                _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
-                _rel_score = (
-                    self._gate_c_tcr_weight * _tcr_c
-                    + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
-                )
-            else:
-                _rel_score = float(_tcr_c)
+        # _rel_vals는 TCR로 항상 초기화되므로 항상 non-empty.
+        _tcr_c = _rel_vals[0]
+        _config_c_vals = _rel_vals[1:]
+        if _config_c_vals:
+            _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
+            _rel_score = (
+                self._gate_c_tcr_weight * _tcr_c
+                + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
+            )
         else:
-            _rel_score = tcr_pct / 100.0
+            _rel_score = float(_tcr_c)
+        # C-17: defense-in-depth — 이전 버전 저장 데이터 또는 예상치 못한 경로에서
+        # _rel_vals 원소가 1.0을 초과할 경우 최종 집계값도 1.0을 초과할 수 있음.
+        _rel_score = max(0.0, min(1.0, _rel_score))
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
         _p95 = 0.0
@@ -3235,8 +3284,9 @@ class PerformanceMonitor:
         _eff_ratios: _List[float] = max(
             _eff_ratios_by_unit.values(), key=len, default=[]
         )
-        _eff_cost_unit: str = next(
-            (u for u, v in _eff_ratios_by_unit.items() if v is _eff_ratios), "tokens"
+        _eff_cost_unit: str = (
+            max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
+            if _eff_ratios_by_unit else "tokens"
         )
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
@@ -3268,10 +3318,22 @@ class PerformanceMonitor:
                     for t in _rb_tasks
                 )
                 _n_tasks = max(len(_rb_tasks), 1)
-                # 총 한도 = 개별 한도 × 태스크 수 (rollover: 미사용분이 이후로 이월)
-                _max_tok = (_rb_cfg.get("max_tokens") or 0) * _n_tasks
-                _max_cost = (_rb_cfg.get("max_cost_usd") or 0.0) * _n_tasks
-                _max_time = (_rb_cfg.get("max_execution_time_ms") or 0.0) * _n_tasks
+                # D-F: 총 한도는 태스크별 Config 합산 (last-task × n_tasks 오류 수정)
+                # 태스크마다 max_tokens 설정이 다를 수 있으므로 각 태스크의 Config 값을 개별 합산한다.
+                _max_tok = sum(
+                    int((t.extra["resource_budget"].get("_config") or {}).get("max_tokens") or 0)
+                    for t in _rb_tasks
+                )
+                _max_cost = sum(
+                    float((t.extra["resource_budget"].get("_config") or {}).get("max_cost_usd") or 0.0)
+                    for t in _rb_tasks
+                )
+                _max_time = sum(
+                    float(
+                        (t.extra["resource_budget"].get("_config") or {}).get("max_execution_time_ms") or 0.0
+                    )
+                    for t in _rb_tasks
+                )
                 _utils: _List[float] = []
                 if _max_tok > 0:
                     _utils.append(_total_tokens_consumed / _max_tok)
@@ -3305,6 +3367,20 @@ class PerformanceMonitor:
                     _ttft_values.append(float(_ttft))
                 except (TypeError, ValueError):
                     pass
+
+        # D-B: task.extra["ttft_ms"]에 데이터가 없으면 LatencyTracker._ttft_records를 폴백으로 사용.
+        # @agent_eval(ttft_seconds=N) 파라미터 또는 스트리밍 EvalStep이 측정한 per-task TTFT는
+        # LatencyTracker.track_ttft()에만 저장되고 task.extra에는 기록되지 않아
+        # TTFTVariabilityConfig가 완전히 작동하지 않는 문제를 수정한다.
+        # 폴백은 task.extra 데이터가 하나도 없을 때만 적용 (혼재 방지).
+        if not _ttft_values:
+            try:
+                for _rec in self.latency_tracker._ttft_records:
+                    _ttft_s = _rec.get("ttft")
+                    if _ttft_s is not None:
+                        _ttft_values.append(float(_ttft_s) * 1000.0)  # seconds → ms
+            except Exception:
+                pass
 
         _avg_ttft_variability: Optional[float] = None
         _ttft_stddev: Optional[float] = None
@@ -3372,16 +3448,27 @@ class PerformanceMonitor:
                 else:  # "tokens" (default)
                     _tu = _ct.tokens_used or 0
                     if isinstance(_tu, dict):
-                        _cv_cost = float(
-                            _tu.get("total")
-                            or (_tu.get("input", 0) + _tu.get("output", 0))
-                            or 0
-                        )
+                        # D-1: `_tu.get("total") or (input+output)` 패턴은 total=0(명시적 0토큰)을
+                        # falsy로 처리해 input+output 합산으로 폴백 → CV 집계 왜곡.
+                        # None-only 폴백으로 수정 (BUG-C23과 동일 패턴).
+                        _raw_total_cv = _tu.get("total")
+                        if _raw_total_cv is not None:
+                            try:
+                                _cv_cost = float(_raw_total_cv)
+                            except (TypeError, ValueError):
+                                _cv_cost = 0.0
+                        else:
+                            _cv_cost = float(
+                                _tu.get("input", 0) + _tu.get("output", 0)
+                            )
                     else:
                         try:
                             _cv_cost = float(_tu)
                         except (TypeError, ValueError):
                             _cv_cost = 0.0
+                # 미측정(None→0.0) 태스크를 집계에 포함하면 CV가 허위 팽창하므로 제외
+                if _cv_cost <= 0.0:
+                    continue
                 _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
             _cv_scores_d: _List[float] = []
             for _costs_list in _costs_by_type.values():
@@ -3404,6 +3491,16 @@ class PerformanceMonitor:
             _d_insufficient.append(
                 f"ttft_variability: {len(_ttft_values)} samples < min_samples={_ttft_min_samples}"
             )
+        # 아웃라이어 제거 후 2개 미만 남을 때 — _avg_ttft_variability=None으로 조용히 제외되므로 경고 추가
+        elif (
+            _ttft_values
+            and len(_ttft_values) >= _ttft_min_samples
+            and _avg_ttft_variability is None
+        ):
+            _d_insufficient.append(
+                f"ttft_variability: outlier removal reduced {len(_ttft_values)} samples to < 2 "
+                f"(remove_outliers={_ttft_remove_outliers}) — score excluded from Gate D"
+            )
         if len(tasks) < _cost_min_samples:
             _d_insufficient.append(
                 f"cost_predictability: {len(tasks)} tasks < min_samples={_cost_min_samples}"
@@ -3415,7 +3512,18 @@ class PerformanceMonitor:
 
         _perf_vals: _List[float] = []
         if _p95 > 0:
-            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / 10.0)))
+            # SLAConfig.p95_ms 전체 평균을 임계값으로 사용 (태스크별 설정 혼재 시 last-task-wins 방지)
+            # 없으면 기본 10s 기준
+            _p95_threshold_s = 10.0
+            if _sla_results:
+                _p95_ms_values = [
+                    float(s["_config"]["p95_ms"])
+                    for s in _sla_results
+                    if s.get("_config") and s["_config"].get("p95_ms") is not None
+                ]
+                if _p95_ms_values:
+                    _p95_threshold_s = sum(_p95_ms_values) / len(_p95_ms_values) / 1000.0
+            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / max(_p95_threshold_s, 1.0))))
         if avg_eff_calibrated is not None:
             # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
             _perf_vals.append(avg_eff_calibrated)
@@ -3446,7 +3554,13 @@ class PerformanceMonitor:
             or int((t.extra or {}).get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
             or (t.extra or {}).get("privilege_escalation", {}).get("escalation_detected")
             or (t.extra or {}).get("tool_chain_attack", {}).get("is_suspicious_chain")
-            or int((t.extra or {}).get("tool_authorization", {}).get("unauthorized_calls", 0) or 0) > 0
+            # BUG-E11: BUG-E4 이후 unauthorized_calls는 순수 미허가 호출만 저장.
+            # total_violations(전체 위반)를 우선 사용하고 레거시 키로 폴백.
+            or int(
+                (t.extra or {}).get("tool_authorization", {}).get("total_violations")
+                or (t.extra or {}).get("tool_authorization", {}).get("unauthorized_calls")
+                or 0
+            ) > 0
         )
         _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
         # CVSS weighted_score는 여러 위협의 합산이므로 10.0으로 캡핑 후 정규화
@@ -3484,38 +3598,58 @@ class PerformanceMonitor:
         if _chain_attack_count > 0 or any(t.extra and "tool_chain_attack" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - _chain_attack_count / max(n, 1)))
 
+        # E-5: leakage_count/threat_count를 태스크 내 유형 합산(최대 12/10)으로 쓰면
+        # 단일 태스크에서 유형이 많을수록 n배 과도한 패널티가 발생해 binary 카운팅인
+        # _priv_esc_count/_chain_attack_count와 일관성이 없어진다.
+        # 태스크 수준 binary(0/1)로 집계해 "유출이 있었던 태스크 수"로 정규화.
         _leakage_count = sum(
-            int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0)
-            for t in tasks if t.extra
+            1 for t in tasks
+            if t.extra and int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
         )
         if any(t.extra and "output_leakage" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _leakage_count / max(n, 1))))
+            _native_e_scores.append(max(0.0, 1.0 - _leakage_count / max(n, 1)))
 
         _injection_count = sum(
-            int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0)
-            for t in tasks if t.extra
+            1 for t in tasks
+            if t.extra and int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0) > 0
         )
         if any(t.extra and "input_sanitization" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _injection_count / max(n, 1))))
+            _native_e_scores.append(max(0.0, 1.0 - _injection_count / max(n, 1)))
 
         # tool_authorization 위반 → _native_e_scores 반영 (5번째 보안 Tracker)
+        # E-4: unauthorized_calls는 "허가 목록 외" 위반만 포함 — restricted_calls(명시 차단)와
+        # dangerous_param_calls(위험 파라미터)는 별도 저장만 되고 집계되지 않아 Gate E 오탐.
+        # total_violations (= unauthorized + restricted + dangerous)를 우선 사용하되,
+        # 사용자가 직접 extra를 주입한 경우(total_violations 없음)를 위해 unauthorized_calls로 폴백.
         _unauth_count = sum(
-            int(t.extra.get("tool_authorization", {}).get("unauthorized_calls", 0) or 0)
+            int(
+                t.extra.get("tool_authorization", {}).get("total_violations")
+                or t.extra.get("tool_authorization", {}).get("unauthorized_calls")
+                or 0
+            )
             for t in tasks if t.extra
         )
         if any(t.extra and "tool_authorization" in t.extra for t in tasks):
             _native_e_scores.append(max(0.0, 1.0 - min(1.0, _unauth_count / max(n, 1))))
 
+        # _sec_score_raw: 트래커가 활성화되어 있고 per-tracker 점수(_native_e_scores)가 없을 때만 포함.
+        # _native_e_scores가 있으면 동일 이벤트가 이중 집계되므로 제외.
+        # enable_security_metrics=False이면 sec_threats=0 → _sec_score_raw=1.0 고정(무의미) → 제외.
+        _include_sec_raw = self.enable_security_metrics and not _native_e_scores
         if _cvss_scores:
             avg_cvss = sum(_cvss_scores) / len(_cvss_scores)
             _cvss_normalized = max(0.0, 1.0 - avg_cvss / 10.0)
-            _e_base_scores: _List[float] = [_sec_score_raw, _cvss_normalized]
+            _e_base_scores: _List[float] = (
+                [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
+            )
             if _avg_compliance is not None:
                 _e_base_scores.append(_avg_compliance)
         elif _avg_compliance is not None:
-            _e_base_scores = [_sec_score_raw, _avg_compliance]
+            _e_base_scores = (
+                [_sec_score_raw, _avg_compliance] if _include_sec_raw else [_avg_compliance]
+            )
         else:
-            _e_base_scores = [_sec_score_raw]
+            _e_base_scores = [_sec_score_raw] if _include_sec_raw else []
 
         # threat_response → Group E (Phase 6)
         _tr_scores = [
@@ -3611,7 +3745,7 @@ class PerformanceMonitor:
             _obs_vals.append(avg_error_diagnosis)
         if _avg_latency_attribution is not None:
             _obs_vals.append(_avg_latency_attribution)
-        _obs_score = sum(_obs_vals) / len(_obs_vals) if _obs_vals else 0.0
+        _obs_score: Optional[float] = sum(_obs_vals) / len(_obs_vals) if _obs_vals else None
 
         # ── F 그룹: 멀티에이전트 조율 ──
         # Fix1+2: self.coordination_tracker(없는 속성) + get_coordination_stats()(없는 메서드) 수정
@@ -3642,6 +3776,8 @@ class PerformanceMonitor:
             for t in tasks
             if (t.extra or {}).get("consensus") is not None
             and (t.extra or {}).get("consensus", {}).get("consensus_score") is not None
+            # method="single": 단일 에이전트 → 합의 측정 불가 → Gate F 집계에서 제외
+            and (t.extra or {}).get("consensus", {}).get("method") != "single"
         ]
         avg_consensus: Optional[float] = sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
 
@@ -3690,14 +3826,13 @@ class PerformanceMonitor:
 
         # ── 그룹별 결과 모음 ──
         _a_s = round(_a_score, 4)
-        _b_s = round(float(_bint_score), 4)
+        _b_s = round(float(_bint_score), 4) if _bint_score is not None else None
         _c_s = round(float(_rel_score), 4)
         _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
         _e_s = round(float(_sec_score), 4) if _sec_score is not None else None
         _f_s = round(_f_score, 4) if _f_score is not None else None
-        # _obs_vals가 빈 배열이면 Gate G 데이터 없음 — None으로 처리해 _scored에서 제외
-        # (빈 배열일 때 _obs_score=0.0으로 고정되어 항상 fail로 집계되던 버그 수정)
-        _g_s = round(float(_obs_score), 4) if _obs_vals else None
+        # _obs_score=None이면 Gate G 데이터 없음 → _scored에서 제외
+        _g_s = round(float(_obs_score), 4) if _obs_score is not None else None
 
         # overall: 유효 그룹 점수 평균
         _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]
@@ -3725,8 +3860,10 @@ class PerformanceMonitor:
             "B": _g(_b_s, "Behavioral Integrity", {
                 "loop_detection_rate": round(_loop_rate, 4),
                 "loop_count": _loop_counts,
-                "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
-                "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
+                "gate_b_loop_weight": self._gate_b_loop_weight,
+                # 아래 두 항목은 Gate A 계산값 재참조(진단용) — Gate B 점수에는 포함되지 않는다.
+                "gate_a_ref__avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
+                "gate_a_ref__avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
                 "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
                 "deadlock_count": _deadlock_count,
                 "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
@@ -3750,6 +3887,8 @@ class PerformanceMonitor:
             }),
             "D": _g(_d_s, "Performance Contract", {
                 "p95_latency_s": round(_p95, 4),
+                # calibrated_score 우선 사용 시 두 값 모두 노출 (역추적 가능성 확보)
+                "avg_efficiency_calibrated_score": round(avg_eff_calibrated, 4) if avg_eff_calibrated is not None else None,
                 "avg_efficiency_ratio": round(avg_eff_ratio, 8) if avg_eff_ratio is not None else None,
                 "avg_budget_score": round(_avg_budget, 4) if _avg_budget is not None else None,
                 "ttft_variability_score": round(_avg_ttft_variability, 4) if _avg_ttft_variability is not None else None,
@@ -3788,7 +3927,7 @@ class PerformanceMonitor:
             }, f_score=True),
             "G": _g(_g_s, "Observability", {
                 "tool_coverage": round(_tool_coverage, 4) if _tool_coverage is not None else None,
-                "hallucination_rate": hall_rate,
+                "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
                 "avg_observability_score": round(avg_obs_custom, 4) if avg_obs_custom is not None else None,
                 "avg_explainability": round(avg_explainability, 4) if avg_explainability is not None else None,
                 "avg_error_diagnosis": round(avg_error_diagnosis, 4) if avg_error_diagnosis is not None else None,

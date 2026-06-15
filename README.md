@@ -1461,7 +1461,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 2,499+ test functions, 52 files
+├── tests/                       # 2,795+ test functions, 56 files
 └── pyproject.toml
 ```
 
@@ -1520,7 +1520,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (2,499+)
+pytest                          # run tests (2,795+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check

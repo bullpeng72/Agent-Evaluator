@@ -152,9 +152,10 @@ print(f"  섹션 5 완료: {len(SECURITY_CASES) * 3}건 기록")
 
 # ── 역케이스: ThreatSeverityConfig fail_on_critical 동작 시연 ─────────────────
 # warn_score·fail_score를 매우 낮게 설정해 위협 탐지 즉시 task.success=False가 되는 패턴.
-# Gate E aggregate score는 보안 트래커 5종에서 산출되므로 ThreatSeverityConfig가
-# 낮아도 Gate E 점수 자체는 1.0(pass)일 수 있다.
-# ThreatSeverityConfig의 핵심 효과: 위협 탐지 시 해당 태스크 TCR(Gate A)에 영향.
+# Gate E aggregate score는 보안 트래커 5종에서 산출된다.
+# ThreatSeverityConfig(warn_score=0.5, fail_score=1.5)처럼 낮게 설정하면
+# 탐지된 위협이 Gate E 점수에도 반영되어 낮아질 수 있다.
+# ThreatSeverityConfig의 추가 효과: 위협 탐지 시 해당 태스크 success=False → Gate A TCR 감소.
 _monitor_e_fail = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
@@ -187,7 +188,7 @@ _r = _monitor_e_fail.generate_report().to_dict()
 _s = (_r.get("extra_metrics") or {}).get("harness_groups", {}).get("E", {})
 _pct = f"{_s['score']*100:.1f}%" if _s.get("score") is not None else "n/a"
 print(f"  ▶ 역케이스 Gate E(보안): {_pct}  (ThreatSeverityConfig fail_on_critical — 태스크별 success=False)")
-# → 100.0% — Gate E aggregate는 트래커 기반으로 산출. ThreatSeverityConfig는 태스크 TCR에 영향.
+# → 66.7% — 위협 탐지 건수가 Gate E 트래커 점수에 반영. ThreatSeverityConfig는 태스크 success=False → Gate A TCR에도 영향.
 
 # Gate E 점수 출력
 _report = monitor.generate_report().to_dict()

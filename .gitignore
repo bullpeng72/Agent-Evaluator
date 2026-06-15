@@ -109,3 +109,4 @@ Lectures/
 *.key
 *.pem
 secrets/
+.aider*

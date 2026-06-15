@@ -1123,8 +1123,10 @@ class ResponseQualityEvaluator(BaseTracker):
         word_count = len(response.split())
 
         # Relevance (keyword overlap)
-        request_words = set(request.lower().split())
-        response_words = set(response.lower().split())
+        # Strip punctuation so "Korea?" in request matches "Korea" in response,
+        # consistent with _normalize_qa_text used by AccuracyEvaluator.
+        request_words = set(_RE_QA_PUNCTUATION.sub('', request.lower()).split())
+        response_words = set(_RE_QA_PUNCTUATION.sub('', response.lower()).split())
 
         # CRITICAL FIX: Handle empty request_words to avoid zero division
         if not request_words:
@@ -1258,7 +1260,7 @@ class ResponseQualityEvaluator(BaseTracker):
                 float(x[_dim]) for x in df["dimension_scores"]
                 if isinstance(x, dict) and x.get(_dim) is not None
             ]
-            dimension_averages[_dim] = round(sum(_dim_vals) / len(_dim_vals), 2) if _dim_vals else 0.0
+            dimension_averages[_dim] = round(sum(_dim_vals) / len(_dim_vals), 2) if _dim_vals else None
 
         # Create quality distribution by score ranges
         quality_distribution = {}

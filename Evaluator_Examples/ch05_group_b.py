@@ -221,11 +221,11 @@ def _b_fail_agent(question: str, ground_truth: str = "") -> str:
     # 금지된 도구 3회 반복 → 루프 탐지 + 범위 위반
     return f"권한 변경 완료: {question}", EvalMetadata(
         tool_calls=[
-            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
-            {"tool_name": "delete_lock",  "success": True,  "duration": 0.10},
-            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
-            {"tool_name": "delete_lock",  "success": True,  "duration": 0.10},
-            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
+            {"name": "modify_user",  "success": True,  "duration": 0.10},
+            {"name": "delete_lock",  "success": True,  "duration": 0.10},
+            {"name": "modify_user",  "success": True,  "duration": 0.10},
+            {"name": "delete_lock",  "success": True,  "duration": 0.10},
+            {"name": "modify_user",  "success": True,  "duration": 0.10},
         ]
     )
 
