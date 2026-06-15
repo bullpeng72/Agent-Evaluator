@@ -59,9 +59,9 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | **E** | Tool Authorization | `ToolAuthorizationTracker` | `enable_security_metrics=True` |
 | **E** | Privilege Escalation | `PrivilegeEscalationDetector` | `enable_security_metrics=True` |
 | **E** | Tool Chain Attack | `ToolChainAttackDetector` | `enable_security_metrics=True` |
-| **F** | Tool Selection Accuracy | `ToolSelectionTracker` | 기본 |
-| **F** | Agent Coordination | `AgentCoordinationTracker` | 기본 |
-| **G** | Tool Call Success Rate | `ToolCallAnalyzer` | 기본 |
+| **F** | Tool Selection Accuracy | `ToolSelectionTracker` | expected_tools 지정 시 |
+| **F** | Agent Coordination | `AgentCoordinationTracker` | agent_interactions 기록 시 |
+| **G** | Tool Call Success Rate | `ToolCallAnalyzer` | tool_calls 기록 시 |
 | **C+G** | Hallucination Rate (규칙 기반) | `HallucinationDetector` | `enable_hallucination_detection=True` |
 | **C+G** | Context Recall (근사) | `HallucinationDetector` | `rag_mode=True` |
 | **C+G** | Context Precision (근사) | `HallucinationDetector` | `rag_mode=True` |

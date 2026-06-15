@@ -256,7 +256,7 @@ def batch_agent_df(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 
 # Parallel execution (async function) — asyncio.gather based
-@batch_eval(monitor, task_type="qa", concurrent=True, max_concurrent=4)
+@batch_eval(monitor, task_type="qa", concurrency=4)
 async def parallel_agent(questions: list, ground_truths: list = None) -> list:
     return await asyncio.gather(*[async_llm.invoke(q) for q in questions])
 
@@ -281,14 +281,11 @@ responses, task_results = large_batch(questions, ground_truths)
 | `questions_arg` | `"questions"` | Question list argument name |
 | `ground_truths_arg` | `"ground_truths"` | Ground truth list argument name |
 | `return_format` | `"list"` | Return format: `"list"` · `"tuple"` · `"dataframe"` |
-| `concurrent` | `False` | Parallel item execution for async functions |
-| `max_concurrent` | `0` | Concurrency limit (0 = unlimited) |
-| `shuffle` | `False` | Randomize processing order |
+| `concurrency` | `0` | Concurrent item execution (0 = sequential, N = up to N workers) |
 | `item_timeout` | `None` | Max processing time per item (seconds) |
 | `on_batch_progress` | `None` | Progress callback `(completed, total) → None` |
 | `on_batch_complete` | `None` | Batch completion callback `(results) → None` |
 | `on_item_error` | `None` | Item failure callback `(index, question, error) → None` |
-| `streaming_mode` | `False` | Memory-efficient streaming processing |
 
 ---
 
@@ -352,7 +349,6 @@ Metrics measured by `@conversation_eval`:
 | `on_flush` | `None` | Session end callback `(metrics, session_id) → None` |
 | `session_score_fn` | `None` | Session overall score function `(ConversationMetrics) → float` |
 | `turn_score_fn` | `None` | Per-turn score function `(user, response, meta) → float` |
-| `load_previous_session` | `False` | Resume from previous session |
 | `max_session_seconds` | `None` | Auto-flush timer for inactive sessions (seconds) |
 
 ---
@@ -987,8 +983,8 @@ When `auto_detect_framework=True` (default), the framework is auto-detected by i
 def auto_agent(question: str, ground_truth: str = "") -> str:
     return client.chat.completions.create(...)  # OpenAI → auto-detected as "openai"
 
-# Explicitly disable auto-detection (fixed framework= takes priority)
-@agent_eval(monitor, task_type="qa", framework="openai", auto_detect_framework=False)
+# Explicit framework= takes priority over auto-detection
+@agent_eval(monitor, task_type="qa", framework="openai")
 def fixed_agent(question: str, ground_truth: str = "") -> str:
     return client.chat.completions.create(...)
 ```

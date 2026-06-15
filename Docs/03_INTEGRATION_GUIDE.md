@@ -105,12 +105,12 @@ def customer_service_agent(question: str, ground_truth: str = "") -> str:
 
 ## 3. @batch_eval — 대량 처리
 
-대량의 데이터를 한 번에 평가할 때 사용하며, 병렬 실행(`concurrent=True`)을 지원합니다.
+대량의 데이터를 한 번에 평가할 때 사용하며, 병렬 실행(`concurrency=N`)을 지원합니다.
 
 ```python
 from agent_evaluator import batch_eval
 
-@batch_eval(monitor, task_type="qa", concurrent=True, max_concurrent=5)
+@batch_eval(monitor, task_type="qa", concurrency=5)
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 ```
@@ -226,15 +226,12 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `expected_tools_arg` | str\|None | `None` | Tool Selection F1 평가용 기대 도구 리스트 인자 이름 |
 | `task_id_prefix` | str | `"task"` | 자동 생성 task_id 접두사 |
 | `task_id_fn` | callable\|None | `None` | task_id 생성 함수 `(args, kwargs) → str` |
-| `task_id_arg` | str\|None | `None` | task_id를 직접 받는 인자 이름 |
 | `framework` | str | `"native"` | 프레임워크 어댑터 지정 (21개 지원) |
-| `auto_detect_framework` | bool | `True` | 리턴값에서 프레임워크 자동 감지 |
 | `model_name` | str | `""` | 토큰 비용 계산용 모델명 |
 | `score_fn` | callable\|None | `None` | 커스텀 accuracy_score 함수 `(response, ground_truth) → float` |
 | `completion_fn` | callable\|None | `None` | 커스텀 completion_score 함수 `(response, ...) → float` |
 | `custom_parser` | callable\|None | `None` | 커스텀 메타데이터 파서 `(raw_result) → EvalMetadata` |
 | `sample_rate` | float | `1.0` | 기록 샘플링 비율 (0.0–1.0) |
-| `sample_condition` | callable\|None | `None` | 조건부 샘플링 `(args, kwargs) → bool` |
 | `timeout` | float\|None | `None` | 타임아웃(초), 초과 시 TimeoutError |
 | `enabled` | bool | `True` | False 이면 데코레이터 완전 비활성화 |
 | `retry` | RetryConfig\|None | `None` | 재시도 설정 (`RetryConfig(max=N, delay=X, backoff=Y)`) |
@@ -245,11 +242,9 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `preset` | str\|None | `None` | AGENT_EVAL_PRESETS 이름 (production/development/testing/canary) |
 | `enable_hallucination_detection` | bool | `False` | HallucinationDetector 임시 활성 |
 | `rag_mode` | bool | `False` | context_arg="context" + hallucination + task_type="information_retrieval" 자동 |
-| `security` | SecurityConfig\|None | `None` | 보안 5개 트래커 임시 활성 |
-| `allowed_tools` | list\|None | `None` | ToolAuthorization 허용 도구 화이트리스트 |
+| `security` | SecurityConfig\|None | `None` | 보안 5개 트래커 임시 활성 (`SecurityConfig(allowed_tools=[...])` 로 화이트리스트 설정) |
 | `llm_judge` | LLMJudgeConfig\|None | `None` | LLMJudge 설정 (`LLMJudgeConfig(model=..., criteria=[...])`) |
 | `enable_anomaly_detection` | bool | `False` | AnomalyDetector 임시 활성 |
-| `dry_run` | bool | `False` | 기록 없이 TaskResult만 반환 |
 
 ### `@batch_eval` 파라미터 전체 목록
 
@@ -273,9 +268,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `timeout` | float\|None | `None` | 전체 배치 타임아웃(초) |
 | `item_timeout` | float\|None | `None` | 건별 타임아웃(초) |
 | `enabled` | bool | `True` | 비활성화 플래그 |
-| `concurrent` | bool | `False` | 병렬 처리 활성 |
-| `max_concurrent` | int | `0` | 동시 실행 수 (0=CPU 코어 수) |
-| `shuffle` | bool | `False` | 입력 셔플 |
+| `concurrency` | int | `0` | 동시 실행 수 (0=순차 처리, N=최대 N개 병렬) |
 | `return_format` | str | `"list"` | 반환 형식: "list" / "tuple" / "dataframe" |
 | `streaming_mode` | bool | `False` | 스트리밍 모드 (TTFT 자동 측정) |
 | `preset` | str\|None | `None` | AGENT_EVAL_PRESETS 이름 |
@@ -291,9 +284,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `max_turns` | int\|None | `None` | 최대 턴 수 초과 시 자동 flush |
 | `max_session_seconds` | float\|None | `None` | 세션 타임아웃(초) |
 | `flush_on_error` | bool | `True` | 오류 시 세션 자동 flush |
-| `max_turns_exceeded_action` | str | `"flush"` | "flush" / "error" / "ignore" |
-| `load_previous_session` | bool | `False` | 이전 세션 이어받기 |
-| `participant_id_arg` | str\|None | `None` | 발화자 구분 인자 이름 |
+| `max_turns_exceeded_action` | str | `"flush"` | "flush" / "warn" / "error" |
 | `sample_rate` | float | `1.0` | 샘플링 비율 |
 | `on_flush` | callable\|None | `None` | 세션 flush 완료 콜백 `(ConversationMetrics)` |
 | `on_turn` | callable\|None | `None` | 턴 완료 콜백 `(user, response, metadata)` |

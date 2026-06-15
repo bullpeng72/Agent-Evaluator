@@ -300,7 +300,6 @@ from agent_evaluator.decorators import agent_eval
     retry=None,                      # 재시도 설정 (RetryConfig(max=N, delay=X, backoff=Y))
     on_record=None,                  # TaskResult 후처리 콜백 (TaskResult → TaskResult)
     sample_rate=1.0,                 # 샘플링 비율 (0.0–1.0)
-    sample_condition=None,           # (args, kwargs) → bool 조건부 샘플링
 )
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -508,12 +507,10 @@ from agent_evaluator.decorators import conversation_eval
 @conversation_eval(
     monitor,
     session_id_arg="session_id",             # session_id 파라미터 이름
-    participant_id_arg=None,                 # 참여자 ID 파라미터
-    max_turns_exceeded_action="warn",        # "warn"|"raise"|"ignore"
-    load_previous_session=False,             # 이전 세션 이어서 평가
+    max_turns_exceeded_action="flush",       # "flush"|"warn"|"error"
     flush_every=0,
     on_session_timeout=None,                 # 세션 타임아웃 콜백
-    on_turn=None,                            # 턴별 콜백 (turn_num, question, response)
+    on_turn=None,                            # 턴별 콜백 (session_id, user, response, metadata)
     session_score_fn=None,                   # 세션 점수 함수 override
     turn_score_fn=None,                      # 턴별 점수 함수 override
 )
@@ -1267,7 +1264,7 @@ agent-eval monitor --check     # OTEL 패키지 설치 여부 및 포트 확인
 
 # CI/CD 품질 게이팅
 agent-eval gate result.json --tcr 85 --accuracy 70
-agent-eval gate result.json --tcr 85 --accuracy 70 --quality 0.7
+agent-eval gate result.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
 
 # 골든 데이터셋 자동 추출
 agent-eval dataset build results/ --min-score 0.8

@@ -271,12 +271,8 @@ from agent_evaluator.decorators import agent_eval
 def production_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 조건부 샘플링 — 특정 조건에서만 평가
-@agent_eval(
-    monitor,
-    task_type="qa",
-    sample_condition=lambda args, kwargs: len(args[0]) > 100,  # 긴 질문만
-)
+# 낮은 비율 샘플링 — 10%만 평가 (프로덕션 비용 절감)
+@agent_eval(monitor, task_type="qa", sample_rate=0.1)
 def selective_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```

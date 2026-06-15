@@ -68,7 +68,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 ```python
 from agent_evaluator import batch_eval
 
-@batch_eval(monitor, task_type="qa", concurrent=True, max_concurrent=5)
+@batch_eval(monitor, task_type="qa", concurrency=5)
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 ```

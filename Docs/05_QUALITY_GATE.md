@@ -41,10 +41,7 @@
 agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 # 복합: 4개 지표 동시 검사
-agent-eval gate results/eval.json --tcr 85 --accuracy 70 --quality 3.5 --hallucination 5
-
-# 임계값 파일 사용
-agent-eval gate results/eval.json --config gate_config.json
+agent-eval gate results/eval.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
 
 # Harness Gate A–G 복합 점수 판정 (v0.8.3+)
 agent-eval gate results/eval.json --min-gate-score 0.75
@@ -226,7 +223,7 @@ jobs:
           agent-eval gate results/eval.json \
             --tcr 85 \
             --accuracy 70 \
-            --quality 3.5 \
+            --llm-judge 3.5 \
             --hallucination 5
 
       - name: Upload results
@@ -329,16 +326,22 @@ eval.generate_gate_config("gate_config.json")
 }
 ```
 
-### CLI에서 파일 로드
+### Python API에서 파일 로드
 
-```bash
-agent-eval gate results/eval.json --config gate_config.json
+`QuickEval.gate(config_file=...)` 를 사용하면 JSON 파일에서 임계값을 읽을 수 있습니다. CLI(`agent-eval gate`)에는 `--config` 플래그가 없으므로 Python API를 사용하세요.
 
-# 환경별 설정 파일 분리
-agent-eval gate results/eval.json --config gate_config.${DEPLOY_ENV}.json
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+eval.gate(config_file="gate_config.json")
+# 또는 환경별 파일 분리
+import os
+env = os.environ.get("DEPLOY_ENV", "prod")
+eval.gate(config_file=f"gate_config.{env}.json")
 ```
 
-### 코드에서 파일 로드
+### 코드에서 파일 로드 (PerformanceMonitor)
 
 ```python
 import json
