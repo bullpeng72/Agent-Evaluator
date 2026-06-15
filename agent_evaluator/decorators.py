@@ -1084,6 +1084,21 @@ class AgentRoleConfig:
                 stacklevel=2,
             )
             self.role_violation_penalty = 0.3
+        # F-Q: allowed_tools/forbidden_tools 교집합 경고 — ScopeConfig와 동일 패턴.
+        # 같은 도구가 양 목록에 있으면 eval_role_adherence에서 forbidden 우선 적용되지만
+        # 경고가 없어 사용자가 의도와 다른 동작을 인지하지 못함.
+        if self.allowed_tools is None:
+            self.allowed_tools = []
+        if self.forbidden_tools is None:
+            self.forbidden_tools = []
+        _overlap_rf = set(self.allowed_tools) & set(self.forbidden_tools)
+        if _overlap_rf:
+            _w.warn(
+                f"AgentRoleConfig: tools appear in both allowed_tools and forbidden_tools: "
+                f"{sorted(_overlap_rf)}. They will be treated as forbidden.",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 @dataclasses.dataclass

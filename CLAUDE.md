@@ -137,6 +137,8 @@ Gate A–G results stored under `extra_metrics.harness_groups` in JSON result fi
 
 > **Gate A 가중치 구조**: `_a_score = gate_a_tcr_weight × _a_vals[0] + (1 − gate_a_tcr_weight) × mean(나머지)`.  
 > 기본값 `gate_a_tcr_weight=0.4` — `PerformanceMonitor(gate_a_tcr_weight=...)` 으로 조정 가능.  
+> **Gate B 가중치 구조**: `gate_b_loop_weight > 0.0` 이면 루프 점수에 가중치 부여, `0.0`(기본값)이면 가용 지표 단순 평균.  
+> 기본값 `gate_b_loop_weight=0.0` — `PerformanceMonitor(gate_b_loop_weight=...)` 으로 조정 가능.  
 > **Gate C 가중치 구조**: `_rel_score = gate_c_tcr_weight × _rel_vals[0] + (1 − gate_c_tcr_weight) × mean(나머지)`.  
 > 기본값 `gate_c_tcr_weight=0.4` — `PerformanceMonitor(gate_c_tcr_weight=...)` 으로 조정 가능.  
 > Gate B details에 `avg_goal_alignment` / `avg_plan_coherence`가 표시되지만, 이는 Gate A 계산값을 재참조하는 진단용이며 Gate B **점수에는 포함되지 않는다**.  
@@ -285,7 +287,7 @@ use_korean_tokenizer, use_semantic_hallucination, semantic_weight
 enable_anomaly_detection, anomaly_baseline_window, anomaly_detection_window
 auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
-gate_a_tcr_weight, gate_c_tcr_weight
+gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 ```
 
 ### @agent_eval Valid Parameters
@@ -313,7 +315,7 @@ threat_response, context_window, latency_attribution
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
 - Version: **v0.9.5** (Beta) | Python: **3.8+**
-- Tests: **52 files**, **2,499+** test functions
+- Tests: **56 files**, **2,795+** test functions
 - Dashboard: **103** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
@@ -388,7 +390,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**52 files, 2,499+ test functions** in `tests/`.
+**56 files, 2,795+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

@@ -2220,15 +2220,17 @@ def eval_efficiency(
     cost_unit: str = getattr(config, "cost_unit", "tokens") or "tokens"
     penalize_failed: bool = getattr(config, "penalize_failed_tokens", True)
 
-    _tokens_int: int = (
-        int(
-            tokens_used.get("total")
-            or (tokens_used.get("input", 0) + tokens_used.get("output", 0))
-            or 0
+    # D-EFF-1: `or` 패턴은 total=0(명시적 0토큰)을 falsy로 처리해 input+output으로 폴백 — 버그.
+    # eval_sla(C-23)·_compute_harness_groups(D-1)과 동일한 None-only 폴백으로 수정한다.
+    _tokens_int: int
+    if isinstance(tokens_used, dict):
+        _raw_total_eff = tokens_used.get("total")
+        _tokens_int = (
+            int(_raw_total_eff) if _raw_total_eff is not None
+            else int(tokens_used.get("input", 0) + tokens_used.get("output", 0))
         )
-        if isinstance(tokens_used, dict)
-        else int(tokens_used or 0)
-    )
+    else:
+        _tokens_int = int(tokens_used or 0)
     if cost_unit == "usd":
         if cost_usd is not None:
             cost_value = float(cost_usd)
@@ -3337,6 +3339,13 @@ def eval_propagation(
         for fact in facts_propagated:
             fact_lower = fact.lower()
             pos = response_lower.find(fact_lower)
+            if pos < 0:
+                # F-R: fuzzy match로 발견된 fact는 exact find가 실패(pos=-1)하므로
+                # distortion window를 구성할 위치를 찾지 못해 negation 탐지가 스킵되었음.
+                # fact의 대표 토큰(len≥2) 첫 번째 위치로 window를 근사 계산해 false negative 방지.
+                _ftokens = [t for t in fact_lower.split() if len(t) >= 2]
+                if _ftokens:
+                    pos = response_lower.find(_ftokens[0])
             if pos >= 0:  # Fix4: pos > 0 → pos >= 0 (응답 첫 위치 왜곡 감지 누락 수정)
                 window = response_lower[max(0, pos - 30):pos + len(fact_lower) + 30]
                 if _NEGATION_PAT.search(window):
@@ -3397,17 +3406,29 @@ def eval_role_adherence(
                 role_violations.append(f"out_of_role_tool:{t}")
                 misused_tools.append(t)
 
+    # F-J: substring 비교 → 단어 경계 regex.
+    # ASCII 키워드는 \b 경계 적용 — "del" in "model", "write" in "writer" 등 거짓 양성 방지.
+    # 한글/CJK 키워드는 단어 경계 개념이 없으므로 substring 유지 (_cr_marker_match와 동일 패턴).
+    def _kw_match(kw: str, text: str) -> bool:
+        kl = kw.lower()
+        if any(ord(c) > 127 for c in kl):
+            return kl in text
+        try:
+            return bool(re.search(r'\b' + re.escape(kl) + r'\b', text))
+        except Exception:
+            return kl in text
+
     # Check forbidden action keywords in response
     response_lower = (response or "").lower()
     for kw in (config.forbidden_action_keywords or []):
-        if kw.lower() in response_lower:
+        if _kw_match(kw, response_lower):
             role_violations.append(f"forbidden_keyword:{kw}")
 
     # Check required action keywords (at least one must appear in response)
     missing_required: List[str] = []
     allowed_kws = list(config.allowed_action_keywords or [])
     if allowed_kws:
-        found_required = any(kw.lower() in response_lower for kw in allowed_kws)
+        found_required = any(_kw_match(kw, response_lower) for kw in allowed_kws)
         if not found_required:
             role_violations.append("missing_required_keyword")
             missing_required = allowed_kws
@@ -3806,13 +3827,16 @@ def eval_conflict_resolution(
             _ic = str(interaction.get("content", "")).lower()
         elif hasattr(interaction, "content"):
             _ic = str(getattr(interaction, "content", "")).lower()
-        if any(m.lower() in _ic for m in config.conflict_markers):
+        # F-P: conflict_markers에도 _cr_marker_match 적용.
+        # resolution_markers는 이미 _cr_marker_match를 쓰는데 conflict_markers만 substring 비교를
+        # 사용해 "conflict" in "nonconflict", "disagree" in "disagreeable" 등 거짓 양성이 발생했음.
+        if any(_cr_marker_match(m, _ic) for m in config.conflict_markers):
             conflicts_detected += 1
 
     # Fix5: response 충돌 마커는 interactions가 없을 때만 fallback으로 사용
     # (이전: interactions + response 합산 → 해결 응답이 충돌 언급 시 이중 카운팅)
     response_conflicts = sum(
-        1 for m in config.conflict_markers if m.lower() in response_lower
+        1 for m in config.conflict_markers if _cr_marker_match(m, response_lower)
     )
     if agent_interactions:
         total_conflicts = conflicts_detected
