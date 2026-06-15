@@ -301,6 +301,8 @@ PIPELINE_TASKS = [
 @agent_eval(monitor, task_type="planning", framework="langgraph", task_id_prefix="pipe_route")
 def routing_stage(question: str, ground_truth: str = ""):
     """Stage 1: LangGraph 라우터."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LangGraph 그래프 호출로 교체하세요.
+    #   예) result = compiled_graph.invoke({"messages": [HumanMessage(content=question)]})
     return _make_langgraph_response(
         answer=f"라우팅 완료: {question}",
         nodes=["router", "task_splitter", "dispatcher"],
@@ -310,6 +312,8 @@ def routing_stage(question: str, ground_truth: str = ""):
 @agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="pipe_search")
 def search_stage(question: str, ground_truth: str = ""):
     """Stage 2: LangChain 검색."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LangChain agent_executor 호출로 교체하세요.
+    #   예) return agent_executor.invoke({"input": question})
     return _make_langchain_response(
         answer=f"검색 결과: {question}",
         tools=["web_search", "database", "knowledge_base"],
@@ -319,6 +323,8 @@ def search_stage(question: str, ground_truth: str = ""):
 @agent_eval(monitor, task_type="tool_use", framework="crewai", task_id_prefix="pipe_gen")
 def generation_stage(question: str, ground_truth: str = ""):
     """Stage 3: CrewAI 생성."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 CrewAI crew.kickoff() 호출로 교체하세요.
+    #   예) return crew.kickoff(inputs={"topic": question})
     return _make_crewai_response(
         answer=f"최종 결과물: {question}",
         agents=["researcher", "writer", "reviewer"],
