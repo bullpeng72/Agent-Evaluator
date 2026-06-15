@@ -188,7 +188,7 @@ _r = _monitor_e_fail.generate_report().to_dict()
 _s = (_r.get("extra_metrics") or {}).get("harness_groups", {}).get("E", {})
 _pct = f"{_s['score']*100:.1f}%" if _s.get("score") is not None else "n/a"
 print(f"  ▶ 역케이스 Gate E(보안): {_pct}  (ThreatSeverityConfig fail_on_critical — 태스크별 success=False)")
-# → 66.7% — 위협 탐지 건수가 Gate E 트래커 점수에 반영. ThreatSeverityConfig는 태스크 success=False → Gate A TCR에도 영향.
+# → 47.0% — 위협 탐지 건수가 Gate E 트래커 점수에 반영. ThreatSeverityConfig는 태스크 success=False → Gate A TCR에도 영향.
 
 # Gate E 점수 출력
 _report = monitor.generate_report().to_dict()
