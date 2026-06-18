@@ -124,6 +124,9 @@ class MockQAAgent:
 
     def answer(self, question: str) -> dict:
         """기존 에이전트 인터페이스 — 수정 금지."""
+        # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+        #   예) result = self.llm.invoke(self.qa_prompt | question)
+        #       return {"answer": result.content, "confidence": 0.85}
         time.sleep(0.3 + random.uniform(0, 0.5))
         answer = self.KNOWLEDGE_BASE.get(question, f"{question}에 대한 답변을 찾을 수 없습니다.")
         return {"answer": answer, "confidence": random.uniform(0.6, 0.95)}
@@ -235,6 +238,8 @@ class MockContentWriterAgent:
 
     def write_section(self, section: MockSection, curriculum, available_images=None) -> MockSectionContent:
         """Pydantic 모델(SectionContent)을 반환하는 기존 에이전트 메서드."""
+        # TODO(현업 적용): 아래 Mock 구현을 실제 ContentWriter LLM 호출로 교체하세요.
+        #   예) return self._generate_content(section, curriculum, available_images)
         time.sleep(0.4 + random.uniform(0, 0.6))
         outcomes_text = " ".join(section.learning_outcomes)
         word_count = random.randint(600, 1200)

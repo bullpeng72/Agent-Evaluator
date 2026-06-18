@@ -53,6 +53,7 @@ twine upload dist/*
 Layer 1 — Foundation (no external deps)
   TaskCompletionTracker · AccuracyEvaluator · HallucinationDetector
   ResponseQualityEvaluator · LatencyTracker · TokenEconomyTracker
+  MultimodalMetricsTracker
 
 Layer 2 — Agentic (no external deps)
   ToolCallAnalyzer · RetryCorrectionTracker · ToolSelectionTracker
@@ -322,7 +323,7 @@ threat_response, context_window, latency_attribution
 - Tracker count per Gate: A=3, B=0, C=2, D=1, E=5, F=2, G=1 (14 gate-contributing + 11 operational = 25)
 - HallucinationDetector attribution: conceptually Gate C (Reliability) | SDK score contribution: Gate C (`_rel_vals`) + Gate G (`_obs_vals`)
 - AccuracyEvaluator attribution: Gate A `_a_vals[0]` 블렌딩 (`0.6×TCR + 0.4×Accuracy`) — 별도 항목 추가가 아닌 TCR 컴포넌트에 혼합
-- **PlanConfig defaults**: `max_steps=15`, `min_steps=2` (decorators.py lines 308-309)
+- **PlanConfig defaults**: `max_steps=15`, `min_steps=2` (decorators.py lines 427-428)
 - **PlanConfig supported JSON formats**: `{"steps": [...]}` or `{"plan": [...]}` (plan key must be a direct list)  
   ❌ `{"plan": {"steps": [...]}}` nested dict structure cannot be parsed
 - **Gate G aggregation**: if `_obs_vals` is empty, Gate G `score=None` (excluded from aggregation, not a fail)

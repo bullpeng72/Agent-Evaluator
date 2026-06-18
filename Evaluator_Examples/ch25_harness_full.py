@@ -199,6 +199,8 @@ print("""
 # ── mock 기존 에이전트 (수정 금지) ────────────────────────────────────────────
 class MockContentAnalyzerAgent:
     def analyze(self, collection_result, image_result, topic: str) -> MockAnalysisResult:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 ContentAnalyzer LLM 호출로 교체하세요.
+        #   예) return self.llm.invoke(analyze_prompt.format(topic=topic))
         time.sleep(0.3 + random.uniform(0, 0.3))
         topics = [MockKeyTopic(f"{topic} 개념 {i}") for i in range(1, 6)]
         return MockAnalysisResult(key_topics=topics, entities=[f"엔티티{i}" for i in range(3)])
@@ -207,6 +209,8 @@ class MockContentAnalyzerAgent:
 class MockCurriculumDesignerAgent:
     def design(self, analysis_result, topic: str, duration: int,
                audience_level: str) -> MockCurriculum:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 CurriculumDesigner LLM 호출로 교체하세요.
+        #   예) return self.llm.invoke(design_prompt.format(topic=topic, duration=duration))
         time.sleep(0.4 + random.uniform(0, 0.4))
         sections = [
             MockSection(f"s{i:02d}", f"{topic} 섹션 {i}", [f"{topic} 학습목표 {i}"])
@@ -224,6 +228,8 @@ class MockCurriculumDesignerAgent:
 class MockContentWriterAgent:
     def write_section(self, section: MockSection, curriculum: MockCurriculum,
                       available_images=None) -> MockSectionContent:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 ContentWriter LLM 호출로 교체하세요.
+        #   예) return self._generate_content(section, curriculum, available_images)
         time.sleep(0.5 + random.uniform(0, 0.8))
         outcomes_text = " ".join(section.learning_outcomes)
         word_count = random.randint(600, 1200)
@@ -237,6 +243,8 @@ class MockContentWriterAgent:
 
 class MockQualityEvaluator:
     def evaluate(self, lecture, threshold: int = 80) -> MockQualityResult:
+        # TODO(현업 적용): 아래 Mock 구현을 실제 QualityEvaluator 채점 로직으로 교체하세요.
+        #   예) return self._score_lecture(lecture, threshold)
         time.sleep(0.05)
         score = random.uniform(70, 95)
         return MockQualityResult(
@@ -647,7 +655,7 @@ print("""
   기존 에이전트 파일 수정: 0줄
 
   Gate E: enable_security_metrics=True — 생성 콘텐츠 자동 보안 스캔
-  보안:   InputSanitizationTracker — 외부 입력 4개 중 1개 위협 차단
+  보안:   InputSanitizationTracker — 외부 입력 4개 스캔 완료
   버그:   Gate F WARN → ContentWriter._build_prompt() audience_level 누락
   수정:   1줄 추가 → 전파율 60% → 100%
 

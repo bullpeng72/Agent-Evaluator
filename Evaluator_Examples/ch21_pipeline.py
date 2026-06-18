@@ -339,7 +339,7 @@ if len(json_files) >= 2:
         trend_json = Path(_OUTPUT_DIR) / "ch21_trend.json"
         if trend_json.exists():
             trend_data = json.loads(trend_json.read_text())
-            tcr_trend = trend_data.get("metrics", {}).get("tcr", {}).get("trend_direction", "N/A")
+            tcr_trend = trend_data.get("trends", {}).get("tcr", {}).get("direction", "N/A")
             print(f"  TCR 추세: {tcr_trend}")
     else:
         print(f"  추세 분석: {trend_result.stderr[:80]}")
