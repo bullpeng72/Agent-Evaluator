@@ -225,7 +225,7 @@ for _q in ["프로젝트 현황을 보고해줘", "진행 상태를 알려줘", 
 _r = _monitor_f_fail.generate_report().to_dict()
 _s = (_r.get("extra_metrics") or {}).get("harness_groups", {}).get("F", {})
 _pct = f"{_s['score']*100:.1f}%" if _s.get("score") is not None else "n/a"
-print(f"  ▶ 역케이스 Gate F: {_pct}  {'FAIL 확인 ✓' if (_s.get('gate','').upper()=='FAIL') else '예상과 다름'}")
+print(f"  ▶ 역케이스 Gate F: {_pct}  {'FAIL 확인 ✓' if (_s.get('status','').upper()=='FAIL') else '예상과 다름'}")
 
 # Gate F 점수 출력
 _report = monitor.generate_report().to_dict()

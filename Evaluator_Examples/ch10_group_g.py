@@ -243,7 +243,7 @@ for i in range(30):
     r = create_taskresult(
         task_id=f"base_{i:03d}",
         question=q, response=resp, ground_truth=gt,
-        execution_time=round(random.gauss(1.2, 0.3), 3),
+        execution_time=round(max(0.1, random.gauss(1.2, 0.3)), 3),
         task_type="qa",
         tokens_used={"input": 100, "output": 40, "total": 140},
     
