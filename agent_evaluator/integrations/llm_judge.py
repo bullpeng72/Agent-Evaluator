@@ -36,6 +36,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -46,7 +47,7 @@ import time
 import warnings
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,35 @@ def _build_user_message(
 
 
 # ---------------------------------------------------------------------------
+# SPEC-006 REQ-2: provider rate-limit(429) 예외 판별
+# ---------------------------------------------------------------------------
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    """provider의 rate-limit(429) 예외 여부를 판별한다.
+
+    Anthropic/OpenAI SDK가 설치돼 있으면 각 SDK의 ``RateLimitError`` 타입으로
+    우선 판별한다. SDK 미설치 환경이나 테스트용 mock 예외에도 대응할 수 있도록
+    ``status_code == 429`` 속성 또는 클래스명에 "ratelimiterror" 가 포함되는지를
+    폴백으로 확인한다 (Risks 섹션에서 지적된 provider별 예외 타입 식별 문제 대응).
+    """
+    try:
+        import anthropic  # type: ignore
+        if isinstance(exc, anthropic.RateLimitError):
+            return True
+    except ImportError:
+        pass
+    try:
+        import openai  # type: ignore
+        if isinstance(exc, openai.RateLimitError):
+            return True
+    except ImportError:
+        pass
+    if getattr(exc, "status_code", None) == 429:
+        return True
+    return "ratelimiterror" in type(exc).__name__.lower()
+
+
+# ---------------------------------------------------------------------------
 # LLMJudge
 # ---------------------------------------------------------------------------
 class LLMJudge:
@@ -263,6 +293,13 @@ class LLMJudge:
                           Example: ``escalation_model="claude-sonnet-4-6"``
         escalation_threshold: 0–5 스케일 기준, primary ``overall`` 점수가 이 값
                               미만이면 ``escalation_model`` 로 재채점한다. 기본값 2.5.
+        max_concurrent_judge_calls: (SPEC-006 REQ-1) ``ajudge()`` 를 통한 동시
+                              judge 호출 수 상한. ``asyncio.Semaphore`` 로 구현되며
+                              기본값 5. ``batch_eval`` 의 옵트인 동시 처리(REQ-4)와
+                              함께 사용된다.
+        max_retries: (SPEC-006 REQ-2) provider rate-limit(429) 예외 발생 시 지수
+                     백오프(1s, 2s, 4s, ...)로 재시도할 최대 횟수. 기본값 3.
+                     재시도를 모두 소진하면 기존과 동일하게 예외가 그대로 전파된다.
     """
 
     def __init__(
@@ -276,6 +313,8 @@ class LLMJudge:
         max_context_chars: int = 4000,
         escalation_model: Optional[str] = None,
         escalation_threshold: float = 2.5,
+        max_concurrent_judge_calls: int = 5,
+        max_retries: int = 3,
     ) -> None:
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(f"sample_rate must be in [0, 1]; got {sample_rate}")
@@ -318,6 +357,16 @@ class LLMJudge:
 
         # Results store: task_id → judge result dict
         self.results: List[Dict[str, Any]] = []
+
+        # SPEC-006 REQ-1: 동시 judge 호출 수 상한 — asyncio.Semaphore는 실행 중인
+        # 이벤트 루프에 바인딩되므로 __init__(루프 없음) 시점에는 생성하지 않고
+        # ajudge() 최초 호출 시점에 lazy하게 생성한다 (_get_semaphore 참고).
+        self.max_concurrent_judge_calls: int = max(1, int(max_concurrent_judge_calls))
+        self._semaphore: Optional[asyncio.Semaphore] = None
+        self._semaphore_loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # SPEC-006 REQ-2: rate-limit(429) 재시도 최대 횟수 (지수 백오프: 1s, 2s, 4s, ...)
+        self.max_retries: int = max(0, int(max_retries))
 
     # ------------------------------------------------------------------
     # Public API
@@ -426,6 +475,43 @@ class LLMJudge:
         self._disabled_reason = None
         logger.info("LLMJudge: error counter reset — judge re-enabled")
 
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        """(SPEC-006 REQ-1) 현재 실행 중인 이벤트 루프에 바인딩된 세마포어를 반환한다.
+
+        ``asyncio.Semaphore`` 는 최초 대기(``acquire``) 시점의 루프에 바인딩되므로,
+        루프가 없는 ``__init__`` 시점에 생성하면 이후 다른 이벤트 루프(예: 여러
+        ``asyncio.run()`` 호출)에서 사용될 때 "attached to a different loop" 오류가
+        발생할 수 있다. 따라서 최초 사용 시점에 lazy 생성하고, 루프가 바뀌면 재생성한다.
+        """
+        loop = asyncio.get_running_loop()
+        if self._semaphore is None or self._semaphore_loop is not loop:
+            self._semaphore = asyncio.Semaphore(self.max_concurrent_judge_calls)
+            self._semaphore_loop = loop
+        return self._semaphore
+
+    def _call_with_retry(self, api_call: Callable[[], Any]) -> Any:
+        """(SPEC-006 REQ-2) rate-limit(429) 예외 시 지수 백오프로 재시도한다.
+
+        1s, 2s, 4s, ... 간격으로 최대 ``self.max_retries`` 회 재시도한다. rate-limit이
+        아닌 예외이거나 재시도를 모두 소진하면 그대로 다시 던져, 호출부(``_call_claude``/
+        ``_call_openai``의 기존 catch-all ``except Exception``)가 지금까지와 동일하게
+        처리하도록 한다 — 즉 재시도 소진 후 동작은 이 스펙 도입 이전과 동일하다.
+        """
+        attempt = 0
+        while True:
+            try:
+                return api_call()
+            except Exception as e:
+                if not _is_rate_limit_error(e) or attempt >= self.max_retries:
+                    raise
+                delay = 2 ** attempt  # 1s, 2s, 4s, ...
+                logger.warning(
+                    "LLMJudge: rate limit 감지 — %ds 대기 후 재시도 (%d/%d)",
+                    delay, attempt + 1, self.max_retries,
+                )
+                time.sleep(delay)
+                attempt += 1
+
     async def ajudge(
         self,
         task_id: str,
@@ -439,13 +525,19 @@ class LLMJudge:
         ``await monitor.arecord_task()`` 와 함께 사용하거나,
         평가 결과를 직접 수집할 때 단독으로 호출한다.
 
+        SPEC-006 REQ-1: ``max_concurrent_judge_calls`` 로 제한되는
+        ``asyncio.Semaphore`` 를 통과해야 실제 judge 호출이 실행되므로, 다수의
+        ``ajudge()`` 를 ``asyncio.gather`` 로 동시에 트리거해도 동시 진행 중인
+        호출 수는 세마포어 한도를 넘지 않는다.
+
         Example::
             result = await judge.ajudge("t1", question="...", response="...")
         """
-        import asyncio
-        return await asyncio.get_running_loop().run_in_executor(
-            None, self.judge, task_id, question, response, context
-        )
+        semaphore = self._get_semaphore()
+        async with semaphore:
+            return await asyncio.get_running_loop().run_in_executor(
+                None, self.judge, task_id, question, response, context
+            )
 
     def get_summary(self) -> Dict[str, Any]:
         """
@@ -840,12 +932,13 @@ class LLMJudge:
             user_msg = _build_user_message(question, response, context, self.max_context_chars)
             pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
 
-            msg = client.messages.create(
+            # SPEC-006 REQ-2: rate-limit(429) 예외 시 지수 백오프로 재시도
+            msg = self._call_with_retry(lambda: client.messages.create(
                 model=model,
                 max_tokens=512,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_msg}],
-            )
+            ))
 
             raw = msg.content[0].text if msg.content else ""
             in_tok = msg.usage.input_tokens if hasattr(msg, "usage") else 500
@@ -916,14 +1009,15 @@ class LLMJudge:
             # gpt-5-nano 등 추론 모델은 내부 chain-of-thought에 대량의 토큰을 소비하므로
             # max_completion_tokens=512 예산이 추론 단계에서 소진돼 content가 빈 문자열이 됨.
             # 8192로 상향해 추론 완료 후 실제 응답이 출력되도록 함.
-            completion = client.chat.completions.create(
+            # SPEC-006 REQ-2: rate-limit(429) 예외 시 지수 백오프로 재시도
+            completion = self._call_with_retry(lambda: client.chat.completions.create(
                 model=model,
                 max_completion_tokens=8192,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_msg},
                 ],
-            )
+            ))
 
             raw = completion.choices[0].message.content or ""
             usage = completion.usage
