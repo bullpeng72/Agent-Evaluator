@@ -202,10 +202,15 @@ def list_results(
     - ``total_cost`` — total cost (USD)
     """
     # watch 모드: 항상 디스크에서 직접 읽어 최신 파일 목록 보장
+    # SPEC-013: previous=기존 result_set을 전달해 변경되지 않은 파일은 재파싱을 건너뛴다
+    # (요청마다 전량 재파싱하던 것을 요청마다 변경분만 재파싱하는 것으로 전환).
     if getattr(request.app.state, "watcher", None) is not None:
         try:
             from ..loader import load_results as _load_results
-            request.app.state.result_set = _load_results(request.app.state.results_dir)
+            request.app.state.result_set = _load_results(
+                request.app.state.results_dir,
+                previous=getattr(request.app.state, "result_set", None),
+            )
         except Exception:
             pass
 

@@ -163,6 +163,9 @@ class ResultFile:
     harness_groups: Optional[Dict[str, Any]] = field(default_factory=dict)
     loop_events: List[Dict[str, Any]] = field(default_factory=list)
     fault_tolerance_by_tool: Dict[str, Any] = field(default_factory=dict)
+    # SPEC-013: 증분 캐싱을 위한 파싱 시점 mtime — load_results()가 재파싱 스킵 여부를
+    # 판단하는 데 사용한다(캐시된 ResultFile.mtime과 현재 path.stat().st_mtime을 비교).
+    mtime: float = 0.0
 
     # ---- computed helpers ------------------------------------------------
     @property
@@ -1196,6 +1199,13 @@ def _parse_tasks(raw_tasks: List[Dict[str, Any]]) -> List[TaskRecord]:
 # ---------------------------------------------------------------------------
 
 def parse_file(path: Path) -> ResultFile:
+    # SPEC-013 REQ-1: 파싱 시점 mtime 기록 — load_results()의 증분 캐싱이 이 값과
+    # 현재 path.stat().st_mtime을 비교해 재파싱 필요 여부를 판단한다.
+    try:
+        _mtime = path.stat().st_mtime
+    except OSError:
+        _mtime = 0.0
+
     try:
         raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as _parse_err:
@@ -1253,6 +1263,7 @@ def parse_file(path: Path) -> ResultFile:
         harness_groups=harness_groups,
         loop_events=loop_events,
         fault_tolerance_by_tool=fault_tolerance_by_tool,
+        mtime=_mtime,
     )
 
 
@@ -1285,12 +1296,24 @@ def _load_transparency(results_dir: Path) -> TransparencyMeta:
 # Top-level load
 # ---------------------------------------------------------------------------
 
-def load_results(results_dir: Path) -> ResultSet:
+def load_results(results_dir: Path, previous: Optional[ResultSet] = None) -> ResultSet:
     """
     Recursively parse all result JSON files in results_dir.
     Auto-detects transparency sub-directories (zero configuration).
+
+    Args:
+        results_dir: 결과 JSON 파일이 있는 디렉토리.
+        previous: (SPEC-013, 선택) 직전 ``load_results()`` 호출 결과. 지정하면 파일의
+            현재 ``mtime``이 캐시된 ``ResultFile.mtime``과 동일한 경우 ``parse_file()``을
+            건너뛰고 캐시된 ``ResultFile``을 재사용한다(증분 로딩). 생략(``None``, 기본값)
+            시 기존 동작과 100% 동일하게 모든 파일을 처음부터 파싱한다.
     """
     files: List[ResultFile] = []
+
+    # SPEC-013 REQ-2: previous가 주어지면 경로 → ResultFile 캐시를 구성해 재사용한다.
+    _cache: Dict[Path, ResultFile] = (
+        {rf.path: rf for rf in previous.files} if previous is not None else {}
+    )
 
     for json_path in sorted(results_dir.rglob("*.json")):
         parts = {p.name for p in json_path.parents}
@@ -1299,7 +1322,12 @@ def load_results(results_dir: Path) -> ResultSet:
         if "golden_datasets" in str(json_path):
             continue
         try:
-            rf = parse_file(json_path)
+            _cached_rf = _cache.get(json_path)
+            if _cached_rf is not None and _cached_rf.mtime == json_path.stat().st_mtime:
+                # 변경되지 않은 파일 — 재파싱 없이 캐시된 ResultFile을 그대로 재사용.
+                rf = _cached_rf
+            else:
+                rf = parse_file(json_path)
             # Skip files that clearly have no task data and are configs
             if rf.total_tasks == 0 and not rf.raw.get("tasks") and json_path.stem in (
                 "thresholds", "config", "advanced_eval_config"

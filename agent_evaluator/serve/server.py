@@ -157,8 +157,15 @@ def _setup_offline_assets(app: FastAPI) -> None:
 
 
 def reload_results(app: FastAPI) -> None:
-    """Re-scan the results directory and update app state."""
-    app.state.result_set = load_results(app.state.results_dir)
+    """Re-scan the results directory and update app state.
+
+    SPEC-013: 기존 ``app.state.result_set``을 ``previous``로 전달해, 변경되지 않은 파일은
+    재파싱을 건너뛰고 캐시된 ``ResultFile``을 재사용한다(FileWatcher의 변경 감지 콜백에서
+    호출되므로, 감시 폴링 주기마다 전체 재파싱하던 비용을 증분 로딩으로 낮춘다).
+    """
+    app.state.result_set = load_results(
+        app.state.results_dir, previous=getattr(app.state, "result_set", None)
+    )
 
 
 def create_app(

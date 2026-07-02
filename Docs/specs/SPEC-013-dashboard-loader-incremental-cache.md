@@ -1,6 +1,23 @@
 # SPEC-013: 대시보드 로더 증분 캐싱 (watch 모드 요청당 전량 재파싱 제거)
 
-**Phase:** P2 · **상태:** Draft · **의존성:** 없음
+**Phase:** P2 · **상태:** Implemented (2026-07-02) · **의존성:** 없음
+
+> **구현 노트**: `ResultFile`에 `mtime: float = 0.0` 필드 추가, `parse_file()`이 파싱 시점에
+> `path.stat().st_mtime`을 기록(REQ-1). `load_results(results_dir, previous=None)`으로 확장 —
+> `previous`가 주어지면 `{path: ResultFile}` 캐시를 구성해 mtime이 동일한 파일은 `parse_file()`을
+> 건너뛰고 캐시된 객체를 그대로(identity 재사용) 반환한다(REQ-2). `routers/data.py::list_results()`
+> 의 watch-모드 무조건 재로드와 `server.py::reload_results()`(FileWatcher 콜백)를 각각
+> `previous=`기존 `result_set` 전달 방식으로 전환(REQ-3/4). `previous` 생략 시 동작 100% 동일
+> 확인(REQ-5). 신규 테스트 `tests/test_spec013_loader_incremental_cache.py`(10건 — mtime 기록,
+> 무변경 시 재파싱 0회, 1개 수정 시 재파싱 정확히 1회, 신규 파일만 파싱, 삭제 파일 제외, 캐시
+> 객체 identity 재사용, `reload_results()`의 `previous=` 전달 검증, `TestClient`로 실제
+> `GET /api/results` 연속 2회 호출 시 두 번째 호출에서 `parse_file` 미호출 확인 — 이 통합
+> 테스트가 Non-Goals에서 지적한 "응답 페이지네이션과 로딩 비용은 별개"라는 구분을 실제로
+> 검증한다). 기존 `tests/test_loader_parsers.py`(14건)·`tests/test_serve_routers.py`(다수)·
+> `tests/test_dashboard_auth.py`(12건) 무수정 통과. 전체 스위트 3,056 passed, 1 skipped,
+> 회귀 0건. Rollout 4번(대용량 디렉토리 수동 벤치마크)은 진행하지 않음 — 정확성 검증(캐시가
+> 실제로 재파싱을 스킵하는지)은 위 테스트로 충분히 확인됐고, 정량적 벤치마크는 실사용 환경에서
+> 별도로 측정 권장.
 
 ## Context
 

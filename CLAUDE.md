@@ -442,6 +442,14 @@ threat_response, context_window, latency_attribution
   Harness Gate A–G scores (`baseline.json`'s new `"gate_scores"` key, backward-compatible with
   older baseline files that lack it). `baseline` omitted → `"regressions"` key doesn't appear in
   `evaluate()`'s result at all (byte-for-byte unchanged from pre-SPEC-010 behavior).
+- **SPEC-013 — dashboard loader incremental cache**: `serve/loader.py::load_results(results_dir,
+  previous=None)` — when `previous` (a prior `ResultSet`) is given, files whose `path.stat().st_mtime`
+  matches the cached `ResultFile.mtime` (new field, SPEC-013) skip `parse_file()` entirely and reuse
+  the cached object by identity. `serve/routers/data.py::list_results()`'s watch-mode
+  unconditional-reload and `serve/server.py::reload_results()` (FileWatcher callback) both now pass
+  `previous=`the existing `app.state.result_set` — the per-request "reparse everything" cost in
+  watch mode is now "reparse only what changed." `previous` omitted → identical to pre-SPEC-013
+  behavior.
 
 ---
 
