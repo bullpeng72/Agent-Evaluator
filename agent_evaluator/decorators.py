@@ -3378,6 +3378,12 @@ async def _process_async_judge_targets(targets: "List[tuple]") -> None:
             for _idx in range(len(_tlist) - 1, -1, -1):
                 if getattr(_tlist[_idx], "task_id", None) == _tid:
                     _tlist[_idx] = dataclasses.replace(_tlist[_idx], llm_judge=_judge_result)
+                    # SPEC-014 REQ-4: record_task()와 분리된 await 지점에서 task를 in-place로
+                    # 수정하므로, generate_report() 캐시를 명시적으로 무효화해야 한다 — 그렇지
+                    # 않으면 이 patch 이전에 캐시된 리포트가 judge 결과 없이 계속 반환될 수 있다.
+                    _invalidate_judge = getattr(_m, "invalidate_report_cache", None)
+                    if callable(_invalidate_judge):
+                        _invalidate_judge()
                     break
         except Exception as exc:
             logger.debug("SPEC-006: ajudge() 결과 반영 실패 (무시): %s", exc)
@@ -4506,6 +4512,11 @@ def _build_and_record(
                         )
                         _tcr_tasks_e6[-1] = _enriched_t_e6
                         task_result = _enriched_t_e6
+                        # SPEC-014 REQ-4: record_task() 이후 task를 in-place로 수정했으므로
+                        # generate_report() 캐시를 무효화해 stale한 리포트가 반환되지 않게 한다.
+                        _invalidate_e6 = getattr(_m_e6, "invalidate_report_cache", None)
+                        if callable(_invalidate_e6):
+                            _invalidate_e6()
                 except Exception as _e6_outer:
                     logger.debug("E6 post-record re-eval outer error (ignored): %s", _e6_outer)
                 break  # 첫 번째 monitor에서만 처리

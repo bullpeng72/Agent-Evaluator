@@ -38,7 +38,7 @@ SPEC-XXX: <제목>
 | [SPEC-011](SPEC-011-tool-coverage-attribute-fix.md) | **Gate G `tool_coverage` 속성명 결함 수정** (`self.tool_call_analyzer` → `self.tool_analyzer`) | P1 | **Implemented (2026-07-02)** | SPEC-000 완료 — Gate G 이관 중 발견 |
 | [SPEC-012](SPEC-012-event-based-min-sample-guard.md) | **이벤트 기반 지표 최소 표본 가드** (Gate F coordination/tool_selection, Gate G tool_coverage) | P1 | **Implemented (2026-07-02)** | SPEC-002(Non-Goals에서 제외)·SPEC-011(tool_coverage 실효성 확보) 완료 |
 | [SPEC-013](SPEC-013-dashboard-loader-incremental-cache.md) | **대시보드 로더 증분 캐싱** (watch 모드 요청당 전량 재파싱 제거) | P2 | **Implemented (2026-07-02)** | 없음 |
-| [SPEC-014](SPEC-014-generate-report-caching.md) | **`generate_report()` 재계산 방지 캐싱** (풀 리텐션 모드) | P2 | Draft | 없음 |
+| [SPEC-014](SPEC-014-generate-report-caching.md) | **`generate_report()` 재계산 방지 캐싱** (풀 리텐션 모드) | P2 | **Implemented (2026-07-03)** | 없음 |
 
 ## 백로그 (상세 스펙 미작성 — 2026-07-02 감사에서 누락 확인, 착수 전 스펙화 필요)
 
@@ -56,7 +56,7 @@ SPEC-XXX: <제목>
 |---|---|---|
 | **P0** (즉시, 리스크 최저) | SPEC-002, SPEC-005, SPEC-007 | 독립적·additive, SPEC-000의 구조 변경과 무관하게 지금 착수 가능 |
 | **P1** (구조 기반) | **SPEC-000** ✅ 완료(Gate별 이관: F→E→D→A→B→C→G, 각 단계에 SPEC-001/003 요구사항 흡수) | decorators.py(9,632→8,025줄)/taskresult_helpers.py(4,632→1,262줄)/monitor.py God Method(~1,165줄→위임 호출)를 전면 분해하는 프로그램의 핵심 구조 변경 |
-| **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013 ✅ (2026-07-02), SPEC-014(Draft) | SPEC-000 완료로 착수 가능했음 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
+| **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013·SPEC-014 ✅ (2026-07-02~03) | SPEC-000 완료로 착수 가능했음 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
 | **P3** | SPEC-008 ✅·SPEC-010 ✅(2026-07-02) (+ 백로그: 알림 재시도) | 이후 |
 | **P4** | 백로그: DB 백엔드, 공급망 위생 | 장기 |
 
@@ -66,7 +66,7 @@ SPEC-XXX: <제목>
 2. **통계적 신뢰**: 전 Gate 표본 부족 경고, CI 게이트가 통계적으로 무의미한 점수로 배포를 승인하지 않음. — **SPEC-002**
 3. **AI-Native**: Gate F/B가 텍스트 휴리스틱보다 구조화된 `tool_calls`/`agent_interactions`를 우선 사용. — **SPEC-009 ✅ 완료(2026-07-02)**
 4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합. — **SPEC-005 ✅·SPEC-007 ✅·SPEC-006 ✅·SPEC-010 ✅(2026-07-02)**
-5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1, 대시보드 로더가 watch 모드에서 매 요청 전량 재파싱하지 않음. — **SPEC-004(부분 완료, 2026-07-02 — TCR 컴포넌트만 러닝 집계), SPEC-000(REQ-2) ✅, SPEC-013 ✅(2026-07-02), SPEC-014(Draft)**
+5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1, 대시보드 로더가 watch 모드에서 매 요청 전량 재파싱하지 않음, `generate_report()`가 직전 호출 이후 데이터가 바뀌지 않았으면 재계산을 건너뜀. — **SPEC-004(부분 완료, 2026-07-02 — TCR 컴포넌트만 러닝 집계), SPEC-000(REQ-2) ✅, SPEC-013 ✅(2026-07-02), SPEC-014 ✅(2026-07-03)**
 
 각 목표가 어느 스펙으로 달성되는지 1:1로 명시했다 — 스펙 없는 목표(이전 두 차례 감사에서 발견된 패턴)가 더 없는지는 이 표와 백로그 섹션을 함께 봐야 확인된다.
 

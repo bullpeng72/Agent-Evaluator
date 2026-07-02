@@ -450,6 +450,18 @@ threat_response, context_window, latency_attribution
   `previous=`the existing `app.state.result_set` — the per-request "reparse everything" cost in
   watch mode is now "reparse only what changed." `previous` omitted → identical to pre-SPEC-013
   behavior.
+- **SPEC-014 — generate_report() caching**: `PerformanceMonitor.generate_report(force_recompute=False)`
+  short-circuits to a cached `EvaluationReport` when `self._report_cache_dirty` is `False` (set/read
+  under `self._lock`), skipping `_compute_harness_groups()` and the rest of the (renamed)
+  `_generate_report_uncached()` entirely. `record_task()` sets the dirty flag at the end of its
+  existing lock block. **Invariant**: any code path that mutates an already-recorded `TaskResult`
+  in place (not through `record_task()`) must call `monitor.invalidate_report_cache()` afterward, or
+  `generate_report()` can silently return a stale report. Currently wired at 5 sites: BUG-E6's
+  threat_severity/threat_response post-record re-eval and SPEC-006's async judge patch (both in
+  `decorators.py`, matching the spec's Context), plus 3 more found only while implementing —
+  `PerformanceMonitor.reset()`, `flush()`, and `export_by_framework()` (which temporarily swaps
+  `self.tasks` to a filtered subset and back). If you add a new post-record mutation site, wire this
+  in too. `force_recompute=True` bypasses the cache unconditionally.
 
 ---
 

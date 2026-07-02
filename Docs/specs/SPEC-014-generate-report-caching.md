@@ -1,6 +1,34 @@
 # SPEC-014: `generate_report()` 재계산 방지 캐싱 (풀 리텐션 모드)
 
-**Phase:** P2 · **상태:** Draft · **의존성:** 없음
+**Phase:** P2 · **상태:** Implemented (2026-07-03) · **의존성:** 없음
+
+> **구현 노트**: `PerformanceMonitor.__init__`에 `self._report_cache`/`self._report_cache_dirty`를
+> 추가하고(REQ-1), `record_task()`의 기존 `with self._lock:` 블록 맨 끝에서 `dirty=True`로
+> 설정한다(REQ-2). `generate_report(force_recompute=False)`가 dirty-flag를 락으로 보호된
+> 구간에서 확인해 캐시 히트면 즉시 반환하고, 캐시 미스일 때만 기존 로직 전체(이제
+> `_generate_report_uncached()`로 이름 변경)를 락 **밖에서** 실행한 뒤 결과를 캐시에 저장한다
+> (REQ-3, REQ-5 — 무거운 재계산이 `record_task()`를 블로킹하지 않도록 Risks의 완화책을 반영).
+> `force_recompute=True`는 dirty 상태와 무관하게 항상 재계산한다(REQ-6).
+>
+> REQ-4의 캐시 무효화는 스펙이 지목한 2곳(BUG-E6 재평가, SPEC-006 비동기 judge 패치)에 추가로,
+> 구현 중 **직접 코드 대조로 새로 발견한 3곳**에도 배선했다 — `reset()`, `flush()`,
+> `export_by_framework()`(임시로 `self.tasks`를 필터링된 서브셋으로 교체했다가 복원하는
+> 메서드). 이 3곳은 스펙 작성 시점엔 포착되지 않았지만, 캐싱 도입 후 `tests/test_flush_and_extras.py`
+> 의 기존 `flush()` 테스트 2건이 실제로 깨지면서 발견됐다(`flush()` 이후 `generate_report()`가
+> flush 이전의 stale 캐시를 반환) — Risks에서 우려했던 "미래의 놓친 무효화 지점" 패턴이 미래가
+> 아니라 구현 당일 실제로 발생한 사례.
+>
+> SPEC-006 무효화 배선의 필요성은 의도적으로 반증 테스트로 검증했다 — `decorators.py`의 해당
+> `invalidate_report_cache()` 호출을 일시적으로 제거한 뒤 `tests/test_spec014_generate_report_cache.py
+> ::TestSpec006AsyncJudgeInvalidation`을 실행해 실제로 실패하는 것을 확인하고 원복했다(BUG-E6
+> 쪽은 `record_task()` 자신의 dirty=True 설정과 동일한 동기 호출 스택 안에서 일어나 이미
+> 중복 보장되므로 이런 반증이 성립하지 않음 — 스펙 Context에 명시된 그대로).
+>
+> 신규 테스트 `tests/test_spec014_generate_report_cache.py`(12건 — 캐시 히트/미스 identity 검증,
+> `_compute_harness_groups` 미호출 spy, `force_recompute`, 캐시 값 동등성, `invalidate_report_cache`/
+> `reset()`/`flush()` 무효화, BUG-E6 엔드투엔드, SPEC-006 비동기 judge 무효화 반증 검증,
+> `export_by_framework` 캐시 안전성). 기존 `tests/test_flush_and_extras.py`(15건) 등 전체 스위트
+> 무수정 통과. 전체 스위트 3,068 passed, 1 skipped, 회귀 0건.
 
 ## Context
 

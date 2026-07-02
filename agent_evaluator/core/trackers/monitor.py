@@ -609,6 +609,14 @@ class PerformanceMonitor:
         self._lock = threading.RLock()
         self._tasks_lock = self._lock  # alias — tasks 접근 보호용 (P 항목)
 
+        # SPEC-014: generate_report() 캐시 — 직전 호출 이후 record_task()가 없었으면
+        # _compute_harness_groups() 등 전체 재계산을 건너뛰고 캐시된 리포트를 재사용한다.
+        # dirty-flag 읽기/쓰기는 self._lock으로 보호(REQ-5) — record_task()가 dirty=True로
+        # 설정하고, invalidate_report_cache()가 post-record in-place 수정 지점(BUG-E6,
+        # SPEC-006 비동기 judge 패치)에서 동일하게 호출된다.
+        self._report_cache: Optional["EvaluationReport"] = None
+        self._report_cache_dirty: bool = True
+
         # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
         # session_label이 있으면 사람이 읽기 쉬운 형태로 구성 (예: "01_quality_eval_a3f2")
         _uid = str(uuid.uuid4())[:8]
@@ -1317,6 +1325,8 @@ class PerformanceMonitor:
             # Q: 최근 태스크 캐시 초기화
             if hasattr(self, "_recent_tasks_cache"):
                 self._recent_tasks_cache.clear()
+            # SPEC-014: 트래커 데이터가 전부 지워졌으므로 generate_report() 캐시도 무효화한다.
+            self._report_cache_dirty = True
         return self
 
     def _iter_trackers(self) -> Iterator[BaseTracker]:
@@ -2009,6 +2019,11 @@ class PerformanceMonitor:
                         )
                     except Exception as _acc_exc:
                         logger.debug("Auto accuracy evaluation unexpected error for %s: %s", task_result.task_id, _acc_exc, exc_info=True)
+
+            # SPEC-014 REQ-2: 태스크가 추가됐으므로 generate_report() 캐시를 무효화한다.
+            # self._lock 블록의 마지막 문장으로 두어(REQ-5) 이 블록 안의 모든 트래커 변경이
+            # 끝난 뒤에만 dirty=True로 설정되도록 한다.
+            self._report_cache_dirty = True
 
         # G3: Multimodal metrics — extra 딕셔너리에 이미지/오디오/비디오 키가 있을 때만 호출
         _extra = getattr(task_result, "extra", {}) or {}
@@ -2894,8 +2909,53 @@ class PerformanceMonitor:
             "judge_model_snapshot": _judge_snapshot,
         }
 
-    def generate_report(self) -> "EvaluationReport":
-        """Generate comprehensive evaluation report"""
+    def generate_report(self, force_recompute: bool = False) -> "EvaluationReport":
+        """Generate comprehensive evaluation report.
+
+        SPEC-014: 직전 호출 이후 ``record_task()``(또는 post-record 수정 지점의
+        ``invalidate_report_cache()``)가 없었다면 캐시된 리포트를 즉시 반환하고 전체
+        재계산(``_compute_harness_groups()`` 등)을 건너뛴다. ``print_report()`` /
+        ``print_summary()`` / ``print_detailed_report()``를 연달아 호출하거나 ``auto_save``가
+        반복적으로 ``save_to_file()``을 호출할 때 이 캐시가 재계산 비용을 없애준다.
+
+        Args:
+            force_recompute: ``True``이면 캐시 상태와 무관하게 항상 재계산한다(이 스펙이
+                아직 포착하지 못한 out-of-band 수정 지점을 위한 탈출구).
+
+        Returns:
+            EvaluationReport: 캐시 사용 여부와 무관하게 항상 동일한 형태/내용.
+        """
+        with self._lock:
+            if (
+                not force_recompute
+                and not self._report_cache_dirty
+                and self._report_cache is not None
+            ):
+                return self._report_cache
+
+        # 캐시 미스(또는 force_recompute) — 무거운 재계산은 락 밖에서 수행해 그동안
+        # 다른 스레드의 record_task()가 블로킹되지 않게 한다(SPEC-014 Risks 완화책).
+        report = self._generate_report_uncached()
+
+        with self._lock:
+            self._report_cache = report
+            self._report_cache_dirty = False
+
+        return report
+
+    def invalidate_report_cache(self) -> None:
+        """SPEC-014 REQ-4: generate_report() 캐시를 무효화한다.
+
+        ``record_task()`` 이후 이미 기록된 ``TaskResult``를 사후에 in-place로 수정하는
+        모든 코드 경로(예: BUG-E6의 threat_severity/threat_response 재평가, SPEC-006의
+        비동기 judge 결과 반영)는 수정 완료 후 반드시 이 메서드를 호출해야 한다 — 그렇지
+        않으면 ``generate_report()``가 그 수정을 반영하지 못한 stale 캐시를 반환할 수 있다.
+        """
+        with self._lock:
+            self._report_cache_dirty = True
+
+    def _generate_report_uncached(self) -> "EvaluationReport":
+        """Generate comprehensive evaluation report (캐시 없이 항상 재계산)."""
         if len(self.tcr_tracker.tasks) == 0:
             logger.warning(
                 "generate_report() called with no recorded tasks. "
@@ -5432,12 +5492,18 @@ class PerformanceMonitor:
         self.tasks.clear()
         for t in matched:
             self.tasks.append(t)
+        # SPEC-014: self.tasks를 record_task() 밖에서 직접 mutate했으므로 캐시를 무효화해야
+        # save_to_file() 내부의 generate_report()가 필터링된 태스크 기준으로 재계산한다.
+        self.invalidate_report_cache()
         try:
             path = self.save_to_file(f"{output_file}_{framework}")
         finally:
             self.tasks.clear()
             for t in original_tasks:
                 self.tasks.append(t)
+            # 원본 태스크로 복원했으므로 캐시를 다시 무효화 — 그렇지 않으면 필터링된
+            # 상태로 계산된 캐시가 복원 후 generate_report() 호출에도 남아있게 된다.
+            self.invalidate_report_cache()
         return path
 
     # ------------------------------------------------------------------
@@ -6154,6 +6220,10 @@ class PerformanceMonitor:
         # RAG 지표 초기화
         for key in self._rag_metrics:
             self._rag_metrics[key] = []
+
+        # SPEC-014: 트래커 데이터가 전부 지워졌으므로 generate_report() 캐시도 무효화한다 —
+        # 그렇지 않으면 flush() 직후 generate_report()가 flush 이전의 stale 캐시를 반환한다.
+        self.invalidate_report_cache()
 
         logger.info("PerformanceMonitor flushed: %d tasks cleared", summary["total_tasks"])
         return summary
