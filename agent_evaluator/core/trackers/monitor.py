@@ -21,11 +21,11 @@ import urllib.request
 import uuid
 from enum import Enum
 import warnings
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -50,6 +50,7 @@ from .layer1 import (
     LatencyTracker,
     TokenEconomyTracker,
     MultimodalMetricsTracker,
+    _TCR_PARTIAL_THRESHOLD,
 )
 from .layer2 import (
     ToolCallAnalyzer,
@@ -183,6 +184,43 @@ _PHOENIX_MODEL_ALIAS: Dict[str, str] = {
 _OTEL_ATTR_MAX_LEN: int = 4096
 
 
+class _RunningTCRView:
+    """SPEC-004 REQ-2: ``retention_mode="windowed"`` 에서 Gate A/C의 TCR 컴포넌트가
+    윈도우 밖으로 밀려난 태스크의 기여분까지 반영하도록, ``record_task()`` 시점에
+    갱신되는 러닝 집계(``PerformanceMonitor._running_tcr_agg``)를
+    ``TaskCompletionTracker.calculate_tcr()`` 와 동일한 반환 형태로 노출하는 얇은 뷰.
+
+    실제 ``TaskCompletionTracker`` 인스턴스를 대체하지 않으며, ``_compute_harness_groups``
+    내부에서 Gate A/C의 ``aggregate.compute()`` 호출 시에만 주입된다. 이 뷰는 전체 이력
+    기준 TCR(가중 완료율/성공-부분-실패 카운트)만 제공한다 — ``task_type`` 별 분해는
+    지원하지 않는다(REQ-2 축소 범위, SPEC-004 구현 노트 참조).
+    """
+
+    def __init__(self, agg: Dict[str, float]) -> None:
+        self._agg = agg
+
+    def calculate_tcr(self, task_type: Optional[str] = None) -> Dict[str, float]:
+        """전체 이력 기준 러닝 집계로부터 TCR 통계를 계산한다.
+
+        Args:
+            task_type: 받아들이기만 하고 무시한다 — 러닝 집계는 task_type별로
+                분해되지 않는다(REQ-2 축소 범위).
+        """
+        total = int(self._agg["total_count"])
+        if total == 0:
+            return {"tcr": 0.0, "total_tasks": 0}
+        tcr = (self._agg["weighted_sum"] / total) * 100
+        full = int(self._agg["full_success"])
+        return {
+            "tcr": round(tcr, 2),
+            "total_tasks": total,
+            "full_success": full,
+            "partial_success": int(self._agg["partial_success"]),
+            "failures": int(self._agg["failures"]),
+            "success_rate": round((full / total) * 100, 2),
+        }
+
+
 class PerformanceMonitor:
     """Main performance monitoring and reporting system"""
 
@@ -243,6 +281,9 @@ class PerformanceMonitor:
         # SPEC-007: 감사/재현성 lineage — 사용자 지정 태그 (선택)
         prompt_version: Optional[str] = None,
         agent_version: Optional[str] = None,
+        # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
+        retention_mode: Literal["full", "windowed"] = "full",
+        window_size: int = 10000,
     ):
         """
         Initialize Performance Monitor
@@ -295,7 +336,40 @@ class PerformanceMonitor:
                 허용값: ``"InputSanitization"``, ``"OutputLeakage"``, ``"ToolAuthorization"``,
                 ``"PrivilegeEscalation"``, ``"ToolChainAttack"``.
                 ``enable_security_metrics=False`` 이면 이 파라미터는 무시된다.
+            retention_mode: SPEC-004. ``"full"``(기본값)은 기존 동작과 100% 동일 —
+                ``self.tasks`` 가 무제한으로 증식한다. ``"windowed"`` 는 옵트인 경로로,
+                내부적으로 ``self.tasks`` (``tcr_tracker.tasks``)가 ``deque(maxlen=window_size)``
+                처럼 동작해 오래된 태스크가 밀려난다. Gate A/C의 TCR 컴포넌트는
+                ``record_task()`` 시점에 갱신되는 러닝 집계로 전체 이력을 계속 반영하지만,
+                그 외 Gate 지표(개별 태스크의 ``extra`` 딕셔너리에 의존하는 항목)는
+                windowed 상태의 태스크 목록만으로 재계산된다 — REQ-2 축소 구현,
+                자세한 내용은 ``Docs/specs/SPEC-004-streaming-retention-mode.md`` 참고.
+            window_size: ``retention_mode="windowed"`` 일 때의 최대 보관 태스크 수.
+                양의 정수여야 하며, 0 이하이면 ``ValueError``.
         """
+        # SPEC-004 REQ-4: window_size는 항상 양의 정수여야 한다 (retention_mode와 무관하게 검증).
+        if not isinstance(window_size, int) or isinstance(window_size, bool) or window_size <= 0:
+            raise ValueError(
+                f"window_size must be a positive integer, got {window_size!r}"
+            )
+        if retention_mode not in ("full", "windowed"):
+            raise ValueError(
+                f"retention_mode must be 'full' or 'windowed', got {retention_mode!r}"
+            )
+        self._retention_mode: str = retention_mode
+        self._window_size: int = window_size
+        # SPEC-004 REQ-2(축소 범위): Gate A/C의 TCR 컴포넌트만 전체 이력 기준 러닝 집계로 유지.
+        # record_task()에서 windowed 모드일 때만 갱신되며(REQ-1: full 모드는 기존 동작과
+        # 100% 동일해야 하므로 불필요한 유지비용을 두지 않는다), _RunningTCRView를 통해
+        # gate_a_aggregate.compute()/gate_c_aggregate.compute()에 주입된다.
+        self._running_tcr_agg: Dict[str, float] = {
+            "weighted_sum": 0.0,
+            "total_count": 0,
+            "full_success": 0,
+            "partial_success": 0,
+            "failures": 0,
+        }
+
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
 
@@ -337,6 +411,12 @@ class PerformanceMonitor:
 
         # Layer 1: Basic trackers (Native Metrics)
         self.tcr_tracker = TaskCompletionTracker()
+        if self._retention_mode == "windowed":
+            # SPEC-004 REQ-2: self.tasks(모니터 프로퍼티 → tcr_tracker.tasks)가
+            # deque(maxlen=window_size)처럼 동작하도록 내부 저장소를 교체한다.
+            # TaskCompletionTracker.add_task()/calculate_tcr()는 append/len/iterate만
+            # 사용하므로 list ↔ deque 교체가 안전하다(REQ-1: "full" 모드는 영향 없음).
+            self.tcr_tracker._tasks = deque(maxlen=self._window_size)
         self.accuracy_evaluator = AccuracyEvaluator(
             use_korean_tokenizer=use_korean_tokenizer
         )
@@ -627,6 +707,22 @@ class PerformanceMonitor:
             return 0
         tasks = getattr(tcr, "tasks", None)
         return len(tasks) if tasks is not None else 0
+
+    def _warn_windowed_retention(self, api_name: str) -> None:
+        """SPEC-004 REQ-3: ``retention_mode="windowed"`` 에서는 이 메서드가 호출될 때마다
+        윈도우 밖으로 밀려난 과거 태스크에는 접근할 수 없다는 사실을 ``UserWarning`` 으로
+        알린다. 로그가 아니라 warning으로 강제해 조용한 부분 데이터 오작동을 방지한다
+        (``get_report_by_type`` / ``get_report_by_framework`` / ``export_by_framework`` /
+        ``register_aggregator`` 에서 매 호출마다 사용).
+        """
+        if self._retention_mode == "windowed":
+            warnings.warn(
+                f"PerformanceMonitor.{api_name}(): retention_mode='windowed'이므로 "
+                f"window_size={self._window_size}를 벗어나 밀려난 과거 태스크에는 "
+                "접근할 수 없습니다. 전체 이력이 필요하면 retention_mode='full'을 사용하세요.",
+                UserWarning,
+                stacklevel=3,
+            )
 
     @property
     def rag_metrics(self) -> Dict[str, List]:
@@ -1606,6 +1702,21 @@ class PerformanceMonitor:
         with self._lock:  # guard all tracker mutations for thread safety
             # Task completion
             self.tcr_tracker.add_task(task_result)
+
+            # SPEC-004 REQ-2: windowed 모드에서 Gate A/C의 TCR 컴포넌트가 윈도우 밖으로
+            # 밀려난 태스크의 기여분도 계속 반영하도록 러닝 집계를 매 record_task()마다 갱신.
+            # tcr_tracker._tasks 자체는 deque(maxlen=window_size)라 오래된 항목이 사라지지만,
+            # 이 집계는 add_task() 이후 절대 줄어들지 않는다.
+            if self._retention_mode == "windowed":
+                _cs = float(getattr(task_result, "completion_score", 0.0) or 0.0)
+                self._running_tcr_agg["weighted_sum"] += _cs
+                self._running_tcr_agg["total_count"] += 1
+                if _cs >= 1.0:
+                    self._running_tcr_agg["full_success"] += 1
+                elif _cs >= _TCR_PARTIAL_THRESHOLD:
+                    self._running_tcr_agg["partial_success"] += 1
+                else:
+                    self._running_tcr_agg["failures"] += 1
 
             # Q: 최근 태스크 캐시 업데이트 (get_live_stats O(k) 최적화)
             import time as _time_mod
@@ -2874,10 +2985,19 @@ class PerformanceMonitor:
         n = max(len(tasks), 1)
         # _status: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
 
+        # SPEC-004 REQ-2: windowed 모드에서는 TCR 컴포넌트만 전체 이력 기준 러닝 집계
+        # (_RunningTCRView)로 대체 — 그 외 tcr_tracker 사용처는 변경하지 않는다.
+        # "full" 모드에서는 self.tcr_tracker 그대로 사용해 기존 동작과 완전히 동일하다.
+        _tcr_tracker_for_gates = (
+            _RunningTCRView(self._running_tcr_agg)
+            if self._retention_mode == "windowed"
+            else self.tcr_tracker
+        )
+
         # ── A 그룹: 목표 달성 (TCR + instruction_adherence + goal_alignment + plan_coherence) ──
         # SPEC-000: gates/gate_a_goal/aggregate.py로 이관 — 로직 동일.
         _a_group = gate_a_aggregate.compute(
-            tasks, self.tcr_tracker, self.accuracy_evaluator, self.quality_evaluator,
+            tasks, _tcr_tracker_for_gates, self.accuracy_evaluator, self.quality_evaluator,
             self._gate_a_tcr_weight, self._min_samples_default,
         )
 
@@ -2894,7 +3014,7 @@ class PerformanceMonitor:
         # SLA 공유 데이터는 compute_sla_shared_data()가 한 번 계산해 Gate C·D 양쪽에 전달한다.
         _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks)
         _c_group, _c_shared_raw = gate_c_aggregate.compute(
-            tasks, self.hallucination_detector, self.tcr_tracker,
+            tasks, self.hallucination_detector, _tcr_tracker_for_gates,
             self._gate_c_tcr_weight, self._min_samples_default, _sla_shared,
         )
         # hall_rate/avg_llm_faithfulness: Gate G(미이관) 섹션이 반올림 없는 원본값을 재사용
@@ -3105,6 +3225,7 @@ class PerformanceMonitor:
             report = monitor.get_report_by_type("qa")
             print(report["avg_accuracy"])  # QA 태스크 평균 정확도만
         """
+        self._warn_windowed_retention("get_report_by_type")
         _type_str = str(task_type).lower().replace("tasktype.", "")
         _tasks = [
             t for t in (self.tasks or [])
@@ -3149,6 +3270,7 @@ class PerformanceMonitor:
             task_count, tcr, avg_accuracy, avg_completion, avg_latency_s,
             total_tokens, framework, matched_task_ids 를 포함하는 dict
         """
+        self._warn_windowed_retention("get_report_by_framework")
         matched = []
         for t in self.tasks:
             fw = None
@@ -5300,6 +5422,7 @@ class PerformanceMonitor:
         Raises:
             ValueError: 해당 프레임워크의 태스크가 없을 때
         """
+        self._warn_windowed_retention("export_by_framework")
         matched = self.filter_tasks(framework=framework)
         if not matched:
             raise ValueError(f"No tasks found for framework '{framework}'")
@@ -5918,6 +6041,7 @@ class PerformanceMonitor:
             )
             rate = monitor.run_aggregator("error_rate")
         """
+        self._warn_windowed_retention("register_aggregator")
         if not hasattr(self, "_custom_aggregators"):
             self._custom_aggregators: Dict[str, Any] = {}
         self._custom_aggregators[name] = fn
