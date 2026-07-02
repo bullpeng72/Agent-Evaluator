@@ -1831,6 +1831,82 @@ class QuickEval:
 
 
 # ---------------------------------------------------------------------------
+# SPEC-010: Harness Gate A-G 베이스라인 회귀 판정 — CLI(cli/gate.py)와 Python API
+# (HarnessEvaluationGate) 양쪽이 동일한 판정 공식을 공유하도록 이 모듈에 둔다.
+# ---------------------------------------------------------------------------
+
+def _compute_gate_regressions(
+    current_scores: Dict[str, Optional[float]],
+    baseline_scores: Dict[str, Optional[float]],
+    regression_threshold: float,
+) -> List[Dict[str, Any]]:
+    """Harness Gate A-G 점수가 베이스라인 대비 회귀했는지 판정한다.
+
+    ``cli/gate.py::_check_regression()``이 5개 평면 지표(TCR/accuracy 등)에 쓰는 것과
+    동일한 판정 공식(direction="min" 방식 — 현재값이 ``baseline × (1 - threshold)``
+    미만이면 회귀)을 Gate 점수에도 그대로 적용한다. 새 판정 방식을 발명하지 않고
+    기존 공식을 재사용해 CLI와 Python API(``HarnessEvaluationGate``)가 "회귀"의 정의를
+    공유하게 한다(SPEC-010 REQ-2/REQ-3).
+
+    Args:
+        current_scores: 현재 Gate 점수, ``{"A": 0.82, "B": None, ...}`` 형식.
+        baseline_scores: 베이스라인 Gate 점수, 동일 형식. 값이 ``None``이거나 숫자가
+            아니거나 0이면 해당 Gate는 비교 대상에서 제외한다(분모 0 guard).
+        regression_threshold: 허용 회귀 비율 (0.05 = 5%).
+
+    Returns:
+        회귀가 감지된 Gate 목록. 각 항목:
+        ``{"gate": str, "baseline_score": float, "current_score": float, "delta": float}``.
+    """
+    regressions: List[Dict[str, Any]] = []
+    for gate_id, current in current_scores.items():
+        if current is None:
+            continue
+        baseline_val = baseline_scores.get(gate_id)
+        if baseline_val is None or not isinstance(baseline_val, (int, float)):
+            continue
+        base = float(baseline_val)
+        if base == 0.0:
+            continue  # 분모 0 guard
+        current_f = float(current)
+        if current_f < base * (1.0 - regression_threshold):
+            regressions.append({
+                "gate": gate_id,
+                "baseline_score": round(base, 4),
+                "current_score": round(current_f, 4),
+                "delta": round(current_f - base, 4),
+            })
+    return regressions
+
+
+def _normalize_gate_score_dict(raw: Optional[Dict[str, Any]]) -> Dict[str, Optional[float]]:
+    """``baseline`` 인자로 받은 dict를 ``{"A": float|None, ...}`` 평면 형식으로 정규화한다.
+
+    두 가지 입력 형태를 모두 허용한다(SPEC-010 REQ-3의 사용 편의성):
+
+    - 평면 형식: ``{"A": 0.82, "B": 0.74, ...}``
+    - 리포트 형식: ``{"A": {"score": 0.82, ...}, "B": {...}, ...}``
+      (``report.extra_metrics["harness_groups"]``를 그대로 베이스라인으로 저장한 경우)
+    """
+    if not raw:
+        return {}
+    normalized: Dict[str, Optional[float]] = {}
+    for key, value in raw.items():
+        if isinstance(value, dict):
+            score = value.get("score")
+        else:
+            score = value
+        if score is None:
+            normalized[key] = None
+        else:
+            try:
+                normalized[key] = float(score)
+            except (TypeError, ValueError):
+                normalized[key] = None
+    return normalized
+
+
+# ---------------------------------------------------------------------------
 # HarnessEvaluationGate — Group A-G 종합 배포 판정 도구
 # ---------------------------------------------------------------------------
 
@@ -1895,8 +1971,22 @@ class HarnessEvaluationGate:
     # Public API
     # ------------------------------------------------------------------
 
-    def evaluate(self) -> Dict[str, Any]:
+    def evaluate(
+        self,
+        baseline: Optional[Dict[str, Any]] = None,
+        regression_threshold: float = 0.05,
+    ) -> Dict[str, Any]:
         """Group A-G 전체를 평가하고 결과 dict를 반환한다.
+
+        Args:
+            baseline: (SPEC-010, 선택) 이전 배포의 Gate 점수. 다음 두 형식을 모두 지원한다 —
+                평면 형식 ``{"A": 0.82, "B": 0.74, ...}`` 또는 이전 ``report.extra_metrics
+                ["harness_groups"]``를 그대로 저장한 리포트 형식 ``{"A": {"score": 0.82, ...}}``.
+                생략(``None``, 기본값) 시 정적 임계값 판정만 수행 — 기존 동작과 100% 동일.
+            regression_threshold: (SPEC-010) 허용 회귀 비율(0.05 = 5%). ``baseline``이
+                주어졌을 때만 사용된다. 각 Gate 점수가 베이스라인 대비 이 비율을 초과해
+                하락하면 회귀로 판정한다(``cli/gate.py --fail-on-regression``과 동일한
+                판정 공식 — ``_compute_gate_regressions()`` 공유).
 
         Returns:
             ``{
@@ -1910,7 +2000,10 @@ class HarnessEvaluationGate:
                     "total_groups": int,
                     "passed_groups": int,
                     "overall_score": float|None,
-                }
+                },
+                "regressions": [  # baseline이 주어졌을 때만 포함되는 키
+                    {"gate": "A", "baseline_score": 0.82, "current_score": 0.74, "delta": -0.08},
+                ],
             }``
 
         Example::
@@ -1919,6 +2012,11 @@ class HarnessEvaluationGate:
             if not result["passed"]:
                 for v in result["violations"]:
                     print(f"Group {v['group']} failed: {v['score']:.3f}")
+
+            # SPEC-010: 베이스라인 회귀 비교
+            result = gate.evaluate(baseline=previous_harness_groups, regression_threshold=0.05)
+            for reg in result.get("regressions", []):
+                print(f"Gate {reg['gate']} regressed: {reg['baseline_score']} → {reg['current_score']}")
         """
         harness_groups = (getattr(self._report, "extra_metrics", None) or {}).get(
             "harness_groups", {}
@@ -1931,6 +2029,8 @@ class HarnessEvaluationGate:
                 "violations": [],
                 "summary": {"total_groups": 0, "passed_groups": 0, "overall_score": None},
             }
+            if baseline is not None:
+                self._result["regressions"] = []
             return self._result
 
         groups_to_check: List[str] = self._required_groups or [
@@ -1973,8 +2073,10 @@ class HarnessEvaluationGate:
         overall_score = overall.get("score") if isinstance(overall, dict) else None
         passed_count = sum(1 for r in results.values() if r.get("passed", True))
 
+        _passed = len(violations) == 0
+
         self._result = {
-            "passed": len(violations) == 0,
+            "passed": _passed,
             "groups": results,
             "violations": violations,
             "summary": {
@@ -1983,28 +2085,54 @@ class HarnessEvaluationGate:
                 "overall_score": round(float(overall_score), 3) if overall_score is not None else None,
             },
         }
+
+        # SPEC-010 REQ-3: baseline이 주어졌을 때만 회귀 비교를 수행한다 — 미지정 시(기본값)
+        # 기존 dict 형태(regressions 키 없음)와 100% 동일해야 하므로 이 블록 전체가 조건부다.
+        if baseline is not None:
+            _current_scores: Dict[str, Optional[float]] = {
+                name: r.get("score") for name, r in results.items()
+            }
+            _baseline_scores = _normalize_gate_score_dict(baseline)
+            _regressions = _compute_gate_regressions(
+                _current_scores, _baseline_scores, regression_threshold
+            )
+            self._result["regressions"] = _regressions
+            if _regressions:
+                self._result["passed"] = False
+
         return self._result
 
-    def enforce(self, exit_on_fail: bool = True) -> "HarnessEvaluationGate":
+    def enforce(
+        self,
+        exit_on_fail: bool = True,
+        *,
+        baseline: Optional[Dict[str, Any]] = None,
+        regression_threshold: float = 0.05,
+    ) -> "HarnessEvaluationGate":
         """``evaluate()``를 실행하고 실패 시 ``sys.exit(1)``을 호출한다.
 
         Args:
             exit_on_fail: ``False``로 설정하면 ``sys.exit`` 없이 결과만 반환.
+            baseline: (SPEC-010, 선택) ``evaluate()``에 그대로 전달되는 베이스라인 —
+                CI 엔트리포인트인 ``enforce()``에서도 베이스라인 회귀 시 종료되도록 지원한다.
+            regression_threshold: (SPEC-010) ``baseline`` 사용 시 허용 회귀 비율.
 
         Returns:
             ``self`` — 메서드 체이닝용.
 
         Raises:
-            SystemExit(1): 게이팅 실패 시 (``exit_on_fail=True`` 기본값일 때).
+            SystemExit(1): 게이팅 실패 시 (``exit_on_fail=True`` 기본값일 때. 베이스라인 회귀도
+                포함 — ``baseline`` 지정 시 회귀가 있으면 ``passed=False``가 되어 함께 종료된다.)
 
         Example::
 
             HarnessEvaluationGate(report).enforce()          # CI/CD — 실패 시 종료
             result = gate.enforce(exit_on_fail=False).result  # dry-run
+            HarnessEvaluationGate(report).enforce(baseline=previous_harness_groups)  # SPEC-010
         """
         import sys
 
-        result = self.evaluate()
+        result = self.evaluate(baseline=baseline, regression_threshold=regression_threshold)
         self._print_result(result)
         if not result["passed"] and exit_on_fail:
             sys.exit(1)

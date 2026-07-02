@@ -130,6 +130,21 @@ class ComplianceConfig:
                     UserWarning,
                     stacklevel=2,
                 )
+        # SPEC-008 REQ-3: compliance_framework가 지원되는 4개 프레임워크(hipaa/gdpr/pci_dss/soc2)도
+        # 아니고 "general"(프레임워크 특화 없음, 의도된 기본값)도 아니면 사용자가 미지원 값을
+        # 지정했을 가능성이 높다 — 이전에는 조용히 generic PII 스캔만 적용되어 사용자가 프레임워크
+        # 특화 판정이 전혀 이루어지지 않는다는 사실을 알 수 없었다.
+        _SUPPORTED_FRAMEWORKS = ("hipaa", "gdpr", "pci_dss", "soc2", "general")
+        if self.compliance_framework not in _SUPPORTED_FRAMEWORKS:
+            _w.warn(
+                f"ComplianceConfig: compliance_framework={self.compliance_framework!r}는 "
+                f"지원되지 않는 값입니다. 지원 값: {_SUPPORTED_FRAMEWORKS[:-1]} 또는 "
+                f"프레임워크 특화 판정 없이 'general'(generic PII 스캔만 적용). "
+                f"현재 설정으로는 generic PII 스캔만 적용되고 프레임워크 특화 위반 판정은 "
+                f"수행되지 않습니다.",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 @dataclasses.dataclass

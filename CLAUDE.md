@@ -427,6 +427,21 @@ threat_response, context_window, latency_attribution
   key; Gate score itself is unaffected). Falls back to the pre-existing text matching 100% unchanged when
   structured fields are absent — this is the only byte-diff-safe path; structured-mode scoring is intentionally
   NOT guaranteed identical to legacy text-matching output (see SPEC-009 REQ-5).
+- **SPEC-008 — compliance framework expansion**: `ComplianceConfig.compliance_framework` now supports
+  `"pci_dss"` (`pci_dss:cardholder_data_exposure` — PAN via existing `_PII_PATTERNS["credit_card"]` +
+  new CVV/expiry-date patterns) and `"soc2"` (`soc2:trust_service_violation` — access-control-bypass
+  keyword set) alongside the existing `"hipaa"`/`"gdpr"`/`"general"`. `__post_init__` now emits a
+  `UserWarning` for any other value (previously silently fell back to generic PII scanning with no
+  signal to the user). New `_VIOLATION_PENALTIES` weights: `pci_dss=0.38`, `soc2=0.28`.
+- **SPEC-010 — CI/CD baseline gate (Harness Gate A–G regression)**: `agent_evaluator/quick_eval.py`
+  gained shared helpers `_compute_gate_regressions()`/`_normalize_gate_score_dict()`, used by both
+  `HarnessEvaluationGate.evaluate(baseline=None, regression_threshold=0.05)` (Python API) and
+  `agent_evaluator/cli/gate.py`'s `--fail-on-regression` (CLI) so both share one regression
+  definition. The CLI's flat-metric (`tcr`/`accuracy`/etc.) baseline system already existed
+  (`--baseline`/`--save-baseline`/`--fail-on-regression`) — this spec extended it to also cover
+  Harness Gate A–G scores (`baseline.json`'s new `"gate_scores"` key, backward-compatible with
+  older baseline files that lack it). `baseline` omitted → `"regressions"` key doesn't appear in
+  `evaluate()`'s result at all (byte-for-byte unchanged from pre-SPEC-010 behavior).
 
 ---
 

@@ -22,6 +22,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_evaluator.cli._utils import _supports_color
+# SPEC-010 REQ-2: Harness Gate A-G 회귀 판정 로직을 quick_eval.py와 공유한다(HarnessEvaluationGate
+# Python API와 동일한 판정 공식 — 중복 구현 방지).
+from agent_evaluator.quick_eval import _compute_gate_regressions
 
 
 # ---------------------------------------------------------------------------
@@ -287,9 +290,28 @@ def _load_baseline(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _save_baseline(path: Path, metrics: Dict[str, Optional[float]]) -> None:
-    """현재 메트릭을 기준선 파일로 저장한다."""
+def _save_baseline(
+    path: Path,
+    metrics: Dict[str, Optional[float]],
+    harness_scores: Optional[Dict[str, Optional[float]]] = None,
+) -> None:
+    """현재 메트릭을 기준선 파일로 저장한다.
+
+    Args:
+        path: 저장 경로.
+        metrics: 5개 평면 지표(tcr/accuracy/p95_latency/hallucination/llm_judge_overall/total_cost).
+        harness_scores: (SPEC-010 REQ-1) Harness Gate A-G 점수 ``{"A": 0.82, ...}``. 지정하면
+            ``"gate_scores"`` 키로 함께 저장되어 이후 ``--fail-on-regression``이 Gate 점수도
+            회귀 비교 대상으로 삼을 수 있다. 기존 5개 평면 지표 필드는 그대로 유지한다
+            (하위호환 — 이 필드가 없는 구버전 baseline.json도 계속 읽을 수 있어야 한다).
+    """
     payload: Dict[str, Any] = {k: v for k, v in metrics.items()}
+    # _load_harness_groups()는 harness_groups 자체가 없어도 {"A": None, ..., "G": None}처럼
+    # 항상 7개 키의 dict를 반환하므로(단순 truthy 체크로는 항상 True), 실제로 값이 하나라도
+    # 있는지(any non-None)로 판단해 harness_groups 데이터가 전혀 없는 결과 파일에서는
+    # baseline.json에 무의미한 전부-None gate_scores를 남기지 않는다.
+    if harness_scores and any(v is not None for v in harness_scores.values()):
+        payload["gate_scores"] = dict(harness_scores)
     payload["saved_at"] = datetime.now(timezone.utc).isoformat()
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -745,6 +767,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # ── 메트릭 추출 ─────────────────────────────────────────────────────────
     metrics = _load_metrics(data)
+    # SPEC-010 REQ-1: Harness Gate A-G 점수도 미리 로드해 둔다 — --save-baseline(저장)과
+    # --min-gate-score(복합 점수 계산) 양쪽에서 재사용하고, --fail-on-regression 시 회귀
+    # 비교 대상에도 포함한다.
+    harness_scores = _load_harness_groups(data)
 
     # ── 기준선 경로 결정 ─────────────────────────────────────────────────────
     if getattr(args, "baseline", None):
@@ -754,7 +780,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # ── --save-baseline: 저장 후 종료 ────────────────────────────────────────
     if getattr(args, "save_baseline", False):
-        _save_baseline(baseline_path, metrics)
+        _save_baseline(baseline_path, metrics, harness_scores=harness_scores)
         print(f"{G}✅ Baseline saved: {baseline_path}{R}")
         # 기준선 저장만 요청한 경우 — 게이팅은 계속 진행
         # (추가 옵션이 없으면 0으로 종료)
@@ -778,10 +804,9 @@ def cmd_gate(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(f"{RD}❌ --group-weights error: {exc}{R}", file=sys.stderr)
             return 1
-        groups = _load_harness_groups(data)
-        composite = _compute_composite_gate(groups, weights)
+        composite = _compute_composite_gate(harness_scores, weights)
         composite_result = {
-            "groups": groups,
+            "groups": harness_scores,
             "weights": weights,
             "min_score": min_gate_score,
             "composite": composite,
@@ -842,6 +867,27 @@ def cmd_gate(args: argparse.Namespace) -> int:
             )
         else:
             regressions = _check_regression(metrics, baseline_data, fail_on_regression)
+            # SPEC-010 REQ-2: Harness Gate A-G 점수도 회귀 비교 대상에 포함한다.
+            # baseline_data에 "gate_scores"가 없으면(구버전 baseline.json) 빈 dict로 처리되어
+            # 회귀가 감지되지 않는다 — 기존 5개 평면 지표 회귀 비교에는 영향 없음(하위호환).
+            _baseline_gate_scores = baseline_data.get("gate_scores") or {}
+            _gate_regressions = _compute_gate_regressions(
+                harness_scores, _baseline_gate_scores, fail_on_regression / 100.0
+            )
+            for _greg in _gate_regressions:
+                _gate_id = _greg["gate"]
+                _base_val = _greg["baseline_score"]
+                _pct_change = (
+                    (_greg["delta"] / _base_val * 100.0) if _base_val else 0.0
+                )
+                regressions.append({
+                    "name": f"gate_{_gate_id}",
+                    "label": f"Gate {_gate_id}",
+                    "current": _greg["current_score"],
+                    "baseline_val": _base_val,
+                    "pct_change": _pct_change,
+                    "unit": "",
+                })
 
     # ── 출력 ────────────────────────────────────────────────────────────────
     _print_table(gate_results, str(result_file), regressions if regressions else None, composite_result)
