@@ -28,12 +28,12 @@ SPEC-XXX: <제목>
 | [SPEC-001](SPEC-001-gate-aggregation-unification.md) | Gate 집계 단일 소스화 (monitor.py ↔ serve/loader.py) | P1 | Draft — **SPEC-000 REQ-1로 흡수** | SPEC-000 이관 작업 내 처리 |
 | [SPEC-002](SPEC-002-universal-min-sample-guard.md) | 전 Gate 공통 최소 표본 가드 | P0 | **Implemented (2026-07-02)** | 없음 — SPEC-000과 독립적으로 지금 착수 가능 |
 | [SPEC-003](SPEC-003-single-pass-aggregation.md) | 단일 패스 집계 (46회 순회 → 1회) | P1 | Draft — **SPEC-000 REQ-2로 흡수** | SPEC-000 이관 작업 내 처리 |
-| [SPEC-004](SPEC-004-streaming-retention-mode.md) | 옵트인 스트리밍 모니터 모드 | P2 | Draft | SPEC-000의 shared_metrics 계층 선행 권장 |
+| [SPEC-004](SPEC-004-streaming-retention-mode.md) | 옵트인 스트리밍 모니터 모드 | P2 | **Partially Implemented (2026-07-02)** — REQ-1/3/4 완료, REQ-2는 Gate A/C TCR 컴포넌트만 러닝 집계(축소 범위) | SPEC-000 완료 |
 | [SPEC-005](SPEC-005-dashboard-auth-middleware.md) | 대시보드 인증 미들웨어 (옵트인) | P0 | **Implemented (2026-07-02)** | 없음 |
-| [SPEC-006](SPEC-006-llm-judge-concurrency.md) | LLM Judge 동시성 및 백오프 | P2 | Draft | 없음 |
+| [SPEC-006](SPEC-006-llm-judge-concurrency.md) | LLM Judge 동시성 및 백오프 | P2 | **Implemented (2026-07-02)** | 없음 |
 | [SPEC-007](SPEC-007-lineage-capture.md) | 감사/재현성 Lineage 캡처 | P0 | **Implemented (2026-07-02)** | 없음 |
 | [SPEC-008](SPEC-008-compliance-framework-expansion.md) | Compliance 프레임워크 확장 (SOC2/PCI-DSS) | P3 | Draft | 없음 |
-| [SPEC-009](SPEC-009-structured-signal-evaluation.md) | 구조화 신호 우선 평가 전환 (Gate F/B) | P2 | Draft | SPEC-000의 Gate F 이관 선행 권장 |
+| [SPEC-009](SPEC-009-structured-signal-evaluation.md) | 구조화 신호 우선 평가 전환 (Gate F/B) | P2 | **Implemented (2026-07-02)** | SPEC-000 완료 |
 | [SPEC-010](SPEC-010-cicd-baseline-gate.md) | CI/CD 게이트 베이스라인 통합 | P3 | Draft | 없음 |
 | [SPEC-011](SPEC-011-tool-coverage-attribute-fix.md) | **Gate G `tool_coverage` 속성명 결함 수정** (`self.tool_call_analyzer` → `self.tool_analyzer`) | P1 | **Implemented (2026-07-02)** | SPEC-000 완료 — Gate G 이관 중 발견 |
 | [SPEC-012](SPEC-012-event-based-min-sample-guard.md) | **이벤트 기반 지표 최소 표본 가드** (Gate F coordination/tool_selection, Gate G tool_coverage) | P1 | **Implemented (2026-07-02)** | SPEC-002(Non-Goals에서 제외)·SPEC-011(tool_coverage 실효성 확보) 완료 |
@@ -56,7 +56,7 @@ SPEC-XXX: <제목>
 |---|---|---|
 | **P0** (즉시, 리스크 최저) | SPEC-002, SPEC-005, SPEC-007 | 독립적·additive, SPEC-000의 구조 변경과 무관하게 지금 착수 가능 |
 | **P1** (구조 기반) | **SPEC-000** ✅ 완료(Gate별 이관: F→E→D→A→B→C→G, 각 단계에 SPEC-001/003 요구사항 흡수) | decorators.py(9,632→8,025줄)/taskresult_helpers.py(4,632→1,262줄)/monitor.py God Method(~1,165줄→위임 호출)를 전면 분해하는 프로그램의 핵심 구조 변경 |
-| **P2** | SPEC-004, SPEC-006, SPEC-009 (+ 백로그: 대시보드 페이지네이션, generate_report 캐싱) | SPEC-000 완료로 착수 가능 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
+| **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009 ✅ (2026-07-02, 3개 병렬 진행) (+ 백로그: 대시보드 페이지네이션, generate_report 캐싱) | SPEC-000 완료로 착수 가능했음 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
 | **P3** | SPEC-008, SPEC-010 (+ 백로그: 알림 재시도) | 이후 |
 | **P4** | 백로그: DB 백엔드, 공급망 위생 | 장기 |
 
@@ -64,9 +64,9 @@ SPEC-XXX: <제목>
 
 1. **구조**: Gate 관련 코드가 `gates/gate_x/{configs.py, evaluators.py, aggregate.py}` 7세트로 전면 이관, 파일당 1,500줄 이하. Gate 집계 알고리즘 단일 소스화(monitor.py ↔ serve/loader.py 중복 제거). — **SPEC-000 ✅ 완료(2026-07-02)**
 2. **통계적 신뢰**: 전 Gate 표본 부족 경고, CI 게이트가 통계적으로 무의미한 점수로 배포를 승인하지 않음. — **SPEC-002**
-3. **AI-Native**: Gate F/B가 텍스트 휴리스틱보다 구조화된 `tool_calls`/`agent_interactions`를 우선 사용. — **SPEC-009**
-4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합. — **SPEC-005, SPEC-007, SPEC-006, SPEC-010**
-5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1. — **SPEC-004, SPEC-000(REQ-2)**
+3. **AI-Native**: Gate F/B가 텍스트 휴리스틱보다 구조화된 `tool_calls`/`agent_interactions`를 우선 사용. — **SPEC-009 ✅ 완료(2026-07-02)**
+4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합. — **SPEC-005 ✅·SPEC-007 ✅·SPEC-006 ✅(2026-07-02), SPEC-010(대기)**
+5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1. — **SPEC-004(부분 완료, 2026-07-02 — TCR 컴포넌트만 러닝 집계), SPEC-000(REQ-2) ✅**
 
 각 목표가 어느 스펙으로 달성되는지 1:1로 명시했다 — 스펙 없는 목표(이전 두 차례 감사에서 발견된 패턴)가 더 없는지는 이 표와 백로그 섹션을 함께 봐야 확인된다.
 

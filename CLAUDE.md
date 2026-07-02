@@ -296,6 +296,13 @@ judge = LLMJudge(model="claude-haiku-4-5-20251001", sample_rate=0.1)
 result = judge.judge("t1", question="...", response="...", context="...")
 # result["scores"]["overall"] · ["faithfulness"] · ["criteria_overall"]
 
+# SPEC-006: async path + concurrency/backoff (max_concurrent_judge_calls=5, max_retries=3 defaults)
+judge = LLMJudge(model="claude-haiku-4-5-20251001", max_concurrent_judge_calls=5, max_retries=3)
+result = await judge.ajudge("t1", question="...", response="...", context="...")
+# ajudge() is bounded by an internal asyncio.Semaphore; provider 429s retry with 1s/2s/4s backoff.
+# agent_eval's async wrapper uses ajudge() automatically. batch_eval(..., concurrent_judge=True)
+# opts into asyncio.gather-based concurrent judge processing (default False = sequential, unchanged).
+
 # Accessing LLMJudge results from monitor
 summary = monitor.llm_judge.get_summary()
 # → {"avg_scores": {"overall": float, "criteria_scores": {...}}, "sample_count": int}
@@ -344,6 +351,7 @@ enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
 prompt_version, agent_version
+retention_mode, window_size
 ```
 
 ### @agent_eval Valid Parameters
@@ -406,6 +414,19 @@ threat_response, context_window, latency_attribution
 - **SPEC-011 — tool_coverage attribute fix**: `monitor.py` previously passed a non-existent attribute name
   (`self.tool_call_analyzer`) into Gate G's aggregate call; the real attribute is `self.tool_analyzer`. Fixed —
   `tool_coverage` now actually computes for sessions with recorded `tool_calls` (previously always `None`).
+- **SPEC-004 — streaming retention mode (Partially Implemented)**: `PerformanceMonitor(retention_mode="full"|"windowed", window_size=10000)`.
+  Default `"full"` is unchanged. In `"windowed"` mode, `self.tasks` behaves like `deque(maxlen=window_size)`;
+  only Gate A/C's TCR component gets a true running aggregate (`_RunningTCRView`) that keeps reflecting
+  evicted tasks — all other Gate metrics still recompute from the windowed task list only (reduced REQ-2
+  scope, documented in `Docs/specs/SPEC-004-streaming-retention-mode.md`). `get_report_by_type`/
+  `get_report_by_framework`/`export_by_framework`/`register_aggregator` emit a `UserWarning` every call
+  in windowed mode.
+- **SPEC-009 — structured signal evaluation**: `gates/gate_f_multiagent/evaluators.py`'s `eval_consensus`/
+  `eval_role_adherence`/`eval_propagation` now prefer structured `agent_interactions`/`tool_calls` data over
+  text-heuristic matching when available (each returns a new diagnostic `"signal_source": "structured"|"text_fallback"`
+  key; Gate score itself is unaffected). Falls back to the pre-existing text matching 100% unchanged when
+  structured fields are absent — this is the only byte-diff-safe path; structured-mode scoring is intentionally
+  NOT guaranteed identical to legacy text-matching output (see SPEC-009 REQ-5).
 
 ---
 
