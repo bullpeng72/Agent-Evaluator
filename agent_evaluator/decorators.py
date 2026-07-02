@@ -3345,6 +3345,46 @@ def _record_to_monitors(
         monitor_or_list.record_task(task_result)
 
 
+async def _process_async_judge_targets(targets: "List[tuple]") -> None:
+    """(SPEC-006 REQ-3/REQ-4) 지연된 judge 대상들을 ``ajudge()``로 처리하고 tracker에 반영한다.
+
+    ``targets`` 의 각 항목은 ``_build_and_record(..., use_async_judge=True, ...)`` 가
+    적재한 ``(monitor, llm_judge, task_id, question, response, context)`` 튜플이다.
+
+    ``LLMJudge.ajudge()`` 내부의 ``asyncio.Semaphore``(REQ-1)가 동시 호출 수를 이미
+    제한하므로, 여기서는 ``asyncio.gather`` 로 모두 동시에 트리거하기만 하면 된다
+    (REQ-4의 옵트인 동시 처리, REQ-3의 단건 처리 모두 이 함수를 공유한다).
+
+    이미 기록된 task를 monitor의 내부 tracker 리스트에서 task_id로 찾아 in-place로
+    ``dataclasses.replace(..., llm_judge=result)`` 하는 방식은 이 코드베이스의 기존
+    post-record 재평가 패턴(예: BUG-E6 threat_severity/threat_response 재평가)과 동일하다.
+    """
+    if not targets:
+        return
+
+    async def _one(_m: Any, _lj: Any, _tid: str, _q: str, _r: str, _ctx: Optional[str]) -> None:
+        try:
+            _judge_result = await _lj.ajudge(task_id=_tid, question=_q, response=_r, context=_ctx)
+        except Exception as exc:
+            logger.debug("SPEC-006: ajudge() 처리 실패 (무시): %s", exc)
+            return
+        if not _judge_result:
+            return
+        try:
+            _tcr = getattr(_m, "tcr_tracker", None)
+            _tlist = getattr(_tcr, "_tasks", None)
+            if not _tlist:
+                return
+            for _idx in range(len(_tlist) - 1, -1, -1):
+                if getattr(_tlist[_idx], "task_id", None) == _tid:
+                    _tlist[_idx] = dataclasses.replace(_tlist[_idx], llm_judge=_judge_result)
+                    break
+        except Exception as exc:
+            logger.debug("SPEC-006: ajudge() 결과 반영 실패 (무시): %s", exc)
+
+    await asyncio.gather(*(_one(*t) for t in targets))
+
+
 def _build_and_record(
     monitor: "Union[PerformanceMonitor, List[PerformanceMonitor]]",
     *,
@@ -3428,6 +3468,13 @@ def _build_and_record(
     threat_response: Optional["ThreatResponseConfig"] = None,
     context_window: Optional["ContextWindowConfig"] = None,
     latency_attribution: Optional["LatencyAttributionConfig"] = None,
+    # SPEC-006 REQ-3/REQ-4: 비동기 경로에서 동기 judge() 대신 ajudge()를 사용하기 위한 배선.
+    # True이면 이 호출 동안 monitor(s)의 enable_llm_judge를 일시 억제해 record_task() 내부의
+    # 동기 judge() 호출을 막고, 대신 (monitor, task_id, question, response, context) 튜플을
+    # async_judge_targets 리스트(호출자가 전달한 mutable 리스트)에 적재한다. 호출자는 이후
+    # await _process_async_judge_targets(async_judge_targets) 로 ajudge() 기반 처리를 수행한다.
+    use_async_judge: bool = False,
+    async_judge_targets: Optional[List[Any]] = None,
 ) -> Optional[Any]:
     """TaskResult 를 생성·병합·기록하는 공통 로직. sync/async/streaming/Gemini wrapper 양쪽에서 호출."""
     try:
@@ -4258,6 +4305,22 @@ def _build_and_record(
                             _m._judge_model = judge_model
                         _llm_judge_restored.append((_m, _orig_judge_model, False))
 
+        # SPEC-006 REQ-3: use_async_judge=True이면 이 호출에 한해 monitor(s)의
+        # enable_llm_judge를 억제해 record_task() 내부의 동기 judge() 호출을 막는다.
+        # (위 E1 블록이 이미 lazy-init을 마쳤으므로 llm_judge 인스턴스는 존재함)
+        # 실제 채점은 caller(async_wrapper)가 await ajudge()로 별도 수행한다.
+        # llm_judge 인스턴스 자체를 캡처해두는 이유: E1 복원 블록이 was_lazy 케이스에서
+        # _m.llm_judge = None 으로 되돌릴 수 있어, 이후 시점에 _m.llm_judge를 다시 읽으면
+        # 유실될 수 있기 때문이다.
+        _async_judge_deferred: list = []
+        if use_async_judge:
+            _monitors_req3 = monitor if isinstance(monitor, list) else [monitor]
+            for _m in _monitors_req3:
+                _lj_req3 = getattr(_m, "llm_judge", None)
+                if getattr(_m, "enable_llm_judge", False) and _lj_req3 is not None:
+                    _m.enable_llm_judge = False
+                    _async_judge_deferred.append((_m, _lj_req3))
+
         # J1: judge_criteria — 이 호출 동안만 LLMJudge.judge_criteria 임시 재정의 (G-Eval 대체)
         _judge_criteria_restored: list = []
         if judge_criteria is not None:
@@ -4326,6 +4389,11 @@ def _build_and_record(
         try:
             _record_to_monitors(monitor, task_result)  # Gap U: 단일/리스트 모두 지원
         finally:
+            # SPEC-006 REQ-3: 이 호출 동안 억제한 enable_llm_judge를 우선 원복(True)한다.
+            # E1 복원 블록이 뒤이어 실행되며 자신이 임시로 켠 monitor는 다시 False로
+            # 덮어쓰므로, 두 메커니즘이 겹치는 monitor는 최종적으로 E1 규칙을 따른다.
+            for _m, _ in _async_judge_deferred:
+                _m.enable_llm_judge = True
             # G4: hallucination detection 복원
             for _m in _hall_restored:
                 _m.enable_hallucination_detection = False
@@ -4355,6 +4423,17 @@ def _build_and_record(
                     _tracker_or_m.enabled = False
                 elif hasattr(_tracker_or_m, "enable_quality_evaluation"):
                     _tracker_or_m.enable_quality_evaluation = False
+
+        # SPEC-006 REQ-3/REQ-4: 억제해둔 judge 대상 정보를 호출자에게 전달한다.
+        # task_result는 이 시점에 record_task()가 채운 question/response/context를
+        # 그대로 담고 있으므로(judge만 억제했을 뿐 나머지 필드는 정상 기록됨), 동기
+        # judge()가 사용했을 입력과 동일한 값을 ajudge()에 전달할 수 있다.
+        if use_async_judge and async_judge_targets is not None and _async_judge_deferred:
+            for _m, _lj in _async_judge_deferred:
+                async_judge_targets.append((
+                    _m, _lj, task_id,
+                    task_result.question, task_result.response, task_result.context,
+                ))
 
         # BUG-E6 fix: ThreatSeverityConfig / ThreatResponseConfig 재평가 (post-record)
         # 문제: eval_threat_severity(line 5218) / eval_threat_response(line 5577)는 하네스 Config
@@ -5293,6 +5372,8 @@ def agent_eval(
             _attempt = 0
             _errors: List[str] = []
             _wait = _retry_delay
+            # SPEC-006 REQ-3: 이 호출에서 억제된 judge 대상을 _build_and_record가 적재하는 리스트
+            _async_judge_targets: List[Any] = []
 
             # StateConsistencyConfig: 실행 전 상태 스냅샷 (async)
             _async_state_before: Optional[Dict[str, Any]] = None
@@ -5454,7 +5535,12 @@ def agent_eval(
                         threat_response=threat_response,
                         context_window=context_window,
                         latency_attribution=latency_attribution,
+                        # SPEC-006 REQ-3: 비동기 경로 — 동기 judge() 대신 ajudge() 배선
+                        use_async_judge=True,
+                        async_judge_targets=_async_judge_targets,
                     )
+                if _async_judge_targets:
+                    await _process_async_judge_targets(_async_judge_targets)
 
         @functools.wraps(func)
         def gen_wrapper(*args, **kwargs):
@@ -6398,6 +6484,8 @@ def batch_eval(
     timeout: Optional[float] = None,
     enabled: bool = True,
     concurrency: int = 0,                       # >0이면 항목별로 병렬 실행 (asyncio.gather), 상한 설정
+    # SPEC-006 REQ-4: LLM Judge 호출을 asyncio.gather로 동시 처리(옵트인). 기본 False=기존 순차 처리.
+    concurrent_judge: bool = False,
     on_item_error: Optional[Callable] = None,
     item_timeout: Optional[float] = None,
     return_format: str = "list",
@@ -6630,6 +6718,8 @@ def batch_eval(
             eval_ctx: Optional[_EvalContext] = None,                           # Gap L
             contexts: Optional[List[str]] = None,                              # Gap Q
             expected_tools_list: Optional[List[Optional[List[str]]]] = None,  # Gap W
+            use_async_judge: bool = False,                # SPEC-006 REQ-4
+            async_judge_targets: Optional[List[Any]] = None,  # SPEC-006 REQ-4
         ) -> List[Any]:  # A8: returns list of TaskResult objects
             if not isinstance(responses, list):
                 responses = [responses] if responses is not None else []
@@ -6737,6 +6827,9 @@ def batch_eval(
                     threat_response=threat_response,
                     context_window=context_window,
                     latency_attribution=latency_attribution,
+                    # SPEC-006 REQ-4: 옵트인 동시 judge 처리 배선
+                    use_async_judge=use_async_judge,
+                    async_judge_targets=async_judge_targets,
                 )
                 if tr is not None:
                     batch_results.append(tr)
@@ -6838,13 +6931,28 @@ def batch_eval(
                 # A1: wrapper._last_failures 저장 (concurrent 실패 목록)
                 wrapper._last_failures = list(_item_failures)
                 try:
+                    # SPEC-006 REQ-4: concurrent_judge=True (옵트인)면 judge 대상을 적재해뒀다가
+                    # asyncio.gather 기반으로 동시 처리한다. 기본값(False)은 기존과 동일하게
+                    # _record_batch() 내부에서 항목별 순차 judge 처리(record_task 동기 호출).
+                    _sync_async_judge_targets: List[Any] = []
                     _batch_task_results = _record_batch(
                         questions, ground_truths, responses,
                         elapsed, has_error, error_msg, batch_uuid,
                         eval_ctx=eval_ctx,
                         contexts=contexts,
                         expected_tools_list=expected_tools_list,
+                        use_async_judge=concurrent_judge,
+                        async_judge_targets=_sync_async_judge_targets if concurrent_judge else None,
                     )
+                    if concurrent_judge and _sync_async_judge_targets:
+                        try:
+                            asyncio.run(_process_async_judge_targets(_sync_async_judge_targets))
+                        except RuntimeError as _loop_exc:
+                            # 이미 실행 중인 이벤트 루프 안에서 호출된 경우(드묾) — 동시 처리를
+                            # 생략하고 조용히 무시한다 (judge 결과 없이도 나머지 기록은 정상 완료됨).
+                            logger.debug(
+                                "SPEC-006: concurrent_judge asyncio.run 실패 (무시): %s", _loop_exc
+                            )
                     wrapper._last_task_results = _batch_task_results or []
                     _last_batch_results_holder[0] = _batch_task_results or []  # A8: shared holder
                     _maybe_flush_batch()
@@ -6978,6 +7086,10 @@ def batch_eval(
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)  # Gap L
                 try:
+                    # SPEC-006 REQ-4: concurrent_judge=True (옵트인)면 judge 대상을 적재해뒀다가
+                    # asyncio.gather 기반으로 동시 처리한다. 기본값(False)은 기존과 동일하게
+                    # _record_batch() 내부에서 항목별 순차 judge 처리(record_task 동기 호출).
+                    _async_judge_targets_batch: List[Any] = []
                     # H2: store return value so _last_task_results is populated for async too
                     _async_batch_task_results = _record_batch(
                         questions, ground_truths, responses,
@@ -6985,7 +7097,11 @@ def batch_eval(
                         eval_ctx=eval_ctx,
                         contexts=contexts,
                         expected_tools_list=expected_tools_list,
+                        use_async_judge=concurrent_judge,
+                        async_judge_targets=_async_judge_targets_batch if concurrent_judge else None,
                     )
+                    if concurrent_judge and _async_judge_targets_batch:
+                        await _process_async_judge_targets(_async_judge_targets_batch)
                     async_wrapper._last_task_results = _async_batch_task_results or []
                     _last_batch_results_holder[0] = _async_batch_task_results or []
                     _maybe_flush_batch()

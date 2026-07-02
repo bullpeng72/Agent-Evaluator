@@ -1,6 +1,8 @@
 # SPEC-006: LLM Judge 동시성 및 백오프
 
-**Phase:** P2 · **상태:** Draft · **의존성:** 없음 (SPEC-001 완료 후 진행 권장 — 우선순위상)
+**Phase:** P2 · **상태:** Implemented (2026-07-02) · **의존성:** 없음 (SPEC-001 완료 후 진행 권장 — 우선순위상)
+
+> **구현 노트**: `llm_judge.py`에 `LLMJudge.__init__(max_concurrent_judge_calls=5, max_retries=3)` 파라미터를 추가하고, `ajudge()`가 실행 중인 이벤트 루프에 lazy 바인딩되는 `asyncio.Semaphore`(`_get_semaphore()`)로 감싸이도록 배선(REQ-1). `_call_claude`/`_call_openai`의 실제 provider 호출을 `_call_with_retry()`로 감싸 rate-limit(429) 예외 시 1s/2s/4s 지수 백오프로 최대 `max_retries`회 재시도하고, 소진 시 기존과 동일한 catch-all 예외 처리 경로로 재전파(REQ-2). rate-limit 판별은 `_is_rate_limit_error()`가 Anthropic/OpenAI SDK의 `RateLimitError` isinstance 체크를 우선하고, SDK 미설치·mock 예외 대응으로 `status_code==429` 및 클래스명 `"ratelimiterror"` 포함 여부를 폴백으로 사용(Risks 대응). `decorators.py`의 `_build_and_record()`에 `use_async_judge`/`async_judge_targets` 파라미터를 추가해, `@agent_eval`의 `async_wrapper`에서는 이 호출에 한해 monitor(s)의 `enable_llm_judge`를 일시 억제(동기 `judge()` 호출 방지)하고 대신 신규 공용 헬퍼 `_process_async_judge_targets()`가 `await ajudge()`로 채점 후 기록된 task를 tracker 리스트에서 in-place로 갱신(REQ-3; 동기 경로는 무변경 — 회귀 테스트로 스코어링 동등성 확인). `batch_eval`에 옵트인 파라미터 `concurrent_judge=False`(기본값)를 추가해 `True`일 때만 배치 항목들의 judge 호출을 `asyncio.gather`(REQ-1 세마포어로 자연 제한)로 동시 처리하고, 기본값에서는 기존과 동일한 순차 처리 유지(REQ-4; 동기 batch 함수는 `asyncio.run()`으로 경유). 기존 `batch_eval` 파라미터 수 고정 테스트(`test_param_cleanup.py`)를 62→63으로 갱신. 신규 `tests/test_llm_judge_concurrency.py`(20건: rate-limit 판별 5건, 백오프/재시도 5건, 세마포어 동시성 3건, REQ-3 async 배선/동등성 4건, REQ-4 batch 옵트인(async+sync 경유) 3건) 추가, 전체 스위트 2,967 passed, 1 skipped, 회귀 0건(순수 추가 20건 반영).
 
 ## Context
 

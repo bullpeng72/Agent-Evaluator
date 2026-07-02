@@ -436,10 +436,10 @@ class TestConversationEvalLlmJudgeWorks:
 
 class TestBatchEvalParamCount:
     def test_param_count_is_32(self):
-        """batch_eval 파라미터 수가 v0.9.5+ 기준 62개이어야 한다 (Phase 6 Harness Config 4개 추가)."""
+        """batch_eval 파라미터 수가 SPEC-006 기준 63개이어야 한다 (REQ-4: concurrent_judge 옵트인 파라미터 추가)."""
         sig = inspect.signature(batch_eval)
-        assert len(sig.parameters) == 62, (
-            f"batch_eval 파라미터 수: {len(sig.parameters)}개 (예상: 62개)\n"
+        assert len(sig.parameters) == 63, (
+            f"batch_eval 파라미터 수: {len(sig.parameters)}개 (예상: 63개)\n"
             f"파라미터 목록: {list(sig.parameters.keys())}"
         )
 
