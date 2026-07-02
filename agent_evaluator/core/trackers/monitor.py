@@ -31,6 +31,16 @@ import numpy as np
 import pandas as pd
 
 from .base import TaskResult, EvaluationReport, TaskType, _TaskContext, BaseTracker
+# SPEC-000 Commit 0: 전 Gate 공유 인프라(gates/base.py)에서 가져옴 — 동작 변경 없음
+from ...gates.base import _min_sample_warning, _status, _g
+# SPEC-000 Commit 1: Gate F 집계 로직 이관
+from ...gates.gate_f_multiagent import aggregate as gate_f_aggregate
+from ...gates.gate_e_security import aggregate as gate_e_aggregate
+from ...gates.gate_d_performance import aggregate as gate_d_aggregate
+from ...gates.gate_a_goal import aggregate as gate_a_aggregate
+from ...gates.gate_b_behavioral import aggregate as gate_b_aggregate
+from ...gates.gate_c_reliability import aggregate as gate_c_aggregate
+from ...gates.gate_g_observability import aggregate as gate_g_aggregate
 from ...exceptions import ValidationError, StorageError, MetricComputationError
 from .layer1 import (
     TaskCompletionTracker,
@@ -228,6 +238,11 @@ class PerformanceMonitor:
         gate_c_tcr_weight: float = 0.4,
         # Gate B 루프 감지 가중치 (0.0~1.0, 기본 0.0 = 단순 평균) — 루프 감지와 나머지 5개 지표의 상대 중요도 조정
         gate_b_loop_weight: float = 0.0,
+        # SPEC-002: 전 Gate 공통 최소 표본 가드 기본값 (Config 자체 min_samples가 없는 지표용)
+        min_samples_default: int = 3,
+        # SPEC-007: 감사/재현성 lineage — 사용자 지정 태그 (선택)
+        prompt_version: Optional[str] = None,
+        agent_version: Optional[str] = None,
     ):
         """
         Initialize Performance Monitor
@@ -351,6 +366,30 @@ class PerformanceMonitor:
         self._gate_a_tcr_weight = max(0.0, min(1.0, float(gate_a_tcr_weight)))
         self._gate_c_tcr_weight = max(0.0, min(1.0, float(gate_c_tcr_weight)))
         self._gate_b_loop_weight = max(0.0, min(1.0, float(gate_b_loop_weight)))
+        # SPEC-002: 전 Gate 공통 최소 표본 가드 기본값
+        self._min_samples_default = max(1, int(min_samples_default))
+
+        # SPEC-007: lineage 메타데이터 — sdk_version/git_commit은 인스턴스 생성 시 1회만 조회해 캐싱
+        # (REQ-3: save_to_file 매 호출마다 서브프로세스를 띄우지 않는다)
+        self._prompt_version = prompt_version
+        self._agent_version = agent_version
+        try:
+            from importlib.metadata import version as _pkg_version_lookup
+            self._sdk_version: Optional[str] = _pkg_version_lookup("agent-evaluator")
+        except Exception:
+            self._sdk_version = None
+        try:
+            import subprocess as _subprocess
+            _git_result = _subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=2,
+            )
+            self._git_commit: Optional[str] = (
+                _git_result.stdout.strip() if _git_result.returncode == 0 else None
+            )
+        except Exception:
+            # REQ-2: git 미설치·비-git 환경 등 어떤 실패든 예외 전파 없이 None
+            self._git_commit = None
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -2719,6 +2758,31 @@ class PerformanceMonitor:
             },
         }
 
+    def _build_lineage(self) -> Dict[str, Any]:
+        """SPEC-007: 감사/재현성 lineage 메타데이터를 조립한다.
+
+        judge_model_snapshot: LLM Judge가 활성화된 경우, provider 응답이 실제로 반환한
+        모델 스냅샷 문자열(있으면)을 최근 판정 순으로 탐색해 기록한다 — provider가 별칭
+        모델을 무중단으로 새 스냅샷으로 교체해도 사후 대조가 가능하도록 하기 위함이다.
+        판정 기록이 없으면 설정값(judge.model)으로 폴백한다.
+        """
+        _judge_snapshot: Optional[str] = None
+        if self.llm_judge is not None:
+            for _t in reversed(self.tcr_tracker.tasks):
+                _lj = getattr(_t, "llm_judge", None)
+                if _lj and _lj.get("model_snapshot"):
+                    _judge_snapshot = _lj["model_snapshot"]
+                    break
+            if _judge_snapshot is None:
+                _judge_snapshot = self.llm_judge.model
+        return {
+            "sdk_version": self._sdk_version,
+            "git_commit": self._git_commit,
+            "prompt_version": self._prompt_version,
+            "agent_version": self._agent_version,
+            "judge_model_snapshot": _judge_snapshot,
+        }
+
     def generate_report(self) -> "EvaluationReport":
         """Generate comprehensive evaluation report"""
         if len(self.tcr_tracker.tasks) == 0:
@@ -2761,6 +2825,16 @@ class PerformanceMonitor:
             except Exception as _hg_exc:
                 logger.debug("harness_groups aggregation failed (ignored): %s", _hg_exc)
 
+        # SPEC-007: lineage는 태스크 유무와 무관하게 항상 포함 (감사 시 코드/모델 조합 역추적용)
+        try:
+            _lineage = self._build_lineage()
+            if extra_metrics is None:
+                extra_metrics = {"lineage": _lineage}
+            else:
+                extra_metrics["lineage"] = _lineage
+        except Exception as _lin_exc:
+            logger.debug("lineage 조립 실패 (무시): %s", _lin_exc)
+
         report = EvaluationReport(
             period="current_session",
             total_tasks=len(self.tcr_tracker.tasks),
@@ -2798,1141 +2872,93 @@ class PerformanceMonitor:
         if not tasks:
             return {}
         n = max(len(tasks), 1)
-
-        def _status(score: Optional[float], warn: float = 0.7, fail: float = 0.5) -> str:
-            if score is None:
-                return "n/a"
-            if score >= warn:
-                return "pass"
-            if score >= fail:
-                return "warn"
-            return "fail"
+        # _status: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
 
         # ── A 그룹: 목표 달성 (TCR + instruction_adherence + goal_alignment + plan_coherence) ──
-        tcr_pct_a = 0.0
-        try:
-            _tcr_stats_a = self.tcr_tracker.calculate_tcr()
-            tcr_pct_a = float(_tcr_stats_a.get("tcr", 0.0))
-        except Exception:
-            pass
-
-        _ifr_scores = [
-            float(t.extra.get("instruction_adherence", {}).get("score"))
-            for t in tasks
-            if (t.extra or {}).get("instruction_adherence") is not None
-            and (t.extra or {}).get("instruction_adherence", {}).get("score") is not None
-        ]
-        avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
-
-        _goal_a_vals: _List[float] = []
-        _goal_a_excluded = 0
-        for _t in tasks:
-            _ga = ((_t.extra or {}).get("goal_alignment") or {})
-            if not _ga:
-                continue
-            _ga_score_raw = _ga.get("score")
-            if _ga_score_raw is None:   # goal_tool_map 불일치·미측정 태스크 → 집계 제외
-                _goal_a_excluded += 1
-                continue
-            _ga_score = float(_ga_score_raw)
-            # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
-            if _ga.get("use_llm_scoring"):
-                _lj = (_t.extra or {}).get("llm_judge") or {}
-                _lj_scores = _lj.get("scores") or {}
-                _rel = _lj_scores.get("relevance")
-                if _rel is not None:
-                    try:
-                        _rel_norm = min(1.0, max(0.0, float(_rel) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
-                        _w = max(0.0, min(1.0, float(_ga.get("llm_blend_weight", 0.5))))
-                        _ga_score = _ga_score * (1 - _w) + _rel_norm * _w
-                    except (TypeError, ValueError):
-                        pass
-            _goal_a_vals.append(_ga_score)
-        avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
-        if avg_goal_a is None and _goal_a_excluded > 1:
-            logger.warning(
-                "[Gate A] GoalAlignmentConfig: %d task(s) all excluded (score=None). "
-                "For non-tool agents, set GoalAlignmentConfig(ignore_no_tool_tasks=False).",
-                _goal_a_excluded,
-            )
-
-        _plan_a_vals: _List[float] = []
-        for _t in tasks:
-            _pc = ((_t.extra or {}).get("plan_coherence") or {})
-            if not _pc:
-                continue
-            _pc_score_raw = _pc.get("score")
-            if _pc_score_raw is None:
-                continue
-            _pc_score = float(_pc_score_raw)
-            # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
-            if _pc.get("use_llm_scoring"):
-                _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
-                _rel_pc = (_lj_pc.get("scores") or {}).get("relevance")
-                if _rel_pc is not None:
-                    try:
-                        _w_pc = max(0.0, min(1.0, float(_pc.get("llm_blend_weight", 0.5))))
-                        _rel_norm_pc = min(1.0, max(0.0, float(_rel_pc) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
-                        _pc_score = _pc_score * (1 - _w_pc) + _rel_norm_pc * _w_pc
-                    except (TypeError, ValueError):
-                        pass
-            _plan_a_vals.append(_pc_score)
-        avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
-
-        _subtask_vals = [
-            float(t.extra.get("subtask_completion", {}).get("completion_rate"))
-            for t in tasks
-            if (t.extra or {}).get("subtask_completion") is not None
-            and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
-            # subtask_count=0: expected_subtasks 미설정 → completion_rate=1.0이 의미 없으므로 제외
-            and int((t.extra or {}).get("subtask_completion", {}).get("subtask_count", 0)) > 0
-        ]
-        avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
-
-        _cr_vals = [
-            float(t.extra.get("context_retention", {}).get("retention_score"))
-            for t in tasks
-            if (t.extra or {}).get("context_retention") is not None
-            and (t.extra or {}).get("context_retention", {}).get("retention_score") is not None
-        ]
-        avg_context_r = sum(_cr_vals) / len(_cr_vals) if _cr_vals else None
-
-        # knowledge_retention → Group A (Phase 5)
-        _kr_vals = [
-            float(t.extra.get("knowledge_retention", {}).get("retention_score"))
-            for t in tasks
-            if (t.extra or {}).get("knowledge_retention") is not None
-            and t.extra.get("knowledge_retention", {}).get("retention_score") is not None
-        ]
-        avg_knowledge_ret: Optional[float] = sum(_kr_vals) / len(_kr_vals) if _kr_vals else None
-
-        _a_vals: _List[float] = [tcr_pct_a / 100.0]
-        if avg_ifr is not None:
-            _a_vals.append(avg_ifr)
-        if avg_goal_a is not None:
-            _a_vals.append(avg_goal_a)
-        if avg_plan_a is not None:
-            _a_vals.append(avg_plan_a)
-        if avg_subtask is not None:
-            _a_vals.append(avg_subtask)
-        if avg_context_r is not None:
-            _a_vals.append(avg_context_r)
-        if avg_knowledge_ret is not None:
-            _a_vals.append(avg_knowledge_ret)
-
-        # AccuracyEvaluator → TCR 보정 (상관 중복 방지)
-        # completion_score(3-버킷)와 accuracy(4-metric 연속)는 같은 ground_truth 신호를 공유
-        # → 별도 컴포넌트 추가 대신, AccuracyEvaluator 정밀도로 TCR 컴포넌트를 블렌딩
-        _avg_accuracy_a: Optional[float] = None
-        try:
-            _acc_evals_a = self.accuracy_evaluator._evaluations
-            _acc_measured_a = [e for e in _acc_evals_a if e.get("accuracy") is not None]
-            if _acc_measured_a:
-                _acc_scores_a = self.accuracy_evaluator.get_accuracy_scores()
-                _avg_accuracy_a = float(_acc_scores_a.get("overall_accuracy", 0.0)) / 100.0
-                _a_vals[0] = 0.6 * _a_vals[0] + 0.4 * _avg_accuracy_a
-        except Exception:
-            pass
-
-        # ResponseQualityEvaluator → Gate A: relevance + completeness 차원 (0-5 → 0-1)
-        _rqe_a: Optional[float] = None
-        try:
-            _dim_avgs_q = self.quality_evaluator.get_quality_metrics().get("dimension_averages", {})
-            _rqe_q_scores = [
-                _dim_avgs_q[k] for k in ("relevance", "completeness")
-                if _dim_avgs_q.get(k) is not None
-            ]
-            if _rqe_q_scores:
-                _rqe_a = sum(_rqe_q_scores) / len(_rqe_q_scores) / 5.0  # 0-5 → 0-1
-        except Exception:
-            pass
-
-        if _rqe_a is not None:
-            _a_vals.append(_rqe_a)
-
-        # TCR은 Gate A 핵심 지표 — self._gate_a_tcr_weight(기본 0.4)로 Config 지표와 가중 평균
-        _tcr_component = _a_vals[0]
-        _config_components = _a_vals[1:]
-        if _config_components:
-            _config_avg = sum(_config_components) / len(_config_components)
-            _a_score = self._gate_a_tcr_weight * _tcr_component + (1.0 - self._gate_a_tcr_weight) * _config_avg
-        else:
-            _a_score = float(_tcr_component)
-
-        # ── B 그룹: 행동 무결성 (loop, goal_alignment, plan_coherence, state_consistency, deadlock) ──
-        _loop_counts = sum(
-            1 for t in tasks
-            if (t.extra or {}).get("loop_detection", {}).get("detected", False)
-        )
-        # LoopDetectionConfig가 설정된 태스크 수를 분모로 사용 — DeadlockConfig와 동일 패턴
-        # 전체 n을 사용하면 부분 배포 시 루프율이 희석되어 Gate B가 허위 부풀려짐
-        _n_loop_tasks = sum(1 for t in tasks if (t.extra or {}).get("loop_detection") is not None)
-        _loop_rate = _loop_counts / _n_loop_tasks if _n_loop_tasks > 0 else 0.0
-
-        # avg_goal_a / avg_plan_a: Gate A에서 이미 계산됨 — Gate B details에서 진단용으로 재참조
-        # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
-        _sc_scores = [
-            t.extra["state_consistency"]["consistency_score"]
-            for t in tasks
-            if (t.extra or {}).get("state_consistency") is not None
-            and t.extra["state_consistency"].get("consistency_score") is not None
-        ]
-        avg_sc = sum(_sc_scores) / len(_sc_scores) if _sc_scores else None
-        _deadlock_count = sum(
-            1 for t in tasks
-            if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
-        )
-        # DeadlockConfig가 설정된(deadlock extra 존재하는) 태스크 수: 분모 및 score 포함 여부 결정
-        _n_dl_tasks = sum(1 for t in tasks if (t.extra or {}).get("deadlock") is not None)
-        _deadlock_by_type: Dict[str, int] = {}
-        for _t in tasks:
-            _dl = (_t.extra or {}).get("deadlock", {})
-            if _dl.get("deadlock_detected") and _dl.get("deadlock_type"):
-                _dtype = str(_dl["deadlock_type"])
-                _deadlock_by_type[_dtype] = _deadlock_by_type.get(_dtype, 0) + 1
-
-        _scope_vals = [
-            float(t.extra.get("scope", {}).get("scope_score"))
-            for t in tasks
-            if (t.extra or {}).get("scope") is not None
-            and (t.extra or {}).get("scope", {}).get("scope_score") is not None
-        ]
-        avg_scope_score = sum(_scope_vals) / len(_scope_vals) if _scope_vals else None
-
-        # tool_parameter_safety → Group B (Phase 5)
-        _tps_vals = [
-            float(t.extra.get("tool_parameter_safety", {}).get("safety_score"))
-            for t in tasks
-            if (t.extra or {}).get("tool_parameter_safety") is not None
-            and (t.extra or {}).get("tool_parameter_safety", {}).get("safety_score") is not None
-        ]
-        avg_tool_param_safety: Optional[float] = (
-            sum(_tps_vals) / len(_tps_vals) if _tps_vals else None
+        # SPEC-000: gates/gate_a_goal/aggregate.py로 이관 — 로직 동일.
+        _a_group = gate_a_aggregate.compute(
+            tasks, self.tcr_tracker, self.accuracy_evaluator, self.quality_evaluator,
+            self._gate_a_tcr_weight, self._min_samples_default,
         )
 
-        # context_window → Group B (Phase 6)
-        _cw_scores = [
-            float(t.extra.get("context_window", {}).get("context_window_score"))
-            for t in tasks
-            if t.extra and t.extra.get("context_window")
-            and t.extra.get("context_window", {}).get("context_window_score") is not None
-        ]
-        _avg_context_window: Optional[float] = (
-            sum(_cw_scores) / len(_cw_scores) if _cw_scores else None
+        # ── B 그룹: 행동 무결성 (loop, state_consistency, deadlock, scope, tool_parameter_safety, context_window) ──
+        # SPEC-000: gates/gate_b_behavioral/aggregate.py로 이관 — 로직 동일.
+        # avg_goal_alignment/avg_plan_coherence는 Gate A(_a_group["details"])에서 진단용으로 재참조.
+        _b_group = gate_b_aggregate.compute(
+            tasks, self._gate_b_loop_weight, self._min_samples_default,
+            _a_group["details"]["avg_goal_alignment"], _a_group["details"]["avg_plan_coherence"],
         )
-
-        # avg_goal_align / avg_plan: Gate A 직접 기여 항목 — Gate B 이중 집계 제거 (진단 목적으로만 유지)
-        # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
-        # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
-        _has_loop_data = any((t.extra or {}).get("loop_detection") is not None for t in tasks)
-        _loop_score: Optional[float] = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
-        _deadlock_score: Optional[float] = (
-            max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
-        )
-        _other_bint_vals = [
-            v for v in [avg_sc, _deadlock_score, avg_scope_score, avg_tool_param_safety, _avg_context_window]
-            if v is not None
-        ]
-
-        _gate_b_lw = self._gate_b_loop_weight
-        if _gate_b_lw > 0.0 and _loop_score is not None and _other_bint_vals:
-            # 루프 감지 가중치 적용 — gate_a_tcr_weight·gate_c_tcr_weight와 동일 패턴
-            _bint_score: Optional[float] = (
-                _gate_b_lw * _loop_score
-                + (1.0 - _gate_b_lw) * (sum(_other_bint_vals) / len(_other_bint_vals))
-            )
-        elif _gate_b_lw > 0.0 and _loop_score is not None:
-            # 루프 데이터만 있는 경우 loop score 그대로
-            _bint_score = _loop_score
-        else:
-            # 기본값(0.0): 가용 지표 단순 평균 (backward compatible)
-            _all_bint = ([_loop_score] if _loop_score is not None else []) + _other_bint_vals
-            _bint_score = sum(_all_bint) / len(_all_bint) if _all_bint else None
 
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
-        tcr_pct = 0.0
-        try:
-            _tcr_stats = self.tcr_tracker.calculate_tcr()
-            tcr_pct = float(_tcr_stats.get("tcr", 0.0))
-        except Exception:
-            pass
-
-        # hall_rate: Gate C(신뢰성)와 Gate G(관측성) 양쪽에서 사용 — 여기서 한 번만 계산 (0-1 스케일)
-        # 실제 감지 건수가 있을 때만 설정 — 감지 자체가 없으면 None 유지 (점수에 미기여)
-        hall_rate = None
-        try:
-            if self.hallucination_detector._detections:
-                _hall_data = self.hallucination_detector.get_hallucination_rate()
-                _hall_overall = _hall_data.get("overall_rate")  # 0-100 percentage
-                if _hall_overall is not None:
-                    hall_rate = float(_hall_overall) / 100.0
-        except Exception:
-            pass
-
-        _rel_vals: _List[float] = [tcr_pct / 100.0]
-
-        _sla_results = [
-            t.extra["sla"]
-            for t in tasks
-            if (t.extra or {}).get("sla") is not None
-        ]
-        _sla_breach_count = sum(1 for s in _sla_results if not s.get("sla_met", True))
-        _sla_breach_rate = _sla_breach_count / len(_sla_results) if _sla_results else None
-        if _sla_breach_rate is not None:
-            _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
-
-        # breach_window/warn_threshold/fail_threshold: 최근 window 내 연속 breach 감지
-        _sla_window_penalty: float = 0.0
-        if _sla_results:
-            _sla_cfg_summary = next(
-                (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
-            )
-            _breach_window = int(_sla_cfg_summary.get("breach_window", 10))
-            _warn_thr = int(_sla_cfg_summary.get("warn_threshold", 2))
-            _fail_thr = int(_sla_cfg_summary.get("fail_threshold", 5))
-            _recent = _sla_results[-_breach_window:]
-            _recent_breach_count = sum(1 for s in _recent if not s.get("sla_met", True))
-            if _recent_breach_count >= _fail_thr:
-                _sla_window_penalty = 0.3   # Gate D 점수 30% 감점
-            elif _recent_breach_count >= _warn_thr:
-                _sla_window_penalty = 0.1   # 10% 감점
-
-        # budget_usd: 세션 전체 누적 비용 예산 초과 감지
-        _sla_budget_penalty: float = 0.0
-        if _sla_results:
-            _budget_usd = _sla_cfg_summary.get("budget_usd")
-            if _budget_usd is not None:
-                _total_session_cost = sum(
-                    float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
-                    for t in tasks
-                    if (t.extra or {}).get("sla") is not None
-                )
-                if _total_session_cost > float(_budget_usd):
-                    _overage = _total_session_cost / max(float(_budget_usd), 1e-9) - 1.0
-                    _sla_budget_penalty = min(0.3, _overage * 0.1)
-
-        # reproducibility → Group C
-        # C-3: run_count < 2 (skip_side_effects=True 또는 runs ≤ 1 오설정)이면
-        # compute_reproducibility_score는 score=1.0을 반환하지만 실제 재현성 측정이 이루어지지 않았음.
-        # 이 값을 Gate C에 포함하면 측정되지 않은 데이터가 점수를 인플레이션시키므로 제외한다.
-        _repro_scores = [
-            float(t.extra.get("reproducibility", {}).get("score"))
-            for t in tasks
-            if (t.extra or {}).get("reproducibility") is not None
-            and (t.extra or {}).get("reproducibility", {}).get("score") is not None
-            and int((t.extra or {}).get("reproducibility", {}).get("run_count", 2)) >= 2
-        ]
-        avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
-        if avg_reproducibility is not None:
-            _rel_vals.append(avg_reproducibility)
-
-        # fault_tolerance → Group C
-        # grade="none" 제외: tool_calls가 없어 평가 자체가 불가한 경우 집계에서 제외
-        # recovery_quality_score 우선 사용 (grade 세분화 반영: wrong_fallback=0.2 등)
-        # 없으면 raw recovery_rate 폴백
-        _ft_scores = []
-        for _ft_t in tasks:
-            _ft = (_ft_t.extra or {}).get("fault_tolerance")
-            # "none": tool_calls 없어 평가 불가 → 제외
-            # "untracked": check_fallback_attempts=False로 의도적 추적 비활성 → 제외
-            if _ft is None or _ft.get("grade") in ("none", "untracked"):
-                continue
-            _ft_sc = (
-                _ft["recovery_quality_score"]
-                if "recovery_quality_score" in _ft
-                else _ft.get("recovery_rate", 1.0)
-            )
-            _ft_scores.append(float(_ft_sc))
-        avg_ft: Optional[float] = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
-        if avg_ft is not None:
-            _rel_vals.append(avg_ft)
-
-        # graceful_degradation → Group C (Phase 4)
-        _deg_scores = [
-            float(t.extra.get("graceful_degradation", {}).get("degradation_score"))
-            for t in tasks
-            if (t.extra or {}).get("graceful_degradation") is not None
-            and (t.extra or {}).get("graceful_degradation", {}).get("degradation_score") is not None
-        ]
-        _avg_degradation: Optional[float] = sum(_deg_scores) / len(_deg_scores) if _deg_scores else None
-        if _avg_degradation is not None:
-            _rel_vals.append(_avg_degradation)
-
-        # retry_consistency → Group C (Phase 5)
-        # group_by_task_prefix=True: task_id 접두사 기준으로 그룹화 후 그룹별 평균 산출
-        _rc_tasks_with_score = [
-            t for t in tasks
-            if (t.extra or {}).get("retry_consistency") is not None
-        ]
-        _avg_retry_consistency: Optional[float] = None
-        if _rc_tasks_with_score:
-            _use_prefix = any(
-                (t.extra.get("retry_consistency") or {}).get("_config", {}).get("group_by_task_prefix", True)
-                for t in _rc_tasks_with_score
-            )
-            if _use_prefix:
-                # task_id를 '_' 기준으로 접두사별 그룹화 후 그룹별 평균 산출
-                # 정렬 후 첫→마지막 accuracy delta로 cross-task 개선/저하 보너스/페널티 적용
-                _rc_by_prefix: Dict[str, _List] = {}
-                for _t in _rc_tasks_with_score:
-                    _tid = str(getattr(_t, "task_id", "") or "")
-                    _parts = _tid.rsplit("_", 1)
-                    _prefix = _parts[0] if len(_parts) > 1 else _tid
-                    _sc = _t.extra["retry_consistency"].get("consistency_score")
-                    if _sc is not None:
-                        _rc_by_prefix.setdefault(_prefix, []).append({
-                            "score": float(_sc),
-                            "task_id": _tid,
-                            "accuracy": float(getattr(_t, "accuracy_score", 0.0) or 0.0),
-                            "config": (_t.extra["retry_consistency"].get("_config") or {}),
-                        })
-                _group_avgs = []
-                for _rc_entries in _rc_by_prefix.values():
-                    if not _rc_entries:
-                        continue
-                    _rc_entries.sort(key=lambda e: e["task_id"])
-                    _rc_avg = sum(e["score"] for e in _rc_entries) / len(_rc_entries)
-                    if len(_rc_entries) >= 2:
-                        _rc_cfg = _rc_entries[0]["config"]
-                        _imp_thr = float(_rc_cfg.get("improvement_threshold", 0.1))
-                        _penalize = bool(_rc_cfg.get("penalize_degradation", True))
-                        _acc_delta = _rc_entries[-1]["accuracy"] - _rc_entries[0]["accuracy"]
-                        if _acc_delta >= _imp_thr:
-                            _rc_avg = min(1.0, _rc_avg + 0.1)
-                        elif _acc_delta < -_imp_thr and _penalize:
-                            _rc_avg = max(0.0, _rc_avg - 0.1)
-                    _group_avgs.append(_rc_avg)
-                _avg_retry_consistency = sum(_group_avgs) / len(_group_avgs) if _group_avgs else None
-            else:
-                _rc_scores = [
-                    t.extra["retry_consistency"].get("consistency_score")
-                    for t in _rc_tasks_with_score
-                ]
-                _rc_scores_f = [s for s in _rc_scores if s is not None]
-                _avg_retry_consistency = sum(_rc_scores_f) / len(_rc_scores_f) if _rc_scores_f else None
-        if _avg_retry_consistency is not None:
-            _rel_vals.append(_avg_retry_consistency)
-
-        # idempotency → Group C (Phase 6)
-        _idem_scores = [
-            float(t.extra.get("idempotency", {}).get("idempotency_score"))
-            for t in tasks
-            if t.extra and t.extra.get("idempotency")
-            and t.extra.get("idempotency", {}).get("idempotency_score") is not None
-        ]
-        _avg_idempotency: Optional[float] = (
-            sum(_idem_scores) / len(_idem_scores) if _idem_scores else None
+        # SPEC-000: gates/gate_c_reliability/aggregate.py로 이관 — 로직 동일.
+        # SLA 공유 데이터는 compute_sla_shared_data()가 한 번 계산해 Gate C·D 양쪽에 전달한다.
+        _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks)
+        _c_group, _c_shared_raw = gate_c_aggregate.compute(
+            tasks, self.hallucination_detector, self.tcr_tracker,
+            self._gate_c_tcr_weight, self._min_samples_default, _sla_shared,
         )
-        if _avg_idempotency is not None:
-            _rel_vals.append(_avg_idempotency)
-
-        # 출력 사실 충실성 → Gate C (우선순위 대체: LLM Judge > HallucinationDetector)
-        # LLM Judge faithfulness(0–5)가 있으면 /5 정규화 후 사용; 없으면 1−hall_rate 폴백
-        _faith_scores = [
-            float(t.llm_judge["scores"]["faithfulness"])
-            for t in tasks
-            if getattr(t, "llm_judge", None)
-            and not (t.llm_judge or {}).get("skipped")
-            and isinstance((t.llm_judge or {}).get("scores", {}).get("faithfulness"), (int, float))
-        ]
-        _avg_llm_faithfulness: Optional[float] = (
-            sum(_faith_scores) / len(_faith_scores) if _faith_scores else None
-        )
-        if _avg_llm_faithfulness is not None:
-            _rel_vals.append(max(0.0, min(1.0, _avg_llm_faithfulness / 5.0)))
-        elif hall_rate is not None:
-            _rel_vals.append(max(0.0, 1.0 - float(hall_rate)))
-
-        # Gate C: TCR(index 0)와 Config 지표를 gate_c_tcr_weight로 가중 평균
-        # _rel_vals는 TCR로 항상 초기화되므로 항상 non-empty.
-        _tcr_c = _rel_vals[0]
-        _config_c_vals = _rel_vals[1:]
-        if _config_c_vals:
-            _config_c_avg = sum(_config_c_vals) / len(_config_c_vals)
-            _rel_score = (
-                self._gate_c_tcr_weight * _tcr_c
-                + (1.0 - self._gate_c_tcr_weight) * _config_c_avg
-            )
-        else:
-            _rel_score = float(_tcr_c)
-        # C-17: defense-in-depth — 이전 버전 저장 데이터 또는 예상치 못한 경로에서
-        # _rel_vals 원소가 1.0을 초과할 경우 최종 집계값도 1.0을 초과할 수 있음.
-        _rel_score = max(0.0, min(1.0, _rel_score))
+        # hall_rate/avg_llm_faithfulness: Gate G(미이관) 섹션이 반올림 없는 원본값을 재사용
+        hall_rate = _c_shared_raw["hall_rate"]
+        _avg_llm_faithfulness = _c_shared_raw["avg_llm_faithfulness"]
 
         # ── D 그룹: 성능 효율 (latency + efficiency) ──
-        _p95 = 0.0
-        try:
-            _lat_stats = self.latency_tracker.get_latency_stats()
-            _p95 = float(_lat_stats.get("p95", 0.0))
-        except Exception:
-            pass
-
-        # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
-        _eff_calibrated_vals: _List[float] = []
-        _eff_ratios_by_unit: Dict[str, _List[float]] = {}  # unit → ratios (단위 혼재 방지)
-        for _t in tasks:
-            _eff = ((_t.extra or {}).get("efficiency") or {})
-            if not _eff:
-                continue
-            if "calibrated_score" in _eff:
-                _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
-            _er = _eff.get("efficiency_ratio")
-            if _er is not None:  # cost_value=0(측정 불가) → None 제외
-                _unit = str(_eff.get("cost_unit") or "tokens")
-                _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
-        # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
-        _eff_ratios: _List[float] = max(
-            _eff_ratios_by_unit.values(), key=len, default=[]
+        # SPEC-000: gates/gate_d_performance/aggregate.py로 이관 — 로직 동일.
+        # SLA 공유 데이터(sla_results/sla_window_penalty/sla_budget_penalty/sla_warning)는
+        # Gate C(gate_c_aggregate.compute_sla_shared_data)가 계산한 값을 그대로 전달한다.
+        _d_group = gate_d_aggregate.compute(
+            tasks, self.latency_tracker, ttft_variability_config, cost_predictability_config,
+            self._min_samples_default, _sla_shared["sla_results"], _sla_shared["sla_window_penalty"],
+            _sla_shared["sla_budget_penalty"], _sla_shared["sla_warning"],
         )
-        _eff_cost_unit: str = (
-            max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
-            if _eff_ratios_by_unit else "tokens"
-        )
-        # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
-        if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
-            avg_eff_calibrated: Optional[float] = (
-                sum(_eff_calibrated_vals) / len(_eff_calibrated_vals)
-            )
-        else:
-            avg_eff_calibrated = None
-        avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
-
-        # resource_budget → Group D (Phase 4)
-        _rb_tasks = [t for t in tasks if (t.extra or {}).get("resource_budget") is not None]
-        _avg_budget: Optional[float] = None
-        if _rb_tasks:
-            _rb_cfg = (_rb_tasks[-1].extra.get("resource_budget") or {}).get("_config", {})
-            _use_rollover = bool(_rb_cfg.get("rollover", False))
-            if _use_rollover and (_rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms")):
-                # rollover=True: 태스크별 개별 예산 대신 세션 누적 소비를 전체 한도와 비교
-                _total_tokens_consumed = sum(
-                    float((t.extra["resource_budget"].get("_consumed") or {}).get("tokens", 0))
-                    for t in _rb_tasks
-                )
-                _total_cost_consumed = sum(
-                    float((t.extra["resource_budget"].get("_consumed") or {}).get("cost_usd", 0))
-                    for t in _rb_tasks
-                )
-                _total_time_consumed = sum(
-                    float((t.extra["resource_budget"].get("_consumed") or {}).get("time_ms", 0))
-                    for t in _rb_tasks
-                )
-                _n_tasks = max(len(_rb_tasks), 1)
-                # D-F: 총 한도는 태스크별 Config 합산 (last-task × n_tasks 오류 수정)
-                # 태스크마다 max_tokens 설정이 다를 수 있으므로 각 태스크의 Config 값을 개별 합산한다.
-                _max_tok = sum(
-                    int((t.extra["resource_budget"].get("_config") or {}).get("max_tokens") or 0)
-                    for t in _rb_tasks
-                )
-                _max_cost = sum(
-                    float((t.extra["resource_budget"].get("_config") or {}).get("max_cost_usd") or 0.0)
-                    for t in _rb_tasks
-                )
-                _max_time = sum(
-                    float(
-                        (t.extra["resource_budget"].get("_config") or {}).get("max_execution_time_ms") or 0.0
-                    )
-                    for t in _rb_tasks
-                )
-                _utils: _List[float] = []
-                if _max_tok > 0:
-                    _utils.append(_total_tokens_consumed / _max_tok)
-                if _max_cost > 0:
-                    _utils.append(_total_cost_consumed / _max_cost)
-                if _max_time > 0:
-                    _utils.append(_total_time_consumed / _max_time)
-                _avg_budget = max(0.0, 1.0 - max(_utils)) if _utils else None
-            else:
-                _budget_scores = [
-                    t.extra["resource_budget"].get("budget_score")
-                    for t in _rb_tasks
-                ]
-                _budget_scores_f = [s for s in _budget_scores if s is not None]
-                _avg_budget = sum(_budget_scores_f) / len(_budget_scores_f) if _budget_scores_f else None
-
-        # TTFT variability — TTFTVariabilityConfig 파라미터 우선 사용
-        _ttft_cfg = ttft_variability_config
-        _ttft_min_samples: int = int(getattr(_ttft_cfg, "min_samples", 5)) if _ttft_cfg else 5
-        _ttft_max_std: float = float(getattr(_ttft_cfg, "max_stddev_ms", 500.0)) if _ttft_cfg else 500.0
-        _ttft_max_ratio: float = float(getattr(_ttft_cfg, "max_p95_p50_ratio", 3.0)) if _ttft_cfg else 3.0
-        _ttft_remove_outliers: bool = bool(getattr(_ttft_cfg, "remove_outliers", True)) if _ttft_cfg else True
-
-        _ttft_values: _List[float] = []
-        for _t in tasks:
-            _ttft = None
-            if _t.extra:
-                _ttft = _t.extra.get("ttft_ms") or _t.extra.get("ttft")
-            if _ttft is not None:
-                try:
-                    _ttft_values.append(float(_ttft))
-                except (TypeError, ValueError):
-                    pass
-
-        # D-B: task.extra["ttft_ms"]에 데이터가 없으면 LatencyTracker._ttft_records를 폴백으로 사용.
-        # @agent_eval(ttft_seconds=N) 파라미터 또는 스트리밍 EvalStep이 측정한 per-task TTFT는
-        # LatencyTracker.track_ttft()에만 저장되고 task.extra에는 기록되지 않아
-        # TTFTVariabilityConfig가 완전히 작동하지 않는 문제를 수정한다.
-        # 폴백은 task.extra 데이터가 하나도 없을 때만 적용 (혼재 방지).
-        if not _ttft_values:
-            try:
-                for _rec in self.latency_tracker._ttft_records:
-                    _ttft_s = _rec.get("ttft")
-                    if _ttft_s is not None:
-                        _ttft_values.append(float(_ttft_s) * 1000.0)  # seconds → ms
-            except Exception:
-                pass
-
-        _avg_ttft_variability: Optional[float] = None
-        _ttft_stddev: Optional[float] = None
-        _ttft_p50: Optional[float] = None
-        _ttft_p95: Optional[float] = None
-        if len(_ttft_values) >= _ttft_min_samples:
-            _ttft_sorted = sorted(_ttft_values)
-            if _ttft_remove_outliers and len(_ttft_sorted) >= 4:
-                _q1 = _ttft_sorted[len(_ttft_sorted) // 4]
-                _q3 = _ttft_sorted[3 * len(_ttft_sorted) // 4]
-                _iqr = _q3 - _q1
-                _ttft_clean = [
-                    v for v in _ttft_sorted
-                    if _q1 - 1.5 * _iqr <= v <= _q3 + 1.5 * _iqr
-                ]
-            else:
-                _ttft_clean = _ttft_sorted
-
-            if len(_ttft_clean) >= 2:
-                _ttft_stddev = statistics.stdev(_ttft_clean)
-                _ttft_sorted_clean = sorted(_ttft_clean)
-                _n_clean = len(_ttft_sorted_clean)
-                # p50: 짝수 N에서 두 중앙값 평균 (정확한 중앙값)
-                _mid = _n_clean // 2
-                _ttft_p50 = (
-                    (_ttft_sorted_clean[_mid - 1] + _ttft_sorted_clean[_mid]) / 2.0
-                    if _n_clean % 2 == 0
-                    else _ttft_sorted_clean[_mid]
-                )
-                # p95: nearest-rank (ceil 기반) — int(0.95 * N)은 N=20n일 때 max를 반환하는 off-by-one 있음
-                _p95_idx = min(int(math.ceil(0.95 * _n_clean)) - 1, _n_clean - 1)
-                _ttft_p95 = _ttft_sorted_clean[_p95_idx]
-                _ttft_ratio = _ttft_p95 / max(_ttft_p50, 1.0)
-                _std_score = max(0.0, 1.0 - _ttft_stddev / max(_ttft_max_std, 1.0))
-                _ratio_score = min(1.0, max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_ttft_max_ratio - 1.0, 1.0)))
-                _avg_ttft_variability = (_std_score + _ratio_score) / 2.0
-
-        # cost_predictability — CostPredictabilityConfig 파라미터 우선 사용
-        _cost_cfg = cost_predictability_config
-        _cost_min_samples: int = int(getattr(_cost_cfg, "min_samples", 5)) if _cost_cfg else 5
-        _cost_max_cv: float = float(getattr(_cost_cfg, "max_coefficient_of_variation", 0.3)) if _cost_cfg else 0.3
-        _cost_metric: str = str(getattr(_cost_cfg, "cost_metric", "tokens")) if _cost_cfg else "tokens"
-        _outlier_mult: float = float(getattr(_cost_cfg, "outlier_multiplier", 3.0)) if _cost_cfg else 3.0
-
-        def _filter_outliers(values: _List[float], multiplier: float) -> _List[float]:
-            """mean ± multiplier * std 범위 밖의 값을 제거한다."""
-            if len(values) < 4:
-                return values
-            _mean = statistics.mean(values)
-            _std = statistics.stdev(values)
-            if _std == 0:
-                return values
-            return [v for v in values if abs(v - _mean) <= multiplier * _std]
-
-        _avg_cost_predictability: Optional[float] = None
-        if len(tasks) >= _cost_min_samples:
-            _costs_by_type: Dict[str, _List[float]] = {}
-            for _ct in tasks:
-                _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
-                # cost_metric: "tokens" | "usd" | "time_ms"
-                if _cost_metric == "usd":
-                    _cv_cost = float((_ct.extra or {}).get("cost_usd") or 0.0)
-                elif _cost_metric == "time_ms":
-                    _cv_cost = float((_ct.execution_time or 0.0) * 1000.0)
-                else:  # "tokens" (default)
-                    _tu = _ct.tokens_used or 0
-                    if isinstance(_tu, dict):
-                        # D-1: `_tu.get("total") or (input+output)` 패턴은 total=0(명시적 0토큰)을
-                        # falsy로 처리해 input+output 합산으로 폴백 → CV 집계 왜곡.
-                        # None-only 폴백으로 수정 (BUG-C23과 동일 패턴).
-                        _raw_total_cv = _tu.get("total")
-                        if _raw_total_cv is not None:
-                            try:
-                                _cv_cost = float(_raw_total_cv)
-                            except (TypeError, ValueError):
-                                _cv_cost = 0.0
-                        else:
-                            _cv_cost = float(
-                                _tu.get("input", 0) + _tu.get("output", 0)
-                            )
-                    else:
-                        try:
-                            _cv_cost = float(_tu)
-                        except (TypeError, ValueError):
-                            _cv_cost = 0.0
-                # 미측정(None→0.0) 태스크를 집계에 포함하면 CV가 허위 팽창하므로 제외
-                if _cv_cost <= 0.0:
-                    continue
-                _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
-            _cv_scores_d: _List[float] = []
-            for _costs_list in _costs_by_type.values():
-                # outlier_multiplier로 이상치 제거 후 CV 계산
-                _filtered = _filter_outliers(_costs_list, _outlier_mult)
-                if len(_filtered) >= 2:
-                    _cv_mean = statistics.mean(_filtered)
-                    if _cv_mean > 0:
-                        _cv_std = statistics.stdev(_filtered)
-                        _cv_val = _cv_std / _cv_mean
-                        # Config의 max_cv를 임계값으로 사용: CV가 max_cv 이하면 1.0
-                        _cv_score_d = max(0.0, 1.0 - _cv_val / max(_cost_max_cv, 0.01))
-                        _cv_scores_d.append(_cv_score_d)
-            if _cv_scores_d:
-                _avg_cost_predictability = sum(_cv_scores_d) / len(_cv_scores_d)
-
-        # ── D 그룹: insufficient_data 경고 수집 ──
-        _d_insufficient: _List[str] = []
-        if _ttft_values and len(_ttft_values) < _ttft_min_samples:
-            _d_insufficient.append(
-                f"ttft_variability: {len(_ttft_values)} samples < min_samples={_ttft_min_samples}"
-            )
-        # 아웃라이어 제거 후 2개 미만 남을 때 — _avg_ttft_variability=None으로 조용히 제외되므로 경고 추가
-        elif (
-            _ttft_values
-            and len(_ttft_values) >= _ttft_min_samples
-            and _avg_ttft_variability is None
-        ):
-            _d_insufficient.append(
-                f"ttft_variability: outlier removal reduced {len(_ttft_values)} samples to < 2 "
-                f"(remove_outliers={_ttft_remove_outliers}) — score excluded from Gate D"
-            )
-        if len(tasks) < _cost_min_samples:
-            _d_insufficient.append(
-                f"cost_predictability: {len(tasks)} tasks < min_samples={_cost_min_samples}"
-            )
-        if _sla_results and len(_sla_results) < 5:
-            _d_insufficient.append(
-                f"sla: {len(_sla_results)} samples < recommended_min=5"
-            )
-
-        _perf_vals: _List[float] = []
-        if _p95 > 0:
-            # SLAConfig.p95_ms 전체 평균을 임계값으로 사용 (태스크별 설정 혼재 시 last-task-wins 방지)
-            # 없으면 기본 10s 기준
-            _p95_threshold_s = 10.0
-            if _sla_results:
-                _p95_ms_values = [
-                    float(s["_config"]["p95_ms"])
-                    for s in _sla_results
-                    if s.get("_config") and s["_config"].get("p95_ms") is not None
-                ]
-                if _p95_ms_values:
-                    _p95_threshold_s = sum(_p95_ms_values) / len(_p95_ms_values) / 1000.0
-            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / max(_p95_threshold_s, 1.0))))
-        if avg_eff_calibrated is not None:
-            # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
-            _perf_vals.append(avg_eff_calibrated)
-        elif avg_eff_ratio is not None:
-            # Normalize: token/time_ms ratio ~0.001 maps to 1.0.
-            # USD ratio is ~100-1000; $0.01/completion = threshold (ratio=100 → 1.0).
-            if _eff_cost_unit == "usd":
-                _norm_eff = min(1.0, avg_eff_ratio * 0.01)
-            else:
-                _norm_eff = min(1.0, avg_eff_ratio * 1000.0)
-            _perf_vals.append(_norm_eff)
-        if _avg_budget is not None:
-            _perf_vals.append(_avg_budget)
-        if _avg_ttft_variability is not None:
-            _perf_vals.append(_avg_ttft_variability)
-        if _avg_cost_predictability is not None:
-            _perf_vals.append(_avg_cost_predictability)
-        _perf_score: Optional[float] = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
-        # SLA breach_window/budget_usd 패널티 적용 (데이터 있을 때만)
-        if _perf_score is not None:
-            _perf_score = max(0.0, _perf_score - _sla_window_penalty - _sla_budget_penalty)
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
-        # threat_count를 task.extra에서 직접 계산 (security_metrics에 해당 키 없음)
-        sec_threats = sum(
-            1 for t in tasks
-            if (t.extra or {}).get("input_sanitization", {}).get("sanitization_needed")
-            or int((t.extra or {}).get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
-            or (t.extra or {}).get("privilege_escalation", {}).get("escalation_detected")
-            or (t.extra or {}).get("tool_chain_attack", {}).get("is_suspicious_chain")
-            # BUG-E11: BUG-E4 이후 unauthorized_calls는 순수 미허가 호출만 저장.
-            # total_violations(전체 위반)를 우선 사용하고 레거시 키로 폴백.
-            or int(
-                (t.extra or {}).get("tool_authorization", {}).get("total_violations")
-                or (t.extra or {}).get("tool_authorization", {}).get("unauthorized_calls")
-                or 0
-            ) > 0
+        # SPEC-000: gates/gate_e_security/aggregate.py로 이관 — 로직 동일.
+        _e_group = gate_e_aggregate.compute(
+            tasks, self.enable_security_metrics, self._min_samples_default,
         )
-        _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
-        # CVSS weighted_score는 여러 위협의 합산이므로 10.0으로 캡핑 후 정규화
-        _cvss_scores = [
-            min(float(t.extra.get("threat_severity", {}).get("weighted_score")), 10.0)
-            for t in tasks
-            if (t.extra or {}).get("threat_severity") is not None
-            and (t.extra or {}).get("threat_severity", {}).get("weighted_score") is not None
-        ]
-        # compliance → Group E (Phase 4)
-        _compliance_scores = [
-            float(t.extra.get("compliance", {}).get("compliance_score"))
-            for t in tasks
-            if (t.extra or {}).get("compliance") is not None
-            and (t.extra or {}).get("compliance", {}).get("compliance_score") is not None
-        ]
-        _avg_compliance: Optional[float] = (
-            sum(_compliance_scores) / len(_compliance_scores) if _compliance_scores else None
-        )
-
-        # Native security tracker data (Phase 5 — already stored in TaskResult.extra)
-        _native_e_scores: _List[float] = []
-
-        _priv_esc_count = sum(
-            1 for t in tasks
-            if t.extra and t.extra.get("privilege_escalation", {}).get("escalation_detected")
-        )
-        if _priv_esc_count > 0 or any(t.extra and "privilege_escalation" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - _priv_esc_count / max(n, 1)))
-
-        _chain_attack_count = sum(
-            1 for t in tasks
-            if t.extra and t.extra.get("tool_chain_attack", {}).get("is_suspicious_chain")
-        )
-        if _chain_attack_count > 0 or any(t.extra and "tool_chain_attack" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - _chain_attack_count / max(n, 1)))
-
-        # E-5: leakage_count/threat_count를 태스크 내 유형 합산(최대 12/10)으로 쓰면
-        # 단일 태스크에서 유형이 많을수록 n배 과도한 패널티가 발생해 binary 카운팅인
-        # _priv_esc_count/_chain_attack_count와 일관성이 없어진다.
-        # 태스크 수준 binary(0/1)로 집계해 "유출이 있었던 태스크 수"로 정규화.
-        _leakage_count = sum(
-            1 for t in tasks
-            if t.extra and int(t.extra.get("output_leakage", {}).get("leakage_count", 0) or 0) > 0
-        )
-        if any(t.extra and "output_leakage" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - _leakage_count / max(n, 1)))
-
-        _injection_count = sum(
-            1 for t in tasks
-            if t.extra and int(t.extra.get("input_sanitization", {}).get("threat_count", 0) or 0) > 0
-        )
-        if any(t.extra and "input_sanitization" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - _injection_count / max(n, 1)))
-
-        # tool_authorization 위반 → _native_e_scores 반영 (5번째 보안 Tracker)
-        # E-4: unauthorized_calls는 "허가 목록 외" 위반만 포함 — restricted_calls(명시 차단)와
-        # dangerous_param_calls(위험 파라미터)는 별도 저장만 되고 집계되지 않아 Gate E 오탐.
-        # total_violations (= unauthorized + restricted + dangerous)를 우선 사용하되,
-        # 사용자가 직접 extra를 주입한 경우(total_violations 없음)를 위해 unauthorized_calls로 폴백.
-        _unauth_count = sum(
-            int(
-                t.extra.get("tool_authorization", {}).get("total_violations")
-                or t.extra.get("tool_authorization", {}).get("unauthorized_calls")
-                or 0
-            )
-            for t in tasks if t.extra
-        )
-        if any(t.extra and "tool_authorization" in t.extra for t in tasks):
-            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _unauth_count / max(n, 1))))
-
-        # _sec_score_raw: 트래커가 활성화되어 있고 per-tracker 점수(_native_e_scores)가 없을 때만 포함.
-        # _native_e_scores가 있으면 동일 이벤트가 이중 집계되므로 제외.
-        # enable_security_metrics=False이면 sec_threats=0 → _sec_score_raw=1.0 고정(무의미) → 제외.
-        _include_sec_raw = self.enable_security_metrics and not _native_e_scores
-        if _cvss_scores:
-            avg_cvss = sum(_cvss_scores) / len(_cvss_scores)
-            _cvss_normalized = max(0.0, 1.0 - avg_cvss / 10.0)
-            _e_base_scores: _List[float] = (
-                [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
-            )
-            if _avg_compliance is not None:
-                _e_base_scores.append(_avg_compliance)
-        elif _avg_compliance is not None:
-            _e_base_scores = (
-                [_sec_score_raw, _avg_compliance] if _include_sec_raw else [_avg_compliance]
-            )
-        else:
-            _e_base_scores = [_sec_score_raw] if _include_sec_raw else []
-
-        # threat_response → Group E (Phase 6)
-        _tr_scores = [
-            float(t.extra.get("threat_response", {}).get("response_score"))
-            for t in tasks
-            if t.extra and t.extra.get("threat_response")
-            and t.extra.get("threat_response", {}).get("response_score") is not None
-        ]
-        _avg_threat_response: Optional[float] = (
-            sum(_tr_scores) / len(_tr_scores) if _tr_scores else None
-        )
-
-        # enable_security_metrics=False + 보안 Harness Config 데이터 없음 → 측정값 없음 → None
-        # (보안 비활성 상태의 _sec_score_raw=1.0이 Gate E를 무조건 통과시키는 오탐 방지)
-        _has_security_config_data = bool(
-            _cvss_scores
-            or _avg_compliance is not None
-            or _avg_threat_response is not None
-            or _native_e_scores
-        )
-        _sec_score: Optional[float]
-        if not self.enable_security_metrics and not _has_security_config_data:
-            _sec_score = None
-        else:
-            _all_e_scores = _e_base_scores + _native_e_scores
-            if _avg_threat_response is not None:
-                _all_e_scores = _all_e_scores + [_avg_threat_response]
-            _sec_score = sum(_all_e_scores) / len(_all_e_scores)
 
         # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
-        _tool_coverage: Optional[float] = None
-        try:
-            _tc_stats = self.tool_call_analyzer.get_efficiency_stats()
-            if _tc_stats.get("total_calls", 0) > 0:
-                _tool_coverage = _tc_stats.get("success_rate", 0.0) / 100.0
-        except Exception:
-            pass
-
-        _obs_custom_scores = [
-            s for s in (
-                (t.extra or {}).get("observability", {}).get("observability_score")
-                for t in tasks
-                if (t.extra or {}).get("observability") is not None
-            ) if s is not None
-        ]
-        avg_obs_custom = sum(_obs_custom_scores) / len(_obs_custom_scores) if _obs_custom_scores else None
-
-        _expl_vals = [
-            s for s in (
-                (t.extra or {}).get("explainability", {}).get("score")
-                for t in tasks
-                if (t.extra or {}).get("explainability") is not None
-            ) if s is not None
-        ]
-        avg_explainability: Optional[float] = sum(_expl_vals) / len(_expl_vals) if _expl_vals else None
-
-        # error_diagnosis → Group G (Phase 5)
-        _ed_scores = [
-            s for s in (
-                t.extra.get("error_diagnosis", {}).get("diagnosis_score")
-                for t in tasks
-                if (t.extra or {}).get("error_diagnosis") is not None
-            ) if s is not None
-        ]
-        avg_error_diagnosis: Optional[float] = (
-            sum(_ed_scores) / len(_ed_scores) if _ed_scores else None
+        # SPEC-000: gates/gate_g_observability/aggregate.py로 이관 — 로직 동일.
+        # hall_rate/avg_llm_faithfulness는 Gate C(gate_c_aggregate.compute)의 shared_raw를
+        # 파라미터로 전달받는다(반올림 없는 원본값 — 이중 반올림에 의한 정밀도 손실 방지).
+        # SPEC-011: "tool_call_analyzer"는 PerformanceMonitor에 존재한 적 없는 속성명(오탈자)이었다
+        # (실제는 self.tool_analyzer) — SPEC-000 이관 전에도 항상 AttributeError가 지역 try/except에
+        # 삼켜져 tool_coverage가 한 번도 계산되지 않고 항상 None이었다. 여기서 실제 속성으로 수정한다.
+        _g_group = gate_g_aggregate.compute(
+            tasks, self.tool_analyzer, self._min_samples_default,
+            hall_rate, _avg_llm_faithfulness,
         )
-
-        # latency_attribution → Group G (Phase 6)
-        _la_scores = [
-            s for s in (
-                t.extra.get("latency_attribution", {}).get("attribution_score")
-                for t in tasks
-                if t.extra and t.extra.get("latency_attribution")
-            ) if s is not None
-        ]
-        _avg_latency_attribution: Optional[float] = (
-            sum(_la_scores) / len(_la_scores) if _la_scores else None
-        )
-
-        _obs_vals: _List[float] = []
-        if _tool_coverage is not None:
-            _obs_vals.append(_tool_coverage)
-        # hall_rate → Gate G: LLMJudge faithfulness 비활성 시에만 사용
-        # (LLMJudge 활성 시 faithfulness가 Gate C에 귀속되므로 Gate G 이중 반영 방지)
-        if hall_rate is not None and _avg_llm_faithfulness is None:
-            _obs_vals.append(max(0.0, 1.0 - float(hall_rate)))
-        if avg_obs_custom is not None:
-            _obs_vals.append(avg_obs_custom)
-        if avg_explainability is not None:
-            _obs_vals.append(avg_explainability)
-        if avg_error_diagnosis is not None:
-            _obs_vals.append(avg_error_diagnosis)
-        if _avg_latency_attribution is not None:
-            _obs_vals.append(_avg_latency_attribution)
-        _obs_score: Optional[float] = sum(_obs_vals) / len(_obs_vals) if _obs_vals else None
 
         # ── F 그룹: 멀티에이전트 조율 ──
-        # Fix1+2: self.coordination_tracker(없는 속성) + get_coordination_stats()(없는 메서드) 수정
-        # calculate_coordination_score()의 overall_score(0-10)를 /10으로 정규화
-        _coord_data: Optional[float] = None
-        try:
-            _coord_score_data = self.agent_coordination_tracker.calculate_coordination_score()
-            if _coord_score_data.get("total_interactions", 0) > 0:
-                _coord_data = float(min(1.0, max(0.0,
-                    _coord_score_data.get("overall_score", 0.0) / 10.0
-                )))
-        except Exception:
-            pass
-
-        # Fix7: ToolSelectionTracker → Gate F (avg_f1_score 0-100 → /100 정규화)
-        _ts_data: Optional[float] = None
-        try:
-            _ts_stats = self.tool_selection_tracker.get_accuracy_stats()
-            if _ts_stats.get("total_evaluations", 0) > 0:
-                _ts_f1 = _ts_stats.get("avg_f1_score")
-                if _ts_f1 is not None:
-                    _ts_data = float(min(1.0, max(0.0, _ts_f1 / 100.0)))
-        except Exception:
-            pass
-
-        _consensus_scores = [
-            float(t.extra.get("consensus", {}).get("consensus_score"))
-            for t in tasks
-            if (t.extra or {}).get("consensus") is not None
-            and (t.extra or {}).get("consensus", {}).get("consensus_score") is not None
-            # method="single": 단일 에이전트 → 합의 측정 불가 → Gate F 집계에서 제외
-            and (t.extra or {}).get("consensus", {}).get("method") != "single"
-        ]
-        avg_consensus: Optional[float] = sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
-
-        _prop_vals = [
-            float(t.extra.get("propagation", {}).get("fidelity_score"))
-            for t in tasks
-            if (t.extra or {}).get("propagation") is not None
-            and (t.extra or {}).get("propagation", {}).get("fidelity_score") is not None
-        ]
-        avg_propagation: Optional[float] = sum(_prop_vals) / len(_prop_vals) if _prop_vals else None
-
-        # agent_role → Group F (Phase 4)
-        _role_scores = [
-            float(t.extra.get("agent_role", {}).get("role_compliance_score"))
-            for t in tasks
-            if (t.extra or {}).get("agent_role") is not None
-            and (t.extra or {}).get("agent_role", {}).get("role_compliance_score") is not None
-        ]
-        _avg_role: Optional[float] = sum(_role_scores) / len(_role_scores) if _role_scores else None
-
-        # conflict_resolution → Group F (Phase 4)
-        _conflict_scores = [
-            float(t.extra.get("conflict_resolution", {}).get("resolution_score"))
-            for t in tasks
-            if (t.extra or {}).get("conflict_resolution") is not None
-            and (t.extra or {}).get("conflict_resolution", {}).get("resolution_score") is not None
-        ]
-        _avg_conflict_res: Optional[float] = (
-            sum(_conflict_scores) / len(_conflict_scores) if _conflict_scores else None
+        # SPEC-000 Commit 1: gates/gate_f_multiagent/aggregate.py로 이관 — 로직 동일,
+        # 4개 task 기반 지표만 단일 패스로 병합(REQ-2 일부 흡수).
+        _f_group = gate_f_aggregate.compute(
+            tasks, self.agent_coordination_tracker, self.tool_selection_tracker,
+            self._min_samples_default,
         )
 
-        _f_vals: _List[float] = []
-        if _coord_data is not None:
-            _f_vals.append(_coord_data)
-        if _ts_data is not None:
-            _f_vals.append(_ts_data)
-        if avg_consensus is not None:
-            _f_vals.append(avg_consensus)
-        if avg_propagation is not None:
-            _f_vals.append(avg_propagation)
-        if _avg_role is not None:
-            _f_vals.append(_avg_role)
-        if _avg_conflict_res is not None:
-            _f_vals.append(_avg_conflict_res)
-        _f_score: Optional[float] = float(sum(_f_vals) / len(_f_vals)) if _f_vals else None
-
         # ── 그룹별 결과 모음 ──
-        _a_s = round(_a_score, 4)
-        _b_s = round(float(_bint_score), 4) if _bint_score is not None else None
-        _c_s = round(float(_rel_score), 4)
-        _d_s = round(float(_perf_score), 4) if _perf_score is not None else None
-        _e_s = round(float(_sec_score), 4) if _sec_score is not None else None
-        _f_s = round(_f_score, 4) if _f_score is not None else None
-        # _obs_score=None이면 Gate G 데이터 없음 → _scored에서 제외
-        _g_s = round(float(_obs_score), 4) if _obs_score is not None else None
+        _a_s = _a_group["score"]  # SPEC-000: gates/gate_a_goal/aggregate.py가 이미 반올림
+        _b_s = _b_group["score"]  # SPEC-000: gates/gate_b_behavioral/aggregate.py가 이미 반올림
+        _c_s = _c_group["score"]  # SPEC-000: gates/gate_c_reliability/aggregate.py가 이미 반올림
+        _d_s = _d_group["score"]  # SPEC-000: gates/gate_d_performance/aggregate.py가 이미 반올림
+        _e_s = _e_group["score"]  # SPEC-000: gates/gate_e_security/aggregate.py가 이미 반올림
+        _f_s = _f_group["score"]  # SPEC-000: gates/gate_f_multiagent/aggregate.py가 이미 반올림
+        _g_s = _g_group["score"]  # SPEC-000: gates/gate_g_observability/aggregate.py가 이미 반올림
 
         # overall: 유효 그룹 점수 평균
         _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]
         _overall_score = round(float(sum(_scored) / len(_scored)), 4) if _scored else 0.0
-
-        def _g(score, name, details, f_score=False):
-            """그룹 딕셔너리 생성 헬퍼 — status와 gate 키를 동시에 출력."""
-            _st = (_status(score) if not f_score else (_status(score) if score is not None else "n/a"))
-            return {"name": name, "score": score, "status": _st, "gate": _st, "details": details}
+        # _g: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
 
         groups: Dict[str, Any] = {
-            "A": _g(_a_s, "Goal Achievement", {
-                "tcr_pct": round(tcr_pct_a, 2),
-                "avg_accuracy": round(_avg_accuracy_a, 4) if _avg_accuracy_a is not None else None,
-                "avg_quality_relevance_completeness": round(_rqe_a, 4) if _rqe_a is not None else None,
-                "gate_a_tcr_weight": self._gate_a_tcr_weight,
-                "tasks_with_ifr": len(_ifr_scores),
-                "avg_instruction_adherence": round(avg_ifr, 4) if avg_ifr is not None else None,
-                "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
-                "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
-                "avg_subtask_completion": round(avg_subtask, 4) if avg_subtask is not None else None,
-                "avg_context_retention": round(avg_context_r, 4) if avg_context_r is not None else None,
-                "avg_knowledge_retention": round(avg_knowledge_ret, 4) if avg_knowledge_ret is not None else None,
-            }),
-            "B": _g(_b_s, "Behavioral Integrity", {
-                "loop_detection_rate": round(_loop_rate, 4),
-                "loop_count": _loop_counts,
-                "gate_b_loop_weight": self._gate_b_loop_weight,
-                # 아래 두 항목은 Gate A 계산값 재참조(진단용) — Gate B 점수에는 포함되지 않는다.
-                "gate_a_ref__avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
-                "gate_a_ref__avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
-                "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
-                "deadlock_count": _deadlock_count,
-                "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
-                "avg_deadlock_score": round(max(0.0, 1.0 - _deadlock_count / max(_n_dl_tasks, 1)), 4) if _n_dl_tasks > 0 else None,
-                "avg_scope_score": round(avg_scope_score, 4) if avg_scope_score is not None else None,
-                "avg_tool_parameter_safety": round(avg_tool_param_safety, 4) if avg_tool_param_safety is not None else None,
-                "avg_context_window": round(_avg_context_window, 4) if _avg_context_window is not None else None,
-            }),
-            "C": _g(_c_s, "Reliability", {
-                "tcr_pct": round(tcr_pct, 2),
-                "gate_c_tcr_weight": self._gate_c_tcr_weight,
-                "sla_breach_rate": round(_sla_breach_rate, 4) if _sla_breach_rate is not None else None,
-                "sla_breach_count": _sla_breach_count if _sla_results else None,
-                "avg_reproducibility": round(avg_reproducibility, 4) if avg_reproducibility is not None else None,
-                "avg_fault_tolerance": round(avg_ft, 4) if avg_ft is not None else None,
-                "avg_degradation": round(_avg_degradation, 4) if _avg_degradation is not None else None,
-                "avg_retry_consistency": round(_avg_retry_consistency, 4) if _avg_retry_consistency is not None else None,
-                "avg_idempotency": round(_avg_idempotency, 4) if _avg_idempotency is not None else None,
-                "avg_llm_faithfulness": round(_avg_llm_faithfulness, 4) if _avg_llm_faithfulness is not None else None,
-                "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
-            }),
-            "D": _g(_d_s, "Performance Contract", {
-                "p95_latency_s": round(_p95, 4),
-                # calibrated_score 우선 사용 시 두 값 모두 노출 (역추적 가능성 확보)
-                "avg_efficiency_calibrated_score": round(avg_eff_calibrated, 4) if avg_eff_calibrated is not None else None,
-                "avg_efficiency_ratio": round(avg_eff_ratio, 8) if avg_eff_ratio is not None else None,
-                "avg_budget_score": round(_avg_budget, 4) if _avg_budget is not None else None,
-                "ttft_variability_score": round(_avg_ttft_variability, 4) if _avg_ttft_variability is not None else None,
-                "ttft_stddev_ms": round(_ttft_stddev, 4) if _ttft_stddev is not None else None,
-                "ttft_p50_ms": round(_ttft_p50, 4) if _ttft_p50 is not None else None,
-                "ttft_p95_ms": round(_ttft_p95, 4) if _ttft_p95 is not None else None,
-                "avg_cost_predictability": round(_avg_cost_predictability, 4) if _avg_cost_predictability is not None else None,
-                "insufficient_data_warnings": _d_insufficient if _d_insufficient else None,
-            }),
-            "E": _g(_e_s, "Security Boundary", {
-                "threat_count": sec_threats,
-                # 보고서 수식 표시와 실제 계산이 일치하도록 방어율을 미리 계산해서 저장
-                "threat_free_rate": round(_sec_score_raw, 4),
-                "avg_cvss_weighted_score": round(sum(_cvss_scores) / len(_cvss_scores), 4) if _cvss_scores else None,
-                "avg_compliance_score": round(_avg_compliance, 4) if _avg_compliance is not None else None,
-                "privilege_escalation_rate": round(_priv_esc_count / max(n, 1), 4),
-                "chain_attack_rate": round(_chain_attack_count / max(n, 1), 4),
-                "leakage_count": _leakage_count,
-                "leakage_defense_rate": round(max(0.0, 1.0 - min(1.0, _leakage_count / max(n, 1))), 4)
-                    if any(t.extra and "output_leakage" in t.extra for t in tasks) else None,
-                "injection_count": _injection_count,
-                "injection_defense_rate": round(max(0.0, 1.0 - min(1.0, _injection_count / max(n, 1))), 4)
-                    if any(t.extra and "input_sanitization" in t.extra for t in tasks) else None,
-                "unauthorized_calls_count": _unauth_count,
-                "tool_authorization_rate": round(1.0 - min(1.0, _unauth_count / max(n, 1)), 4)
-                    if any(t.extra and "tool_authorization" in t.extra for t in tasks) else None,
-                "avg_threat_response": round(_avg_threat_response, 4) if _avg_threat_response is not None else None,
-            }),
-            "F": _g(_f_s, "Multi-Agent Coordination", {
-                "coordination_score": round(_coord_data, 4) if _coord_data is not None else None,
-                "avg_tool_selection_f1": round(_ts_data, 4) if _ts_data is not None else None,
-                "avg_consensus": round(avg_consensus, 4) if avg_consensus is not None else None,
-                "avg_propagation": round(avg_propagation, 4) if avg_propagation is not None else None,
-                "avg_role_compliance": round(_avg_role, 4) if _avg_role is not None else None,
-                "avg_conflict_resolution": round(_avg_conflict_res, 4) if _avg_conflict_res is not None else None,
-            }, f_score=True),
-            "G": _g(_g_s, "Observability", {
-                "tool_coverage": round(_tool_coverage, 4) if _tool_coverage is not None else None,
-                "hallucination_rate": round(hall_rate, 4) if hall_rate is not None else None,
-                "avg_observability_score": round(avg_obs_custom, 4) if avg_obs_custom is not None else None,
-                "avg_explainability": round(avg_explainability, 4) if avg_explainability is not None else None,
-                "avg_error_diagnosis": round(avg_error_diagnosis, 4) if avg_error_diagnosis is not None else None,
-                "avg_latency_attribution": round(_avg_latency_attribution, 4) if _avg_latency_attribution is not None else None,
-            }),
+            "A": _a_group,  # SPEC-000: gates/gate_a_goal/aggregate.py가 완전한 그룹 dict를 반환
+            "B": _b_group,  # SPEC-000: gates/gate_b_behavioral/aggregate.py가 완전한 그룹 dict를 반환
+            "C": _c_group,  # SPEC-000: gates/gate_c_reliability/aggregate.py가 완전한 그룹 dict를 반환
+            "D": _d_group,  # SPEC-000: gates/gate_d_performance/aggregate.py가 완전한 그룹 dict를 반환
+            "E": _e_group,  # SPEC-000: gates/gate_e_security/aggregate.py가 완전한 그룹 dict를 반환
+            "F": _f_group,  # SPEC-000: gates/gate_f_multiagent/aggregate.py가 완전한 그룹 dict를 반환
+            "G": _g_group,  # SPEC-000: gates/gate_g_observability/aggregate.py가 완전한 그룹 dict를 반환
             "overall": {
                 "score": _overall_score,
                 "status": _status(_overall_score),

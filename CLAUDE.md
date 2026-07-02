@@ -70,8 +70,61 @@ Layer 3 — Hybrid (optional deps: DeepEval / Ragas)
 
 ```
 agent_evaluator/
-├── decorators.py          # agent_eval · batch_eval · conversation_eval + 33 Harness Config dataclasses
+├── decorators.py          # agent_eval · batch_eval · conversation_eval + Harness Config dataclasses
+│                          # (SPEC-000 완료(2026-07-02) — 33개 Config 전부 gates/gate_x/configs.py로
+│                          #  이관, decorators.py에는 re-export만 남음)
 │                          # EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder
+├── gates/                 # SPEC-000: Gate 단위 패키지 (Strangler Fig 이관 완료 — A~G 전체 7개 Gate)
+│   ├── base.py            # 전 Gate 공유 인프라 — _min_sample_warning · _status · _g
+│   ├── gate_a_goal/       # Gate A(Goal Achievement) — 완료
+│   │   ├── configs.py      # InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig ·
+│   │   │                   # ContextRetentionConfig · KnowledgeRetentionConfig
+│   │   ├── evaluators.py   # eval_instruction_adherence · eval_goal_alignment · eval_plan_coherence ·
+│   │   │                   # eval_context_retention · eval_subtask_completion · eval_knowledge_retention
+│   │   │                   # (+ Gate A 전용 private 헬퍼: _is_fact_retained_in_text · _kr_strip_particle 등)
+│   │   └── aggregate.py    # Gate A 집계 로직 (TCR+AccuracyEvaluator 블렌딩+ResponseQualityEvaluator;
+│   │                       #  details에 avg_goal_alignment/avg_plan_coherence 노출 — Gate B가 진단용 재참조)
+│   ├── gate_b_behavioral/ # Gate B(Behavioral Integrity) — 완료
+│   │   ├── configs.py      # LoopDetectionConfig · StateConsistencyConfig · DeadlockConfig ·
+│   │   │                   # ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig
+│   │   ├── evaluators.py   # eval_loop_detection · eval_state_consistency · eval_deadlock · eval_scope ·
+│   │   │                   # eval_tool_parameter_safety · eval_context_window (+ _normalize_agent_interactions)
+│   │   └── aggregate.py    # Gate B 집계 로직 (loop+state_consistency+deadlock+scope+tps+context_window;
+│   │                       #  avg_goal_alignment/avg_plan_coherence는 Gate A에서 파라미터로 전달받아 진단용 재참조)
+│   ├── gate_c_reliability/ # Gate C(Reliability) — 완료
+│   │   ├── configs.py      # ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig ·
+│   │   │                   # RetryConsistencyConfig · IdempotencyConfig
+│   │   ├── evaluators.py   # eval_fault_tolerance · compute_reproducibility_score · eval_graceful_degradation ·
+│   │   │                   # eval_retry_consistency · eval_idempotency
+│   │   └── aggregate.py    # Gate C 집계 로직 (TCR+SLA breach+reproducibility+fault_tolerance+
+│   │                       #  graceful_degradation+retry_consistency+idempotency+LLM faithfulness/hallucination).
+│   │                       #  compute_sla_shared_data(tasks)가 SLA 공유 데이터(Gate D가 소비)의 원천;
+│   │                       #  compute()는 (group_dict, shared_raw) 튜플 반환 — shared_raw에 반올림 없는
+│   │                       #  hall_rate/avg_llm_faithfulness를 담아 Gate G가 재사용
+│   ├── gate_g_observability/ # Gate G(Observability) — 완료
+│   │   ├── configs.py      # ObservabilityConfig · ExplainabilityConfig · ErrorDiagnosisConfig ·
+│   │   │                   # LatencyAttributionConfig
+│   │   ├── evaluators.py   # eval_observability · eval_explainability · eval_error_diagnosis ·
+│   │   │                   # eval_latency_attribution
+│   │   └── aggregate.py    # Gate G 집계 로직 (tool_coverage+hallucination+observability+
+│   │                       #  explainability+error_diagnosis+latency_attribution). hall_rate/
+│   │                       #  avg_llm_faithfulness는 Gate C의 shared_raw를 파라미터로 전달받음.
+│   │                       #  monitor.py는 self.tool_analyzer(ToolCallAnalyzer)를 전달 — SPEC-011에서
+│   │                       #  이전의 존재하지 않는 속성명(self.tool_call_analyzer) 오탈자를 수정,
+│   │                       #  도구 호출이 있는 세션에서 tool_coverage가 처음으로 실제 값을 반환함
+│   ├── gate_f_multiagent/ # Gate F(Multi-Agent Coordination) — 완료
+│   │   ├── configs.py      # ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig
+│   │   ├── evaluators.py   # eval_consensus · eval_propagation · eval_role_adherence · eval_conflict_resolution
+│   │   └── aggregate.py    # Gate F 집계 로직 (monitor.py가 위임 호출)
+│   ├── gate_e_security/   # Gate E(Security Boundary) — 완료
+│   │   ├── configs.py      # ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig
+│   │   ├── evaluators.py   # eval_threat_severity · eval_compliance · eval_threat_response (+ _PII_PATTERNS)
+│   │   └── aggregate.py    # Gate E 집계 로직 (5개 보안 트래커 + CVSS + compliance + threat_response)
+│   └── gate_d_performance/ # Gate D(Performance Contract) — 완료
+│       ├── configs.py      # SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig
+│       ├── evaluators.py   # eval_sla · eval_efficiency · eval_resource_budget
+│       └── aggregate.py    # Gate D 집계 로직 (latency+efficiency+budget+TTFT+cost predictability;
+│                           #  SLA 공유 데이터는 gate_c_reliability.aggregate.compute_sla_shared_data()에서 전달받음)
 ├── quick_eval.py          # QuickEval facade + HarnessEvaluationGate
 ├── config.py              # get_settings · init_from_app · load_env
 ├── exceptions.py          # AgentEvaluatorError hierarchy
@@ -289,6 +342,8 @@ enable_anomaly_detection, anomaly_baseline_window, anomaly_detection_window
 auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
+min_samples_default
+prompt_version, agent_version
 ```
 
 ### @agent_eval Valid Parameters
@@ -327,14 +382,30 @@ threat_response, context_window, latency_attribution
 - **PlanConfig supported JSON formats**: `{"steps": [...]}` or `{"plan": [...]}` (plan key must be a direct list)  
   ❌ `{"plan": {"steps": [...]}}` nested dict structure cannot be parsed
 - **Gate G aggregation**: if `_obs_vals` is empty, Gate G `score=None` (excluded from aggregation, not a fail)
-- **`report.to_dict()["extra_metrics"]`**: contains `harness_groups` only — no `llm_judge` key  
+- **`report.to_dict()["extra_metrics"]`**: contains `harness_groups` and `lineage` (SPEC-007) — no `llm_judge` key  
   LLMJudge results: `monitor.llm_judge.get_summary()` → `avg_scores` → `criteria_scores`
 - **HarnessEvaluationGate location**: `agent_evaluator/quick_eval.py`  
   `gate.evaluate()` takes no arguments. Returns: `{passed, groups, violations, summary}`
 - **SLAConfig dual contribution**: Gate D Config, but breach_rate also contributes to Gate C `_rel_vals`  
   Gate D score requires `LatencyTracker` measured P95 > 0 (`_perf_vals` must be populated)
+- **SPEC-007 — lineage capture**: `extra_metrics.lineage` always present in `save_to_file` output (task 유무 무관) —
+  `sdk_version`(자동), `git_commit`(인스턴스 생성 시 1회 캐싱, 비-git 환경이면 `None`), `prompt_version`/`agent_version`
+  (`PerformanceMonitor(...)` 생성자 파라미터, 기본 `None`), `judge_model_snapshot`(judge 사용 시 provider가 실제
+  반환한 모델 스냅샷, `LLMJudge._call_claude`/`_call_openai`의 응답 객체 `.model` 필드에서 추출 — 없으면
+  `judge.model` 설정값으로 폴백).
 - **TTFTVariabilityConfig · CostPredictabilityConfig**: set at `PerformanceMonitor` level, not `@agent_eval` parameters  
   `PerformanceMonitor(ttft_variability_config=..., cost_predictability_config=...)`
+- **SPEC-002 — universal min-sample guard**: every Gate (A–G) now exposes `details["insufficient_data_warnings"]`
+  (previously Gate D only). Default threshold `min_samples_default=3` (`PerformanceMonitor(min_samples_default=...)`);
+  Gate D's own TTFT/Cost/SLA thresholds (5) are unchanged. The shared SLA warning is computed once and appears
+  identically in both Gate C and Gate D.
+- **SPEC-012 — event-based min-sample guard**: Gate F `coordination_score`/`avg_tool_selection_f1` (denominators
+  `total_interactions`/`total_evaluations`) and Gate G `tool_coverage` (denominator `total_calls`) also warn via
+  `_min_sample_warning(..., unit="interactions"|"evaluations"|"calls")` — same `min_samples_default` contract,
+  distinct unit wording so these don't read as task-count warnings.
+- **SPEC-011 — tool_coverage attribute fix**: `monitor.py` previously passed a non-existent attribute name
+  (`self.tool_call_analyzer`) into Gate G's aggregate call; the real attribute is `self.tool_analyzer`. Fixed —
+  `tool_coverage` now actually computes for sessions with recorded `tool_calls` (previously always `None`).
 
 ---
 

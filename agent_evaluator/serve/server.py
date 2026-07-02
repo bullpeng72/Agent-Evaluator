@@ -4,9 +4,13 @@ FastAPI application factory for agent-eval serve.
 from __future__ import annotations
 
 import os
+import secrets
 import urllib.request
 from contextlib import asynccontextmanager
+from html import escape as _html_escape
 from pathlib import Path
+from typing import Optional
+from urllib.parse import quote as _urlquote
 
 try:
     from importlib.metadata import version as _pkg_version
@@ -16,10 +20,86 @@ except Exception:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# SPEC-005: 대시보드 옵트인 인증 — 쿠키 이름
+_AUTH_COOKIE_NAME = "ae_auth"
+
+
+def _login_page_html(next_path: str = "/", error: bool = False) -> str:
+    """자체 완결형 로그인 페이지 — 외부 static 에셋/Jinja 템플릿에 의존하지 않는다."""
+    next_escaped = _html_escape(next_path, quote=True)
+    error_html = (
+        '<p style="color:#f87171;margin:0 0 12px;font-size:13px">Invalid token.</p>'
+        if error else ""
+    )
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Agent Evaluator — Login</title>
+<style>
+body{{font-family:system-ui,sans-serif;background:#0f1117;color:#e2e4f0;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+.box{{background:#1a1d27;border:1px solid #2d3148;border-radius:10px;padding:32px;width:320px}}
+h1{{font-size:16px;margin:0 0 16px}}
+input{{width:100%;padding:8px;margin-bottom:12px;background:#22263a;border:1px solid #2d3148;
+color:#e2e4f0;border-radius:6px;box-sizing:border-box;font-size:14px}}
+button{{width:100%;padding:8px;background:#6c8ef5;border:none;border-radius:6px;color:#fff;
+font-weight:600;cursor:pointer;font-size:14px}}
+</style></head><body>
+<div class="box">
+<h1>🔒 Agent Evaluator Dashboard</h1>
+{error_html}
+<form method="post" action="/login">
+<input type="hidden" name="next" value="{next_escaped}">
+<input type="password" name="token" placeholder="Access token" autofocus required>
+<button type="submit">Sign in</button>
+</form>
+</div>
+</body></html>"""
+
+
+class BearerOrCookieAuthMiddleware(BaseHTTPMiddleware):
+    """SPEC-005: 옵트인 대시보드 인증.
+
+    Authorization: Bearer <token> 헤더(API/curl 용) 또는 로그인 후 발급되는
+    HttpOnly 쿠키(브라우저 페이지 탐색 용) 둘 중 하나가 일치하면 통과시킨다.
+    /login 자체와 CORS preflight(OPTIONS)는 예외 — 그 외 모든 라우트(정적 파일 포함)에
+    동일하게 적용된다.
+    """
+
+    def __init__(self, app, token: str):
+        super().__init__(app)
+        self._token = token
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS" or request.url.path == "/login":
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        bearer_ok = auth_header.startswith("Bearer ") and secrets.compare_digest(
+            auth_header[len("Bearer "):], self._token
+        )
+        cookie_val = request.cookies.get(_AUTH_COOKIE_NAME, "")
+        cookie_ok = bool(cookie_val) and secrets.compare_digest(cookie_val, self._token)
+
+        if bearer_ok or cookie_ok:
+            return await call_next(request)
+
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept:
+            next_path = request.url.path
+            if request.url.query:
+                next_path += f"?{request.url.query}"
+            return RedirectResponse(
+                url=f"/login?next={_urlquote(next_path, safe='')}", status_code=302
+            )
+        # REQ-4: 토큰 값/힌트를 응답 바디에 노출하지 않는다.
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
 from .loader import load_results
 from .routers import data as data_router
@@ -87,6 +167,7 @@ def create_app(
     watch: bool = False,
     version: str = _VERSION,
     offline: bool = False,
+    auth_token: Optional[str] = None,
 ) -> FastAPI:
     # ------------------------------------------------------------------ #
     # Lifespan: file watcher startup / shutdown
@@ -127,8 +208,6 @@ def create_app(
     )
 
     # HTML 응답 캐시 완전 차단 (브라우저 캐시로 인한 구버전 HTML 서빙 방지)
-    from starlette.middleware.base import BaseHTTPMiddleware
-
     class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
             response = await call_next(request)
@@ -140,6 +219,10 @@ def create_app(
             return response
 
     app.add_middleware(NoCacheHTMLMiddleware)
+
+    # SPEC-005: 옵트인 대시보드 인증 — auth_token 미지정 시 기존 동작(무인증) 그대로 유지
+    if auth_token:
+        app.add_middleware(BearerOrCookieAuthMiddleware, token=auth_token)
 
     # State
     app.state.results_dir = results_dir
@@ -178,6 +261,30 @@ def create_app(
     #   2. 아래 "/" 라우트를 RedirectResponse("/dashboard") 로 교체
     #   3. /slides, /sdk-docs, /api/* 라우트는 그대로 유지 (독립적)
     # ------------------------------------------------------------------ #
+
+    # SPEC-005: 로그인 라우트 — auth_token 미설정 시에도 등록되지만, 그 경우 middleware가
+    # 없어 어차피 도달 전에 통과되므로 무해하다.
+    @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
+    async def login_page(request: Request):
+        next_path = request.query_params.get("next", "/")
+        error = request.query_params.get("error") == "1"
+        return HTMLResponse(_login_page_html(next_path, error))
+
+    @app.post("/login", include_in_schema=False)
+    async def login_submit(request: Request):
+        form = await request.form()
+        token = str(form.get("token", ""))
+        next_path = str(form.get("next", "") or "/")
+        if auth_token and secrets.compare_digest(token, auth_token):
+            resp = RedirectResponse(url=next_path, status_code=303)
+            resp.set_cookie(
+                _AUTH_COOKIE_NAME, auth_token,
+                httponly=True, samesite="lax", max_age=86400 * 7,
+            )
+            return resp
+        return RedirectResponse(
+            url=f"/login?error=1&next={_urlquote(next_path, safe='')}", status_code=303
+        )
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def dashboard(request: Request):

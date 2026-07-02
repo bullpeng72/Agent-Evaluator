@@ -691,6 +691,7 @@ class LLMJudge:
         context_available: bool = False,
         judge_criteria: Optional[List[str]] = None,
         model: Optional[str] = None,
+        model_snapshot: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Parse JSON from the judge's response.
 
@@ -775,6 +776,9 @@ class LLMJudge:
                 "scores": scores,
                 "reasoning": data.get("reasoning", ""),
                 "model": model or self.model,
+                # SPEC-007: provider가 실제로 응답한 모델 스냅샷 — 별칭이 무중단으로 교체돼도
+                # 사후 감사 시 대조 가능하도록 기록. 없으면 요청에 사용한 model로 폴백.
+                "model_snapshot": model_snapshot or model or self.model,
                 "cost_usd": cost,
             }
         except (json.JSONDecodeError, KeyError, ValueError) as e:
@@ -785,6 +789,7 @@ class LLMJudge:
                 "error": f"parse_error: {e}",
                 "scores": None,
                 "model": model or self.model,
+                "model_snapshot": model_snapshot or model or self.model,
                 "cost_usd": cost,
             }
 
@@ -851,6 +856,7 @@ class LLMJudge:
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
                 model=model,
+                model_snapshot=getattr(msg, "model", None),
             )
 
         except Exception as e:
@@ -929,6 +935,7 @@ class LLMJudge:
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
                 model=model,
+                model_snapshot=getattr(completion, "model", None),
             )
 
         except Exception as e:

@@ -646,6 +646,8 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     open_browser = getattr(args, "open",    True)
     offline      = getattr(args, "offline", False)
     title        = getattr(args, "title",   "Agent Evaluator — Dev Dashboard")
+    # SPEC-005: CLI 플래그 우선, 없으면 환경변수 폴백. 둘 다 없으면 auth_token=None(무인증, 기존 동작).
+    auth_token   = getattr(args, "auth_token", None) or os.environ.get("AGENT_EVALUATOR_DASHBOARD_TOKEN")
 
     user_specified = raw_dir not in (None, "./results", "results")
     if user_specified:
@@ -685,6 +687,7 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     print(f"  📊  Slides        : {base_url}/slides")
     print(f"  📡  API docs      : {base_url}/api/docs")
     print(f"  🔄  Watch mode    : {'ON' if watch else 'OFF'}")
+    print(f"  🔒  Auth          : {'ON (Bearer token required)' if auth_token else 'OFF (localhost-only assumption)'}")
     print()
     print(f"  {_dim('Press Ctrl+C to stop')}")
     print()
@@ -695,6 +698,7 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
         watch=watch,
         version=__version__,
         offline=offline,
+        auth_token=auth_token,
     )
 
     if open_browser:
@@ -855,6 +859,11 @@ def main() -> None:
     dash_p.add_argument("--title", default="Agent Evaluator — Dev Dashboard",
                         metavar="TITLE",
                         help="Dashboard title (default: 'Agent Evaluator — Dev Dashboard')")
+    dash_p.add_argument(
+        "--auth-token", dest="auth_token", default=None, metavar="TOKEN",
+        help="Require Bearer token (or AGENT_EVALUATOR_DASHBOARD_TOKEN env var) to access "
+             "the dashboard. Default: no authentication (localhost-only assumption).",
+    )
 
     # gate subcommand
     gate_p = sub.add_parser(
