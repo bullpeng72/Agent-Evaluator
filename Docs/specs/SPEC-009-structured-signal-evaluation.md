@@ -1,6 +1,27 @@
 # SPEC-009: 구조화 신호 우선 평가 전환
 
-**Phase:** P2 · **상태:** Draft · **의존성:** SPEC-000(Gate F/B의 `gates/gate_f_multiagent/`, `gates/gate_b_behavioral/` 이관) 선행 권장
+**Phase:** P2 · **상태:** Implemented (2026-07-02) · **의존성:** SPEC-000(Gate F/B의 `gates/gate_f_multiagent/`, `gates/gate_b_behavioral/` 이관) 선행 권장
+
+> **구현 노트**: `gates/gate_f_multiagent/evaluators.py`의 `eval_consensus`(REQ-1)·`eval_role_adherence`(REQ-2)·
+> `eval_propagation`(REQ-3) 3종에 "구조화 데이터 우선, 텍스트는 폴백" 패턴을 적용했다.
+> `eval_consensus`는 신규 `agent_interactions: Optional[List[dict]] = None` 파라미터를 추가해(하위호환),
+> 전 에이전트에 `intent`/`action` 구조화 필드가 모두 채워져 있으면 `_token_overlap_ratio` 대신 필드
+> 완전 일치 여부로 합의를 판정한다(일부 에이전트만 데이터가 있으면 안전하게 텍스트 폴백). `eval_role_adherence`는
+> 새 파라미터 없이 기존 `tool_calls`에서 도구 식별자를 추출할 수 있으면(구조화) `allowed_tools`/`forbidden_tools`
+> 직접 비교만 수행하고 `forbidden_action_keywords`/`allowed_action_keywords` 텍스트 매칭은 건너뛴다 —
+> 도구 식별자를 전혀 얻지 못했을 때만(tool_calls 비어있음) 텍스트 폴백. `eval_propagation`은 기존
+> `agent_interactions` 파라미터의 각 홉 dict에 `facts_relayed`(또는 `relayed_facts`)·`distorted_facts`
+> 구조화 필드가 있으면 이를 직접 채택하고, 없으면 기존 `_fact_in_text` + 부정어 탐지 윈도우로 폴백한다.
+> 3종 모두 반환 dict에 `"signal_source": "structured" | "text_fallback"`(REQ-4, 진단용, Gate 점수 미반영)을
+> 추가했다. Gate B는 `eval_deadlock`이 이미 구조화 데이터만 사용하고 텍스트 폴백이 없는 완결된 패턴이라(REQ 대상
+> 아님), 나머지 함수(`eval_loop_detection`/`eval_state_consistency`/`eval_scope`/`eval_tool_parameter_safety`/
+> `eval_context_window`)도 텍스트가 아닌 구조화된 `tool_calls`/`state` dict를 직접 다루는 함수들이라 REQ-1~3에
+> "텍스트 대 구조화" 대응 사례가 없어 이번 스펙에서는 변경하지 않았다(Rollout 3번 항목 — 이번 조사 결과 명시).
+> "구조화 필드" 스키마(에이전트 식별자 키, intent/action, facts_relayed 등)는 프레임워크가 통일된 표준을
+> 제공하지 않으므로(Risks 참고) 이번 구현은 하나의 합리적인 스키마를 채택했고, 향후 LangGraph/CrewAI 등
+> 실제 트레이스 스키마가 다르면 추가 매핑이 필요할 수 있다.
+> 기존 텍스트 폴백 경로는 100% 회귀 없음을 확인했다(전체 스위트: 이관 완료 시점 2,947 passed, 1 skipped →
+> 신규 `tests/test_gate_f_structured_signals.py` 13건 추가로 2,960 passed, 1 skipped, 회귀 없음).
 
 ## Context
 
