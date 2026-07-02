@@ -1,6 +1,35 @@
 # SPEC-004: 옵트인 스트리밍 모니터 모드
 
-**Phase:** P2 · **상태:** Draft · **의존성:** SPEC-001(shared_metrics 계층) 선행 권장
+**Phase:** P2 · **상태:** Partially Implemented (2026-07-02) · **의존성:** SPEC-001(shared_metrics 계층) 선행 권장
+
+> **구현 노트 (2026-07-02)**: REQ-1(옵트인 `retention_mode`/`window_size` 파라미터), REQ-3(4개 API의
+> 매 호출 `UserWarning`), REQ-4(`window_size` 양의 정수 검증)는 **완전히 구현**했다.
+> REQ-2는 **의도적으로 축소된 범위**로 구현했다 — 정직하게 명시한다:
+> - `self.tasks`(= `tcr_tracker.tasks`)는 windowed 모드에서 `tcr_tracker._tasks`를
+>   `deque(maxlen=window_size)`로 교체해 실제로 O(window_size)에 수렴한다.
+> - **Gate A/C의 TCR 컴포넌트(`tcr_pct`, `full_success`/`partial_success`/`failures`)만
+>   `PerformanceMonitor._running_tcr_agg`(record_task() 시점에 갱신되는 러닝 집계)를 통해
+>   전체 이력 기준으로 계산된다** — `_RunningTCRView`가 `TaskCompletionTracker.calculate_tcr()`와
+>   동일한 형태로 이 값을 Gate A/C의 `aggregate.compute()`에 주입한다.
+> - **그 외 모든 Gate 지표(A의 instruction_adherence/goal_alignment/plan_coherence/
+>   subtask_completion/context_retention/knowledge_retention, B/D/E/F/G 전체, C의
+>   SLA breach 이외 나머지 — reproducibility/fault_tolerance/graceful_degradation/
+>   retry_consistency/idempotency 등)는 windowed 상태의 태스크 목록(`tasks` 파라미터)만으로
+>   재계산된다.** 이 지표들은 개별 `TaskResult.extra` 딕셔너리를 순회해 계산되므로,
+>   진짜 러닝 집계로 전환하려면 7개 Gate의 evaluator/aggregate 전체를 SPEC-001이 제안한
+>   `shared_metrics` 계층으로 재구조화해야 한다 — 이는 이번 세션에서 안전하게 완결할 수 있는
+>   범위를 넘어선다고 판단해 의도적으로 보류했다. 따라서 **Acceptance의 "Gate 점수(A~G)가
+>   전체 이력 기준 집계와 일치"는 TCR 컴포넌트에 한해서만 성립하며, 나머지 컴포넌트는
+>   windowed 부분집합 기준으로 계산된다.**
+> - 다른 트래커(`accuracy_evaluator`, `quality_evaluator`, 보안 트래커 5종,
+>   `tool_analyzer`, `agent_coordination_tracker` 등)의 내부 리스트는 windowed 모드에서도
+>   여전히 무제한 증식한다 — 이번 스펙은 `tcr_tracker._tasks`(= `self.tasks`)만 캡핑했다.
+>   따라서 Acceptance의 "메모리 사용량이 O(window_size)에 수렴" 검증은 `self.tasks` 자체에는
+>   성립하지만, 프로세스 전체 메모리 사용량에는 아직 성립하지 않는다.
+> - 테스트: `tests/test_streaming_retention_mode.py`(신규 21건) + 기존 2,947건 전량 통과
+>   (총 2,968 passed, 1 skipped, 회귀 없음).
+> - 후속 작업(백로그): SPEC-001의 `shared_metrics` 계층이 완성되면 B/D/E/F/G 및 Gate A/C의
+>   나머지 컴포넌트에도 동일한 러닝 집계 패턴을 확장 적용할 것.
 
 ## Context
 
