@@ -30,7 +30,7 @@ jobs:
         run: pytest --no-cov -q
 
   lint-and-typecheck:
-    name: ruff + mypy (report-only)
+    name: ruff + mypy (quality ratchet)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,14 +44,8 @@ jobs:
       - name: Install package (dev extras)
         run: pip install -e ".[dev]"
 
-      # SPEC-017: 도입 시점 baseline 확인 결과(2026-07-03) ruff 4,063건 / mypy 305건의
-      # 기존 경고가 있어, 이 잡을 hard-block으로 켜면 CI가 즉시 영구적으로 실패한다.
-      # continue-on-error로 리포트만 하고 별도 정리 작업 완료 후 강제 실패로 전환할 것
-      # (Rollout 1단계 — README.md/SPEC-017.md 구현 노트 참조).
-      - name: ruff check (non-blocking)
-        continue-on-error: true
-        run: ruff check agent_evaluator/
-
-      - name: mypy (non-blocking)
-        continue-on-error: true
-        run: mypy agent_evaluator/
+      # SPEC-021: 기존 부채(도입 시점 4,120건/318건, .github/quality-baseline.json)를
+      # 전부 정리하는 대신, "이번 변경이 부채를 늘렸는가"만 검사해 hard-block한다 —
+      # SPEC-017의 report-only 2-스텝 구성을 대체(README.md/SPEC-021.md 구현 노트 참조).
+      - name: quality ratchet (ruff + mypy vs baseline)
+        run: python scripts/quality_ratchet.py

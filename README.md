@@ -1145,6 +1145,35 @@ eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5)
 
 ---
 
+## Real-Time Guardrail — OpenCode Plugin
+
+Every Gate above scores a session *after* it finishes. `LiveGuardrail` (`agent_evaluator.gates.live_guardrail`) is the real-time counterpart — it checks a single tool call *before* it executes and can block it, reusing the same Behavioral Integrity (loop detection, deadlock, scope, tool-parameter safety) and Security Boundary (tool authorization, privilege escalation, tool-chain attack) checks that power Gates B/E in batch mode. No new detection logic — same evaluators, called synchronously per tool call instead of per session.
+
+A reference integration ships for [OpenCode](https://opencode.ai) (a local coding-agent CLI) under `opencode-plugin/`, wiring `LiveGuardrail` into OpenCode's `tool.execute.before`/`tool.execute.after` hooks. Since Agent-Evaluator is a Python SDK and OpenCode plugins run on Node/Bun, the plugin doesn't reimplement Gate B/E logic in TypeScript — it spawns one long-lived Python subprocess per session (`python -m agent_evaluator.integrations.live_guardrail_stdio`) and exchanges JSON Lines over stdin/stdout.
+
+### Setup
+
+```bash
+# 1. Install Agent-Evaluator into the Python environment OpenCode will call
+pip install -e .
+
+# 2. Drop the plugin where OpenCode auto-loads it
+cp opencode-plugin/agent-evaluator.ts .opencode/plugin/agent-evaluator.ts   # project-local
+# or: ~/.config/opencode/plugin/agent-evaluator.ts                          # global
+
+# 3. (optional) point at a specific interpreter / SQLite report location
+export AGENT_EVALUATOR_PYTHON=/path/to/venv/bin/python
+export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project
+```
+
+Then adjust `GUARDRAIL_CONFIG` at the top of `agent-evaluator.ts` — it takes the same `LoopDetectionConfig`/`DeadlockConfig`/`ScopeConfig`/`ToolParameterSafetyConfig` (Gate B) and `ToolAuthorizationTracker`/`PrivilegeEscalationDetector`/`ToolChainAttackDetector` (Gate E) fields as `@agent_eval`.
+
+Once loaded: unsafe tool calls are blocked mid-session with an error the model sees immediately (and can self-correct on), each session's Gate B/E verdict is upserted into a local SQLite store (`results/opencode_live_guardrail/opencode_sessions.db` by default — read it back with `agent_evaluator.storage.sqlite_backend.load_tasks_from_db`), and the verdict is also written back into the OpenCode session transcript (`noReply: true`, no extra LLM turn) so a memory-indexing agent like `ctx` can recall past violations in later sessions.
+
+> **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it blocked a live `rm -f` deletion attempt mid-session and left the file intact. This integration is **not** part of the pip package and ships with documented limitations (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard `kill -9`). See [`opencode-plugin/README.md`](opencode-plugin/README.md) for full design notes and known limitations, and `Docs/specs/SPEC-019-live-guardrail-api.md` for the spec.
+
+---
+
 ## Conditional Alerts
 
 All 3 decorator types support the same `alert_rules=` API.
@@ -1457,7 +1486,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 2,795+ test functions, 56 files
+├── tests/                       # 3,218+ test functions, 81 files
 └── pyproject.toml
 ```
 
@@ -1526,21 +1555,17 @@ mypy agent_evaluator/          # type check
 
 ## Changelog
 
-### v0.9.6 (2026-07-03) — Gate Package Decomposition · Harness Gate A–G Running Aggregates · Enterprise Ops Hardening
+### v0.9.6 (2026-07-04) — Real-Time Guardrail API · Gate Package Decomposition · PII Redaction & LLM Judge Trust Tooling
 
-- 🏗️ **SPEC-000**: Full Strangler-Fig decomposition of Gate A–G scoring logic out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/{configs,evaluators,aggregate}.py` — 7 complete Gate packages.
-- ⚡ **SPEC-018**: Windowed streaming retention mode (`retention_mode="windowed"`) now reflects full task history — not just the windowed subset — for all 7 Gates via new `gates/shared_metrics.py` running-aggregate primitives. Gate C `retry_consistency` and Gate D's ttft_variability/cost_predictability use bounded, explicitly-approved approximations (LRU-capped prefix tracking / bounded sliding sample) since exact O(1) reproduction isn't possible for those specific metrics.
-- 🔒 **SPEC-002/012**: Universal minimum-sample-size warnings across every Gate (previously Gate D only), including event-based denominators (tool calls, agent interactions).
-- 🐛 **SPEC-011**: Fixed a Gate G `tool_coverage` attribute-name bug (`self.tool_call_analyzer` → `self.tool_analyzer`) that silently made this metric always `None`.
-- 🔐 **SPEC-005/007**: Opt-in dashboard bearer/cookie auth middleware; `extra_metrics.lineage` (SDK version, git commit, judge model snapshot) captured on every save.
-- 🚦 **SPEC-006**: LLM Judge async path (`ajudge()`) with bounded concurrency (semaphore) and exponential backoff on provider rate limits.
-- 🧠 **SPEC-009**: Gate F/B prefer structured `agent_interactions`/`tool_calls` signals over text-heuristic matching when available.
-- 📈 **SPEC-010**: CI/CD baseline gate extended to cover Harness Gate A–G score regressions, not just flat metrics.
-- 🗄️ **SPEC-013/014**: Dashboard loader incremental re-parse (mtime-based cache) and `generate_report()` result caching (dirty-flag invalidated on `record_task()`).
-- 📣 **SPEC-015**: Alert handler retry/backoff (1s/2s/4s) plus alert-storm suppression (`max_alerts_per_window`).
-- 💾 **SPEC-016**: Optional SQLite storage backend (`storage_backend="sqlite"`) with upsert-by-task-id writes for large sessions.
-- 🛡️ **SPEC-017**: CI matrix (Python 3.8–3.13), `pip-audit` vulnerability scanning, Dependabot, pre-commit hooks, and release SBOM generation.
-- 🔧 **SPEC-008**: Compliance framework expansion — `pci_dss` and `soc2` alongside existing `hipaa`/`gdpr`/`general`.
+- 🛡️ **Real-time guardrail API**: new `LiveGuardrail` checks (and blocks) a single tool call *before* it executes, reusing the same Behavioral Integrity and Security Boundary checks that power the batch Gates. Ships with a stdio bridge for non-Python callers, an SQLite-backed batch-report bridge, and a reference OpenCode plugin.
+- 🔒 **Opt-in PII redaction at save time**: `PerformanceMonitor(enable_pii_redaction=True)` masks emails/phone numbers/SSNs/credit cards in persisted task text (JSON or SQLite); in-memory data and live scoring are untouched.
+- 📏 **LLM Judge trust tooling**: new `LLMJudgeCalibration` harness scores judge-vs-human agreement (MAE, Pearson, Cohen's kappa), and `PerformanceMonitor` now warns when the judge model and the agent's execution model are the same (no independent verification).
+- 🏗️ **Gate A–G decomposed into 7 self-contained packages**: scoring logic moved out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/{configs,evaluators,aggregate}.py` — no behavior change.
+- ⚡ **Windowed retention mode now reflects full history for all 7 Gates** (previously only 2 metrics did), via new running-aggregate primitives; two metrics use documented bounded approximations where exact O(1) tracking isn't possible.
+- 🐛 **Fixed a silent scoring bug**: Observability Gate's tool-coverage metric always evaluated to `None` due to a wrong attribute name — now computes correctly.
+- 💾 **Optional SQLite storage backend** (upsert by task ID) and **opt-in dashboard authentication** with audit lineage (SDK version, git commit, judge model snapshot) on every saved report.
+- 🛡️ **Supply-chain hardening**: CI matrix across Python 3.8–3.13, `pip-audit` scanning, Dependabot, SBOM on tagged releases, plus a ruff/mypy quality ratchet that fails CI on regression past a tracked baseline.
+- 🔧 **Reliability rollup**: minimum-sample-size warnings on every Gate, async LLM Judge calls with backoff, structured-signal scoring for Multi-Agent/Behavioral Gates, CI regression gate extended to all 7 Gate scores, cached/incremental dashboard reports, retrying alert delivery with storm suppression, and PCI-DSS/SOC2 compliance framework support.
 
 ### v0.9.5 (2026-06-02) — CLAUDE.md Rewrite · Import Path Fix · Model Name Modernization
 

@@ -43,12 +43,18 @@ SPEC-XXX: <제목>
 | [SPEC-016](SPEC-016-sqlite-storage-backend.md) | **영속성 저장소 옵션 — SQLite 백엔드** (JSON 파일 전용의 동시쓰기/규모 한계) | P4 | **Implemented (2026-07-03)** | 없음 |
 | [SPEC-017](SPEC-017-supply-chain-hygiene.md) | **공급망 위생** (CI, 취약점 스캔, Dependabot, pre-commit, SBOM) | P4 | **Implemented (2026-07-03)** | 없음 |
 | [SPEC-018](SPEC-018-gate-running-aggregate-shared-metrics.md) | **Gate 러닝 집계 공유 인프라** (shared_metrics 계층 — SPEC-004 REQ-2 확장) | P2 | **Implemented (2026-07-03, Phase 0-7 전체 완료)** — Gate C retry_consistency(LRU 캡)·Gate D ttft/cost_predictability(reservoir)는 2026-07-03 별도 승인 후 승인된 근사로 구현 | 없음 (SPEC-001과 무관, SPEC-004의 잘못된 교차 참조 정정) |
+| [SPEC-019](SPEC-019-live-guardrail-api.md) | **실시간 가드레일 API** (tool-call 단위 동기 Gate B/E 판정 — 로컬 에이전트 루프(OpenCode+Ollama+ctx) 통합용) | P5 | **Implemented + 실 OpenCode 1.17.9/Ollama qwen3-coder 세션 라이브 검증 완료(2026-07-03)** — Gate B 4종 + Gate E 3종 + stdio/report 브리지 + `opencode-plugin/` 참조 구현. 라이브 세션에서 위험한 `rm -f` 삭제를 실제로 차단하고 파일 보존까지 end-to-end 확인, 그 과정에서 발견한 결함 4건(stdin 미종료 시 `opencode run` 무한대기·루프감지 오탐·`rm -f` 우회·BrokenPipeError) 모두 수정 | SPEC-000 완료 — 기존 `gates/gate_b_behavioral`·`gates/gate_e_security`·`core/trackers/security.py` 로직을 재사용만 함 |
+| [SPEC-020](SPEC-020-storage-pii-redaction.md) | **저장 계층 PII Redaction** (옵트인 — Gate E가 PII를 채점하면서 저장소엔 원문을 그대로 남기는 모순 해소) | P6 | **Implemented (2026-07-04)** | 없음 — 기존 `gates/gate_e_security/evaluators.py::_PII_PATTERNS`를 재사용만 함 |
+| [SPEC-021](SPEC-021-quality-debt-ratchet.md) | **코드 품질 부채 래칫** (ruff/mypy — SPEC-017의 report-only 상태를 baseline 초과 시 hard-block으로 전환) | P6 | **Implemented (2026-07-04)** | SPEC-017 완료 — report-only 2-스텝 잡을 대체 |
+| [SPEC-022](SPEC-022-llm-judge-calibration-harness.md) | **LLM Judge 검증 하네스** (사람 라벨 골든셋과의 합의도 리포트 — Cohen's kappa/Pearson/MAE) | P6 | **Implemented (2026-07-04)** | 없음 — 기존 `LLMJudge.judge()`를 그대로 호출만 함 |
+| [SPEC-023](SPEC-023-judge-execution-model-heterogeneity.md) | **LLM Judge/실행 모델 이종화 경고 + Lineage 기록** (자기평가 편향 감지) | P6 | **Implemented (2026-07-04)** | SPEC-007 완료 — `_build_lineage()`에 필드 1개 추가 |
 
 ## 백로그
 
-모든 백로그 항목이 SPEC-015/016/017로 정식 스펙화 및 구현 완료(2026-07-03). 상세 스펙 미작성 상태의
-신규 항목이 생기면 이 섹션에 먼저 등록하고, 착수 전 반드시 정식 스펙(Context/REQ/Acceptance)을
-작성할 것 — 스펙 없이 바로 구현에 들어가지 않는다.
+모든 백로그 항목이 SPEC-015/016/017/019로 정식 스펙화 및 구현 완료(2026-07-03). SPEC-020/021은
+SDK 전반 성숙도 개선 트랙으로 구현 완료(2026-07-04). 상세 스펙 미작성 상태의
+신규 항목이 생기면 이 섹션에 먼저 등록하고, 착수 전 반드시 정식 스펙(Context/REQ/Acceptance)을 작성할 것 — 스펙
+없이 바로 구현에 들어가지 않는다.
 
 ## 로드맵 (2026-07-02~03 재정렬)
 
@@ -59,6 +65,8 @@ SPEC-XXX: <제목>
 | **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013·SPEC-014·SPEC-018 ✅ (2026-07-02~03, Phase 0-7 전체 완료) | SPEC-000 완료로 착수 가능했음 — SPEC-018이 SPEC-004 REQ-2를 A-G 7개 Gate 전체로 확장(Gate C retry_consistency·Gate D 근사 지표 포함, 2026-07-03 별도 승인) |
 | **P3** | SPEC-008 ✅·SPEC-010 ✅(2026-07-02)·SPEC-015 ✅(2026-07-03) | 이후 |
 | **P4** | SPEC-016 ✅·SPEC-017 ✅(2026-07-03) | 장기 |
+| **P5** | SPEC-019 ✅(2026-07-03) | 신규 기능 확장 — 배포 완결성(P0-P4) 확보 이후, 로컬 에이전트 루프(OpenCode+Ollama+ctx) 실시간 통합을 위한 별도 트랙. 기존 배치 Gate 로직은 무수정, 순수 additive |
+| **P6** | SPEC-020 ✅·SPEC-021 ✅·SPEC-022 ✅·SPEC-023 ✅(2026-07-04) | SDK 전반 성숙도 — 엔터프라이즈 신뢰성(PII redaction, 코드 품질 부채 래칫, LLM Judge 검증 하네스 + 이종화 경고). ADE 파이프라인과 무관하게 SDK 자체의 세계 최고 수준 포지셔닝을 위한 별도 트랙 |
 
 ## Definition of Done (프로그램 최종 목표)
 
