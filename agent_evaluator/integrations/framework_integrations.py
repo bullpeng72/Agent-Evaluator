@@ -12,7 +12,7 @@ v0.8.0: Direct-API wrapper classes (LangChainEvaluator, CrewAIEvaluator 등) 완
     def my_agent(question, ground_truth=""): ...
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from agent_evaluator.core.trackers.security import infer_privilege_level
 

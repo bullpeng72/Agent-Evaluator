@@ -291,10 +291,6 @@ class CompareResult:
         # 승자 배너
         w = self.winner
         winner_label = self._winner_label()
-        tcr_s = self._self.get("tcr", 0.0) or 0.0
-        tcr_o = self._other.get("tcr", 0.0) or 0.0
-        acc_s = self._self.get("accuracy", 0.0) or 0.0
-        acc_o = self._other.get("accuracy", 0.0) or 0.0
         dtcr  = self._delta.get("tcr", 0.0) or 0.0
         dacc  = self._delta.get("accuracy", 0.0) or 0.0
 
@@ -1035,7 +1031,6 @@ class QuickEval:
             eval.gate(gate_thresholds={"A": 0.8}, required_gates=["A", "D"])  # A·D만 검사
         """
         import json
-        import os
         import sys
 
         # config_file에서 임계값 로드 (직접 지정한 파라미터 값이 우선)
@@ -1603,7 +1598,6 @@ class QuickEval:
             return str(hash(str(args) + str(sorted(kwargs.items()))))
 
         def decorator(func: Callable) -> Callable:
-            import asyncio as _asyncio
             import inspect as _inspect
 
             if _inspect.iscoroutinefunction(func):

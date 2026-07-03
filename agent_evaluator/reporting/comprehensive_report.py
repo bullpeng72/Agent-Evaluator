@@ -395,7 +395,6 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
     if score is None:
         return ""
     details = harness_group.get("details") or {}
-    color = _GATE_COLORS.get(gate_key, "#6b7280")
 
     rows: list = []
     formula_parts: list = []

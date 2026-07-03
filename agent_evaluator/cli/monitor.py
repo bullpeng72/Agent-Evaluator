@@ -25,7 +25,7 @@ import subprocess
 import sys
 import time
 import webbrowser
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +107,6 @@ def _report_startup_failure(
 ) -> None:
     """Phoenix 기동 실패 원인을 분석해 사용자 친화적 메시지를 출력한다."""
     returncode = proc.poll()
-    full_output = "".join(output_lines)
 
     # gRPC 포트 충돌 여부 (타임아웃 후 재확인)
     if _port_in_use(grpc_port, host):

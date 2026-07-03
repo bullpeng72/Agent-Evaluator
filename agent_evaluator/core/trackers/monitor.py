@@ -25,14 +25,14 @@ from collections import defaultdict, deque
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Literal, Optional, Union
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 import numpy as np
 import pandas as pd
 
 from .base import TaskResult, EvaluationReport, TaskType, _TaskContext, BaseTracker
 # SPEC-000 Commit 0: 전 Gate 공유 인프라(gates/base.py)에서 가져옴 — 동작 변경 없음
-from ...gates.base import _min_sample_warning, _status, _g
+from ...gates.base import _status
 # SPEC-000 Commit 1: Gate F 집계 로직 이관
 from ...gates.gate_f_multiagent import aggregate as gate_f_aggregate
 from ...gates.gate_e_security import aggregate as gate_e_aggregate
@@ -60,11 +60,9 @@ from .layer2 import (
     WorkflowExecutionTracker,
 )
 from .security import (
-    SecurityTrackerMixin,
     InputSanitizationTracker,
     OutputLeakageDetector,
     ToolAuthorizationTracker,
-    infer_privilege_level,
     PrivilegeEscalationDetector,
     ToolChainAttackDetector,
 )
@@ -3077,10 +3075,8 @@ class PerformanceMonitor:
         Returns:
             {A-G: {name, score, status, details}, overall: {score, status, scored_groups}}
         """
-        from typing import List as _List
         if not tasks:
             return {}
-        n = max(len(tasks), 1)
         # _status: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
 
         # SPEC-004 REQ-2: windowed 모드에서는 TCR 컴포넌트만 전체 이력 기준 러닝 집계
@@ -4237,14 +4233,11 @@ class PerformanceMonitor:
         # ========== Layer 3: Advanced Metrics (if HybridMonitor) ==========
         # Note: This section is a placeholder for advanced metrics
         # Full implementation would require checking if this is a HybridMonitor instance
-        has_advanced_metrics = False
-
         if hasattr(self, 'metric_adapters') and len(getattr(self, 'metric_adapters', {})) > 0:
             print("🎯 Layer 3: Advanced Metrics")
             print("─" * 80)
             print("  (DeepEval and Ragas metrics shown when using HybridPerformanceMonitor)")
             print()
-            has_advanced_metrics = True
 
         # ========== Alerts ==========
         if report.alerts:
@@ -5155,7 +5148,6 @@ class PerformanceMonitor:
             tu = t.tokens_used or {}
             inp = float(tu.get("input", 0) or 0)
             out = float(tu.get("output", 0) or 0)
-            total = float(tu.get("total", 0) or (inp + out))
             cost = (inp * input_price + out * output_price) / 1000.0
             total_inp += inp
             total_out += out
@@ -6878,19 +6870,6 @@ def create_demo_data():
             if np.random.random() < 0.3:
                 other_category = np.random.choice(list(error_messages.keys()))
                 errors.append(np.random.choice(error_messages[other_category]))
-
-        # Time distribution: more tasks during business hours
-        # Probabilities sum to 1.0
-        hour_probs = np.array([
-            0.01, 0.01, 0.01, 0.01, 0.01, 0.02,  # 0-5 AM (0.07)
-            0.03, 0.05, 0.07, 0.08, 0.09, 0.09,  # 6-11 AM (0.41)
-            0.08, 0.08, 0.09, 0.09, 0.08, 0.07,  # 12-5 PM (0.49)
-            0.05, 0.03, 0.02, 0.02, 0.01, 0.01   # 6-11 PM (0.14)
-        ])
-        # Normalize to ensure sum is exactly 1.0
-        hour_probs = hour_probs / hour_probs.sum()
-
-        hour_bias = np.random.choice(range(24), p=hour_probs)
 
         timestamp = datetime.now() - timedelta(
             hours=np.random.randint(0, 72),

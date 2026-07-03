@@ -9,7 +9,7 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclasses.dataclass

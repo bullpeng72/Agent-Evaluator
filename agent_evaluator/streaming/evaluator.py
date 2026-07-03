@@ -11,10 +11,9 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
-from typing import Any, Callable, Deque, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Deque, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agent_evaluator.core.trackers.monitor import PerformanceMonitor

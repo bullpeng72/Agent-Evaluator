@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
-from typing import Any, Dict, Set, Optional
+from typing import Any, Dict, Set
 
 from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse

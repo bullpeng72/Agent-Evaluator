@@ -130,7 +130,6 @@ class CostTracker:
 
     def learn_cost_model(self, tasks: list) -> "Dict[str, float]":
         """태스크 결과에서 모델별 비용을 학습한다 (F2)."""
-        from typing import Dict
         _model_costs: Dict[str, list] = {}
         _model_tokens: Dict[str, int] = {}
         for t in tasks:

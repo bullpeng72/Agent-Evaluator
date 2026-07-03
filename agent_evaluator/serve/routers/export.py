@@ -13,7 +13,6 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
-from typing import Optional
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -62,8 +61,6 @@ def export_csv(file_id: str, request: Request):
 
     buf = io.StringIO()
     # Detect optional columns from data
-    has_framework   = any(getattr(t, "framework", None) for t in rf.tasks)
-    has_agentic     = rf.has_agentic
     has_adv         = rf.has_advanced or rf.has_rag
 
     # Collect per-task advanced metric keys (ragas_*, g_eval_score, etc.)

@@ -19,7 +19,7 @@ import math
 import statistics
 from typing import Any, Dict, List, Optional
 
-from agent_evaluator.gates.base import _g, _min_sample_warning
+from agent_evaluator.gates.base import _g
 
 
 def compute(
