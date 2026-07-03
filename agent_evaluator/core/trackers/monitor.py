@@ -285,6 +285,11 @@ class PerformanceMonitor:
         # SPEC-016: 옵트인 영속성 저장소 백엔드 — 기본값 "json"은 기존 save_to_file() 동작과
         # 100% 동일. "sqlite"는 task_id 기준 upsert 증분 쓰기 + 다중 writer 동시쓰기 지원.
         storage_backend: Literal["json", "sqlite"] = "json",
+        # SPEC-020: 옵트인 저장 계층 PII redaction — 기본값 False는 기존 save_to_file() 동작과
+        # 100% 동일. True면 저장 시점에만(인메모리 self.tasks는 원문 유지) question/response/
+        # ground_truth/context에서 Gate E의 기존 _PII_PATTERNS를 재사용해 마스킹한다.
+        enable_pii_redaction: bool = False,
+        pii_redaction_categories: Optional[List[str]] = None,
     ):
         """
         Initialize Performance Monitor
@@ -419,6 +424,9 @@ class PerformanceMonitor:
         self.enable_hallucination_detection = enable_hallucination_detection
         self.enable_security_metrics = enable_security_metrics
         self.security_config = security_config or {}
+        # SPEC-020: 옵트인 저장 계층 PII redaction (save_to_file()에서만 소비, 인메모리 태스크 무영향)
+        self.enable_pii_redaction = enable_pii_redaction
+        self.pii_redaction_categories = pii_redaction_categories
 
         # Zero Configuration: 자동 경로 감지
         from pathlib import Path
@@ -598,6 +606,23 @@ class PerformanceMonitor:
                 logger.warning("LLM Judge unexpected initialization error: %s", e, exc_info=True)
                 warnings.warn(f"LLM Judge initialization failed: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
+
+        # SPEC-023: judge 모델과 실행 모델이 동일하면 자기평가(self-evaluation) 편향 위험 —
+        # REQ-4: 이 판정을 한 번만 계산해 경고(아래)와 _build_lineage()의
+        # judge_same_as_execution_model 필드가 동일한 값을 공유하게 한다.
+        self._judge_same_as_execution_model = bool(
+            self.model_name and self.llm_judge is not None
+            and self.model_name == self.llm_judge.model
+        )
+        if self._judge_same_as_execution_model:
+            warnings.warn(
+                f"PerformanceMonitor: judge_model({self.llm_judge.model!r})이 실행 model_name과 "
+                "동일합니다. 같은 모델이 자신의 출력을 채점하면 독립적인 검증이 아니라 자기평가"
+                "(self-evaluation) 편향이 생길 수 있습니다 — 특히 로컬 소형 모델에서 두드러집니다. "
+                "가능하면 judge_model에 다른 모델을 지정하세요.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # Phase 3-B: 이상 감지 (opt-in)
         self.enable_anomaly_detection = enable_anomaly_detection
@@ -2927,6 +2952,10 @@ class PerformanceMonitor:
         모델 스냅샷 문자열(있으면)을 최근 판정 순으로 탐색해 기록한다 — provider가 별칭
         모델을 무중단으로 새 스냅샷으로 교체해도 사후 대조가 가능하도록 하기 위함이다.
         판정 기록이 없으면 설정값(judge.model)으로 폴백한다.
+
+        judge_same_as_execution_model (SPEC-023): judge 모델과 실행 모델(model_name)이
+        동일한 문자열이었는지 — True면 자기평가(self-evaluation) 편향 위험이 있었다는
+        뜻. __init__에서 한 번 계산된 값을 그대로 재사용(경고 발행 시점과 동일 판정).
         """
         _judge_snapshot: Optional[str] = None
         if self.llm_judge is not None:
@@ -2943,6 +2972,9 @@ class PerformanceMonitor:
             "prompt_version": self._prompt_version,
             "agent_version": self._agent_version,
             "judge_model_snapshot": _judge_snapshot,
+            # SPEC-023: __init__에서 한 번만 계산된 값을 그대로 재사용(REQ-4) — judge가
+            # 없으면(self.llm_judge is None) 판정 자체가 무의미하므로 False로 규약.
+            "judge_same_as_execution_model": self._judge_same_as_execution_model,
         }
 
     def generate_report(self, force_recompute: bool = False) -> "EvaluationReport":
@@ -4796,6 +4828,12 @@ class PerformanceMonitor:
                 filename = filename + ".db"
             with self._tasks_lock:
                 _tasks_snapshot = list(self.tcr_tracker._tasks)
+            # SPEC-020: 저장용 스냅숏 사본에만 적용 — self.tcr_tracker._tasks(인메모리)는 원문 유지
+            if self.enable_pii_redaction:
+                from ...utils.pii_redaction import redact_task_pii
+                _tasks_snapshot = [
+                    redact_task_pii(t, self.pii_redaction_categories) for t in _tasks_snapshot
+                ]
             from ...storage.sqlite_backend import save_tasks_to_db
             save_tasks_to_db(filename, _tasks_snapshot)
             logger.info("Performance data saved to %s (sqlite backend)", filename)
@@ -4810,6 +4848,13 @@ class PerformanceMonitor:
         # P: tasks 읽기 시 얕은 복사로 lock 보호 — 다른 스레드의 record_task()와 충돌 방지
         with self._tasks_lock:
             _tasks_snapshot = list(self.tcr_tracker._tasks)
+
+        # SPEC-020: 저장용 스냅숏 사본에만 적용 — self.tcr_tracker._tasks(인메모리)는 원문 유지
+        if self.enable_pii_redaction:
+            from ...utils.pii_redaction import redact_task_pii
+            _tasks_snapshot = [
+                redact_task_pii(t, self.pii_redaction_categories) for t in _tasks_snapshot
+            ]
 
         data = {
             "tasks": [asdict(task) for task in _tasks_snapshot],
