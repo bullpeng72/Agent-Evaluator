@@ -126,7 +126,10 @@ def task_agent(question: str, ground_truth: str = "") -> str:
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
     responses = {
-        "파일 삭제해줘":    "파일 삭제 처리 완료되었습니다.",    # ✅ 키워드 포함 → IFR 1.0
+        # "완료"/"처리"는 경계 인식 매칭으로 검사되므로, "완료되었습니다"처럼 조사가
+        # 아닌 음절이 바로 뒤에 붙으면 매칭되지 않는다. 아래는 "완료" 뒤에 문장부호가
+        # 오도록 작성해 실제로 두 키워드 모두 인식되게 한 예시다.
+        "파일 삭제해줘":    "파일 삭제 처리 완료!",              # ✅ 키워드 포함 → IFR 1.0
         "보고서 만들어줘":  "보고서 작성 중입니다.",             # ❌ 키워드 없음 → IFR 0.5
         "데이터 분석해줘":  "분석 결과: 평균 425입니다.",        # ❌ 키워드 없음 → IFR 0.5
     }
@@ -150,18 +153,23 @@ monitor_h.save_to_file("ch02_harness")
 print("  저장: results/ch02_harness.json + .html")
 
 report_h = monitor_h.generate_report()
-tcr_h = report_h.to_dict().get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
-print(f"\n  TCR: {tcr_h:.1f}%  avg_IFR: (1.0+0.5+0.5)/3=0.667  Gate A≈0.583")
+d_h = report_h.to_dict()
+tcr_h = d_h.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+gate_a_h = d_h.get("extra_metrics", {}).get("harness_groups", {}).get("A", {})
+avg_ifr_h = gate_a_h.get("details", {}).get("avg_instruction_adherence", 0.0)
+gate_a_score_h = gate_a_h.get("score", 0.0)
+print(f"\n  TCR: {tcr_h:.1f}%  avg_instruction_adherence: {avg_ifr_h:.3f}  Gate A score: {gate_a_score_h:.3f}")
 
 # HarnessEvaluationGate — required_groups=["A"]로 Gate A만 판정
-# Gate A = (TCR/100 + avg_IFR) / 2 = (0.50 + 0.667) / 2 ≈ 0.583 < 0.7 → FAIL
+# Gate A는 TCR·정확도 블렌딩 + avg_quality + avg_instruction_adherence를
+# gate_a_tcr_weight(기본 0.4)로 가중 평균한 값이다 — 위 avg_IFR만으로 역산되지 않는다.
 print("\n  [Gate] HarnessEvaluationGate(report_h, required_groups=[\"A\"]).enforce()")
 gate_h = HarnessEvaluationGate(report_h, required_groups=["A"])
 try:
     gate_h.enforce()
     print("  ✅ Gate A 통과")
 except SystemExit:
-    print("  ❌ Gate A 실패 — score(0.583) < min_group_score(0.7) → 배포 차단")
+    print(f"  ❌ Gate A 실패 — score({gate_a_score_h:.3f}) < min_group_score(0.7) → 배포 차단")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -245,7 +253,7 @@ print("    # → Tracing 탭에서 ae.tcr · ae.accuracy · ae.execution_time �
 # 섹션 5 — §2.7 QuickEval로 에이전트 A/B 버전 비교
 # ──────────────────────────────────────────────────────────────────────────────
 print("\n=== 섹션 5: A/B 에이전트 비교 — QuickEval (§2.7) ===")
-print("  같은 테스트 케이스로 두 버전을 평가하고 Group A/D 지표 차이를 비교한다")
+print("  같은 테스트 케이스로 두 버전을 평가하고 Gate A/D 지표 차이를 비교한다")
 
 eval_a = QuickEval(_OUTPUT_DIR)
 eval_b = QuickEval(_OUTPUT_DIR)
