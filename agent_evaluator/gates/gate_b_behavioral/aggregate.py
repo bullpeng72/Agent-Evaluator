@@ -24,6 +24,7 @@ def compute(
     min_samples_default: int,
     avg_goal_alignment_ref: Optional[float],
     avg_plan_coherence_ref: Optional[float],
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate B(행동 무결성) 점수를 집계한다.
 
@@ -34,78 +35,104 @@ def compute(
         avg_goal_alignment_ref: Gate A(gate_a_goal.aggregate.compute)에서 이미 계산된
             avg_goal_alignment — 진단용 재참조(Gate B 스코어링 미포함).
         avg_plan_coherence_ref: 위와 동일, avg_plan_coherence.
+        shared_running: (SPEC-018) retention_mode="windowed"일 때
+            ``GateBSharedAgg.snapshot()``이 제공하는 전체 이력 기준 6개 지표 집계값.
+            ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게 `tasks`에서 매번
+            재계산한다.
 
     Returns:
         gates/base.py의 `_g()` 형식 Gate 결과 dict.
     """
-    _loop_counts = sum(
-        1 for t in tasks
-        if (t.extra or {}).get("loop_detection", {}).get("detected", False)
-    )
-    # LoopDetectionConfig가 설정된 태스크 수를 분모로 사용 — DeadlockConfig와 동일 패턴
-    # 전체 n을 사용하면 부분 배포 시 루프율이 희석되어 Gate B가 허위 부풀려짐
-    _n_loop_tasks = sum(1 for t in tasks if (t.extra or {}).get("loop_detection") is not None)
-    _loop_rate = _loop_counts / _n_loop_tasks if _n_loop_tasks > 0 else 0.0
-
     # avg_goal_a / avg_plan_a: Gate A(gates/gate_a_goal/aggregate.py)에서 이미 계산됨 —
     # 파라미터로 전달받아 진단용으로만 재참조 (재계산하지 않음, SPEC-000)
     _avg_goal_a_ref = avg_goal_alignment_ref
     _avg_plan_a_ref = avg_plan_coherence_ref
-    # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
-    _sc_scores = [
-        t.extra["state_consistency"]["consistency_score"]
-        for t in tasks
-        if (t.extra or {}).get("state_consistency") is not None
-        and t.extra["state_consistency"].get("consistency_score") is not None
-    ]
-    avg_sc = sum(_sc_scores) / len(_sc_scores) if _sc_scores else None
-    _deadlock_count = sum(
-        1 for t in tasks
-        if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
-    )
-    # DeadlockConfig가 설정된(deadlock extra 존재하는) 태스크 수: 분모 및 score 포함 여부 결정
-    _n_dl_tasks = sum(1 for t in tasks if (t.extra or {}).get("deadlock") is not None)
-    _deadlock_by_type: Dict[str, int] = {}
-    for _t in tasks:
-        _dl = (_t.extra or {}).get("deadlock", {})
-        if _dl.get("deadlock_detected") and _dl.get("deadlock_type"):
-            _dtype = str(_dl["deadlock_type"])
-            _deadlock_by_type[_dtype] = _deadlock_by_type.get(_dtype, 0) + 1
 
-    _scope_vals = [
-        float(t.extra.get("scope", {}).get("scope_score"))
-        for t in tasks
-        if (t.extra or {}).get("scope") is not None
-        and (t.extra or {}).get("scope", {}).get("scope_score") is not None
-    ]
-    avg_scope_score = sum(_scope_vals) / len(_scope_vals) if _scope_vals else None
+    if shared_running is not None:
+        _loop_counts = shared_running["loop_count"]
+        _n_loop_tasks = shared_running["loop_n"]
+        avg_sc = shared_running["sc_avg"]
+        _sc_n = shared_running["sc_count"]
+        _deadlock_count = shared_running["deadlock_count"]
+        _n_dl_tasks = shared_running["deadlock_n"]
+        _deadlock_by_type: Dict[str, int] = shared_running["deadlock_by_type"]
+        avg_scope_score = shared_running["scope_avg"]
+        _scope_n = shared_running["scope_count"]
+        avg_tool_param_safety: Optional[float] = shared_running["tps_avg"]
+        _tps_n = shared_running["tps_count"]
+        _avg_context_window: Optional[float] = shared_running["cw_avg"]
+        _cw_n = shared_running["cw_count"]
+    else:
+        _loop_counts = sum(
+            1 for t in tasks
+            if (t.extra or {}).get("loop_detection", {}).get("detected", False)
+        )
+        # LoopDetectionConfig가 설정된 태스크 수를 분모로 사용 — DeadlockConfig와 동일 패턴
+        # 전체 n을 사용하면 부분 배포 시 루프율이 희석되어 Gate B가 허위 부풀려짐
+        _n_loop_tasks = sum(1 for t in tasks if (t.extra or {}).get("loop_detection") is not None)
 
-    # tool_parameter_safety → Group B (Phase 5)
-    _tps_vals = [
-        float(t.extra.get("tool_parameter_safety", {}).get("safety_score"))
-        for t in tasks
-        if (t.extra or {}).get("tool_parameter_safety") is not None
-        and (t.extra or {}).get("tool_parameter_safety", {}).get("safety_score") is not None
-    ]
-    avg_tool_param_safety: Optional[float] = (
-        sum(_tps_vals) / len(_tps_vals) if _tps_vals else None
-    )
+        # consistency_score=None (checks_total=0, 검사 미설정) 제외 — A-1 수정 이후 None 포함 가능
+        _sc_scores = [
+            t.extra["state_consistency"]["consistency_score"]
+            for t in tasks
+            if (t.extra or {}).get("state_consistency") is not None
+            and t.extra["state_consistency"].get("consistency_score") is not None
+        ]
+        avg_sc = sum(_sc_scores) / len(_sc_scores) if _sc_scores else None
+        _sc_n = len(_sc_scores)
 
-    # context_window → Group B (Phase 6)
-    _cw_scores = [
-        float(t.extra.get("context_window", {}).get("context_window_score"))
-        for t in tasks
-        if t.extra and t.extra.get("context_window")
-        and t.extra.get("context_window", {}).get("context_window_score") is not None
-    ]
-    _avg_context_window: Optional[float] = (
-        sum(_cw_scores) / len(_cw_scores) if _cw_scores else None
-    )
+        _deadlock_count = sum(
+            1 for t in tasks
+            if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
+        )
+        # DeadlockConfig가 설정된(deadlock extra 존재하는) 태스크 수: 분모 및 score 포함 여부 결정
+        _n_dl_tasks = sum(1 for t in tasks if (t.extra or {}).get("deadlock") is not None)
+        _deadlock_by_type = {}
+        for _t in tasks:
+            _dl = (_t.extra or {}).get("deadlock", {})
+            if _dl.get("deadlock_detected") and _dl.get("deadlock_type"):
+                _dtype = str(_dl["deadlock_type"])
+                _deadlock_by_type[_dtype] = _deadlock_by_type.get(_dtype, 0) + 1
+
+        _scope_vals = [
+            float(t.extra.get("scope", {}).get("scope_score"))
+            for t in tasks
+            if (t.extra or {}).get("scope") is not None
+            and (t.extra or {}).get("scope", {}).get("scope_score") is not None
+        ]
+        avg_scope_score = sum(_scope_vals) / len(_scope_vals) if _scope_vals else None
+        _scope_n = len(_scope_vals)
+
+        # tool_parameter_safety → Group B (Phase 5)
+        _tps_vals = [
+            float(t.extra.get("tool_parameter_safety", {}).get("safety_score"))
+            for t in tasks
+            if (t.extra or {}).get("tool_parameter_safety") is not None
+            and (t.extra or {}).get("tool_parameter_safety", {}).get("safety_score") is not None
+        ]
+        avg_tool_param_safety = (
+            sum(_tps_vals) / len(_tps_vals) if _tps_vals else None
+        )
+        _tps_n = len(_tps_vals)
+
+        # context_window → Group B (Phase 6)
+        _cw_scores = [
+            float(t.extra.get("context_window", {}).get("context_window_score"))
+            for t in tasks
+            if t.extra and t.extra.get("context_window")
+            and t.extra.get("context_window", {}).get("context_window_score") is not None
+        ]
+        _avg_context_window = (
+            sum(_cw_scores) / len(_cw_scores) if _cw_scores else None
+        )
+        _cw_n = len(_cw_scores)
+
+    _loop_rate = _loop_counts / _n_loop_tasks if _n_loop_tasks > 0 else 0.0
 
     # avg_goal_align / avg_plan: Gate A 직접 기여 항목 — Gate B 이중 집계 제거 (진단 목적으로만 유지)
     # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
     # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
-    _has_loop_data = any((t.extra or {}).get("loop_detection") is not None for t in tasks)
+    _has_loop_data = _n_loop_tasks > 0
     _loop_score: Optional[float] = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
     _deadlock_score: Optional[float] = (
         max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
@@ -136,11 +163,11 @@ def compute(
     _b_insufficient: List[str] = []
     for _name, _cnt in (
         ("loop_detection", _n_loop_tasks),
-        ("state_consistency", len(_sc_scores)),
+        ("state_consistency", _sc_n),
         ("deadlock", _n_dl_tasks),
-        ("scope", len(_scope_vals)),
-        ("tool_parameter_safety", len(_tps_vals)),
-        ("context_window", len(_cw_scores)),
+        ("scope", _scope_n),
+        ("tool_parameter_safety", _tps_n),
+        ("context_window", _cw_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
         if _w:

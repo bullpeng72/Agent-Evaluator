@@ -25,6 +25,7 @@ def compute(
     agent_coordination_tracker: Any,
     tool_selection_tracker: Any,
     min_samples_default: int,
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate F(Multi-Agent Coordination) 그룹 딕셔너리를 계산한다.
 
@@ -33,6 +34,12 @@ def compute(
         agent_coordination_tracker: PerformanceMonitor.agent_coordination_tracker.
         tool_selection_tracker: PerformanceMonitor.tool_selection_tracker.
         min_samples_default: SPEC-002 최소 표본 가드 기본값.
+        shared_running: (SPEC-018) retention_mode="windowed"일 때
+            ``GateFSharedAgg.snapshot()``이 제공하는 전체 이력 기준 태스크-파생
+            4개 지표(consensus/propagation/agent_role/conflict_resolution) 집계값.
+            ``coord_data``/``ts_data``(트래커 기반)는 이 스펙 범위 밖 — 항상 트래커
+            자체 상태에서 계산된다. ``None``(기본값, "full" 모드)이면 기존과 100%
+            동일하게 `tasks`에서 매번 재계산한다.
 
     Returns:
         {name, score, status, gate, details} — monitor.py의 groups["F"]와 동일한 형태.
@@ -64,53 +71,67 @@ def compute(
     except Exception:
         pass
 
-    # 단일 패스 병합(SPEC-000 REQ-2) — 4개 지표 모두 서로 독립적인 필터 조건(t.extra의
-    # "consensus"/"propagation"/"agent_role"/"conflict_resolution" 키, consensus는 추가로
-    # method != "single")이므로 하나의 for 루프에서 동시에 축적 가능.
-    _consensus_scores: List[float] = []
-    _prop_vals: List[float] = []
-    _role_scores: List[float] = []
-    _conflict_scores: List[float] = []
-    for t in tasks:
-        extra = t.extra or {}
+    if shared_running is not None:
+        avg_consensus: Optional[float] = shared_running["consensus_avg"]
+        avg_propagation: Optional[float] = shared_running["propagation_avg"]
+        _avg_role: Optional[float] = shared_running["role_avg"]
+        _avg_conflict_res: Optional[float] = shared_running["conflict_avg"]
+        _consensus_n = shared_running["consensus_count"]
+        _prop_n = shared_running["propagation_count"]
+        _role_n = shared_running["role_count"]
+        _conflict_n = shared_running["conflict_count"]
+    else:
+        # 단일 패스 병합(SPEC-000 REQ-2) — 4개 지표 모두 서로 독립적인 필터 조건(t.extra의
+        # "consensus"/"propagation"/"agent_role"/"conflict_resolution" 키, consensus는 추가로
+        # method != "single")이므로 하나의 for 루프에서 동시에 축적 가능.
+        _consensus_scores: List[float] = []
+        _prop_vals: List[float] = []
+        _role_scores: List[float] = []
+        _conflict_scores: List[float] = []
+        for t in tasks:
+            extra = t.extra or {}
 
-        _consensus = extra.get("consensus")
-        if _consensus is not None:
-            _cs = _consensus.get("consensus_score")
-            # method="single": 단일 에이전트 → 합의 측정 불가 → Gate F 집계에서 제외
-            if _cs is not None and _consensus.get("method") != "single":
-                _consensus_scores.append(float(_cs))
+            _consensus = extra.get("consensus")
+            if _consensus is not None:
+                _cs = _consensus.get("consensus_score")
+                # method="single": 단일 에이전트 → 합의 측정 불가 → Gate F 집계에서 제외
+                if _cs is not None and _consensus.get("method") != "single":
+                    _consensus_scores.append(float(_cs))
 
-        _prop = extra.get("propagation")
-        if _prop is not None:
-            _fs = _prop.get("fidelity_score")
-            if _fs is not None:
-                _prop_vals.append(float(_fs))
+            _prop = extra.get("propagation")
+            if _prop is not None:
+                _fs = _prop.get("fidelity_score")
+                if _fs is not None:
+                    _prop_vals.append(float(_fs))
 
-        _role = extra.get("agent_role")
-        if _role is not None:
-            _rc = _role.get("role_compliance_score")
-            if _rc is not None:
-                _role_scores.append(float(_rc))
+            _role = extra.get("agent_role")
+            if _role is not None:
+                _rc = _role.get("role_compliance_score")
+                if _rc is not None:
+                    _role_scores.append(float(_rc))
 
-        _conflict = extra.get("conflict_resolution")
-        if _conflict is not None:
-            _rs = _conflict.get("resolution_score")
-            if _rs is not None:
-                _conflict_scores.append(float(_rs))
+            _conflict = extra.get("conflict_resolution")
+            if _conflict is not None:
+                _rs = _conflict.get("resolution_score")
+                if _rs is not None:
+                    _conflict_scores.append(float(_rs))
 
-    avg_consensus: Optional[float] = (
-        sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
-    )
-    avg_propagation: Optional[float] = (
-        sum(_prop_vals) / len(_prop_vals) if _prop_vals else None
-    )
-    _avg_role: Optional[float] = (
-        sum(_role_scores) / len(_role_scores) if _role_scores else None
-    )
-    _avg_conflict_res: Optional[float] = (
-        sum(_conflict_scores) / len(_conflict_scores) if _conflict_scores else None
-    )
+        avg_consensus = (
+            sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
+        )
+        avg_propagation = (
+            sum(_prop_vals) / len(_prop_vals) if _prop_vals else None
+        )
+        _avg_role = (
+            sum(_role_scores) / len(_role_scores) if _role_scores else None
+        )
+        _avg_conflict_res = (
+            sum(_conflict_scores) / len(_conflict_scores) if _conflict_scores else None
+        )
+        _consensus_n = len(_consensus_scores)
+        _prop_n = len(_prop_vals)
+        _role_n = len(_role_scores)
+        _conflict_n = len(_conflict_scores)
 
     _f_vals: List[float] = []
     if _coord_data is not None:
@@ -130,10 +151,10 @@ def compute(
     # SPEC-002: insufficient_data 경고 (task 기반 4개 지표)
     _f_insufficient: List[str] = []
     for _name, _cnt in (
-        ("consensus", len(_consensus_scores)),
-        ("propagation", len(_prop_vals)),
-        ("agent_role", len(_role_scores)),
-        ("conflict_resolution", len(_conflict_scores)),
+        ("consensus", _consensus_n),
+        ("propagation", _prop_n),
+        ("agent_role", _role_n),
+        ("conflict_resolution", _conflict_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
         if _w:

@@ -26,6 +26,7 @@ def compute(
     min_samples_default: int,
     hall_rate: Optional[float],
     avg_llm_faithfulness: Optional[float],
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate G(관측 가능성) 점수를 집계한다.
 
@@ -36,6 +37,11 @@ def compute(
         hall_rate: Gate C(gate_c_reliability.aggregate.compute)가 반환한 shared_raw의
             원본(반올림 없는) hallucination rate — LLMJudge faithfulness 비활성 시에만 사용.
         avg_llm_faithfulness: 위와 동일, LLM Judge faithfulness 평균(0–5 스케일 원본).
+        shared_running: (SPEC-018) retention_mode="windowed"일 때
+            ``GateGSharedAgg.snapshot()``이 제공하는 전체 이력 기준 태스크-파생
+            4개 지표 집계값. ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게
+            `tasks`에서 매번 재계산한다. ``hall_rate``/``avg_llm_faithfulness``는
+            Gate C(Phase 6)가 끝나기 전까지 이 파라미터와 무관하게 windowed-only다.
 
     Returns:
         gates/base.py의 `_g()` 형식 Gate 결과 dict.
@@ -50,47 +56,61 @@ def compute(
     except Exception:
         pass
 
-    _obs_custom_scores = [
-        s for s in (
-            (t.extra or {}).get("observability", {}).get("observability_score")
-            for t in tasks
-            if (t.extra or {}).get("observability") is not None
-        ) if s is not None
-    ]
-    avg_obs_custom = sum(_obs_custom_scores) / len(_obs_custom_scores) if _obs_custom_scores else None
+    if shared_running is not None:
+        avg_obs_custom = shared_running["observability_avg"]
+        _obs_custom_n = shared_running["observability_count"]
+        avg_explainability: Optional[float] = shared_running["explainability_avg"]
+        _expl_n = shared_running["explainability_count"]
+        avg_error_diagnosis: Optional[float] = shared_running["error_diagnosis_avg"]
+        _ed_n = shared_running["error_diagnosis_count"]
+        _avg_latency_attribution: Optional[float] = shared_running["latency_attribution_avg"]
+        _la_n = shared_running["latency_attribution_count"]
+    else:
+        _obs_custom_scores = [
+            s for s in (
+                (t.extra or {}).get("observability", {}).get("observability_score")
+                for t in tasks
+                if (t.extra or {}).get("observability") is not None
+            ) if s is not None
+        ]
+        avg_obs_custom = sum(_obs_custom_scores) / len(_obs_custom_scores) if _obs_custom_scores else None
+        _obs_custom_n = len(_obs_custom_scores)
 
-    _expl_vals = [
-        s for s in (
-            (t.extra or {}).get("explainability", {}).get("score")
-            for t in tasks
-            if (t.extra or {}).get("explainability") is not None
-        ) if s is not None
-    ]
-    avg_explainability: Optional[float] = sum(_expl_vals) / len(_expl_vals) if _expl_vals else None
+        _expl_vals = [
+            s for s in (
+                (t.extra or {}).get("explainability", {}).get("score")
+                for t in tasks
+                if (t.extra or {}).get("explainability") is not None
+            ) if s is not None
+        ]
+        avg_explainability = sum(_expl_vals) / len(_expl_vals) if _expl_vals else None
+        _expl_n = len(_expl_vals)
 
-    # error_diagnosis → Group G (Phase 5)
-    _ed_scores = [
-        s for s in (
-            t.extra.get("error_diagnosis", {}).get("diagnosis_score")
-            for t in tasks
-            if (t.extra or {}).get("error_diagnosis") is not None
-        ) if s is not None
-    ]
-    avg_error_diagnosis: Optional[float] = (
-        sum(_ed_scores) / len(_ed_scores) if _ed_scores else None
-    )
+        # error_diagnosis → Group G (Phase 5)
+        _ed_scores = [
+            s for s in (
+                t.extra.get("error_diagnosis", {}).get("diagnosis_score")
+                for t in tasks
+                if (t.extra or {}).get("error_diagnosis") is not None
+            ) if s is not None
+        ]
+        avg_error_diagnosis = (
+            sum(_ed_scores) / len(_ed_scores) if _ed_scores else None
+        )
+        _ed_n = len(_ed_scores)
 
-    # latency_attribution → Group G (Phase 6)
-    _la_scores = [
-        s for s in (
-            t.extra.get("latency_attribution", {}).get("attribution_score")
-            for t in tasks
-            if t.extra and t.extra.get("latency_attribution")
-        ) if s is not None
-    ]
-    _avg_latency_attribution: Optional[float] = (
-        sum(_la_scores) / len(_la_scores) if _la_scores else None
-    )
+        # latency_attribution → Group G (Phase 6)
+        _la_scores = [
+            s for s in (
+                t.extra.get("latency_attribution", {}).get("attribution_score")
+                for t in tasks
+                if t.extra and t.extra.get("latency_attribution")
+            ) if s is not None
+        ]
+        _avg_latency_attribution = (
+            sum(_la_scores) / len(_la_scores) if _la_scores else None
+        )
+        _la_n = len(_la_scores)
 
     _obs_vals: List[float] = []
     if _tool_coverage is not None:
@@ -112,10 +132,10 @@ def compute(
     # ── G 그룹: insufficient_data 경고 수집 (SPEC-002, task 기반 4개 지표) ──
     _g_insufficient: List[str] = []
     for _name, _cnt in (
-        ("observability", len(_obs_custom_scores)),
-        ("explainability", len(_expl_vals)),
-        ("error_diagnosis", len(_ed_scores)),
-        ("latency_attribution", len(_la_scores)),
+        ("observability", _obs_custom_n),
+        ("explainability", _expl_n),
+        ("error_diagnosis", _ed_n),
+        ("latency_attribution", _la_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
         if _w:

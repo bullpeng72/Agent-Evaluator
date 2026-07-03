@@ -25,6 +25,7 @@ def compute(
     quality_evaluator: Any,
     gate_a_tcr_weight: float,
     min_samples_default: int,
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate A(Goal Achievement) 그룹 딕셔너리를 계산한다.
 
@@ -35,6 +36,14 @@ def compute(
         quality_evaluator: PerformanceMonitor.quality_evaluator.
         gate_a_tcr_weight: PerformanceMonitor._gate_a_tcr_weight.
         min_samples_default: SPEC-002 최소 표본 가드 기본값.
+        shared_running: (SPEC-018) retention_mode="windowed"일 때
+            ``GateASharedAgg.snapshot()``이 제공하는 전체 이력 기준 6개 지표 집계값
+            (instruction_adherence/goal_alignment/plan_coherence/subtask_completion/
+            context_retention/knowledge_retention — goal_alignment/plan_coherence는
+            LLM-judge 블렌딩 이후의 최종 스칼라를 누적한다). TCR 컴포넌트(tcr_tracker)와
+            accuracy_evaluator/quality_evaluator 기반 부분은 이 스펙 범위 밖(기존
+            _RunningTCRView 및 별도 무제한 트래커 그대로). ``None``(기본값, "full"
+            모드)이면 기존과 100% 동일하게 `tasks`에서 매번 재계산한다.
 
     Returns:
         {name, score, status, gate, details} — monitor.py의 groups["A"]와 동일한 형태.
@@ -48,106 +57,126 @@ def compute(
     except Exception:
         pass
 
-    _ifr_scores = [
-        float(t.extra.get("instruction_adherence", {}).get("score"))
-        for t in tasks
-        if (t.extra or {}).get("instruction_adherence") is not None
-        and (t.extra or {}).get("instruction_adherence", {}).get("score") is not None
-    ]
-    avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
+    if shared_running is not None:
+        avg_ifr = shared_running["ifr_avg"]
+        _ifr_n = shared_running["ifr_count"]
+        avg_goal_a = shared_running["goal_avg"]
+        _goal_a_n = shared_running["goal_count"]
+        avg_plan_a = shared_running["plan_avg"]
+        _plan_a_n = shared_running["plan_count"]
+        avg_subtask = shared_running["subtask_avg"]
+        _subtask_n = shared_running["subtask_count"]
+        avg_context_r = shared_running["context_retention_avg"]
+        _cr_n = shared_running["context_retention_count"]
+        avg_knowledge_ret: Optional[float] = shared_running["knowledge_retention_avg"]
+        _kr_n = shared_running["knowledge_retention_count"]
+    else:
+        _ifr_scores = [
+            float(t.extra.get("instruction_adherence", {}).get("score"))
+            for t in tasks
+            if (t.extra or {}).get("instruction_adherence") is not None
+            and (t.extra or {}).get("instruction_adherence", {}).get("score") is not None
+        ]
+        avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
+        _ifr_n = len(_ifr_scores)
 
-    _goal_a_vals: List[float] = []
-    _goal_a_excluded = 0
-    for _t in tasks:
-        _ga = ((_t.extra or {}).get("goal_alignment") or {})
-        if not _ga:
-            continue
-        _ga_score_raw = _ga.get("score")
-        if _ga_score_raw is None:   # goal_tool_map 불일치·미측정 태스크 → 집계 제외
-            _goal_a_excluded += 1
-            continue
-        _ga_score = float(_ga_score_raw)
-        # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
-        if _ga.get("use_llm_scoring"):
-            _lj = (_t.extra or {}).get("llm_judge") or {}
-            _lj_scores = _lj.get("scores") or {}
-            _rel = _lj_scores.get("relevance")
-            if _rel is not None:
-                try:
-                    _rel_norm = min(1.0, max(0.0, float(_rel) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
-                    _w = max(0.0, min(1.0, float(_ga.get("llm_blend_weight", 0.5))))
-                    _ga_score = _ga_score * (1 - _w) + _rel_norm * _w
-                except (TypeError, ValueError):
-                    pass
-        _goal_a_vals.append(_ga_score)
-    avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
-    if avg_goal_a is None and _goal_a_excluded > 1:
-        import logging
-        logging.getLogger(__name__).warning(
-            "[Gate A] GoalAlignmentConfig: %d task(s) all excluded (score=None). "
-            "For non-tool agents, set GoalAlignmentConfig(ignore_no_tool_tasks=False).",
-            _goal_a_excluded,
-        )
+        _goal_a_vals: List[float] = []
+        _goal_a_excluded = 0
+        for _t in tasks:
+            _ga = ((_t.extra or {}).get("goal_alignment") or {})
+            if not _ga:
+                continue
+            _ga_score_raw = _ga.get("score")
+            if _ga_score_raw is None:   # goal_tool_map 불일치·미측정 태스크 → 집계 제외
+                _goal_a_excluded += 1
+                continue
+            _ga_score = float(_ga_score_raw)
+            # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
+            if _ga.get("use_llm_scoring"):
+                _lj = (_t.extra or {}).get("llm_judge") or {}
+                _lj_scores = _lj.get("scores") or {}
+                _rel = _lj_scores.get("relevance")
+                if _rel is not None:
+                    try:
+                        _rel_norm = min(1.0, max(0.0, float(_rel) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
+                        _w = max(0.0, min(1.0, float(_ga.get("llm_blend_weight", 0.5))))
+                        _ga_score = _ga_score * (1 - _w) + _rel_norm * _w
+                    except (TypeError, ValueError):
+                        pass
+            _goal_a_vals.append(_ga_score)
+        avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
+        _goal_a_n = len(_goal_a_vals)
+        if avg_goal_a is None and _goal_a_excluded > 1:
+            import logging
+            logging.getLogger(__name__).warning(
+                "[Gate A] GoalAlignmentConfig: %d task(s) all excluded (score=None). "
+                "For non-tool agents, set GoalAlignmentConfig(ignore_no_tool_tasks=False).",
+                _goal_a_excluded,
+            )
 
-    _plan_a_vals: List[float] = []
-    for _t in tasks:
-        _pc = ((_t.extra or {}).get("plan_coherence") or {})
-        if not _pc:
-            continue
-        _pc_score_raw = _pc.get("score")
-        if _pc_score_raw is None:
-            continue
-        _pc_score = float(_pc_score_raw)
-        # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
-        if _pc.get("use_llm_scoring"):
-            _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
-            _rel_pc = (_lj_pc.get("scores") or {}).get("relevance")
-            if _rel_pc is not None:
-                try:
-                    _w_pc = max(0.0, min(1.0, float(_pc.get("llm_blend_weight", 0.5))))
-                    _rel_norm_pc = min(1.0, max(0.0, float(_rel_pc) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
-                    _pc_score = _pc_score * (1 - _w_pc) + _rel_norm_pc * _w_pc
-                except (TypeError, ValueError):
-                    pass
-        _plan_a_vals.append(_pc_score)
-    avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
+        _plan_a_vals: List[float] = []
+        for _t in tasks:
+            _pc = ((_t.extra or {}).get("plan_coherence") or {})
+            if not _pc:
+                continue
+            _pc_score_raw = _pc.get("score")
+            if _pc_score_raw is None:
+                continue
+            _pc_score = float(_pc_score_raw)
+            # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
+            if _pc.get("use_llm_scoring"):
+                _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
+                _rel_pc = (_lj_pc.get("scores") or {}).get("relevance")
+                if _rel_pc is not None:
+                    try:
+                        _w_pc = max(0.0, min(1.0, float(_pc.get("llm_blend_weight", 0.5))))
+                        _rel_norm_pc = min(1.0, max(0.0, float(_rel_pc) / 5.0))  # 0-5 → 0-1 정규화 + 범위 클램프
+                        _pc_score = _pc_score * (1 - _w_pc) + _rel_norm_pc * _w_pc
+                    except (TypeError, ValueError):
+                        pass
+            _plan_a_vals.append(_pc_score)
+        avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
+        _plan_a_n = len(_plan_a_vals)
 
-    _subtask_vals = [
-        float(t.extra.get("subtask_completion", {}).get("completion_rate"))
-        for t in tasks
-        if (t.extra or {}).get("subtask_completion") is not None
-        and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
-        # subtask_count=0: expected_subtasks 미설정 → completion_rate=1.0이 의미 없으므로 제외
-        and int((t.extra or {}).get("subtask_completion", {}).get("subtask_count", 0)) > 0
-    ]
-    avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
+        _subtask_vals = [
+            float(t.extra.get("subtask_completion", {}).get("completion_rate"))
+            for t in tasks
+            if (t.extra or {}).get("subtask_completion") is not None
+            and (t.extra or {}).get("subtask_completion", {}).get("completion_rate") is not None
+            # subtask_count=0: expected_subtasks 미설정 → completion_rate=1.0이 의미 없으므로 제외
+            and int((t.extra or {}).get("subtask_completion", {}).get("subtask_count", 0)) > 0
+        ]
+        avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
+        _subtask_n = len(_subtask_vals)
 
-    _cr_vals = [
-        float(t.extra.get("context_retention", {}).get("retention_score"))
-        for t in tasks
-        if (t.extra or {}).get("context_retention") is not None
-        and (t.extra or {}).get("context_retention", {}).get("retention_score") is not None
-    ]
-    avg_context_r = sum(_cr_vals) / len(_cr_vals) if _cr_vals else None
+        _cr_vals = [
+            float(t.extra.get("context_retention", {}).get("retention_score"))
+            for t in tasks
+            if (t.extra or {}).get("context_retention") is not None
+            and (t.extra or {}).get("context_retention", {}).get("retention_score") is not None
+        ]
+        avg_context_r = sum(_cr_vals) / len(_cr_vals) if _cr_vals else None
+        _cr_n = len(_cr_vals)
 
-    # knowledge_retention → Group A (Phase 5)
-    _kr_vals = [
-        float(t.extra.get("knowledge_retention", {}).get("retention_score"))
-        for t in tasks
-        if (t.extra or {}).get("knowledge_retention") is not None
-        and t.extra.get("knowledge_retention", {}).get("retention_score") is not None
-    ]
-    avg_knowledge_ret: Optional[float] = sum(_kr_vals) / len(_kr_vals) if _kr_vals else None
+        # knowledge_retention → Group A (Phase 5)
+        _kr_vals = [
+            float(t.extra.get("knowledge_retention", {}).get("retention_score"))
+            for t in tasks
+            if (t.extra or {}).get("knowledge_retention") is not None
+            and t.extra.get("knowledge_retention", {}).get("retention_score") is not None
+        ]
+        avg_knowledge_ret = sum(_kr_vals) / len(_kr_vals) if _kr_vals else None
+        _kr_n = len(_kr_vals)
 
     # ── A 그룹: insufficient_data 경고 수집 (SPEC-002) ──
     _a_insufficient: List[str] = []
     for _name, _cnt in (
-        ("instruction_adherence", len(_ifr_scores)),
-        ("goal_alignment", len(_goal_a_vals)),
-        ("plan_coherence", len(_plan_a_vals)),
-        ("subtask_completion", len(_subtask_vals)),
-        ("context_retention", len(_cr_vals)),
-        ("knowledge_retention", len(_kr_vals)),
+        ("instruction_adherence", _ifr_n),
+        ("goal_alignment", _goal_a_n),
+        ("plan_coherence", _plan_a_n),
+        ("subtask_completion", _subtask_n),
+        ("context_retention", _cr_n),
+        ("knowledge_retention", _kr_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
         if _w:
@@ -213,7 +242,7 @@ def compute(
         "avg_accuracy": round(_avg_accuracy_a, 4) if _avg_accuracy_a is not None else None,
         "avg_quality_relevance_completeness": round(_rqe_a, 4) if _rqe_a is not None else None,
         "gate_a_tcr_weight": gate_a_tcr_weight,
-        "tasks_with_ifr": len(_ifr_scores),
+        "tasks_with_ifr": _ifr_n,
         "avg_instruction_adherence": round(avg_ifr, 4) if avg_ifr is not None else None,
         "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
         "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,

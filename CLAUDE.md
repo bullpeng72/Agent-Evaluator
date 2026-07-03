@@ -505,6 +505,30 @@ threat_response, context_window, latency_attribution
   part of this work — doing so during implementation reformatted 199 tracked files repo-wide as an
   unintended side effect, which had to be recovered via `git stash` + precise reapplication of the
   actual SPEC-015/016 edits. A full-repo reformat, if wanted, should be its own separate, deliberate PR.
+- **SPEC-018 — Gate running-aggregate shared_metrics layer**: extends SPEC-004's `_running_tcr_agg`/
+  `_RunningTCRView` pattern (previously the *only* Gate metric with true full-history behavior under
+  `retention_mode="windowed"`) to Gates E/F/G/B/A/C (Phase 0-6). New `agent_evaluator/gates/
+  shared_metrics.py` has 7 generic accumulator primitives (`RunningAverage`/`RunningSum`/
+  `RunningWindow`/`RunningLastValue`/`MonotonicFlag`/`RunningCount`/`RunningCategoryCounter`) plus
+  6 per-Gate `GateXSharedAgg` classes. Each `gates/gate_x/aggregate.py::compute()` gained an optional
+  trailing `shared_running: Optional[dict] = None` param — `None` (default, "full" mode) is
+  byte-identical to pre-SPEC-018 behavior; windowed mode passes a `.snapshot()` from the
+  corresponding `GateXSharedAgg`, updated in `record_task()`'s existing lock block right after the
+  security-tracker enrichment step (the enrichment runs *after* the TCR agg update, so any new
+  Gate-agg `.update()` call must go after enrichment too, or it'll aggregate the pre-enriched
+  `task_result` — this exact ordering bug was caught and fixed during Gate E's implementation via
+  the full-vs-windowed cross-check test). **Explicitly excluded** (separate approval required):
+  Gate C's `retry_consistency` (task-id-prefix grouping could grow unboundedly — its `compute()`
+  block was left untouched, not even reformatted, so the exclusion is visible in the diff) and Gate
+  D's p95/TTFT-variability/cost-predictability (would need streaming approximation algorithms —
+  P²/t-digest/Welford's — genuinely different output from exact recomputation, not a pure
+  optimization). Also fixed a pre-existing display bug while migrating Gate C: `sla_breach_count`
+  used to show `None` whenever the *windowed* task subset had no SLA-tagged tasks, even if full
+  history did — now gated on a full-history count (`sla_n`) instead, with zero behavior change in
+  "full" mode. `SPEC-001` is unrelated to this work despite SPEC-004 citing it as a prerequisite —
+  SPEC-001 is actually about deduplicating `monitor.py`'s live Gate-scoring formulas against
+  `serve/loader.py`'s legacy-JSON fallback formulas, a separate problem never implemented
+  standalone (folded into SPEC-000).
 
 ---
 

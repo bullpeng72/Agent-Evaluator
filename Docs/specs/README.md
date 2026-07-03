@@ -28,7 +28,7 @@ SPEC-XXX: <제목>
 | [SPEC-001](SPEC-001-gate-aggregation-unification.md) | Gate 집계 단일 소스화 (monitor.py ↔ serve/loader.py) | P1 | Draft — **SPEC-000 REQ-1로 흡수** | SPEC-000 이관 작업 내 처리 |
 | [SPEC-002](SPEC-002-universal-min-sample-guard.md) | 전 Gate 공통 최소 표본 가드 | P0 | **Implemented (2026-07-02)** | 없음 — SPEC-000과 독립적으로 지금 착수 가능 |
 | [SPEC-003](SPEC-003-single-pass-aggregation.md) | 단일 패스 집계 (46회 순회 → 1회) | P1 | Draft — **SPEC-000 REQ-2로 흡수** | SPEC-000 이관 작업 내 처리 |
-| [SPEC-004](SPEC-004-streaming-retention-mode.md) | 옵트인 스트리밍 모니터 모드 | P2 | **Partially Implemented (2026-07-02)** — REQ-1/3/4 완료, REQ-2는 Gate A/C TCR 컴포넌트만 러닝 집계(축소 범위) | SPEC-000 완료 |
+| [SPEC-004](SPEC-004-streaming-retention-mode.md) | 옵트인 스트리밍 모니터 모드 | P2 | **Partially Implemented (2026-07-02, Gate E/F/G/B/A/C 확장 2026-07-03)** — REQ-1/3/4 완료, REQ-2는 SPEC-018로 Gate A/B/C(일부)/E/F/G까지 확장(Gate D·retry_consistency는 별도 승인 대상) | SPEC-000 완료 |
 | [SPEC-005](SPEC-005-dashboard-auth-middleware.md) | 대시보드 인증 미들웨어 (옵트인) | P0 | **Implemented (2026-07-02)** | 없음 |
 | [SPEC-006](SPEC-006-llm-judge-concurrency.md) | LLM Judge 동시성 및 백오프 | P2 | **Implemented (2026-07-02)** | 없음 |
 | [SPEC-007](SPEC-007-lineage-capture.md) | 감사/재현성 Lineage 캡처 | P0 | **Implemented (2026-07-02)** | 없음 |
@@ -42,6 +42,7 @@ SPEC-XXX: <제목>
 | [SPEC-015](SPEC-015-alert-handler-retry-backoff.md) | **알림 핸들러 재시도/백오프 및 알림 폭풍 방지** | P3 | **Implemented (2026-07-03)** | 없음 |
 | [SPEC-016](SPEC-016-sqlite-storage-backend.md) | **영속성 저장소 옵션 — SQLite 백엔드** (JSON 파일 전용의 동시쓰기/규모 한계) | P4 | **Implemented (2026-07-03)** | 없음 |
 | [SPEC-017](SPEC-017-supply-chain-hygiene.md) | **공급망 위생** (CI, 취약점 스캔, Dependabot, pre-commit, SBOM) | P4 | **Implemented (2026-07-03)** | 없음 |
+| [SPEC-018](SPEC-018-gate-running-aggregate-shared-metrics.md) | **Gate 러닝 집계 공유 인프라** (shared_metrics 계층 — SPEC-004 REQ-2 확장) | P2 | **Implemented (2026-07-03, Phase 0-6)** — Gate D 근사 지표·retry_consistency는 별도 승인 대상(Phase 7) | 없음 (SPEC-001과 무관, SPEC-004의 잘못된 교차 참조 정정) |
 
 ## 백로그
 
@@ -55,7 +56,7 @@ SPEC-XXX: <제목>
 |---|---|---|
 | **P0** (즉시, 리스크 최저) | SPEC-002, SPEC-005, SPEC-007 | 독립적·additive, SPEC-000의 구조 변경과 무관하게 지금 착수 가능 |
 | **P1** (구조 기반) | **SPEC-000** ✅ 완료(Gate별 이관: F→E→D→A→B→C→G, 각 단계에 SPEC-001/003 요구사항 흡수) | decorators.py(9,632→8,025줄)/taskresult_helpers.py(4,632→1,262줄)/monitor.py God Method(~1,165줄→위임 호출)를 전면 분해하는 프로그램의 핵심 구조 변경 |
-| **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013·SPEC-014 ✅ (2026-07-02~03) | SPEC-000 완료로 착수 가능했음 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
+| **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013·SPEC-014·SPEC-018 ✅ (2026-07-02~03, Phase 0-6) | SPEC-000 완료로 착수 가능했음 — SPEC-018이 SPEC-004 REQ-2를 Gate A/B/C(일부)/E/F/G까지 확장; Gate D·retry_consistency는 SPEC-018 Phase 7로 별도 승인 대상 |
 | **P3** | SPEC-008 ✅·SPEC-010 ✅(2026-07-02)·SPEC-015 ✅(2026-07-03) | 이후 |
 | **P4** | SPEC-016 ✅·SPEC-017 ✅(2026-07-03) | 장기 |
 
@@ -65,7 +66,7 @@ SPEC-XXX: <제목>
 2. **통계적 신뢰**: 전 Gate 표본 부족 경고, CI 게이트가 통계적으로 무의미한 점수로 배포를 승인하지 않음. — **SPEC-002**
 3. **AI-Native**: Gate F/B가 텍스트 휴리스틱보다 구조화된 `tool_calls`/`agent_interactions`를 우선 사용. — **SPEC-009 ✅ 완료(2026-07-02)**
 4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합·알림 발송 안정성(재시도/백오프/알림 폭풍 방지)·대규모 세션을 위한 영속성 저장소 옵션. — **SPEC-005 ✅·SPEC-007 ✅·SPEC-006 ✅·SPEC-010 ✅·SPEC-015 ✅·SPEC-016 ✅(2026-07-03)**
-5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1, 대시보드 로더가 watch 모드에서 매 요청 전량 재파싱하지 않음, `generate_report()`가 직전 호출 이후 데이터가 바뀌지 않았으면 재계산을 건너뜀. — **SPEC-004(부분 완료, 2026-07-02 — TCR 컴포넌트만 러닝 집계), SPEC-000(REQ-2) ✅, SPEC-013 ✅(2026-07-02), SPEC-014 ✅(2026-07-03)**
+5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1, 대시보드 로더가 watch 모드에서 매 요청 전량 재파싱하지 않음, `generate_report()`가 직전 호출 이후 데이터가 바뀌지 않았으면 재계산을 건너뜀, windowed 리텐션 모드에서도 Gate A/B/C(일부)/E/F/G가 전체 이력을 반영. — **SPEC-004(부분 완료, Gate D·retry_consistency만 남음), SPEC-000(REQ-2) ✅, SPEC-013 ✅(2026-07-02), SPEC-014 ✅(2026-07-03), SPEC-018 ✅(2026-07-03, Phase 0-6)**
 6. **엔지니어링 거버넌스**: CI(테스트/린트/타입체크 자동화)·의존성 취약점 스캔·Dependabot·pre-commit 실효화·릴리스 SBOM. — **SPEC-017 ✅(2026-07-03)**
 
 각 목표가 어느 스펙으로 달성되는지 1:1로 명시했다 — 스펙 없는 목표(이전 두 차례 감사에서 발견된 패턴)가 더 없는지는 이 표와 백로그 섹션을 함께 봐야 확인된다.

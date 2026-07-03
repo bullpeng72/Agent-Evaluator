@@ -170,6 +170,604 @@ class TestWindowedRunningTCRAggregate:
         assert windowed_tcr == pytest.approx(full_tcr)
 
 
+class TestWindowedGateERunningMetrics:
+    """SPEC-018 Phase 1: Gate E(Security Boundary)의 러닝 집계가 windowed 모드에서도
+    전체 이력을 반영해야 한다(파일럿 Gate — 트래커 의존성 0, 다른 Gate 참조 0)."""
+
+    def _make_security_task(self, task_id: str, kind: str):
+        """kind별로 Gate E가 추적하는 각 extra 필드를 하나씩 채운 태스크를 만든다."""
+        extra_by_kind = {
+            "priv_esc": {"privilege_escalation": {"escalation_detected": True}},
+            "chain_attack": {"tool_chain_attack": {"is_suspicious_chain": True}},
+            "leakage": {"output_leakage": {"leakage_count": 2}},
+            "injection": {"input_sanitization": {"threat_count": 1}},
+            "tool_auth": {"tool_authorization": {"total_violations": 3}},
+            "cvss": {"threat_severity": {"weighted_score": 7.5}},
+            "compliance": {"compliance": {"compliance_score": 0.6}},
+            "threat_response": {"threat_response": {"response_score": 0.9}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 20):
+        kinds = [
+            "priv_esc", "chain_attack", "leakage", "injection", "tool_auth",
+            "cvss", "compliance", "threat_response", "clean",
+        ]
+        return [self._make_security_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        """윈도우보다 많은 태스크를 기록하면, 스냅숏이 밀려난 태스크의 기여분도 반영해야 한다."""
+        m = PerformanceMonitor(enable_security_metrics=True, retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(20):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_e_agg.snapshot()
+        # 20개 태스크 중 priv_esc/chain_attack/leakage/injection/tool_auth kind는
+        # 각각 20/9 ≈ 2~3회씩 등장(윈도우에 남은 5개보다 훨씬 많음).
+        assert snap["priv_esc_n"] >= 2
+        assert snap["chain_attack_n"] >= 2
+        assert snap["leakage_n"] >= 2
+        assert snap["injection_n"] >= 2
+        assert snap["tool_auth_n"] >= 2
+        assert snap["cvss_count"] >= 2
+        assert snap["compliance_count"] >= 2
+        assert snap["tr_count"] >= 2
+        assert snap["n"] == 20
+
+    def test_gate_e_details_match_full_history_expectation(self):
+        """세부 지표 단위 일치 — 최상위 score뿐 아니라 details의 각 키가 전체 이력
+        기대값과 일치해야 한다."""
+        m_full = PerformanceMonitor(enable_security_metrics=True)
+        for t in self._build_sequence(18):
+            m_full.record_task(t)
+        expected = _hg(m_full)["E"]["details"]
+
+        m_win = PerformanceMonitor(enable_security_metrics=True, retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(18):
+            m_win.record_task(t)
+        actual = _hg(m_win)["E"]["details"]
+
+        assert actual == expected
+
+    def test_full_vs_windowed_cross_check(self):
+        """가장 강력한 회귀 방지 — 동일 태스크 시퀀스를 full/windowed로 각각 실행해
+        Gate E details 전체가 일치하는지 확인."""
+        tasks = self._build_sequence(27)
+
+        m_full = PerformanceMonitor(enable_security_metrics=True, retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(enable_security_metrics=True, retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        e_full = _hg(m_full)["E"]
+        e_win = _hg(m_win)["E"]
+        assert e_win["details"] == e_full["details"]
+        assert e_win["score"] == pytest.approx(e_full["score"])
+
+    def test_full_mode_never_constructs_gate_e_agg(self):
+        """불변식: retention_mode="full"에서는 _running_gate_e_agg 속성 자체가
+        생성되지 않아야 한다."""
+        m = PerformanceMonitor(enable_security_metrics=True)
+        m.record_task(self._make_security_task("t0", "priv_esc"))
+        assert not hasattr(m, "_running_gate_e_agg")
+
+    def test_no_security_data_produces_none_score(self):
+        """extra에 보안 데이터가 전혀 없고 enable_security_metrics=False이면
+        Gate E 점수는 None이어야 한다(기존 동작 불변)."""
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for i in range(10):
+            m.record_task(_task(f"t{i}", 1.0))
+        hg = _hg(m)
+        assert hg["E"]["score"] is None
+
+
+class TestWindowedGateFRunningMetrics:
+    """SPEC-018 Phase 2: Gate F(Multi-Agent Coordination)의 태스크 기반 4개 지표
+    (consensus/propagation/agent_role/conflict_resolution)가 windowed 모드에서도
+    전체 이력을 반영해야 한다. 트래커 기반 coordination/tool_selection은 이 스펙
+    범위 밖(별도로 무제한 증식, 변경 없음)."""
+
+    def _make_coord_task(self, task_id: str, kind: str):
+        extra_by_kind = {
+            "consensus": {"consensus": {"consensus_score": 0.9, "method": "majority"}},
+            "consensus_single": {"consensus": {"consensus_score": 0.9, "method": "single"}},
+            "propagation": {"propagation": {"fidelity_score": 0.8}},
+            "agent_role": {"agent_role": {"role_compliance_score": 0.7}},
+            "conflict_resolution": {"conflict_resolution": {"resolution_score": 0.6}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 20):
+        kinds = ["consensus", "propagation", "agent_role", "conflict_resolution", "clean"]
+        return [self._make_coord_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(20):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_f_agg.snapshot()
+        assert snap["consensus_count"] >= 2
+        assert snap["propagation_count"] >= 2
+        assert snap["role_count"] >= 2
+        assert snap["conflict_count"] >= 2
+
+    def test_consensus_single_method_excluded_from_running_agg(self):
+        """method="single"인 태스크는 러닝 집계에서도 제외되어야 한다(기존 필터 유지)."""
+        m = PerformanceMonitor(retention_mode="windowed", window_size=10)
+        for i in range(5):
+            m.record_task(self._make_coord_task(f"s{i}", "consensus_single"))
+        snap = m._running_gate_f_agg.snapshot()
+        assert snap["consensus_count"] == 0
+        assert snap["consensus_avg"] is None
+
+    def test_gate_f_details_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(18):
+            m_full.record_task(t)
+        expected = _hg(m_full)["F"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(18):
+            m_win.record_task(t)
+        actual = _hg(m_win)["F"]["details"]
+
+        assert actual == expected
+
+    def test_full_vs_windowed_cross_check(self):
+        tasks = self._build_sequence(27)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        f_full = _hg(m_full)["F"]
+        f_win = _hg(m_win)["F"]
+        assert f_win["details"] == f_full["details"]
+        assert f_win["score"] == pytest.approx(f_full["score"])
+
+    def test_full_mode_never_constructs_gate_f_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_coord_task("t0", "consensus"))
+        assert not hasattr(m, "_running_gate_f_agg")
+
+
+class TestWindowedGateGRunningMetrics:
+    """SPEC-018 Phase 3: Gate G(Observability)의 태스크 기반 4개 지표
+    (observability/explainability/error_diagnosis/latency_attribution)가 windowed
+    모드에서도 전체 이력을 반영해야 한다. hall_rate/avg_llm_faithfulness는 Gate C가
+    Phase 6에서 마이그레이션되기 전까지 여전히 windowed-only(별도 회귀 아님)."""
+
+    def _make_obs_task(self, task_id: str, kind: str):
+        extra_by_kind = {
+            "observability": {"observability": {"observability_score": 0.9}},
+            "explainability": {"explainability": {"score": 0.8}},
+            "error_diagnosis": {"error_diagnosis": {"diagnosis_score": 0.7}},
+            "latency_attribution": {"latency_attribution": {"attribution_score": 0.6}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 20):
+        kinds = ["observability", "explainability", "error_diagnosis", "latency_attribution", "clean"]
+        return [self._make_obs_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(20):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_g_agg.snapshot()
+        assert snap["observability_count"] >= 2
+        assert snap["explainability_count"] >= 2
+        assert snap["error_diagnosis_count"] >= 2
+        assert snap["latency_attribution_count"] >= 2
+
+    def test_gate_g_migrated_details_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(18):
+            m_full.record_task(t)
+        expected = _hg(m_full)["G"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(18):
+            m_win.record_task(t)
+        actual = _hg(m_win)["G"]["details"]
+
+        # 4개 마이그레이션된 키만 비교 — hallucination_rate는 Gate C의 hallucination_detector
+        # (별도의, retention_mode와 무관하게 항상 무제한 증식하는 트래커)에서 오므로 Gate G/C의
+        # task 기반 지표 마이그레이션과 무관하게 애초부터 전체 이력을 반영해 왔다(별도 검증 불필요).
+        for key in (
+            "avg_observability_score", "avg_explainability",
+            "avg_error_diagnosis", "avg_latency_attribution",
+        ):
+            assert actual[key] == expected[key], key
+
+    def test_full_vs_windowed_cross_check_migrated_keys(self):
+        tasks = self._build_sequence(27)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        g_full = _hg(m_full)["G"]["details"]
+        g_win = _hg(m_win)["G"]["details"]
+        for key in (
+            "avg_observability_score", "avg_explainability",
+            "avg_error_diagnosis", "avg_latency_attribution",
+        ):
+            assert g_win[key] == pytest.approx(g_full[key]), key
+
+    def test_full_mode_never_constructs_gate_g_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_obs_task("t0", "observability"))
+        assert not hasattr(m, "_running_gate_g_agg")
+
+
+class TestWindowedGateBRunningMetrics:
+    """SPEC-018 Phase 4: Gate B(Behavioral Integrity)의 6개 지표
+    (loop_detection/state_consistency/deadlock/scope/tool_parameter_safety/
+    context_window)가 windowed 모드에서도 전체 이력을 반영해야 한다. 트래커 의존성
+    없는 100% task-derived Gate — 공유 분모(loop/deadlock) + 카테고리 카운터
+    (deadlock_by_type) 패턴을 처음 검증."""
+
+    def _make_behavioral_task(self, task_id: str, kind: str):
+        extra_by_kind = {
+            "loop_detected": {"loop_detection": {"detected": True}},
+            "loop_clean": {"loop_detection": {"detected": False}},
+            "state_consistency": {"state_consistency": {"consistency_score": 0.8}},
+            "deadlock_resource": {"deadlock": {"deadlock_detected": True, "deadlock_type": "resource"}},
+            "deadlock_comm": {"deadlock": {"deadlock_detected": True, "deadlock_type": "communication"}},
+            "deadlock_clean": {"deadlock": {"deadlock_detected": False}},
+            "scope": {"scope": {"scope_score": 0.7}},
+            "tool_param_safety": {"tool_parameter_safety": {"safety_score": 0.6}},
+            "context_window": {"context_window": {"context_window_score": 0.5}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 30):
+        kinds = [
+            "loop_detected", "loop_clean", "state_consistency", "deadlock_resource",
+            "deadlock_comm", "deadlock_clean", "scope", "tool_param_safety",
+            "context_window", "clean",
+        ]
+        return [self._make_behavioral_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(30):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_b_agg.snapshot()
+        assert snap["loop_n"] >= 2
+        assert snap["sc_count"] >= 2
+        assert snap["deadlock_n"] >= 2
+        assert snap["scope_count"] >= 2
+        assert snap["tps_count"] >= 2
+        assert snap["cw_count"] >= 2
+        assert snap["deadlock_by_type"] == {"resource": 3, "communication": 3}
+
+    def test_gate_b_details_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(20):
+            m_full.record_task(t)
+        expected = _hg(m_full)["B"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(20):
+            m_win.record_task(t)
+        actual = _hg(m_win)["B"]["details"]
+
+        assert actual == expected
+
+    def test_full_vs_windowed_cross_check(self):
+        tasks = self._build_sequence(40)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        b_full = _hg(m_full)["B"]
+        b_win = _hg(m_win)["B"]
+        assert b_win["details"] == b_full["details"]
+        assert b_win["score"] == pytest.approx(b_full["score"])
+
+    def test_full_mode_never_constructs_gate_b_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_behavioral_task("t0", "loop_detected"))
+        assert not hasattr(m, "_running_gate_b_agg")
+
+
+class TestWindowedGateARunningMetrics:
+    """SPEC-018 Phase 5: Gate A(Goal Achievement)의 6개 Config 지표
+    (instruction_adherence/goal_alignment/plan_coherence/subtask_completion/
+    context_retention/knowledge_retention)가 windowed 모드에서도 전체 이력을
+    반영해야 한다. goal_alignment/plan_coherence는 LLM-judge 블렌딩 후 최종
+    스칼라를 누적하는지가 핵심 검증 대상."""
+
+    def _make_goal_task(self, task_id: str, kind: str):
+        extra_by_kind = {
+            "instruction_adherence": {"instruction_adherence": {"score": 0.9}},
+            "goal_alignment": {"goal_alignment": {"score": 0.8, "use_llm_scoring": False}},
+            "goal_alignment_blended": {
+                "goal_alignment": {"score": 0.6, "use_llm_scoring": True, "llm_blend_weight": 0.5},
+                "llm_judge": {"scores": {"relevance": 4.0}},  # 4.0/5.0=0.8 정규화 → (0.6+0.8)/2=0.7
+            },
+            "plan_coherence": {"plan_coherence": {"score": 0.7, "use_llm_scoring": False}},
+            "subtask_completion": {
+                "subtask_completion": {"completion_rate": 0.6, "subtask_count": 3}
+            },
+            "context_retention": {"context_retention": {"retention_score": 0.5}},
+            "knowledge_retention": {"knowledge_retention": {"retention_score": 0.4}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 21):
+        kinds = [
+            "instruction_adherence", "goal_alignment_blended", "plan_coherence",
+            "subtask_completion", "context_retention", "knowledge_retention", "clean",
+        ]
+        return [self._make_goal_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(21):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_a_agg.snapshot()
+        assert snap["ifr_count"] >= 2
+        assert snap["goal_count"] >= 2
+        assert snap["plan_count"] >= 2
+        assert snap["subtask_count"] >= 2
+        assert snap["context_retention_count"] >= 2
+        assert snap["knowledge_retention_count"] >= 2
+
+    def test_goal_alignment_llm_blend_matches_manual_computation(self):
+        """LLM-judge 블렌딩 후 최종 스칼라(0.7)가 누적되어야 한다(원점수 0.6이 아님)."""
+        m = PerformanceMonitor(retention_mode="windowed", window_size=10)
+        for i in range(3):
+            m.record_task(self._make_goal_task(f"g{i}", "goal_alignment_blended"))
+        snap = m._running_gate_a_agg.snapshot()
+        assert snap["goal_avg"] == pytest.approx(0.7)
+
+    def test_gate_a_migrated_details_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(21):
+            m_full.record_task(t)
+        expected = _hg(m_full)["A"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(21):
+            m_win.record_task(t)
+        actual = _hg(m_win)["A"]["details"]
+
+        for key in (
+            "avg_instruction_adherence", "avg_goal_alignment", "avg_plan_coherence",
+            "avg_subtask_completion", "avg_context_retention", "avg_knowledge_retention",
+        ):
+            assert actual[key] == expected[key], key
+
+    def test_full_vs_windowed_cross_check_migrated_keys(self):
+        tasks = self._build_sequence(35)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        a_full = _hg(m_full)["A"]["details"]
+        a_win = _hg(m_win)["A"]["details"]
+        for key in (
+            "avg_instruction_adherence", "avg_goal_alignment", "avg_plan_coherence",
+            "avg_subtask_completion", "avg_context_retention", "avg_knowledge_retention",
+        ):
+            assert a_win[key] == pytest.approx(a_full[key]), key
+
+    def test_full_mode_never_constructs_gate_a_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_goal_task("t0", "instruction_adherence"))
+        assert not hasattr(m, "_running_gate_a_agg")
+
+
+class TestWindowedGateCRunningMetrics:
+    """SPEC-018 Phase 6: Gate C(Reliability)의 reproducibility/fault_tolerance/
+    graceful_degradation/idempotency/llm_faithfulness + SLA breach_rate/
+    window_penalty/budget_penalty가 windowed 모드에서도 전체 이력을 반영해야
+    한다. `retry_consistency`는 의도적으로 제외 — windowed 부분집합 기준으로만
+    계산되는지 별도 검증."""
+
+    def _make_reliability_task(self, task_id: str, kind: str, **extra_overrides):
+        extra_by_kind = {
+            "reproducibility": {"reproducibility": {"score": 0.9, "run_count": 3}},
+            "fault_tolerance": {"fault_tolerance": {"grade": "full_recovery", "recovery_rate": 0.8}},
+            "graceful_degradation": {"graceful_degradation": {"degradation_score": 0.7}},
+            "idempotency": {"idempotency": {"idempotency_score": 0.6}},
+            "clean": {},
+        }
+        extra = dict(extra_by_kind[kind])
+        extra.update(extra_overrides)
+        return _task(task_id, 1.0, extra=extra)
+
+    def _build_sequence(self, n: int = 20):
+        kinds = ["reproducibility", "fault_tolerance", "graceful_degradation", "idempotency", "clean"]
+        return [self._make_reliability_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(20):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_c_agg.snapshot()
+        assert snap["repro_count"] >= 2
+        assert snap["ft_count"] >= 2
+        assert snap["deg_count"] >= 2
+        assert snap["idem_count"] >= 2
+
+    def test_gate_c_migrated_details_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(18):
+            m_full.record_task(t)
+        expected = _hg(m_full)["C"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(18):
+            m_win.record_task(t)
+        actual = _hg(m_win)["C"]["details"]
+
+        for key in (
+            "avg_reproducibility", "avg_fault_tolerance", "avg_degradation", "avg_idempotency",
+        ):
+            assert actual[key] == expected[key], key
+
+    def test_full_vs_windowed_cross_check_migrated_keys(self):
+        tasks = self._build_sequence(35)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        c_full = _hg(m_full)["C"]["details"]
+        c_win = _hg(m_win)["C"]["details"]
+        for key in (
+            "avg_reproducibility", "avg_fault_tolerance", "avg_degradation", "avg_idempotency",
+        ):
+            assert c_win[key] == pytest.approx(c_full[key]), key
+
+    def test_full_mode_never_constructs_gate_c_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_reliability_task("t0", "reproducibility"))
+        assert not hasattr(m, "_running_gate_c_agg")
+
+    def test_retry_consistency_intentionally_excluded_stays_windowed_only(self):
+        """retry_consistency는 Phase 6에서 의도적으로 제외됐다 — windowed 모드에서
+        여전히 windowed 부분집합 기준으로만 계산되고, 전체 이력을 반영하지 않아야 한다."""
+        # 같은 프리픽스로 여러 번 재시도하는 태스크 시퀀스 — 앞부분(윈도우 밖으로 밀려남)의
+        # accuracy가 낮고 뒷부분(윈도우에 남음)의 accuracy가 높으면, 전체 이력 기준과
+        # windowed 부분집합 기준의 delta 보너스 계산이 달라진다.
+        # task_id를 0-패딩(retry_00..retry_19)해 문자열 정렬이 수치 순서와 일치하게 한다
+        # (rsplit("_", 1) 그룹핑 로직이 문자열 정렬에 의존하므로, 패딩 없으면
+        # "retry_10" < "retry_2" 처럼 의도와 다른 순서로 그룹 내 first/last가 뒤바뀐다).
+        tasks = []
+        for i in range(20):
+            t = create_taskresult(
+                task_id=f"retry_{i:02d}", question="q", response="r", execution_time=0.1,
+                task_type="qa", completion_score=1.0,
+                accuracy_score=0.3 if i < 15 else 0.9,
+                extra={"retry_consistency": {"consistency_score": 0.5, "_config": {"group_by_task_prefix": True}}},
+            )
+            tasks.append(t)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_rc = _hg(m_full)["C"]["details"]["avg_retry_consistency"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in tasks:
+            m_win.record_task(t)
+        win_rc = _hg(m_win)["C"]["details"]["avg_retry_consistency"]
+
+        # 의도적 제외 확인 — windowed 부분집합(마지막 5개, 전부 accuracy=0.9로 delta=0)과
+        # 전체 이력(첫 task accuracy=0.3, 마지막 accuracy=0.9로 delta=+0.6, 보너스 적용)의
+        # 결과가 실제로 달라야 한다(같으면 우연히 델타가 없는 것이므로 이 픽스처 설계를 재검토).
+        assert win_rc != full_rc
+        assert full_rc == pytest.approx(0.6)  # 0.5 + 0.1 개선 보너스
+        assert win_rc == pytest.approx(0.5)  # 윈도우 내 delta=0 → 보너스 없음
+
+    def test_sla_window_penalty_ring_buffer_independent_of_window_size(self):
+        """SLA breach_window(예: 3)는 retention_mode의 window_size(예: 5)와 독립적인
+        별도 링버퍼로 추적되어야 한다 — 윈도우 밖으로 밀려난 태스크의 SLA 결과도
+        breach_window 범위 안에 있다면 페널티 계산에 반영되어야 한다."""
+        tasks = []
+        for i in range(10):
+            # 마지막 3개(breach_window)만 breach, 나머지는 정상
+            is_breach = i >= 7
+            t = create_taskresult(
+                task_id=f"sla_{i}", question="q", response="r", execution_time=0.1,
+                task_type="qa", completion_score=1.0,
+                extra={"sla": {
+                    "sla_met": not is_breach, "cost_usd": 0.01,
+                    "_config": {"breach_window": 3, "warn_threshold": 2, "fail_threshold": 3},
+                }},
+            )
+            tasks.append(t)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_penalty = _hg(m_full)["C"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in tasks:
+            m_win.record_task(t)
+        win_penalty = _hg(m_win)["C"]
+
+        # 두 모드 모두 마지막 3개(breach_window)가 전부 breach → fail_threshold(3) 도달
+        # → sla_breach_rate가 동일해야 한다(전체 이력 기준 breach_count/n 비교).
+        assert win_penalty["details"]["sla_breach_rate"] == pytest.approx(
+            full_penalty["details"]["sla_breach_rate"]
+        )
+
+    def test_sla_breach_count_reflects_full_history_even_when_window_evicts_all_sla_tasks(self):
+        """회귀 방지: sla_breach_count의 표시 여부가 windowed 부분집합의 존재 여부가
+        아니라 전체 이력 기준으로 결정되어야 한다(원본 코드의 `if _sla_results:` 게이팅이
+        windowed 모드에서 잘못된 None을 낼 수 있었던 버그의 수정 확인)."""
+        tasks = []
+        for i in range(5):
+            tasks.append(create_taskresult(
+                task_id=f"sla_old_{i}", question="q", response="r", execution_time=0.1,
+                task_type="qa", completion_score=1.0,
+                extra={"sla": {"sla_met": False, "cost_usd": 0.01}},
+            ))
+        # 이후 SLA 데이터가 전혀 없는 태스크만 추가 — 윈도우가 전부 밀어냄
+        for i in range(5):
+            tasks.append(create_taskresult(
+                task_id=f"clean_{i}", question="q", response="r", execution_time=0.1,
+                task_type="qa", completion_score=1.0,
+            ))
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        details = _hg(m_win)["C"]["details"]
+        # 윈도우에는 SLA 데이터가 있는 태스크가 하나도 남아있지 않지만(전부 clean_*),
+        # 전체 이력에는 5건의 SLA breach가 있었으므로 None이 아니라 5가 나와야 한다.
+        assert details["sla_breach_count"] == 5
+
+
 class TestWindowedRetentionWarnings:
     """REQ-3: windowed 모드에서 get_report_by_type/get_report_by_framework/
     export_by_framework/register_aggregator 호출 시 UserWarning이 매번 발생."""

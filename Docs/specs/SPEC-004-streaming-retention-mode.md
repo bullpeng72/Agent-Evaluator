@@ -1,6 +1,11 @@
 # SPEC-004: 옵트인 스트리밍 모니터 모드
 
-**Phase:** P2 · **상태:** Partially Implemented (2026-07-02) · **의존성:** SPEC-001(shared_metrics 계층) 선행 권장
+**Phase:** P2 · **상태:** Partially Implemented (2026-07-02, Gate E 확장 2026-07-03) · **의존성:** SPEC-018(Gate 러닝 집계 공유 인프라) 진행 중
+
+> **정정(2026-07-03)**: 아래 원래 구현 노트가 "SPEC-001의 shared_metrics 계층"을 언급하지만,
+> 재검토 결과 `SPEC-001-gate-aggregation-unification.md`은 실제로는 다른 문제
+> (monitor.py 실시간 계산 vs `serve/loader.py` legacy-JSON fallback의 중복 공식 문제)를
+> 다루며 이 러닝 집계 일반화 작업과 무관하다. 이 작업은 **SPEC-018**로 신규 추적한다.
 
 > **구현 노트 (2026-07-02)**: REQ-1(옵트인 `retention_mode`/`window_size` 파라미터), REQ-3(4개 API의
 > 매 호출 `UserWarning`), REQ-4(`window_size` 양의 정수 검증)는 **완전히 구현**했다.
@@ -12,15 +17,16 @@
 >   전체 이력 기준으로 계산된다** — `_RunningTCRView`가 `TaskCompletionTracker.calculate_tcr()`와
 >   동일한 형태로 이 값을 Gate A/C의 `aggregate.compute()`에 주입한다.
 > - **그 외 모든 Gate 지표(A의 instruction_adherence/goal_alignment/plan_coherence/
->   subtask_completion/context_retention/knowledge_retention, B/D/E/F/G 전체, C의
+>   subtask_completion/context_retention/knowledge_retention, B/D/F/G 전체, C의
 >   SLA breach 이외 나머지 — reproducibility/fault_tolerance/graceful_degradation/
 >   retry_consistency/idempotency 등)는 windowed 상태의 태스크 목록(`tasks` 파라미터)만으로
->   재계산된다.** 이 지표들은 개별 `TaskResult.extra` 딕셔너리를 순회해 계산되므로,
->   진짜 러닝 집계로 전환하려면 7개 Gate의 evaluator/aggregate 전체를 SPEC-001이 제안한
->   `shared_metrics` 계층으로 재구조화해야 한다 — 이는 이번 세션에서 안전하게 완결할 수 있는
->   범위를 넘어선다고 판단해 의도적으로 보류했다. 따라서 **Acceptance의 "Gate 점수(A~G)가
->   전체 이력 기준 집계와 일치"는 TCR 컴포넌트에 한해서만 성립하며, 나머지 컴포넌트는
->   windowed 부분집합 기준으로 계산된다.**
+>   재계산된다.** (Gate E는 2026-07-03 SPEC-018 Phase 1로 전체 이력 기준으로 전환됨 —
+>   아래 구현 노트 참조.) 이 지표들은 개별 `TaskResult.extra` 딕셔너리를 순회해 계산되므로,
+>   진짜 러닝 집계로 전환하려면 7개 Gate의 evaluator/aggregate 전체를 SPEC-018이 제안한
+>   `shared_metrics` 계층으로 재구조화해야 한다 — 이는 세션 하나에서 안전하게 완결할 수 있는
+>   범위를 넘어서 단계별(Phase 0-6) 롤아웃으로 진행 중이다. 따라서 **Acceptance의 "Gate
+>   점수(A~G)가 전체 이력 기준 집계와 일치"는 TCR 컴포넌트 + Gate E에 한해서만 성립하며,
+>   나머지 컴포넌트는 windowed 부분집합 기준으로 계산된다.**
 > - 다른 트래커(`accuracy_evaluator`, `quality_evaluator`, 보안 트래커 5종,
 >   `tool_analyzer`, `agent_coordination_tracker` 등)의 내부 리스트는 windowed 모드에서도
 >   여전히 무제한 증식한다 — 이번 스펙은 `tcr_tracker._tasks`(= `self.tasks`)만 캡핑했다.
@@ -28,8 +34,26 @@
 >   성립하지만, 프로세스 전체 메모리 사용량에는 아직 성립하지 않는다.
 > - 테스트: `tests/test_streaming_retention_mode.py`(신규 21건) + 기존 2,947건 전량 통과
 >   (총 2,968 passed, 1 skipped, 회귀 없음).
-> - 후속 작업(백로그): SPEC-001의 `shared_metrics` 계층이 완성되면 B/D/E/F/G 및 Gate A/C의
->   나머지 컴포넌트에도 동일한 러닝 집계 패턴을 확장 적용할 것.
+
+> **구현 노트 (2026-07-03, SPEC-018 Phase 0-1)**: 신규 `agent_evaluator/gates/shared_metrics.py`
+> 에 범용 러닝 집계 프리미티브(`RunningAverage`/`RunningSum`/`RunningWindow`/`RunningLastValue`/
+> `RunningCount`)와 파일럿 `GateESharedAgg`를 추가했다. `gates/gate_e_security/aggregate.py::
+> compute()`가 `shared_running: Optional[dict] = None` 인자를 받아 windowed 모드에서는
+> `GateESharedAgg.snapshot()`을, "full" 모드(기본값)에서는 기존 `tasks` 재계산 경로를 그대로
+> 사용한다. **구현 중 실제로 순서 버그를 발견하고 수정했다**: `record_task()`의 보안 트래커
+> enrichment(`input_sanitization`/`output_leakage`/`privilege_escalation`/`tool_chain_attack`/
+> `tool_authorization`을 `task_result.extra`에 채워 넣는 블록)가 TCR 러닝 집계 갱신보다 **나중에**
+> 실행되므로, `_running_gate_e_agg.update()`를 TCR 갱신 직후에 호출하면 아직 enrichment가
+> 안 된 task_result를 집계해 windowed 모드의 Gate E 점수가 full 모드와 달라지는 버그가
+> 생겼다 — 이는 계획서(Plan) 검토 단계의 full-vs-windowed 교차검증 테스트로 실제로 잡혔다.
+> `_running_gate_e_agg.update()` 호출을 보안 enrichment 블록 **이후**로 옮겨 수정했다.
+> 신규 테스트 `TestWindowedGateERunningMetrics`(5건 — 이력 반영, 세부 지표 일치, full-vs-windowed
+> 교차검증, full 모드 불변 확인, 보안 데이터 전무 시 None 유지) 추가. 전체 스위트
+> 3,117 passed, 1 skipped, 회귀 0건.
+>
+> 후속 작업(SPEC-018 Phase 2-6): Gate F/G/B/A/C(reproducibility 등, retry_consistency 제외)에
+> 동일한 패턴 확장 예정. Gate C `retry_consistency`와 Gate D의 percentile/분산 계열 지표는
+> 근사 알고리즘이 필요해 별도 승인 대상으로 분리됨(SPEC-018 문서 참조).
 
 ## Context
 

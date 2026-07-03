@@ -27,58 +27,79 @@ from typing import Any, Dict, List, Optional, Tuple
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
 
-def compute_sla_shared_data(tasks: List[Any]) -> Dict[str, Any]:
+def compute_sla_shared_data(
+    tasks: List[Any],
+    shared_running: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """SLA 관련 공유 데이터 계산 (Gate C·D 양쪽에서 소비).
 
     Args:
         tasks: 기록된 TaskResult 리스트.
+        shared_running: (SPEC-018 Phase 6) retention_mode="windowed"일 때
+            ``GateCSharedAgg.snapshot()``이 제공하는 전체 이력 기준 SLA 집계값.
+            ``sla_results``(원본 리스트)는 Gate D(``gate_d_performance/aggregate.py``,
+            p95_ms 임계값 평균 계산에 사용 — 이 스펙 범위 밖, Phase 7 대상)가 여전히
+            소비하므로 ``shared_running`` 유무와 무관하게 **항상 `tasks`(windowed
+            부분집합)에서 계산**한다 — breach_count/rate/window_penalty/budget_penalty
+            "값"만 러닝 집계로 대체되고, "원본 리스트"는 windowed-only로 남는다.
 
     Returns:
         {sla_results, sla_breach_count, sla_breach_rate, sla_warning,
-         sla_window_penalty, sla_budget_penalty}
+         sla_window_penalty, sla_budget_penalty, sla_n}
     """
     _sla_results = [
         t.extra["sla"]
         for t in tasks
         if (t.extra or {}).get("sla") is not None
     ]
-    _sla_breach_count = sum(1 for s in _sla_results if not s.get("sla_met", True))
-    _sla_breach_rate = _sla_breach_count / len(_sla_results) if _sla_results else None
 
-    # SPEC-002: SLA 표본 부족 경고는 Gate C·D 양쪽에서 공유되는 원천 데이터이므로 한 번만 계산한다
-    # (REQ-3) — Gate D의 min_samples=5 계약값을 그대로 재사용, 이 기본값 자체는 변경하지 않는다.
-    _sla_warning: Optional[str] = _min_sample_warning("sla", len(_sla_results), 5)
+    if shared_running is not None:
+        _sla_n = shared_running["sla_n"]
+        _sla_breach_count = shared_running["sla_breach_count"]
+        _sla_breach_rate = _sla_breach_count / _sla_n if _sla_n > 0 else None
+        _sla_warning: Optional[str] = _min_sample_warning("sla", _sla_n, 5)
+        _sla_window_penalty = shared_running["sla_window_penalty"]
+        _sla_budget_penalty = shared_running["sla_budget_penalty"]
+    else:
+        _sla_n = len(_sla_results)
+        _sla_breach_count = sum(1 for s in _sla_results if not s.get("sla_met", True))
+        _sla_breach_rate = _sla_breach_count / len(_sla_results) if _sla_results else None
 
-    # breach_window/warn_threshold/fail_threshold: 최근 window 내 연속 breach 감지
-    _sla_window_penalty: float = 0.0
-    _sla_cfg_summary: Dict[str, Any] = {}
-    if _sla_results:
-        _sla_cfg_summary = next(
-            (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
-        )
-        _breach_window = int(_sla_cfg_summary.get("breach_window", 10))
-        _warn_thr = int(_sla_cfg_summary.get("warn_threshold", 2))
-        _fail_thr = int(_sla_cfg_summary.get("fail_threshold", 5))
-        _recent = _sla_results[-_breach_window:]
-        _recent_breach_count = sum(1 for s in _recent if not s.get("sla_met", True))
-        if _recent_breach_count >= _fail_thr:
-            _sla_window_penalty = 0.3   # Gate D 점수 30% 감점
-        elif _recent_breach_count >= _warn_thr:
-            _sla_window_penalty = 0.1   # 10% 감점
+        # SPEC-002: SLA 표본 부족 경고는 Gate C·D 양쪽에서 공유되는 원천 데이터이므로 한 번만
+        # 계산한다(REQ-3) — Gate D의 min_samples=5 계약값을 그대로 재사용, 이 기본값 자체는
+        # 변경하지 않는다.
+        _sla_warning = _min_sample_warning("sla", len(_sla_results), 5)
 
-    # budget_usd: 세션 전체 누적 비용 예산 초과 감지
-    _sla_budget_penalty: float = 0.0
-    if _sla_results:
-        _budget_usd = _sla_cfg_summary.get("budget_usd")
-        if _budget_usd is not None:
-            _total_session_cost = sum(
-                float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
-                for t in tasks
-                if (t.extra or {}).get("sla") is not None
+        # breach_window/warn_threshold/fail_threshold: 최근 window 내 연속 breach 감지
+        _sla_window_penalty = 0.0
+        _sla_cfg_summary: Dict[str, Any] = {}
+        if _sla_results:
+            _sla_cfg_summary = next(
+                (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
             )
-            if _total_session_cost > float(_budget_usd):
-                _overage = _total_session_cost / max(float(_budget_usd), 1e-9) - 1.0
-                _sla_budget_penalty = min(0.3, _overage * 0.1)
+            _breach_window = int(_sla_cfg_summary.get("breach_window", 10))
+            _warn_thr = int(_sla_cfg_summary.get("warn_threshold", 2))
+            _fail_thr = int(_sla_cfg_summary.get("fail_threshold", 5))
+            _recent = _sla_results[-_breach_window:]
+            _recent_breach_count = sum(1 for s in _recent if not s.get("sla_met", True))
+            if _recent_breach_count >= _fail_thr:
+                _sla_window_penalty = 0.3   # Gate D 점수 30% 감점
+            elif _recent_breach_count >= _warn_thr:
+                _sla_window_penalty = 0.1   # 10% 감점
+
+        # budget_usd: 세션 전체 누적 비용 예산 초과 감지
+        _sla_budget_penalty = 0.0
+        if _sla_results:
+            _budget_usd = _sla_cfg_summary.get("budget_usd")
+            if _budget_usd is not None:
+                _total_session_cost = sum(
+                    float((t.extra.get("sla") or {}).get("cost_usd") or 0.0)
+                    for t in tasks
+                    if (t.extra or {}).get("sla") is not None
+                )
+                if _total_session_cost > float(_budget_usd):
+                    _overage = _total_session_cost / max(float(_budget_usd), 1e-9) - 1.0
+                    _sla_budget_penalty = min(0.3, _overage * 0.1)
 
     return {
         "sla_results": _sla_results,
@@ -87,6 +108,7 @@ def compute_sla_shared_data(tasks: List[Any]) -> Dict[str, Any]:
         "sla_warning": _sla_warning,
         "sla_window_penalty": _sla_window_penalty,
         "sla_budget_penalty": _sla_budget_penalty,
+        "sla_n": _sla_n,
     }
 
 
@@ -97,6 +119,7 @@ def compute(
     gate_c_tcr_weight: float,
     min_samples_default: int,
     sla_shared: Dict[str, Any],
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Gate C(신뢰성) 점수를 집계한다.
 
@@ -106,7 +129,14 @@ def compute(
         tcr_tracker: `TaskCompletionTracker` 인스턴스.
         gate_c_tcr_weight: TCR 컴포넌트 가중치.
         min_samples_default: 표본 부족 경고 최소 임계치.
-        sla_shared: `compute_sla_shared_data(tasks)`의 반환값.
+        sla_shared: `compute_sla_shared_data(tasks, shared_running)`의 반환값.
+        shared_running: (SPEC-018 Phase 6) retention_mode="windowed"일 때
+            ``GateCSharedAgg.snapshot()``이 제공하는 전체 이력 기준 집계값
+            (reproducibility/fault_tolerance/graceful_degradation/idempotency/
+            llm_faithfulness). **`retry_consistency`는 의도적으로 제외** —
+            task_id 프리픽스별 무한 증식 위험이 있어 이번 스펙 범위 밖(별도 승인 대상).
+            ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게 `tasks`에서 매번
+            재계산한다.
 
     Returns:
         (group_dict, shared_raw) 튜플.
@@ -135,57 +165,69 @@ def compute(
 
     _rel_vals: List[float] = [tcr_pct / 100.0]
 
-    _sla_results = sla_shared["sla_results"]
+    _sla_n = sla_shared["sla_n"]
     _sla_breach_count = sla_shared["sla_breach_count"]
     _sla_breach_rate = sla_shared["sla_breach_rate"]
     _sla_warning = sla_shared["sla_warning"]
     if _sla_breach_rate is not None:
         _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
 
-    # reproducibility → Group C
-    # C-3: run_count < 2 (skip_side_effects=True 또는 runs ≤ 1 오설정)이면
-    # compute_reproducibility_score는 score=1.0을 반환하지만 실제 재현성 측정이 이루어지지 않았음.
-    # 이 값을 Gate C에 포함하면 측정되지 않은 데이터가 점수를 인플레이션시키므로 제외한다.
-    _repro_scores = [
-        float(t.extra.get("reproducibility", {}).get("score"))
-        for t in tasks
-        if (t.extra or {}).get("reproducibility") is not None
-        and (t.extra or {}).get("reproducibility", {}).get("score") is not None
-        and int((t.extra or {}).get("reproducibility", {}).get("run_count", 2)) >= 2
-    ]
-    avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
+    if shared_running is not None:
+        avg_reproducibility: Optional[float] = shared_running["repro_avg"]
+        _repro_n = shared_running["repro_count"]
+        avg_ft: Optional[float] = shared_running["ft_avg"]
+        _ft_n = shared_running["ft_count"]
+        _avg_degradation: Optional[float] = shared_running["deg_avg"]
+        _deg_n = shared_running["deg_count"]
+    else:
+        # reproducibility → Group C
+        # C-3: run_count < 2 (skip_side_effects=True 또는 runs ≤ 1 오설정)이면
+        # compute_reproducibility_score는 score=1.0을 반환하지만 실제 재현성 측정이 이루어지지 않았음.
+        # 이 값을 Gate C에 포함하면 측정되지 않은 데이터가 점수를 인플레이션시키므로 제외한다.
+        _repro_scores = [
+            float(t.extra.get("reproducibility", {}).get("score"))
+            for t in tasks
+            if (t.extra or {}).get("reproducibility") is not None
+            and (t.extra or {}).get("reproducibility", {}).get("score") is not None
+            and int((t.extra or {}).get("reproducibility", {}).get("run_count", 2)) >= 2
+        ]
+        avg_reproducibility = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
+        _repro_n = len(_repro_scores)
+
+        # fault_tolerance → Group C
+        # grade="none" 제외: tool_calls가 없어 평가 자체가 불가한 경우 집계에서 제외
+        # recovery_quality_score 우선 사용 (grade 세분화 반영: wrong_fallback=0.2 등)
+        # 없으면 raw recovery_rate 폴백
+        _ft_scores = []
+        for _ft_t in tasks:
+            _ft = (_ft_t.extra or {}).get("fault_tolerance")
+            # "none": tool_calls 없어 평가 불가 → 제외
+            # "untracked": check_fallback_attempts=False로 의도적 추적 비활성 → 제외
+            if _ft is None or _ft.get("grade") in ("none", "untracked"):
+                continue
+            _ft_sc = (
+                _ft["recovery_quality_score"]
+                if "recovery_quality_score" in _ft
+                else _ft.get("recovery_rate", 1.0)
+            )
+            _ft_scores.append(float(_ft_sc))
+        avg_ft = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
+        _ft_n = len(_ft_scores)
+
+        # graceful_degradation → Group C (Phase 4)
+        _deg_scores = [
+            float(t.extra.get("graceful_degradation", {}).get("degradation_score"))
+            for t in tasks
+            if (t.extra or {}).get("graceful_degradation") is not None
+            and (t.extra or {}).get("graceful_degradation", {}).get("degradation_score") is not None
+        ]
+        _avg_degradation = sum(_deg_scores) / len(_deg_scores) if _deg_scores else None
+        _deg_n = len(_deg_scores)
+
     if avg_reproducibility is not None:
         _rel_vals.append(avg_reproducibility)
-
-    # fault_tolerance → Group C
-    # grade="none" 제외: tool_calls가 없어 평가 자체가 불가한 경우 집계에서 제외
-    # recovery_quality_score 우선 사용 (grade 세분화 반영: wrong_fallback=0.2 등)
-    # 없으면 raw recovery_rate 폴백
-    _ft_scores = []
-    for _ft_t in tasks:
-        _ft = (_ft_t.extra or {}).get("fault_tolerance")
-        # "none": tool_calls 없어 평가 불가 → 제외
-        # "untracked": check_fallback_attempts=False로 의도적 추적 비활성 → 제외
-        if _ft is None or _ft.get("grade") in ("none", "untracked"):
-            continue
-        _ft_sc = (
-            _ft["recovery_quality_score"]
-            if "recovery_quality_score" in _ft
-            else _ft.get("recovery_rate", 1.0)
-        )
-        _ft_scores.append(float(_ft_sc))
-    avg_ft: Optional[float] = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
     if avg_ft is not None:
         _rel_vals.append(avg_ft)
-
-    # graceful_degradation → Group C (Phase 4)
-    _deg_scores = [
-        float(t.extra.get("graceful_degradation", {}).get("degradation_score"))
-        for t in tasks
-        if (t.extra or {}).get("graceful_degradation") is not None
-        and (t.extra or {}).get("graceful_degradation", {}).get("degradation_score") is not None
-    ]
-    _avg_degradation: Optional[float] = sum(_deg_scores) / len(_deg_scores) if _deg_scores else None
     if _avg_degradation is not None:
         _rel_vals.append(_avg_degradation)
 
@@ -244,31 +286,40 @@ def compute(
     if _avg_retry_consistency is not None:
         _rel_vals.append(_avg_retry_consistency)
 
-    # idempotency → Group C (Phase 6)
-    _idem_scores = [
-        float(t.extra.get("idempotency", {}).get("idempotency_score"))
-        for t in tasks
-        if t.extra and t.extra.get("idempotency")
-        and t.extra.get("idempotency", {}).get("idempotency_score") is not None
-    ]
-    _avg_idempotency: Optional[float] = (
-        sum(_idem_scores) / len(_idem_scores) if _idem_scores else None
-    )
+    if shared_running is not None:
+        _avg_idempotency: Optional[float] = shared_running["idem_avg"]
+        _idem_n = shared_running["idem_count"]
+        _avg_llm_faithfulness: Optional[float] = shared_running["faith_avg"]
+        _faith_n = shared_running["faith_count"]
+    else:
+        # idempotency → Group C (Phase 6)
+        _idem_scores = [
+            float(t.extra.get("idempotency", {}).get("idempotency_score"))
+            for t in tasks
+            if t.extra and t.extra.get("idempotency")
+            and t.extra.get("idempotency", {}).get("idempotency_score") is not None
+        ]
+        _avg_idempotency = (
+            sum(_idem_scores) / len(_idem_scores) if _idem_scores else None
+        )
+        _idem_n = len(_idem_scores)
+
+        # 출력 사실 충실성 → Gate C (우선순위 대체: LLM Judge > HallucinationDetector)
+        # LLM Judge faithfulness(0–5)가 있으면 /5 정규화 후 사용; 없으면 1−hall_rate 폴백
+        _faith_scores = [
+            float(t.llm_judge["scores"]["faithfulness"])
+            for t in tasks
+            if getattr(t, "llm_judge", None)
+            and not (t.llm_judge or {}).get("skipped")
+            and isinstance((t.llm_judge or {}).get("scores", {}).get("faithfulness"), (int, float))
+        ]
+        _avg_llm_faithfulness = (
+            sum(_faith_scores) / len(_faith_scores) if _faith_scores else None
+        )
+        _faith_n = len(_faith_scores)
+
     if _avg_idempotency is not None:
         _rel_vals.append(_avg_idempotency)
-
-    # 출력 사실 충실성 → Gate C (우선순위 대체: LLM Judge > HallucinationDetector)
-    # LLM Judge faithfulness(0–5)가 있으면 /5 정규화 후 사용; 없으면 1−hall_rate 폴백
-    _faith_scores = [
-        float(t.llm_judge["scores"]["faithfulness"])
-        for t in tasks
-        if getattr(t, "llm_judge", None)
-        and not (t.llm_judge or {}).get("skipped")
-        and isinstance((t.llm_judge or {}).get("scores", {}).get("faithfulness"), (int, float))
-    ]
-    _avg_llm_faithfulness: Optional[float] = (
-        sum(_faith_scores) / len(_faith_scores) if _faith_scores else None
-    )
     if _avg_llm_faithfulness is not None:
         _rel_vals.append(max(0.0, min(1.0, _avg_llm_faithfulness / 5.0)))
     elif hall_rate is not None:
@@ -280,17 +331,17 @@ def compute(
     if _sla_warning:
         _c_insufficient.append(_sla_warning)
     for _name, _cnt in (
-        ("reproducibility", len(_repro_scores)),
-        ("fault_tolerance", len(_ft_scores)),
-        ("graceful_degradation", len(_deg_scores)),
+        ("reproducibility", _repro_n),
+        ("fault_tolerance", _ft_n),
+        ("graceful_degradation", _deg_n),
         ("retry_consistency", len(_rc_tasks_with_score)),
-        ("idempotency", len(_idem_scores)),
+        ("idempotency", _idem_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
         if _w:
             _c_insufficient.append(_w)
     if _avg_llm_faithfulness is not None:
-        _w = _min_sample_warning("llm_faithfulness", len(_faith_scores), min_samples_default)
+        _w = _min_sample_warning("llm_faithfulness", _faith_n, min_samples_default)
         if _w:
             _c_insufficient.append(_w)
 
@@ -316,7 +367,7 @@ def compute(
         "tcr_pct": round(tcr_pct, 2),
         "gate_c_tcr_weight": gate_c_tcr_weight,
         "sla_breach_rate": round(_sla_breach_rate, 4) if _sla_breach_rate is not None else None,
-        "sla_breach_count": _sla_breach_count if _sla_results else None,
+        "sla_breach_count": _sla_breach_count if _sla_n > 0 else None,
         "avg_reproducibility": round(avg_reproducibility, 4) if avg_reproducibility is not None else None,
         "avg_fault_tolerance": round(avg_ft, 4) if avg_ft is not None else None,
         "avg_degradation": round(_avg_degradation, 4) if _avg_degradation is not None else None,

@@ -379,6 +379,18 @@ class PerformanceMonitor:
             "partial_success": 0,
             "failures": 0,
         }
+        # SPEC-018 Phase 1-6: Gate E/F/G/B/A/C 러닝 집계 — "full" 모드에서는 인스턴스화조차 되지 않는다.
+        if self._retention_mode == "windowed":
+            from ...gates.shared_metrics import (
+                GateASharedAgg, GateBSharedAgg, GateCSharedAgg, GateESharedAgg,
+                GateFSharedAgg, GateGSharedAgg,
+            )
+            self._running_gate_e_agg = GateESharedAgg()
+            self._running_gate_f_agg = GateFSharedAgg()
+            self._running_gate_g_agg = GateGSharedAgg()
+            self._running_gate_b_agg = GateBSharedAgg()
+            self._running_gate_a_agg = GateASharedAgg()
+            self._running_gate_c_agg = GateCSharedAgg()
 
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
@@ -1942,6 +1954,18 @@ class PerformanceMonitor:
                     if _tcr_list and _tcr_list[-1].task_id == task_result.task_id:
                         _tcr_list[-1] = task_result
 
+            # SPEC-018 Phase 1-3: Gate E/F/G 러닝 집계 갱신 — 보안 Tracker enrichment(위 블록)
+            # 이후의 최종 task_result를 사용해야 input_sanitization/output_leakage 등
+            # extra 필드가 채워진 상태로 집계된다(enrichment 이전에 갱신하면 해당
+            # 태스크의 보안 데이터가 누락된 채로 러닝 집계에 반영되는 순서 버그가 생긴다).
+            if self._retention_mode == "windowed":
+                self._running_gate_e_agg.update(task_result)
+                self._running_gate_f_agg.update(task_result)
+                self._running_gate_g_agg.update(task_result)
+                self._running_gate_b_agg.update(task_result)
+                self._running_gate_a_agg.update(task_result)
+                self._running_gate_c_agg.update(task_result)
+
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
             _eff_request_hall = request or task_result.question
@@ -3066,26 +3090,43 @@ class PerformanceMonitor:
 
         # ── A 그룹: 목표 달성 (TCR + instruction_adherence + goal_alignment + plan_coherence) ──
         # SPEC-000: gates/gate_a_goal/aggregate.py로 이관 — 로직 동일.
+        # SPEC-018 Phase 5: windowed 모드에서 6개 Config 지표 러닝 집계 스냅숏을 주입.
+        _a_shared = (
+            self._running_gate_a_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _a_group = gate_a_aggregate.compute(
             tasks, _tcr_tracker_for_gates, self.accuracy_evaluator, self.quality_evaluator,
-            self._gate_a_tcr_weight, self._min_samples_default,
+            self._gate_a_tcr_weight, self._min_samples_default, shared_running=_a_shared,
         )
 
         # ── B 그룹: 행동 무결성 (loop, state_consistency, deadlock, scope, tool_parameter_safety, context_window) ──
         # SPEC-000: gates/gate_b_behavioral/aggregate.py로 이관 — 로직 동일.
         # avg_goal_alignment/avg_plan_coherence는 Gate A(_a_group["details"])에서 진단용으로 재참조.
+        # SPEC-018 Phase 4: windowed 모드에서 러닝 집계 스냅숏을 주입.
+        _b_shared = (
+            self._running_gate_b_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _b_group = gate_b_aggregate.compute(
             tasks, self._gate_b_loop_weight, self._min_samples_default,
             _a_group["details"]["avg_goal_alignment"], _a_group["details"]["avg_plan_coherence"],
+            shared_running=_b_shared,
         )
 
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         # SPEC-000: gates/gate_c_reliability/aggregate.py로 이관 — 로직 동일.
         # SLA 공유 데이터는 compute_sla_shared_data()가 한 번 계산해 Gate C·D 양쪽에 전달한다.
-        _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks)
+        # SPEC-018 Phase 6: windowed 모드에서 러닝 집계 스냅숏을 주입(retry_consistency 제외 —
+        # task_id 프리픽스별 무한 증식 위험으로 별도 승인 대상). sla_results(원본 리스트)는
+        # Gate D(Phase 7 미착수)가 여전히 소비하므로 shared_running 유무와 무관하게 항상
+        # tasks(windowed 부분집합)에서 계산된다 — compute_sla_shared_data() 참조.
+        _c_shared = (
+            self._running_gate_c_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
+        _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks, shared_running=_c_shared)
         _c_group, _c_shared_raw = gate_c_aggregate.compute(
             tasks, self.hallucination_detector, _tcr_tracker_for_gates,
             self._gate_c_tcr_weight, self._min_samples_default, _sla_shared,
+            shared_running=_c_shared,
         )
         # hall_rate/avg_llm_faithfulness: Gate G(미이관) 섹션이 반올림 없는 원본값을 재사용
         hall_rate = _c_shared_raw["hall_rate"]
@@ -3103,8 +3144,13 @@ class PerformanceMonitor:
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
         # SPEC-000: gates/gate_e_security/aggregate.py로 이관 — 로직 동일.
+        # SPEC-018 Phase 1: windowed 모드에서 러닝 집계 스냅숏을 주입.
+        _e_shared = (
+            self._running_gate_e_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _e_group = gate_e_aggregate.compute(
             tasks, self.enable_security_metrics, self._min_samples_default,
+            shared_running=_e_shared,
         )
 
         # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
@@ -3114,17 +3160,27 @@ class PerformanceMonitor:
         # SPEC-011: "tool_call_analyzer"는 PerformanceMonitor에 존재한 적 없는 속성명(오탈자)이었다
         # (실제는 self.tool_analyzer) — SPEC-000 이관 전에도 항상 AttributeError가 지역 try/except에
         # 삼켜져 tool_coverage가 한 번도 계산되지 않고 항상 None이었다. 여기서 실제 속성으로 수정한다.
+        # SPEC-018 Phase 3: windowed 모드에서 러닝 집계 스냅숏을 주입(task 기반 4개
+        # 지표만 — hall_rate/avg_llm_faithfulness는 Gate C Phase 6 전까지 windowed-only).
+        _g_shared = (
+            self._running_gate_g_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _g_group = gate_g_aggregate.compute(
             tasks, self.tool_analyzer, self._min_samples_default,
-            hall_rate, _avg_llm_faithfulness,
+            hall_rate, _avg_llm_faithfulness, shared_running=_g_shared,
         )
 
         # ── F 그룹: 멀티에이전트 조율 ──
         # SPEC-000 Commit 1: gates/gate_f_multiagent/aggregate.py로 이관 — 로직 동일,
         # 4개 task 기반 지표만 단일 패스로 병합(REQ-2 일부 흡수).
+        # SPEC-018 Phase 2: windowed 모드에서 러닝 집계 스냅숏을 주입(task 기반 4개
+        # 지표만 — 트래커 기반 coordination/tool_selection은 이 스펙 범위 밖).
+        _f_shared = (
+            self._running_gate_f_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _f_group = gate_f_aggregate.compute(
             tasks, self.agent_coordination_tracker, self.tool_selection_tracker,
-            self._min_samples_default,
+            self._min_samples_default, shared_running=_f_shared,
         )
 
         # ── 그룹별 결과 모음 ──
