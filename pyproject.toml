@@ -129,7 +129,7 @@ examples = [
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
     "arize-phoenix>=15.4.0,<16.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
-    "deepeval>=3.0.0,<4.0.0",
+    "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
@@ -145,7 +145,7 @@ examples = [
 # ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
 # agent_evaluator/integrations/metric_adapters.py 에서 사용
 eval = [
-    "deepeval>=3.0.0,<4.0.0",
+    "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
@@ -222,7 +222,7 @@ full = [
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
     "arize-phoenix>=15.4.0,<16.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
-    "deepeval>=3.0.0,<4.0.0",
+    "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
