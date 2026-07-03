@@ -76,6 +76,9 @@ agent_evaluator/
 │                          # EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder
 ├── gates/                 # SPEC-000: Gate 단위 패키지 (Strangler Fig 이관 완료 — A~G 전체 7개 Gate)
 │   ├── base.py            # 전 Gate 공유 인프라 — _min_sample_warning · _status · _g
+│   ├── shared_metrics.py  # SPEC-018: RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
+│   ├── live_guardrail.py  # SPEC-019: LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
+│   │                       #  체크를 실행 전 단일 tool call 단위로 동기 호출
 │   ├── gate_a_goal/       # Gate A(Goal Achievement) — 완료
 │   │   ├── configs.py      # InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig ·
 │   │   │                   # ContextRetentionConfig · KnowledgeRetentionConfig
@@ -141,6 +144,10 @@ agent_evaluator/
 │   └── hybrid_monitor.py  # HybridPerformanceMonitor (DeepEval/Ragas integration)
 ├── integrations/
 │   ├── llm_judge.py       # LLMJudge (native)
+│   ├── llm_judge_calibration.py  # SPEC-022: LLMJudgeCalibration — judge-vs-human 골든셋 일치도
+│   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
+│   ├── live_guardrail_stdio.py   # SPEC-019: LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
+│   ├── live_guardrail_report.py  # SPEC-019: SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
@@ -355,6 +362,7 @@ min_samples_default
 prompt_version, agent_version
 retention_mode, window_size
 storage_backend
+enable_pii_redaction, pii_redaction_categories
 ```
 
 ### @agent_eval Valid Parameters
@@ -375,182 +383,6 @@ agent_role, graceful_degradation, compliance, resource_budget, conflict_resoluti
 tool_parameter_safety, knowledge_retention, retry_consistency, error_diagnosis, idempotency
 threat_response, context_window, latency_attribution
 ```
-
----
-
-## SDK Fixed Facts (Authoritative Reference)
-
-- Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
-- Version: **v0.9.6** (Beta) | Python: **3.8+**
-- Tests: **75 files**, **3,127+** test functions
-- Dashboard: **108** API routes (FastAPI)
-- `from agent_evaluator import agent_eval` — correct import path  
-  `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
-- Tracker count per Gate: A=3, B=0, C=2, D=1, E=5, F=2, G=1 (14 gate-contributing + 11 operational = 25)
-- HallucinationDetector attribution: conceptually Gate C (Reliability) | SDK score contribution: Gate C (`_rel_vals`) + Gate G (`_obs_vals`)
-- AccuracyEvaluator attribution: Gate A `_a_vals[0]` 블렌딩 (`0.6×TCR + 0.4×Accuracy`) — 별도 항목 추가가 아닌 TCR 컴포넌트에 혼합
-- **PlanConfig defaults**: `max_steps=15`, `min_steps=2` (decorators.py lines 427-428)
-- **PlanConfig supported JSON formats**: `{"steps": [...]}` or `{"plan": [...]}` (plan key must be a direct list)  
-  ❌ `{"plan": {"steps": [...]}}` nested dict structure cannot be parsed
-- **Gate G aggregation**: if `_obs_vals` is empty, Gate G `score=None` (excluded from aggregation, not a fail)
-- **`report.to_dict()["extra_metrics"]`**: contains `harness_groups` and `lineage` (SPEC-007) — no `llm_judge` key  
-  LLMJudge results: `monitor.llm_judge.get_summary()` → `avg_scores` → `criteria_scores`
-- **HarnessEvaluationGate location**: `agent_evaluator/quick_eval.py`  
-  `gate.evaluate()` takes no arguments. Returns: `{passed, groups, violations, summary}`
-- **SLAConfig dual contribution**: Gate D Config, but breach_rate also contributes to Gate C `_rel_vals`  
-  Gate D score requires `LatencyTracker` measured P95 > 0 (`_perf_vals` must be populated)
-- **SPEC-007 — lineage capture**: `extra_metrics.lineage` always present in `save_to_file` output (task 유무 무관) —
-  `sdk_version`(자동), `git_commit`(인스턴스 생성 시 1회 캐싱, 비-git 환경이면 `None`), `prompt_version`/`agent_version`
-  (`PerformanceMonitor(...)` 생성자 파라미터, 기본 `None`), `judge_model_snapshot`(judge 사용 시 provider가 실제
-  반환한 모델 스냅샷, `LLMJudge._call_claude`/`_call_openai`의 응답 객체 `.model` 필드에서 추출 — 없으면
-  `judge.model` 설정값으로 폴백).
-- **TTFTVariabilityConfig · CostPredictabilityConfig**: set at `PerformanceMonitor` level, not `@agent_eval` parameters  
-  `PerformanceMonitor(ttft_variability_config=..., cost_predictability_config=...)`
-- **SPEC-002 — universal min-sample guard**: every Gate (A–G) now exposes `details["insufficient_data_warnings"]`
-  (previously Gate D only). Default threshold `min_samples_default=3` (`PerformanceMonitor(min_samples_default=...)`);
-  Gate D's own TTFT/Cost/SLA thresholds (5) are unchanged. The shared SLA warning is computed once and appears
-  identically in both Gate C and Gate D.
-- **SPEC-012 — event-based min-sample guard**: Gate F `coordination_score`/`avg_tool_selection_f1` (denominators
-  `total_interactions`/`total_evaluations`) and Gate G `tool_coverage` (denominator `total_calls`) also warn via
-  `_min_sample_warning(..., unit="interactions"|"evaluations"|"calls")` — same `min_samples_default` contract,
-  distinct unit wording so these don't read as task-count warnings.
-- **SPEC-011 — tool_coverage attribute fix**: `monitor.py` previously passed a non-existent attribute name
-  (`self.tool_call_analyzer`) into Gate G's aggregate call; the real attribute is `self.tool_analyzer`. Fixed —
-  `tool_coverage` now actually computes for sessions with recorded `tool_calls` (previously always `None`).
-- **SPEC-004 — streaming retention mode (Partially Implemented)**: `PerformanceMonitor(retention_mode="full"|"windowed", window_size=10000)`.
-  Default `"full"` is unchanged. In `"windowed"` mode, `self.tasks` behaves like `deque(maxlen=window_size)`;
-  only Gate A/C's TCR component gets a true running aggregate (`_RunningTCRView`) that keeps reflecting
-  evicted tasks — all other Gate metrics still recompute from the windowed task list only (reduced REQ-2
-  scope, documented in `Docs/specs/SPEC-004-streaming-retention-mode.md`). `get_report_by_type`/
-  `get_report_by_framework`/`export_by_framework`/`register_aggregator` emit a `UserWarning` every call
-  in windowed mode.
-- **SPEC-009 — structured signal evaluation**: `gates/gate_f_multiagent/evaluators.py`'s `eval_consensus`/
-  `eval_role_adherence`/`eval_propagation` now prefer structured `agent_interactions`/`tool_calls` data over
-  text-heuristic matching when available (each returns a new diagnostic `"signal_source": "structured"|"text_fallback"`
-  key; Gate score itself is unaffected). Falls back to the pre-existing text matching 100% unchanged when
-  structured fields are absent — this is the only byte-diff-safe path; structured-mode scoring is intentionally
-  NOT guaranteed identical to legacy text-matching output (see SPEC-009 REQ-5).
-- **SPEC-008 — compliance framework expansion**: `ComplianceConfig.compliance_framework` now supports
-  `"pci_dss"` (`pci_dss:cardholder_data_exposure` — PAN via existing `_PII_PATTERNS["credit_card"]` +
-  new CVV/expiry-date patterns) and `"soc2"` (`soc2:trust_service_violation` — access-control-bypass
-  keyword set) alongside the existing `"hipaa"`/`"gdpr"`/`"general"`. `__post_init__` now emits a
-  `UserWarning` for any other value (previously silently fell back to generic PII scanning with no
-  signal to the user). New `_VIOLATION_PENALTIES` weights: `pci_dss=0.38`, `soc2=0.28`.
-- **SPEC-010 — CI/CD baseline gate (Harness Gate A–G regression)**: `agent_evaluator/quick_eval.py`
-  gained shared helpers `_compute_gate_regressions()`/`_normalize_gate_score_dict()`, used by both
-  `HarnessEvaluationGate.evaluate(baseline=None, regression_threshold=0.05)` (Python API) and
-  `agent_evaluator/cli/gate.py`'s `--fail-on-regression` (CLI) so both share one regression
-  definition. The CLI's flat-metric (`tcr`/`accuracy`/etc.) baseline system already existed
-  (`--baseline`/`--save-baseline`/`--fail-on-regression`) — this spec extended it to also cover
-  Harness Gate A–G scores (`baseline.json`'s new `"gate_scores"` key, backward-compatible with
-  older baseline files that lack it). `baseline` omitted → `"regressions"` key doesn't appear in
-  `evaluate()`'s result at all (byte-for-byte unchanged from pre-SPEC-010 behavior).
-- **SPEC-013 — dashboard loader incremental cache**: `serve/loader.py::load_results(results_dir,
-  previous=None)` — when `previous` (a prior `ResultSet`) is given, files whose `path.stat().st_mtime`
-  matches the cached `ResultFile.mtime` (new field, SPEC-013) skip `parse_file()` entirely and reuse
-  the cached object by identity. `serve/routers/data.py::list_results()`'s watch-mode
-  unconditional-reload and `serve/server.py::reload_results()` (FileWatcher callback) both now pass
-  `previous=`the existing `app.state.result_set` — the per-request "reparse everything" cost in
-  watch mode is now "reparse only what changed." `previous` omitted → identical to pre-SPEC-013
-  behavior.
-- **SPEC-014 — generate_report() caching**: `PerformanceMonitor.generate_report(force_recompute=False)`
-  short-circuits to a cached `EvaluationReport` when `self._report_cache_dirty` is `False` (set/read
-  under `self._lock`), skipping `_compute_harness_groups()` and the rest of the (renamed)
-  `_generate_report_uncached()` entirely. `record_task()` sets the dirty flag at the end of its
-  existing lock block. **Invariant**: any code path that mutates an already-recorded `TaskResult`
-  in place (not through `record_task()`) must call `monitor.invalidate_report_cache()` afterward, or
-  `generate_report()` can silently return a stale report. Currently wired at 5 sites: BUG-E6's
-  threat_severity/threat_response post-record re-eval and SPEC-006's async judge patch (both in
-  `decorators.py`, matching the spec's Context), plus 3 more found only while implementing —
-  `PerformanceMonitor.reset()`, `flush()`, and `export_by_framework()` (which temporarily swaps
-  `self.tasks` to a filtered subset and back). If you add a new post-record mutation site, wire this
-  in too. `force_recompute=True` bypasses the cache unconditionally.
-- **SPEC-015 — alert handler retry/backoff & storm suppression**: `alerts/engine.py` gained
-  `_send_with_retry(handler, event, max_retries=3)` (1s/2s/4s backoff, same pattern as SPEC-006's
-  `LLMJudge._call_with_retry()`), wrapping the `rule.handler.send(event)` call that previously
-  swallowed all exceptions at `debug` level with zero retry. `AlertEngine.get_failed_send_count()`/
-  `get_suppressed_count()` expose failure/suppression counts. `AlertEngine(async_dispatch=False)`
-  (default — unchanged synchronous behavior, all 21 pre-existing `test_alerts_engine.py` tests pass
-  unmodified) — `True` dispatches `_dispatch()` (retry included) on a daemon thread so `evaluate()`
-  doesn't block on network I/O. `rule.mark_fired()` still fires before dispatch regardless of
-  success (unchanged — avoids hammering an already-broken handler). `AlertEngine(
-  max_alerts_per_window=None, window_seconds=60)` (default `None` = disabled) — when set, alerts
-  beyond the trailing-window cap still get recorded to `AlertHistory` but their `handler.send()`
-  dispatch is skipped ("alert storm" suppression).
-- **SPEC-016 — SQLite storage backend**: `PerformanceMonitor(storage_backend: Literal["json",
-  "sqlite"] = "json")` — default `"json"` is byte-for-byte unchanged `save_to_file()` behavior.
-  `"sqlite"` redirects `save_to_file()` to `agent_evaluator/storage/sqlite_backend.py::
-  save_tasks_to_db()`, which upserts (`INSERT ... ON CONFLICT(task_id) DO UPDATE`) each task by
-  `task_id` instead of re-serializing the entire task history every call, with `PRAGMA
-  journal_mode=WAL` for safe multi-writer concurrent access. Schema is intentionally minimal —
-  a few scalar columns (`task_id` PK, `task_type`, `success`, `timestamp`) for queryability plus
-  one `data_json` column holding the full `TaskResult.to_dict()` blob, reusing the existing
-  `TaskResult.to_dict()`/`from_dict()` round-trip helpers (`core/trackers/base.py`) instead of
-  mapping every field to its own column — future `TaskResult` fields don't require a schema
-  migration. A `schema_version` table raises `RuntimeError` on version mismatch (no auto-migration).
-  `load_tasks_from_db(path) -> List[TaskResult]` reconstructs tasks for offline analysis; the
-  dashboard (`serve/loader.py`) does NOT read `.db` files — it's JSON-only, unchanged.
-- **SPEC-017 — supply chain hygiene**: `.github/workflows/ci.yml` runs `pytest` across a Python
-  3.8–3.13 matrix (hard-block) plus `ruff check`/`mypy` (deliberately `continue-on-error: true` —
-  a baseline check at introduction time found 4,063 pre-existing ruff findings and 305 mypy errors,
-  so making them hard-block would fail CI on day one for unrelated debt; tighten this once that
-  backlog is cleaned up separately). `.github/workflows/security.yml` runs `pip-audit` the same way
-  (report-only; baseline found 20 known vulnerabilities in the dev environment) on push/PR/weekly
-  schedule, plus a separate `sbom` job that only runs on `v*` tag pushes and uploads a CycloneDX
-  JSON SBOM as a build artifact. `.github/dependabot.yml` covers both `pip` and `github-actions`
-  ecosystems (weekly). `.pre-commit-config.yaml` finally wires up the `pre-commit` dev dependency
-  that was declared in `pyproject.toml` but had zero effect (no config file existed). `SECURITY.md`
-  added. None of this touches the existing manual release process (`python -m build` / `twine
-  upload`). **Caveat**: `pre-commit run --all-files` was NOT run destructively across the repo as
-  part of this work — doing so during implementation reformatted 199 tracked files repo-wide as an
-  unintended side effect, which had to be recovered via `git stash` + precise reapplication of the
-  actual SPEC-015/016 edits. A full-repo reformat, if wanted, should be its own separate, deliberate PR.
-- **SPEC-018 — Gate running-aggregate shared_metrics layer**: extends SPEC-004's `_running_tcr_agg`/
-  `_RunningTCRView` pattern (previously the *only* Gate metric with true full-history behavior under
-  `retention_mode="windowed"`) to all 7 Gates A-G (Phase 0-7, fully complete). New
-  `agent_evaluator/gates/shared_metrics.py` has 7 generic accumulator primitives (`RunningAverage`/
-  `RunningSum`/`RunningWindow`/`RunningLastValue`/`MonotonicFlag`/`RunningCount`/
-  `RunningCategoryCounter`) plus 8 per-Gate agg classes (`GateESharedAgg`/`GateFSharedAgg`/
-  `GateGSharedAgg`/`GateBSharedAgg`/`GateASharedAgg`/`GateCSharedAgg`/`GateCRetryConsistencyAgg`/
-  `GateDSharedAgg`). Each `gates/gate_x/aggregate.py::compute()` gained an optional trailing
-  `shared_running: Optional[dict] = None` param — `None` (default, "full" mode) is byte-identical to
-  pre-SPEC-018 behavior; windowed mode passes a `.snapshot()` from the corresponding agg class,
-  updated in `record_task()`'s existing lock block right after the security-tracker enrichment step
-  (the enrichment runs *after* the TCR agg update, so any new Gate-agg `.update()` call must go after
-  enrichment too, or it'll aggregate the pre-enriched `task_result` — this exact ordering bug was
-  caught and fixed during Gate E's implementation via the full-vs-windowed cross-check test).
-  Also fixed a pre-existing display bug while migrating Gate C: `sla_breach_count` used to show
-  `None` whenever the *windowed* task subset had no SLA-tagged tasks, even if full history did —
-  now gated on a full-history count (`sla_n`) instead, with zero behavior change in "full" mode.
-  `SPEC-001` is unrelated to this work despite SPEC-004 citing it as a prerequisite — SPEC-001 is
-  actually about deduplicating `monitor.py`'s live Gate-scoring formulas against `serve/loader.py`'s
-  legacy-JSON fallback formulas, a separate problem never implemented standalone (folded into
-  SPEC-000).
-  **Phase 7 (2026-07-03, separate user approval)** implemented the two items originally deferred as
-  requiring an approximation trade-off:
-  - **Gate C `retry_consistency`**: `GateCRetryConsistencyAgg` tracks per-task-id-prefix state
-    (score sum/count + the string-min/max task-id entries' accuracy/config, replicating the
-    original's sort-then-`[0]`/`[-1]` logic) in an `OrderedDict` capped at `_MAX_PREFIXES=5000` —
-    exceeding the cap evicts the least-recently-touched prefix (LRU), dropping its contribution from
-    the final average. `evicted_count` exposes whether the approximation actually fired. Passed to
-    `gate_c_reliability.aggregate.compute()` via a separate `retry_consistency_shared` param (not
-    folded into Gate C's main `shared_running`) specifically so this one approximated metric stays
-    visually distinct from the other four exact ones in the diff.
-  - **Gate D**: `GateDSharedAgg` splits into an exact half and an approximate half. efficiency
-    (calibrated_score/efficiency_ratio, per cost-unit) and resource_budget (rollover-mode cumulative
-    sums vs per-task-config sums, non-rollover budget_score average, most-recent `_config` via
-    `RunningLastValue`) are **exact** — same simple running-average/running-sum pattern as every
-    other Gate. ttft_variability (stddev + p50/p95 + IQR outlier removal) and cost_predictability
-    (per-task-type CV with mean±k·std outlier filtering) are **not** exactly reproducible in O(1)
-    memory, so they're computed from a bounded sliding sample (`_RESERVOIR_SIZE=2000` raw values,
-    independent of `window_size`) instead — identical math to the original, just over a recency-based
-    sample rather than the full history once that history exceeds 2000 points. p95 latency itself
-    needed zero changes: `latency_tracker` (`_latencies`/`_ttft_records`) is a plain unbounded list,
-    never capped by `retention_mode` in the first place, so it already reflected full history (same
-    situation as Gate G/C's `hallucination_rate`, discovered during Phase 3).
-  Neither cap (`_MAX_PREFIXES`, `_RESERVOIR_SIZE`) is exposed as a `PerformanceMonitor` constructor
-  parameter — they're hardcoded constants sized for typical usage; parameterizing them would be a
-  separate follow-up if a session's prefix cardinality or raw-value volume genuinely needs tuning.
 
 ---
 
@@ -607,7 +439,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**75 files, 3,127+ test functions** in `tests/`.
+**81 files, 3,218+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
