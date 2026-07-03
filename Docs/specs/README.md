@@ -1,7 +1,7 @@
 # Agent-Evaluator 개선 Spec 인덱스
 
 Spec-Driven 방식으로 진행하는 아키텍처/확장성/거버넌스 개선 작업의 규격 모음.
-모든 사실 관계(Context)는 2026-07-02 세션에서 코드를 직접 대조해 검증했다(`Docs/specs/VERIFICATION_LEDGER.md` 참조).
+모든 사실 관계(Context)는 2026-07-02~03 세션에서 코드를 직접 대조해 검증했다(`Docs/specs/VERIFICATION_LEDGER.md` 참조).
 
 ## 스펙 템플릿
 
@@ -39,34 +39,34 @@ SPEC-XXX: <제목>
 | [SPEC-012](SPEC-012-event-based-min-sample-guard.md) | **이벤트 기반 지표 최소 표본 가드** (Gate F coordination/tool_selection, Gate G tool_coverage) | P1 | **Implemented (2026-07-02)** | SPEC-002(Non-Goals에서 제외)·SPEC-011(tool_coverage 실효성 확보) 완료 |
 | [SPEC-013](SPEC-013-dashboard-loader-incremental-cache.md) | **대시보드 로더 증분 캐싱** (watch 모드 요청당 전량 재파싱 제거) | P2 | **Implemented (2026-07-02)** | 없음 |
 | [SPEC-014](SPEC-014-generate-report-caching.md) | **`generate_report()` 재계산 방지 캐싱** (풀 리텐션 모드) | P2 | **Implemented (2026-07-03)** | 없음 |
+| [SPEC-015](SPEC-015-alert-handler-retry-backoff.md) | **알림 핸들러 재시도/백오프 및 알림 폭풍 방지** | P3 | **Implemented (2026-07-03)** | 없음 |
+| [SPEC-016](SPEC-016-sqlite-storage-backend.md) | **영속성 저장소 옵션 — SQLite 백엔드** (JSON 파일 전용의 동시쓰기/규모 한계) | P4 | **Implemented (2026-07-03)** | 없음 |
+| [SPEC-017](SPEC-017-supply-chain-hygiene.md) | **공급망 위생** (CI, 취약점 스캔, Dependabot, pre-commit, SBOM) | P4 | **Implemented (2026-07-03)** | 없음 |
 
-## 백로그 (상세 스펙 미작성 — 2026-07-02 감사에서 누락 확인, 착수 전 스펙화 필요)
+## 백로그
 
-아래 항목은 턴 1~3의 엔터프라이즈/성능 분석에서 지적됐으나 아직 SPEC 문서로 구체화되지 않았다. Definition of Done에 포함되지 않은 항목들이며, 착수 전 반드시 정식 스펙(Context/REQ/Acceptance)을 먼저 작성할 것 — 이 목록에만 남겨두고 스펙 없이 바로 구현에 들어가지 않는다.
+모든 백로그 항목이 SPEC-015/016/017로 정식 스펙화 및 구현 완료(2026-07-03). 상세 스펙 미작성 상태의
+신규 항목이 생기면 이 섹션에 먼저 등록하고, 착수 전 반드시 정식 스펙(Context/REQ/Acceptance)을
+작성할 것 — 스펙 없이 바로 구현에 들어가지 않는다.
 
-| 항목 | 근거 (원 분석 위치) | 예상 Phase |
-|---|---|---|
-| 알림 핸들러 재시도/백오프/알림 폭풍 방지 | `alerts/handlers.py` 예외처리 전무 확인(턴 1) | P3 |
-| 영속성 DB 백엔드 옵션(JSON 파일 전용의 동시쓰기/규모 한계) | `monitor.py::save_to_file`, `serve/loader.py` 분석(턴 1, 3) | P4 |
-| 공급망 위생 (SBOM, `pip-audit`/dependabot, `.github/workflows` 부재) | `pyproject.toml` 범위 핀, CI 워크플로우 0건 확인(턴 1) | P4 |
-
-## 로드맵 (2026-07-02 재정렬)
+## 로드맵 (2026-07-02~03 재정렬)
 
 | Phase | 스펙 | 근거 |
 |---|---|---|
 | **P0** (즉시, 리스크 최저) | SPEC-002, SPEC-005, SPEC-007 | 독립적·additive, SPEC-000의 구조 변경과 무관하게 지금 착수 가능 |
 | **P1** (구조 기반) | **SPEC-000** ✅ 완료(Gate별 이관: F→E→D→A→B→C→G, 각 단계에 SPEC-001/003 요구사항 흡수) | decorators.py(9,632→8,025줄)/taskresult_helpers.py(4,632→1,262줄)/monitor.py God Method(~1,165줄→위임 호출)를 전면 분해하는 프로그램의 핵심 구조 변경 |
 | **P2** | SPEC-004(부분 완료)·SPEC-006·SPEC-009·SPEC-013·SPEC-014 ✅ (2026-07-02~03) | SPEC-000 완료로 착수 가능했음 — shared_metrics 계층 통합(선택적 후속 정리)은 SPEC-000 문서의 "완료 후 후속 작업" 참조 |
-| **P3** | SPEC-008 ✅·SPEC-010 ✅(2026-07-02) (+ 백로그: 알림 재시도) | 이후 |
-| **P4** | 백로그: DB 백엔드, 공급망 위생 | 장기 |
+| **P3** | SPEC-008 ✅·SPEC-010 ✅(2026-07-02)·SPEC-015 ✅(2026-07-03) | 이후 |
+| **P4** | SPEC-016 ✅·SPEC-017 ✅(2026-07-03) | 장기 |
 
 ## Definition of Done (프로그램 최종 목표)
 
 1. **구조**: Gate 관련 코드가 `gates/gate_x/{configs.py, evaluators.py, aggregate.py}` 7세트로 전면 이관, 파일당 1,500줄 이하. Gate 집계 알고리즘 단일 소스화(monitor.py ↔ serve/loader.py 중복 제거). — **SPEC-000 ✅ 완료(2026-07-02)**
 2. **통계적 신뢰**: 전 Gate 표본 부족 경고, CI 게이트가 통계적으로 무의미한 점수로 배포를 승인하지 않음. — **SPEC-002**
 3. **AI-Native**: Gate F/B가 텍스트 휴리스틱보다 구조화된 `tool_calls`/`agent_interactions`를 우선 사용. — **SPEC-009 ✅ 완료(2026-07-02)**
-4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합. — **SPEC-005 ✅·SPEC-007 ✅·SPEC-006 ✅·SPEC-010 ✅(2026-07-02)**
+4. **엔터프라이즈 운영**: 대시보드 인증 옵션·결과 파일 lineage 캡처(judge 모델 스냅샷 포함)·judge 호출 비병목화·CI/CD 베이스라인 통합·알림 발송 안정성(재시도/백오프/알림 폭풍 방지)·대규모 세션을 위한 영속성 저장소 옵션. — **SPEC-005 ✅·SPEC-007 ✅·SPEC-006 ✅·SPEC-010 ✅·SPEC-015 ✅·SPEC-016 ✅(2026-07-03)**
 5. **성능/확장성**: 옵트인 스트리밍 리텐션 모드, 리포트 생성 비용이 태스크 수에 선형 비례하되 상수 배수가 46이 아니라 1, 대시보드 로더가 watch 모드에서 매 요청 전량 재파싱하지 않음, `generate_report()`가 직전 호출 이후 데이터가 바뀌지 않았으면 재계산을 건너뜀. — **SPEC-004(부분 완료, 2026-07-02 — TCR 컴포넌트만 러닝 집계), SPEC-000(REQ-2) ✅, SPEC-013 ✅(2026-07-02), SPEC-014 ✅(2026-07-03)**
+6. **엔지니어링 거버넌스**: CI(테스트/린트/타입체크 자동화)·의존성 취약점 스캔·Dependabot·pre-commit 실효화·릴리스 SBOM. — **SPEC-017 ✅(2026-07-03)**
 
 각 목표가 어느 스펙으로 달성되는지 1:1로 명시했다 — 스펙 없는 목표(이전 두 차례 감사에서 발견된 패턴)가 더 없는지는 이 표와 백로그 섹션을 함께 봐야 확인된다.
 

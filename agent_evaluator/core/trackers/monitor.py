@@ -284,6 +284,9 @@ class PerformanceMonitor:
         # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
         retention_mode: Literal["full", "windowed"] = "full",
         window_size: int = 10000,
+        # SPEC-016: 옵트인 영속성 저장소 백엔드 — 기본값 "json"은 기존 save_to_file() 동작과
+        # 100% 동일. "sqlite"는 task_id 기준 upsert 증분 쓰기 + 다중 writer 동시쓰기 지원.
+        storage_backend: Literal["json", "sqlite"] = "json",
     ):
         """
         Initialize Performance Monitor
@@ -358,6 +361,13 @@ class PerformanceMonitor:
             )
         self._retention_mode: str = retention_mode
         self._window_size: int = window_size
+
+        # SPEC-016 REQ-1: storage_backend 검증 — "json"(기본값)/"sqlite" 외 값은 즉시 오류.
+        if storage_backend not in ("json", "sqlite"):
+            raise ValueError(
+                f"storage_backend must be 'json' or 'sqlite', got {storage_backend!r}"
+            )
+        self._storage_backend: str = storage_backend
         # SPEC-004 REQ-2(축소 범위): Gate A/C의 TCR 컴포넌트만 전체 이력 기준 러닝 집계로 유지.
         # record_task()에서 windowed 모드일 때만 갱신되며(REQ-1: full 모드는 기존 동작과
         # 100% 동일해야 하므로 불필요한 유지비용을 두지 않는다), _RunningTCRView를 통해
@@ -4711,6 +4721,20 @@ class PerformanceMonitor:
         # Zero Configuration: 자동으로 올바른 위치에 저장
         if not os.path.isabs(filename):
             filename = str(self.output_dir / filename)
+
+        # SPEC-016 REQ-2: storage_backend="sqlite"이면 task_id 기준 upsert로 SQLite에
+        # 기록하고 즉시 반환한다 — JSON 전용 직렬화·HTML 리포트 생성 경로는 타지 않는다
+        # (대시보드는 계속 JSON 결과 파일을 읽으므로, SQLite 백엔드는 JSON 방식의
+        # "매번 전체 재직렬화" 비용을 줄이려는 별도 영속화 경로다).
+        if self._storage_backend == "sqlite":
+            if not os.path.splitext(filename)[1]:
+                filename = filename + ".db"
+            with self._tasks_lock:
+                _tasks_snapshot = list(self.tcr_tracker._tasks)
+            from ...storage.sqlite_backend import save_tasks_to_db
+            save_tasks_to_db(filename, _tasks_snapshot)
+            logger.info("Performance data saved to %s (sqlite backend)", filename)
+            return filename
 
         # 확장자가 없으면 .json 자동 추가 (대시보드 로더가 *.json 패턴으로 탐색)
         if not os.path.splitext(filename)[1]:

@@ -149,10 +149,12 @@ agent_evaluator/
 ├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
 ├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
+├── storage/               # SPEC-016: sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
+│                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·trend)
 └── serve/
-    ├── server.py          # FastAPI dashboard (103 routes)
+    ├── server.py          # FastAPI dashboard (105 routes)
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export
                            # feedback · golden · stream · transparency · webhook
 ```
@@ -352,6 +354,7 @@ gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
 prompt_version, agent_version
 retention_mode, window_size
+storage_backend
 ```
 
 ### @agent_eval Valid Parameters
@@ -379,8 +382,8 @@ threat_response, context_window, latency_attribution
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
 - Version: **v0.9.5** (Beta) | Python: **3.8+**
-- Tests: **56 files**, **2,795+** test functions
-- Dashboard: **103** API routes (FastAPI)
+- Tests: **74 files**, **3,096+** test functions
+- Dashboard: **105** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
 - Tracker count per Gate: A=3, B=0, C=2, D=1, E=5, F=2, G=1 (14 gate-contributing + 11 operational = 25)
@@ -462,6 +465,46 @@ threat_response, context_window, latency_attribution
   `PerformanceMonitor.reset()`, `flush()`, and `export_by_framework()` (which temporarily swaps
   `self.tasks` to a filtered subset and back). If you add a new post-record mutation site, wire this
   in too. `force_recompute=True` bypasses the cache unconditionally.
+- **SPEC-015 — alert handler retry/backoff & storm suppression**: `alerts/engine.py` gained
+  `_send_with_retry(handler, event, max_retries=3)` (1s/2s/4s backoff, same pattern as SPEC-006's
+  `LLMJudge._call_with_retry()`), wrapping the `rule.handler.send(event)` call that previously
+  swallowed all exceptions at `debug` level with zero retry. `AlertEngine.get_failed_send_count()`/
+  `get_suppressed_count()` expose failure/suppression counts. `AlertEngine(async_dispatch=False)`
+  (default — unchanged synchronous behavior, all 21 pre-existing `test_alerts_engine.py` tests pass
+  unmodified) — `True` dispatches `_dispatch()` (retry included) on a daemon thread so `evaluate()`
+  doesn't block on network I/O. `rule.mark_fired()` still fires before dispatch regardless of
+  success (unchanged — avoids hammering an already-broken handler). `AlertEngine(
+  max_alerts_per_window=None, window_seconds=60)` (default `None` = disabled) — when set, alerts
+  beyond the trailing-window cap still get recorded to `AlertHistory` but their `handler.send()`
+  dispatch is skipped ("alert storm" suppression).
+- **SPEC-016 — SQLite storage backend**: `PerformanceMonitor(storage_backend: Literal["json",
+  "sqlite"] = "json")` — default `"json"` is byte-for-byte unchanged `save_to_file()` behavior.
+  `"sqlite"` redirects `save_to_file()` to `agent_evaluator/storage/sqlite_backend.py::
+  save_tasks_to_db()`, which upserts (`INSERT ... ON CONFLICT(task_id) DO UPDATE`) each task by
+  `task_id` instead of re-serializing the entire task history every call, with `PRAGMA
+  journal_mode=WAL` for safe multi-writer concurrent access. Schema is intentionally minimal —
+  a few scalar columns (`task_id` PK, `task_type`, `success`, `timestamp`) for queryability plus
+  one `data_json` column holding the full `TaskResult.to_dict()` blob, reusing the existing
+  `TaskResult.to_dict()`/`from_dict()` round-trip helpers (`core/trackers/base.py`) instead of
+  mapping every field to its own column — future `TaskResult` fields don't require a schema
+  migration. A `schema_version` table raises `RuntimeError` on version mismatch (no auto-migration).
+  `load_tasks_from_db(path) -> List[TaskResult]` reconstructs tasks for offline analysis; the
+  dashboard (`serve/loader.py`) does NOT read `.db` files — it's JSON-only, unchanged.
+- **SPEC-017 — supply chain hygiene**: `.github/workflows/ci.yml` runs `pytest` across a Python
+  3.8–3.13 matrix (hard-block) plus `ruff check`/`mypy` (deliberately `continue-on-error: true` —
+  a baseline check at introduction time found 4,063 pre-existing ruff findings and 305 mypy errors,
+  so making them hard-block would fail CI on day one for unrelated debt; tighten this once that
+  backlog is cleaned up separately). `.github/workflows/security.yml` runs `pip-audit` the same way
+  (report-only; baseline found 20 known vulnerabilities in the dev environment) on push/PR/weekly
+  schedule, plus a separate `sbom` job that only runs on `v*` tag pushes and uploads a CycloneDX
+  JSON SBOM as a build artifact. `.github/dependabot.yml` covers both `pip` and `github-actions`
+  ecosystems (weekly). `.pre-commit-config.yaml` finally wires up the `pre-commit` dev dependency
+  that was declared in `pyproject.toml` but had zero effect (no config file existed). `SECURITY.md`
+  added. None of this touches the existing manual release process (`python -m build` / `twine
+  upload`). **Caveat**: `pre-commit run --all-files` was NOT run destructively across the repo as
+  part of this work — doing so during implementation reformatted 199 tracked files repo-wide as an
+  unintended side effect, which had to be recovered via `git stash` + precise reapplication of the
+  actual SPEC-015/016 edits. A full-repo reformat, if wanted, should be its own separate, deliberate PR.
 
 ---
 
@@ -518,7 +561,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**56 files, 2,795+ test functions** in `tests/`.
+**74 files, 3,096+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

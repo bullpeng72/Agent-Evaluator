@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # pip 생태계 — pyproject.toml의 dependencies/optional-dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+
+  # github-actions 생태계 — ci.yml/security.yml이 참조하는 액션 자체의 공급망 리스크 관리
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"

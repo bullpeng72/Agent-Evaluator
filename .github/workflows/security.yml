@@ -1,0 +1,66 @@
+name: Security
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    # 매주 월요일 03:00 UTC — PR 시점 이후 새로 공시된 CVE도 주기적으로 탐지
+    - cron: "0 3 * * 1"
+
+jobs:
+  pip-audit:
+    name: pip-audit (report-only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package (dev extras)
+        run: pip install -e ".[dev]"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      # SPEC-017: 도입 시점 baseline 확인 결과(2026-07-03) 개발 환경에서 20건의 알려진
+      # 취약점이 발견됨(대부분 examples/eval extras의 전이 의존성) — 처음부터 hard-block
+      # 하면 CI가 기존 의존성 트리 정리 없이 즉시 실패한다. 안정화 후 강제 실패로 전환할 것.
+      - name: pip-audit (non-blocking)
+        continue-on-error: true
+        run: pip-audit --progress-spinner=off
+
+  sbom:
+    name: Generate SBOM (release only)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package (dev extras)
+        run: pip install -e ".[dev]"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: pip-audit --format=cyclonedx-json --output=sbom.json --progress-spinner=off
+        continue-on-error: true
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.ref_name }}
+          path: sbom.json
