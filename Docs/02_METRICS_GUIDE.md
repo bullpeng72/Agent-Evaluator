@@ -2,7 +2,7 @@
 
 Agent Evaluator **58개 지표**의 공식·출력키·임계값 참조 문서
 
-**v0.9.5 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
+**v0.9.6 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
 
 > 개별 트래커 API 시그니처는 [08_API_REFERENCE.md](08_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md)를 참조하세요.

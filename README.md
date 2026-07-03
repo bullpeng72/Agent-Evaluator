@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1525,6 +1525,22 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.6 (2026-07-03) — Gate Package Decomposition · Harness Gate A–G Running Aggregates · Enterprise Ops Hardening
+
+- 🏗️ **SPEC-000**: Full Strangler-Fig decomposition of Gate A–G scoring logic out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/{configs,evaluators,aggregate}.py` — 7 complete Gate packages.
+- ⚡ **SPEC-018**: Windowed streaming retention mode (`retention_mode="windowed"`) now reflects full task history — not just the windowed subset — for all 7 Gates via new `gates/shared_metrics.py` running-aggregate primitives. Gate C `retry_consistency` and Gate D's ttft_variability/cost_predictability use bounded, explicitly-approved approximations (LRU-capped prefix tracking / bounded sliding sample) since exact O(1) reproduction isn't possible for those specific metrics.
+- 🔒 **SPEC-002/012**: Universal minimum-sample-size warnings across every Gate (previously Gate D only), including event-based denominators (tool calls, agent interactions).
+- 🐛 **SPEC-011**: Fixed a Gate G `tool_coverage` attribute-name bug (`self.tool_call_analyzer` → `self.tool_analyzer`) that silently made this metric always `None`.
+- 🔐 **SPEC-005/007**: Opt-in dashboard bearer/cookie auth middleware; `extra_metrics.lineage` (SDK version, git commit, judge model snapshot) captured on every save.
+- 🚦 **SPEC-006**: LLM Judge async path (`ajudge()`) with bounded concurrency (semaphore) and exponential backoff on provider rate limits.
+- 🧠 **SPEC-009**: Gate F/B prefer structured `agent_interactions`/`tool_calls` signals over text-heuristic matching when available.
+- 📈 **SPEC-010**: CI/CD baseline gate extended to cover Harness Gate A–G score regressions, not just flat metrics.
+- 🗄️ **SPEC-013/014**: Dashboard loader incremental re-parse (mtime-based cache) and `generate_report()` result caching (dirty-flag invalidated on `record_task()`).
+- 📣 **SPEC-015**: Alert handler retry/backoff (1s/2s/4s) plus alert-storm suppression (`max_alerts_per_window`).
+- 💾 **SPEC-016**: Optional SQLite storage backend (`storage_backend="sqlite"`) with upsert-by-task-id writes for large sessions.
+- 🛡️ **SPEC-017**: CI matrix (Python 3.8–3.13), `pip-audit` vulnerability scanning, Dependabot, pre-commit hooks, and release SBOM generation.
+- 🔧 **SPEC-008**: Compliance framework expansion — `pci_dss` and `soc2` alongside existing `hipaa`/`gdpr`/`general`.
 
 ### v0.9.5 (2026-06-02) — CLAUDE.md Rewrite · Import Path Fix · Model Name Modernization
 

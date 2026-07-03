@@ -379,11 +379,11 @@ class PerformanceMonitor:
             "partial_success": 0,
             "failures": 0,
         }
-        # SPEC-018 Phase 1-6: Gate E/F/G/B/A/C 러닝 집계 — "full" 모드에서는 인스턴스화조차 되지 않는다.
+        # SPEC-018 Phase 1-7: Gate E/F/G/B/A/C/D 러닝 집계 — "full" 모드에서는 인스턴스화조차 되지 않는다.
         if self._retention_mode == "windowed":
             from ...gates.shared_metrics import (
-                GateASharedAgg, GateBSharedAgg, GateCSharedAgg, GateESharedAgg,
-                GateFSharedAgg, GateGSharedAgg,
+                GateASharedAgg, GateBSharedAgg, GateCRetryConsistencyAgg, GateCSharedAgg,
+                GateDSharedAgg, GateESharedAgg, GateFSharedAgg, GateGSharedAgg,
             )
             self._running_gate_e_agg = GateESharedAgg()
             self._running_gate_f_agg = GateFSharedAgg()
@@ -391,6 +391,8 @@ class PerformanceMonitor:
             self._running_gate_b_agg = GateBSharedAgg()
             self._running_gate_a_agg = GateASharedAgg()
             self._running_gate_c_agg = GateCSharedAgg()
+            self._running_gate_c_retry_agg = GateCRetryConsistencyAgg()
+            self._running_gate_d_agg = GateDSharedAgg()
 
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
@@ -1965,6 +1967,8 @@ class PerformanceMonitor:
                 self._running_gate_b_agg.update(task_result)
                 self._running_gate_a_agg.update(task_result)
                 self._running_gate_c_agg.update(task_result)
+                self._running_gate_c_retry_agg.update(task_result)
+                self._running_gate_d_agg.update(task_result)
 
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
@@ -3115,18 +3119,23 @@ class PerformanceMonitor:
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         # SPEC-000: gates/gate_c_reliability/aggregate.py로 이관 — 로직 동일.
         # SLA 공유 데이터는 compute_sla_shared_data()가 한 번 계산해 Gate C·D 양쪽에 전달한다.
-        # SPEC-018 Phase 6: windowed 모드에서 러닝 집계 스냅숏을 주입(retry_consistency 제외 —
-        # task_id 프리픽스별 무한 증식 위험으로 별도 승인 대상). sla_results(원본 리스트)는
-        # Gate D(Phase 7 미착수)가 여전히 소비하므로 shared_running 유무와 무관하게 항상
-        # tasks(windowed 부분집합)에서 계산된다 — compute_sla_shared_data() 참조.
+        # SPEC-018 Phase 6: windowed 모드에서 러닝 집계 스냅숏을 주입. sla_results(원본
+        # 리스트)는 Gate D도 소비하므로 shared_running 유무와 무관하게 항상 tasks(windowed
+        # 부분집합)에서 계산된다 — compute_sla_shared_data() 참조.
+        # SPEC-018 Phase 7: retry_consistency는 별도 파라미터(retry_consistency_shared)로
+        # 분리 — task_id 프리픽스 카디널리티 LRU 캡(GateCRetryConsistencyAgg)이 적용된
+        # 의도적으로 승인된 근사이기 때문이다(다른 4개 지표는 정확).
         _c_shared = (
             self._running_gate_c_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
+        _c_retry_shared = (
+            self._running_gate_c_retry_agg.snapshot() if self._retention_mode == "windowed" else None
         )
         _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks, shared_running=_c_shared)
         _c_group, _c_shared_raw = gate_c_aggregate.compute(
             tasks, self.hallucination_detector, _tcr_tracker_for_gates,
             self._gate_c_tcr_weight, self._min_samples_default, _sla_shared,
-            shared_running=_c_shared,
+            shared_running=_c_shared, retry_consistency_shared=_c_retry_shared,
         )
         # hall_rate/avg_llm_faithfulness: Gate G(미이관) 섹션이 반올림 없는 원본값을 재사용
         hall_rate = _c_shared_raw["hall_rate"]
@@ -3136,10 +3145,17 @@ class PerformanceMonitor:
         # SPEC-000: gates/gate_d_performance/aggregate.py로 이관 — 로직 동일.
         # SLA 공유 데이터(sla_results/sla_window_penalty/sla_budget_penalty/sla_warning)는
         # Gate C(gate_c_aggregate.compute_sla_shared_data)가 계산한 값을 그대로 전달한다.
+        # SPEC-018 Phase 7: efficiency/resource_budget는 정확한 러닝 집계, ttft_variability/
+        # cost_predictability는 의도적으로 승인된 근사(GateDSharedAgg._RESERVOIR_SIZE=2,000
+        # 슬라이딩 샘플). p95 latency는 latency_tracker가 애초부터 무제한이라 미변경.
+        _d_shared = (
+            self._running_gate_d_agg.snapshot() if self._retention_mode == "windowed" else None
+        )
         _d_group = gate_d_aggregate.compute(
             tasks, self.latency_tracker, ttft_variability_config, cost_predictability_config,
             self._min_samples_default, _sla_shared["sla_results"], _sla_shared["sla_window_penalty"],
             _sla_shared["sla_budget_penalty"], _sla_shared["sla_warning"],
+            shared_running=_d_shared,
         )
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──

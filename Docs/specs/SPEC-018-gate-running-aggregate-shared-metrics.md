@@ -1,17 +1,37 @@
 # SPEC-018: Gate 러닝 집계 공유 인프라 (shared_metrics 계층)
 
-**Phase:** P2 · **상태:** Implemented (2026-07-03, Phase 0-6) · **의존성:** 없음
+**Phase:** P2 · **상태:** Implemented (2026-07-03, Phase 0-7 전체 완료) · **의존성:** 없음
 
-> **구현 노트**: Phase 0-6을 전부 구현했다. 신규 `agent_evaluator/gates/shared_metrics.py`에
-> 범용 러닝 집계 프리미티브(`RunningAverage`/`RunningSum`/`RunningWindow`/`RunningLastValue`/
-> `MonotonicFlag`/`RunningCount`/`RunningCategoryCounter`)와 6개 Gate 전용 클래스
-> (`GateESharedAgg`/`GateFSharedAgg`/`GateGSharedAgg`/`GateBSharedAgg`/`GateASharedAgg`/
-> `GateCSharedAgg`)를 추가했다. 각 Gate의 `gates/gate_x/aggregate.py::compute()`가
-> `shared_running: Optional[dict] = None` 인자를 받아 windowed 모드에서는 러닝 집계
-> 스냅숏을, "full" 모드(기본값)에서는 기존 `tasks` 재계산 경로를 그대로 사용한다.
-> `monitor.py`의 3개 지점(`__init__`/`record_task()`/`_compute_harness_groups()`)에
-> 매 Gate당 각 2-3줄씩 배선했다 — 기존 `_running_tcr_agg`/`_RunningTCRView`(SPEC-004)
-> 패턴을 그대로 일반화했다.
+> **구현 노트**: Phase 0-7 전체(A-G 7개 Gate 모두)를 구현했다. 신규
+> `agent_evaluator/gates/shared_metrics.py`에 범용 러닝 집계 프리미티브(`RunningAverage`/
+> `RunningSum`/`RunningWindow`/`RunningLastValue`/`MonotonicFlag`/`RunningCount`/
+> `RunningCategoryCounter`)와 8개 Gate 전용 클래스(`GateESharedAgg`/`GateFSharedAgg`/
+> `GateGSharedAgg`/`GateBSharedAgg`/`GateASharedAgg`/`GateCSharedAgg`/
+> `GateCRetryConsistencyAgg`/`GateDSharedAgg`)를 추가했다. 각 Gate의
+> `gates/gate_x/aggregate.py::compute()`가 `shared_running: Optional[dict] = None` 인자를
+> 받아 windowed 모드에서는 러닝 집계 스냅숏을, "full" 모드(기본값)에서는 기존 `tasks`
+> 재계산 경로를 그대로 사용한다. `monitor.py`의 3개 지점(`__init__`/`record_task()`/
+> `_compute_harness_groups()`)에 매 Gate당 각 2-3줄씩 배선했다 — 기존 `_running_tcr_agg`/
+> `_RunningTCRView`(SPEC-004) 패턴을 그대로 일반화했다.
+>
+> **Phase 7(2026-07-03 후속 승인)**: 애초 별도 승인이 필요하다고 명시했던 Gate C
+> `retry_consistency`와 Gate D 근사 지표를 사용자 승인 후 구현했다. 두 항목 모두
+> "정확한 전체 이력 재현"이 불가능한 지표라 **의도적으로 승인된 근사**를 도입했다:
+> - **Gate C `retry_consistency`**: `GateCRetryConsistencyAgg`가 task_id 프리픽스별
+>   상태(점수 합/개수 + 문자열 최소/최대 task_id 엔트리의 accuracy·config)를
+>   `OrderedDict` LRU로 관리하고, 서로 다른 프리픽스 수가 `_MAX_PREFIXES`(기본
+>   5,000)를 넘으면 가장 오래전에 갱신된 프리픽스를 제거한다 — 그 프리픽스의 기여분은
+>   최종 평균에서 빠진다. `evicted_count`로 근사 발동 여부를 진단할 수 있다. 캡 이내인
+>   일반적인 세션에서는 windowed 모드가 "full" 모드와 완전히 일치한다(테스트로 확인).
+> - **Gate D**: `GateDSharedAgg`가 efficiency/resource_budget는 단순 평균·누적합·최근
+>   config 덮어쓰기만으로 **정확히** 재현하고(다른 Gate와 동일한 패턴), ttft_variability/
+>   cost_predictability만 `_RESERVOIR_SIZE`(기본 2,000, `window_size`와 완전히 독립)개의
+>   최근 원시값 슬라이딩 샘플에서 stddev/percentile/CV를 계산한다 — 이력이 샘플 크기를
+>   초과하면 가장 오래된 원시값부터 밀려나 전체 이력과 정확히 같지 않을 수 있다(승인된
+>   트레이드오프, 전용 회귀 테스트로 근사가 실제 발동함을 확인). p95 latency는
+>   `latency_tracker`가 `retention_mode`와 무관하게 이미 무제한 증식하는 트래커라서
+>   (`_latencies`/`_ttft_records`가 plain list, `deque(maxlen=...)` 아님) 애초부터
+>   전체 이력을 반영해 왔다 — `hall_rate`와 동일한 사례, 수정 불필요.
 >
 > **구현 중 실제로 발견·수정한 버그 2건**:
 > 1. **순서 버그(Phase 1, Gate E)**: `record_task()`의 보안 트래커 enrichment(`input_
@@ -29,19 +49,14 @@
 >    게이팅 조건을 교체해 수정 — "full" 모드에서는 `sla_n == len(windowed_subset)`이므로
 >    동작 변화 없음(byte-diff 동일), windowed 모드에서만 정확해짐.
 >
-> **의도적으로 제외한 것(Non-Goals, 별도 승인 필요)**:
-> - Gate C `retry_consistency` — task_id 프리픽스별 그룹화 상태가 세션 전체에 걸쳐
->   무한 증식할 수 있어(고유 프리픽스 수만큼 dict 항목 증가) 이번 스펙에서 다루지 않는다.
->   `compute()`의 해당 블록은 이번 Phase 6에서 **단 한 줄도 수정하지 않았다** — 의도적
->   제외를 diff에서 명확히 드러내기 위함. 전용 테스트로 windowed 모드에서 여전히
->   windowed 부분집합 기준으로만 계산됨을 확인(회귀 아님, 설계대로).
-> - Gate D의 p95/TTFT variability/cost predictability CV — 스트리밍 근사 알고리즘
->   (P²/t-digest, Welford's algorithm)이 필요해 **정확한 전체 이력 재계산과 동일한
->   값이 아니다** — 정확성-보존 리팩터가 아니라 근사 트레이드오프이므로 별도 승인 필요.
+> **여전히 스코프 밖(별도 승인 필요, Phase 7에도 포함 안 됨)**:
 > - 7개 트래커(`accuracy_evaluator`/`quality_evaluator`/`hallucination_detector`/
 >   `latency_tracker`/`tool_analyzer`/`agent_coordination_tracker`/`tool_selection_tracker`)
 >   자체의 무제한 증식 — 이들은 SPEC-004 때부터 이미 windowed 모드에서도 캡핑되지 않음
->   (별도 스코프).
+>   (별도 스코프, `latency_tracker`/`hallucination_detector`는 오히려 이 때문에 이미
+>   전체 이력을 반영하는 유리한 부작용이 있음).
+> - `register_aggregator`/`run_aggregator`(`self.tasks` 전체를 사용자 콜백에 그대로
+>   넘김) — 구조적으로 이 리팩터로 고칠 수 없는 대상, 기존 `UserWarning`이 유일한 완화책.
 >
 > **알려진 한계**: Gate A(goal_alignment/plan_coherence)와 Gate C(llm_faithfulness)는
 > `task_result.llm_judge`에 의존한다. SPEC-006의 비동기 judge 경로(`ajudge()`)가
@@ -51,14 +66,17 @@
 > task()` 내부, lock 진입 전 `dataclasses.replace()`로 이미 반영됨)는 영향받지 않는다.
 >
 > 신규 테스트: `tests/test_shared_metrics_primitives.py`(20건, Phase 0 프리미티브 단위
-> 테스트) + `tests/test_streaming_retention_mode.py`에 Gate별 클래스 6개 추가(계 45건 —
+> 테스트) + `tests/test_streaming_retention_mode.py`에 Gate별 클래스 8개 추가(계 63건 —
 > 이력 반영, 세부 지표 일치, full-vs-windowed 교차검증, full 모드 불변 확인의 4종 패턴
 > 반복 + Gate 고유 검증: Gate F의 `method="single"` 제외, Gate A의 LLM-judge 블렌딩
 > 후 스칼라 누적, Gate B의 공유 분모/카테고리 카운터, Gate C의 SLA 링버퍼 독립성·
-> retry_consistency 의도적 제외·sla_breach_count 버그 수정 확인). 기존 관련 테스트
-> (`test_gates_gate_{a,b,c,e,f,g}_migration.py`, `test_gate_{e,f,g}_*.py`,
-> `test_min_sample_guard.py`, `test_report_harness_groups.py` 등) 전량 무수정 통과.
-> 전체 스위트 **3,145 passed, 1 skipped, 회귀 0건**.
+> sla_breach_count 버그 수정 확인, Gate C `retry_consistency`의 LRU 캡 이내 exact-match와
+> 캡 초과 시 실제 eviction 발동 확인, Gate D efficiency/resource_budget의 exact-match와
+> ttft/cost_predictability의 reservoir 이내 exact-match·초과 시 근사 실제 발동 확인·
+> p95가 이미 전체 이력임을 별도 확인). 기존 관련 테스트(`test_gates_gate_{a,b,c,d,e,f,g}
+> _migration.py`, `test_gate_{e,f,g}_*.py`, `test_min_sample_guard.py`,
+> `test_report_harness_groups.py` 등) 전량 무수정 통과. 전체 스위트
+> **3,156 passed, 1 skipped, 회귀 0건**.
 
 ## Context
 
@@ -101,14 +119,14 @@
 
 ## Non-Goals
 
-- Gate C `retry_consistency`의 러닝 집계 전환 — 무한 증식 위험이 있는 캐싱 정책
-  트레이드오프이므로 별도 제안 필요.
-- Gate D의 p95/TTFT variability/cost predictability — 스트리밍 근사 알고리즘 도입이
-  필요해 "정확성 보존 리팩터"가 아니라 "근사 트레이드오프 결정"이므로 별도 승인 필요.
 - 7개 트래커(accuracy_evaluator 등) 자체를 캡핑하는 것 — SPEC-004가 이미 별도
   스코프로 분리해 둔 기존 한계, 이번 스펙에서 확장하지 않는다.
 - `serve/loader.py`/SPEC-001의 monitor.py-loader.py 공식 통합 문제 — 완전히 별개의
   스펙(진짜 SPEC-001)이며 이 작업과 무관하다.
+- `register_aggregator`/`run_aggregator` — 구조적으로 이 리팩터로 고칠 수 없는 대상.
+
+> Phase 7(2026-07-03) 승인 이전에는 Gate C `retry_consistency`와 Gate D 근사 지표도
+> 이 섹션에 있었으나, 사용자가 별도 승인해 REQ-10/REQ-11로 구현했다(아래 참조).
 
 ## Requirements
 
@@ -139,7 +157,7 @@
   (단순 평균) + SLA breach_rate/window_penalty(`RunningWindow` 링버퍼)/budget_penalty
   (`RunningSum` + `RunningLastValue`). `compute_sla_shared_data()`가 Gate D에도 값을
   공급하므로, **`sla_results`(원본 리스트)는 `shared_running` 유무와 무관하게 항상
-  `tasks`에서 계산**(Gate D는 Phase 7 미착수이므로 원본 리스트가 계속 필요) —
+  `tasks`에서 계산**(Gate D의 p95 threshold 평균 계산이 계속 원본 리스트를 필요로 함) —
   breach_count/rate/window_penalty/budget_penalty "값"만 러닝 집계로 대체된다.
 - **REQ-8**: 각 Gate의 `compute()`는 새 선택 인자 `shared_running: Optional[dict] =
   None`을 받는다. `None`(기본값, "full" 모드 및 windowed 모드에서 아직 마이그레이션
@@ -148,6 +166,26 @@
   `record_task()`의 기존 lock 블록 내에서 `.update()` 호출, `_compute_harness_groups()`
   에서 `.snapshot()`을 만들어 `compute()`에 전달)에 배선한다 — `_running_tcr_agg` 패턴과
   동일한 구조.
+- **REQ-10** (Phase 7, 2026-07-03 별도 승인): Gate C `retry_consistency` —
+  `GateCRetryConsistencyAgg`. task_id 프리픽스별(`rsplit("_", 1)`) 점수 평균 + 문자열
+  최소/최대 task_id 엔트리의 accuracy 델타 기반 개선/저하 보너스·페널티를 그대로
+  재현하되, 프리픽스 카디널리티를 `_MAX_PREFIXES`(기본 5,000)로 캡핑한 `OrderedDict`
+  LRU로 관리한다 — 캡 초과 시 가장 오래전에 갱신된 프리픽스가 제거되고 그 기여분이
+  최종 평균에서 빠진다(승인된 의도적 근사). `compute()`에는 `shared_running`과 별도인
+  `retry_consistency_shared: Optional[dict] = None` 파라미터로 분리해 "이 지표만 근사"
+  임을 diff에서 명확히 드러낸다. `use_prefix=False`(비-프리픽스 평탄 평균) 모드는 이
+  캡과 무관해 항상 정확하다.
+- **REQ-11** (Phase 7, 2026-07-03 별도 승인): Gate D — `GateDSharedAgg`.
+  efficiency(calibrated_score/efficiency_ratio, 단위별)와 resource_budget(rollover
+  모드의 누적 소비/한도 합, non-rollover 모드의 budget_score 평균, 최근 `_config`
+  덮어쓰기)는 단순 평균·누적합만으로 **정확히** 재현 가능해 다른 Gate와 동일한 패턴을
+  따른다. ttft_variability(stddev+percentile+IQR 이상치 제거)와 cost_predictability
+  (task_type별 CV, mean±k·std 이상치 필터)만 `_RESERVOIR_SIZE`(기본 2,000, `window_size`
+  와 완전히 독립)개의 최근 원시값 슬라이딩 샘플에서 계산하는 **의도적으로 승인된
+  근사**다 — 원본과 동일한 sorted/IQR/stddev/percentile 계산 로직을 샘플에 적용하므로,
+  이력이 샘플 크기 이내이면 "full" 모드와 완전히 일치하고, 초과하면 근사가 발동한다.
+  p95 latency는 `latency_tracker`(retention_mode와 무관하게 이미 무제한 증식)에서 오므로
+  이 REQ의 범위 밖 — 애초부터 전체 이력 반영, 수정 불필요.
 
 ## Interface
 
@@ -189,9 +227,22 @@ _e_group = gate_e_aggregate.compute(tasks, self.enable_security_metrics, self._m
    생성되지 않음(`not hasattr`).
 
 Gate 고유 추가 테스트: Gate F의 `method="single"` 배제, Gate A의 LLM-judge 블렌딩,
-Gate C의 SLA 링버퍼 독립성(`window_size`와 무관), `retry_consistency` 의도적 제외
-확인(windowed와 full 모드 결과가 실제로 달라야 함 — 같으면 회귀), `sla_breach_count`
-버그 수정 확인(윈도우가 SLA 태스크를 전부 밀어내도 전체 이력 카운트가 표시됨).
+Gate C의 SLA 링버퍼 독립성(`window_size`와 무관), `sla_breach_count` 버그 수정 확인
+(윈도우가 SLA 태스크를 전부 밀어내도 전체 이력 카운트가 표시됨).
+
+**근사 지표(REQ-10/REQ-11) 전용 추가 검증**(4종 패턴을 대체 — "동일" 대신 "캡/샘플
+이내에서는 동일, 초과하면 근사가 실제로 발동"을 확인):
+1. **캡/샘플 이내 exact-match**: LRU 캡(5,000)·reservoir(2,000)보다 훨씬 작은 픽스처로
+   windowed와 full 모드가 완전히 일치함을 확인(Gate C retry_consistency, Gate D
+   ttft_variability/cost_predictability 각각).
+2. **캡/샘플 초과 시 근사 발동 확인**: 테스트에서 `_MAX_PREFIXES`/`_RESERVOIR_SIZE`를
+   작게 조정해 캡/샘플을 의도적으로 초과시키고, eviction이 실제로 일어나며
+   (`evicted_count > 0`) 결과가 "밀려난 원시값을 반영하지 못함"을 보여주는지 확인 —
+   근사가 문서상의 주장으로만 존재하는 게 아니라 실제로 그렇게 동작함을 증명.
+3. **정확 재현 구간의 exact-match**: Gate D의 efficiency/resource_budget(근사가 아닌
+   부분)은 다른 Gate와 동일하게 4종 패턴으로 검증(위 목록 그대로).
+4. **p95의 선행 완전성 확인**: `latency_tracker`가 애초부터 무제한이라는 근거로 Gate D
+   마이그레이션과 무관하게 windowed 모드에서도 이미 전체 이력과 일치함을 별도 확인.
 
 ## Compatibility
 
@@ -214,8 +265,9 @@ Gate C의 SLA 링버퍼 독립성(`window_size`와 무관), `retry_consistency` 
 6. Phase 5: Gate A. ✅ — LLM-judge 블렌딩, 비동기 judge 패치 한계 문서화.
 7. Phase 6: Gate C(`retry_consistency` 제외). ✅ — `sla_breach_count` 표시 게이팅
    버그 발견·수정.
-8. Phase 7(제외, 별도 승인 필요): Gate D 근사 지표.
-9. (제외, 별도 승인 필요): Gate C `retry_consistency`.
+8. Phase 7(2026-07-03, 별도 승인 후 착수): Gate C `retry_consistency`(LRU 캡) + Gate D
+   (efficiency/resource_budget 정확 재현 + ttft_variability/cost_predictability
+   reservoir 근사, p95는 이미 완전). ✅ — A-G 7개 Gate 전체 완료.
 
 각 Phase 완료 시 `Docs/specs/SPEC-004-streaming-retention-mode.md`의 구현 노트를
 갱신해 해당 Gate를 "windowed-only" 목록에서 "전체 이력 반영" 목록으로 이동했다.
@@ -232,6 +284,12 @@ Gate C의 SLA 링버퍼 독립성(`window_size`와 무관), `retry_consistency` 
   로직을 있는 그대로 옮겨적기(transliteration), 재해석 금지" 원칙과 4종 교차검증
   테스트로 상쇄. 실제로 Gate E에서 순서 버그를, Gate C에서 표시 게이팅 버그를 이
   테스트들이 잡아냈다 — 설계가 유효함을 실증.
-- Gate C의 `sla_results`(원본 리스트)가 여전히 windowed 부분집합에서 계산되므로,
-  Gate D(Phase 7 미착수)의 p95 threshold 평균 계산은 windowed 모드에서 여전히
-  부분집합 기준 — 이 스펙의 스코프 경계를 명확히 문서화했다(REQ-7).
+- Gate C의 `sla_results`(원본 리스트)는 REQ-7에 따라 여전히 windowed 부분집합에서
+  계산된다 — Gate D의 p95 threshold 평균 계산은 windowed 모드에서 계속 부분집합
+  기준(Gate D의 다른 지표들이 Phase 7에서 정확/근사 재현으로 마이그레이션된 것과
+  무관하게, `sla_results`만은 의도적으로 그대로 둔 설계 — REQ-7에 문서화됨).
+- **근사 지표의 캡/샘플 크기 선택**(Gate C `_MAX_PREFIXES=5000`, Gate D
+  `_RESERVOIR_SIZE=2000`)은 하드코딩된 상수이며 `PerformanceMonitor` 공개 API로
+  노출되지 않는다 — 극단적으로 높은 프리픽스 카디널리티나 매우 긴 세션에서 근사
+  강도가 사용자 조정 불가. 필요해지면 별도 요청으로 파라미터화할 수 있다(현재는
+  일반적인 사용 사례를 커버하는 합리적 기본값으로 판단해 범위 밖으로 유지).

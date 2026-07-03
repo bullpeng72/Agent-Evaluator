@@ -670,12 +670,10 @@ class TestWindowedGateCRunningMetrics:
         m.record_task(self._make_reliability_task("t0", "reproducibility"))
         assert not hasattr(m, "_running_gate_c_agg")
 
-    def test_retry_consistency_intentionally_excluded_stays_windowed_only(self):
-        """retry_consistency는 Phase 6에서 의도적으로 제외됐다 — windowed 모드에서
-        여전히 windowed 부분집합 기준으로만 계산되고, 전체 이력을 반영하지 않아야 한다."""
-        # 같은 프리픽스로 여러 번 재시도하는 태스크 시퀀스 — 앞부분(윈도우 밖으로 밀려남)의
-        # accuracy가 낮고 뒷부분(윈도우에 남음)의 accuracy가 높으면, 전체 이력 기준과
-        # windowed 부분집합 기준의 delta 보너스 계산이 달라진다.
+    def test_retry_consistency_now_reflects_full_history_under_lru_cap(self):
+        """SPEC-018 Phase 7: retry_consistency가 GateCRetryConsistencyAgg(LRU 캡 적용)로
+        마이그레이션됐다 — 프리픽스 카디널리티가 캡(기본 5,000) 이내인 일반적인 경우,
+        windowed 모드도 이제 전체 이력 기준(개선 보너스 포함)과 일치해야 한다."""
         # task_id를 0-패딩(retry_00..retry_19)해 문자열 정렬이 수치 순서와 일치하게 한다
         # (rsplit("_", 1) 그룹핑 로직이 문자열 정렬에 의존하므로, 패딩 없으면
         # "retry_10" < "retry_2" 처럼 의도와 다른 순서로 그룹 내 first/last가 뒤바뀐다).
@@ -699,12 +697,42 @@ class TestWindowedGateCRunningMetrics:
             m_win.record_task(t)
         win_rc = _hg(m_win)["C"]["details"]["avg_retry_consistency"]
 
-        # 의도적 제외 확인 — windowed 부분집합(마지막 5개, 전부 accuracy=0.9로 delta=0)과
-        # 전체 이력(첫 task accuracy=0.3, 마지막 accuracy=0.9로 delta=+0.6, 보너스 적용)의
-        # 결과가 실제로 달라야 한다(같으면 우연히 델타가 없는 것이므로 이 픽스처 설계를 재검토).
-        assert win_rc != full_rc
+        # 전체 이력(첫 task accuracy=0.3, 마지막 accuracy=0.9로 delta=+0.6 → 개선 보너스 적용)이
+        # windowed 부분집합(마지막 5개만 보면 delta=0)과 이제는 일치해야 한다 — LRU 캡(5,000)을
+        # 전혀 건드리지 않는 이 픽스처(단일 프리픽스, 20개 태스크)에서는 근사가 발동하지 않는다.
+        assert win_rc == pytest.approx(full_rc)
         assert full_rc == pytest.approx(0.6)  # 0.5 + 0.1 개선 보너스
-        assert win_rc == pytest.approx(0.5)  # 윈도우 내 delta=0 → 보너스 없음
+
+    def test_retry_consistency_lru_cap_evicts_oldest_prefix_when_exceeded(self):
+        """프리픽스 카디널리티가 LRU 캡을 초과하면 가장 오래전에 갱신된 프리픽스가
+        제거되고 그 기여분이 최종 평균에서 빠진다 — 의도적으로 승인된 근사(SPEC-018
+        Phase 7 REQ-C1)가 실제로 발동하는지 확인한다."""
+        m = PerformanceMonitor(retention_mode="windowed", window_size=10)
+        agg = m._running_gate_c_retry_agg
+        agg._MAX_PREFIXES = 3  # 테스트용으로 캡을 작게 조정
+
+        def _rc_task(task_id: str):
+            return create_taskresult(
+                task_id=task_id, question="q", response="r", execution_time=0.1,
+                task_type="qa", completion_score=1.0,
+                extra={"retry_consistency": {"consistency_score": 0.5, "_config": {"group_by_task_prefix": True}}},
+            )
+
+        for prefix_i in range(5):  # 5개의 distinct 프리픽스 — 캡(3)을 초과
+            m.record_task(_rc_task(f"prefix{prefix_i}_00"))
+
+        snap = agg.snapshot()
+        assert snap["evicted_count"] == 2  # 5개 중 캡(3) 초과분 2개 제거됨
+        assert len(agg._prefixes) == 3
+
+    def test_full_mode_never_constructs_gate_c_retry_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(create_taskresult(
+            task_id="t0", question="q", response="r", execution_time=0.1,
+            task_type="qa", completion_score=1.0,
+            extra={"retry_consistency": {"consistency_score": 0.5}},
+        ))
+        assert not hasattr(m, "_running_gate_c_retry_agg")
 
     def test_sla_window_penalty_ring_buffer_independent_of_window_size(self):
         """SLA breach_window(예: 3)는 retention_mode의 window_size(예: 5)와 독립적인
@@ -766,6 +794,187 @@ class TestWindowedGateCRunningMetrics:
         # 윈도우에는 SLA 데이터가 있는 태스크가 하나도 남아있지 않지만(전부 clean_*),
         # 전체 이력에는 5건의 SLA breach가 있었으므로 None이 아니라 5가 나와야 한다.
         assert details["sla_breach_count"] == 5
+
+
+class TestWindowedGateDRunningMetrics:
+    """SPEC-018 Phase 7: Gate D(Performance Contract)의 러닝 집계.
+
+    efficiency/resource_budget는 정확한 재현(단순 평균·누적합·최근값 덮어쓰기)이므로
+    다른 Gate와 동일한 4종 패턴으로 검증한다. ttft_variability/cost_predictability는
+    GateDSharedAgg._RESERVOIR_SIZE(2,000)개 슬라이딩 샘플 기반 **의도적으로 승인된
+    근사**이므로, 이력이 reservoir 크기 이내일 때만 exact match를 요구하고, reservoir를
+    초과하는 시나리오는 근사가 실제로 발동함(다르게 나옴)을 확인한다. p95 latency는
+    latency_tracker가 애초부터 무제한이라 별도 검증(이미 전체 이력)만 한다.
+    """
+
+    def _make_perf_task(self, task_id: str, kind: str):
+        extra_by_kind = {
+            "eff_calibrated": {"efficiency": {"calibrated_score": 0.8}},
+            "eff_ratio": {"efficiency": {"efficiency_ratio": 0.05, "cost_unit": "tokens"}},
+            "resource_budget": {"resource_budget": {"budget_score": 0.7, "_config": {"rollover": False}}},
+            "clean": {},
+        }
+        return _task(task_id, 1.0, extra=extra_by_kind[kind])
+
+    def _build_sequence(self, n: int = 20):
+        kinds = ["eff_calibrated", "eff_ratio", "resource_budget", "clean"]
+        return [self._make_perf_task(f"t{i}", kinds[i % len(kinds)]) for i in range(n)]
+
+    def test_running_agg_reflects_evicted_history(self):
+        m = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in self._build_sequence(20):
+            m.record_task(t)
+
+        assert len(m.tasks) == 5
+        snap = m._running_gate_d_agg.snapshot()
+        assert snap["eff_calibrated_count"] >= 2
+        assert snap["eff_ratio_count"] >= 2
+        assert snap["rb_budget_score_count"] >= 2
+        assert snap["total_n"] == 20
+
+    def test_exact_metrics_match_full_history_expectation(self):
+        m_full = PerformanceMonitor()
+        for t in self._build_sequence(18):
+            m_full.record_task(t)
+        expected = _hg(m_full)["D"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in self._build_sequence(18):
+            m_win.record_task(t)
+        actual = _hg(m_win)["D"]["details"]
+
+        for key in (
+            "avg_efficiency_calibrated_score", "avg_efficiency_ratio", "avg_budget_score",
+        ):
+            assert actual[key] == expected[key], key
+
+    def test_exact_metrics_full_vs_windowed_cross_check(self):
+        tasks = self._build_sequence(35)
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+
+        d_full = _hg(m_full)["D"]["details"]
+        d_win = _hg(m_win)["D"]["details"]
+        for key in (
+            "avg_efficiency_calibrated_score", "avg_efficiency_ratio", "avg_budget_score",
+        ):
+            assert d_win[key] == pytest.approx(d_full[key]), key
+
+    def test_full_mode_never_constructs_gate_d_agg(self):
+        m = PerformanceMonitor()
+        m.record_task(self._make_perf_task("t0", "eff_calibrated"))
+        assert not hasattr(m, "_running_gate_d_agg")
+
+    def test_resource_budget_rollover_mode_exact_via_running_sums(self):
+        """rollover=True 모드(세션 누적 소비 대 전체 한도 비교)도 정확히 재현되는지 확인."""
+        tasks = []
+        for i in range(10):
+            tasks.append(_task(f"rb{i}", 1.0, extra={"resource_budget": {
+                "_config": {"rollover": True, "max_tokens": 1000},
+                "_consumed": {"tokens": 80},
+            }}))
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_budget = _hg(m_full)["D"]["details"]["avg_budget_score"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=4)
+        for t in tasks:
+            m_win.record_task(t)
+        win_budget = _hg(m_win)["D"]["details"]["avg_budget_score"]
+
+        # 10개 태스크 × 80 tokens = 800 소비, 한도 10 × 1000 = 10000 → utilization=0.08 → score=0.92
+        assert win_budget == pytest.approx(full_budget)
+        assert win_budget == pytest.approx(0.92)
+
+    def test_ttft_variability_exact_within_reservoir_size(self):
+        """이력이 reservoir 크기(2,000) 이내면 ttft_variability도 전체 이력과 일치해야 한다."""
+        tasks = [
+            _task(f"ttft{i}", 1.0, extra={"ttft_ms": 100.0 + (i % 7) * 15.0})
+            for i in range(30)
+        ]
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_d = _hg(m_full)["D"]["details"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in tasks:
+            m_win.record_task(t)
+        win_d = _hg(m_win)["D"]["details"]
+
+        assert win_d["ttft_variability_score"] == pytest.approx(full_d["ttft_variability_score"])
+        assert win_d["ttft_stddev_ms"] == pytest.approx(full_d["ttft_stddev_ms"])
+        assert win_d["ttft_p50_ms"] == pytest.approx(full_d["ttft_p50_ms"])
+        assert win_d["ttft_p95_ms"] == pytest.approx(full_d["ttft_p95_ms"])
+
+    def test_ttft_reservoir_approximation_activates_beyond_reservoir_size(self):
+        """이력이 reservoir 크기를 초과하면 근사가 실제로 발동(값이 달라짐)해야 한다 —
+        승인된 트레이드오프가 실제로 존재함을 증명하는 회귀 방지 테스트."""
+        m = PerformanceMonitor(retention_mode="windowed", window_size=10)
+        agg = m._running_gate_d_agg
+        agg._RESERVOIR_SIZE = 5
+        agg.ttft_reservoir.resize(5)
+
+        # 초반 100ms 값들(reservoir에서 밀려남) 다음 500ms 값들(reservoir에 남음)
+        for i in range(20):
+            ttft = 100.0 if i < 15 else 500.0
+            m.record_task(_task(f"ttft{i}", 1.0, extra={"ttft_ms": ttft}))
+
+        snap = agg.snapshot()
+        # reservoir(마지막 5개)는 전부 500.0 → stddev=0, 실제 전체 이력(100/500 혼재)의
+        # stddev와는 다르다 — 근사가 발동했다는 증거.
+        assert snap["ttft_values"] == [500.0] * 5
+
+    def test_cost_predictability_exact_within_reservoir_size(self):
+        """이력이 reservoir 크기 이내면 cost_predictability도 전체 이력과 일치해야 한다."""
+        tasks = [
+            _task(f"cost{i}", 1.0, tokens_used={"total": 100 + (i % 5) * 20})
+            for i in range(30)
+        ]
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_cv = _hg(m_full)["D"]["details"]["avg_cost_predictability"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=5)
+        for t in tasks:
+            m_win.record_task(t)
+        win_cv = _hg(m_win)["D"]["details"]["avg_cost_predictability"]
+
+        assert win_cv == pytest.approx(full_cv)
+
+    def test_p95_latency_already_full_history_via_uncapped_latency_tracker(self):
+        """p95_latency_s는 latency_tracker(retention_mode와 무관하게 이미 무제한 증식)에서
+        오므로 GateDSharedAgg와 무관하게 windowed 모드에서도 애초부터 전체 이력을 반영한다."""
+        tasks = [
+            create_taskresult(
+                task_id=f"lat{i}", question="q", response="r",
+                execution_time=float(i) / 10.0, task_type="qa", completion_score=1.0,
+            )
+            for i in range(1, 21)
+        ]
+
+        m_full = PerformanceMonitor(retention_mode="full")
+        for t in tasks:
+            m_full.record_task(t)
+        full_p95 = _hg(m_full)["D"]["details"]["p95_latency_s"]
+
+        m_win = PerformanceMonitor(retention_mode="windowed", window_size=3)
+        for t in tasks:
+            m_win.record_task(t)
+        win_p95 = _hg(m_win)["D"]["details"]["p95_latency_s"]
+
+        assert win_p95 == pytest.approx(full_p95)
 
 
 class TestWindowedRetentionWarnings:

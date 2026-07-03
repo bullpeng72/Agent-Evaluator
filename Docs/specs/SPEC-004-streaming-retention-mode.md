@@ -1,6 +1,6 @@
 # SPEC-004: 옵트인 스트리밍 모니터 모드
 
-**Phase:** P2 · **상태:** Partially Implemented (2026-07-02, Gate E 확장 2026-07-03) · **의존성:** SPEC-018(Gate 러닝 집계 공유 인프라) 진행 중
+**Phase:** P2 · **상태:** Partially Implemented (2026-07-02, Gate E-G/B/A/C/D 전체 확장 완료 2026-07-03) · **의존성:** SPEC-018(Gate 러닝 집계 공유 인프라) 완료
 
 > **정정(2026-07-03)**: 아래 원래 구현 노트가 "SPEC-001의 shared_metrics 계층"을 언급하지만,
 > 재검토 결과 `SPEC-001-gate-aggregation-unification.md`은 실제로는 다른 문제
@@ -51,9 +51,17 @@
 > 교차검증, full 모드 불변 확인, 보안 데이터 전무 시 None 유지) 추가. 전체 스위트
 > 3,117 passed, 1 skipped, 회귀 0건.
 >
-> 후속 작업(SPEC-018 Phase 2-6): Gate F/G/B/A/C(reproducibility 등, retry_consistency 제외)에
-> 동일한 패턴 확장 예정. Gate C `retry_consistency`와 Gate D의 percentile/분산 계열 지표는
-> 근사 알고리즘이 필요해 별도 승인 대상으로 분리됨(SPEC-018 문서 참조).
+> **완료(2026-07-03, SPEC-018 Phase 2-7)**: Gate F/G/B/A/C/D 전체에 동일한 패턴을 확장했다.
+> Gate C `retry_consistency`(task_id 프리픽스 카디널리티 LRU 캡, 기본 5,000)와 Gate D의
+> ttft_variability/cost_predictability(원시값 슬라이딩 샘플, 기본 2,000 — `window_size`와
+> 독립)는 사용자 별도 승인(2026-07-03) 후 **의도적으로 승인된 근사**로 구현했다(정확한
+> 전체 이력 재계산과 항등이 아닐 수 있음 — 캡/샘플 크기 이내에서는 항등, 초과 시 근사).
+> Gate D의 efficiency/resource_budget과 p95 latency(원래부터 무제한인 `latency_tracker`
+> 기반이라 애초부터 전체 이력 반영)는 정확하다. 이로써 REQ-2는 사실상 전체 범위로
+> 완료됐다 — 유일하게 남은 예외는 Gate C의 `sla_results`(원본 리스트, Gate D의 p95
+> threshold 평균 계산용)가 여전히 windowed 부분집합 기준이라는 점(SPEC-018 REQ-7 참조,
+> Gate 점수 자체에는 영향 없음). 상세 설계·테스트·리스크는 `SPEC-018-*.md`가 단일
+> 소스다 — 이 문서는 더 이상 phase별 노트를 추가하지 않는다.
 
 ## Context
 

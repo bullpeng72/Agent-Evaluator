@@ -17,8 +17,10 @@ windowed 모드의 스냅숏이 "전체 이력을 tasks로 재계산했을 때"�
 """
 from __future__ import annotations
 
-from collections import deque
-from typing import Any, Deque, Dict, Optional
+import math
+import statistics
+from collections import OrderedDict, deque
+from typing import Any, Deque, Dict, List, Optional
 
 
 class RunningAverage:
@@ -670,4 +672,263 @@ class GateCSharedAgg:
             "sla_n": _sla_n,
             "sla_window_penalty": _sla_window_penalty,
             "sla_budget_penalty": _sla_budget_penalty,
+        }
+
+
+class GateDSharedAgg:
+    """SPEC-018 Phase 7 — Gate D(Performance Contract)의 러닝 집계.
+
+    ``gates/gate_d_performance/aggregate.py``의 지표는 두 그룹으로 나뉜다:
+
+    - **정확히 재현 가능**(efficiency/resource_budget): 단순 평균·누적합·최근값
+      덮어쓰기만으로 원본과 항등인 결과를 낸다 — 다른 Gate와 동일한 패턴.
+    - **근사가 필요**(ttft_variability/cost_predictability): stddev/percentile/
+      IQR 기반 이상치 제거는 원시값 없이 O(1)로 정확히 재현할 수 없다. 이 두 지표만
+      ``_RESERVOIR_SIZE``(기본 2000, `retention_mode`의 `window_size`와 완전히 독립)
+      개의 최근 원시값을 보관하는 별도 슬라이딩 샘플에서 계산한다 — **전체 이력과
+      수학적으로 동일하지 않은, 의도적으로 승인된 근사치**다(SPEC-018 Phase 7,
+      REQ-D2 참조). `window_size`보다 훨씬 크게 잡아 일반적인 사용에서는 사실상
+      전체 이력에 가깝지만, 이력이 reservoir 크기를 초과하면 가장 오래된 원시값부터
+      밀려난다.
+
+    p95 latency(`latency_tracker.get_latency_stats()`)와 TTFT의 트래커 폴백
+    (`latency_tracker._ttft_records`)은 이 클래스가 다루지 않는다 — `LatencyTracker`
+    자체가 `retention_mode`와 무관하게 이미 무제한 증식하는 트래커라서(`_latencies`/
+    `_ttft_records`가 plain list, `deque(maxlen=...)` 아님) windowed 모드에서도
+    애초부터 전체 이력을 반영해 왔다(수정 불필요, hall_rate와 동일한 사례).
+    """
+
+    _RESERVOIR_SIZE = 2000
+
+    def __init__(self) -> None:
+        # efficiency (정확)
+        self.eff_calibrated = RunningAverage()
+        self._eff_ratio_by_unit: Dict[str, RunningAverage] = {}
+        # resource_budget (정확)
+        self.rb_config = RunningLastValue()  # 마지막 resource_budget 태스크의 _config
+        self.rb_tokens_consumed = RunningSum()
+        self.rb_cost_consumed = RunningSum()
+        self.rb_time_consumed = RunningSum()
+        self.rb_max_tokens = RunningSum()
+        self.rb_max_cost = RunningSum()
+        self.rb_max_time = RunningSum()
+        self.rb_budget_score = RunningAverage()
+        self.rb_n = RunningCount()
+        # ttft_variability / cost_predictability (근사 — 슬라이딩 샘플)
+        self.ttft_reservoir = RunningWindow(maxlen=self._RESERVOIR_SIZE)
+        self._cost_reservoir_by_type: Dict[str, RunningWindow] = {}
+        # cost_predictability의 min_samples 게이팅은 원본이 len(tasks)(태그 무관, 전체 태스크 수)를
+        # 쓰므로 이를 그대로 재현하기 위한 무조건 카운터.
+        self.total_n = RunningCount()
+
+    def update(self, t: Any) -> None:
+        extra = t.extra or {}
+        self.total_n.add()
+
+        # efficiency
+        _eff = extra.get("efficiency") or {}
+        if _eff:
+            if "calibrated_score" in _eff:
+                self.eff_calibrated.add(float(_eff["calibrated_score"]))
+            _er = _eff.get("efficiency_ratio")
+            if _er is not None:
+                _unit = str(_eff.get("cost_unit") or "tokens")
+                if _unit not in self._eff_ratio_by_unit:
+                    self._eff_ratio_by_unit[_unit] = RunningAverage()
+                self._eff_ratio_by_unit[_unit].add(float(_er))
+
+        # resource_budget
+        _rb = extra.get("resource_budget")
+        if _rb is not None:
+            self.rb_n.add()
+            _cfg = _rb.get("_config") or {}
+            self.rb_config.set(_cfg)  # "마지막 rb 태스크의 config" — 매번 덮어쓰기로 재현
+            _consumed = _rb.get("_consumed") or {}
+            self.rb_tokens_consumed.add(float(_consumed.get("tokens", 0)))
+            self.rb_cost_consumed.add(float(_consumed.get("cost_usd", 0)))
+            self.rb_time_consumed.add(float(_consumed.get("time_ms", 0)))
+            self.rb_max_tokens.add(int(_cfg.get("max_tokens") or 0))
+            self.rb_max_cost.add(float(_cfg.get("max_cost_usd") or 0.0))
+            self.rb_max_time.add(float(_cfg.get("max_execution_time_ms") or 0.0))
+            _bs = _rb.get("budget_score")
+            if _bs is not None:
+                self.rb_budget_score.add(float(_bs))
+
+        # ttft_variability (reservoir)
+        _ttft = None
+        if extra:
+            _ttft = extra.get("ttft_ms") or extra.get("ttft")
+        if _ttft is not None:
+            try:
+                self.ttft_reservoir.add(float(_ttft))
+            except (TypeError, ValueError):
+                pass
+
+        # cost_predictability (reservoir per task_type) — 원본과 동일하게 <= 0.0 제외
+        _ttype_d = str(t.task_type) if t.task_type else "unknown"
+        _tu = t.tokens_used or 0
+        if isinstance(_tu, dict):
+            _raw_total = _tu.get("total")
+            if _raw_total is not None:
+                try:
+                    _cv_cost = float(_raw_total)
+                except (TypeError, ValueError):
+                    _cv_cost = 0.0
+            else:
+                _cv_cost = float(_tu.get("input", 0) + _tu.get("output", 0))
+        else:
+            try:
+                _cv_cost = float(_tu)
+            except (TypeError, ValueError):
+                _cv_cost = 0.0
+        # cost_metric에 따라 "tokens"가 아닌 다른 지표를 쓸 수도 있으므로 usd/time_ms 원시값도
+        # 함께 보관 — snapshot() 시점에 cost_predictability_config.cost_metric에 따라 선택한다.
+        _cost_usd = float((extra.get("cost_usd")) or 0.0)
+        _time_ms = float((t.execution_time or 0.0) * 1000.0)
+        for _metric, _val in (("tokens", _cv_cost), ("usd", _cost_usd), ("time_ms", _time_ms)):
+            if _val <= 0.0:
+                continue
+            _key = f"{_metric}::{_ttype_d}"
+            if _key not in self._cost_reservoir_by_type:
+                self._cost_reservoir_by_type[_key] = RunningWindow(maxlen=self._RESERVOIR_SIZE)
+            self._cost_reservoir_by_type[_key].add(_val)
+
+    def snapshot(self) -> Dict[str, Any]:
+        _eff_unit = (
+            max(self._eff_ratio_by_unit, key=lambda u: self._eff_ratio_by_unit[u].count)
+            if self._eff_ratio_by_unit else "tokens"
+        )
+        _eff_ratio_avg = (
+            self._eff_ratio_by_unit[_eff_unit].average() if _eff_unit in self._eff_ratio_by_unit else None
+        )
+        _eff_ratio_n = (
+            self._eff_ratio_by_unit[_eff_unit].count if _eff_unit in self._eff_ratio_by_unit else 0
+        )
+        _cfg = self.rb_config.get() or {}
+        # "{metric}::{task_type}" 키를 metric별로 재구성 — compute()가 자신의 cost_metric
+        # (CostPredictabilityConfig에서 파생)으로 필요한 것만 선택하도록 raw 형태 그대로 반환.
+        _cost_by_metric: Dict[str, Dict[str, List[float]]] = {}
+        for _key, _rw in self._cost_reservoir_by_type.items():
+            _metric, _, _ttype = _key.partition("::")
+            _cost_by_metric.setdefault(_metric, {})[_ttype] = _rw.values()
+
+        return {
+            "eff_calibrated_avg": self.eff_calibrated.average(),
+            "eff_calibrated_count": self.eff_calibrated.count,
+            "eff_ratio_avg": _eff_ratio_avg,
+            "eff_ratio_count": _eff_ratio_n,
+            "eff_cost_unit": _eff_unit,
+            "rb_config": _cfg,
+            "rb_tokens_consumed": self.rb_tokens_consumed.total,
+            "rb_cost_consumed": self.rb_cost_consumed.total,
+            "rb_time_consumed": self.rb_time_consumed.total,
+            "rb_max_tokens": self.rb_max_tokens.total,
+            "rb_max_cost": self.rb_max_cost.total,
+            "rb_max_time": self.rb_max_time.total,
+            "rb_budget_score_avg": self.rb_budget_score.average(),
+            "rb_budget_score_count": self.rb_budget_score.count,
+            "rb_n": self.rb_n.count,
+            "ttft_values": self.ttft_reservoir.values(),
+            "cost_by_metric": _cost_by_metric,
+            "total_n": self.total_n.count,
+        }
+
+
+class GateCRetryConsistencyAgg:
+    """SPEC-018 Phase 7 — Gate C `retry_consistency`의 러닝 집계(LRU 캡 적용).
+
+    task_id 프리픽스(`rsplit("_", 1)`의 앞부분)별로 그룹화해 평균 + 개선/저하
+    보너스/페널티를 계산하는 원본 로직을 그대로 재현하되, **서로 다른 프리픽스의
+    개수가 세션 길이에 비례해 무한 증식할 수 있는 위험**을 `_MAX_PREFIXES`(기본
+    5000)로 캡핑한 LRU(최근 갱신 순서 기준)로 관리한다 — 이 캡을 초과하면 가장
+    오래전에 갱신된 프리픽스가 제거되고, 그 프리픽스의 기여분은 최종 평균에서
+    빠진다(승인된 의도적 근사, SPEC-018 Phase 7 REQ-C1). `evicted_count`로 이
+    근사가 실제로 발동했는지 진단할 수 있다.
+
+    프리픽스별 상태: 점수 합/개수(전체 평균용) + task_id 문자열 기준 최소/최대
+    엔트리의 accuracy·config(원본이 `entries.sort(key=task_id)` 후 `[0]`/`[-1]`을
+    쓰는 것과 동일 — 최소 task_id 엔트리의 `_config`로 improvement_threshold/
+    penalize_degradation을 결정하고, 최소/최대 엔트리의 accuracy 차이로 델타
+    보너스/페널티를 적용한다).
+    """
+
+    _MAX_PREFIXES = 5000
+
+    def __init__(self) -> None:
+        self._prefixes: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+        self.flat_avg = RunningAverage()
+        self.prefix_true_seen = RunningCount()  # any(group_by_task_prefix truthy) 재현용
+        self.rc_n = RunningCount()  # retry_consistency 존재하는 태스크 수(점수 유무 무관)
+        self.evicted_count = 0
+
+    def update(self, t: Any) -> None:
+        _rc = (t.extra or {}).get("retry_consistency")
+        if _rc is None:
+            return
+        self.rc_n.add()
+        _cfg = _rc.get("_config") or {}
+        if bool(_cfg.get("group_by_task_prefix", True)):
+            self.prefix_true_seen.add()
+
+        _sc = _rc.get("consistency_score")
+        if _sc is None:
+            return
+        _sc_f = float(_sc)
+        self.flat_avg.add(_sc_f)
+
+        _tid = str(getattr(t, "task_id", "") or "")
+        _parts = _tid.rsplit("_", 1)
+        _prefix = _parts[0] if len(_parts) > 1 else _tid
+        _acc = float(getattr(t, "accuracy_score", 0.0) or 0.0)
+        self._touch_prefix(_prefix, _tid, _sc_f, _acc, _cfg)
+
+    def _touch_prefix(
+        self, prefix: str, tid: str, score: float, acc: float, cfg: Dict[str, Any]
+    ) -> None:
+        if prefix not in self._prefixes:
+            if len(self._prefixes) >= self._MAX_PREFIXES:
+                self._prefixes.popitem(last=False)
+                self.evicted_count += 1
+            self._prefixes[prefix] = {
+                "score_sum": 0.0, "score_count": 0,
+                "min_tid": None, "min_acc": 0.0, "min_cfg": {},
+                "max_tid": None, "max_acc": 0.0,
+            }
+        else:
+            self._prefixes.move_to_end(prefix)
+        entry = self._prefixes[prefix]
+        entry["score_sum"] += score
+        entry["score_count"] += 1
+        if entry["min_tid"] is None or tid < entry["min_tid"]:
+            entry["min_tid"] = tid
+            entry["min_acc"] = acc
+            entry["min_cfg"] = cfg
+        if entry["max_tid"] is None or tid > entry["max_tid"]:
+            entry["max_tid"] = tid
+            entry["max_acc"] = acc
+
+    def snapshot(self) -> Dict[str, Any]:
+        _group_avgs: List[float] = []
+        for entry in self._prefixes.values():
+            if entry["score_count"] == 0:
+                continue
+            _avg = entry["score_sum"] / entry["score_count"]
+            if entry["score_count"] >= 2:
+                _cfg = entry["min_cfg"]
+                _imp_thr = float(_cfg.get("improvement_threshold", 0.1))
+                _penalize = bool(_cfg.get("penalize_degradation", True))
+                _delta = entry["max_acc"] - entry["min_acc"]
+                if _delta >= _imp_thr:
+                    _avg = min(1.0, _avg + 0.1)
+                elif _delta < -_imp_thr and _penalize:
+                    _avg = max(0.0, _avg - 0.1)
+            _group_avgs.append(_avg)
+        _prefix_avg = sum(_group_avgs) / len(_group_avgs) if _group_avgs else None
+
+        return {
+            "use_prefix": self.prefix_true_seen.count > 0,
+            "prefix_avg": _prefix_avg,
+            "flat_avg": self.flat_avg.average(),
+            "rc_n": self.rc_n.count,
+            "evicted_count": self.evicted_count,
         }

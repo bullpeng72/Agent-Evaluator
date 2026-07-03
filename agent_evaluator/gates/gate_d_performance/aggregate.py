@@ -32,6 +32,7 @@ def compute(
     sla_window_penalty: float,
     sla_budget_penalty: float,
     sla_warning: Optional[str],
+    shared_running: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gate D(Performance Contract) 그룹 딕셔너리를 계산한다.
 
@@ -45,6 +46,16 @@ def compute(
         sla_window_penalty: Gate C 섹션에서 계산된 breach_window 패널티(공유 데이터).
         sla_budget_penalty: Gate C 섹션에서 계산된 budget_usd 패널티(공유 데이터).
         sla_warning: Gate C 섹션에서 계산된 SLA 표본 부족 경고 문자열(공유 데이터, SPEC-002).
+        shared_running: (SPEC-018 Phase 7) retention_mode="windowed"일 때
+            ``GateDSharedAgg.snapshot()``이 제공하는 집계값. efficiency/resource_budget는
+            전체 이력과 항등인 정확한 값이다. ttft_variability/cost_predictability는
+            **의도적으로 승인된 근사치**다 — 원시값을 O(1) 메모리로 정확히 재현할 수
+            없어, `window_size`와 독립적인 별도의 최근 2,000개 슬라이딩 샘플
+            (`GateDSharedAgg._RESERVOIR_SIZE`)에서 계산한다. p95 latency는 이 파라미터와
+            무관하게 항상 `latency_tracker`(retention_mode와 무관하게 이미 무제한
+            증식하는 트래커)에서 온다 — 애초부터 전체 이력 반영, 수정 불필요.
+            ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게 `tasks`에서 매번
+            재계산한다.
 
     Returns:
         {name, score, status, gate, details} — monitor.py의 groups["D"]와 동일한 형태.
@@ -56,88 +67,126 @@ def compute(
     except Exception:
         pass
 
-    # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
-    _eff_calibrated_vals: List[float] = []
-    _eff_ratios_by_unit: Dict[str, List[float]] = {}  # unit → ratios (단위 혼재 방지)
-    for _t in tasks:
-        _eff = ((_t.extra or {}).get("efficiency") or {})
-        if not _eff:
-            continue
-        if "calibrated_score" in _eff:
-            _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
-        _er = _eff.get("efficiency_ratio")
-        if _er is not None:  # cost_value=0(측정 불가) → None 제외
-            _unit = str(_eff.get("cost_unit") or "tokens")
-            _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
-    # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
-    _eff_ratios: List[float] = max(
-        _eff_ratios_by_unit.values(), key=len, default=[]
-    )
-    _eff_cost_unit: str = (
-        max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
-        if _eff_ratios_by_unit else "tokens"
-    )
-    # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
-    if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
-        avg_eff_calibrated: Optional[float] = (
-            sum(_eff_calibrated_vals) / len(_eff_calibrated_vals)
-        )
-    else:
-        avg_eff_calibrated = None
-    avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
-
-    # resource_budget → Group D (Phase 4)
-    _rb_tasks = [t for t in tasks if (t.extra or {}).get("resource_budget") is not None]
-    _avg_budget: Optional[float] = None
-    if _rb_tasks:
-        _rb_cfg = (_rb_tasks[-1].extra.get("resource_budget") or {}).get("_config", {})
-        _use_rollover = bool(_rb_cfg.get("rollover", False))
-        if _use_rollover and (_rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms")):
-            # rollover=True: 태스크별 개별 예산 대신 세션 누적 소비를 전체 한도와 비교
-            _total_tokens_consumed = sum(
-                float((t.extra["resource_budget"].get("_consumed") or {}).get("tokens", 0))
-                for t in _rb_tasks
-            )
-            _total_cost_consumed = sum(
-                float((t.extra["resource_budget"].get("_consumed") or {}).get("cost_usd", 0))
-                for t in _rb_tasks
-            )
-            _total_time_consumed = sum(
-                float((t.extra["resource_budget"].get("_consumed") or {}).get("time_ms", 0))
-                for t in _rb_tasks
-            )
-            _n_tasks = max(len(_rb_tasks), 1)
-            # D-F: 총 한도는 태스크별 Config 합산 (last-task × n_tasks 오류 수정)
-            # 태스크마다 max_tokens 설정이 다를 수 있으므로 각 태스크의 Config 값을 개별 합산한다.
-            _max_tok = sum(
-                int((t.extra["resource_budget"].get("_config") or {}).get("max_tokens") or 0)
-                for t in _rb_tasks
-            )
-            _max_cost = sum(
-                float((t.extra["resource_budget"].get("_config") or {}).get("max_cost_usd") or 0.0)
-                for t in _rb_tasks
-            )
-            _max_time = sum(
-                float(
-                    (t.extra["resource_budget"].get("_config") or {}).get("max_execution_time_ms") or 0.0
-                )
-                for t in _rb_tasks
-            )
-            _utils: List[float] = []
-            if _max_tok > 0:
-                _utils.append(_total_tokens_consumed / _max_tok)
-            if _max_cost > 0:
-                _utils.append(_total_cost_consumed / _max_cost)
-            if _max_time > 0:
-                _utils.append(_total_time_consumed / _max_time)
-            _avg_budget = max(0.0, 1.0 - max(_utils)) if _utils else None
+    if shared_running is not None:
+        # efficiency — 정확 (SPEC-018 Phase 7): 단순 평균/카운트만 필요해 항등 재현 가능.
+        _eff_cost_unit: str = shared_running["eff_cost_unit"]
+        _eff_ratio_n = shared_running["eff_ratio_count"]
+        avg_eff_ratio = shared_running["eff_ratio_avg"]
+        _eff_calibrated_n = shared_running["eff_calibrated_count"]
+        if _eff_calibrated_n >= max(1, _eff_ratio_n // 2):
+            avg_eff_calibrated: Optional[float] = shared_running["eff_calibrated_avg"]
         else:
-            _budget_scores = [
-                t.extra["resource_budget"].get("budget_score")
-                for t in _rb_tasks
-            ]
-            _budget_scores_f = [s for s in _budget_scores if s is not None]
-            _avg_budget = sum(_budget_scores_f) / len(_budget_scores_f) if _budget_scores_f else None
+            avg_eff_calibrated = None
+
+        # resource_budget — 정확 (SPEC-018 Phase 7): 누적합/최근 config 덮어쓰기로 항등 재현.
+        _rb_n = shared_running["rb_n"]
+        _avg_budget: Optional[float] = None
+        if _rb_n > 0:
+            _rb_cfg = shared_running["rb_config"]
+            _use_rollover = bool(_rb_cfg.get("rollover", False))
+            if _use_rollover and (
+                _rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd")
+                or _rb_cfg.get("max_execution_time_ms")
+            ):
+                _total_tokens_consumed = shared_running["rb_tokens_consumed"]
+                _total_cost_consumed = shared_running["rb_cost_consumed"]
+                _total_time_consumed = shared_running["rb_time_consumed"]
+                _max_tok = shared_running["rb_max_tokens"]
+                _max_cost = shared_running["rb_max_cost"]
+                _max_time = shared_running["rb_max_time"]
+                _utils: List[float] = []
+                if _max_tok > 0:
+                    _utils.append(_total_tokens_consumed / _max_tok)
+                if _max_cost > 0:
+                    _utils.append(_total_cost_consumed / _max_cost)
+                if _max_time > 0:
+                    _utils.append(_total_time_consumed / _max_time)
+                _avg_budget = max(0.0, 1.0 - max(_utils)) if _utils else None
+            else:
+                _avg_budget = shared_running["rb_budget_score_avg"]
+    else:
+        # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
+        _eff_calibrated_vals: List[float] = []
+        _eff_ratios_by_unit: Dict[str, List[float]] = {}  # unit → ratios (단위 혼재 방지)
+        for _t in tasks:
+            _eff = ((_t.extra or {}).get("efficiency") or {})
+            if not _eff:
+                continue
+            if "calibrated_score" in _eff:
+                _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
+            _er = _eff.get("efficiency_ratio")
+            if _er is not None:  # cost_value=0(측정 불가) → None 제외
+                _unit = str(_eff.get("cost_unit") or "tokens")
+                _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
+        # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
+        _eff_ratios: List[float] = max(
+            _eff_ratios_by_unit.values(), key=len, default=[]
+        )
+        _eff_cost_unit = (
+            max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
+            if _eff_ratios_by_unit else "tokens"
+        )
+        # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
+        if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
+            avg_eff_calibrated = (
+                sum(_eff_calibrated_vals) / len(_eff_calibrated_vals)
+            )
+        else:
+            avg_eff_calibrated = None
+        avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
+
+        # resource_budget → Group D (Phase 4)
+        _rb_tasks = [t for t in tasks if (t.extra or {}).get("resource_budget") is not None]
+        _avg_budget = None
+        if _rb_tasks:
+            _rb_cfg = (_rb_tasks[-1].extra.get("resource_budget") or {}).get("_config", {})
+            _use_rollover = bool(_rb_cfg.get("rollover", False))
+            if _use_rollover and (_rb_cfg.get("max_tokens") or _rb_cfg.get("max_cost_usd") or _rb_cfg.get("max_execution_time_ms")):
+                # rollover=True: 태스크별 개별 예산 대신 세션 누적 소비를 전체 한도와 비교
+                _total_tokens_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("tokens", 0))
+                    for t in _rb_tasks
+                )
+                _total_cost_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("cost_usd", 0))
+                    for t in _rb_tasks
+                )
+                _total_time_consumed = sum(
+                    float((t.extra["resource_budget"].get("_consumed") or {}).get("time_ms", 0))
+                    for t in _rb_tasks
+                )
+                _n_tasks = max(len(_rb_tasks), 1)
+                # D-F: 총 한도는 태스크별 Config 합산 (last-task × n_tasks 오류 수정)
+                # 태스크마다 max_tokens 설정이 다를 수 있으므로 각 태스크의 Config 값을 개별 합산한다.
+                _max_tok = sum(
+                    int((t.extra["resource_budget"].get("_config") or {}).get("max_tokens") or 0)
+                    for t in _rb_tasks
+                )
+                _max_cost = sum(
+                    float((t.extra["resource_budget"].get("_config") or {}).get("max_cost_usd") or 0.0)
+                    for t in _rb_tasks
+                )
+                _max_time = sum(
+                    float(
+                        (t.extra["resource_budget"].get("_config") or {}).get("max_execution_time_ms") or 0.0
+                    )
+                    for t in _rb_tasks
+                )
+                _utils = []
+                if _max_tok > 0:
+                    _utils.append(_total_tokens_consumed / _max_tok)
+                if _max_cost > 0:
+                    _utils.append(_total_cost_consumed / _max_cost)
+                if _max_time > 0:
+                    _utils.append(_total_time_consumed / _max_time)
+                _avg_budget = max(0.0, 1.0 - max(_utils)) if _utils else None
+            else:
+                _budget_scores = [
+                    t.extra["resource_budget"].get("budget_score")
+                    for t in _rb_tasks
+                ]
+                _budget_scores_f = [s for s in _budget_scores if s is not None]
+                _avg_budget = sum(_budget_scores_f) / len(_budget_scores_f) if _budget_scores_f else None
 
     # TTFT variability — TTFTVariabilityConfig 파라미터 우선 사용
     _ttft_cfg = ttft_variability_config
@@ -146,22 +195,32 @@ def compute(
     _ttft_max_ratio: float = float(getattr(_ttft_cfg, "max_p95_p50_ratio", 3.0)) if _ttft_cfg else 3.0
     _ttft_remove_outliers: bool = bool(getattr(_ttft_cfg, "remove_outliers", True)) if _ttft_cfg else True
 
-    _ttft_values: List[float] = []
-    for _t in tasks:
-        _ttft = None
-        if _t.extra:
-            _ttft = _t.extra.get("ttft_ms") or _t.extra.get("ttft")
-        if _ttft is not None:
-            try:
-                _ttft_values.append(float(_ttft))
-            except (TypeError, ValueError):
-                pass
+    if shared_running is not None:
+        # ttft_variability — 근사 (SPEC-018 Phase 7): window_size와 독립적인 최근
+        # GateDSharedAgg._RESERVOIR_SIZE(기본 2000)개 슬라이딩 샘플에서 계산한다.
+        # 전체 이력이 이 샘플 크기를 넘으면 가장 오래된 원시값부터 밀려나 있을 수 있다
+        # (승인된 의도적 근사 — 아래 sorted/IQR/stddev/percentile 계산 자체는 정확하다,
+        # 다만 "무엇을 대상으로" 계산하는지가 전체 이력이 아닌 샘플이라는 차이다).
+        _ttft_values: List[float] = list(shared_running["ttft_values"])
+    else:
+        _ttft_values = []
+        for _t in tasks:
+            _ttft = None
+            if _t.extra:
+                _ttft = _t.extra.get("ttft_ms") or _t.extra.get("ttft")
+            if _ttft is not None:
+                try:
+                    _ttft_values.append(float(_ttft))
+                except (TypeError, ValueError):
+                    pass
 
     # D-B: task.extra["ttft_ms"]에 데이터가 없으면 LatencyTracker._ttft_records를 폴백으로 사용.
     # @agent_eval(ttft_seconds=N) 파라미터 또는 스트리밍 EvalStep이 측정한 per-task TTFT는
     # LatencyTracker.track_ttft()에만 저장되고 task.extra에는 기록되지 않아
     # TTFTVariabilityConfig가 완전히 작동하지 않는 문제를 수정한다.
-    # 폴백은 task.extra 데이터가 하나도 없을 때만 적용 (혼재 방지).
+    # 폴백은 task.extra 데이터가 하나도 없을 때만 적용 (혼재 방지). latency_tracker 자체는
+    # retention_mode와 무관하게 이미 무제한 증식하므로 이 폴백 경로는 shared_running
+    # 유무와 상관없이 항상 전체 이력을 반영한다(수정 불필요).
     if not _ttft_values:
         try:
             for _rec in latency_tracker._ttft_records:
@@ -225,40 +284,48 @@ def compute(
         return [v for v in values if abs(v - _mean) <= multiplier * _std]
 
     _avg_cost_predictability: Optional[float] = None
-    if len(tasks) >= _cost_min_samples:
-        _costs_by_type: Dict[str, List[float]] = {}
-        for _ct in tasks:
-            _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
-            # cost_metric: "tokens" | "usd" | "time_ms"
-            if _cost_metric == "usd":
-                _cv_cost = float((_ct.extra or {}).get("cost_usd") or 0.0)
-            elif _cost_metric == "time_ms":
-                _cv_cost = float((_ct.execution_time or 0.0) * 1000.0)
-            else:  # "tokens" (default)
-                _tu = _ct.tokens_used or 0
-                if isinstance(_tu, dict):
-                    # D-1: `_tu.get("total") or (input+output)` 패턴은 total=0(명시적 0토큰)을
-                    # falsy로 처리해 input+output 합산으로 폴백 → CV 집계 왜곡.
-                    # None-only 폴백으로 수정 (BUG-C23과 동일 패턴).
-                    _raw_total_cv = _tu.get("total")
-                    if _raw_total_cv is not None:
+    _cost_gate_n = shared_running["total_n"] if shared_running is not None else len(tasks)
+    if _cost_gate_n >= _cost_min_samples:
+        if shared_running is not None:
+            # cost_predictability — 근사 (SPEC-018 Phase 7): ttft_variability와 동일한
+            # 이유로 window_size와 독립적인 최근 샘플(task_type별 별도 링버퍼)에서 계산한다.
+            _costs_by_type: Dict[str, List[float]] = dict(
+                shared_running["cost_by_metric"].get(_cost_metric, {})
+            )
+        else:
+            _costs_by_type = {}
+            for _ct in tasks:
+                _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
+                # cost_metric: "tokens" | "usd" | "time_ms"
+                if _cost_metric == "usd":
+                    _cv_cost = float((_ct.extra or {}).get("cost_usd") or 0.0)
+                elif _cost_metric == "time_ms":
+                    _cv_cost = float((_ct.execution_time or 0.0) * 1000.0)
+                else:  # "tokens" (default)
+                    _tu = _ct.tokens_used or 0
+                    if isinstance(_tu, dict):
+                        # D-1: `_tu.get("total") or (input+output)` 패턴은 total=0(명시적 0토큰)을
+                        # falsy로 처리해 input+output 합산으로 폴백 → CV 집계 왜곡.
+                        # None-only 폴백으로 수정 (BUG-C23과 동일 패턴).
+                        _raw_total_cv = _tu.get("total")
+                        if _raw_total_cv is not None:
+                            try:
+                                _cv_cost = float(_raw_total_cv)
+                            except (TypeError, ValueError):
+                                _cv_cost = 0.0
+                        else:
+                            _cv_cost = float(
+                                _tu.get("input", 0) + _tu.get("output", 0)
+                            )
+                    else:
                         try:
-                            _cv_cost = float(_raw_total_cv)
+                            _cv_cost = float(_tu)
                         except (TypeError, ValueError):
                             _cv_cost = 0.0
-                    else:
-                        _cv_cost = float(
-                            _tu.get("input", 0) + _tu.get("output", 0)
-                        )
-                else:
-                    try:
-                        _cv_cost = float(_tu)
-                    except (TypeError, ValueError):
-                        _cv_cost = 0.0
-            # 미측정(None→0.0) 태스크를 집계에 포함하면 CV가 허위 팽창하므로 제외
-            if _cv_cost <= 0.0:
-                continue
-            _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
+                # 미측정(None→0.0) 태스크를 집계에 포함하면 CV가 허위 팽창하므로 제외
+                if _cv_cost <= 0.0:
+                    continue
+                _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
         _cv_scores_d: List[float] = []
         for _costs_list in _costs_by_type.values():
             # outlier_multiplier로 이상치 제거 후 CV 계산
@@ -290,9 +357,9 @@ def compute(
             f"ttft_variability: outlier removal reduced {len(_ttft_values)} samples to < 2 "
             f"(remove_outliers={_ttft_remove_outliers}) — score excluded from Gate D"
         )
-    if len(tasks) < _cost_min_samples:
+    if _cost_gate_n < _cost_min_samples:
         _d_insufficient.append(
-            f"cost_predictability: {len(tasks)} tasks < min_samples={_cost_min_samples}"
+            f"cost_predictability: {_cost_gate_n} tasks < min_samples={_cost_min_samples}"
         )
     # SPEC-002 REQ-3: Gate C와 동일한 sla_warning을 재사용 — 두 Gate가 동일 문자열을 공유
     if sla_warning:

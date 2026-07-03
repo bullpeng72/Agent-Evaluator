@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.5 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.6 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -154,7 +154,7 @@ agent_evaluator/
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·trend)
 └── serve/
-    ├── server.py          # FastAPI dashboard (105 routes)
+    ├── server.py          # FastAPI dashboard (108 routes)
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export
                            # feedback · golden · stream · transparency · webhook
 ```
@@ -381,9 +381,9 @@ threat_response, context_window, latency_attribution
 ## SDK Fixed Facts (Authoritative Reference)
 
 - Native Trackers: **25** | Harness Configs: **33** | Gates: **7** (A–G)
-- Version: **v0.9.5** (Beta) | Python: **3.8+**
-- Tests: **74 files**, **3,096+** test functions
-- Dashboard: **105** API routes (FastAPI)
+- Version: **v0.9.6** (Beta) | Python: **3.8+**
+- Tests: **75 files**, **3,127+** test functions
+- Dashboard: **108** API routes (FastAPI)
 - `from agent_evaluator import agent_eval` — correct import path  
   `from agent_evaluator.decorators import agent_eval` — internal module (direct import discouraged)
 - Tracker count per Gate: A=3, B=0, C=2, D=1, E=5, F=2, G=1 (14 gate-contributing + 11 operational = 25)
@@ -507,28 +507,50 @@ threat_response, context_window, latency_attribution
   actual SPEC-015/016 edits. A full-repo reformat, if wanted, should be its own separate, deliberate PR.
 - **SPEC-018 — Gate running-aggregate shared_metrics layer**: extends SPEC-004's `_running_tcr_agg`/
   `_RunningTCRView` pattern (previously the *only* Gate metric with true full-history behavior under
-  `retention_mode="windowed"`) to Gates E/F/G/B/A/C (Phase 0-6). New `agent_evaluator/gates/
-  shared_metrics.py` has 7 generic accumulator primitives (`RunningAverage`/`RunningSum`/
-  `RunningWindow`/`RunningLastValue`/`MonotonicFlag`/`RunningCount`/`RunningCategoryCounter`) plus
-  6 per-Gate `GateXSharedAgg` classes. Each `gates/gate_x/aggregate.py::compute()` gained an optional
-  trailing `shared_running: Optional[dict] = None` param — `None` (default, "full" mode) is
-  byte-identical to pre-SPEC-018 behavior; windowed mode passes a `.snapshot()` from the
-  corresponding `GateXSharedAgg`, updated in `record_task()`'s existing lock block right after the
-  security-tracker enrichment step (the enrichment runs *after* the TCR agg update, so any new
-  Gate-agg `.update()` call must go after enrichment too, or it'll aggregate the pre-enriched
-  `task_result` — this exact ordering bug was caught and fixed during Gate E's implementation via
-  the full-vs-windowed cross-check test). **Explicitly excluded** (separate approval required):
-  Gate C's `retry_consistency` (task-id-prefix grouping could grow unboundedly — its `compute()`
-  block was left untouched, not even reformatted, so the exclusion is visible in the diff) and Gate
-  D's p95/TTFT-variability/cost-predictability (would need streaming approximation algorithms —
-  P²/t-digest/Welford's — genuinely different output from exact recomputation, not a pure
-  optimization). Also fixed a pre-existing display bug while migrating Gate C: `sla_breach_count`
-  used to show `None` whenever the *windowed* task subset had no SLA-tagged tasks, even if full
-  history did — now gated on a full-history count (`sla_n`) instead, with zero behavior change in
-  "full" mode. `SPEC-001` is unrelated to this work despite SPEC-004 citing it as a prerequisite —
-  SPEC-001 is actually about deduplicating `monitor.py`'s live Gate-scoring formulas against
-  `serve/loader.py`'s legacy-JSON fallback formulas, a separate problem never implemented
-  standalone (folded into SPEC-000).
+  `retention_mode="windowed"`) to all 7 Gates A-G (Phase 0-7, fully complete). New
+  `agent_evaluator/gates/shared_metrics.py` has 7 generic accumulator primitives (`RunningAverage`/
+  `RunningSum`/`RunningWindow`/`RunningLastValue`/`MonotonicFlag`/`RunningCount`/
+  `RunningCategoryCounter`) plus 8 per-Gate agg classes (`GateESharedAgg`/`GateFSharedAgg`/
+  `GateGSharedAgg`/`GateBSharedAgg`/`GateASharedAgg`/`GateCSharedAgg`/`GateCRetryConsistencyAgg`/
+  `GateDSharedAgg`). Each `gates/gate_x/aggregate.py::compute()` gained an optional trailing
+  `shared_running: Optional[dict] = None` param — `None` (default, "full" mode) is byte-identical to
+  pre-SPEC-018 behavior; windowed mode passes a `.snapshot()` from the corresponding agg class,
+  updated in `record_task()`'s existing lock block right after the security-tracker enrichment step
+  (the enrichment runs *after* the TCR agg update, so any new Gate-agg `.update()` call must go after
+  enrichment too, or it'll aggregate the pre-enriched `task_result` — this exact ordering bug was
+  caught and fixed during Gate E's implementation via the full-vs-windowed cross-check test).
+  Also fixed a pre-existing display bug while migrating Gate C: `sla_breach_count` used to show
+  `None` whenever the *windowed* task subset had no SLA-tagged tasks, even if full history did —
+  now gated on a full-history count (`sla_n`) instead, with zero behavior change in "full" mode.
+  `SPEC-001` is unrelated to this work despite SPEC-004 citing it as a prerequisite — SPEC-001 is
+  actually about deduplicating `monitor.py`'s live Gate-scoring formulas against `serve/loader.py`'s
+  legacy-JSON fallback formulas, a separate problem never implemented standalone (folded into
+  SPEC-000).
+  **Phase 7 (2026-07-03, separate user approval)** implemented the two items originally deferred as
+  requiring an approximation trade-off:
+  - **Gate C `retry_consistency`**: `GateCRetryConsistencyAgg` tracks per-task-id-prefix state
+    (score sum/count + the string-min/max task-id entries' accuracy/config, replicating the
+    original's sort-then-`[0]`/`[-1]` logic) in an `OrderedDict` capped at `_MAX_PREFIXES=5000` —
+    exceeding the cap evicts the least-recently-touched prefix (LRU), dropping its contribution from
+    the final average. `evicted_count` exposes whether the approximation actually fired. Passed to
+    `gate_c_reliability.aggregate.compute()` via a separate `retry_consistency_shared` param (not
+    folded into Gate C's main `shared_running`) specifically so this one approximated metric stays
+    visually distinct from the other four exact ones in the diff.
+  - **Gate D**: `GateDSharedAgg` splits into an exact half and an approximate half. efficiency
+    (calibrated_score/efficiency_ratio, per cost-unit) and resource_budget (rollover-mode cumulative
+    sums vs per-task-config sums, non-rollover budget_score average, most-recent `_config` via
+    `RunningLastValue`) are **exact** — same simple running-average/running-sum pattern as every
+    other Gate. ttft_variability (stddev + p50/p95 + IQR outlier removal) and cost_predictability
+    (per-task-type CV with mean±k·std outlier filtering) are **not** exactly reproducible in O(1)
+    memory, so they're computed from a bounded sliding sample (`_RESERVOIR_SIZE=2000` raw values,
+    independent of `window_size`) instead — identical math to the original, just over a recency-based
+    sample rather than the full history once that history exceeds 2000 points. p95 latency itself
+    needed zero changes: `latency_tracker` (`_latencies`/`_ttft_records`) is a plain unbounded list,
+    never capped by `retention_mode` in the first place, so it already reflected full history (same
+    situation as Gate G/C's `hallucination_rate`, discovered during Phase 3).
+  Neither cap (`_MAX_PREFIXES`, `_RESERVOIR_SIZE`) is exposed as a `PerformanceMonitor` constructor
+  parameter — they're hardcoded constants sized for typical usage; parameterizing them would be a
+  separate follow-up if a session's prefix cardinality or raw-value volume genuinely needs tuning.
 
 ---
 
@@ -585,7 +607,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**74 files, 3,096+ test functions** in `tests/`.
+**75 files, 3,127+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

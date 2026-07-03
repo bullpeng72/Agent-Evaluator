@@ -120,6 +120,7 @@ def compute(
     min_samples_default: int,
     sla_shared: Dict[str, Any],
     shared_running: Optional[Dict[str, Any]] = None,
+    retry_consistency_shared: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Gate C(신뢰성) 점수를 집계한다.
 
@@ -133,10 +134,14 @@ def compute(
         shared_running: (SPEC-018 Phase 6) retention_mode="windowed"일 때
             ``GateCSharedAgg.snapshot()``이 제공하는 전체 이력 기준 집계값
             (reproducibility/fault_tolerance/graceful_degradation/idempotency/
-            llm_faithfulness). **`retry_consistency`는 의도적으로 제외** —
-            task_id 프리픽스별 무한 증식 위험이 있어 이번 스펙 범위 밖(별도 승인 대상).
-            ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게 `tasks`에서 매번
-            재계산한다.
+            llm_faithfulness). ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게
+            `tasks`에서 매번 재계산한다.
+        retry_consistency_shared: (SPEC-018 Phase 7) retention_mode="windowed"일 때
+            ``GateCRetryConsistencyAgg.snapshot()``이 제공하는 집계값. `shared_running`과
+            별도 파라미터로 분리한 이유는 이 지표만 **의도적으로 승인된 근사**(task_id
+            프리픽스 카디널리티 LRU 캡, 기본 5,000 — 캡 초과 시 가장 오래전에 갱신된
+            프리픽스의 기여분이 최종 평균에서 빠진다)이기 때문이다. ``None``(기본값)이면
+            기존과 100% 동일하게 `tasks`에서 매번 재계산한다.
 
     Returns:
         (group_dict, shared_raw) 튜플.
@@ -238,7 +243,16 @@ def compute(
         if (t.extra or {}).get("retry_consistency") is not None
     ]
     _avg_retry_consistency: Optional[float] = None
-    if _rc_tasks_with_score:
+    if retry_consistency_shared is not None:
+        # SPEC-018 Phase 7 — 근사(REQ-C1): 프리픽스 카디널리티 LRU 캡(GateCRetryConsistencyAgg,
+        # 기본 5,000) 적용. 캡 초과 시 가장 오래전에 갱신된 프리픽스가 제거되고 그 기여분이
+        # 최종 평균에서 빠진다 — 의도적으로 승인된 근사치. use_prefix=False(비-프리픽스 모드)일
+        # 때는 이 캡과 무관한 단순 평균(flat_avg)이라 정확하다.
+        if retry_consistency_shared["use_prefix"]:
+            _avg_retry_consistency = retry_consistency_shared["prefix_avg"]
+        else:
+            _avg_retry_consistency = retry_consistency_shared["flat_avg"]
+    elif _rc_tasks_with_score:
         _use_prefix = any(
             (t.extra.get("retry_consistency") or {}).get("_config", {}).get("group_by_task_prefix", True)
             for t in _rc_tasks_with_score
@@ -334,7 +348,11 @@ def compute(
         ("reproducibility", _repro_n),
         ("fault_tolerance", _ft_n),
         ("graceful_degradation", _deg_n),
-        ("retry_consistency", len(_rc_tasks_with_score)),
+        (
+            "retry_consistency",
+            retry_consistency_shared["rc_n"] if retry_consistency_shared is not None
+            else len(_rc_tasks_with_score),
+        ),
         ("idempotency", _idem_n),
     ):
         _w = _min_sample_warning(_name, _cnt, min_samples_default)
