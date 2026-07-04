@@ -29,6 +29,7 @@ agent-eval dashboard                                      # FastAPI dashboard (p
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval dataset build results/ --min-score 0.8         # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
+agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
 
@@ -159,7 +160,7 @@ agent_evaluator/
 ├── storage/               # SPEC-016: sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
 │                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
-├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·trend)
+├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend)
 └── serve/
     ├── server.py          # FastAPI dashboard (108 routes)
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export

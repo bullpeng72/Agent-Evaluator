@@ -198,6 +198,27 @@
 > 텍스트로 나열한다 — 점수만 남기면 다음 세션의 모델이 "무엇을 피해야 하는지" 알 수
 > 없어 ctx 검색 결과로서 쓸모가 없기 때문이다.
 > Python 코드는 변경하지 않았다(전체 스위트 3,195 passed 그대로, TS 전용 변경).
+>
+> **구현 노트 (Rollout 7단계 — pip 패키지 편입, 2026-07-04)**: `opencode-plugin/`이
+> 저장소 최상위(pip 패키지 밖)에 있어 `pip install agent-evaluator`만으로는 플러그인을
+> 쓸 수 없고 git clone 후 수동 `cp`만 가능하다는 제약을 해소했다.
+> `agent-evaluator.ts`/`package.json`을
+> `agent_evaluator/integrations/opencode_plugin/`로 이동해 `[tool.hatch.build.targets.
+> wheel] packages = ["agent_evaluator"]`(pyproject.toml) 범위에 편입시켰고(wheel에
+> 실제로 포함되는지 `python -m build --wheel` + `unzip -l`로 직접 확인), 신규 CLI
+> 서브커맨드 `agent-eval opencode install`(`agent_evaluator/cli/opencode.py`)이 그
+> 번들 원본을 `.opencode/plugin/agent-evaluator.ts`(프로젝트 로컬, 기본값) 또는
+> `~/.config/opencode/plugin/`(`--global`)으로 복사한다. 판정 로직은 옮기지 않았다 —
+> Non-Goals("OpenCode/ctx/Ollama 자체에 대한 코드 변경"과 SPEC-018/019 공통의 "있는
+> 그대로 옮겨적기, 재해석 금지" 원칙)에 따라 이번 변경은 **배포 경로**만 pip 패키지로
+> 옮긴 것이지, 통합 자체의 설계 성숙도(README의 "Prototype status")를 바꾸지 않는다.
+> 부가로, 번들 원본의 `PYTHON_BIN` 기본값을 리터럴 `"python"`(PATH 의존)에서
+> `"__AGENT_EVALUATOR_PYTHON_DEFAULT__"` 플레이스홀더로 바꾸고, `opencode install`이
+> 이를 `sys.executable`(설치 명령을 실행한 인터프리터의 절대경로)로 치환한다 — 기존에는
+> `AGENT_EVALUATOR_PYTHON` 환경변수를 수동으로 맞춰야 했던 단계 하나를 없앴다.
+> `tests/test_cli_opencode.py`(10개 테스트: 로컬/전역 설치, 플레이스홀더 치환,
+> 기존 파일 보호(`--force` 없이 거부)와 `--force` 덮어쓰기, 번들 원본 누락 처리,
+> argparse 옵션 파싱)로 회귀 검증. 전체 스위트 영향 없음(신규 테스트만 추가).
 
 ## Context
 

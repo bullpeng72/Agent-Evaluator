@@ -4,9 +4,13 @@
 `agent_evaluator/gates/live_guardrail.py`)을 OpenCode(로컬 코딩 에이전트 CLI)의
 `tool.execute.before`/`tool.execute.after` 훅에 연결하는 참조 구현 프로토타입입니다.
 
-**이 디렉터리는 Agent-Evaluator pip 패키지의 일부가 아닙니다.** `SPEC-019` Non-Goals에
-명시된 대로, OpenCode 전용 통합 코드는 SDK 본체와 분리해 별도로 관리합니다
-(`Docs/specs/SPEC-019-live-guardrail-api.md` 참조).
+**플러그인 본체(`agent-evaluator.ts`, `package.json`)는
+`agent_evaluator/integrations/opencode_plugin/`으로 이동해 pip 패키지에 번들되어
+배포됩니다** — `pip install agent-evaluator` 후 `agent-eval opencode install`로 설치할
+수 있습니다(아래 "설치" 참조). **이 디렉터리(`opencode-plugin/`)에는 이제 이 문서만
+남아 있습니다** — 판정 로직이 없는 얇은 stdio 클라이언트라는 설계(`SPEC-019`
+Non-Goals)는 그대로이며, 소스 위치만 SDK 패키지 트리 안으로 옮겨 pip으로 배포 가능하게
+한 것입니다(`Docs/specs/SPEC-019-live-guardrail-api.md` 참조).
 
 ## 왜 서브프로세스인가
 
@@ -126,30 +130,36 @@ rm -f victim2.txt → [agent-evaluator] blocked by Gate B: dangerous tool parame
 
 ## 설치
 
-1. Agent-Evaluator가 설치된 Python 환경을 준비합니다 (이 저장소 루트에서):
+1. Agent-Evaluator를 설치합니다:
    ```bash
-   pip install -e .
-   ```
-   `python -m agent_evaluator.integrations.live_guardrail_stdio`가 오류 없이 뜨는지 확인하세요
-   (아무 입력도 주지 않으면 대기 상태가 됩니다 — Ctrl+C로 종료).
-
-2. `agent-evaluator.ts`를 OpenCode가 자동 로드하는 위치에 둡니다:
-   - 프로젝트 로컬: `.opencode/plugin/agent-evaluator.ts`
-   - 전역: `~/.config/opencode/plugin/agent-evaluator.ts`
-
-3. 다른 Python 인터프리터를 써야 하면 환경변수로 지정합니다:
-   ```bash
-   export AGENT_EVALUATOR_PYTHON=/path/to/venv/bin/python
+   pip install agent-evaluator   # 또는 이 저장소 루트에서: pip install -e .
    ```
 
-4. `agent-evaluator.ts` 상단의 `GUARDRAIL_CONFIG`를 프로젝트 상황에 맞게 조정합니다.
+2. 플러그인을 설치합니다 — 기본값은 프로젝트 로컬입니다:
+   ```bash
+   agent-eval opencode install            # .opencode/plugin/agent-evaluator.ts (프로젝트 로컬, 기본값)
+   agent-eval opencode install --global   # ~/.config/opencode/plugin/agent-evaluator.ts (전역)
+   agent-eval opencode install --force    # 이미 설치된 파일을 덮어쓰기
+   ```
+   이 명령은 `agent-eval` CLI를 실행 중인 인터프리터의 절대경로를 `agent-evaluator.ts`의
+   `PYTHON_BIN` 기본값에 자동으로 채워 넣습니다 — 대부분의 경우 `AGENT_EVALUATOR_PYTHON`
+   환경변수를 따로 설정할 필요가 없습니다. 다른 인터프리터를 써야 하면 그 환경변수로
+   덮어쓸 수 있습니다.
+
+   설치 여부는 `python -m agent_evaluator.integrations.live_guardrail_stdio`가 오류 없이
+   뜨는지로 확인할 수 있습니다(아무 입력도 주지 않으면 대기 상태가 됩니다 — Ctrl+C로 종료).
+
+3. 설치된 `.opencode/plugin/agent-evaluator.ts`(패키지 번들 원본이 아니라 복사본) 상단의
+   `GUARDRAIL_CONFIG`를 프로젝트 상황에 맞게 조정합니다 — `agent-eval opencode install`을
+   다시 실행하면 이 파일은 번들 원본으로 덮어써지므로(`--force` 필요), 커스터마이즈한
+   내용은 별도로 백업하거나 팀 공유 저장소로 관리하세요(Chapter 27 §27.7 참조).
    각 필드의 전체 옵션은 다음을 참조하세요:
    - `loop_detection`/`deadlock`/`scope`/`tool_parameter_safety`:
      `agent_evaluator/gates/gate_b_behavioral/configs.py`
    - `tool_authorization`/`privilege_escalation`/`tool_chain_attack`:
      `agent_evaluator/core/trackers/security.py`
 
-5. 세션 리포트가 쌓일 위치를 바꾸고 싶으면 환경변수로 지정합니다(기본값
+4. 세션 리포트가 쌓일 위치를 바꾸고 싶으면 환경변수로 지정합니다(기본값
    `results/opencode_live_guardrail/opencode_sessions.db`, SQLite):
    ```bash
    export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project

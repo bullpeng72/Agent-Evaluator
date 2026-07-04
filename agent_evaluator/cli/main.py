@@ -37,6 +37,7 @@ from agent_evaluator.config import (
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
+from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
 from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
 from agent_evaluator.cli._utils import _supports_color
 
@@ -748,6 +749,7 @@ def main() -> None:
             f"  {Y}trend{R}        Sequential evaluation trend analysis — TCR/accuracy regression\n"
             f"  {Y}dataset{R}      Auto-extract golden datasets from production results\n"
             f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
+            f"  {Y}opencode{R}     Install the LiveGuardrail OpenCode plugin\n"
             "\n"
             f"{B}Examples:{R}\n"
             f"  {G}agent-eval init{R}\n"
@@ -765,6 +767,7 @@ def main() -> None:
             f"  {G}agent-eval monitor --check{R}\n"
             f"  {G}agent-eval monitor --reset{R}\n"
             f"  {G}agent-eval monitor --reset --yes{R}\n"
+            f"  {G}agent-eval opencode install{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}More help:{R}\n"
@@ -1032,6 +1035,9 @@ def main() -> None:
     # monitor subcommand
     build_monitor_subparser(sub)
 
+    # opencode subcommand
+    build_opencode_subparser(sub)
+
     # trend subcommand
     build_trend_subparser(sub)
 
@@ -1050,6 +1056,7 @@ def main() -> None:
         "check":     cmd_check,
         "dashboard": cmd_dashboard,
         "monitor":   cmd_monitor,
+        "opencode":  cmd_opencode,
         "gate":      cmd_gate,
         "dataset":   cmd_dataset,
         "trend":     cmd_trend,

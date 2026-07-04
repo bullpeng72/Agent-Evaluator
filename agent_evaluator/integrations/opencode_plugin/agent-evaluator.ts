@@ -8,11 +8,16 @@
  * stdin/stdout으로 JSON Lines 프로토콜을 주고받는다. 프로토콜 상세는 그 모듈의
  * docstring과 Docs/specs/SPEC-019-live-guardrail-api.md 참조.
  *
- * 설치 (프로젝트 로컬 플러그인):
- *   1. `pip install -e .` 등으로 agent-evaluator가 설치된 Python 환경을 준비한다.
- *   2. 이 파일을 OpenCode가 자동 로드하는 위치에 둔다: `.opencode/plugin/agent-evaluator.ts`
- *      (프로젝트 루트) 또는 `~/.config/opencode/plugin/agent-evaluator.ts`(전역).
- *   3. 아래 GUARDRAIL_CONFIG를 프로젝트 상황에 맞게 수정한다.
+ * 설치:
+ *   1. `pip install agent-evaluator` (또는 `pip install -e .`)로 이 패키지가 설치된
+ *      Python 환경을 준비한다.
+ *   2. `agent-eval opencode install` 을 실행한다 — 이 파일(패키지에 번들된 원본)을
+ *      `.opencode/plugin/agent-evaluator.ts`(프로젝트 로컬, 기본값)에 복사하고
+ *      아래 PYTHON_BIN 기본값을 설치 시점의 인터프리터 절대경로로 채워 넣는다.
+ *      전역 설치는 `--global`, 이미 있는 파일을 덮어쓰려면 `--force`.
+ *   3. 복사된 `.opencode/plugin/agent-evaluator.ts`의 GUARDRAIL_CONFIG를 프로젝트
+ *      상황에 맞게 수정한다 — 이 패키지 번들 원본이 아니라 복사본을 수정할 것
+ *      (`agent-eval opencode install`을 다시 실행하면 번들 원본으로 덮어써진다).
  *
  * 훅 필드는 실제 설치된 `@opencode-ai/plugin@1.17.9`의 타입 선언
  * (`node_modules/@opencode-ai/plugin/dist/index.d.ts`,
@@ -99,8 +104,10 @@ const GUARDRAIL_CONFIG: GuardrailInitConfig = {
   tool_authorization: {},
 }
 
-// 커스텀 python 인터프리터 경로가 필요하면 환경변수로 오버라이드 가능.
-const PYTHON_BIN = process.env.AGENT_EVALUATOR_PYTHON ?? "python"
+// 기본값 "__AGENT_EVALUATOR_PYTHON_DEFAULT__"는 `agent-eval opencode install`이 설치
+// 시점의 인터프리터 절대경로로 치환한다(이 번들 원본에는 리터럴 플레이스홀더로 남는다).
+// 다른 인터프리터를 쓰려면 환경변수로 오버라이드.
+const PYTHON_BIN = process.env.AGENT_EVALUATOR_PYTHON ?? "__AGENT_EVALUATOR_PYTHON_DEFAULT__"
 
 // live_guardrail_report.py가 세션 리포트를 누적할 output_dir.
 const REPORT_OUTPUT_DIR = process.env.AGENT_EVALUATOR_OUTPUT_DIR ?? "results/opencode_live_guardrail"
