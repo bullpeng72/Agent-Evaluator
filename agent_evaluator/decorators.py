@@ -1447,12 +1447,14 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
     C1: `.all_messages()` 기반 전체 메시지 히스토리 추출 지원.
     ToolCallPart / ToolReturnPart 세분화 chain_steps 추출.
     """
-    # PydanticAI RunResult: .data, .usage(), .messages, .all_messages()
-    if not hasattr(raw, "usage") or not hasattr(raw, "data"):
+    # PydanticAI RunResult: .output(2.x) / .data(구버전), .usage(2.x는 property, 구버전은 callable), .messages, .all_messages()
+    if not hasattr(raw, "usage") or not (hasattr(raw, "output") or hasattr(raw, "data")):
         return None
     tokens_used: Optional[Dict[str, int]] = None
     try:
-        usage = raw.usage()
+        usage = getattr(raw, "usage", None)
+        if callable(usage) and not hasattr(usage, "input_tokens") and not hasattr(usage, "request_tokens"):
+            usage = usage()
         if usage:
             inp = getattr(usage, "request_tokens", 0) or getattr(usage, "input_tokens", 0) or 0
             out = getattr(usage, "response_tokens", 0) or getattr(usage, "output_tokens", 0) or 0

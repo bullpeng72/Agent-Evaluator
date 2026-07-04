@@ -2174,6 +2174,11 @@ class TestC1PydanticAIAllMessages:
         obj = MagicMock()
         obj.data = "result"
         obj.usage.return_value = usage_obj
+        # 구버전 .usage()는 bound method라 request_tokens/input_tokens 속성이 없다.
+        # MagicMock은 기본적으로 모든 속성 접근에 응답하므로(hasattr 항상 True) 명시적으로
+        # 지워서 callable-메서드 분기(2.x property 분기가 아님)를 타도록 한다.
+        del obj.usage.request_tokens
+        del obj.usage.input_tokens
         del obj.all_messages
         obj.messages = []
 

@@ -106,7 +106,10 @@ class PydanticAITokenExtractor:
         try:
             if not hasattr(run_result, "usage"):
                 return None
-            usage = run_result.usage()
+            usage = getattr(run_result, "usage", None)
+            # PydanticAI 2.x: .usage는 property(호출 불가). 구버전: .usage()가 callable.
+            if callable(usage) and not hasattr(usage, "input_tokens") and not hasattr(usage, "request_tokens"):
+                usage = usage()
             if usage is None:
                 return None
             # PydanticAI Usage 필드명 (버전별 다를 수 있음)
@@ -203,7 +206,14 @@ class PydanticAIEvaluator:
 
         try:
             run_result = await self.agent.run(question)
-            response = str(run_result.data) if run_result is not None else ""
+            if run_result is not None:
+                # PydanticAI 2.x: .output. 구버전: .data.
+                output = getattr(run_result, "output", None)
+                if output is None and hasattr(run_result, "data"):
+                    output = run_result.data
+                response = str(output) if output is not None else ""
+            else:
+                response = ""
         except Exception as exc:
             has_error = True
             error_msg = str(exc)
