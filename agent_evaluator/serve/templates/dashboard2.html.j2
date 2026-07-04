@@ -6949,6 +6949,9 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
 <section id="s-metrics_guide" class="sec" x-show="sec==='metrics_guide'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">📖 Metrics Guide</div>
   <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Describes the purpose, formulas, and benchmarks of the 58 metrics measured by Agent-Evaluator, organized by Harness Engineering groups. 25 tracker metrics + 33 Harness Config.</div>
+  <div style="font-size:12px;line-height:1.6;padding:8px 12px;background:rgba(108,142,245,.08);border-left:3px solid var(--accent);border-radius:5px;margin-bottom:16px">
+    🛡️ <strong>All Gate B/E metrics below are batch (post-session) scoring.</strong> <code>LiveGuardrail</code> (SPEC-019) reuses the same Gate B/Gate E evaluators to check — and block — a single tool call <em>before</em> it executes, instead of scoring the whole session afterward. See <a href="/sdk-docs#live-guardrail" style="color:var(--accent)">SDK Reference → LiveGuardrail</a>.
+  </div>
 
   <div x-data="{mf:'all'}">
   <!-- Harness Group 필터 -->
