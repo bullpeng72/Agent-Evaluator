@@ -169,6 +169,9 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#alerts">AlertEngine · SimpleTaskAlertRule</a>
   <a class="nav-item" href="#harness-g" style="font-size:11px;color:var(--text2)">↳ ObservabilityConfig · ExplainabilityConfig</a>
   <a class="nav-item" href="#harness-g" style="font-size:11px;color:var(--text2)">↳ ErrorDiagnosisConfig · LatencyAttributionConfig</a>
+
+  <div class="nav-group">Real-Time Guardrail</div>
+  <a class="nav-item" href="#live-guardrail">LiveGuardrail <span class="tag">SPEC-019</span></a>
 </nav>
 
 <div style="display:flex;flex-direction:column;overflow:hidden">
@@ -1963,6 +1966,73 @@ dataset_id = builder.<span class="fn">push_to_phoenix</span>(
     phoenix_endpoint=<span class="st">"http://localhost:6006"</span>,  <span class="cm"># Note: use phoenix_endpoint=, not phoenix_url=</span>
 )
 <span class="cm"># Check in Phoenix UI → Datasets &amp; Experiments tab</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── LiveGuardrail ── -->
+<section class="sec" id="live-guardrail">
+  <div class="sec-title">🛡️ LiveGuardrail <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">SPEC-019 · Real-Time Guardrail</span></div>
+  <div class="sec-sub">Every Gate above scores a session <em>after</em> it finishes. <code>LiveGuardrail</code> checks a single tool call <em>before</em> it executes and can block it — reusing the exact same Gate B (Behavioral Integrity) and Gate E (Security Boundary) evaluators that power batch scoring, just invoked synchronously per tool call instead of per session. No new detection logic.</div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">LiveVerdict</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.gates.live_guardrail</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Return value of <code>check_before_tool_call()</code>.</div>
+      <table class="mtable">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">block</span></td><td><span class="t">bool</span></td><td><code>True</code> means this tool call should be blocked</td></tr>
+          <tr><td><span class="p">gate</span></td><td><span class="t">Optional[str]</span></td><td><code>"B"</code> | <code>"E"</code> | <code>None</code> — which Gate triggered the block</td></tr>
+          <tr><td><span class="p">reason</span></td><td><span class="t">Optional[str]</span></td><td>Human-readable reason (empty when <code>block=False</code>)</td></tr>
+          <tr><td><span class="p">detail</span></td><td><span class="t">Dict[str, Any]</span></td><td>Full result from the underlying evaluator/tracker (empty dict when <code>block=False</code>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">LiveGuardrail</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.gates.live_guardrail</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">One instance per session (agent loop run) — internal state (<code>_tool_calls</code>) is not lock-protected, so sharing one instance across concurrent sessions is unsafe. All constructor parameters are optional; only pass the Gate B Configs / Gate E trackers you want active.</div>
+      <div class="slbl">Constructor Parameters</div>
+      {% call param_table() %}
+          <tr><td><span class="p">loop_detection</span><span class="opt">opt</span></td><td><span class="t">LoopDetectionConfig</span></td><td><code>None</code></td><td>Gate B — same config class as <code>@agent_eval(loop_detection=...)</code></td></tr>
+          <tr><td><span class="p">deadlock</span><span class="opt">opt</span></td><td><span class="t">DeadlockConfig</span></td><td><code>None</code></td><td>Gate B — circular delegation detection</td></tr>
+          <tr><td><span class="p">scope</span><span class="opt">opt</span></td><td><span class="t">ScopeConfig</span></td><td><code>None</code></td><td>Gate B — allowed/forbidden tool lists</td></tr>
+          <tr><td><span class="p">tool_parameter_safety</span><span class="opt">opt</span></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>None</code></td><td>Gate B — dangerous argument pattern matching</td></tr>
+          <tr><td><span class="p">tool_authorization</span><span class="opt">opt</span></td><td><span class="t">ToolAuthorizationTracker</span></td><td><code>None</code></td><td>Gate E — pass a tracker <em>instance</em>, not a Config (this one is stateful)</td></tr>
+          <tr><td><span class="p">privilege_escalation</span><span class="opt">opt</span></td><td><span class="t">PrivilegeEscalationDetector</span></td><td><code>None</code></td><td>Gate E — pass a tracker instance</td></tr>
+          <tr><td><span class="p">tool_chain_attack</span><span class="opt">opt</span></td><td><span class="t">ToolChainAttackDetector</span></td><td><code>None</code></td><td>Gate E — pass a tracker instance</td></tr>
+      {% endcall %}
+      <div class="slbl">Key Methods</div>
+      <table class="mtable">
+        <thead><tr><th>Method Signature</th><th>Return</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">check_before_tool_call(task_id, tool_name, parameters=None)</span></td><td><span class="r">LiveVerdict</span></td><td>Pure query — does <strong>not</strong> mutate internal state. Evaluates the candidate call against existing history plus this one call.</td></tr>
+          <tr><td><span class="p">record_tool_call(task_id, tool_name, parameters=None)</span></td><td><span class="r">None</span></td><td>Confirms a call that actually executed. Only call this after a <code>block=False</code> verdict — blocked calls must not be recorded.</td></tr>
+          <tr><td><span class="p">snapshot()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Gate B/E evaluation results for all confirmed calls so far, keyed the same way as <code>TaskResult.extra</code> (<code>loop_detection</code>, <code>scope</code>, <code>tool_authorization</code>, etc.). Side-effect free — safe to call repeatedly.</td></tr>
+          <tr><td><span class="p">to_task_extra()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Alias of <code>snapshot()</code>, named for its intended use: assign directly to <code>TaskResult(extra=...)</code> to feed a session's final verdict into the normal batch report.</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.gates.live_guardrail</span> <span class="kw">import</span> LiveGuardrail
+<span class="kw">from</span> <span class="cn">agent_evaluator.gates.gate_b_behavioral.configs</span> <span class="kw">import</span> LoopDetectionConfig, ToolParameterSafetyConfig
+
+guardrail = <span class="fn">LiveGuardrail</span>(
+    loop_detection=<span class="fn">LoopDetectionConfig</span>(consecutive_repeat_threshold=<span class="nm">6</span>, on_loop_detected=<span class="st">"record"</span>),
+    tool_parameter_safety=<span class="fn">ToolParameterSafetyConfig</span>(
+        dangerous_patterns=[<span class="st">r"\.\./"</span>, <span class="st">r"&amp;&amp;"</span>, <span class="st">r"\|\|"</span>, <span class="st">r";.*rm\s"</span>, <span class="st">r"__import__"</span>, <span class="st">r"eval\("</span>, <span class="st">r"exec\("</span>, <span class="st">r"rm\s+-\w*f"</span>],
+        fail_on_dangerous=<span class="kw">True</span>,
+    ),
+)
+
+verdict = guardrail.<span class="fn">check_before_tool_call</span>(<span class="st">"session-42"</span>, <span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})
+<span class="kw">if</span> verdict.block:
+    <span class="fn">print</span>(f<span class="st">"blocked (Gate {verdict.gate}): {verdict.reason}"</span>)  <span class="cm"># do NOT call record_tool_call()</span>
+<span class="kw">else</span>:
+    result = execute_tool(<span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})
+    guardrail.<span class="fn">record_tool_call</span>(<span class="st">"session-42"</span>, <span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})</pre>
+      <div class="note tip" style="margin-top:12px">💡 <strong>Reference integration</strong>: <code>opencode-plugin/</code> (repo root) wires <code>LiveGuardrail</code> into <a href="https://opencode.ai" target="_blank">OpenCode</a>'s <code>tool.execute.before</code>/<code>after</code> hooks via a Python subprocess bridge (<code>agent_evaluator.integrations.live_guardrail_stdio</code> / <code>live_guardrail_report</code>) — live-tested against a real local Ollama session, but shipped as a prototype reference, not part of the pip package. See <code>opencode-plugin/README.md</code> and <code>Docs/specs/SPEC-019-live-guardrail-api.md</code>.</div>
     </div>
   </div>
 </section>
