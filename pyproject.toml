@@ -168,7 +168,7 @@ dspy = [
 # PydanticAI 통합 (빠름, ~5개 패키지)
 # 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
 pydanticai = [
-    "pydantic-ai>=1.0.0,<2.0.0",
+    "pydantic-ai>=1.0.0,<3.0.0",
 ]
 # CrewAI 통합 (무거움 — 전이 의존성 100개+, 단독 격리)
 # crewai 1.x: CrewOutput.raw, crew.usage_metrics, result.tasks_output
