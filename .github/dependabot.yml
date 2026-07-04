@@ -8,6 +8,26 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # 메이저 버전업이 API를 바꿔 통합 코드를 깨뜨린 전례가 있는 패키지들 —
+      # 마이너/패치는 계속 받되 메이저 버전 PR만 억제한다.
+      # pydantic-ai 1.x→2.x: AgentRunResult.data→output, .usage() method→property로
+      # 바뀌어 PydanticAIEvaluator가 실제로 깨졌음(2026-07-04 수정, agent_evaluator/
+      # integrations/pydanticai_integration.py).
+      - dependency-name: "pydantic-ai"
+        update-types: ["version-update:semver-major"]
+      # arize-phoenix: 과거 pydantic-ai 메타패키지 의존성을 강제로 끌고 들어와
+      # 충돌을 일으킨 전례가 있어(v15.4.0에서 해결) 메이저 버전은 수동 검증 후 반영.
+      - dependency-name: "arize-phoenix"
+        update-types: ["version-update:semver-major"]
+      # deepeval: DeepEvalAdapter(agent_evaluator/integrations/metric_adapters.py)가
+      # 메트릭 클래스 API에 직접 의존 — 메이저 버전은 수동 검증 후 반영.
+      - dependency-name: "deepeval"
+        update-types: ["version-update:semver-major"]
+      # sentence-transformers: 최신 메이저가 Python 3.8+ 지원 범위와 어긋날 수 있어
+      # 메이저 버전은 수동 검증 후 반영.
+      - dependency-name: "sentence-transformers"
+        update-types: ["version-update:semver-major"]
 
   # github-actions 생태계 — ci.yml/security.yml이 참조하는 액션 자체의 공급망 리스크 관리
   - package-ecosystem: "github-actions"
