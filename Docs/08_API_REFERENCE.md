@@ -1268,8 +1268,16 @@ agent-eval gate result.json --tcr 85 --accuracy 70
 agent-eval gate result.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
 
 # 골든 데이터셋 자동 추출
-agent-eval dataset build results/ --min-score 0.8
-agent-eval dataset build results/ --min-score 0.8 --output data/golden.json
+agent-eval dataset build --source results/ --max-cases 30
+agent-eval dataset build --source results/ --strategy high_value --output data/golden.json
+
+# 순차 평가 결과 추세 분석 (TCR·정확도 회귀 감지)
+agent-eval trend results/ --fail-on-regression
+
+# LiveGuardrail OpenCode 플러그인 설치
+agent-eval opencode install
+agent-eval opencode install --global   # 전역 설치
+agent-eval opencode install --force    # 기존 설치 덮어쓰기
 
 # 버전 확인
 agent-eval --version

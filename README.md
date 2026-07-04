@@ -1249,6 +1249,7 @@ All 3 decorator types support the same `preset=` parameter.
 | `agent-eval trend <dir>` | Analyze TCR · accuracy trends across sequential results (regression detection) |
 | `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
+| `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin (`--global`/`--force`) |
 | `agent-eval --version` | Print package version |
 
 ---
@@ -1490,7 +1491,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 3,234+ test functions, 81 files
+├── tests/                       # 3,250+ test functions, 82 files
 └── pyproject.toml
 ```
 
@@ -1561,7 +1562,9 @@ mypy agent_evaluator/          # type check
 
 ### v0.9.6 (2026-07-04) — Real-Time Guardrail API · Gate Package Decomposition · PII Redaction & LLM Judge Trust Tooling
 
-- 🛡️ **Real-time guardrail API**: new `LiveGuardrail` checks (and blocks) a single tool call *before* it executes, reusing the same Behavioral Integrity and Security Boundary checks that power the batch Gates. Ships with a stdio bridge for non-Python callers, an SQLite-backed batch-report bridge, and a reference OpenCode plugin.
+- 🛡️ **Real-time guardrail API**: new `LiveGuardrail` checks (and blocks) a single tool call *before* it executes, reusing the same Behavioral Integrity and Security Boundary checks that power the batch Gates. Ships with a stdio bridge for non-Python callers, an SQLite-backed batch-report bridge, and a reference OpenCode plugin — now bundled inside the pip package (`agent_evaluator/integrations/opencode_plugin/`) and installable via the new `agent-eval opencode install` CLI subcommand (`--global`/`--force`), which also bakes in the current interpreter's path as the plugin's default `PYTHON_BIN`.
+- 🐛 **Fixed a real pydantic-ai 2.x incompatibility**: `AgentRunResult.data`/`.usage()` were renamed/changed to `.output`/a property in current pydantic-ai releases, silently corrupting `PydanticAIEvaluator` task records (marked as failed even on success); both call sites now handle old and new APIs.
+- 🔧 **CI fix**: the `pytest` job was missing the `serve` extra (FastAPI), causing ~120 dashboard-route tests to fail identically across all 6 Python versions regardless of what changed; Dependabot now also skips major-version bumps for 4 packages (`pydantic-ai`, `arize-phoenix`, `deepeval`, `sentence-transformers`) with a history of breaking changes.
 - 🔒 **Opt-in PII redaction at save time**: `PerformanceMonitor(enable_pii_redaction=True)` masks emails/phone numbers/SSNs/credit cards in persisted task text (JSON or SQLite); in-memory data and live scoring are untouched.
 - 📏 **LLM Judge trust tooling**: new `LLMJudgeCalibration` harness scores judge-vs-human agreement (MAE, Pearson, Cohen's kappa), and `PerformanceMonitor` now warns when the judge model and the agent's execution model are the same (no independent verification).
 - 🔌 **3 new framework adapters, 2 existing ones enhanced — 24 total**: `openai_agents` (OpenAI Agents SDK), `google_adk` (Google Agent Development Kit), and `claude_agent_sdk` (Claude Agent SDK) join the lineup; `openai` now also parses the Responses API (`client.responses.create()`), and `langchain` now also parses direct LCEL tool-calling `AIMessage` returns, not just `AgentExecutor.invoke()`.

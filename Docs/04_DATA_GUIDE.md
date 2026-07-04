@@ -136,7 +136,7 @@ print(f"저장 완료: {path}")
 **CLI로도 동일하게 실행 가능:**
 
 ```bash
-agent-eval dataset build results/ --min-score 0.8
+agent-eval dataset build --source results/ --strategy high_value --max-cases 30
 ```
 
 ---

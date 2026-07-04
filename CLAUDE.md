@@ -27,7 +27,7 @@ agent-eval check                                          # config status
 agent-eval --version                                      # version info
 agent-eval dashboard                                      # FastAPI dashboard (port 8765)
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
-agent-eval dataset build results/ --min-score 0.8         # golden dataset
+agent-eval dataset build --source results/ --max-cases 30 # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval trend results/ --fail-on-regression            # trend analysis
@@ -440,7 +440,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**81 files, 3,234+ test functions** in `tests/`.
+**82 files, 3,250+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
