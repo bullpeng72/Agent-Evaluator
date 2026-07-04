@@ -94,6 +94,7 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
     """opencode 서브커맨드를 argparse 서브파서에 등록한다."""
     p = sub.add_parser(
         "opencode",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Install the LiveGuardrail OpenCode plugin (real-time Gate B/E guardrail)",
         description=(
             "Install the bundled OpenCode plugin (SPEC-019 LiveGuardrail reference\n"
@@ -112,7 +113,19 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
 
     install_p = op_sub.add_parser(
         "install",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Copy the bundled plugin to the OpenCode plugin directory",
+        description=(
+            "Copy the bundled OpenCode plugin (agent-evaluator.ts) into the location\n"
+            "OpenCode auto-loads plugins from, baking in the current Python\n"
+            "interpreter's absolute path as the plugin's default PYTHON_BIN."
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval opencode install{_R}          {_D}# .opencode/plugin/{_R}\n"
+            f"  {_G}agent-eval opencode install --global{_R} {_D}# ~/.config/opencode/plugin/{_R}\n"
+            f"  {_G}agent-eval opencode install --force{_R}  {_D}# overwrite existing{_R}\n"
+        ),
     )
     install_p.add_argument(
         "--global", dest="global_install", action="store_true",

@@ -611,6 +611,7 @@ def _print_welcome() -> None:
     print(f"  {Y}gate{R}       CI/CD quality gating  {D}(pass/fail by threshold){R}")
     print(f"  {Y}trend{R}      Sequential evaluation trend analysis  {D}(TCR·accuracy regression){R}")
     print(f"  {Y}dataset{R}    Golden dataset management  {D}(auto-extract from results){R}")
+    print(f"  {Y}opencode{R}   Install the LiveGuardrail OpenCode plugin")
     print(f"  {Y}--version{R}  Show version")
     print()
     print(f"  {D}Full options: {R}{C}agent-eval --help{R}")
