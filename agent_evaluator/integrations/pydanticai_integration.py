@@ -108,7 +108,12 @@ class PydanticAITokenExtractor:
                 return None
             usage = getattr(run_result, "usage", None)
             # PydanticAI 2.x: .usage는 property(호출 불가). 구버전: .usage()가 callable.
-            if callable(usage) and not hasattr(usage, "input_tokens") and not hasattr(usage, "request_tokens"):
+            is_legacy_method = (
+                callable(usage)
+                and not hasattr(usage, "input_tokens")
+                and not hasattr(usage, "request_tokens")
+            )
+            if is_legacy_method:
                 usage = usage()
             if usage is None:
                 return None
