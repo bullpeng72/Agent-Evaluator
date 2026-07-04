@@ -286,7 +286,7 @@ from agent_evaluator.decorators import agent_eval
     question_arg="question",         # 질문 파라미터 이름 (기본: "question")
     ground_truth_arg="ground_truth", # 정답 파라미터 이름 (기본: "ground_truth")
     context_arg=None,                # RAG 컨텍스트 파라미터 이름
-    framework=None,                  # "langchain"|"openai"|"anthropic"|... 21개
+    framework=None,                  # "langchain"|"openai"|"anthropic"|... 24개
     model_name=None,                 # 모델명
     task_id_prefix=None,             # task_id 접두사
     enabled=True,                    # 데코레이터 활성화 여부
@@ -403,7 +403,7 @@ from agent_evaluator.decorators import batch_eval
     task_id_prefix="batch",           # 자동 생성 task_id 접두어 → {prefix}_{uuid8}_{i:03d}
     task_id_fn=None,                  # 커스텀 task_id 생성 함수 (index, question, gt) -> str
     # ── 프레임워크 / 모델 ────────────────────────────────────
-    framework="native",               # 프레임워크 식별자 (21개 지원)
+    framework="native",               # 프레임워크 식별자 (24개 지원)
     model_name="",                    # LLM 모델명
     # ── 채점 커스텀 ─────────────────────────────────────────
     score_fn=None,                    # 커스텀 accuracy 함수 (response, gt) -> float
@@ -685,7 +685,7 @@ async with hybrid_evaluation_session("hybrid_eval") as monitor:
 
 ## 6. 프레임워크 통합
 
-21개 프레임워크에 대해 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used`, `state_transitions` 등을 자동 추출한다.
+24개 프레임워크에 대해 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used`, `state_transitions` 등을 자동 추출한다.
 
 ### framework= 파라미터
 
@@ -714,7 +714,7 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
     )
 ```
 
-#### 지원 프레임워크 (21개)
+#### 지원 프레임워크 (24개)
 
 | 그룹 | 프레임워크 |
 |------|-----------|
@@ -722,6 +722,7 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
 | 오케스트레이션 | `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`, `smolagents`, `semantic_kernel` |
 | 클라우드 | `vertexai`, `bedrock` |
 | 검색/RAG | `llamaindex`, `haystack` |
+| 공식 에이전트 SDK | `openai_agents`, `google_adk`, `claude_agent_sdk` (자동 감지 미지원 — `framework=` 명시 필요) |
 
 자동 감지 (`auto_detect_framework=True` 기본 활성):
 
@@ -1326,7 +1327,7 @@ ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector,
 SimpleTaskAlertRule,
 
 # 타입 힌트
-FrameworkLiteral,   # 21개 프레임워크 Literal 타입
+FrameworkLiteral,   # 24개 프레임워크 Literal 타입
 ```
 
 ---

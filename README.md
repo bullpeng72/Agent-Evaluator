@@ -11,7 +11,7 @@ It asks not just "Does the agent work well?" but **"Is the agent ready for produ
 Goal Achievement (A) · Behavioral Integrity (B) · Reliability (C) · Performance Contract (D) · Security Boundary (E) · Multi-Agent Coordination (F) · Observability (G) —
 **7 Harness Gates comprehensively determine agent deployment readiness**.
 
-One decorator line auto-recognizes **21 frameworks** including LangChain · CrewAI · AutoGen,
+One decorator line auto-recognizes **24 frameworks** including LangChain · CrewAI · AutoGen,
 and measures **58 metrics (25 Native Trackers + 33 Harness Config)** without code modification.
 
 ---
@@ -217,7 +217,7 @@ def langchain_agent(question: str, ground_truth: str = "") -> str:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `task_type` | `"qa"` | Task type (qa · tool_use · information_retrieval · code_generation · etc.) |
-| `framework` | `"native"` | Framework adapter (21 supported) |
+| `framework` | `"native"` | Framework adapter (24 supported) |
 | `question_arg` | `"question"` | Question argument name |
 | `ground_truth_arg` | `"ground_truth"` | Ground truth argument name |
 | `context_arg` | `None` | RAG context argument name |
@@ -496,7 +496,7 @@ def chat(question: str, session_id: str = "s1") -> str:
 
 ---
 
-## Auto-Recognition of 21 Frameworks
+## Auto-Recognition of 24 Frameworks
 
 The `framework=` parameter auto-extracts `tool_calls`, `chain_steps`, `tokens_used`, etc. from response objects.
 All 3 decorator types support the same `framework=` parameter.
@@ -1369,7 +1369,7 @@ from agent_evaluator.decorators import (
     EvalMetadata,         # additional metadata for agent_eval / batch_eval
     TurnMetadata,         # per-turn metadata for conversation_eval
     get_eval_ctx,         # access thread-local evaluation context
-    FrameworkLiteral,     # type hint for 21 frameworks
+    FrameworkLiteral,     # type hint for 24 frameworks
     get_framework_info,   # query framework adapter info
     AlertRuleBuilder,     # alert rule factory
     flush_conversation,   # manually end conversation session
@@ -1486,7 +1486,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 3,218+ test functions, 81 files
+├── tests/                       # 3,234+ test functions, 81 files
 └── pyproject.toml
 ```
 
@@ -1560,6 +1560,7 @@ mypy agent_evaluator/          # type check
 - 🛡️ **Real-time guardrail API**: new `LiveGuardrail` checks (and blocks) a single tool call *before* it executes, reusing the same Behavioral Integrity and Security Boundary checks that power the batch Gates. Ships with a stdio bridge for non-Python callers, an SQLite-backed batch-report bridge, and a reference OpenCode plugin.
 - 🔒 **Opt-in PII redaction at save time**: `PerformanceMonitor(enable_pii_redaction=True)` masks emails/phone numbers/SSNs/credit cards in persisted task text (JSON or SQLite); in-memory data and live scoring are untouched.
 - 📏 **LLM Judge trust tooling**: new `LLMJudgeCalibration` harness scores judge-vs-human agreement (MAE, Pearson, Cohen's kappa), and `PerformanceMonitor` now warns when the judge model and the agent's execution model are the same (no independent verification).
+- 🔌 **3 new framework adapters, 2 existing ones enhanced — 24 total**: `openai_agents` (OpenAI Agents SDK), `google_adk` (Google Agent Development Kit), and `claude_agent_sdk` (Claude Agent SDK) join the lineup; `openai` now also parses the Responses API (`client.responses.create()`), and `langchain` now also parses direct LCEL tool-calling `AIMessage` returns, not just `AgentExecutor.invoke()`.
 - 🏗️ **Gate A–G decomposed into 7 self-contained packages**: scoring logic moved out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/{configs,evaluators,aggregate}.py` — no behavior change.
 - ⚡ **Windowed retention mode now reflects full history for all 7 Gates** (previously only 2 metrics did), via new running-aggregate primitives; two metrics use documented bounded approximations where exact O(1) tracking isn't possible.
 - 🐛 **Fixed a silent scoring bug**: Observability Gate's tool-coverage metric always evaluated to `None` due to a wrong attribute name — now computes correctly.

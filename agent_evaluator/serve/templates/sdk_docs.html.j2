@@ -105,7 +105,7 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#batch-eval">@batch_eval <span class="tag">decorator</span></a>
   <a class="nav-item" href="#conversation-eval">@conversation_eval <span class="tag">decorator</span></a>
   <a class="nav-item" href="#eval-context">eval_context <span class="tag">ctx</span></a>
-  <a class="nav-item" href="#frameworks">21 Framework Adapters</a>
+  <a class="nav-item" href="#frameworks">24 Framework Adapters</a>
 
   <div class="nav-group">Core Classes</div>
   <a class="nav-item" href="#performance-monitor">PerformanceMonitor <span class="tag">core</span></a>
@@ -216,7 +216,7 @@ eval.<span class="fn">gate</span>(tcr=<span class="nm">85</span>, accuracy=<span
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">② @agent_eval — Single Task / Framework Integration</span><span class="kind fn">decorator</span></div>
     <div class="cls-body">
-      <div class="note" style="margin-bottom:10px">🔌 Use <code>framework=</code> to auto-extract <strong>tool_calls · tokens · chain_steps</strong> from response objects. 21 frameworks supported.</div>
+      <div class="note" style="margin-bottom:10px">🔌 Use <code>framework=</code> to auto-extract <strong>tool_calls · tokens · chain_steps</strong> from response objects. 24 frameworks supported.</div>
 <pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
 <span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
 
@@ -587,8 +587,11 @@ eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, aut
       {% call param_table() %}
           <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>Monitor instance to record results to</td></tr>
           <tr><td><span class="p">task_type</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>TaskType lowercase string (e.g. <code>"qa"</code>, <code>"tool_use"</code>, <code>"information_retrieval"</code>)</td></tr>
-          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>None</code></td><td>Auto-extracts tokens/tools/chain_steps from response objects (21 supported)</td></tr>
+          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>None</code></td><td>Auto-extracts tokens/tools/chain_steps from response objects (24 supported)</td></tr>
           <tr><td><span class="p">task_id_prefix</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"task"</code></td><td>Auto-generated task_id prefix</td></tr>
+          <tr><td><span class="p">question_arg</span> / <span class="p">ground_truth_arg</span> / <span class="p">context_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>Remap non-standard function argument names to <code>question</code>/<code>ground_truth</code>/<code>context</code></td></tr>
+          <tr><td><span class="p">expected_tools</span> / <span class="p">expected_tools_arg</span><span class="opt">opt</span></td><td><span class="t">List[str]|str</span></td><td><code>None</code></td><td>Expected tool list (or arg name to read it from) for Gate F ToolSelectionTracker F1 scoring</td></tr>
+          <tr><td><span class="p">preset</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>Environment-specific config bundle (e.g. <code>"dev"</code>/<code>"staging"</code>/<code>"prod"</code>)</td></tr>
           <tr><td><span class="p">task_id_fn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → str</code> dynamic task_id generation</td></tr>
           <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>Runs save_to_file() automatically every N calls (0=disabled)</td></tr>
           <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>List of alert rules to run on task completion</td></tr>
@@ -675,7 +678,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
           <tr><td><span class="p">task_type</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"qa"</code></td><td>TaskType lowercase string</td></tr>
           <tr><td><span class="p">questions_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"questions"</code></td><td>Function parameter name holding the question list</td></tr>
           <tr><td><span class="p">ground_truths_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"ground_truths"</code></td><td>Function parameter name holding the ground truth list</td></tr>
-          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>"native"</code></td><td>Auto-extracts metadata from 21 frameworks</td></tr>
+          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>"native"</code></td><td>Auto-extracts metadata from 24 frameworks</td></tr>
           <tr><td><span class="p">concurrency</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>Max parallel execution per item (asyncio.gather). 0=sequential</td></tr>
           <tr><td><span class="p">item_timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>Per-item timeout (seconds)</td></tr>
           <tr><td><span class="p">on_item_error</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(exception, item_idx) → None</code> per-item error handling callback</td></tr>
@@ -842,38 +845,55 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
   <div class="cls-card">
     <div class="cls-head">
       <span class="cls-name">PerformanceMonitor</span><span class="kind cls">class</span>
-      <span class="cls-src">agent_evaluator.core.agent_evaluator</span>
+      <span class="cls-src">agent_evaluator.core.trackers.monitor</span>
     </div>
     <div class="cls-body">
       <div class="slbl">Constructor Parameters</div>
       {% call param_table() %}
           <tr><td><span class="p">output_dir</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"results/"</code></td><td>JSON/HTML report save directory</td></tr>
           <tr><td><span class="p">pricing</span><span class="opt">opt</span></td><td><span class="t">Dict[str,float]</span></td><td><code>{"input":0.003,"output":0.015}</code></td><td>Cost per 1K tokens (USD). Passed to TokenEconomyTracker.</td></tr>
+          <tr><td><span class="p">model_name</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>""</code></td><td>Model name used for this evaluation (e.g. <code>"claude-sonnet-4-5"</code>)</td></tr>
+          <tr><td><span class="p">session_label</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>""</code></td><td>Free-text label for this monitor session (dashboard display)</td></tr>
           <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Activates HallucinationDetector (incurs LLM call cost)</td></tr>
           <tr><td><span class="p">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Activates 5 Layer 2 security trackers</td></tr>
           <tr><td><span class="p">security_config</span><span class="opt">opt</span></td><td><span class="t">Dict</span></td><td><code>None</code></td><td>ToolAuthorizationTracker configuration (allowed_tools, restricted_tools, etc.)</td></tr>
+          <tr><td><span class="p">enabled_security_trackers</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><code>None</code></td><td>Selectively enable specific security trackers (only valid when <code>enable_security_metrics=True</code>)</td></tr>
           <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Activates LLM-as-Judge automatic scoring. Automatically applies 5 dimensions (completeness, relevance, factual consistency, toxicity, bias).</td></tr>
           <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str|None</span></td><td><code>None</code></td><td>Judge model. None → auto-detects from <code>agent-eval init</code> configuration.</td></tr>
           <tr><td><span class="p">judge_sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.1</code></td><td>Judge evaluation rate (0.0–1.0). For cost control.</td></tr>
           <tr><td><span class="p">judge_budget_per_day</span><span class="opt">opt</span></td><td><span class="t">float|None</span></td><td><code>None</code></td><td>Daily Judge budget cap (USD). Skips judging when exceeded.</td></tr>
           <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><code>None</code></td><td>G-Eval custom evaluation criteria list (DeepEval alternative). e.g. <code>["medical_accuracy", "empathy"]</code></td></tr>
+          <tr><td><span class="p">judge_escalation_model</span><span class="opt">opt</span></td><td><span class="t">str|None</span></td><td><code>None</code></td><td>v0.8.3+ — auto re-scores with a stronger model when the primary judge score falls below <code>judge_escalation_threshold</code></td></tr>
+          <tr><td><span class="p">judge_seed</span><span class="opt">opt</span></td><td><span class="t">int|None</span></td><td><code>None</code></td><td>Sampling seed for reproducible judge sampling</td></tr>
+          <tr><td><span class="p">use_korean_tokenizer</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Korean morphological tokenization (requires <code>kiwipiepy</code>)</td></tr>
+          <tr><td><span class="p">use_semantic_hallucination</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Embedding-based semantic hallucination detection (requires <code>sentence-transformers</code>, opt-in)</td></tr>
           <tr><td><span class="p">enable_anomaly_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Runs AnomalyDetector.scan() automatically on save_to_file(). Results stored in anomaly_data.</td></tr>
           <tr><td><span class="p">anomaly_baseline_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>100</code></td><td>Maximum tasks to use for baseline calculation.</td></tr>
           <tr><td><span class="p">anomaly_detection_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>20</code></td><td>Recent tasks to use for current state comparison.</td></tr>
+          <tr><td><span class="p">auto_save</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Automatically calls <code>save_to_file()</code> every <code>auto_save_interval</code> calls to <code>record_task()</code></td></tr>
           <tr><td><span class="p">enable_transparency</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Activates TestTransparencyManager</td></tr>
+          <tr><td><span class="p">gate_a_tcr_weight</span> / <span class="p">gate_c_tcr_weight</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.4</code></td><td>Relative weight of the TCR component vs. remaining Config metrics in Gate A/C scoring (0.0–1.0)</td></tr>
+          <tr><td><span class="p">gate_b_loop_weight</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.0</code></td><td>Loop-detection weight in Gate B (<code>0.0</code> = simple average of available metrics)</td></tr>
+          <tr><td><span class="p">min_samples_default</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>3</code></td><td>SPEC-002 — shared minimum-sample-size guard threshold across all Gates A–G</td></tr>
+          <tr><td><span class="p">retention_mode</span><span class="opt">opt</span></td><td><span class="t">"full"|"windowed"</span></td><td><code>"full"</code></td><td>SPEC-004 — <code>"windowed"</code> caps <code>self.tasks</code> to <code>window_size</code> while still reflecting full history for Gate running aggregates (SPEC-018)</td></tr>
+          <tr><td><span class="p">window_size</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>10000</code></td><td>Task window size when <code>retention_mode="windowed"</code></td></tr>
+          <tr><td><span class="p">storage_backend</span><span class="opt">opt</span></td><td><span class="t">"json"|"sqlite"</span></td><td><code>"json"</code></td><td>SPEC-016 — <code>"sqlite"</code> upserts by <code>task_id</code> instead of rewriting the whole file on every <code>save_to_file()</code></td></tr>
+          <tr><td><span class="p">enable_pii_redaction</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>SPEC-020 — masks PII in <code>question</code>/<code>response</code>/<code>context</code>/<code>ground_truth</code> at <code>save_to_file()</code> time only (in-memory data untouched)</td></tr>
+          <tr><td><span class="p">pii_redaction_categories</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><code>None</code></td><td>Restrict PII redaction to specific categories (default: all supported categories)</td></tr>
       {% endcall %}
       <div class="slbl">Key Methods</div>
       <table class="mtable">
         <thead><tr><th>Method Signature</th><th>Return</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">PerformanceMonitor</span></td><td>Records TaskResult to all active trackers. Returns <code>self</code> for method chaining.</td></tr>
-          <tr><td><span class="p">generate_report()</span></td><td><span class="r">EvaluationReport</span></td><td>Aggregates collected data and returns an EvaluationReport object</td></tr>
-          <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">None</span></td><td>Saves <code>{output_dir}/{filename}.json</code> + <code>.html</code>. Automatically includes anomaly_data when <code>enable_anomaly_detection=True</code>.</td></tr>
-          <tr><td><span class="p">conversation(session_id)</span></td><td><span class="r">ConversationContextManager</span></td><td>Multi-turn conversation evaluation context manager. <code>with monitor.conversation("id") as conv: conv.turn(user=..., agent=...)</code></td></tr>
+          <tr><td><span class="p">generate_report(force_recompute=False)</span></td><td><span class="r">EvaluationReport</span></td><td>Aggregates collected data and returns an EvaluationReport object. SPEC-014 — cached and skipped when nothing new has been recorded, unless <code>force_recompute=True</code>.</td></tr>
+          <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">str</span></td><td>Saves <code>{output_dir}/{filename}.json</code> + <code>.html</code> (or <code>.db</code> when <code>storage_backend="sqlite"</code>). Returns the saved path. Automatically includes anomaly_data when <code>enable_anomaly_detection=True</code>.</td></tr>
+          <tr><td><span class="p">conversation(session_id, task_type="qa")</span></td><td><span class="r">ConversationSession</span></td><td>Multi-turn conversation evaluation context manager. <code>with monitor.conversation("id") as conv: conv.turn(user=..., agent=...)</code></td></tr>
           <tr><td><span class="p">record_implicit_feedback(task_id, event_type, value=None)</span></td><td><span class="r">None</span></td><td>Records user reaction signals (like/copy/retry/share) → stored in feedback_data</td></tr>
           <tr><td><span class="p">evaluate_with_golden_dataset(agent_fn, dataset_path=None, ...)</span></td><td><span class="r">Dict</span></td><td>Auto-evaluates agent with golden dataset</td></tr>
           <tr><td><span class="p">compare_with_thresholds()</span></td><td><span class="r">Dict</span></td><td>Compares current metrics with industry thresholds</td></tr>
-          <tr><td><span class="p">reset()</span></td><td><span class="r">None</span></td><td>Resets all tracker states</td></tr>
+          <tr><td><span class="p">reset(keep_config=True)</span></td><td><span class="r">PerformanceMonitor</span></td><td>Clears all accumulated tracker data (thread-safe). Returns <code>self</code>. <code>keep_config=True</code> preserves constructor settings (pricing, judge config, etc.) while clearing recorded tasks.</td></tr>
+          <tr><td><span class="p">invalidate_report_cache()</span></td><td><span class="r">None</span></td><td>SPEC-014 — manually marks the cached report stale. Required after any in-place <code>TaskResult</code> mutation that bypasses <code>record_task()</code>.</td></tr>
           <tr><td><span class="p">for_rag_evaluation(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. Automatically applies optimal RAG evaluation settings (<code>enable_hallucination_detection=True</code>).</td></tr>
           <tr><td><span class="p">for_secure_agents(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. Automatically applies optimal security evaluation settings (<code>enable_security_metrics=True</code>).</td></tr>
         </tbody>
@@ -929,7 +949,7 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
   <div class="sec-title">🏷️ TaskType</div>
   <div class="sec-sub">Task type Enum. Pass as a lowercase string to the <code>task_type=</code> parameter. Accuracy calculation strategy varies by type.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">TaskType</span><span class="kind en">enum</span><span class="cls-src">agent_evaluator.core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">TaskType</span><span class="kind en">enum</span><span class="cls-src">agent_evaluator.core.trackers.base</span></div>
     <div class="cls-body">
       <table class="mtable">
         <thead><tr><th>Enum Value</th><th>String</th><th>Accuracy Strategy</th><th>Use Case</th></tr></thead>
@@ -958,7 +978,7 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
   <div class="sec-title"><span class="badge l1">L1</span> TaskCompletionTracker</div>
   <div class="sec-sub">Aggregates success/failure and calculates the Task Completion Rate (TCR) by task type.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">TaskCompletionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">TaskCompletionTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-desc">No constructor parameters. Auto-instantiated inside <code>PerformanceMonitor</code>. Can be instantiated directly for standalone use.</div>
     <div class="cls-body">
       {% call tracker_table() %}
@@ -996,7 +1016,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="sec-title"><span class="badge l1">L1</span> AccuracyEvaluator</div>
   <div class="sec-sub">Calculates accuracy across QA, code, and general tasks. Strategy is automatically selected by type.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">AccuracyEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">AccuracyEvaluator</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr><td><span class="p">add_evaluation(task_id, ground_truth, prediction, task_type)</span></td><td><span class="t">str, Any, Any, str</span></td><td>—</td></tr>
@@ -1019,7 +1039,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="sec-title"><span class="badge l1">L1</span> HallucinationDetector</div>
   <div class="sec-sub">Checks factual consistency of responses. Requires <code>PerformanceMonitor(enable_hallucination_detection=True)</code>.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">HallucinationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">HallucinationDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1045,7 +1065,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="sec-title"><span class="badge l1">L1</span> ResponseQualityEvaluator</div>
   <div class="sec-sub">Evaluates response quality across 5 dimensions. Use the <code>expected_elements</code> list for checklist-based completeness measurement.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ResponseQualityEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">ResponseQualityEvaluator</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1079,7 +1099,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="sec-title"><span class="badge l1">L1</span> LatencyTracker</div>
   <div class="sec-sub">Percentile-based latency analysis. Provides SLA compliance checking.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">LatencyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">LatencyTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1119,7 +1139,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l1">L1</span> TokenEconomyTracker</div>
   <div class="sec-sub">Aggregates token usage and estimates cost per model. <code>pricing</code> is passed at <code>PerformanceMonitor</code> creation time.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">TokenEconomyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">TokenEconomyTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
     <div class="cls-desc">Constructor: <code>__init__(self, pricing: Dict[str, float])</code> — <code>pricing</code> example: <code>{"input": 0.003, "output": 0.015}</code> (USD per 1K tokens)</div>
     <div class="cls-body">
       {% call tracker_table() %}
@@ -1153,7 +1173,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> ToolCallAnalyzer</div>
   <div class="sec-sub">Analyzes tool call patterns, efficiency, and redundant calls. Requires the <code>TaskResult.tool_calls</code> field.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ToolCallAnalyzer</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">ToolCallAnalyzer</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer2</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1179,7 +1199,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> ToolSelectionTracker</div>
   <div class="sec-sub">Evaluates expected tools vs actual tools using F1. Requires the <code>TaskResult.expected_tools</code> field.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ToolSelectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">ToolSelectionTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer2</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1201,7 +1221,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> RetryCorrectionTracker</div>
   <div class="sec-sub">Measures retry count and self-correction success rate. Uses the <code>TaskResult.attempts</code> field.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">RetryCorrectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">RetryCorrectionTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer2</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1227,7 +1247,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> AgentCoordinationTracker</div>
   <div class="sec-sub">Analyzes multi-agent interaction quality and patterns (hub/chain/mesh).</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">AgentCoordinationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">AgentCoordinationTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer2</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1258,7 +1278,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> WorkflowExecutionTracker</div>
   <div class="sec-sub">Analyzes per-step success rates and bottlenecks in workflows. Used for LangGraph/LangChain step tracking.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">WorkflowExecutionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">WorkflowExecutionTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer2</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1293,7 +1313,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="sec-title"><span class="badge l2">L2</span> InputSanitizationTracker</div>
   <div class="sec-sub">Detects 5 input attack pattern types (SQL, Command, Path, XSS, Prompt Injection) via regex.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">InputSanitizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">InputSanitizationTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.security</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1319,7 +1339,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
   <div class="sec-title"><span class="badge l2">L2</span> OutputLeakageDetector</div>
   <div class="sec-sub">Detects sensitive data leakage (API keys, passwords, credit cards, emails, SSNs, private IPs) in agent output.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">OutputLeakageDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">OutputLeakageDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.security</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1342,7 +1362,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
   <div class="sec-title"><span class="badge l2">L2</span> ToolAuthorizationTracker</div>
   <div class="sec-sub">Whitelist/blacklist-based tool call authorization and dangerous parameter detection (rm -rf, DROP TABLE, etc.).</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ToolAuthorizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">ToolAuthorizationTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.security</span></div>
     <div class="cls-desc">Constructor: <code>__init__(allowed_tools=None, restricted_tools=None)</code> — <code>allowed_tools</code> (whitelist), <code>restricted_tools</code> (blacklist). Pass via <code>security_config</code> to <code>PerformanceMonitor</code>.</div>
     <div class="cls-body">
       {% call tracker_table() %}
@@ -1373,7 +1393,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
   <div class="sec-title"><span class="badge l2">L2</span> PrivilegeEscalationDetector</div>
   <div class="sec-sub">Detects privilege escalation patterns in tool call sequences. Levels: guest(0) → read(1) → write(2) → execute(3) → admin(4)</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">PrivilegeEscalationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">PrivilegeEscalationDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.security</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1395,7 +1415,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
   <div class="sec-title"><span class="badge l2">L2</span> ToolChainAttackDetector</div>
   <div class="sec-sub">Detects 4 attack pattern types in tool call sequences: data exfiltration, lateral movement, persistence, and defense evasion.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ToolChainAttackDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-head"><span class="cls-name">ToolChainAttackDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.security</span></div>
     <div class="cls-body">
       {% call tracker_table() %}
           <tr>
@@ -1429,9 +1449,13 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
         <tr><td><span class="p">sample_rate</span></td><td><span class="t">float</span></td><td><span class="r">1.0</span></td><td>Evaluation sample rate (0–1). For cost control.</td></tr>
         <tr><td><span class="p">budget_per_day</span></td><td><span class="t">float|None</span></td><td><span class="r">None</span></td><td>Daily budget cap (USD). Judge skipped when exceeded.</td></tr>
         <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><span class="r">None</span></td><td>G-Eval custom evaluation criteria. E.g., <code>["medical_accuracy", "empathy"]</code> → <code>criteria_scores</code> auto-added (DeepEval G-Eval replacement)</td></tr>
+        <tr><td><span class="p">escalation_model</span> / <span class="p">escalation_threshold</span><span class="opt">opt</span></td><td><span class="t">str|None / float</span></td><td><span class="r">None / 2.5</span></td><td>v0.8.3+ — auto re-scores with <code>escalation_model</code> when the primary <code>overall</code> score falls below <code>escalation_threshold</code> (0–5 scale)</td></tr>
+        <tr><td><span class="p">max_concurrent_judge_calls</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">5</span></td><td>SPEC-006 — <code>asyncio.Semaphore</code> bound on concurrent <code>ajudge()</code> calls</td></tr>
+        <tr><td><span class="p">max_retries</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">3</span></td><td>SPEC-006 — exponential backoff (1s/2s/4s...) retries on provider 429 rate-limit errors</td></tr>
       </tbody></table>
       <table class="mtable" style="margin-top:12px"><thead><tr><th>Method</th><th>Return Type</th><th>Description</th></tr></thead><tbody>
         <tr><td><span class="p">judge(task_id, question, response, context=None)</span></td><td><span class="t">dict</span></td><td>Single evaluation. <strong>Base keys</strong>: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>toxicity</code>·<code>bias</code>·<code>overall</code>·<code>safety_score</code>. <strong>Conditional</strong>: <code>faithfulness</code> (when rag_mode), <code>criteria_scores</code>·<code>criteria_overall</code> (when judge_criteria set)</td></tr>
+        <tr><td><span class="p">ajudge(task_id, question, response, context=None)</span></td><td><span class="t">Awaitable[dict]</span></td><td>SPEC-006 — async counterpart of <code>judge()</code>, bounded by <code>max_concurrent_judge_calls</code>. Used automatically by <code>@agent_eval</code>'s async wrapper and by <code>batch_eval(..., concurrent_judge=True)</code>.</td></tr>
         <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>Cumulative stats (call count, avg score, total cost). Dynamically includes faithfulness·criteria_scores based on results.</td></tr>
       </tbody></table>
 <pre><span class="cm"># Default 5-dimension scoring (completeness·relevance·factual_consistency·toxicity·bias)</span>
@@ -1539,8 +1563,13 @@ chat_agent(<span class="st">"What's the difference with asyncio.wait?"</span>, s
         <tr><td><span class="p">--hallucination N</span></td><td>Maximum hallucination rate (%)</td></tr>
         <tr><td><span class="p">--llm-judge N</span></td><td>Minimum LLM Judge score (0–5)</td></tr>
         <tr><td><span class="p">--fail-on-regression N</span></td><td>Allowed regression rate vs. baseline (%)</td><td></td></tr>
-        <tr><td><span class="p">--save-baseline / --baseline</span></td><td>Save baseline / comparison path</td><td></td></tr>
+        <tr><td><span class="p">--baseline PATH / --save-baseline</span></td><td>Baseline file path (default <code>&lt;result_dir&gt;/baseline.json</code>) / save current results as baseline</td><td></td></tr>
         <tr><td><span class="p">--junit-xml PATH</span></td><td>Output JUnit XML report (CI integration)</td><td></td></tr>
+        <tr><td><span class="p">--min-gate-score SCORE</span></td><td>SPEC-010 — Harness Gate A–G composite score lower bound (0.0–1.0); fails if the weighted group average falls below it</td><td></td></tr>
+        <tr><td><span class="p">--group-weights WEIGHTS</span></td><td>Per-gate weights for <code>--min-gate-score</code>. Format: <code>'A:2.0,B:1.5,E:3.0'</code> (default all 1.0)</td><td></td></tr>
+        <tr><td><span class="p">--gate-thresholds THRESHOLDS</span></td><td>Per-gate minimum score thresholds. Format: <code>'A:0.8,D:0.9,E:0.95'</code> (unlisted gates fall back to <code>--min-gate-score</code>)</td><td></td></tr>
+        <tr><td><span class="p">--required-gates GATES</span></td><td>Comma-separated Gates to check, e.g. <code>'A,D,E'</code> (default: all Gates with data)</td><td></td></tr>
+        <tr><td><span class="p">--fail-on-gate-warn</span></td><td>Treat Gate status <code>"warn"</code> as a failure</td><td></td></tr>
       </tbody></table>
       <pre># GitHub Actions integration
 - name: Quality Gate
@@ -1780,10 +1809,10 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <tbody>
           <tr><td><code>instructions</code></td><td><span class="t">InstructionConfig</span></td><td><code>expected_format</code>, <code>required_keywords</code>, <code>min_chars</code></td><td>Keyword missing → FAIL</td></tr>
           <tr><td><code>goal_alignment</code></td><td><span class="t">GoalAlignmentConfig</span></td><td><code>goal_tool_map</code>, <code>alignment_threshold</code></td><td>Below threshold → WARN/FAIL</td></tr>
-          <tr><td><code>plan_tracking</code></td><td><span class="t">PlanConfig</span></td><td><code>expected_steps</code>, <code>step_completion_threshold</code></td><td>Based on step completion rate</td></tr>
-          <tr><td><code>subtask_tracking</code></td><td><span class="t">SubtaskConfig</span></td><td><code>expected_subtasks</code>, <code>completion_threshold</code></td><td>Subtask completion rate</td></tr>
-          <tr><td><code>context_retention</code></td><td><span class="t">ContextRetentionConfig</span></td><td><code>required_context_keys</code>, <code>retention_threshold</code></td><td>Context key retention rate</td></tr>
-          <tr><td><code>knowledge_retention</code></td><td><span class="t">KnowledgeRetentionConfig</span></td><td><code>knowledge_keys</code>, <code>retention_threshold</code></td><td>Knowledge retention &amp; utilization score</td></tr>
+          <tr><td><code>plan_tracking</code></td><td><span class="t">PlanConfig</span></td><td><code>min_steps</code>, <code>max_steps</code></td><td>Step count out of range or ordering/executability check fails</td></tr>
+          <tr><td><code>subtask_tracking</code></td><td><span class="t">SubtaskConfig</span></td><td><code>expected_subtasks</code>, <code>min_completion_rate</code></td><td>Subtask completion rate below threshold</td></tr>
+          <tr><td><code>context_retention</code></td><td><span class="t">ContextRetentionConfig</span></td><td><code>key_entities</code>, <code>retention_threshold</code></td><td>Context key retention rate</td></tr>
+          <tr><td><code>knowledge_retention</code></td><td><span class="t">KnowledgeRetentionConfig</span></td><td><code>facts_to_retain</code>, <code>retention_threshold</code></td><td>Knowledge retention &amp; utilization score</td></tr>
         </tbody>
       </table>
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> InstructionConfig, GoalAlignmentConfig
@@ -1813,10 +1842,10 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <tbody>
           <tr><td><code>loop_detection</code></td><td><span class="t">LoopDetectionConfig</span></td><td><code>consecutive_repeat_threshold</code>, <code>window_size</code></td><td>Loop threshold exceeded → FAIL</td></tr>
           <tr><td><code>scope</code></td><td><span class="t">ScopeConfig</span></td><td><code>allowed_tools</code>, <code>forbidden_tools</code></td><td>Forbidden tool used → FAIL</td></tr>
-          <tr><td><code>tool_parameter_safety</code></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>forbidden_patterns</code>, <code>max_parameter_length</code></td><td>Forbidden pattern detected → FAIL</td></tr>
-          <tr><td><code>context_window</code></td><td><span class="t">ContextWindowConfig</span></td><td><code>max_context_tokens</code>, <code>utilization_threshold</code></td><td>Context window utilization efficiency measured</td></tr>
-          <tr><td><code>state_consistency</code></td><td><span class="t">StateConsistencyConfig</span></td><td><code>unchanged_keys</code>, <code>consistency_threshold</code></td><td>State inconsistency before/after → WARN</td></tr>
-          <tr><td><code>deadlock</code></td><td><span class="t">DeadlockConfig</span></td><td><code>max_delegation_depth</code>, <code>cycle_detection</code></td><td>Circular delegation detected → FAIL</td></tr>
+          <tr><td><code>tool_parameter_safety</code></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>dangerous_patterns</code>, <code>max_argument_length</code></td><td>Dangerous pattern detected → FAIL (if <code>fail_on_dangerous</code>)</td></tr>
+          <tr><td><code>context_window</code></td><td><span class="t">ContextWindowConfig</span></td><td><code>window_size_tokens</code>, <code>warn_at_pct</code></td><td>Context window saturation/repetition efficiency measured</td></tr>
+          <tr><td><code>state_consistency</code></td><td><span class="t">StateConsistencyConfig</span></td><td><code>unchanged_keys</code>, <code>fail_on_unexpected_change</code></td><td>Unexpected state change detected → WARN (FAIL if <code>fail_on_unexpected_change</code>)</td></tr>
+          <tr><td><code>deadlock</code></td><td><span class="t">DeadlockConfig</span></td><td><code>max_delegation_depth</code>, <code>check_circular_delegation</code></td><td>Circular delegation detected → FAIL (if <code>fail_on_deadlock</code>)</td></tr>
         </tbody>
       </table>
     </div>
@@ -1830,10 +1859,10 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <thead><tr><th>Parameter</th><th>Config Class</th><th>Key Fields</th><th>Default Judgment Criteria</th></tr></thead>
         <tbody>
           <tr><td><code>reproducibility</code></td><td><span class="t">ReproducibilityConfig</span></td><td><code>runs</code>, <code>reproducibility_threshold</code></td><td>Consistency on repeated identical inputs</td></tr>
-          <tr><td><code>fault_tolerance</code></td><td><span class="t">FaultToleranceConfig</span></td><td><code>error_recovery_threshold</code>, <code>partial_success_ok</code></td><td>Recovery rate after error</td></tr>
-          <tr><td><code>graceful_degradation</code></td><td><span class="t">GracefulDegradationConfig</span></td><td><code>min_quality_score</code>, <code>partial_result_markers</code></td><td>Quality floor guarantee</td></tr>
+          <tr><td><code>fault_tolerance</code></td><td><span class="t">FaultToleranceConfig</span></td><td><code>partial_success_threshold</code>, <code>check_fallback_attempts</code></td><td>Recovery rate after error</td></tr>
+          <tr><td><code>graceful_degradation</code></td><td><span class="t">GracefulDegradationConfig</span></td><td><code>quality_floor</code>, <code>partial_result_markers</code></td><td>Quality floor guarantee</td></tr>
           <tr><td><code>retry_consistency</code></td><td><span class="t">RetryConsistencyConfig</span></td><td><code>min_retry_count</code>, <code>penalize_degradation</code></td><td>Consistency across retries</td></tr>
-          <tr><td><code>idempotency</code></td><td><span class="t">IdempotencyConfig</span></td><td><code>check_idempotent</code>, <code>similarity_threshold</code></td><td>Result identity on duplicate execution</td></tr>
+          <tr><td><code>idempotency</code></td><td><span class="t">IdempotencyConfig</span></td><td><code>non_idempotent_patterns</code>, <code>non_idempotent_penalty</code></td><td>Result identity on duplicate execution</td></tr>
         </tbody>
       </table>
     </div>
@@ -1846,11 +1875,11 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
       <table class="mtable" style="font-size:12px">
         <thead><tr><th>Parameter</th><th>Config Class</th><th>Key Fields</th><th>Default Judgment Criteria</th></tr></thead>
         <tbody>
-          <tr><td><code>sla</code></td><td><span class="t">SLAConfig</span></td><td><code>p95_ms</code>, <code>max_response_time</code></td><td>P95 violation rate → FAIL</td></tr>
-          <tr><td><code>efficiency</code></td><td><span class="t">EfficiencyConfig</span></td><td><code>min_completion_per_token</code>, <code>max_tool_calls</code></td><td>Token efficiency threshold</td></tr>
+          <tr><td><code>sla</code></td><td><span class="t">SLAConfig</span></td><td><code>p95_ms</code>, <code>p99_ms</code></td><td>P95/P99 breach rate → WARN/FAIL</td></tr>
+          <tr><td><code>efficiency</code></td><td><span class="t">EfficiencyConfig</span></td><td><code>target_cost_per_completion</code>, <code>warn_ratio</code></td><td>Cost-per-completion ratio threshold</td></tr>
           <tr><td><code>resource_budget</code></td><td><span class="t">ResourceBudgetConfig</span></td><td><code>max_tokens</code>, <code>max_cost_usd</code></td><td>Budget exceeded → FAIL</td></tr>
-          <tr><td><code>ttft_variability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">TTFTVariabilityConfig</span></td><td><code>max_std_ms</code>, <code>p95_p50_ratio</code></td><td>Auto-aggregated at monitor level</td></tr>
-          <tr><td><code>cost_predictability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">CostPredictabilityConfig</span></td><td><code>max_token_cv</code>, <code>task_type</code></td><td>Token CV per task_type</td></tr>
+          <tr><td><code>ttft_variability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">TTFTVariabilityConfig</span></td><td><code>max_stddev_ms</code>, <code>min_samples</code></td><td>Auto-aggregated at monitor level</td></tr>
+          <tr><td><code>cost_predictability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">CostPredictabilityConfig</span></td><td><code>max_coefficient_of_variation</code>, <code>cost_metric</code></td><td>Cost coefficient-of-variation per task_type</td></tr>
         </tbody>
       </table>
       <div class="note" style="margin-top:8px;font-size:12px">⚠️ <code>TTFTVariabilityConfig</code> and <code>CostPredictabilityConfig</code> are aggregated at the <code>PerformanceMonitor</code> level, not via the <code>@agent_eval</code> decorator. Auto-calculated in <code>generate_report()</code> after <code>monitor.record_task()</code> calls.</div>
@@ -1865,8 +1894,8 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <thead><tr><th>Parameter</th><th>Config Class</th><th>Key Fields</th><th>Default Judgment Criteria</th></tr></thead>
         <tbody>
           <tr><td><code>threat_severity</code></td><td><span class="t">ThreatSeverityConfig</span></td><td><code>fail_score</code>, <code>fail_on_critical</code></td><td>Score threshold exceeded → FAIL</td></tr>
-          <tr><td><code>compliance</code></td><td><span class="t">ComplianceConfig</span></td><td><code>compliance_framework</code>, <code>forbidden_keywords</code></td><td>Forbidden pattern detected → FAIL</td></tr>
-          <tr><td><code>threat_response</code></td><td><span class="t">ThreatResponseConfig</span></td><td><code>expected_response_actions</code>, <code>block_on_threat</code></td><td>Missing response action → WARN</td></tr>
+          <tr><td><code>compliance</code></td><td><span class="t">ComplianceConfig</span></td><td><code>compliance_framework</code>, <code>forbidden_data_patterns</code></td><td>Forbidden pattern detected → FAIL (if <code>fail_on_violation</code>)</td></tr>
+          <tr><td><code>threat_response</code></td><td><span class="t">ThreatResponseConfig</span></td><td><code>isolation_markers</code>, <code>escalation_markers</code></td><td>Missing response action → penalized</td></tr>
         </tbody>
       </table>
     </div>
@@ -1880,9 +1909,9 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <thead><tr><th>Parameter</th><th>Config Class</th><th>Key Fields</th><th>Default Judgment Criteria</th></tr></thead>
         <tbody>
           <tr><td><code>consensus</code></td><td><span class="t">ConsensusConfig</span></td><td><code>consensus_method</code>, <code>similarity_threshold</code></td><td>Consensus rate below threshold → WARN</td></tr>
-          <tr><td><code>propagation</code></td><td><span class="t">PropagationConfig</span></td><td><code>propagation_accuracy_threshold</code>, <code>detect_distortion</code></td><td>Detects information distortion</td></tr>
-          <tr><td><code>agent_role</code></td><td><span class="t">AgentRoleConfig</span></td><td><code>role_name</code>, <code>allowed_tools</code></td><td>Role violation → FAIL</td></tr>
-          <tr><td><code>conflict_resolution</code></td><td><span class="t">ConflictResolutionConfig</span></td><td><code>resolution_strategies</code>, <code>max_resolution_time</code></td><td>Unresolved conflict → WARN</td></tr>
+          <tr><td><code>propagation</code></td><td><span class="t">PropagationConfig</span></td><td><code>similarity_threshold</code>, <code>penalize_distortion</code></td><td>Detects information distortion</td></tr>
+          <tr><td><code>agent_role</code></td><td><span class="t">AgentRoleConfig</span></td><td><code>role_name</code>, <code>allowed_tools</code></td><td>Role violation → penalized (<code>role_violation_penalty</code>)</td></tr>
+          <tr><td><code>conflict_resolution</code></td><td><span class="t">ConflictResolutionConfig</span></td><td><code>conflict_markers</code>, <code>unresolved_penalty</code></td><td>Unresolved conflict → penalized</td></tr>
         </tbody>
       </table>
     </div>
@@ -1897,8 +1926,8 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
         <tbody>
           <tr><td><code>explainability</code></td><td><span class="t">ExplainabilityConfig</span></td><td><code>require_reasoning</code>, <code>min_reasoning_length</code></td><td>Reasoning missing → FAIL</td></tr>
           <tr><td><code>observability</code></td><td><span class="t">ObservabilityConfig</span></td><td><code>check_trace_continuity</code>, <code>min_coverage</code></td><td>Trace coverage below threshold → WARN</td></tr>
-          <tr><td><code>error_diagnosis</code></td><td><span class="t">ErrorDiagnosisConfig</span></td><td><code>require_root_cause</code>, <code>diagnosis_accuracy_threshold</code></td><td>Root cause analysis missing → WARN</td></tr>
-          <tr><td><code>latency_attribution</code></td><td><span class="t">LatencyAttributionConfig</span></td><td><code>track_phases</code>, <code>attribution_threshold</code></td><td>Per-phase latency analysis</td></tr>
+          <tr><td><code>error_diagnosis</code></td><td><span class="t">ErrorDiagnosisConfig</span></td><td><code>root_cause_markers</code>, <code>root_cause_weight</code></td><td>Root cause analysis missing → weighted score reduced</td></tr>
+          <tr><td><code>latency_attribution</code></td><td><span class="t">LatencyAttributionConfig</span></td><td><code>tool_latency_key</code>, <code>max_tool_time_ratio</code></td><td>Per-phase latency analysis</td></tr>
         </tbody>
       </table>
 <pre style="margin-top:10px"><span class="cm"># Check Gate results</span>
@@ -1940,7 +1969,7 @@ dataset_id = builder.<span class="fn">push_to_phoenix</span>(
 
 <!-- ── 프레임워크 통합 ── -->
 <section class="sec" id="frameworks">
-  <div class="sec-title">🔗 21 Framework Adapters</div>
+  <div class="sec-title">🔗 24 Framework Adapters</div>
   <div class="sec-sub">Connect with a single <code>@agent_eval(monitor, framework="...")</code> line. The adapter automatically extracts <strong>tokens_used · tool_calls · chain_steps · agent_interactions</strong> from the response object and populates TaskResult.</div>
 
   <!-- 패턴 설명 -->
@@ -1952,7 +1981,7 @@ dataset_id = builder.<span class="fn">push_to_phoenix</span>(
 
 monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
 
-<span class="cm"># Same pattern for all 21 frameworks — just change the framework= parameter</span>
+<span class="cm"># Same pattern for all 24 frameworks — just change the framework= parameter</span>
 <span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"openai"</span>)
 <span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
     <span class="kw">return</span> client.chat.completions.<span class="fn">create</span>(...)  <span class="cm"># Return the response object as-is</span>
@@ -1963,9 +1992,9 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
     </div>
   </div>
 
-  <!-- 21개 프레임워크 전체 표 -->
+  <!-- 24개 프레임워크 전체 표 -->
   <div class="cls-card" style="margin-top:12px">
-    <div class="cls-head"><span class="cls-name">21 Frameworks — framework= values · Installation · Auto-extracted Fields</span></div>
+    <div class="cls-head"><span class="cls-name">24 Frameworks — framework= values · Installation · Auto-extracted Fields</span></div>
     <div class="cls-body">
       <table class="mtable" style="font-size:12px">
         <thead><tr><th>framework=</th><th>Extra / Install</th><th>tokens</th><th>tool_calls</th><th>chain_steps</th><th>agent_interactions</th><th>Notes</th></tr></thead>
@@ -1978,7 +2007,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
             <td>✅ AgentAction/<br>tool_end callback</td>
             <td>✅ timestamp-<br>based measurement</td>
             <td>✗</td>
-            <td>Only framework with actual token measurement</td>
+            <td>Only framework with actual token measurement. Supports both <code>AgentExecutor.invoke()</code> (<code>intermediate_steps</code>) and direct LCEL tool-calling <code>AIMessage</code> return (<code>model.bind_tools(...).invoke(...)</code>, no <code>AgentExecutor</code>/<code>LangGraph</code> wrapping needed)</td>
           </tr>
           <tr>
             <td><code>"langgraph"</code></td>
@@ -2078,7 +2107,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
             <td>✅ message<br>.tool_calls</td>
             <td>✗</td>
             <td>✗</td>
-            <td>Assistants API supported, auto-detection</td>
+            <td>Chat Completions, Assistants API, and Responses API (<code>client.responses.create()</code> — <code>response.output[].type=="function_call"</code>) all supported, auto-detection</td>
           </tr>
           <tr>
             <td><code>"gemini"</code></td>
@@ -2160,6 +2189,34 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
             <td>✗</td>
             <td>✗</td>
             <td>Auto-detection supported</td>
+          </tr>
+          <tr style="background:var(--bg3)"><td colspan="7" style="font-weight:700;color:var(--accent);padding:6px 10px">🧭 Official Agent Framework SDKs</td></tr>
+          <tr>
+            <td><code>"openai_agents"</code></td>
+            <td><code>openai-agents</code></td>
+            <td>✅ raw_responses[]<br>.usage (summed)</td>
+            <td>✅ new_items<br>ToolCallItem</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>OpenAI Agents SDK (Swarm successor) — <code>Runner.run()</code> <code>RunResult</code>, distinct from Chat Completions/Responses API shape</td>
+          </tr>
+          <tr>
+            <td><code>"google_adk"</code></td>
+            <td><code>google-adk</code></td>
+            <td>✅ usage_metadata<br>(same fields as gemini)</td>
+            <td>✅ get_function_calls()</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>Google Agent Development Kit — pass the (last) <code>Event</code> yielded by <code>runner.run()</code>/<code>run_async()</code>; <code>Event</code> extends <code>LlmResponse</code></td>
+          </tr>
+          <tr>
+            <td><code>"claude_agent_sdk"</code></td>
+            <td><code>claude-agent-sdk</code></td>
+            <td>✅ usage dict<br>(AssistantMessage, per-turn) / ✅ ResultMessage (session total + cost)</td>
+            <td>✅ ToolUseBlock<br>(AssistantMessage only)</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>Claude Agent SDK (formerly Claude Code SDK) — <code>query()</code> yields a stream; pass an <code>AssistantMessage</code> (tool calls) or <code>ResultMessage</code> (session cost/tokens via <code>extra</code>), not both at once</td>
           </tr>
         </tbody>
       </table>

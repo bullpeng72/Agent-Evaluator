@@ -67,6 +67,45 @@ class TestLangChainAdapter:
         result = _extract_langchain_metadata(raw)
         assert result is None  # 빈 steps → tool_calls 없음 → None
 
+    def test_extracts_tool_calls_from_direct_ai_message(self):
+        """LCEL 툴콜링(model.bind_tools(...).invoke(...))이 dict로 감싸지 않고
+        AIMessage를 직접 반환하는 경우 — AgentExecutor도 LangGraph도 아닌 패턴."""
+        from agent_evaluator.decorators import _extract_langchain_metadata
+
+        class AIMessage:
+            content = ""
+            tool_calls = [{"name": "search", "args": {"query": "seoul"}, "id": "call_1"}]
+            usage_metadata = {"input_tokens": 50, "output_tokens": 10, "total_tokens": 60}
+
+        result = _extract_langchain_metadata(AIMessage())
+        assert result is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool_name"] == "search"
+        assert result.tool_calls[0]["input"] == {"query": "seoul"}
+        assert result.tokens_used["total"] == 60
+
+    def test_direct_ai_message_without_tool_calls_returns_none(self):
+        from agent_evaluator.decorators import _extract_langchain_metadata
+
+        class AIMessage:
+            content = "plain text answer"
+            tool_calls = []
+
+        assert _extract_langchain_metadata(AIMessage()) is None
+
+    def test_direct_ai_message_falls_back_to_response_metadata_tokens(self):
+        from agent_evaluator.decorators import _extract_langchain_metadata
+
+        class AIMessage:
+            content = ""
+            tool_calls = [{"name": "search", "args": {}, "id": "call_1"}]
+            usage_metadata = None
+            response_metadata = {"token_usage": {"prompt_tokens": 20, "completion_tokens": 5}}
+
+        result = _extract_langchain_metadata(AIMessage())
+        assert result is not None
+        assert result.tokens_used == {"input": 20, "output": 5, "total": 25}
+
 
 # ---------------------------------------------------------------------------
 # _extract_langgraph_metadata
@@ -176,6 +215,14 @@ class TestNewAdaptersRegistry:
         from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
         for fw in ("anthropic", "openai", "gemini", "llamaindex", "haystack"):
             assert fw in _FRAMEWORK_ADAPTERS, f"'{fw}' 어댑터가 레지스트리에 없음"
+
+    def test_agent_framework_adapters_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS, _FRAMEWORK_ADAPTER_META, FrameworkLiteral
+        import typing
+        for fw in ("openai_agents", "google_adk", "claude_agent_sdk"):
+            assert fw in _FRAMEWORK_ADAPTERS, f"'{fw}' 어댑터가 레지스트리에 없음"
+            assert fw in _FRAMEWORK_ADAPTER_META, f"'{fw}' 메타데이터가 없음"
+            assert fw in typing.get_args(FrameworkLiteral), f"'{fw}' 가 FrameworkLiteral에 없음"
 
     def test_all_adapters_callable(self):
         from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
@@ -316,6 +363,52 @@ class TestOpenAIAdapter:
         if result is not None:
             assert result.tokens_used is not None
 
+    def test_extracts_tool_calls_from_responses_api(self):
+        """Responses API(client.responses.create())는 Chat Completions와 달리
+        .choices가 아니라 .output 리스트에 function_call 타입 아이템을 담는다."""
+        from agent_evaluator.decorators import _extract_openai_metadata
+
+        class _FunctionCallItem:
+            type = "function_call"
+            name = "calculator"
+            arguments = '{"expr": "1+1"}'
+            call_id = "call_001"
+
+        class _MessageItem:
+            type = "message"
+            content = "2"
+
+        class _Usage:
+            input_tokens = 80
+            output_tokens = 20
+            total_tokens = 100
+
+        class _Response:
+            output = [_MessageItem(), _FunctionCallItem()]
+            usage = _Usage()
+            model = "gpt-5"
+
+        result = _extract_openai_metadata(_Response())
+        assert result is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool_name"] == "calculator"
+        assert result.tool_calls[0]["tool_call_id"] == "call_001"
+        assert result.tokens_used == {"input": 80, "output": 20, "total": 100}
+
+    def test_responses_api_without_function_call_returns_none_if_no_tokens(self):
+        from agent_evaluator.decorators import _extract_openai_metadata
+
+        class _MessageItem:
+            type = "message"
+            content = "plain answer"
+
+        class _Response:
+            output = [_MessageItem()]
+            usage = None
+            model = "gpt-5"
+
+        assert _extract_openai_metadata(_Response()) is None
+
 
 # ---------------------------------------------------------------------------
 # _extract_gemini_metadata
@@ -413,6 +506,173 @@ class TestHaystackAdapter:
         from agent_evaluator.decorators import _extract_haystack_metadata
         result = _extract_haystack_metadata({})
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _extract_openai_agents_metadata
+# ---------------------------------------------------------------------------
+
+class TestOpenAIAgentsAdapter:
+    def test_returns_none_for_plain_string(self):
+        from agent_evaluator.decorators import _extract_openai_agents_metadata
+        assert _extract_openai_agents_metadata("hello") is None
+
+    def test_extracts_tool_calls_and_tokens_from_run_result(self):
+        from agent_evaluator.decorators import _extract_openai_agents_metadata
+
+        class _RawFunctionCall:
+            arguments = '{"expr": "1+1"}'
+
+        class ToolCallItem:  # 어댑터가 type(item).__name__ == "ToolCallItem" 으로 판별하므로 클래스명 그대로 사용
+            tool_name = "calculator"
+            call_id = "call_001"
+            raw_item = _RawFunctionCall()
+
+        class _MessageOutputItem:
+            pass  # not a ToolCallItem — should be skipped
+
+        class _Usage:
+            input_tokens = 80
+            output_tokens = 20
+
+        class _ModelResponse:
+            usage = _Usage()
+
+        class _RunResult:
+            new_items = [_MessageOutputItem(), ToolCallItem()]
+            raw_responses = [_ModelResponse()]
+
+        result = _extract_openai_agents_metadata(_RunResult())
+        assert result is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool_name"] == "calculator"
+        assert result.tool_calls[0]["tool_call_id"] == "call_001"
+        assert result.tokens_used == {"input": 80, "output": 20, "total": 100}
+
+    def test_sums_usage_across_multiple_raw_responses(self):
+        from agent_evaluator.decorators import _extract_openai_agents_metadata
+
+        class _Usage:
+            def __init__(self, inp, out):
+                self.input_tokens = inp
+                self.output_tokens = out
+
+        class _ModelResponse:
+            def __init__(self, usage):
+                self.usage = usage
+
+        class _RunResult:
+            new_items = []
+            raw_responses = [_ModelResponse(_Usage(50, 10)), _ModelResponse(_Usage(30, 5))]
+
+        result = _extract_openai_agents_metadata(_RunResult())
+        assert result is not None
+        assert result.tokens_used == {"input": 80, "output": 15, "total": 95}
+
+
+# ---------------------------------------------------------------------------
+# _extract_google_adk_metadata
+# ---------------------------------------------------------------------------
+
+class TestGoogleADKAdapter:
+    def test_returns_none_for_plain_string(self):
+        from agent_evaluator.decorators import _extract_google_adk_metadata
+        assert _extract_google_adk_metadata("hello") is None
+
+    def test_extracts_tool_calls_from_get_function_calls(self):
+        from agent_evaluator.decorators import _extract_google_adk_metadata
+
+        class _FunctionCall:
+            name = "search"
+            args = {"query": "seoul"}
+            id = "fc_1"
+
+        class _UsageMetadata:
+            prompt_token_count = 40
+            candidates_token_count = 15
+
+        class _Event:
+            usage_metadata = _UsageMetadata()
+
+            def get_function_calls(self):
+                return [_FunctionCall()]
+
+        result = _extract_google_adk_metadata(_Event())
+        assert result is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool_name"] == "search"
+        assert result.tool_calls[0]["input"] == {"query": "seoul"}
+        assert result.tokens_used == {"input": 40, "output": 15, "total": 55}
+
+    def test_returns_none_without_function_calls_or_usage(self):
+        from agent_evaluator.decorators import _extract_google_adk_metadata
+
+        class _Event:
+            usage_metadata = None
+
+            def get_function_calls(self):
+                return []
+
+        assert _extract_google_adk_metadata(_Event()) is None
+
+
+# ---------------------------------------------------------------------------
+# _extract_claude_agent_sdk_metadata
+# ---------------------------------------------------------------------------
+
+class TestClaudeAgentSDKAdapter:
+    def test_returns_none_for_plain_string(self):
+        from agent_evaluator.decorators import _extract_claude_agent_sdk_metadata
+        assert _extract_claude_agent_sdk_metadata("hello") is None
+
+    def test_extracts_tool_calls_from_assistant_message(self):
+        from agent_evaluator.decorators import _extract_claude_agent_sdk_metadata
+
+        class ToolUseBlock:  # 어댑터가 type(block).__name__ == "ToolUseBlock" 으로 판별하므로 클래스명 그대로 사용
+            name = "search"
+            input = {"query": "seoul"}
+            id = "toolu_1"
+
+        class _AssistantMessage:
+            content = [ToolUseBlock()]
+            model = "claude-sonnet-4-6"
+            usage = {"input_tokens": 50, "output_tokens": 10}
+
+        result = _extract_claude_agent_sdk_metadata(_AssistantMessage())
+        assert result is not None
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["tool_name"] == "search"
+        assert result.tokens_used["total"] == 60
+
+    def test_extracts_session_usage_from_result_message(self):
+        from agent_evaluator.decorators import _extract_claude_agent_sdk_metadata
+
+        class _ResultMessage:
+            total_cost_usd = 0.0123
+            num_turns = 3
+            usage = {
+                "input_tokens": 500,
+                "output_tokens": 120,
+                "cache_creation_input_tokens": 100,
+                "cache_read_input_tokens": 50,
+            }
+
+        result = _extract_claude_agent_sdk_metadata(_ResultMessage())
+        assert result is not None
+        assert result.tool_calls is None  # ResultMessage에는 도구 호출 상세가 없음
+        assert result.tokens_used["input"] == 500
+        assert result.tokens_used["cache_creation"] == 100
+        assert result.tokens_used["cache_read"] == 50
+        assert result.extra["total_cost_usd"] == 0.0123
+        assert result.extra["num_turns"] == 3
+
+    def test_returns_none_for_unrelated_object(self):
+        from agent_evaluator.decorators import _extract_claude_agent_sdk_metadata
+
+        class _Unrelated:
+            pass
+
+        assert _extract_claude_agent_sdk_metadata(_Unrelated()) is None
 
 
 # ---------------------------------------------------------------------------

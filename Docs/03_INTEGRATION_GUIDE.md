@@ -1,6 +1,6 @@
 # 통합 가이드
 
-데코레이터 API 전체 레퍼런스 · 21개 프레임워크 통합 · 타 평가 도구 비교
+데코레이터 API 전체 레퍼런스 · 24개 프레임워크 통합 · 타 평가 도구 비교
 
 **v0.9.6 | Python 3.8+**
 
@@ -226,7 +226,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `expected_tools_arg` | str\|None | `None` | Tool Selection F1 평가용 기대 도구 리스트 인자 이름 |
 | `task_id_prefix` | str | `"task"` | 자동 생성 task_id 접두사 |
 | `task_id_fn` | callable\|None | `None` | task_id 생성 함수 `(args, kwargs) → str` |
-| `framework` | str | `"native"` | 프레임워크 어댑터 지정 (21개 지원) |
+| `framework` | str | `"native"` | 프레임워크 어댑터 지정 (24개 지원) |
 | `model_name` | str | `""` | 토큰 비용 계산용 모델명 |
 | `score_fn` | callable\|None | `None` | 커스텀 accuracy_score 함수 `(response, ground_truth) → float` |
 | `completion_fn` | callable\|None | `None` | 커스텀 completion_score 함수 `(response, ...) → float` |
@@ -362,7 +362,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 ```
 1순위: return (EvalMetadata, result)   — 명시적 주입 (최고 우선순위)
 2순위: get_eval_ctx()                  — ContextVar 주입 (eval_context 패턴)
-3순위: 프레임워크 어댑터               — 리턴값 자동 파싱 (21개 프레임워크)
+3순위: 프레임워크 어댑터               — 리턴값 자동 파싱 (24개 프레임워크)
 4순위: _auto_detect_framework()       — 리턴값 타입 기반 자동 감지
 5순위: 인자 이름 기반 추출             — question_arg / ground_truth_arg / context_arg 등
 ```
@@ -431,9 +431,10 @@ session_dict["overall_score"]       # float (0–1)
 ## 12. 프레임워크 통합
 
 > **핵심 패턴**: `@agent_eval(monitor, framework="프레임워크명")` — 응답에서 token/tool 메타데이터 자동 추출
-> 21개 프레임워크: `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`,
+> 24개 프레임워크: `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`,
 > `anthropic`, `openai`, `gemini`, `llamaindex`, `haystack`, `vertexai`, `ollama`, `cohere`,
-> `groq`, `mistral`, `bedrock`, `smolagents`, `semantic_kernel`, `vllm`, `huggingface`
+> `groq`, `mistral`, `bedrock`, `smolagents`, `semantic_kernel`, `vllm`, `huggingface`,
+> `openai_agents`, `google_adk`, `claude_agent_sdk` (공식 에이전트 프레임워크 SDK — `framework=` 명시 필요, 자동 감지 미지원)
 
 ### 4개 주요 프레임워크 커버리지 요약
 

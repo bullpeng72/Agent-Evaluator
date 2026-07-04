@@ -439,7 +439,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**81 files, 3,218+ test functions** in `tests/`.
+**81 files, 3,234+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

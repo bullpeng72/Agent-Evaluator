@@ -74,9 +74,10 @@ if TYPE_CHECKING:
 # M1: 프레임워크 식별자 Literal — IDE 자동완성 지원 (Python 3.8+ 지원, from __future__ import annotations)
 FrameworkLiteral = Literal[
     "native", "langchain", "langgraph", "crewai", "autogen",
-    "dspy", "pydanticai", "anthropic", "openai", "gemini",
+    "dspy", "pydanticai", "anthropic", "openai", "gemini", "vertexai",
     "llamaindex", "haystack", "cohere", "groq", "mistral",
     "bedrock", "smolagents", "semantic_kernel", "ollama", "vllm", "huggingface",
+    "openai_agents", "google_adk", "claude_agent_sdk",
 ]
 
 logger = logging.getLogger(__name__)
@@ -762,13 +763,26 @@ def _normalize_task_type(task_type: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def _extract_langchain_metadata(raw: Any) -> Optional[EvalMetadata]:
-    """LangChain AgentExecutor 결과 dict에서 메타데이터 자동 추출.
+    """LangChain 결과에서 메타데이터 자동 추출 — 두 가지 반환 형태를 지원한다.
 
-    ``intermediate_steps`` → ``tool_calls`` + ``chain_steps`` 자동 변환.
-    ``usage_metadata`` / ``response_metadata.token_usage`` 에서 토큰 사용량 추출.
+    1. ``AgentExecutor.invoke()`` 결과 dict — ``intermediate_steps`` → ``tool_calls`` + ``chain_steps``.
+    2. LCEL 툴콜링 직접 반환 ``AIMessage`` (``model.bind_tools(...).invoke(...)``) —
+       ``AgentExecutor`` 래핑도 ``LangGraph``의 ``{"messages": [...]}`` 딕셔너리도
+       거치지 않는, 현재 LangChain이 권장하는 가장 흔한 패턴. ``.tool_calls`` 속성에서
+       직접 추출한다.
+
+    두 경우 모두 ``usage_metadata`` / ``response_metadata.token_usage`` 에서
+    토큰 사용량을 추출한다.
     """
-    if not isinstance(raw, dict) or "intermediate_steps" not in raw:
-        return None
+    if isinstance(raw, dict) and "intermediate_steps" in raw:
+        return _extract_langchain_agent_executor_metadata(raw)
+    if not isinstance(raw, dict) and hasattr(raw, "tool_calls"):
+        return _extract_langchain_ai_message_metadata(raw)
+    return None
+
+
+def _extract_langchain_agent_executor_metadata(raw: Dict[str, Any]) -> Optional[EvalMetadata]:
+    """``AgentExecutor.invoke()`` 결과 dict (``intermediate_steps`` 포함) 전용 추출 경로."""
     steps = raw.get("intermediate_steps") or []
     tool_calls: List[Dict[str, Any]] = []
     chain_steps: List[Dict[str, Any]] = []
@@ -817,6 +831,59 @@ def _extract_langchain_metadata(raw: Any) -> Optional[EvalMetadata]:
     return EvalMetadata(
         tool_calls=tool_calls,
         chain_steps=chain_steps,
+        tokens_used=tokens_used,
+        framework="langchain",
+    )
+
+
+def _extract_langchain_ai_message_metadata(raw: Any) -> Optional[EvalMetadata]:
+    """LCEL 툴콜링(``model.bind_tools(...).invoke(...)``)이 직접 반환하는 ``AIMessage``
+    전용 추출 경로 — ``AgentExecutor``도 ``LangGraph``의 메시지 리스트 dict도 아닌,
+    도구 바인딩 모델을 직접 호출해서 나오는 가장 흔한 최신 패턴이다.
+
+    ``AIMessage.tool_calls``는 ``ToolCall`` TypedDict(``{"name", "args", "id"}``)의
+    리스트이므로 dict 접근을 우선하고, 커스텀 객체 형태를 대비해 getattr로 폴백한다.
+    """
+    raw_tool_calls = getattr(raw, "tool_calls", None) or []
+    if not raw_tool_calls:
+        return None
+
+    tool_calls: List[Dict[str, Any]] = []
+    for tc in raw_tool_calls:
+        if isinstance(tc, dict):
+            name = tc.get("name", "unknown")
+            args = tc.get("args", {})
+            tc_id = tc.get("id", "")
+        else:
+            name = getattr(tc, "name", "unknown")
+            args = getattr(tc, "args", {})
+            tc_id = getattr(tc, "id", "")
+        tool_calls.append({
+            "tool_name": str(name),
+            "input": args if isinstance(args, dict) else {"input": str(args)},
+            "tool_call_id": str(tc_id or ""),
+            "success": True,
+        })
+    if not tool_calls:
+        return None
+
+    # LangChain 0.2+: AIMessage.usage_metadata 속성(dict) 우선, 없으면
+    # response_metadata.token_usage 로 폴백 (AgentExecutor 경로와 동일한 필드명 규칙)
+    tokens_used: Optional[Dict[str, int]] = None
+    try:
+        usage_meta = getattr(raw, "usage_metadata", None)
+        if usage_meta is None:
+            usage_meta = (getattr(raw, "response_metadata", None) or {}).get("token_usage")
+        if isinstance(usage_meta, dict):
+            inp = int(usage_meta.get("input_tokens") or usage_meta.get("prompt_tokens") or 0)
+            out = int(usage_meta.get("output_tokens") or usage_meta.get("completion_tokens") or 0)
+            if inp or out:
+                tokens_used = {"input": inp, "output": out, "total": inp + out}
+    except Exception:
+        pass
+
+    return EvalMetadata(
+        tool_calls=tool_calls,
         tokens_used=tokens_used,
         framework="langchain",
     )
@@ -1519,14 +1586,22 @@ def _extract_anthropic_metadata(raw: Any) -> Optional[EvalMetadata]:
 
 
 def _extract_openai_metadata(raw: Any) -> Optional[EvalMetadata]:
-    """OpenAI Chat Completions API 결과에서 메타데이터 자동 추출.
+    """OpenAI Chat Completions / Responses API 결과에서 메타데이터 자동 추출.
 
     ``client.chat.completions.create(tools=[...])`` 결과의
     ``choices[0].message.tool_calls`` 에서 도구 호출을 추출하고 토큰 사용량을 수집한다.
-    Assistants API ``Run`` 객체도 지원한다.
+    Assistants API ``Run`` 객체, 그리고 2025년 3월 도입된 Responses API
+    (``client.responses.create(...)``, ``response.output`` 리스트 안의
+    ``function_call`` 타입 아이템 + ``response.usage.input_tokens``/``output_tokens``)
+    도 지원한다 — Chat Completions와는 구조가 다른 별도 객체 타입이다.
     """
     # OpenAI ChatCompletion 객체: .choices, .usage, .model
-    if not hasattr(raw, "choices") and not hasattr(raw, "required_action"):
+    # Responses API Response 객체: .output (list), .usage, .model — .choices는 없음
+    if (
+        not hasattr(raw, "choices")
+        and not hasattr(raw, "required_action")
+        and not hasattr(raw, "output")
+    ):
         return None
     tool_calls: List[Dict[str, Any]] = []
     tokens_used: Optional[Dict[str, int]] = None
@@ -1567,10 +1642,34 @@ def _extract_openai_metadata(raw: Any) -> Optional[EvalMetadata]:
         pass
 
     try:
+        # Responses API: response.output 리스트의 type="function_call" 아이템.
+        # (Chat Completions/Assistants와 달리 tool_calls가 message 안이 아니라
+        # 최상위 output 배열에 message 아이템과 나란히 들어있다)
+        for item in (getattr(raw, "output", None) or []):
+            if getattr(item, "type", None) != "function_call":
+                continue
+            tool_calls.append({
+                "tool_name": getattr(item, "name", "unknown"),
+                "input": getattr(item, "arguments", ""),
+                "tool_call_id": getattr(item, "call_id", "") or getattr(item, "id", ""),
+                "success": True,
+            })
+    except Exception:
+        pass
+
+    try:
         usage = getattr(raw, "usage", None)
         if usage:
-            inp = getattr(usage, "prompt_tokens", 0) or 0
-            out = getattr(usage, "completion_tokens", 0) or 0
+            # Chat Completions/Assistants: prompt_tokens/completion_tokens
+            # Responses API: input_tokens/output_tokens
+            inp = getattr(usage, "prompt_tokens", None)
+            if inp is None:
+                inp = getattr(usage, "input_tokens", 0)
+            out = getattr(usage, "completion_tokens", None)
+            if out is None:
+                out = getattr(usage, "output_tokens", 0)
+            inp = inp or 0
+            out = out or 0
             if inp or out:
                 tokens_used = {"input": int(inp), "output": int(out), "total": int(inp + out)}
     except Exception:
@@ -2587,6 +2686,187 @@ def _extract_huggingface_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
+def _extract_openai_agents_metadata(raw: Any) -> Optional[EvalMetadata]:
+    """OpenAI Agents SDK(``openai-agents`` 패키지, Swarm 후속 공식 SDK) 결과에서
+    메타데이터 자동 추출.
+
+    ``Runner.run(...)``가 반환하는 ``RunResult``에서 추출한다 — Chat Completions의
+    ``choices[0].message``와는 다른 구조로, ``new_items``(``RunItem`` 리스트) 중
+    ``ToolCallItem``에서 도구 호출을, ``raw_responses``(``ModelResponse`` 리스트,
+    세션 중 모델 호출마다 1건)의 ``usage``를 합산해 토큰 사용량을 추출한다.
+    ``ToolCallItem.tool_name``/``.call_id``는 SDK가 제공하는 편의 프로퍼티이고,
+    도구 인자(arguments)는 그 밑의 ``raw_item``(``ResponseFunctionToolCall``,
+    Responses API와 동일 타입)에서 가져온다.
+    """
+    if not hasattr(raw, "new_items") and not hasattr(raw, "raw_responses"):
+        return None
+    tool_calls: List[Dict[str, Any]] = []
+    try:
+        for item in (getattr(raw, "new_items", None) or []):
+            if type(item).__name__ != "ToolCallItem":
+                continue
+            tool_name = getattr(item, "tool_name", None) or "unknown"
+            call_id = getattr(item, "call_id", "") or ""
+            raw_item = getattr(item, "raw_item", None)
+            arguments = getattr(raw_item, "arguments", "") if raw_item is not None else ""
+            tool_calls.append({
+                "tool_name": str(tool_name),
+                "input": arguments,
+                "tool_call_id": str(call_id),
+                "success": True,
+            })
+    except Exception:
+        pass
+
+    tokens_used: Optional[Dict[str, int]] = None
+    try:
+        total_inp = 0
+        total_out = 0
+        for resp in (getattr(raw, "raw_responses", None) or []):
+            usage = getattr(resp, "usage", None)
+            if usage is None:
+                continue
+            total_inp += getattr(usage, "input_tokens", 0) or 0
+            total_out += getattr(usage, "output_tokens", 0) or 0
+        if total_inp or total_out:
+            tokens_used = {"input": int(total_inp), "output": int(total_out), "total": int(total_inp + total_out)}
+    except Exception:
+        pass
+
+    if not tool_calls and not tokens_used:
+        return None
+    return EvalMetadata(
+        tool_calls=tool_calls if tool_calls else None,
+        tokens_used=tokens_used,
+        framework="openai_agents",
+    )
+
+
+def _extract_google_adk_metadata(raw: Any) -> Optional[EvalMetadata]:
+    """Google ADK(Agent Development Kit) 결과에서 메타데이터 자동 추출.
+
+    ``runner.run()``/``run_async()``는 세션 중 여러 ``Event``를 순차 yield하는
+    제너레이터이므로(``@agent_eval``은 함수가 단일 값을 반환한다고 가정), 호출자가
+    스트림을 직접 순회하며 마지막(또는 도구 호출이 있는) ``Event``를 반환해야 한다.
+
+    ``Event``는 ``LlmResponse``를 상속해 ``get_function_calls()``
+    (``google.genai.types.FunctionCall`` 리스트 — 기존 ``gemini`` 어댑터와 동일한
+    genai SDK 타입)와 ``usage_metadata``(``GenerateContentResponseUsageMetadata``,
+    마찬가지로 ``gemini`` 어댑터와 동일한 필드명 ``prompt_token_count``/
+    ``candidates_token_count``)를 그대로 제공한다.
+    """
+    if not hasattr(raw, "get_function_calls") and not hasattr(raw, "usage_metadata"):
+        return None
+    tool_calls: List[Dict[str, Any]] = []
+    try:
+        get_fc = getattr(raw, "get_function_calls", None)
+        for fc in (get_fc() if callable(get_fc) else []):
+            tool_calls.append({
+                "tool_name": getattr(fc, "name", "unknown"),
+                "input": dict(getattr(fc, "args", {}) or {}),
+                "tool_call_id": getattr(fc, "id", "") or "",
+                "success": True,
+            })
+    except Exception:
+        pass
+
+    tokens_used: Optional[Dict[str, int]] = None
+    try:
+        um = getattr(raw, "usage_metadata", None)
+        if um:
+            inp = getattr(um, "prompt_token_count", 0) or 0
+            out = getattr(um, "candidates_token_count", 0) or 0
+            if inp or out:
+                tokens_used = {"input": int(inp), "output": int(out), "total": int(inp + out)}
+    except Exception:
+        pass
+
+    if not tool_calls and not tokens_used:
+        return None
+    return EvalMetadata(
+        tool_calls=tool_calls if tool_calls else None,
+        tokens_used=tokens_used,
+        framework="google_adk",
+    )
+
+
+def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
+    """Claude Agent SDK(``claude-agent-sdk`` 패키지, 구 Claude Code SDK) 결과에서
+    메타데이터 자동 추출.
+
+    ``query(...)``는 여러 메시지 타입을 순차 yield하는 비동기 스트림이므로
+    (``@agent_eval``은 함수가 단일 값을 반환한다고 가정), 호출자가 스트림을 직접
+    소비해 다음 중 하나를 반환해야 한다.
+
+    - ``AssistantMessage``: ``content``의 ``ToolUseBlock``에서 도구 호출을 추출한다
+      (``usage``는 그 메시지 1건분 — raw Anthropic Messages API와 달리 dict 형태).
+    - ``ResultMessage``: 세션 전체 누적 ``usage``/``total_cost_usd``/``num_turns``를
+      추출한다 (도구 호출 상세는 없음 — ``ResultMessage`` 자체엔 담기지 않는다).
+
+    도구 호출과 세션 총 토큰을 모두 원한다면, 호출자가 스트림을 순회하며 직접 병합해
+    ``EvalMetadata``를 구성해 반환하는 편이 이 어댑터를 거치는 것보다 정확하다.
+    """
+    is_assistant_msg = hasattr(raw, "content") and hasattr(raw, "model")
+    is_result_msg = hasattr(raw, "total_cost_usd") or (hasattr(raw, "num_turns") and hasattr(raw, "usage"))
+    if not is_assistant_msg and not is_result_msg:
+        return None
+
+    tool_calls: List[Dict[str, Any]] = []
+    if is_assistant_msg:
+        try:
+            for block in (getattr(raw, "content", None) or []):
+                if type(block).__name__ != "ToolUseBlock":
+                    continue
+                tool_calls.append({
+                    "tool_name": getattr(block, "name", "unknown"),
+                    "input": getattr(block, "input", {}) or {},
+                    "tool_call_id": getattr(block, "id", "") or "",
+                    "success": True,
+                })
+        except Exception:
+            pass
+
+    tokens_used: Optional[Dict[str, int]] = None
+    try:
+        usage = getattr(raw, "usage", None)
+        if isinstance(usage, dict):
+            inp = int(usage.get("input_tokens") or 0)
+            out = int(usage.get("output_tokens") or 0)
+            cache_creation = int(usage.get("cache_creation_input_tokens") or 0)
+            cache_read = int(usage.get("cache_read_input_tokens") or 0)
+            total_inp = inp + cache_creation + cache_read
+            if total_inp or out:
+                tokens_used = {
+                    "input": inp, "output": out, "total": total_inp + out,
+                    "cache_creation": cache_creation, "cache_read": cache_read,
+                }
+    except Exception:
+        pass
+
+    extra: Optional[Dict[str, Any]] = None
+    try:
+        if is_result_msg:
+            cost = getattr(raw, "total_cost_usd", None)
+            num_turns = getattr(raw, "num_turns", None)
+            if cost is not None or num_turns is not None:
+                extra = {}
+                if cost is not None:
+                    extra["total_cost_usd"] = cost
+                if num_turns is not None:
+                    extra["num_turns"] = num_turns
+    except Exception:
+        pass
+
+    if not tool_calls and not tokens_used:
+        return None
+    return EvalMetadata(
+        tool_calls=tool_calls if tool_calls else None,
+        tokens_used=tokens_used,
+        framework="claude_agent_sdk",
+        extra=extra,
+    )
+
+
 _FRAMEWORK_ADAPTERS: Dict[str, Optional[Callable[[Any], Optional[EvalMetadata]]]] = {
     "native": None,  # H: sentinel — 어댑터 없음 (네이티브 Python 반환값)
     "langchain": _extract_langchain_metadata,
@@ -2611,6 +2891,10 @@ _FRAMEWORK_ADAPTERS: Dict[str, Optional[Callable[[Any], Optional[EvalMetadata]]]
     # F4: 신규 어댑터
     "vllm": _extract_vllm_metadata,
     "huggingface": _extract_huggingface_metadata,
+    # 공식 에이전트 프레임워크 3종 추가
+    "openai_agents": _extract_openai_agents_metadata,
+    "google_adk": _extract_google_adk_metadata,
+    "claude_agent_sdk": _extract_claude_agent_sdk_metadata,
 }
 
 
@@ -2770,6 +3054,27 @@ _FRAMEWORK_ADAPTER_META: Dict[str, Dict[str, Any]] = {
         "extracts": ["chain_steps", "tool_calls"],
         "async_supported": False,
         "description": "HuggingFace pipeline()/Agent — generated_text chain_steps; tool_calls/actions 추출",
+    },
+    "openai_agents": {
+        "name": "OpenAI Agents SDK",
+        "extras": "llm",
+        "extracts": ["tool_calls", "tokens_used"],
+        "async_supported": True,
+        "description": "OpenAI Agents SDK (Swarm 후속 공식 SDK) — Runner.run() RunResult.new_items의 ToolCallItem → tool_calls; raw_responses[].usage 합산 → tokens_used",
+    },
+    "google_adk": {
+        "name": "Google ADK",
+        "extras": "llm",
+        "extracts": ["tool_calls", "tokens_used"],
+        "async_supported": True,
+        "description": "Google Agent Development Kit — Event.get_function_calls() → tool_calls; Event.usage_metadata(gemini와 동일 필드) → tokens_used. 세션 마지막 Event를 반환해야 함",
+    },
+    "claude_agent_sdk": {
+        "name": "Claude Agent SDK",
+        "extras": "llm",
+        "extracts": ["tool_calls", "tokens_used"],
+        "async_supported": True,
+        "description": "Claude Agent SDK (구 Claude Code SDK) — AssistantMessage.content의 ToolUseBlock → tool_calls; ResultMessage.usage/total_cost_usd → tokens_used/extra",
     },
 }
 

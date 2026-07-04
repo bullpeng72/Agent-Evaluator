@@ -7312,10 +7312,10 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
       <details class="mb-2"><summary class="toggle-text">ℹ️ Enable · Detection Types</summary>
         <div class="hint-text">
           Activate with <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_security_metrics=True</code>.<br>
-          5 detection types: SQL Injection · XSS · Command Injection · Path Traversal · Prompt Injection.
+          10 detection types: SQL Injection · XSS · Command Injection · Path Traversal · Prompt Injection · Template Injection (SSTI) · LDAP Injection · XXE · SSRF · JWT Manipulation.
         </div>
       </details>
-      <div class="code-hint">📐 5-type pattern matching → per-type count aggregation</div>
+      <div class="code-hint">📐 10-type pattern matching → per-type count aggregation (threat_count 0–10)</div>
       <div class="flex-wrap-5">
         <span class="badge-pass">🟢 0 Safe</span>
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 1–5 Caution</span>
@@ -7338,13 +7338,13 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <strong>Detects whether sensitive information is included in AI responses and exposed externally</strong>.<br>
         Core requirement for GDPR and personal data protection law compliance.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ 8 Detection Types</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ 12 Detection Types</summary>
         <div class="hint-text">
-          API Key · Password · Credit Card · Email · SSN · Phone Number · Private IP · File Path<br>
+          API Key · Password · Credit Card · Email · SSN · Phone Number · Private IP · File Path · JWT Token · DB Connection String · IBAN · Crypto Wallet Address<br>
           If even one leakage occurs, immediately apply prompt revision or output filtering.
         </div>
       </details>
-      <div class="code-hint">📐 8-type regex pattern matching → leakage count aggregation</div>
+      <div class="code-hint">📐 12-type regex pattern matching → leakage count aggregation</div>
       <div class="flex-wrap-5">
         <span class="badge-pass">🟢 0 Safe</span>
         <span class="badge-fail">🔴 &gt;0 Immediate action</span>
