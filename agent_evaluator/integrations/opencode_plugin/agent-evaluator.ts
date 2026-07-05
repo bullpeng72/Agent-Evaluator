@@ -96,8 +96,11 @@ interface GuardrailInitConfig {
 //    파일이 삭제되는 것을 라이브 세션(OpenCode 1.17.9 + Ollama qwen3-coder)으로
 //    다시 확인했다 — 모델이 "정리해줘" 같은 자연스러운 요청에는 `-f` 플래그 없이
 //    바로 `rm <file>`을 호출했다. `\brm\s+\S`로 패턴을 넓혀 플래그 유무와 무관하게
-//    모든 `rm <인자>` 호출을 잡도록 보강했다(`npm rm <pkg>`처럼 무관한 명령까지
-//    걸리는 과탐지가 있을 수 있으나, 삭제 명령을 놓치는 것보다 안전한 방향이다).
+//    모든 `rm <인자>` 호출을 잡도록 보강했다.
+// 4. dangerous_patterns는 도구 이름과 무관하게 모든 도구 호출의 파라미터 전체를
+//    검사하므로, 위 rm 패턴을 그대로 두면 셸과 무관한 도구(예: 검색·메모리 도구가
+//    "rm 시도가 차단됨" 같은 결과 텍스트를 반환하는 경우)까지 오탐할 수 있다.
+//    scope_tool_names로 이 검사를 실제 셸 실행 도구로만 한정해 이 문제를 막는다.
 const GUARDRAIL_CONFIG: GuardrailInitConfig = {
   loop_detection: { consecutive_repeat_threshold: 6 },
   scope: { forbidden_tools: ["webfetch"], fail_on_violation: true },
@@ -106,6 +109,7 @@ const GUARDRAIL_CONFIG: GuardrailInitConfig = {
       "\\.\\./", "&&", "\\|\\|", ";.*rm\\s", "__import__", "eval\\(", "exec\\(",
       "\\brm\\s+\\S",
     ],
+    scope_tool_names: ["bash"],
     fail_on_dangerous: true,
   },
   tool_authorization: {},

@@ -76,6 +76,10 @@ docs/_build/
 # Generated evaluation results
 results/
 
+# OpenCode 로컬 플러그인 설치본 (agent-eval opencode install) —
+# 설치 시점의 Python 인터프리터 절대경로가 머신별로 새겨지므로 공유 저장소에 부적절
+.opencode/
+
 # 임시 검증 및 디버그 파일
 resultsch21_trend.json
 Evaluator_Examples/Test.py
