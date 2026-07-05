@@ -18,6 +18,10 @@ Book Chapter 28 — OCOA 스택 (Ollama + ctx + OpenCode + Agent-Evaluator)
 섹션 3: §28.5.3의 "검증" 단계 — pytest 재통과를 세션 완료 조건으로 강제하는 패턴
 섹션 4: §28.5.4(코드 리뷰 워크플로우) 읽기 전용 자가 점검 세션 — ScopeConfig로
         edit/bash를 전부 차단하고 read/grep/glob만 허용하는 패턴
+섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations()) — ctx 없이 자체
+        저장소로 위반을 검색한다. 섹션 2의 "완전 차단"된 git push 시도는 이
+        경로로도 검색되지 않음을 재확인하고, fail_on_dangerous=False(감지·미차단)
+        모드의 위반만 실제로 검색됨을 대조(§28.7 4~5단계 재평가)
 
 의존성:
     pip install agent-evaluator
@@ -26,13 +30,16 @@ Book Chapter 28 — OCOA 스택 (Ollama + ctx + OpenCode + Agent-Evaluator)
     python Evaluator_Examples/ch28_local_ade_loop.py
 
 결과:
-    콘솔 출력만 (배치 리포트가 필요하면 ch27_live_guardrail.py 참고)
+    results/opencode_live_guardrail/ch28_demo_sessions.db (섹션 5)
 """
 
+from pathlib import Path
 from typing import List
 
+from agent_evaluator import create_taskresult
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
 from agent_evaluator.gates.live_guardrail import LiveGuardrail
+from agent_evaluator.storage.sqlite_backend import save_tasks_to_db, search_violations
 
 # ===========================================================================
 # 섹션 1: §28.5.3(리팩토링 워크플로우) — 저장소 자체 개선 세션 전용 GUARDRAIL_CONFIG
@@ -156,6 +163,15 @@ print(f"  [세션 1] 차단됨: {verdict1.block}  이유: {verdict1.reason}")
 # 3. 기록 — 실제로는 client.session.prompt({noReply: true, ...})로 세션 transcript에 영구 기록(Ch27 §27.5)
 #    summarizeGuardrailResult()는 점수만이 아니라 구체적으로 어떤 명령이 막혔는지도 적는다(§27.5) —
 #    다음 세션이 "git push" 같은 키워드로 검색할 수 있으려면 원 명령어 텍스트가 요약에 남아야 한다.
+#
+# ⚠️ 단순화 — 아래 transcript_summary는 verdict1(개별 판정 결과)에서 직접 만든 것이다.
+# 실제 OpenCode 플러그인의 summarizeGuardrailResult()는 개별 verdict가 아니라
+# session1_guardrail.snapshot()이 반환하는 extra를 입력받는다. 그런데 이 git push
+# 시도는 fail_on_dangerous=True로 완전히 차단됐으므로 record_tool_call()이 호출되지
+# 않았고(§27.6·§28.7 신규 발견 — 아래 섹션 5에서 직접 재현), snapshot()의
+# tool_parameter_safety는 이 시도를 전혀 반영하지 않는다. 즉 이 절이 그리는 "3. 기록"은
+# 개념 설명이고, snapshot() 기반의 실제 배치 경로로는 이 특정 위반이 transcript
+# 요약에도, 그래서 색인·검색에도 나타나지 않는다 — §28.7 4~5단계 재평가 참고.
 transcript_summary = f"blocked by Gate {verdict1.gate}: attempted '{_attempted_command}' — {verdict1.reason}"
 # 4. 색인 — 실제로는 `ctx setup` (여기서는 MockCtxIndex로 대체, §28.7 참고)
 ctx_index.index_session("repo-session-2", transcript_summary)
@@ -231,7 +247,57 @@ for tool_name, params in _REVIEW_ATTEMPTS:
 # → read/grep은 통과하고 edit만 차단된다. 자가 점검 세션이 실제로
 #   "읽기 전용"으로 강제됨을 보여준다 (§28.5.4 참고).
 
+# ===========================================================================
+# 섹션 5: SPEC-024 REQ-2/3 — ctx 없이 Agent-Evaluator 자체로 위반 검색하기
+# (그리고 섹션 2의 "완전 차단" 시나리오는 왜 이 방식으로도 검색되지 않는지)
+# ===========================================================================
+print("\n=== 섹션 5: 위반 이력 검색 — ctx 대신 search_violations() (SPEC-024) ===")
+
+_ch28_db = (
+    Path(__file__).parent.parent / "results" / "opencode_live_guardrail" / "ch28_demo_sessions.db"
+)
+_ch28_db.parent.mkdir(parents=True, exist_ok=True)
+
+# 5-A. 섹션 2의 git push 시도를 실제 배치 경로(snapshot → save_tasks_to_db)로 저장해 보면,
+# 완전히 차단됐기 때문에 아무 위반도 색인되지 않는다 — 위 "⚠️ 단순화" 주석에서 예고한 그대로.
+_blocked_extra = session1_guardrail.snapshot()
+_tps = _blocked_extra.get("tool_parameter_safety")
+print(f"  [세션 1 재확인] snapshot()의 tool_parameter_safety: {_tps}")
+_blocked_task = create_taskresult(
+    task_id="repo-session-2", question="q", response="r", execution_time=1.0, extra=_blocked_extra,
+)
+save_tasks_to_db(_ch28_db, [_blocked_task])
+_hits_blocked = search_violations(_ch28_db, "git")
+print(f"  search_violations(db, 'git') 결과: {len(_hits_blocked)}건  ← 완전 차단된 시도는 검색되지 않는다")
+
+# 5-B. 반면 fail_on_dangerous=False(감지만, 차단은 안 함)로 설정하면 실행이 허용되고
+# record_tool_call()이 호출되므로, 그 위반이 실제로 색인·검색된다.
+monitor_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=_REPO_DANGEROUS_PATTERNS,
+        scope_tool_names=["bash"],
+        fail_on_dangerous=False,  # 감지만 하고 차단은 하지 않음
+    ),
+)
+_v = monitor_guardrail.check_before_tool_call(
+    "repo-session-3", "bash", {"command": "rm -rf build/"},
+)
+print(f"  [모니터 모드] rm -rf 차단 여부: {_v.block}  (실행은 허용, 위반은 감지)")
+monitor_guardrail.record_tool_call("repo-session-3", "bash", {"command": "rm -rf build/"})
+
+monitor_task = create_taskresult(
+    task_id="repo-session-3", question="q", response="r", execution_time=1.0,
+    extra=monitor_guardrail.snapshot(),
+)
+save_tasks_to_db(_ch28_db, [monitor_task])
+_hits_monitor = search_violations(_ch28_db, "bash")
+print(f"  search_violations(db, 'bash') 결과: {len(_hits_monitor)}건")
+for r in _hits_monitor:
+    print(f"    - task_id={r['task_id']}  summary={r['summary']}")
+
 print("\n=== 요약 ===")
 print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2·4) — Ch27과 동일한 메커니즘")
+print("  실제 SDK로 검증된 부분: search_violations()로 '감지·기록' 위반 검색(섹션 5) — SPEC-024")
 print("  목업으로 대체한 부분:   ctx 색인·검색(섹션 2 후반부) — §28.7 검증 경계 참고")
+print("  중요한 제약(섹션 5):    완전히 '차단'된 시도는 ctx로도, search_violations()로도 검색되지 않는다")
 print("  개발자 워크플로우 규율: pytest 재통과 강제(섹션 3) — LiveGuardrail이 아니라 사람이 강제")

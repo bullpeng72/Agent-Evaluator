@@ -12,6 +12,10 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
         무관한 도구까지 막는 것을 재현하고, scope_tool_names(SPEC-024)로 해소함을 대조
 섹션 3: 세션 종료 시 snapshot()을 배치 리포트(SQLite)에 편입 — Ch16 SQLite 백엔드와 동일한 upsert
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
+섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations()) — 위반 이력 검색.
+        완전히 차단된 시도는 record_tool_call()이 호출되지 않아 색인 대상이
+        아니라는 것(§27.6 4차 발견)과, fail_on_dangerous=False(감지·미차단)
+        모드에서는 실제로 검색 가능함을 대조
 
 이 파일은 agent_evaluator.gates.live_guardrail의 공개 API만 사용한다 —
 OpenCode 플러그인(agent-evaluator.ts)이 이 API를 stdin/stdout으로 호출하는
@@ -38,7 +42,11 @@ from agent_evaluator.gates.gate_b_behavioral.configs import (
     ToolParameterSafetyConfig,
 )
 from agent_evaluator.gates.live_guardrail import LiveGuardrail
-from agent_evaluator.storage.sqlite_backend import load_tasks_from_db, save_tasks_to_db
+from agent_evaluator.storage.sqlite_backend import (
+    load_tasks_from_db,
+    save_tasks_to_db,
+    search_violations,
+)
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = _PROJECT_ROOT / "results" / "opencode_live_guardrail"
@@ -215,3 +223,74 @@ for t in loaded:
 print("\n결과 저장 완료:", _DB_PATH)
 print("확인: python -c \"from agent_evaluator.storage.sqlite_backend import load_tasks_from_db; "
       "print(len(load_tasks_from_db('results/opencode_live_guardrail/ch27_demo_sessions.db')))\"")
+
+# ===========================================================================
+# 섹션 5: 위반 이력 검색 — SPEC-024 REQ-2(FTS5 색인) + REQ-3(search_violations())
+# ===========================================================================
+print("\n=== 섹션 5: 위반 이력 검색 (SPEC-024) ===")
+
+# 5-A. 중요 — 완전히 차단된(block=True) 시도는 검색 대상이 아니다.
+# check_before_tool_call()은 순수 조회(peek)라 내부 상태를 되돌리고, 차단된 호출은
+# record_tool_call()이 절대 호출되지 않는다(§27.2 참고) — 그 결과 snapshot()의
+# tool_parameter_safety도 항상 비어 있다. save_tasks_to_db()는 extra에 실제로 담긴
+# 위반만 색인하므로(REQ-2), "완전히 차단된 rm 시도"는 violation_search에 남지 않는다.
+_blocked_only_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=[
+            r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+            r"\brm\s+\S",
+        ],
+        fail_on_dangerous=True,   # 차단 — record_tool_call()은 호출되지 않는다
+    ),
+)
+_v_blocked = _blocked_only_guardrail.check_before_tool_call(
+    "session-blocked-only", "bash", {"command": "rm old_cache.tmp"},
+)
+print(f"  [완전 차단] rm 차단 여부: {_v_blocked.block}")
+# record_tool_call()을 호출하지 않는다 — 차단된 시도는 확정 이력에 남지 않는다(의도된 설계).
+print(f"  [완전 차단] snapshot(): {_blocked_only_guardrail.snapshot()}  ← 위반이 비어 있다")
+
+# 5-B. fail_on_dangerous=False(감지만 하고 차단하지 않는 모니터링 모드)면 실행이 허용되고
+# record_tool_call()이 호출되므로, 그 위반이 snapshot()과 배치 리포트에 실제로 남는다 —
+# 이래야 violation_search로 검색 가능한 이력이 된다.
+monitor_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=[
+            r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+            r"\brm\s+\S",
+        ],
+        fail_on_dangerous=False,  # 감지만 하고 차단하지 않음
+    ),
+)
+_v_monitor = monitor_guardrail.check_before_tool_call(
+    "session-monitor", "bash", {"command": "rm old_cache.tmp"},
+)
+print(f"  [모니터 모드] rm 차단 여부: {_v_monitor.block}  (실행은 허용, 위반은 감지)")
+monitor_guardrail.record_tool_call("session-monitor", "bash", {"command": "rm old_cache.tmp"})
+
+monitor_extra = monitor_guardrail.snapshot()
+print(f"  [모니터 모드] snapshot(): {monitor_extra['tool_parameter_safety']}")
+
+monitor_task = create_taskresult(
+    task_id="session-monitor",
+    question="(OpenCode 세션) 오래된 캐시 파일을 정리해줘",
+    response="(에이전트 응답 요약 — 실제로는 세션 transcript 전체)",
+    execution_time=1.1,
+    task_type="tool_use",
+    extra=monitor_extra,
+)
+# save_tasks_to_db()가 위반이 있는 태스크를 violation_search(FTS5)에 자동으로 색인한다(REQ-2).
+save_tasks_to_db(_DB_PATH, [monitor_task])
+print(f"  저장 완료(violation_search 자동 색인 포함): {_DB_PATH}")
+
+# 5-C. search_violations()로 실제 검색 — REQ-3
+# 주의: 정규식 패턴(\brm\s+\S)이 요약 텍스트에 그대로 포함되므로, FTS5 기본 토크나이저가
+# 이를 "brm"(하나의 토큰)으로 병합한다 — "rm" 단독 검색어로는 매치되지 않는다.
+# 도구 이름·카테고리 키워드("bash", "dangerous_pattern" 등)로 검색해야 한다.
+hits = search_violations(_DB_PATH, "bash")
+print(f"  search_violations(_DB_PATH, 'bash') 결과 {len(hits)}건:")
+for r in hits:
+    print(f"    - task_id={r['task_id']}  summary={r['summary']}")
+
+no_hits = search_violations(_DB_PATH, "kubernetes")
+print(f"  무관한 검색어 결과: {len(no_hits)}건 (예상대로 0건)")
