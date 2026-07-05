@@ -39,12 +39,12 @@ print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG ===")
 
 
 def make_repo_guardrail() -> LiveGuardrail:
-    """§28.5.3 예제와 동일 — Ch27의 rm -f 대응 패턴에 git 안전장치를 추가한다."""
+    """§28.5.3 예제와 동일 — Ch27의 rm 대응 패턴(플래그 유무 무관)에 git 안전장치를 추가한다."""
     return LiveGuardrail(
         tool_parameter_safety=ToolParameterSafetyConfig(
             dangerous_patterns=[
                 r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-                r"rm\s+-\w*f",              # Ch27 §27.6
+                r"\brm\s+\S",               # Ch27 §27.6 2차 발견 반영 (2026-07-05)
                 # 여기부터 저장소 자체 개선 세션 전용 추가 (§28.5.3)
                 r"--no-verify",             # 커밋 훅 우회 시도 차단
                 r"git\s+push\s+.*--force",  # 강제 푸시 차단

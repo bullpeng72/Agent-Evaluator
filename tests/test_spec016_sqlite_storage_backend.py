@@ -19,7 +19,12 @@ import threading
 import pytest
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.storage import SCHEMA_VERSION, load_tasks_from_db, save_tasks_to_db
+from agent_evaluator.storage import (
+    SCHEMA_VERSION,
+    load_tasks_from_db,
+    save_tasks_to_db,
+    search_violations,
+)
 from agent_evaluator.storage.sqlite_backend import _connect
 
 
@@ -191,3 +196,223 @@ class TestPerformanceMonitorIntegration:
         assert path1 == path2
         loaded = load_tasks_from_db(path2)
         assert {t.task_id for t in loaded} == {"t1", "t2"}
+
+
+class TestViolationSearchIndexing:
+    """SPEC-024 REQ-2: violation_search(FTS5) additive 확장."""
+
+    def _task_with_extra(self, task_id: str, extra: dict):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="qa",
+            extra=extra,
+        )
+
+    def test_pre_existing_db_without_fts5_table_migrates_cleanly(self, tmp_path):
+        """violation_search 테이블 없이 만들어진(REQ-2 이전) DB를 새 코드로 열어도 에러 없다."""
+        from agent_evaluator.storage.sqlite_backend import (
+            _CREATE_SCHEMA_VERSION_TABLE,
+            _CREATE_TASKS_TABLE,
+        )
+
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(_CREATE_SCHEMA_VERSION_TABLE)
+        conn.execute(_CREATE_TASKS_TABLE)
+        conn.execute("INSERT INTO schema_version (version) VALUES (1)")
+        conn.commit()
+        conn.close()
+
+        loaded = load_tasks_from_db(db_path)  # 에러 없이 열려야 한다
+        assert loaded == []
+
+        conn = sqlite3.connect(str(db_path))
+        tables = {
+            r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        conn.close()
+        assert "violation_search" in tables
+
+    def test_task_with_violation_is_indexed_and_searchable(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-1", {
+            "tool_parameter_safety": {
+                "safety_score": 0.75, "dangerous_calls": ["bash"],
+                "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                "checked_calls": 1, "violation_count": 1,
+            },
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        hits = conn.execute(
+            "SELECT task_id FROM violation_search WHERE violation_search MATCH ?", ("bash",)
+        ).fetchall()
+        conn.close()
+        assert hits == [("session-1",)]
+
+    def test_task_without_violation_is_not_indexed(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-clean", {
+            "scope": {"in_scope": True, "violations": [], "violation_tools": [],
+                      "excess_calls": 0, "unique_tools": [], "scope_score": 1.0},
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM violation_search").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_task_without_extra_is_not_indexed(self, tmp_path):
+        """extra=None(기본값)인 일반 태스크는 violation_search에 아무것도 남기지 않는다."""
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [_make_task("t1")])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM violation_search").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_re_saving_resolved_violation_removes_search_entry(self, tmp_path):
+        """위반이 있던 task_id를 위반 없는 상태로 재저장하면 검색 색인에서도 빠진다(upsert)."""
+        db_path = tmp_path / "test.db"
+        violating = self._task_with_extra("session-1", {
+            "scope": {"in_scope": False, "violations": ["forbidden:webfetch"],
+                      "violation_tools": ["webfetch"], "excess_calls": 0,
+                      "unique_tools": ["webfetch"], "scope_score": 0.8},
+        })
+        save_tasks_to_db(db_path, [violating])
+
+        conn = sqlite3.connect(str(db_path))
+        assert conn.execute("SELECT task_id FROM violation_search").fetchall() == [("session-1",)]
+        conn.close()
+
+        resolved = self._task_with_extra("session-1", {
+            "scope": {"in_scope": True, "violations": [], "violation_tools": [],
+                      "excess_calls": 0, "unique_tools": [], "scope_score": 1.0},
+        })
+        save_tasks_to_db(db_path, [resolved])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM violation_search").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_multiple_violation_categories_all_appear_in_summary(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-multi", {
+            "loop_detection": {
+                "detected": True,
+                "detected_loops": [
+                    {"loop_type": "consecutive_repeat", "loop_at_step": 2, "loop_tool": "bash"},
+                ],
+            },
+            "tool_authorization": {
+                "unauthorized_calls": 1, "restricted_calls": 1, "dangerous_param_calls": 0,
+                "total_violations": 2, "total_calls": 3, "compliance_rate": 0.3333,
+            },
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT summary FROM violation_search WHERE task_id = ?", ("session-multi",)
+        ).fetchone()
+        conn.close()
+        assert row is not None
+        assert "loop_detection" in row[0]
+        assert "tool_authorization" in row[0]
+
+
+class TestSearchViolations:
+    """SPEC-024 REQ-3: search_violations() 조회 API."""
+
+    def _task_with_extra(self, task_id: str, extra: dict):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra=extra,
+        )
+
+    def test_matching_keyword_returns_result(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-1", {
+            "tool_parameter_safety": {
+                "safety_score": 0.75, "dangerous_calls": ["bash"],
+                "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                "checked_calls": 1, "violation_count": 1,
+            },
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        results = search_violations(db_path, "bash")
+        assert len(results) == 1
+        assert results[0]["task_id"] == "session-1"
+        assert "bash" in results[0]["summary"]
+        assert results[0]["task_type"] == "tool_use"
+        assert "timestamp" in results[0]
+        assert "success" in results[0]
+
+    def test_unrelated_keyword_returns_empty(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-1", {
+            "tool_parameter_safety": {
+                "safety_score": 0.75, "dangerous_calls": ["bash"],
+                "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                "checked_calls": 1, "violation_count": 1,
+            },
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        assert search_violations(db_path, "kubernetes") == []
+
+    def test_clean_task_never_appears_in_results(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        clean = self._task_with_extra("session-clean", {
+            "scope": {"in_scope": True, "violations": [], "violation_tools": [],
+                      "excess_calls": 0, "unique_tools": [], "scope_score": 1.0},
+        })
+        save_tasks_to_db(db_path, [clean])
+
+        assert search_violations(db_path, "scope") == []
+
+    def test_limit_caps_result_count(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        tasks = [
+            self._task_with_extra(f"session-{i}", {
+                "tool_parameter_safety": {
+                    "safety_score": 0.75, "dangerous_calls": ["bash"],
+                    "violations": [f"dangerous_pattern:bash:pattern{i}"],
+                    "checked_calls": 1, "violation_count": 1,
+                },
+            })
+            for i in range(5)
+        ]
+        save_tasks_to_db(db_path, tasks)
+
+        assert len(search_violations(db_path, "bash", limit=2)) == 2
+        assert len(search_violations(db_path, "bash", limit=10)) == 5
+
+    def test_malformed_fts5_query_falls_back_to_phrase_search(self, tmp_path):
+        """따옴표·괄호 등 FTS5 문법에 어긋나는 자유 형식 입력도 에러 없이 처리된다."""
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_extra("session-1", {
+            "tool_parameter_safety": {
+                "safety_score": 0.75, "dangerous_calls": ["bash"],
+                "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                "checked_calls": 1, "violation_count": 1,
+            },
+        })
+        save_tasks_to_db(db_path, [t1])
+
+        # 괄호는 FTS5 MATCH 문법에서 특수 문자 — 에러 없이 처리돼야 한다.
+        results = search_violations(db_path, "rm (blocked)")
+        assert results == []  # 구 전체가 요약과 일치하지 않으므로 결과 없음, 에러가 아님이 핵심
+
+    def test_empty_db_returns_empty_list(self, tmp_path):
+        db_path = tmp_path / "empty.db"
+        save_tasks_to_db(db_path, [])
+        assert search_violations(db_path, "anything") == []

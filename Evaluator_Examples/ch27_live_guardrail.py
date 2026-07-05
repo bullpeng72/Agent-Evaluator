@@ -6,8 +6,9 @@ Book Chapter 27 — LiveGuardrail 실시간 가드레일 (SPEC-019)
 OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시연한다.
 
 섹션 1: check_before_tool_call() / record_tool_call() — 조회 vs 확정 분리
-섹션 2: §27.6에서 실제 라이브 테스트로 발견된 "rm -f 우회" 재현 —
-        기본 위험 패턴 7개로는 통과하고, rm\\s+-\\w*f 패턴 추가 후에야 차단됨을 대조
+섹션 2: §27.6에서 실제 라이브 테스트로 발견된 "rm 우회" 재현(2026-07-03 rm -f, 07-05 플래그
+        없는 rm 두 차례) — 기본 위험 패턴 7개로는 둘 다 통과하고, \\brm\\s+\\S 패턴
+        추가 후에야 차단됨을 대조
 섹션 3: 세션 종료 시 snapshot()을 배치 리포트(SQLite)에 편입 — Ch16 SQLite 백엔드와 동일한 upsert
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
 
@@ -79,11 +80,12 @@ for cmd in ["ls -la", "cat victim2.txt", "ls -la"]:
     print(f"  [{cmd:<20s}] {out}")
 
 # ===========================================================================
-# 섹션 2: rm -f 우회 시나리오 — §27.6 라이브 검증 재현
+# 섹션 2: rm 우회 시나리오 — §27.6 라이브 검증 재현 (2026-07-03, 07-05 두 차례 발견)
 # ===========================================================================
-print("\n=== 섹션 2: rm -f 우회 시나리오 (§27.6 재현) ===")
+print("\n=== 섹션 2: rm 우회 시나리오 (§27.6 재현) ===")
 
-# 2-A. 기본 위험 패턴 7개만 있는 경우 — rm -f 는 통과한다 (실제 라이브 테스트에서 발견된 버그)
+# 2-A. 기본 위험 패턴 7개만 있는 경우 — rm -f 도, 플래그 없는 rm 도 모두 통과한다
+# (실제 라이브 테스트에서 발견된 버그 — 1차: rm -f, 2차: 플래그 없는 rm)
 guardrail_before_fix = LiveGuardrail(
     tool_parameter_safety=ToolParameterSafetyConfig(
         # dangerous_patterns 미지정 → 기본 7개 패턴만 적용
@@ -96,12 +98,17 @@ verdict_before = guardrail_before_fix.check_before_tool_call(
 )
 print(f"  [수정 전] rm -f 차단 여부: {verdict_before.block}  ← 기본 패턴은 이걸 못 잡는다")
 
-# 2-B. rm\s+-\w*f 패턴을 추가하면 rm -f 도, rm -rf 도 모두 차단된다
+verdict_before_bare = guardrail_before_fix.check_before_tool_call(
+    "session-bug", "bash", {"command": "rm victim2.txt"},
+)
+print(f"  [수정 전] 플래그 없는 rm 차단 여부: {verdict_before_bare.block}  ← 1차 수정(rm -f 패턴) 이후에도 이건 못 잡았다")
+
+# 2-B. \brm\s+\S 패턴(플래그 유무 무관)을 추가하면 rm -f 도, rm -rf 도, 플래그 없는 rm 도 모두 차단된다
 guardrail_after_fix = LiveGuardrail(
     tool_parameter_safety=ToolParameterSafetyConfig(
         dangerous_patterns=[
             r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-            r"rm\s+-\w*f",   # §27.6에서 추가된 rm -f 대응 패턴
+            r"\brm\s+\S",   # §27.6 2차 발견 반영 — 플래그 유무와 무관하게 모든 rm 호출을 잡는다
         ],
         fail_on_dangerous=True,
     ),
@@ -115,6 +122,11 @@ verdict_rf = guardrail_after_fix.check_before_tool_call(
     "session-fixed", "bash", {"command": "rm -rf /tmp/whatever"},
 )
 print(f"  [수정 후] rm -rf 차단 여부: {verdict_rf.block}  (같은 패턴이 rm -rf도 함께 잡는다)")
+
+verdict_bare = guardrail_after_fix.check_before_tool_call(
+    "session-fixed", "bash", {"command": "rm victim2.txt"},
+)
+print(f"  [수정 후] 플래그 없는 rm 차단 여부: {verdict_bare.block}  (2026-07-05 발견된 우회도 이제 잡힌다)")
 
 # ===========================================================================
 # 섹션 3: 세션 종료 — snapshot()을 배치 리포트(SQLite)로 편입

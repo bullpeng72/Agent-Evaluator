@@ -606,25 +606,29 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
         # B-20: 동일 (name, pattern) 조합은 violations에 1회만 추가 — eval_scope(B-16)의 per-unique 패턴과 통일
         # B-45/46 방어: __post_init__에서 걸러지지 않은 빈 문자열·None에 대한 2차 가드
         # (직접 eval_ 호출 또는 __post_init__ 우회 시에도 안전하게 동작)
-        for pattern in (config.dangerous_patterns or []):
-            if not isinstance(pattern, str) or not pattern.strip():
-                continue  # 빈 문자열·None: 항상 매치되거나 TypeError → 건너뜀
-            try:
-                _matched = re.search(pattern, args_str, re.IGNORECASE)
-            except re.error as _re_err:
-                logger.warning(
-                    "eval_tool_parameter_safety: dangerous_patterns에 유효하지 않은 정규식이 있습니다 "
-                    "— 해당 패턴을 건너뜁니다. pattern=%r, error=%s",
-                    pattern,
-                    _re_err,
-                )
-                continue
-            if _matched:
-                _viol_key = f"dangerous_pattern:{name}:{pattern}"
-                if _viol_key not in violations:  # B-20: per-(name, pattern) dedup
-                    violations.append(_viol_key)
-                if name not in dangerous_calls:
-                    dangerous_calls.append(name)
+        # SPEC-024 REQ-1: scope_tool_names가 지정되면 이 도구 이름이 그 목록에 있을 때만
+        # dangerous_patterns를 검사한다. None(기본값)이면 기존과 동일하게 전체 검사.
+        _scope_names = getattr(config, "scope_tool_names", None)
+        if _scope_names is None or name in _scope_names:
+            for pattern in (config.dangerous_patterns or []):
+                if not isinstance(pattern, str) or not pattern.strip():
+                    continue  # 빈 문자열·None: 항상 매치되거나 TypeError → 건너뜀
+                try:
+                    _matched = re.search(pattern, args_str, re.IGNORECASE)
+                except re.error as _re_err:
+                    logger.warning(
+                        "eval_tool_parameter_safety: dangerous_patterns에 유효하지 않은 정규식이 있습니다 "
+                        "— 해당 패턴을 건너뜁니다. pattern=%r, error=%s",
+                        pattern,
+                        _re_err,
+                    )
+                    continue
+                if _matched:
+                    _viol_key = f"dangerous_pattern:{name}:{pattern}"
+                    if _viol_key not in violations:  # B-20: per-(name, pattern) dedup
+                        violations.append(_viol_key)
+                    if name not in dangerous_calls:
+                        dangerous_calls.append(name)
 
         # Forbidden argument keys
         # B-38: forbidden_argument_keys[tool_name] 값이 None이면 'for None' → TypeError.

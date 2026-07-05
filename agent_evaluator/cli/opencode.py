@@ -13,6 +13,7 @@ agent_evaluator.gates.live_guardrail.LiveGuardrail이며, 이 명령어는 그 �
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -51,6 +52,56 @@ def cmd_opencode(args: argparse.Namespace) -> int:
     return 1
 
 
+_VIOLATION_SEARCH_MCP_NAME = "agent-evaluator-violations"
+
+
+def _register_violation_search_mcp() -> None:
+    """(SPEC-024 REQ-6) ``opencode mcp add``로 REQ-4의 stdio MCP 서버를 등록한다.
+
+    실패해도(``opencode`` CLI 미설치, 사용자가 ``mcp`` extra 미설치 등) 경고만
+    출력하고 예외를 올리지 않는다 — 플러그인 설치 자체(``_cmd_install``의 본래
+    목적)는 이 등록 성공 여부와 무관하게 이미 끝난 뒤이므로, 이 단계의 실패로
+    전체 install 명령을 실패 처리할 이유가 없다(``live_guardrail_report.py`` 저장
+    실패가 세션 종료를 막지 않는 것과 동일한 원칙, SPEC-019 Rollout 6단계 참고).
+    """
+    try:
+        result = subprocess.run(
+            [
+                "opencode", "mcp", "add", _VIOLATION_SEARCH_MCP_NAME, "--",
+                sys.executable, "-m", "agent_evaluator.integrations.violation_search_mcp",
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+    except FileNotFoundError:
+        print(
+            f"{_Y}⚠️  --with-violation-search: 'opencode' CLI를 찾지 못해 MCP 서버 등록을 "
+            f"건너뜁니다. 수동 등록: opencode mcp add {_VIOLATION_SEARCH_MCP_NAME} -- "
+            f"{sys.executable} -m agent_evaluator.integrations.violation_search_mcp{_R}",
+            file=sys.stderr,
+        )
+        return
+    except subprocess.TimeoutExpired:
+        print(
+            f"{_Y}⚠️  --with-violation-search: 'opencode mcp add' 호출이 시간 초과됐습니다 "
+            f"— 수동으로 등록하세요.{_R}",
+            file=sys.stderr,
+        )
+        return
+
+    if result.returncode == 0:
+        print(f"{_G}✅ MCP server registered: {_VIOLATION_SEARCH_MCP_NAME}{_R}")
+    else:
+        print(
+            f"{_Y}⚠️  --with-violation-search: 'opencode mcp add' 실패(exit "
+            f"{result.returncode}) — 수동 등록: opencode mcp add "
+            f"{_VIOLATION_SEARCH_MCP_NAME} -- {sys.executable} -m "
+            f"agent_evaluator.integrations.violation_search_mcp{_R}",
+            file=sys.stderr,
+        )
+        if result.stderr:
+            print(f"{_D}   {result.stderr.strip()}{_R}", file=sys.stderr)
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     """번들된 agent-evaluator.ts를 OpenCode 플러그인 디렉터리로 복사한다."""
     if not _BUNDLED_PLUGIN.exists():
@@ -77,6 +128,11 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     print(f"{_G}✅ Installed: {target}{_R}")
     print(f"{_D}   python interpreter (baked in as default): {sys.executable}{_R}")
+
+    if getattr(args, "with_violation_search", False):
+        print()
+        _register_violation_search_mcp()
+
     print()
     print(f"{_B}Next steps:{_R}")
     print(f"  1. Edit {target} — adjust GUARDRAIL_CONFIG for your project")
@@ -122,9 +178,11 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
         ),
         epilog=(
             f"{_B}Examples:{_R}\n"
-            f"  {_G}agent-eval opencode install{_R}          {_D}# .opencode/plugin/{_R}\n"
+            f"  {_G}agent-eval opencode install{_R} {_D}# .opencode/plugin/{_R}\n"
             f"  {_G}agent-eval opencode install --global{_R} {_D}# ~/.config/opencode/plugin/{_R}\n"
-            f"  {_G}agent-eval opencode install --force{_R}  {_D}# overwrite existing{_R}\n"
+            f"  {_G}agent-eval opencode install --force{_R} {_D}# overwrite existing{_R}\n"
+            f"  {_G}agent-eval opencode install --with-violation-search{_R}\n"
+            f"      {_D}# + register search_violations MCP server{_R}\n"
         ),
     )
     install_p.add_argument(
@@ -137,4 +195,12 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
     install_p.add_argument(
         "--force", action="store_true",
         help="Overwrite an existing installed plugin file",
+    )
+    install_p.add_argument(
+        "--with-violation-search", dest="with_violation_search", action="store_true",
+        help=(
+            "(SPEC-024 REQ-6) Also run 'opencode mcp add' to register the "
+            "search_violations MCP server (opt-in, requires the 'mcp' extra: "
+            "pip install \"agent-evaluator[mcp]\")"
+        ),
     )

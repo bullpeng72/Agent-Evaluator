@@ -91,13 +91,20 @@ interface GuardrailInitConfig {
 //    잡지만(커스터마이즈 불가), `-rf`가 아닌 `rm -f`(단일 플래그)는 두 Gate 모두
 //    놓친다는 것도 라이브 테스트로 직접 확인했다(모델이 스스로 `-rf` 대신 `-f`를
 //    선택해 실제로 파일이 삭제됨) — 여기서 패턴을 보강한다.
+// 4. 2026-07-05 재검증: `rm\s+-\w*f` 패턴을 추가한 뒤에도, **플래그를 아예 쓰지
+//    않는** `rm victim.txt`(단순 삭제)는 Gate B/E 어느 쪽에도 걸리지 않고 실제로
+//    파일이 삭제되는 것을 라이브 세션(OpenCode 1.17.9 + Ollama qwen3-coder)으로
+//    다시 확인했다 — 모델이 "정리해줘" 같은 자연스러운 요청에는 `-f` 플래그 없이
+//    바로 `rm <file>`을 호출했다. `\brm\s+\S`로 패턴을 넓혀 플래그 유무와 무관하게
+//    모든 `rm <인자>` 호출을 잡도록 보강했다(`npm rm <pkg>`처럼 무관한 명령까지
+//    걸리는 과탐지가 있을 수 있으나, 삭제 명령을 놓치는 것보다 안전한 방향이다).
 const GUARDRAIL_CONFIG: GuardrailInitConfig = {
   loop_detection: { consecutive_repeat_threshold: 6 },
   scope: { forbidden_tools: ["webfetch"], fail_on_violation: true },
   tool_parameter_safety: {
     dangerous_patterns: [
       "\\.\\./", "&&", "\\|\\|", ";.*rm\\s", "__import__", "eval\\(", "exec\\(",
-      "rm\\s+-\\w*f",
+      "\\brm\\s+\\S",
     ],
     fail_on_dangerous: true,
   },
@@ -271,6 +278,12 @@ function summarizeGuardrailResult(
 
   if (lines.length === 2) {
     lines.push("- no violations detected")
+  } else {
+    // SPEC-024 REQ-5: 로컬 소형 모델은 도구 이름이 프롬프트에 명시적으로 언급돼야
+    // 자율 호출을 신뢰할 수 있음을 라이브 검증으로 확인했다(2026-07-05, ctx skill
+    // 재검증 — 언급 없이는 스킵/MCP 도구를 전혀 안 씀). 이 문구를 transcript 자체에
+    // 심어 다음 세션의 컨텍스트에 도구 이름을 자연스럽게 노출시켜 이 제약을 완화한다.
+    lines.push("- 다음 세션에서 유사한 시도를 하기 전에 search_violations 도구로 이 사유를 검색해 확인하라.")
   }
   if (!report.ok) {
     lines.push(`- (batch report save failed: ${report.error})`)

@@ -9,17 +9,22 @@ agent-eval opencode CLI 테스트.
     플레이스홀더가 sys.executable로 치환되는지, 기존 파일 존재 시 --force 없이는
     거부되고 --force면 덮어쓰는지, 번들 원본이 없을 때의 에러 처리
   - build_opencode_subparser: argparse 서브파서 등록(옵션 파싱 결과 확인)
+  - --with-violation-search(SPEC-024 REQ-6): opencode mcp add 자동 등록
 """
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 
 from agent_evaluator.cli import opencode as opencode_cli
 
 
 def _ns(**kwargs):
-    defaults = {"opencode_command": "install", "global_install": False, "force": False}
+    defaults = {
+        "opencode_command": "install", "global_install": False, "force": False,
+        "with_violation_search": False,
+    }
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
 
@@ -115,3 +120,95 @@ class TestArgparseWiring:
         args = parser.parse_args(["opencode", "install"])
         assert args.global_install is False
         assert args.force is False
+        assert args.with_violation_search is False
+
+    def test_install_subcommand_parses_with_violation_search(self):
+        parser = argparse.ArgumentParser()
+        sub = parser.add_subparsers(dest="command")
+        opencode_cli.build_opencode_subparser(sub)
+
+        args = parser.parse_args(["opencode", "install", "--with-violation-search"])
+        assert args.with_violation_search is True
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stderr: str = ""):
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+class TestWithViolationSearchMcpRegistration:
+    """SPEC-024 REQ-6: --with-violation-search가 opencode mcp add를 자동 실행한다."""
+
+    def test_flag_absent_never_calls_subprocess(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        calls = []
+
+        def _fake_run(*args, **kwargs):
+            calls.append((args, kwargs))
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns())
+        assert code == 0
+        assert calls == []
+
+    def test_flag_present_registers_mcp_server(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        calls = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
+
+        assert code == 0
+        assert len(calls) == 1
+        cmd = calls[0]
+        assert cmd[:4] == ["opencode", "mcp", "add", opencode_cli._VIOLATION_SEARCH_MCP_NAME]
+        assert "--" in cmd
+        assert sys.executable in cmd
+        assert "agent_evaluator.integrations.violation_search_mcp" in cmd
+        assert "registered" in capsys.readouterr().out.lower()
+
+    def test_opencode_binary_missing_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        def _fake_run(cmd, **kwargs):
+            raise FileNotFoundError("opencode")
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
+
+        assert code == 0  # 플러그인 설치 자체는 성공 — MCP 등록 실패로 전체를 실패시키지 않는다
+        err = capsys.readouterr().err
+        assert "opencode" in err.lower()
+        assert "mcp add" in err  # 수동 등록 안내 포함
+
+    def test_non_zero_exit_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        def _fake_run(cmd, **kwargs):
+            return _FakeCompletedProcess(1, stderr="some opencode error")
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
+
+        assert code == 0
+        err = capsys.readouterr().err
+        assert "실패" in err
+        assert "some opencode error" in err
+
+    def test_timeout_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        def _fake_run(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=30)
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
+
+        assert code == 0
+        assert "시간 초과" in capsys.readouterr().err

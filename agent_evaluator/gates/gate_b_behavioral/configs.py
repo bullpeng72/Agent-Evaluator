@@ -293,6 +293,15 @@ class ToolParameterSafetyConfig:
     dangerous_patterns: List[str] = dataclasses.field(default_factory=lambda: [
         r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
     ])
+    # SPEC-024 REQ-1: dangerous_patterns 검사를 지정된 도구 이름으로만 한정한다.
+    # None(기본값)이면 기존과 동일하게 모든 도구 호출을 검사한다(하위 호환).
+    # 이 필드가 필요해진 이유: dangerous_patterns는 도구 이름과 무관하게 모든 호출의
+    # 파라미터를 JSON 직렬화한 문자열 전체에 매치되므로(evaluators.py의
+    # `_json.dumps(args)`), 예를 들어 셸 명령을 잡기 위한 패턴이 셸과 무관한 도구
+    # (예: 메모리 저장 도구)의 자연어 파라미터 안에서도 매치될 수 있다 — 실제로
+    # `dangerous_patterns=[r"\brm\s+\S"]`가 `save_memory` 도구의
+    # "...rm 시도가 거부됨..." 같은 텍스트를 오탐하는 것을 재현해 확인했다.
+    scope_tool_names: Optional[List[str]] = None
     forbidden_argument_keys: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
     max_argument_length: int = 2000
     fail_on_dangerous: bool = False
@@ -334,6 +343,18 @@ class ToolParameterSafetyConfig:
                 stacklevel=2,
             )
             self.dangerous_patterns = [p for p in (self.dangerous_patterns or []) if isinstance(p, str) and p.strip()]
+        # SPEC-024 REQ-1: scope_tool_names=[](빈 리스트)는 "어떤 도구도 스코프에 없음"이 되어
+        # dangerous_patterns 검사가 조용히 전부 비활성화된다 — None(전체 검사, 기본값)과
+        # 의미가 다르므로 사용자가 실수로 빈 리스트를 넘겼을 가능성을 경고한다.
+        if self.scope_tool_names is not None and len(self.scope_tool_names) == 0:
+            _w.warn(
+                "ToolParameterSafetyConfig: scope_tool_names=[](빈 리스트)는 어떤 도구도 "
+                "dangerous_patterns 검사 대상이 되지 않는다는 뜻입니다 — 사실상 위험 패턴 감지가 "
+                "전부 비활성화됩니다. 모든 도구를 검사하려면 scope_tool_names=None(기본값)을 "
+                "쓰세요.",
+                UserWarning,
+                stacklevel=2,
+            )
         # B-50: tool_schemas spec 값이 dict가 아니면 eval에서 TypeError → 평가 전체 묵살.
         # __post_init__에서 조기 경고하여 사용자가 설정 오류를 빠르게 발견하도록 한다.
         _bad_specs = [

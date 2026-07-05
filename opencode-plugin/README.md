@@ -58,6 +58,36 @@ Gate B 루프 위반에 걸렸다" 같은 사실을 다음 세션이 `ctx search
 `noReply` 옵션을 지원한다는 걸 확인한 뒤(`types.gen.d.ts:2244-2258`) 이 결함을
 바로잡았습니다.
 
+## SPEC-024: ctx 없이 자체 SQLite 백엔드로 위반 이력 검색하기
+
+위 ctx 피드백 루프는 ctx가 실제로 OpenCode 세션의 대화·도구 호출 내용을 색인할 수
+있어야 완성됩니다 — 그런데 라이브 검증(2026-07-05, ctx 0.19.0) 결과 ctx의 OpenCode
+임포터는 세션 메타데이터(제목·토큰 수)만 가져오고 실제 내용은 가져오지 못하는 것을
+확인했습니다(`ctx show session --mode full`로 직접 조회해도 생명주기 알림 2건뿐,
+판정 텍스트는 없음). Agent-Evaluator는 이미 `session.idle`마다 `live_guardrail_report.py`
+를 통해 이 판정 상세를 자체 SQLite 백엔드(`storage_backend="sqlite"`)에 저장하고
+있으므로, ctx의 이 한계를 우회해 **같은 데이터를 자체적으로 검색 가능하게** 만드는
+경로가 SPEC-024로 추가됐습니다.
+
+```bash
+pip install "agent-evaluator[mcp]"   # mcp>=1.0.0 (옵트인 의존성)
+
+opencode mcp add agent-evaluator-violations -- \
+    python -m agent_evaluator.integrations.violation_search_mcp
+```
+
+등록하면 모델이 세션 중 `search_violations` 도구를 스스로 호출해, 과거 세션에서
+Gate B/E 위반으로 차단된 이력을 자연어로 검색할 수 있습니다. `db_path`를 생략하면
+`AGENT_EVALUATOR_OUTPUT_DIR`(기본값 `results/opencode_live_guardrail`) 아래의
+`opencode_sessions.db`를 사용합니다 — `live_guardrail_report.py`가 기본으로 저장하는
+경로와 동일합니다. 다른 경로를 쓰려면 `opencode mcp add` 명령의 마지막 인자로
+db 경로를 추가하세요.
+
+> **주의 — 자율 호출은 여전히 보장이 아니라 성향입니다.** 위 등록만으로는 모델이
+> 알아서 검색을 시도하지 않을 수 있습니다(2026-07-05 라이브 검증에서 확인 — 도구
+> 이름을 프롬프트에서 언급하지 않으면 로컬 소형 모델이 아예 이 도구를 안 씀).
+> 확실한 효과가 필요하면 프롬프트에 `search_violations`를 직접 언급하세요.
+
 ## 훅 필드는 실제 설치된 패키지 타입 선언으로 검증했습니다
 
 이전 버전은 OpenCode 공식 문서가 훅 콜백 인자의 전체 필드를 나열하지 않아 추측성

@@ -165,6 +165,12 @@ langchain = [
 dspy = [
     "dspy-ai>=2.0.0",
 ]
+# 로컬 ADE 위반 이력 검색 MCP 서버 (SPEC-024 REQ-4, 빠름, ~1개 패키지)
+# agent_evaluator/integrations/violation_search_mcp.py 에서 사용
+# opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
+mcp = [
+    "mcp>=1.0.0",
+]
 # PydanticAI 통합 (빠름, ~5개 패키지)
 # 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
 pydanticai = [

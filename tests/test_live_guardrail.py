@@ -98,6 +98,75 @@ class TestToolParameterSafetyBlocks:
         assert verdict.gate == "B"
 
 
+class TestToolParameterSafetyScopeToolNames:
+    """SPEC-024 REQ-1: dangerous_patterns를 지정된 도구 이름으로만 한정한다.
+
+    이 두 테스트는 라이브 검증(Ch27 §27.6, 2026-07-05)에서 실제로 재현한 결함을
+    회귀 테스트로 고정한다 — `\\brm\\s+\\S` 패턴이 (a) 실제 셸 명령은 잡아야 하고,
+    (b) `rm`과 무관한 도구(예: 메모리 저장)의 자연어 설명은 잡지 않아야 한다.
+    """
+
+    _PATTERNS = [
+        r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(", r"\brm\s+\S",
+    ]
+
+    def test_scope_none_checks_all_tools_backward_compat(self):
+        """scope_tool_names 미지정(기본값 None) — 기존 동작과 동일하게 전체 도구를 검사한다."""
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=self._PATTERNS, fail_on_dangerous=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "rm victim.txt"})
+        assert verdict.block is True
+        assert verdict.gate == "B"
+
+    def test_scoped_tool_still_blocks_bare_rm(self):
+        """scope_tool_names=["bash"] — 스코프 안에 있는 도구는 그대로 차단된다."""
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=self._PATTERNS,
+                scope_tool_names=["bash"],
+                fail_on_dangerous=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "rm victim.txt"})
+        assert verdict.block is True
+        assert verdict.gate == "B"
+
+    def test_out_of_scope_tool_not_blocked_by_natural_language_mention(self):
+        """scope_tool_names=["bash"] — bash가 아닌 도구는 파라미터에 "rm"이 언급돼도 차단되지 않는다.
+
+        2026-07-05 라이브 검증에서 재현한 시나리오: mem0 save_memory MCP 도구로
+        "차단됨: victim.txt에 대한 rm 시도가 Gate B에 의해 거부됨"을 저장하려 하자
+        그 저장 호출 자체가 다시 차단되는 순환이 실제로 발생했다.
+        """
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=self._PATTERNS,
+                scope_tool_names=["bash"],
+                fail_on_dangerous=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call(
+            "t1", "save_memory",
+            {"text": "차단됨: victim.txt에 대한 rm 시도가 Gate B에 의해 거부됨"},
+        )
+        assert verdict.block is False
+
+    def test_scope_empty_list_warns(self):
+        """scope_tool_names=[](빈 리스트)는 위험 패턴 감지가 전부 비활성화된다는 UserWarning을 낸다."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            ToolParameterSafetyConfig(scope_tool_names=[])
+        assert any(
+            issubclass(w.category, UserWarning) and "scope_tool_names" in str(w.message)
+            for w in caught
+        )
+
+
 class TestDeadlockBlocks:
     def test_depth_exceeded_blocks(self):
         guardrail = LiveGuardrail(

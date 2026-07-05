@@ -48,6 +48,7 @@ SPEC-XXX: <제목>
 | [SPEC-021](SPEC-021-quality-debt-ratchet.md) | **코드 품질 부채 래칫** (ruff/mypy — SPEC-017의 report-only 상태를 baseline 초과 시 hard-block으로 전환) | P6 | **Implemented (2026-07-04)** | SPEC-017 완료 — report-only 2-스텝 잡을 대체 |
 | [SPEC-022](SPEC-022-llm-judge-calibration-harness.md) | **LLM Judge 검증 하네스** (사람 라벨 골든셋과의 합의도 리포트 — Cohen's kappa/Pearson/MAE) | P6 | **Implemented (2026-07-04)** | 없음 — 기존 `LLMJudge.judge()`를 그대로 호출만 함 |
 | [SPEC-023](SPEC-023-judge-execution-model-heterogeneity.md) | **LLM Judge/실행 모델 이종화 경고 + Lineage 기록** (자기평가 편향 감지) | P6 | **Implemented (2026-07-04)** | SPEC-007 완료 — `_build_lineage()`에 필드 1개 추가 |
+| [SPEC-024](SPEC-024-local-ade-memory-layer.md) | **로컬 ADE 자가교정 메모리 계층** (`ToolParameterSafetyConfig` 도구 스코프 + SQLite FTS5 검색 + MCP 노출) — ctx/mem0 라이브 검증에서 발견한 제3자 도구 한계(OpenCode 세션 미색인, Postgres 의존, 무차별 패턴 매칭)를 자체 SQLite 백엔드 확장으로 해소 | P7 | **Implemented (2026-07-05)** — REQ-1~6 전체 완료: `scope_tool_names`·FTS5 `violation_search`·`search_violations()`·`violation_search_mcp.py` stdio 서버·transcript 힌트 문구·`agent-eval opencode install --with-violation-search` 자동 등록 | SPEC-019 완료(`LiveGuardrail`/`live_guardrail_report.py` 재사용) · SPEC-016 완료(`storage/sqlite_backend.py` additive 확장) · SPEC-020 완료(PII redaction 상호작용 Risks에 명시) |
 
 ## 백로그
 
@@ -67,6 +68,7 @@ SDK 전반 성숙도 개선 트랙으로 구현 완료(2026-07-04). 상세 스�
 | **P4** | SPEC-016 ✅·SPEC-017 ✅(2026-07-03) | 장기 |
 | **P5** | SPEC-019 ✅(2026-07-03) | 신규 기능 확장 — 배포 완결성(P0-P4) 확보 이후, 로컬 에이전트 루프(OpenCode+Ollama+ctx) 실시간 통합을 위한 별도 트랙. 기존 배치 Gate 로직은 무수정, 순수 additive |
 | **P6** | SPEC-020 ✅·SPEC-021 ✅·SPEC-022 ✅·SPEC-023 ✅(2026-07-04) | SDK 전반 성숙도 — 엔터프라이즈 신뢰성(PII redaction, 코드 품질 부채 래칫, LLM Judge 검증 하네스 + 이종화 경고). ADE 파이프라인과 무관하게 SDK 자체의 세계 최고 수준 포지셔닝을 위한 별도 트랙 |
+| **P7** | SPEC-024 ✅(2026-07-05) | P5(SPEC-019)의 실제 라이브 검증(Media/Book Ch27/28 집필) 과정에서 ctx/mem0 두 제3자 대안이 각각 다른 이유로 실패하는 것을 확인한 뒤 나온 후속 트랙 — 제3자 도구 의존 없이 Agent-Evaluator 자신의 SQLite 백엔드를 검색 가능한 로컬 메모리로 확장 |
 
 ## Definition of Done (프로그램 최종 목표)
 
