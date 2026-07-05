@@ -135,7 +135,7 @@ pip install agent-evaluator
 pip install "agent-evaluator[serve]"              # agent-eval dashboard (FastAPI + uvicorn)
 pip install "agent-evaluator[otel]"               # agent-eval monitor (Phoenix + OTEL)
 pip install "agent-evaluator[pdf]"                # Korean RAG PDF processing
-pip install "agent-evaluator[sdk]"                # serve + otel + pdf bundle (recommended)
+pip install "agent-evaluator[sdk]"                # serve + otel + pdf + korean bundle (recommended)
 
 # ── Running Evaluator_Examples/ ─────────────────────────────────────────────
 pip install "agent-evaluator[examples]"           # all examples runnable (sdk + eval)
@@ -1533,7 +1533,8 @@ agent-evaluator/
 | `[otel]` | `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
 | `[otel]` | `arize-phoenix` | ≥15.4.0 | Phoenix real-time monitoring² |
 | `[pdf]` | `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
-| **`[sdk]`** | serve + otel + pdf | — | **All CLI features (recommended)** |
+| `[korean]` | `kiwipiepy` | ≥0.17.0 | Korean tokenizer (`use_korean_tokenizer=True`) |
+| **`[sdk]`** | serve + otel + pdf + korean | — | **All CLI features (recommended)** |
 
 ² `arize-phoenix` pinned to `>=15.4.0` — v15.4.0 removed the pydantic-ai metapackage dependency (170+ packages).
 
@@ -1545,7 +1546,7 @@ agent-evaluator/
 | `[eval]` | deepeval ≥3.0, <4.0 · ragas ≥0.4, <2.0 · datasets ≥4.0, <6.0 | heavy | DeepEval/Ragas external evaluation |
 | `[langchain]` | langchain ≥1.0, langgraph ≥1.0 | medium | For user LangChain agent code¹ |
 | `[dspy]` | dspy-ai ≥2.0 | medium | For user DSPy agent code¹ |
-| `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | fast | For user PydanticAI agent code¹ |
+| `[pydanticai]` | pydantic-ai ≥1.0, <3.0 | fast | For user PydanticAI agent code¹ |
 | `[crewai]` | crewai ≥1.0, <2.0 | heavy (isolated) | For user CrewAI agent code¹ |
 | `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | heavy (isolated) | For user AutoGen agent code¹ |
 | `[mcp]` | mcp ≥1.0.0 | fast | `search_violations` MCP server (`violation_search_mcp`) |

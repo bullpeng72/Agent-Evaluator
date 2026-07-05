@@ -95,7 +95,7 @@ korean = [
 semantic = [
     "sentence-transformers>=2.7.0,<6.0.0",
 ]
-# SDK 전체 묶음 — llm + serve + otel + pdf (운영 배포 권장)
+# SDK 전체 묶음 — llm + serve + otel + pdf + korean (운영 배포 권장)
 sdk = [
     "openai>=2.0.0,<3.0.0",
     "anthropic>=0.20.0,<1.0.0",
@@ -153,7 +153,8 @@ eval = [
     "kiwipiepy>=0.17.0",
 ]
 # LangChain / LangGraph 통합 (중간, ~30개 패키지)
-# langchain 1.x LCEL Runnable 기반, BaseCallbackHandler 실시간 추적
+# AgentExecutor.invoke() dict 또는 LCEL 직접 반환 AIMessage(.tool_calls)에서
+# 사후 추출 (콜백 기반 실시간 추적 아님) — agent_evaluator/decorators.py 참고
 langchain = [
     "langchain>=1.0.0,<3.0.0",
     "langchain-core>=1.0.0,<2.0.0",
@@ -183,7 +184,7 @@ crewai = [
     "crewai>=1.0.0,<2.0.0",
 ]
 # AutoGen 통합 (무거움, 단독 격리)
-# autogen-agentchat 0.7.x async-first API: on_messages(), team.run()
+# autogen-agentchat >=0.4.0 async-first API: team.run() (레거시 pyautogen도 폴백 지원)
 autogen = [
     "pyautogen>=0.3.0,<1.0.0",
     "autogen-agentchat>=0.4.0,<1.0.0",
@@ -196,7 +197,7 @@ autogen = [
 
 # 대시보드 Parquet / Excel 내보내기
 # agent_evaluator/serve/routers/export.py 에서 사용
-# 미설치 시: Parquet/Excel 엔드포인트 HTTP 409 반환
+# 미설치 시: Parquet 엔드포인트 HTTP 409, Excel 엔드포인트 HTTP 501 반환
 export = [
     "pyarrow>=10.0.0",
     "openpyxl>=3.1.0",
