@@ -1,19 +1,21 @@
 """
 ch28_local_ade_loop.py — Chapter 28: 로컬 자가교정 ADE 구축
 ====================================================================
-Book Chapter 28 — OpenCode + ctx + Ollama + Agent-Evaluator
+Book Chapter 28 — OCOA 스택 (Ollama + ctx + OpenCode + Agent-Evaluator)
 
-이 챕터는 네 조각(Ollama·OpenCode·LiveGuardrail·ctx)의 "배선"을 다룬다.
+이 챕터는 네 조각(Ollama·ctx·OpenCode·LiveGuardrail)의 "배선"을 다룬다.
 이 예제 파일이 실제로 실행할 수 있는 것은 그중 **LiveGuardrail(Python SDK)
 부분뿐**이다 — Ollama/OpenCode/ctx는 별도로 설치해야 하는 외부 CLI이므로,
 그 부분은 §28.7의 검증 경계 표와 동일하게 명확히 "개념 코드(목업)"로 표시한다.
 
-섹션 1: §28.5.3 저장소 전용 확장 GUARDRAIL_CONFIG — git 안전장치(강제 푸시·
-        --no-verify·git reset --hard 차단) + # noqa 은폐 차단 데모
+섹션 1: §28.5.3(리팩토링 워크플로우) 저장소 전용 확장 GUARDRAIL_CONFIG — git 안전장치
+        (강제 푸시·--no-verify·git reset --hard 차단) + # noqa 은폐 차단 데모
 섹션 2: §28.3/28.4의 다섯 단계 폐루프 재현 — 1~3단계(차단·즉시노출·기록)는
         실제 LiveGuardrail 호출, 4~5단계(색인·검색)는 ctx CLI가 없으므로
         메모리 딕셔너리로 대체한 목업(§28.7 참고)
-섹션 3: §28.5.4의 "검증" 단계 — pytest 재통과를 세션 완료 조건으로 강제하는 패턴
+섹션 3: §28.5.3의 "검증" 단계 — pytest 재통과를 세션 완료 조건으로 강제하는 패턴
+섹션 4: §28.5.4(코드 리뷰 워크플로우) 읽기 전용 자가 점검 세션 — ScopeConfig로
+        edit/bash를 전부 차단하고 read/grep/glob만 허용하는 패턴
 
 의존성:
     pip install agent-evaluator
@@ -31,7 +33,7 @@ from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolPar
 from agent_evaluator.gates.live_guardrail import LiveGuardrail
 
 # ===========================================================================
-# 섹션 1: §28.5.3 — 저장소 자체 개선 세션 전용 GUARDRAIL_CONFIG
+# 섹션 1: §28.5.3(리팩토링 워크플로우) — 저장소 자체 개선 세션 전용 GUARDRAIL_CONFIG
 # ===========================================================================
 print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG ===")
 
@@ -52,7 +54,7 @@ def make_repo_guardrail() -> LiveGuardrail:
             fail_on_dangerous=True,
         ),
         scope=ScopeConfig(
-            # §28.5.2에서 프롬프트로 좁힌 반경을 도구 화이트리스트로도 다시 한번 강제
+            # §28.5.3의 목표 선언에서 프롬프트로 좁힌 반경을 도구 화이트리스트로도 다시 한번 강제
             # fail_on_violation 기본값은 False이므로 명시하지 않으면 이 화이트리스트는
             # 평가만 되고 실제로는 아무것도 차단하지 않는다 (실측으로 확인된 동작).
             allowed_tools=["read", "edit", "grep", "glob", "bash"],
@@ -137,15 +139,15 @@ else:
     print("  [세션 2] 검색 결과 없음")
 
 # ===========================================================================
-# 섹션 3: §28.5.4 — "검증" 단계: pytest 재통과를 완료 조건으로 강제
+# 섹션 3: §28.5.3 — "검증" 단계: pytest 재통과를 완료 조건으로 강제
 # ===========================================================================
-print("\n=== 섹션 3: 코드 개선 세션의 완료 조건 — pytest 재통과 강제 ===")
+print("\n=== 섹션 3: 리팩토링 세션의 완료 조건 — pytest 재통과 강제 ===")
 
 
 def verify_before_declaring_done(pytest_passed: bool) -> str:
-    """§28.5.4 — LiveGuardrail은 위험한 시도만 막을 뿐 '고친 코드가 옳다'는
-    보증은 하지 않는다. 이 검증은 LiveGuardrail이 아니라 개발자가 세션
-    워크플로우에 직접 강제하는 규율이다.
+    """§28.5.3 — LiveGuardrail은 위험한 시도만 막을 뿐 '고친 코드가 동작을
+    보존했다'는 보증은 하지 않는다. 이 검증은 LiveGuardrail이 아니라 개발자가
+    세션 워크플로우에 직접 강제하는 규율이다.
     """
     # TODO(현업 적용): 아래를 실제로 `subprocess.run(["pytest", "tests/", "-k", "gate_d"])`
     #   결과의 returncode == 0 여부로 교체하세요. 여기서는 인자로 시뮬레이션합니다.
@@ -157,7 +159,45 @@ def verify_before_declaring_done(pytest_passed: bool) -> str:
 print(f"  시나리오 A (pytest 실패): {verify_before_declaring_done(False)}")
 print(f"  시나리오 B (pytest 통과): {verify_before_declaring_done(True)}")
 
+# ===========================================================================
+# 섹션 4: §28.5.4(코드 리뷰 워크플로우) — 읽기 전용 자가 점검 세션
+# ===========================================================================
+print("\n=== 섹션 4: 코드 리뷰 전 읽기 전용 자가 점검 ===")
+
+
+def make_review_guardrail() -> LiveGuardrail:
+    """§28.5.4 예제와 동일 — PR을 올리기 전 자가 점검 세션은 파일을 수정하지
+    않아야 한다. allowed_tools에서 edit/bash를 빼고 read/grep/glob만
+    남기면, 모델이 점검 중 스스로 "고치는 게 낫겠다"고 판단해도 실제로는
+    차단된다.
+    """
+    return LiveGuardrail(
+        scope=ScopeConfig(
+            allowed_tools=["read", "grep", "glob"],  # edit·bash는 의도적으로 제외
+            fail_on_violation=True,  # 필수 — 없으면 화이트리스트가 차단하지 않는다
+        ),
+    )
+
+
+review_guardrail = make_review_guardrail()
+
+_REVIEW_ATTEMPTS = [
+    ("grep", {"pattern": "fail_on_violation", "path": "agent_evaluator/gates/"}),
+    ("read", {"file": "agent_evaluator/gates/gate_b_behavioral/configs.py"}),
+    ("edit", {"file": "agent_evaluator/gates/gate_b_behavioral/configs.py"}),  # 점검 중 실수로 고치려는 시도
+]
+
+for tool_name, params in _REVIEW_ATTEMPTS:
+    verdict = review_guardrail.check_before_tool_call("review-session-1", tool_name, params)
+    if verdict.block:
+        print(f"  [{tool_name:<5s}] 차단됨 (Gate {verdict.gate}): {verdict.reason}")
+    else:
+        print(f"  [{tool_name:<5s}] 통과 — {params}")
+        review_guardrail.record_tool_call("review-session-1", tool_name, params)
+# → read/grep은 통과하고 edit만 차단된다. 자가 점검 세션이 실제로
+#   "읽기 전용"으로 강제됨을 보여준다 (§28.5.4 참고).
+
 print("\n=== 요약 ===")
-print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2 전반부) — Ch27과 동일한 메커니즘")
+print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2·4) — Ch27과 동일한 메커니즘")
 print("  목업으로 대체한 부분:   ctx 색인·검색(섹션 2 후반부) — §28.7 검증 경계 참고")
 print("  개발자 워크플로우 규율: pytest 재통과 강제(섹션 3) — LiveGuardrail이 아니라 사람이 강제")
