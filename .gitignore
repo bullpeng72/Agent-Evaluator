@@ -94,8 +94,12 @@ data/golden_datasets/*
 # Evaluator_Examples generated HTML reports
 Evaluator_Examples/**/*.html
 
-# Media — 콘텐츠 제작 폴더 (비공개, git 추적 제외)
-Media/
+# Media — 콘텐츠 제작 폴더. Media/Book(도서 소스)만 추적하고, 나머지와 빌드 산출물은 제외
+Media/.env
+Media/.claude/
+Media/Content/
+Media/Book/pdf/
+Media/Book/agent-evaluator-book.html
 
 # DeepEval telemetry (auto-generated, UUID only)
 .deepeval_telemtry.txt
