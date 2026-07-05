@@ -167,7 +167,8 @@ dspy = [
 ]
 # 로컬 ADE 위반 이력 검색 MCP 서버 (SPEC-024 REQ-4, 빠름, ~1개 패키지)
 # agent_evaluator/integrations/violation_search_mcp.py 에서 사용
-# opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
+# 등록: agent-eval opencode install --with-violation-search (SPEC-024 REQ-6, 권장)
+# 수동 등록: opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
 mcp = [
     "mcp>=1.0.0",
 ]
