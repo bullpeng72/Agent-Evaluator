@@ -163,6 +163,7 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             f"  {_G}agent-eval opencode install{_R}\n"
             f"  {_G}agent-eval opencode install --global{_R}\n"
             f"  {_G}agent-eval opencode install --force{_R}\n"
+            f"  {_G}agent-eval opencode install --with-violation-search{_R}\n"
         ),
     )
     op_sub = p.add_subparsers(dest="opencode_command")

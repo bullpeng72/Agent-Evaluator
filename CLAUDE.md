@@ -20,6 +20,7 @@
 pip install -e ".[dev]"
 pip install -e ".[sdk]"       # dashboard + OTEL + LLMJudge + PDF (recommended)
 pip install -e ".[examples]"  # all examples runnable (sdk + eval)
+pip install -e ".[mcp]"       # search_violations MCP server (agent_evaluator.integrations.violation_search_mcp)
 
 # CLI
 agent-eval init                                           # API key setup wizard
@@ -30,6 +31,7 @@ agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval dataset build --source results/ --max-cases 30 # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
+agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
 

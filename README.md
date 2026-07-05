@@ -149,6 +149,9 @@ pip install "agent-evaluator[pydanticai]"         # PydanticAI ≥1.0
 pip install "agent-evaluator[crewai]"             # CrewAI ≥1.0 (heavy — 100+ transitive deps)
 pip install "agent-evaluator[autogen]"            # AutoGen ≥0.3 (heavy)
 
+# ── MCP servers ───────────────────────────────────────────────────────────────
+pip install "agent-evaluator[mcp]"                # search_violations MCP server (violation_search_mcp)
+
 # ── Convenience bundles ──────────────────────────────────────────────────────
 pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/autogen, 10+ min)
 
@@ -1161,6 +1164,9 @@ pip install agent-evaluator   # or from a repo checkout: pip install -e .
 agent-eval opencode install
 # or: agent-eval opencode install --global    # ~/.config/opencode/plugin/agent-evaluator.ts
 # or: agent-eval opencode install --force     # overwrite an existing install
+
+# or: also register the search_violations MCP server (requires: pip install "agent-evaluator[mcp]")
+agent-eval opencode install --with-violation-search
 ```
 
 `agent-eval opencode install` bakes the interpreter that ran the command in as the plugin's default `PYTHON_BIN` — you usually don't need `AGENT_EVALUATOR_PYTHON` unless you want to point at a different interpreter. To override that or the SQLite report location:
@@ -1173,6 +1179,12 @@ export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project
 Then adjust `GUARDRAIL_CONFIG` at the top of the installed `.opencode/plugin/agent-evaluator.ts` (the copy, not the package-bundled source — reinstalling overwrites it) — it takes the same `LoopDetectionConfig`/`DeadlockConfig`/`ScopeConfig`/`ToolParameterSafetyConfig` (Gate B) and `ToolAuthorizationTracker`/`PrivilegeEscalationDetector`/`ToolChainAttackDetector` (Gate E) fields as `@agent_eval`.
 
 Once loaded: unsafe tool calls are blocked mid-session with an error the model sees immediately (and can self-correct on), each session's Gate B/E verdict is upserted into a local SQLite store (`results/opencode_live_guardrail/opencode_sessions.db` by default — read it back with `agent_evaluator.storage.sqlite_backend.load_tasks_from_db`), and the verdict is also written back into the OpenCode session transcript (`noReply: true`, no extra LLM turn) so a memory-indexing agent like `ctx` can recall past violations in later sessions.
+
+**`search_violations` MCP server** (opt-in, `pip install "agent-evaluator[mcp]"`) — `agent_evaluator.integrations.violation_search_mcp` exposes a single stdio MCP tool, `search_violations(query: str)`, that full-text searches that same SQLite store (via an additive FTS5 index) and returns a human-readable summary of past Gate B/E blocks. `agent-eval opencode install --with-violation-search` registers it automatically via `opencode mcp add`; to register it manually (or for other MCP clients):
+
+```bash
+opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
+```
 
 > **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it blocked a live `rm -f` deletion attempt mid-session and left the file intact. The plugin file itself now ships inside the pip package, but the integration's design maturity is still prototype-level, with documented limitations (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard `kill -9`). See [`opencode-plugin/README.md`](opencode-plugin/README.md) for full design notes and known limitations, and `Docs/specs/SPEC-019-live-guardrail-api.md` for the spec.
 
@@ -1249,7 +1261,7 @@ All 3 decorator types support the same `preset=` parameter.
 | `agent-eval trend <dir>` | Analyze TCR · accuracy trends across sequential results (regression detection) |
 | `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
-| `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin (`--global`/`--force`) |
+| `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin (`--global`/`--force`/`--with-violation-search`) |
 | `agent-eval --version` | Print package version |
 
 ---
@@ -1536,6 +1548,7 @@ agent-evaluator/
 | `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | fast | For user PydanticAI agent code¹ |
 | `[crewai]` | crewai ≥1.0, <2.0 | heavy (isolated) | For user CrewAI agent code¹ |
 | `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | heavy (isolated) | For user AutoGen agent code¹ |
+| `[mcp]` | mcp ≥1.0.0 | fast | `search_violations` MCP server (`violation_search_mcp`) |
 | `[full]` | sdk + eval + langchain + dspy + pydanticai + crewai + autogen | very heavy | ⚠️ 10+ min, for full CI compatibility testing |
 | `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | fast | Development environment |
 
