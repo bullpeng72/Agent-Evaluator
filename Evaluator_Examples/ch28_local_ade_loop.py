@@ -9,7 +9,9 @@ Book Chapter 28 — OCOA 스택 (Ollama + ctx + OpenCode + Agent-Evaluator)
 그 부분은 §28.7의 검증 경계 표와 동일하게 명확히 "개념 코드(목업)"로 표시한다.
 
 섹션 1: §28.5.3(리팩토링 워크플로우) 저장소 전용 확장 GUARDRAIL_CONFIG — git 안전장치
-        (강제 푸시·--no-verify·git reset --hard 차단) + # noqa 은폐 차단 데모
+        (강제 푸시·--no-verify·git reset --hard 차단) + # noqa 은폐 차단 데모.
+        이어서 scope_tool_names(SPEC-024) 없이는 edit 호출까지 오탐하는 것과,
+        지정 시 오탐이 사라지는 것을 대조(Ch27 §27.6 3차 발견과 동일한 문제)
 섹션 2: §28.3/28.4의 다섯 단계 폐루프 재현 — 1~3단계(차단·즉시노출·기록)는
         실제 LiveGuardrail 호출, 4~5단계(색인·검색)는 ctx CLI가 없으므로
         메모리 딕셔너리로 대체한 목업(§28.7 참고)
@@ -38,19 +40,23 @@ from agent_evaluator.gates.live_guardrail import LiveGuardrail
 print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG ===")
 
 
+_REPO_DANGEROUS_PATTERNS = [
+    r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+    r"\brm\s+\S",               # Ch27 §27.6 2차 발견 반영 (2026-07-05)
+    # 여기부터 저장소 자체 개선 세션 전용 추가 (§28.5.3)
+    r"--no-verify",             # 커밋 훅 우회 시도 차단
+    r"git\s+push\s+.*--force",  # 강제 푸시 차단
+    r"git\s+reset\s+--hard",    # 비가역 리셋 차단
+    r"#\s*noqa",                # ruff 위반을 숨기는 처방 차단
+]
+
+
 def make_repo_guardrail() -> LiveGuardrail:
     """§28.5.3 예제와 동일 — Ch27의 rm 대응 패턴(플래그 유무 무관)에 git 안전장치를 추가한다."""
     return LiveGuardrail(
         tool_parameter_safety=ToolParameterSafetyConfig(
-            dangerous_patterns=[
-                r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-                r"\brm\s+\S",               # Ch27 §27.6 2차 발견 반영 (2026-07-05)
-                # 여기부터 저장소 자체 개선 세션 전용 추가 (§28.5.3)
-                r"--no-verify",             # 커밋 훅 우회 시도 차단
-                r"git\s+push\s+.*--force",  # 강제 푸시 차단
-                r"git\s+reset\s+--hard",    # 비가역 리셋 차단
-                r"#\s*noqa",                # ruff 위반을 숨기는 처방 차단
-            ],
+            dangerous_patterns=_REPO_DANGEROUS_PATTERNS,
+            scope_tool_names=["bash"],  # SPEC-024 REQ-1 — 검사를 셸 호출로만 한정(아래 데모 참고)
             fail_on_dangerous=True,
         ),
         scope=ScopeConfig(
@@ -80,6 +86,34 @@ for tool_name, params in _REPO_ATTEMPTS:
     else:
         print(f"  [{tool_name:<5s}] 통과 — {params}")
         repo_guardrail.record_tool_call("repo-session-1", tool_name, params)
+
+# --- scope_tool_names(SPEC-024) 없이는 edit도 오탐한다 — 이 챕터 자체를 다루는
+#     파일(예: 이 예제 파일)을 편집하려 하면, 그 파일 내용에 "git push --force" 같은
+#     문자열이 들어있다는 이유만으로 edit 호출까지 차단된다 (Ch27 §27.6 3차 발견과 동일) ---
+_edit_this_file = {
+    "file": "Evaluator_Examples/ch28_local_ade_loop.py",
+    "content": '_REPO_ATTEMPTS = [("bash", {"command": "git push origin main --force"})]',
+}
+_unscoped_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=_REPO_DANGEROUS_PATTERNS,
+        # scope_tool_names 미지정 → 모든 도구 호출을 검사(수정 전 동작)
+        fail_on_dangerous=True,
+    ),
+)
+verdict_edit_before = _unscoped_guardrail.check_before_tool_call("repo-session-1", "edit", _edit_this_file)
+print(
+    f"  [scope 미지정] 이 파일 자체를 편집(edit) 차단 여부: {verdict_edit_before.block}  "
+    f"← 이 콘텐츠에 'git push --force' 문자열이 있어서 오탐"
+)
+
+# repo_guardrail(= make_repo_guardrail())은 이미 scope_tool_names=["bash"]가 적용돼 있다.
+verdict_edit_after = repo_guardrail.check_before_tool_call("repo-session-1", "edit", _edit_this_file)
+print(f"  [scope_tool_names=['bash']] 같은 edit 차단 여부: {verdict_edit_after.block}  ← 더 이상 오탐하지 않는다")
+verdict_bash_after = repo_guardrail.check_before_tool_call(
+    "repo-session-1", "bash", {"command": "git push origin main --force"},
+)
+print(f"  [scope_tool_names=['bash']] bash에서 강제 푸시 차단 여부: {verdict_bash_after.block}  ← bash는 그대로 차단된다")
 
 # ===========================================================================
 # 섹션 2: §28.3 다섯 단계 폐루프 — 1~3단계 실제 SDK, 4~5단계는 목업(§28.7)

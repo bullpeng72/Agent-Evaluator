@@ -8,7 +8,8 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
 섹션 1: check_before_tool_call() / record_tool_call() — 조회 vs 확정 분리
 섹션 2: §27.6에서 실제 라이브 테스트로 발견된 "rm 우회" 재현(2026-07-03 rm -f, 07-05 플래그
         없는 rm 두 차례) — 기본 위험 패턴 7개로는 둘 다 통과하고, \\brm\\s+\\S 패턴
-        추가 후에야 차단됨을 대조
+        추가 후에야 차단됨을 대조. 이어서 그 반대 방향(과탐지) — \\brm\\s+\\S가 rm과
+        무관한 도구까지 막는 것을 재현하고, scope_tool_names(SPEC-024)로 해소함을 대조
 섹션 3: 세션 종료 시 snapshot()을 배치 리포트(SQLite)에 편입 — Ch16 SQLite 백엔드와 동일한 upsert
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
 
@@ -127,6 +128,43 @@ verdict_bare = guardrail_after_fix.check_before_tool_call(
     "session-fixed", "bash", {"command": "rm victim2.txt"},
 )
 print(f"  [수정 후] 플래그 없는 rm 차단 여부: {verdict_bare.block}  (2026-07-05 발견된 우회도 이제 잡힌다)")
+
+# 2-C. 반대 방향 문제 — \brm\s+\S는 rm과 무관한 도구의 자연어 텍스트까지 오탐한다
+# (SPEC-024 검증 중 발견 — mem0 기반 메모리 저장 도구로 재현)
+_memo_text = "차단됨: victim2.txt에 대한 rm 시도가 Gate B에 의해 거부됨"
+verdict_memo_before = guardrail_after_fix.check_before_tool_call(
+    "session-fixed", "save_memory", {"text": _memo_text},
+)
+print(
+    f"  [scope 미지정] save_memory 차단 여부: {verdict_memo_before.block}  "
+    f"← rm과 무관한 도구인데 텍스트에 'rm '이 있어서 오탐"
+)
+
+# scope_tool_names=["bash"]를 지정하면 dangerous_patterns 검사가 bash에만 적용된다.
+guardrail_scoped = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=[
+            r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+            r"\brm\s+\S",
+        ],
+        scope_tool_names=["bash"],   # SPEC-024 REQ-1 — 이 검사를 bash 호출로만 한정
+        fail_on_dangerous=True,
+    ),
+)
+verdict_memo_after = guardrail_scoped.check_before_tool_call(
+    "session-scoped", "save_memory", {"text": _memo_text},
+)
+print(
+    f"  [scope_tool_names=['bash']] save_memory 차단 여부: {verdict_memo_after.block}  "
+    f"← 더 이상 오탐하지 않는다"
+)
+verdict_scoped_bash = guardrail_scoped.check_before_tool_call(
+    "session-scoped", "bash", {"command": "rm victim2.txt"},
+)
+print(
+    f"  [scope_tool_names=['bash']] bash에서 rm 차단 여부: {verdict_scoped_bash.block}  "
+    f"← bash는 그대로 차단된다"
+)
 
 # ===========================================================================
 # 섹션 3: 세션 종료 — snapshot()을 배치 리포트(SQLite)로 편입

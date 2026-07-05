@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1559,6 +1559,13 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.7 (2026-07-05) — Local ADE Self-Correction Memory Layer
+
+- 🧠 **`ToolParameterSafetyConfig.scope_tool_names`**: scopes `dangerous_patterns` checks to specific tool names (default `None` = all tools, unchanged behavior). Fixes a live-verified false positive where a broad shell-safety pattern (e.g. `\brm\s+\S`) also blocked unrelated tool calls whose text merely mentioned the pattern.
+- 🔍 **Self-contained violation search**: the SQLite storage backend (opt-in `storage_backend="sqlite"`) gained an additive FTS5 index (`violation_search`) plus a new `search_violations()` API, letting a local agent loop search its own past Gate B/E guardrail violations without depending on third-party session-history tools that don't (yet) index this SDK's session content.
+- 🔌 **New MCP server**: `agent_evaluator.integrations.violation_search_mcp` exposes `search_violations` as a single stdio MCP tool (opt-in `pip install "agent-evaluator[mcp]"`); `agent-eval opencode install --with-violation-search` registers it automatically via `opencode mcp add`.
+- 📝 **OpenCode plugin**: session-idle guardrail summaries now include a hint to call `search_violations` before repeating a previously-blocked action, when violations were detected.
 
 ### v0.9.6 (2026-07-04) — Real-Time Guardrail API · Gate Package Decomposition · PII Redaction & LLM Judge Trust Tooling
 

@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.6 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.7 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -149,6 +149,8 @@ agent_evaluator/
 │   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
 │   ├── live_guardrail_stdio.py   # SPEC-019: LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
 │   ├── live_guardrail_report.py  # SPEC-019: SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
+│   ├── violation_search_mcp.py   # SPEC-024: search_violations() 도구 1개를 노출하는 stdio MCP 서버
+│   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
@@ -159,8 +161,12 @@ agent_evaluator/
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
 ├── storage/               # SPEC-016: sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
 │                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
+│                          # SPEC-024: violation_search(FTS5, additive) + search_violations() —
+│                          #  Gate B/E 위반 이력 전문 검색(ctx의 OpenCode 세션 미색인 한계 우회)
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend)
+│                          # opencode install --with-violation-search(SPEC-024): search_violations
+│                          #  MCP 서버 자동 등록(옵트인)
 └── serve/
     ├── server.py          # FastAPI dashboard (108 routes)
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export
@@ -440,7 +446,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**82 files, 3,250+ test functions** in `tests/`.
+**83 files, 3,270+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
