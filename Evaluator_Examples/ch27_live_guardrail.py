@@ -12,10 +12,12 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
         무관한 도구까지 막는 것을 재현하고, scope_tool_names(SPEC-024)로 해소함을 대조
 섹션 3: 세션 종료 시 snapshot()을 배치 리포트(SQLite)에 편입 — Ch16 SQLite 백엔드와 동일한 upsert
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
-섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations()) — 위반 이력 검색.
-        완전히 차단된 시도는 record_tool_call()이 호출되지 않아 색인 대상이
-        아니라는 것(§27.6 4차 발견)과, fail_on_dangerous=False(감지·미차단)
-        모드에서는 실제로 검색 가능함을 대조
+섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations())/REQ-5(transcript 힌트) —
+        위반 이력 검색. 완전히 차단된 시도는 record_tool_call()이 호출되지 않아
+        색인 대상이 아니라는 것(§27.6 4차 발견)과, fail_on_dangerous=False(감지·미차단)
+        모드에서는 실제로 검색 가능함을 대조. summarize_guardrail_result()로
+        agent-evaluator.ts의 summarizeGuardrailResult()(REQ-5 힌트 문구 포함)를
+        Python으로 재현해, 위반이 있을 때만 힌트가 붙는 것을 확인
 
 이 파일은 agent_evaluator.gates.live_guardrail의 공개 API만 사용한다 —
 OpenCode 플러그인(agent-evaluator.ts)이 이 API를 stdin/stdout으로 호출하는
@@ -52,6 +54,57 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = _PROJECT_ROOT / "results" / "opencode_live_guardrail"
 _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 _DB_PATH = _OUTPUT_DIR / "ch27_demo_sessions.db"
+
+
+def summarize_guardrail_result(session_id: str, extra: dict) -> str:
+    """agent-evaluator.ts의 summarizeGuardrailResult()를 Python으로 재현한 것.
+
+    실제 요약 로직의 유일한 소스는 TypeScript 쪽(agent-evaluator.ts)이지만, 그 파일은
+    Node/Bun 없이는 실행할 수 없으므로 여기서는 같은 조건 분기를 Python으로 옮겨
+    적어 REQ-5(위반이 있을 때만 search_violations 힌트를 붙이는 로직)를 순수 Python
+    환경에서도 직접 실행해 확인할 수 있게 한다.
+    """
+    lines = [f"[agent-evaluator] Gate B/E guardrail summary (session {session_id})"]
+
+    loop = extra.get("loop_detection")
+    if loop and loop.get("detected"):
+        lines.append(
+            f"- loop_detection: {loop.get('loop_type')} on tool \"{loop.get('loop_tool')}\""
+        )
+    deadlock = extra.get("deadlock")
+    if deadlock and deadlock.get("detected"):
+        lines.append(f"- deadlock: {deadlock.get('deadlock_type')}")
+    scope = extra.get("scope")
+    if scope and scope.get("in_scope") is False:
+        lines.append(f"- scope violation: {scope.get('violations')}")
+    tps = extra.get("tool_parameter_safety")
+    if tps and tps.get("dangerous_calls"):
+        lines.append(f"- dangerous tool parameters: {tps.get('dangerous_calls')}")
+    ta = extra.get("tool_authorization")
+    if ta and ta.get("total_violations", 0) > 0:
+        lines.append(
+            f"- tool_authorization violations: {ta['total_violations']} "
+            f"(unauthorized={ta.get('unauthorized_calls')}, "
+            f"restricted={ta.get('restricted_calls')}, "
+            f"dangerous_params={ta.get('dangerous_param_calls')})"
+        )
+    pe = extra.get("privilege_escalation")
+    if pe and pe.get("escalation_detected"):
+        lines.append(
+            f"- privilege_escalation: {pe.get('initial_privilege')} -> {pe.get('max_privilege')}"
+        )
+    tc = extra.get("tool_chain_attack")
+    if tc and tc.get("is_suspicious_chain"):
+        lines.append(f"- tool_chain_attack: {tc.get('attack_patterns_detected')}")
+
+    if len(lines) == 1:
+        lines.append("- no violations detected")
+    else:
+        # SPEC-024 REQ-5 — 위반이 1건 이상 있을 때만 다음 세션에게 검색을 유도하는
+        # 힌트를 붙인다. 도구 이름을 프롬프트/transcript에 직접 노출해야 로컬
+        # 소형 모델의 자율 호출을 신뢰할 수 있다는 라이브 검증 결과를 반영한 것이다.
+        lines.append("- 다음 세션에서 유사한 시도를 하기 전에 search_violations 도구로 이 사유를 검색해 확인하라.")
+    return "\n".join(lines)
 
 
 def run_agent_step(guardrail: LiveGuardrail, task_id: str, tool_name: str, params: dict) -> str:
@@ -248,7 +301,13 @@ _v_blocked = _blocked_only_guardrail.check_before_tool_call(
 )
 print(f"  [완전 차단] rm 차단 여부: {_v_blocked.block}")
 # record_tool_call()을 호출하지 않는다 — 차단된 시도는 확정 이력에 남지 않는다(의도된 설계).
-print(f"  [완전 차단] snapshot(): {_blocked_only_guardrail.snapshot()}  ← 위반이 비어 있다")
+_blocked_snapshot = _blocked_only_guardrail.snapshot()
+print(f"  [완전 차단] snapshot(): {_blocked_snapshot}  ← 위반이 비어 있다")
+
+# REQ-5 힌트는 위반이 있을 때만 붙는다 — 여기서는 위반이 없으므로 힌트도 없다.
+print("  [완전 차단] summarize_guardrail_result():")
+for _line in summarize_guardrail_result("session-blocked-only", _blocked_snapshot).splitlines():
+    print(f"    {_line}")
 
 # 5-B. fail_on_dangerous=False(감지만 하고 차단하지 않는 모니터링 모드)면 실행이 허용되고
 # record_tool_call()이 호출되므로, 그 위반이 snapshot()과 배치 리포트에 실제로 남는다 —
@@ -270,6 +329,11 @@ monitor_guardrail.record_tool_call("session-monitor", "bash", {"command": "rm ol
 
 monitor_extra = monitor_guardrail.snapshot()
 print(f"  [모니터 모드] snapshot(): {monitor_extra['tool_parameter_safety']}")
+
+# REQ-5 힌트 — 위반이 있으므로 이번엔 search_violations 힌트가 붙는다.
+print("  [모니터 모드] summarize_guardrail_result():")
+for _line in summarize_guardrail_result("session-monitor", monitor_extra).splitlines():
+    print(f"    {_line}")
 
 monitor_task = create_taskresult(
     task_id="session-monitor",

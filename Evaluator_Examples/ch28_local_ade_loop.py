@@ -18,10 +18,12 @@ Book Chapter 28 — OCOA 스택 (Ollama + ctx + OpenCode + Agent-Evaluator)
 섹션 3: §28.5.3의 "검증" 단계 — pytest 재통과를 세션 완료 조건으로 강제하는 패턴
 섹션 4: §28.5.4(코드 리뷰 워크플로우) 읽기 전용 자가 점검 세션 — ScopeConfig로
         edit/bash를 전부 차단하고 read/grep/glob만 허용하는 패턴
-섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations()) — ctx 없이 자체
-        저장소로 위반을 검색한다. 섹션 2의 "완전 차단"된 git push 시도는 이
-        경로로도 검색되지 않음을 재확인하고, fail_on_dangerous=False(감지·미차단)
-        모드의 위반만 실제로 검색됨을 대조(§28.7 4~5단계 재평가)
+섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations())/REQ-5(transcript 힌트) —
+        ctx 없이 자체 저장소로 위반을 검색한다. 섹션 2의 "완전 차단"된 git push
+        시도는 이 경로로도 검색되지 않음을 재확인하고, fail_on_dangerous=False
+        (감지·미차단) 모드의 위반만 실제로 검색됨을 대조(§28.7 4~5단계 재평가).
+        summarize_guardrail_result()로 위반이 있을 때만 search_violations
+        힌트가 붙는 것도 함께 확인
 
 의존성:
     pip install agent-evaluator
@@ -40,6 +42,32 @@ from agent_evaluator import create_taskresult
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
 from agent_evaluator.gates.live_guardrail import LiveGuardrail
 from agent_evaluator.storage.sqlite_backend import save_tasks_to_db, search_violations
+
+
+def summarize_guardrail_result(session_id: str, extra: dict) -> str:
+    """agent-evaluator.ts의 summarizeGuardrailResult()를 Python으로 재현한 것.
+
+    실제 요약 로직의 유일한 소스는 TypeScript 쪽(agent-evaluator.ts)이지만, 그 파일은
+    Node/Bun 없이는 실행할 수 없으므로 여기서는 같은 조건 분기를 Python으로 옮겨
+    적어 REQ-5(위반이 있을 때만 search_violations 힌트를 붙이는 로직)를 순수 Python
+    환경에서도 직접 실행해 확인할 수 있게 한다. Ch27 §27.2의 동명 함수와 동일하다.
+    """
+    lines = [f"[agent-evaluator] Gate B/E guardrail summary (session {session_id})"]
+
+    tps = extra.get("tool_parameter_safety")
+    if tps and tps.get("dangerous_calls"):
+        lines.append(f"- dangerous tool parameters: {tps.get('dangerous_calls')}")
+    scope = extra.get("scope")
+    if scope and scope.get("in_scope") is False:
+        lines.append(f"- scope violation: {scope.get('violations')}")
+
+    if len(lines) == 1:
+        lines.append("- no violations detected")
+    else:
+        # SPEC-024 REQ-5 — 위반이 1건 이상 있을 때만 search_violations 힌트를 붙인다.
+        lines.append("- 다음 세션에서 유사한 시도를 하기 전에 search_violations 도구로 이 사유를 검색해 확인하라.")
+    return "\n".join(lines)
+
 
 # ===========================================================================
 # 섹션 1: §28.5.3(리팩토링 워크플로우) — 저장소 자체 개선 세션 전용 GUARDRAIL_CONFIG
@@ -270,6 +298,11 @@ save_tasks_to_db(_ch28_db, [_blocked_task])
 _hits_blocked = search_violations(_ch28_db, "git")
 print(f"  search_violations(db, 'git') 결과: {len(_hits_blocked)}건  ← 완전 차단된 시도는 검색되지 않는다")
 
+# REQ-5 힌트도 위반이 없으므로 붙지 않는다 — "3. 기록" 절에서 예고한 것과 동일한 결론.
+print("  [세션 1 재확인] summarize_guardrail_result():")
+for _line in summarize_guardrail_result("repo-session-2", _blocked_extra).splitlines():
+    print(f"    {_line}")
+
 # 5-B. 반면 fail_on_dangerous=False(감지만, 차단은 안 함)로 설정하면 실행이 허용되고
 # record_tool_call()이 호출되므로, 그 위반이 실제로 색인·검색된다.
 monitor_guardrail = LiveGuardrail(
@@ -285,15 +318,20 @@ _v = monitor_guardrail.check_before_tool_call(
 print(f"  [모니터 모드] rm -rf 차단 여부: {_v.block}  (실행은 허용, 위반은 감지)")
 monitor_guardrail.record_tool_call("repo-session-3", "bash", {"command": "rm -rf build/"})
 
+_monitor_extra = monitor_guardrail.snapshot()
 monitor_task = create_taskresult(
-    task_id="repo-session-3", question="q", response="r", execution_time=1.0,
-    extra=monitor_guardrail.snapshot(),
+    task_id="repo-session-3", question="q", response="r", execution_time=1.0, extra=_monitor_extra,
 )
 save_tasks_to_db(_ch28_db, [monitor_task])
 _hits_monitor = search_violations(_ch28_db, "bash")
 print(f"  search_violations(db, 'bash') 결과: {len(_hits_monitor)}건")
 for r in _hits_monitor:
     print(f"    - task_id={r['task_id']}  summary={r['summary']}")
+
+# REQ-5 힌트 — 이번엔 위반이 있으므로 search_violations 힌트가 붙는다.
+print("  [모니터 모드] summarize_guardrail_result():")
+for _line in summarize_guardrail_result("repo-session-3", _monitor_extra).splitlines():
+    print(f"    {_line}")
 
 print("\n=== 요약 ===")
 print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2·4) — Ch27과 동일한 메커니즘")
