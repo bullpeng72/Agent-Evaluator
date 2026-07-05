@@ -160,6 +160,26 @@ pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/
 pipx install 'agent-evaluator[sdk]'              # dashboard + monitor + PDF all available
 ```
 
+### Adding `[mcp]` after `[examples]` is already installed
+
+`[examples]` and `[mcp]` are independent extras (`[mcp]` is not included in the `[examples]` bundle), so
+installing one does not pull in the other. To add the `search_violations` MCP server on top of an
+existing `[examples]` install, without reinstalling the heavy `[examples]` dependencies:
+
+```bash
+# pip — re-running install with a new extra only adds what's missing (already
+# satisfied requirements from [examples] are left untouched)
+pip install "agent-evaluator[examples]"    # already installed
+pip install "agent-evaluator[mcp]"         # adds just `mcp>=1.0.0` on top
+
+# pipx — pipx keeps each app in an isolated venv, so extras aren't additive by
+# default. Either inject the single extra package directly:
+pipx inject agent-evaluator "mcp>=1.0.0"
+
+# ...or reinstall with both extras combined (re-syncs the isolated venv):
+pipx install --force 'agent-evaluator[examples,mcp]'
+```
+
 ---
 
 ## 3 Decorator Types
