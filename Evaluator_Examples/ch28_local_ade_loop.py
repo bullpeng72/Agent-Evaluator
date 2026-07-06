@@ -29,14 +29,23 @@ SDK) 부분뿐**이다 — Ollama/OpenCode는 별도로 설치해야 하는 외�
 
 결과:
     results/opencode_live_guardrail/ch28_demo_sessions.db (섹션 2)
+    results/opencode_live_guardrail/ch28_local_ade_loop.json (+ .html) — agent-eval dashboard로 확인
 """
 
 from pathlib import Path
 
-from agent_evaluator import create_taskresult
+from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
 from agent_evaluator.gates.live_guardrail import LiveGuardrail
 from agent_evaluator.storage.sqlite_backend import save_tasks_to_db, search_violations
+
+_PROJECT_ROOT = Path(__file__).parent.parent
+_OUTPUT_DIR = _PROJECT_ROOT / "results" / "opencode_live_guardrail"
+_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# 섹션 1·2·4에서 기록되는 세션들을 하나의 PerformanceMonitor에 모아
+# Gate B/E 점수를 집계하고, 마지막에 JSON/HTML 리포트로 저장한다(agent-eval dashboard 연동).
+monitor = PerformanceMonitor(output_dir=str(_OUTPUT_DIR))
 
 
 def summarize_guardrail_result(session_id: str, extra: dict) -> str:
@@ -151,10 +160,7 @@ print(f"  [scope_tool_names=['bash']] bash에서 강제 푸시 차단 여부: {v
 # ===========================================================================
 print("\n=== 섹션 2: 다섯 단계 폐루프 (세션 1의 실수를 세션 2가 피한다) ===")
 
-_ch28_db = (
-    Path(__file__).parent.parent / "results" / "opencode_live_guardrail" / "ch28_demo_sessions.db"
-)
-_ch28_db.parent.mkdir(parents=True, exist_ok=True)
+_ch28_db = _OUTPUT_DIR / "ch28_demo_sessions.db"
 
 # --- 세션 1: 위험한 시도가 완전히 차단된다 (fail_on_dangerous=True) ---
 session1_guardrail = make_repo_guardrail()
@@ -178,6 +184,7 @@ _blocked_task = create_taskresult(
 # 4. 색인 — save_tasks_to_db()가 위반이 있는 태스크를 자동으로 색인한다.
 #    이 태스크는 위반이 기록되지 않았으므로 색인 대상 자체가 아니다.
 save_tasks_to_db(_ch28_db, [_blocked_task])
+monitor.record_task(_blocked_task)
 
 # 5. 검색 — 완전히 차단된 시도는 검색되지 않는다(§28.3의 "무엇을 검색할 수 없는가" 참고).
 _hits_blocked = search_violations(_ch28_db, "git")
@@ -207,6 +214,7 @@ monitor_task = create_taskresult(
     task_id="repo-session-3", question="q", response="r", execution_time=1.0, extra=_monitor_extra,
 )
 save_tasks_to_db(_ch28_db, [monitor_task])
+monitor.record_task(monitor_task)
 
 _hits_monitor = search_violations(_ch28_db, "bash")
 print(f"  [관찰 모드] search_violations(db, 'bash') 결과: {len(_hits_monitor)}건")
@@ -276,8 +284,32 @@ for tool_name, params in _REVIEW_ATTEMPTS:
 # → read/grep은 통과하고 edit만 차단된다. 자가 점검 세션이 실제로
 #   "읽기 전용"으로 강제됨을 보여준다 (§28.5.4 참고).
 
-print("\n=== 요약 ===")
+review_task = create_taskresult(
+    task_id="review-session-1",
+    question="(자가 점검 세션) PR 올리기 전 코드 리뷰",
+    response="(에이전트 응답 요약 — 실제로는 세션 transcript 전체)",
+    execution_time=2.0,
+    task_type="tool_use",
+    extra=review_guardrail.snapshot(),
+)
+monitor.record_task(review_task)
+
+# ===========================================================================
+# 요약 — Gate B/E 최종 점수 + JSON/HTML 리포트 저장 (agent-eval dashboard 연동)
+# ===========================================================================
+print("\n=== 요약: Gate B/E 최종 점수 + 리포트 저장 ===")
 print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2·4) — Ch27과 동일한 메커니즘")
 print("  실제 SDK로 검증된 부분: search_violations()로 '관찰 모드' 위반 검색(섹션 2)")
 print("  중요한 제약(섹션 2):    완전히 '차단'된 시도는 search_violations()로 검색되지 않는다")
 print("  개발자 워크플로우 규율: pytest 재통과 강제(섹션 3) — LiveGuardrail이 아니라 사람이 강제")
+
+final_report = monitor.generate_report().to_dict()
+final_harness = (final_report.get("extra_metrics") or {}).get("harness_groups", {})
+final_gate_b = final_harness.get("B", {})
+final_gate_e = final_harness.get("E", {})
+print(f"  Gate B: {final_gate_b.get('score')} ({final_gate_b.get('status', 'n/a')})")
+print(f"  Gate E: {final_gate_e.get('score')} ({final_gate_e.get('status', 'n/a')})")
+
+monitor.save_to_file("ch28_local_ade_loop")
+print(f"\n결과 저장 완료: {_OUTPUT_DIR / 'ch28_local_ade_loop.json'} (+ .html)")
+print(f"확인: agent-eval dashboard --results {_OUTPUT_DIR}")

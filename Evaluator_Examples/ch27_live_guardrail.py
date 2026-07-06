@@ -32,6 +32,7 @@ OpenCode 플러그인(agent-evaluator.ts)이 이 API를 stdin/stdout으로 호�
 
 결과:
     results/opencode_live_guardrail/ch27_demo_sessions.db
+    results/opencode_live_guardrail/ch27_live_guardrail.json (+ .html) — agent-eval dashboard로 확인
 """
 
 from pathlib import Path
@@ -346,6 +347,8 @@ monitor_task = create_taskresult(
 # save_tasks_to_db()가 위반이 있는 태스크를 violation_search(FTS5)에 자동으로 색인한다(REQ-2).
 save_tasks_to_db(_DB_PATH, [monitor_task])
 print(f"  저장 완료(violation_search 자동 색인 포함): {_DB_PATH}")
+# 같은 태스크를 PerformanceMonitor에도 기록해 Gate B/E 점수 집계·대시보드에 반영한다.
+monitor.record_task(monitor_task)
 
 # 5-C. search_violations()로 실제 검색 — REQ-3
 # 주의: 정규식 패턴(\brm\s+\S)이 요약 텍스트에 그대로 포함되므로, FTS5 기본 토크나이저가
@@ -358,3 +361,19 @@ for r in hits:
 
 no_hits = search_violations(_DB_PATH, "kubernetes")
 print(f"  무관한 검색어 결과: {len(no_hits)}건 (예상대로 0건)")
+
+# ===========================================================================
+# 요약 — Gate B/E 최종 점수 + JSON/HTML 리포트 저장 (agent-eval dashboard 연동)
+# ===========================================================================
+print("\n=== 요약: Gate B/E 최종 점수 + 리포트 저장 ===")
+
+final_report = monitor.generate_report().to_dict()
+final_harness = (final_report.get("extra_metrics") or {}).get("harness_groups", {})
+final_gate_b = final_harness.get("B", {})
+final_gate_e = final_harness.get("E", {})
+print(f"  Gate B: {final_gate_b.get('score')} ({final_gate_b.get('status', 'n/a')})")
+print(f"  Gate E: {final_gate_e.get('score')} ({final_gate_e.get('status', 'n/a')})")
+
+monitor.save_to_file("ch27_live_guardrail")
+print(f"\n결과 저장 완료: {_OUTPUT_DIR / 'ch27_live_guardrail.json'} (+ .html)")
+print(f"확인: agent-eval dashboard --results {_OUTPUT_DIR}")
