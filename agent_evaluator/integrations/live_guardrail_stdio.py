@@ -20,7 +20,8 @@ Agent-Evaluator는 Python SDK이므로, Node/Bun 등 비-Python 런타임(예: O
         {"op": "init",
          "loop_detection": {"consecutive_repeat_threshold": 3, "on_loop_detected": "fail"},
          "scope": {"forbidden_tools": ["shell_exec"], "fail_on_violation": true},
-         "tool_authorization": {"restricted_tools": ["rm", "shell_exec"]}}
+         "tool_authorization": {"restricted_tools": ["rm", "shell_exec"]},
+         "max_tool_output_chars": 2000}
         → {"ok": true}
 
     이후:
@@ -28,8 +29,14 @@ Agent-Evaluator는 Python SDK이므로, Node/Bun 등 비-Python 런타임(예: O
         {"op": "check", "task_id": "...", "tool_name": "...", "parameters": {...}}
         → {"block": bool, "gate": str|null, "reason": str|null, "detail": {...}}
 
-        {"op": "record", "task_id": "...", "tool_name": "...", "parameters": {...}}
-        → {"ok": true}
+        {"op": "record", "task_id": "...", "tool_name": "...", "parameters": {...},
+         "output": {"success": bool, "exit_code": int, "stdout": "...", "stderr": "..."}}
+        → {"ok": true}  # "output"은 선택 — SPEC-031, 생략하면 이전과 동일하게 동작
+
+        {"op": "record_blocked", "task_id": "...", "tool_name": "...",
+         "gate": "B"|"E"|null, "reason": "..."}
+        → {"ok": true}  # SPEC-030 REQ-6 — check()가 block=true를 반환했고 호출자가
+                         # 실제로 그 도구를 실행하지 않기로 했을 때만 보낸다.
 
         {"op": "snapshot"}
         → {"extra": {...}}  # TaskResult(extra=...)에 그대로 대입 가능 (SPEC-019 REQ-6)
@@ -84,6 +91,9 @@ def build_guardrail(init_msg: Dict[str, Any]) -> LiveGuardrail:
     for key, cls in _TRACKER_CLASSES.items():
         if init_msg.get(key) is not None:
             kwargs[key] = cls(**init_msg[key])
+    # SPEC-031: 생략하면 LiveGuardrail의 기본값(2000)을 그대로 쓴다.
+    if init_msg.get("max_tool_output_chars") is not None:
+        kwargs["max_tool_output_chars"] = init_msg["max_tool_output_chars"]
     return LiveGuardrail(**kwargs)
 
 
@@ -126,7 +136,18 @@ def run(instream: TextIO = sys.stdin, outstream: TextIO = sys.stdout) -> None:
                 )
                 _write(outstream, _verdict_to_dict(verdict))
             elif op == "record":
-                guardrail.record_tool_call(msg["task_id"], msg["tool_name"], msg.get("parameters"))
+                # SPEC-031 REQ-2: "output"은 선택 — 생략하면 이전과 동일하게 동작한다.
+                guardrail.record_tool_call(
+                    msg["task_id"], msg["tool_name"], msg.get("parameters"), msg.get("output"),
+                )
+                _write(outstream, {"ok": True})
+            elif op == "record_blocked":
+                # SPEC-030 REQ-6: 클라이언트(TS 플러그인 등)가 이전 "check" 응답에서
+                # 받은 gate/reason을 그대로 되돌려 보내 LiveVerdict를 재구성한다.
+                _verdict = LiveVerdict(
+                    block=True, gate=msg.get("gate"), reason=msg.get("reason"),
+                )
+                guardrail.record_blocked_attempt(msg["task_id"], msg["tool_name"], _verdict)
                 _write(outstream, {"ok": True})
             elif op == "snapshot":
                 _write(outstream, {"extra": guardrail.to_task_extra()})

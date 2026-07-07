@@ -82,6 +82,9 @@ def _to_meta(f) -> Dict[str, Any]:
         # 멀티모달 태스크 현황
         "has_multimodal":        f.has_multimodal if hasattr(f, "has_multimodal") else False,
         "multimodal_task_count": f.multimodal_task_count if hasattr(f, "multimodal_task_count") else 0,
+        # SPEC-025 REQ-1: 버전 메타데이터 — 값이 없으면 None(구버전 결과 파일도 에러 없이 통과)
+        "prompt_version": f.prompt_version if hasattr(f, "prompt_version") else None,
+        "agent_version":  f.agent_version if hasattr(f, "agent_version") else None,
     }
 
 
@@ -188,6 +191,9 @@ def list_results(
     tcr_max: Optional[float] = Query(None, description="TCR maximum value (0–100)"),
     accuracy_min: Optional[float] = Query(None, description="Accuracy minimum value (0–100)"),
     age_hours: Optional[float] = Query(None, description="Files from the last N hours only"),
+    # SPEC-025 REQ-1: 버전 필터 — 정확히 일치하는 파일만 반환(exact match)
+    prompt_version: Optional[str] = Query(None, description="Filter by exact prompt_version match"),
+    agent_version: Optional[str] = Query(None, description="Filter by exact agent_version match"),
     # N: 샘플 태스크 포함
     include_sample: bool = Query(False, description="Include latest 3 task samples per file"),
 ) -> Dict[str, Any]:
@@ -230,6 +236,11 @@ def list_results(
         all_files = [f for f in all_files if f.tcr <= tcr_max]
     if accuracy_min is not None:
         all_files = [f for f in all_files if f.accuracy >= accuracy_min]
+    # SPEC-025 REQ-1: prompt_version/agent_version 정확 일치 필터
+    if prompt_version is not None:
+        all_files = [f for f in all_files if getattr(f, "prompt_version", None) == prompt_version]
+    if agent_version is not None:
+        all_files = [f for f in all_files if getattr(f, "agent_version", None) == agent_version]
     if age_hours is not None:
         _cutoff = _dt_mod.datetime.now() - _dt_mod.timedelta(hours=age_hours)
         def _file_mtime(f) -> _dt_mod.datetime:
@@ -1438,25 +1449,89 @@ def get_result_timeline(
     }
 
 
+_SPEC025_GROUP_BY_FIELDS = {"prompt_version", "agent_version"}
+
+
+def _latest_file_ids_by_group(rs, group_by: str) -> list[str]:
+    """SPEC-025 REQ-2: ``group_by``(``prompt_version``|``agent_version``) 값별로 파일을
+    묶어, 그룹마다 가장 최신(``ResultFile.mtime`` 기준) 파일 1개의 ``file_id``만 뽑는다.
+    값이 없는(``None``) 파일은 그룹 대상에서 제외한다(버전 태그가 없는 파일을 "어느
+    버전과도 비교 불가"로 취급 — 별도 그룹으로 묶지 않음). 결정적 순서를 위해 그룹 값
+    오름차순으로 정렬해 반환한다.
+    """
+    buckets: dict[str, list[Any]] = {}
+    for f in getattr(rs, "files", []):
+        if _ARCHIVE_STORE.get(f.file_id, False):
+            continue
+        value = getattr(f, group_by, None)
+        if value is None:
+            continue
+        buckets.setdefault(value, []).append(f)
+
+    file_ids: list[str] = []
+    for value in sorted(buckets.keys()):
+        latest = max(buckets[value], key=lambda f: f.mtime)
+        file_ids.append(latest.file_id)
+    return file_ids
+
+
 @router.get("/compare", summary="Result file comparison")
 def compare_results(
     request: Request,
-    ids: str = Query(..., description="Comma-separated file_id list (e.g. id1,id2)"),
+    ids: Optional[str] = Query(
+        default=None, description="Comma-separated file_id list (e.g. id1,id2)",
+    ),
     detailed: bool = Query(default=False, description="If True, compute detailed diff based on common task_ids"),
+    # SPEC-025 REQ-2: ids 대신 버전 태그로 그룹핑 — 그룹별 최신 파일 1개씩 자동 선택
+    group_by: Optional[str] = Query(
+        default=None,
+        description="Group by prompt_version|agent_version instead of ids — "
+                    "picks the latest file per group value",
+    ),
+    # SPEC-025 REQ-5: 공통 task마다 LLMJudge.judge_pairwise()를 호출해 win_rate 추가
+    pairwise: bool = Query(
+        default=False,
+        description="If True (requires detailed=True), run LLMJudge.judge_pairwise() "
+                    "per common task_id and add a win_rate summary (real judge API calls)",
+    ),
 ) -> Dict[str, Any]:
     """Compare key metrics across multiple result files side by side (B2/B5).
 
     When detailed=True, computes accuracy_delta/latency_delta for common task_ids
     and returns regression_tasks/improvement_tasks lists.
 
+    SPEC-025 REQ-2: pass ``group_by="prompt_version"`` (or ``"agent_version"``) instead
+    of ``ids`` to automatically compare the latest result file per distinct tag value —
+    files with no value for that field are excluded from grouping. ``ids`` takes
+    precedence if both are supplied.
+
+    SPEC-025 REQ-5: pass ``pairwise=True`` alongside ``detailed=True`` to additionally
+    run ``LLMJudge.judge_pairwise()`` on the first two files' common tasks and report a
+    win-rate summary — a lower-variance alternative to the ``accuracy_delta``-based
+    regression/improvement lists above (which remain unchanged and are still returned).
+
     Returns:
         files (list of per-file metric dicts), delta (first vs. rest difference),
-        [when detailed=True] detailed, regression_tasks, improvement_tasks
+        [when detailed=True] detailed, regression_tasks, improvement_tasks,
+        [when detailed=True and pairwise=True] pairwise (win_rate summary)
     """
     rs = _rs(request)
-    file_ids = [fid.strip() for fid in ids.split(",") if fid.strip()]
+
+    if ids:
+        file_ids = [fid.strip() for fid in ids.split(",") if fid.strip()]
+    elif group_by:
+        if group_by not in _SPEC025_GROUP_BY_FIELDS:
+            _valid = sorted(_SPEC025_GROUP_BY_FIELDS)
+            raise HTTPException(
+                status_code=400,
+                detail=f"group_by must be one of {_valid}, got {group_by!r}",
+            )
+        file_ids = _latest_file_ids_by_group(rs, group_by)
+    else:
+        file_ids = []
+
     if not file_ids:
-        raise HTTPException(status_code=400, detail="ids parameter is required")
+        raise HTTPException(status_code=400, detail="ids or group_by parameter is required")
 
     # 실제 ResultFile 객체 보존 (detailed 계산용)
     rf_map: Dict[str, Any] = {}
@@ -1531,7 +1606,59 @@ def compare_results(
             result["regression_tasks"] = regression_tasks
             result["improvement_tasks"] = improvement_tasks
 
+            # SPEC-025 REQ-5: pairwise LLM Judge 비교 — accuracy_delta 기반 회귀/개선
+            # 목록(위)을 대체하지 않고 병행 제공하는 저분산 대안 신호.
+            if pairwise:
+                result["pairwise"] = _run_pairwise_comparison(tasks_a, tasks_b, common_ids)
+
     return result
+
+
+def _run_pairwise_comparison(
+    tasks_a: dict[str, Any],
+    tasks_b: dict[str, Any],
+    common_ids: set,
+) -> dict[str, Any]:
+    """SPEC-025 REQ-5: 공통 task_id마다 ``LLMJudge.judge_pairwise()``를 호출해
+    첫 번째 파일(``tasks_a``) 기준 승률을 집계한다. tie는 0.5승으로 계산한다
+    (LLM 평가 문헌의 통상적인 win-rate 정의). judge 호출이 스킵되거나(예산/연속
+    오류) 실패한 task는 집계에서 제외한다 — 새 판정 알고리즘을 만들지 않고
+    SPEC-025 REQ-4의 ``judge_pairwise()``를 그대로 재사용한다."""
+    from agent_evaluator.integrations.llm_judge import LLMJudge
+
+    judge = LLMJudge()
+    wins_a = wins_b = ties = 0
+    per_task: list[dict[str, Any]] = []
+
+    for tid in sorted(common_ids):
+        ta = tasks_a[tid]
+        tb = tasks_b[tid]
+        question = ta.raw.get("question", "") or ""
+        response_a = ta.raw.get("response", "") or ""
+        response_b = tb.raw.get("response", "") or ""
+        pw = judge.judge_pairwise(question, response_a, response_b)
+        winner = pw.get("winner")
+        if pw.get("error") or pw.get("skipped") or winner not in ("a", "b", "tie"):
+            continue
+        if winner == "a":
+            wins_a += 1
+        elif winner == "b":
+            wins_b += 1
+        else:
+            ties += 1
+        per_task.append({"task_id": tid, "winner": winner, "reasoning": pw.get("reasoning", "")})
+
+    judged_count = wins_a + wins_b + ties
+    win_rate = round((wins_a + 0.5 * ties) / judged_count, 4) if judged_count else None
+
+    return {
+        "judged_count": judged_count,
+        "wins_a": wins_a,
+        "wins_b": wins_b,
+        "ties": ties,
+        "win_rate": win_rate,  # tasks_a(첫 번째 파일) 기준 승률 — tie는 0.5승 처리
+        "per_task": per_task,
+    }
 
 
 @router.get("/leaderboard", summary="Leaderboard")

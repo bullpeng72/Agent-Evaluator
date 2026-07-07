@@ -63,8 +63,12 @@ def format_results(results: List[Dict[str, Any]]) -> str:
         return "일치하는 과거 위반 이력이 없습니다."
     lines = ["과거 위반 이력 검색 결과:"]
     for i, r in enumerate(results, start=1):
+        # SPEC-030 REQ-5: include_blocked=True 결과에만 "blocked" 키가 있다 —
+        # 관찰 모드(위반 기록만, 실행은 됨)와 완전 차단(실행 자체가 막힘)을
+        # 모델이 혼동하지 않도록 접두어로 명확히 구분한다.
+        _prefix = "[차단됨] " if r.get("blocked") else "[관찰됨] " if "blocked" in r else ""
         lines.append(
-            f"{i}. [{r.get('timestamp')}] task_id={r.get('task_id')} "
+            f"{i}. {_prefix}[{r.get('timestamp')}] task_id={r.get('task_id')} "
             f"(task_type={r.get('task_type')}, success={r.get('success')}): {r.get('summary')}"
         )
     return "\n".join(lines)
@@ -92,7 +96,10 @@ def build_server(db_path: Optional[str] = None) -> Any:
         지금 시도하려는 도구 호출(셸 명령, 파일 삭제 등)이 과거 세션에서 이미
         LiveGuardrail에 의해 차단된 적이 있는지 확인하고 싶을 때 사용하라.
         """
-        results = _search_violations(_db_path, query)
+        # SPEC-030 REQ-5: include_blocked=True로 완전 차단 이력(SPEC-030)까지
+        # 함께 검색한다 — 이 도구의 docstring이 원래부터 약속했던 "차단된 이력"
+        # 검색을 실제로 이행한다.
+        results = _search_violations(_db_path, query, include_blocked=True)
         return format_results(results)
 
     return server

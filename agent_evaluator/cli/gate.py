@@ -8,6 +8,7 @@ agent-eval gate — CI/CD 품질 게이팅 명령어.
     0 — 모든 기준 통과
     1 — 임계값 기준 미달
     2 — 이전 버전 대비 회귀 감지 (--fail-on-regression 사용 시)
+    3 — 골든셋 회귀 감지 (--golden-set + --fail-on-golden-regression 사용 시, SPEC-025 REQ-6)
 """
 
 from __future__ import annotations
@@ -278,6 +279,15 @@ def _default_baseline_path(result_file: Path) -> Path:
     return result_file.parent / "baseline.json"
 
 
+def _baseline_version_path(result_file: Path, tag: str) -> Path:
+    """SPEC-025 REQ-3: 결과 파일과 같은 디렉토리의 ``baselines/<tag>.json`` 경로를
+    반환한다 — 여러 프롬프트/에이전트 버전을 동시에 실험할 때, 버전별로 독립된
+    기준선을 저장·비교할 수 있게 한다(``--baseline-version`` 미지정 시에는
+    :func:`_default_baseline_path`의 단일 ``baseline.json``이 그대로 쓰인다 —
+    하위호환)."""
+    return result_file.parent / "baselines" / f"{tag}.json"
+
+
 def _load_baseline(path: Path) -> Optional[Dict[str, Any]]:
     """기준선 파일을 로드한다. 없으면 None 반환."""
     if not path.is_file():
@@ -444,6 +454,76 @@ def _check_regression(
                 "pct_change": pct_change,
                 "unit": unit,
             })
+
+    return regressions
+
+
+# ---------------------------------------------------------------------------
+# SPEC-025 REQ-6: 골든셋 회귀 게이트
+# ---------------------------------------------------------------------------
+
+def _load_golden_set(path: Path) -> list[dict[str, Any]]:
+    """골든셋 파일을 로드한다(``golden.py::merge_approved()``가 만드는 형식 —
+    리스트의 각 원소가 하나의 case, ``task_id``/``question``/``ground_truth`` 등
+    내부 메타 필드(``_`` 접두)를 제거한 채 보존, ``golden.py:527``).
+
+    Raises:
+        json.JSONDecodeError, OSError: 파일을 열거나 파싱할 수 없을 때 — 호출자가
+            (``cmd_gate``와 동일하게) 사용자에게 명확한 오류로 보고해야 하므로 여기서
+            조용히 삼키지 않는다(``--golden-set`` 경로 오타를 "그냥 통과"로 오인하지
+            않도록 하기 위함).
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, list) else []
+
+
+def _check_golden_regressions(
+    golden_cases: list[dict[str, Any]],
+    result_tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """골든셋 케이스가 최신 결과 파일에 커버되고 통과했는지 확인한다.
+
+    매칭은 ``task_id`` 우선, 없으면 ``question`` 텍스트 완전 일치로 폴백한다(골든셋이
+    원본 ``task_id``를 보존하고 있으면 항상 정확한 매칭이 보장된다 — 정상 경로).
+    매칭 실패(커버리지 누락) 또는 매칭된 태스크의 ``success`` 가 falsy면 "golden
+    regression"으로 분류한다. 새 정확도 판정 로직을 만들지 않고 이미 계산된
+    ``success`` 필드만 신뢰한다 — ``cli/gate.py``는 에이전트를 재실행하지 않고
+    이미 만들어진 결과 JSON만 분석하는 사후 분석 도구라는 기존 경계를 유지한다.
+
+    Args:
+        golden_cases: ``_load_golden_set()``이 반환한 골든셋 케이스 목록.
+        result_tasks: 분석 대상 결과 JSON의 ``tasks`` 배열(원소는 raw dict).
+
+    Returns:
+        회귀로 판정된 케이스 목록. 각 원소: ``task_id``, ``question``, ``reason``
+        (``"missing"`` | ``"failed"``).
+    """
+    by_task_id: dict[str, dict[str, Any]] = {
+        t["task_id"]: t for t in result_tasks if isinstance(t, dict) and t.get("task_id")
+    }
+    by_question: dict[str, dict[str, Any]] = {
+        t["question"]: t for t in result_tasks if isinstance(t, dict) and t.get("question")
+    }
+
+    regressions: list[dict[str, Any]] = []
+    for case in golden_cases:
+        if not isinstance(case, dict):
+            continue
+        case_task_id = case.get("task_id")
+        case_question = case.get("question")
+        match = by_task_id.get(case_task_id) if case_task_id else None
+        if match is None and case_question:
+            match = by_question.get(case_question)
+
+        if match is None:
+            regressions.append(
+                {"task_id": case_task_id, "question": case_question, "reason": "missing"},
+            )
+        elif not match.get("success", False):
+            regressions.append(
+                {"task_id": case_task_id, "question": case_question, "reason": "failed"},
+            )
 
     return regressions
 
@@ -733,7 +813,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         args: argparse.Namespace — CLI 인수.
 
     Returns:
-        종료 코드 (0=통과, 1=기준 미달, 2=회귀 감지).
+        종료 코드 (0=통과, 1=기준 미달, 2=회귀 감지, 3=골든셋 회귀 감지).
 
     Example:
         # argparse.Namespace를 직접 생성해 호출하는 경우
@@ -742,8 +822,9 @@ def cmd_gate(args: argparse.Namespace) -> int:
             result_file="results/ci.json",
             tcr=85.0, accuracy=None, p95_latency=None,
             hallucination=None, llm_judge=None,
-            fail_on_regression=None, baseline=None,
+            fail_on_regression=None, baseline=None, baseline_version=None,
             save_baseline=False, junit_xml=None,
+            golden_set=None, fail_on_golden_regression=False,
         )
         exit_code = cmd_gate(ns)
     """
@@ -772,8 +853,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
     harness_scores = _load_harness_groups(data)
 
     # ── 기준선 경로 결정 ─────────────────────────────────────────────────────
+    # SPEC-025 REQ-3: --baseline(명시적 경로) > --baseline-version(버전별 baselines/<tag>.json)
+    # > 기본 baseline.json 순으로 우선한다.
     if getattr(args, "baseline", None):
         baseline_path = Path(args.baseline)
+    elif getattr(args, "baseline_version", None):
+        baseline_path = _baseline_version_path(result_file, args.baseline_version)
     else:
         baseline_path = _default_baseline_path(result_file)
 
@@ -888,6 +973,31 @@ def cmd_gate(args: argparse.Namespace) -> int:
                     "unit": "",
                 })
 
+    # ── 골든셋 회귀 게이트 (SPEC-025 REQ-6) ────────────────────────────────────
+    golden_regressions: list[dict[str, Any]] = []
+    golden_set_path = getattr(args, "golden_set", None)
+    if golden_set_path:
+        _golden_path = Path(golden_set_path)
+        if not _golden_path.is_file():
+            print(f"{RD}❌ Golden set file not found: {_golden_path}{R}", file=sys.stderr)
+            return 1
+        try:
+            golden_cases = _load_golden_set(_golden_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"{RD}❌ Failed to parse golden set JSON: {exc}{R}", file=sys.stderr)
+            return 1
+        golden_regressions = _check_golden_regressions(golden_cases, data.get("tasks", []) or [])
+        if golden_regressions:
+            _n = len(golden_regressions)
+            print(f"\n{RD}{B}Golden set regressions ({_n}):{R}", file=sys.stderr)
+            for _greg in golden_regressions:
+                _label = _greg["task_id"] or (_greg["question"] or "")[:60]
+                _reason = (
+                    "missing from this run" if _greg["reason"] == "missing"
+                    else "failed (success=False)"
+                )
+                print(f"  {RD}✗ {_label}: {_reason}{R}", file=sys.stderr)
+
     # ── 출력 ────────────────────────────────────────────────────────────────
     _print_table(gate_results, str(result_file), regressions if regressions else None, composite_result)
 
@@ -898,6 +1008,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
         print(f"{D}JUnit XML: {junit_xml_path}{R}")
 
     # ── 종료 코드 결정 ───────────────────────────────────────────────────────
+    # SPEC-025 REQ-6: --fail-on-golden-regression이 지정된 경우에만 골든셋 회귀가
+    # 종료 코드에 반영된다(플래그 없이 --golden-set만 주면 위에서 이미 보고는 하되
+    # 통과/실패 판정에는 영향을 주지 않는다 — 다른 옵트인 체크들과 동일한 관례).
+    if getattr(args, "fail_on_golden_regression", False) and golden_regressions:
+        return 3
+
     if regressions:
         return 2
 

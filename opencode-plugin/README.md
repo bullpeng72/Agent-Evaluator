@@ -88,6 +88,59 @@ db 경로를 추가하세요.
 > 이름을 프롬프트에서 언급하지 않으면 로컬 소형 모델이 아예 이 도구를 안 씀).
 > 확실한 효과가 필요하면 프롬프트에 `search_violations`를 직접 언급하세요.
 
+## SPEC-027/028: 배치 Gate A–G 통합 + agent_version 자동 태깅
+
+`session.idle`이 만드는 배치 리포트는 원래 Gate B/E만 의미 있게 채웠습니다 —
+`PerformanceMonitor.record_task()`/`generate_report()`는 어떤 태스크가 들어오든
+Gate A–G 7개 전부를 계산하지만(`live_guardrail_report.py:record_and_save()`가
+호출하는 함수는 데코레이터 경로와 완전히 동일), 실제로 넘어오는 데이터가
+B/E 외의 5개 Gate를 채우지 못했습니다. 2026-07-06~07 코드 감사에서 정확한
+원인 3가지를 확인하고 바로잡았습니다:
+
+- **Gate G(관측성) — 데이터는 있는데 안 넘어갔습니다.** `LiveGuardrail.record_tool_call()`이
+  매 확정 호출마다 원본 도구 호출 이력을 이미 누적하는데, `snapshot()`/`to_task_extra()`는
+  거기서 **파생된** Gate B/E 지표만 반환하고 원본 리스트는 어디로도 노출하지
+  않았습니다. 이제 `snapshot()`이 `"tool_calls"` 키로 원본 확정 호출 로그(얕은
+  복사)를 항상 포함하고, `live_guardrail_report.py`가 이를 `extra`에서 꺼내
+  `TaskResult.tool_calls`(ToolCallAnalyzer가 실제로 읽는 최상위 필드)로 옮깁니다.
+- **Gate D(성능계약) — 상수 `0.0`이 들어갔습니다.** `recordSessionReport()` 페이로드가
+  `execution_time`을 아예 안 보냈습니다 — 모든 세션이 "0초짜리 실행"으로
+  기록됐다는 뜻입니다. 이제 `GuardrailSession`이 생성 시점(`readonly startedAt: number
+  = Date.now()`)을 기록하고, `handleSessionIdle()`이 `(Date.now() - session.startedAt) / 1000`으로
+  실제 경과 시간(초)을 계산해 보냅니다 — 도구 호출 사이 유휴 시간을 포함한 세션
+  전체 경과 시간이며, 순수 실행 시간은 아닙니다.
+- **Gate A(목표달성) — 없는 게 아니라 조용히 틀린 값이 나왔습니다.** `question`/`response`가
+  고정 placeholder(`"<opencode session>"`)라, `completion_score`가 세션 내용과
+  무관하게 **항상 `1.0`(완벽)**으로 계산됐습니다. `TaskResult.completion_score`는
+  `[0,1]` 범위가 강제돼(벗어나면 `TypeError`) `None`으로 "not tested"를 만들 수
+  없고, Gate A의 TCR 컴포넌트는 태스크가 하나라도 있으면 무조건 계산되므로
+  애초에 완전한 "not tested"는 불가능함을 확인했습니다 — 대신 신호가 없을 때는
+  중립값 `0.5`(성공도 실패도 아님)로 바꿨습니다. 자동화된 검증(예: "방금 고친
+  코드로 pytest가 통과하는가")이 있으면 페이로드에 `"success": true|false`를
+  추가로 보내 실제 판정을 반영할 수 있습니다 — 그러면 `completion_score`/
+  `accuracy_score`가 `1.0`/`0.0`으로, `TaskResult.success`도 그 값으로 맞춰집니다.
+
+추가로, `record_and_save()`가 만드는 `PerformanceMonitor`에 `agent_version=payload.get("agent_version",
+"auto")`를 연결했습니다 — 기본값 `"auto"`는 현재 git 커밋 SHA 앞 8자 + 커밋되지
+않은 tracked 파일 변경이 있으면 그 diff를 해시한 접미사(`-dirty-<hash>`)로
+자동 태깅합니다. 커밋 없이 코드를 고치고 바로 세션을 재시작하는 게 흔한 이
+로컬 개발 루프에서, git commit SHA만 쓰면 커밋 전 여러 iteration이 전부 같은
+태그로 뭉개져 SPEC-025의 `compare_results(group_by="agent_version")`/⚖️ Pairwise
+Judge 비교가 무의미해지는 문제를 해소합니다.
+
+이 변경들은 새 CLI 서브커맨드나 새 비교 로직을 만들지 않았습니다 — 이미
+존재하는 `agent-eval gate`/`agent-eval dashboard`가 그대로 이 데이터를 읽습니다.
+`Evaluator_Examples/ch28_local_ade_loop.py`(섹션 5)에서 `record_and_save()`를
+직접 호출해 Gate A/D/G가 실제로 채워지는 것과 `agent-eval gate`가 exit 0으로
+통과하는 것을 실행 검증했습니다. 상세는 `Docs/specs/SPEC-027-git-based-agent-version-tagging.md`/
+`Docs/specs/SPEC-028-aoo-batch-harness-integration.md` 참조.
+
+> **한계**: `ToolCallAnalyzer.analyze()`(`layer2.py:197`)는 `success` 키가 없는
+> tool_call을 기본 성공으로 간주합니다 — `LiveGuardrail`은 "차단되지 않고 실행됨"만
+> 알 뿐 도구 자체의 실행 결과(exit code 등)는 모르므로, Gate G의 성공률이 실제보다
+> 낙관적일 수 있습니다. 도구 실행 결과 세분화 추적은 `tool.execute.after` 훅
+> 시그니처를 확장해야 하는 더 큰 후속 작업으로 남겨뒀습니다.
+
 ## 훅 필드는 실제 설치된 패키지 타입 선언으로 검증했습니다
 
 이전 버전은 OpenCode 공식 문서가 훅 콜백 인자의 전체 필드를 나열하지 않아 추측성
@@ -238,8 +291,11 @@ rm -f victim2.txt → [agent-evaluator] blocked by Gate B: dangerous tool parame
 ## 관련 문서
 
 - `Docs/specs/SPEC-019-live-guardrail-api.md` — 전체 설계, Non-Goals, Risks.
-- `agent_evaluator/gates/live_guardrail.py` — 실제 Gate B/E 판정 로직.
+- `Docs/specs/SPEC-027-git-based-agent-version-tagging.md` — `agent_version="auto"` 설계.
+- `Docs/specs/SPEC-028-aoo-batch-harness-integration.md` — 배치 Gate A–G 통합 설계.
+- `agent_evaluator/gates/live_guardrail.py` — 실제 Gate B/E 판정 로직 + `tool_calls` 노출(SPEC-028 REQ-1).
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — 세션 내내 살아있는
   Python 브리지(OpenCode 전용이 아닌 범용 stdio 프로토콜).
 - `agent_evaluator/integrations/live_guardrail_report.py` — 세션 종료 시 1회
-  실행되는 배치 편입 브리지.
+  실행되는 배치 편입 브리지 + `success`/`execution_time`/`agent_version` 옵트인 필드(SPEC-028).
+- `Evaluator_Examples/ch28_local_ade_loop.py`(섹션 5) — 배치 Gate A–G 통합 실행 예제.

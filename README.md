@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.8-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1162,9 +1162,89 @@ eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5)
 | `--hallucination N` | Maximum hallucination detection rate (%) |
 | `--llm-judge N` | Minimum LLM Judge overall score (0–5) |
 | `--fail-on-regression N` | Allowed drop ratio vs. previous baseline (%) |
+| `--baseline PATH` | Explicit baseline file path (default: `<result_dir>/baseline.json`) |
+| `--baseline-version TAG` *(v0.9.8+)* | Use `<result_dir>/baselines/<TAG>.json` — lets multiple prompt/agent versions keep independent baselines. Ignored if `--baseline` is also given |
+| `--golden-set PATH` *(v0.9.8+)* | Golden dataset JSON (from `agent-eval dataset build` / dashboard approval). Checks whether each case's `task_id` (or `question`, as a fallback) is present in the result file and succeeded |
+| `--fail-on-golden-regression` *(v0.9.8+)* | Return exit code `3` if any `--golden-set` case is missing or failed |
 | `--junit-xml PATH` | JUnit XML output (CI integration) |
 
-**Exit codes:** `0` = all passed / `1` = threshold not met / `2` = regression detected
+**Exit codes:** `0` = all passed / `1` = threshold not met / `2` = regression detected / `3` = golden-set regression (`--golden-set` + `--fail-on-golden-regression`)
+
+```bash
+# Per-version baseline — compare a "v2-cot" prompt experiment against its own history only
+agent-eval gate results/run_v2.json --save-baseline --baseline-version v2-cot
+agent-eval gate results/run_v2_latest.json --baseline-version v2-cot --fail-on-regression 10
+
+# Golden-set gate — fail CI if a previously-approved golden case regresses or disappears
+agent-eval gate results/run_latest.json \
+  --golden-set data/golden_datasets/golden_20260705_120000.json \
+  --fail-on-golden-regression
+```
+
+---
+
+## Version-Aware Comparison (v0.9.8+)
+
+Tag result files with `prompt_version`/`agent_version` and the dashboard API can group and compare
+them automatically — no more manually picking `file_id`s to answer "did this prompt change actually
+help?".
+
+```python
+monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.8")
+```
+
+**Auto-tagging from git (SPEC-027)**: pass `agent_version="auto"` instead of a literal string to tag every
+run with the current git state automatically — no manual bookkeeping needed:
+
+```python
+monitor = PerformanceMonitor(output_dir="results/", agent_version="auto")
+monitor.agent_version  # -> "a1b2c3d4" (clean working tree)
+                       # -> "a1b2c3d4-dirty-f3a91c" (uncommitted changes to tracked files)
+                       # -> None (no git info — not a git repo, git not installed, etc.)
+```
+
+`"auto"` resolves to the current commit's short SHA (`git rev-parse HEAD`, cached once at construction —
+no repeated subprocess calls). If the working tree has uncommitted changes, a hash of `git diff HEAD` is
+appended as a `-dirty-<hash>` suffix, so iterations you run *without* committing between them (the normal
+rhythm of a fast local dev loop, e.g. AOO — see below) still get distinct, reproducible tags instead of all
+collapsing into the same commit's tag. Falls back to `None` on any failure (not a git repo, `git` missing,
+timeout) rather than raising.
+
+```bash
+# Filter the dashboard's file list by tag
+GET /api/results?prompt_version=v2-cot
+
+# Auto-compare the latest file per distinct prompt_version/agent_version — no ids= needed
+GET /api/compare?group_by=prompt_version
+```
+
+Add `pairwise=true` (with `detailed=true`) to also run a pairwise LLM Judge comparison on every
+common task between the two files, reporting a win-rate instead of (or alongside) the existing
+`accuracy_delta`-based regression/improvement lists — pairwise comparisons are less sensitive to a
+judge model's day-to-day scoring drift than absolute scores:
+
+```bash
+GET /api/compare?group_by=prompt_version&detailed=true&pairwise=true
+```
+
+```python
+from agent_evaluator import LLMJudge
+
+judge = LLMJudge(model="claude-haiku-4-5-20251001")
+result = judge.judge_pairwise(
+    question="...", response_a="(v1 response)", response_b="(v2 response)",
+)
+# {"winner": "a"|"b"|"tie", "reasoning": "...", "swap_check": True, ...}
+```
+
+`judge_pairwise()` swaps A/B and calls the judge twice by default (`swap_check=True`) to cancel out
+position bias — if the two calls disagree, the result resolves to `"tie"` rather than guessing. Set
+`swap_check=False` to halve the cost when that's not a concern.
+
+**Dashboard**: the `agent-eval dashboard`'s File Compare tab exposes all of this without touching the
+API directly — a **Group by** dropdown (`prompt_version`/`agent_version`, auto-selects the latest file
+per tag), a **⚖️ Pairwise Judge** sub-tab (shown once exactly 2 files are selected), and a **📄 Export
+HTML** button that downloads a self-contained comparison report (same data as above, rendered as HTML).
 
 ---
 
@@ -1200,13 +1280,36 @@ Then adjust `GUARDRAIL_CONFIG` at the top of the installed `.opencode/plugin/age
 
 Once loaded: unsafe tool calls are blocked mid-session with an error the model sees immediately (and can self-correct on), each session's Gate B/E verdict is upserted into a local SQLite store (`results/opencode_live_guardrail/opencode_sessions.db` by default — read it back with `agent_evaluator.storage.sqlite_backend.load_tasks_from_db`), and the verdict is also written back into the OpenCode session transcript (`noReply: true`, no extra LLM turn) so a memory-indexing agent like `ctx` can recall past violations in later sessions.
 
+### Batch Gate A–G Integration (SPEC-028)
+
+Real-time (per-tool-call, Gate B/E) and batch (per-session, Gate A–G) evaluation are the same
+pipeline underneath — the plugin's session-end bridge (`live_guardrail_report.record_and_save()`)
+calls the exact same `PerformanceMonitor.record_task()`/`generate_report()` that `@agent_eval`/`QuickEval`
+use, so every recorded session is automatically scored on all 7 Gates, not just B/E:
+
+- **Gate G (Observability)**: the confirmed tool-call log LiveGuardrail already tracks internally is
+  now included automatically — no extra wiring needed.
+- **Gate D (Performance Contract)**: the plugin measures each session's actual wall-clock duration
+  (from session start to `session.idle`) and sends it along — previously this was always a hardcoded
+  `0.0`, which made every session look impossibly fast.
+- **Gate A (Goal Achievement)**: without an explicit success signal there's no way to know whether the
+  session actually accomplished its goal, so `completion_score` defaults to a neutral `0.5` rather than
+  a misleadingly perfect `1.0`. If you have an automated check (e.g. "did the tests I asked the agent to
+  fix now pass?"), report it by adding `"success": true|false` to the JSON payload sent to
+  `live_guardrail_report` — `agent_version` also defaults to `"auto"` (see above) so different local
+  iterations are distinguished automatically, even without committing between them.
+
+The result is a normal result file — point `agent-eval gate`/`agent-eval dashboard` at
+`results/opencode_live_guardrail/` exactly as you would for any other run. See
+`Evaluator_Examples/ch28_local_ade_loop.py` (Section 5) for a runnable, end-to-end demonstration.
+
 **`search_violations` MCP server** (opt-in, `pip install "agent-evaluator[mcp]"`) — `agent_evaluator.integrations.violation_search_mcp` exposes a single stdio MCP tool, `search_violations(query: str)`, that full-text searches that same SQLite store (via an additive FTS5 index) and returns a human-readable summary of past Gate B/E blocks. `agent-eval opencode install --with-violation-search` registers it automatically via `opencode mcp add`; to register it manually (or for other MCP clients):
 
 ```bash
 opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
 ```
 
-> **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it blocked a live `rm -f` deletion attempt mid-session and left the file intact. The plugin file itself now ships inside the pip package, but the integration's design maturity is still prototype-level, with documented limitations (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard `kill -9`). See [`opencode-plugin/README.md`](opencode-plugin/README.md) for full design notes and known limitations, and `Docs/specs/SPEC-019-live-guardrail-api.md` for the spec.
+> **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it blocked a live `rm -f` deletion attempt mid-session and left the file intact. The plugin file itself now ships inside the pip package, but the integration's design maturity is still prototype-level, with documented limitations (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard `kill -9`). See [`opencode-plugin/README.md`](opencode-plugin/README.md) for full design notes and known limitations.
 
 ---
 
@@ -1418,7 +1521,7 @@ from agent_evaluator.decorators import (
 
 ## Example Guide
 
-Consists of 26 files based on book chapters. Each file is independently runnable.
+Consists of 28 files based on book chapters. Each file is independently runnable.
 
 ### Example Dependencies
 
@@ -1450,6 +1553,8 @@ Consists of 26 files based on book chapters. Each file is independently runnable
 | `ch24_quickeval_entry.py` | Ch24 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
 | `ch25_harness_full.py` | Ch25 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
 | `ch26_cicd_weekly.py` | Ch26 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
+| `ch27_live_guardrail.py` | Ch27 | LiveGuardrail real-time single-tool-call guardrail — check/record split, dangerous-pattern false-positive/negative tradeoffs, SQLite batch report + `search_violations()` | — |
+| `ch28_local_ade_loop.py` | Ch28 | Local ADE self-correction loop (AOO stack: Agent-Evaluator + Ollama + OpenCode) — repo-safety `LiveGuardrail` extensions, 5-step closed loop (block → surface → record → index → search), read-only self-review pattern, batch Gate A/D/G integration via `live_guardrail_report.record_and_save()` + `agent-eval gate` (SPEC-028) | — |
 
 ### Running Examples
 
@@ -1482,13 +1587,13 @@ python ch23_gate_mapping.py    # Gate mapping strategy
 python ch24_quickeval_entry.py # First migration — Level 0/1 invasiveness
 python ch25_harness_full.py    # Full integration pipeline
 python ch26_cicd_weekly.py     # CI/CD completion + weekly review
+python ch27_live_guardrail.py  # LiveGuardrail real-time guardrail + search_violations()
+python ch28_local_ade_loop.py  # Local ADE self-correction loop (AOO stack)
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 agent-eval monitor             # Start Phoenix server (http://localhost:6006)
 agent-eval dashboard --watch   # Dashboard (http://localhost:8765)
 ```
-
-> Legacy 11 examples (01–08, 09, 10) are preserved in `Evaluator_Examples/.deprecated/`.
 
 ---
 
@@ -1522,8 +1627,8 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
-├── tests/                       # 3,250+ test functions, 82 files
+├── Evaluator_Examples/          # 28 example files (ch01~ch28)
+├── tests/                       # 3,486+ test functions, 91 files
 └── pyproject.toml
 ```
 
@@ -1593,6 +1698,22 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.8 (2026-07-06) — Version-Aware Comparison · Persistent Anomaly Baseline · AOO ADE Local Dev Loop
+
+- 📊 **Version-aware comparison**: `prompt_version`/`agent_version` (already accepted by `PerformanceMonitor`) are now surfaced as first-class `ResultFile` properties and dashboard filters (`GET /api/results?prompt_version=...`), and `compare_results` gained `group_by=prompt_version|agent_version` to auto-pick the latest file per tag instead of manually choosing `ids=`.
+- ⚖️ **Pairwise LLM Judge**: new `LLMJudge.judge_pairwise(question, response_a, response_b)` runs an A/B comparison (`swap_check=True` by default cancels out position bias by swapping and re-judging) — lower-variance than absolute scores for "did this prompt change help?" questions. `compare_results(pairwise=True)` runs it across every common task and reports a `win_rate`, alongside (not replacing) the existing `accuracy_delta`-based regression/improvement lists.
+- 🖥️ **Dashboard + HTML export for the above**: the File Compare tab gained a **Group by** dropdown (`prompt_version`/`agent_version`), a **⚖️ Pairwise Judge** sub-tab, and a **📄 Export HTML** button — backed by a new self-contained comparison report generator (`generate_comparison_html_report()`) and `GET /api/export/html/compare`.
+- 🧪 **Per-version CI baselines**: `agent-eval gate --baseline-version TAG` stores an independent `baselines/<TAG>.json` per prompt/agent experiment instead of one shared `baseline.json`.
+- ✅ **Golden-set regression gate**: `agent-eval gate --golden-set PATH --fail-on-golden-regression` checks whether every case in an approved golden dataset is still present and passing in the latest result file (new exit code `3` when it isn't) — a CI-friendly complement to re-running the golden set through the live agent.
+- 🔁 **Persistent anomaly baseline**: `PerformanceMonitor.rehydrate_from_storage(path)` replays a SQLite-backed task history through `record_task()` so `AnomalyDetector`'s baseline survives process restarts (containers, autoscaling) instead of resetting to empty every time.
+- 📡 **Streaming anomaly detection + auto-alerting**: `StreamingEvaluator(anomaly_detector=..., anomaly_scan_interval=..., anomaly_alert_handler=...)` runs periodic anomaly scans on its existing flush thread and, when both an `AlertEngine` and a notification handler are configured, automatically dispatches findings through it via the new `AlertEngine.dispatch_anomaly_events()` (reuses the existing per-rule cooldown/backoff — no new alerting logic).
+- 🧭 **6th anomaly check — negative feedback surge**: `AnomalyDetector.scan()` now also flags a spike in negative implicit feedback (`regenerate`/`thumbs_down`/`abandon`/`correction`), reusing the same ratio-based threshold logic as the existing error-surge check.
+- 🏷️ **`agent_version="auto"`**: resolves to the current git commit's short SHA, with a `-dirty-<hash>` suffix when tracked files have uncommitted changes — no more manually bumping a version string between local iterations. Read back via the new read-only `monitor.agent_version` property.
+- 🔗 **AOO batch harness integration**: OpenCode sessions that already flow through `LiveGuardrail`/`record_and_save()` now get meaningful Gate A/D/G scores instead of misleading constants — `LiveGuardrail.snapshot()` exposes confirmed tool calls as `TaskResult.tool_calls` (Gate G), the OpenCode plugin passes real elapsed session time as `execution_time` (Gate D), and an optional `success` field lets completion be reflected explicitly (Gate A) instead of a placeholder response always scoring as perfect.
+- 📝 **`iteration_note`**: attach a human-readable one-line note to a `PerformanceMonitor`/`record_and_save()` run (`extra_metrics.lineage.iteration_note`, surfaced via `ResultFile.iteration_note`) so dashboard File Compare groups by `agent_version`'s opaque dirty-hash tags are actually distinguishable at a glance.
+- 🔍 **`blocked_violations` audit trail**: fully blocked tool-call attempts (`fail_on_*=True`) previously left no trace anywhere searchable. `LiveGuardrail.record_blocked_attempt()` records them to a new FTS5 table completely separate from Gate B/E scoring, and `search_violations(include_blocked=True)` (and the bundled MCP tool) can now surface them — closing the gap between "fully blocked" and "audit trail exists."
+- 📈 **Tool execution result capture**: `LiveGuardrail.record_tool_call(..., output={...})` accepts `success`/`exit_code`/`stdout`/`stderr` (length-capped) so `ToolCallAnalyzer` (Gate G) reflects real success/failure instead of always defaulting to "succeeded." The bundled OpenCode plugin now captures the tool result it previously discarded.
 
 ### v0.9.7 (2026-07-05) — Local ADE Self-Correction Memory Layer
 

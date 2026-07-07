@@ -28,12 +28,33 @@ SPEC-019 REQ-6 배치 편입 — ``LiveGuardrail.to_task_extra()``가 만든 ``e
     {
       "task_id": str,                       # 필수 — OpenCode 세션 id
       "extra": {...},                       # 필수 — LiveGuardrail.to_task_extra() 결과
+                                             # (SPEC-028 REQ-1: "tool_calls" 키가 있으면
+                                             #  꺼내서 TaskResult.tool_calls로 옮기고
+                                             #  나머지만 TaskResult.extra에 남긴다 —
+                                             #  Gate G(ToolCallAnalyzer)가 실제 도구
+                                             #  사용 데이터를 읽을 수 있게 하기 위함)
       "output_dir": str,                    # 기본값 "results/opencode_live_guardrail"
       "storage_backend": "sqlite"|"json",   # 기본값 "sqlite"
       "save_filename": str,                 # 기본값 "opencode_sessions" (확장자는 백엔드가 자동 결정)
       "question": str,                      # 기본값 "<opencode session>"
       "response": str,                       # 기본값 "<opencode session>"
       "execution_time": float,              # 기본값 0.0
+      "success": bool | null,               # SPEC-028 REQ-3, 선택 — 실제 완료 판정
+                                             # (예: 자동화된 검증 스크립트 결과). 지정
+                                             # 시 completion_score/accuracy_score를
+                                             # 1.0/0.0으로 명시 반영. 미지정 시
+                                             # completion_score=0.5(신호 없음 — 중립,
+                                             # placeholder 텍스트 기반 오도 방지).
+      "agent_version": str,                 # SPEC-028 REQ-5, 선택. 기본값 "auto"
+                                             # (SPEC-027 — git 커밋 SHA + 미커밋 변경
+                                             #  해시로 자동 태깅). 다른 태깅 전략을
+                                             #  쓰려면 원하는 문자열로 오버라이드.
+      "iteration_note": str | null,         # SPEC-029, 선택. 기본값 None. agent_version=
+                                             # "auto"가 만드는 dirty-hash 태그에 사람이
+                                             # 읽을 수 있는 한 줄 메모를 붙인다(예: "플랜
+                                             # 단계를 먼저 세우게 지시문 추가") — 대시보드
+                                             # File Compare 탭에서 group_by=agent_version
+                                             # 그룹핑 시 함께 렌더링된다.
     }
 
 출력(stdout, JSON 한 줄)::
@@ -64,17 +85,54 @@ def record_and_save(payload: Dict[str, Any]) -> Dict[str, Any]:
         KeyError: ``task_id``/``extra``가 없을 때.
     """
     task_id = payload["task_id"]
-    extra = payload["extra"]
+    # SPEC-028 REQ-1: LiveGuardrail.snapshot()이 담아 보낸 "tool_calls"는 다른 Gate B/E
+    # 파생 지표(loop_detection 등)와 달리 TaskResult.extra가 아니라 최상위
+    # TaskResult.tool_calls로 옮겨야 ToolCallAnalyzer(Gate G tool_coverage)가 읽는다.
+    # dict(...)로 복사해 pop이 호출자의 원본 payload를 변형하지 않게 한다.
+    extra = dict(payload["extra"])
+    tool_calls = extra.pop("tool_calls", [])
     output_dir = payload.get("output_dir", "results/opencode_live_guardrail")
     storage_backend = payload.get("storage_backend", "sqlite")
+    # SPEC-028 REQ-5: 기본값 "auto"(SPEC-027) — 커밋 SHA + 미커밋 변경 해시로 자동
+    # 태깅해, 커밋 없이 반복 실행되는 로컬 세션도 SPEC-025의 group_by/pairwise 비교
+    # 파이프라인에서 자동으로 구분되게 한다. 다른 태깅 전략이 필요하면 오버라이드.
+    agent_version = payload.get("agent_version", "auto")
+    # SPEC-029: 순수 표시용 메타데이터 — 지정하지 않으면 기존과 동일하게 None.
+    iteration_note = payload.get("iteration_note")
 
-    monitor = PerformanceMonitor(output_dir=output_dir, storage_backend=storage_backend)
+    # SPEC-028 REQ-3: success가 주어지면 실제 완료 판정을 반영한다. 주어지지 않으면
+    # (기존 호출부 전부 포함) completion_score를 0.5(신호 없음 — 중립값)로 명시
+    # override한다. *설계안 대비 수정*: 원 설계는 이 경우 completion_score=None을
+    # 계획했으나, TaskResult.__post_init__이 0.0<=completion_score<=1.0을 강제해
+    # None을 주면 TypeError로 즉시 크래시한다(직접 실행해 확인). completion_score는
+    # Gate A TCR 컴포넌트(`_a_vals[0]`)에 무조건 반영되므로 "not tested"로 만들 방법
+    # 자체가 없다 — `response="<opencode session>"` 고정 placeholder가 항상 1.0(완벽)을
+    # 만들어내던 것을 0.5(불명 — 성공도 실패도 아님)로 바꿔, 최소한 모든 세션이
+    # 획일적으로 "완벽히 성공"으로 보이는 오도는 없앤다.
+    success = payload.get("success")
+    # success 미지정 시 accuracy_score는 기존처럼 자연 계산값(ground_truth 없음 → 0.0)을
+    # 그대로 둔다 — 이미 "측정 불가"를 정직하게 반영하고 있어 별도 override가 필요
+    # 없다. success가 주어지면 완료 판정과 일관되게 맞춘다.
+    extra_score_fields: Dict[str, Any] = {"completion_score": 0.5}
+    if success is not None:
+        extra_score_fields = {
+            "completion_score": 1.0 if success else 0.0,
+            "accuracy_score": 1.0 if success else 0.0,
+            "success": bool(success),
+        }
+
+    monitor = PerformanceMonitor(
+        output_dir=output_dir, storage_backend=storage_backend, agent_version=agent_version,
+        iteration_note=iteration_note,
+    )
     task = create_taskresult(
         task_id=task_id,
         question=payload.get("question", "<opencode session>"),
         response=payload.get("response", "<opencode session>"),
         execution_time=float(payload.get("execution_time", 0.0)),
         extra=extra,
+        tool_calls=tool_calls,
+        **extra_score_fields,
     )
     monitor.record_task(task)
     saved_to = monitor.save_to_file(payload.get("save_filename", "opencode_sessions"))

@@ -279,6 +279,9 @@ class PerformanceMonitor:
         # SPEC-007: 감사/재현성 lineage — 사용자 지정 태그 (선택)
         prompt_version: Optional[str] = None,
         agent_version: Optional[str] = None,
+        # SPEC-029: agent_version="auto"(SPEC-027)가 만드는 dirty-hash 태그에 사람이
+        # 읽을 수 있는 한 줄 메모를 붙인다 — 순수 표시용, 점수 계산에는 관여하지 않는다.
+        iteration_note: Optional[str] = None,
         # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
         retention_mode: Literal["full", "windowed"] = "full",
         window_size: int = 10000,
@@ -483,6 +486,7 @@ class PerformanceMonitor:
         # (REQ-3: save_to_file 매 호출마다 서브프로세스를 띄우지 않는다)
         self._prompt_version = prompt_version
         self._agent_version = agent_version
+        self._iteration_note = iteration_note
         try:
             from importlib.metadata import version as _pkg_version_lookup
             self._sdk_version: Optional[str] = _pkg_version_lookup("agent-evaluator")
@@ -500,6 +504,34 @@ class PerformanceMonitor:
         except Exception:
             # REQ-2: git 미설치·비-git 환경 등 어떤 실패든 예외 전파 없이 None
             self._git_commit = None
+
+        # SPEC-027 REQ-1/2: agent_version="auto" sentinel — 위에서 이미 계산된
+        # self._git_commit(1회 캐싱)을 그대로 재사용해 커밋 SHA 앞 8자를 기본 태그로
+        # 삼는다. git 정보가 없으면(비-git 환경 등) 예외 없이 None으로 조용히 떨어뜨린다.
+        if self._agent_version == "auto":
+            if self._git_commit is None:
+                self._agent_version = None
+            else:
+                _tag = self._git_commit[:8]
+                # REQ-2: 커밋되지 않은 tracked 파일 변경(dirty 상태)이 있으면 그 diff를
+                # 해시해 접미사로 붙인다 — 커밋 없이 코드를 고치고 바로 재실행하는
+                # AOO ADE 로컬 개발 루프의 흔한 패턴에서, git commit SHA만으로는
+                # 구분되지 않는 서로 다른 코드 상태를 구분하기 위함이다.
+                try:
+                    import hashlib as _hashlib
+                    import subprocess as _subprocess
+                    _diff_result = _subprocess.run(
+                        ["git", "diff", "HEAD"],
+                        capture_output=True, text=True, timeout=2,
+                    )
+                    _diff_text = _diff_result.stdout if _diff_result.returncode == 0 else ""
+                    if _diff_text:
+                        _diff_hash = _hashlib.sha256(_diff_text.encode("utf-8")).hexdigest()[:6]
+                        _tag = f"{_tag}-dirty-{_diff_hash}"
+                except Exception:
+                    # git diff 실패(타임아웃·git 없음 등) — 커밋-only 태그로 안전 폴백
+                    pass
+                self._agent_version = _tag
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -691,6 +723,17 @@ class PerformanceMonitor:
         # M8: maxlen=10000 prevents unbounded memory growth in long-running monitors.
         self._recent_tasks_cache: "deque" = _deque(maxlen=10000)
         self._cache_window_seconds: float = 300.0  # 최대 5분 보관
+
+    @property
+    def agent_version(self) -> Optional[str]:
+        """SPEC-027 REQ-3: 최종 해석된 ``agent_version`` 값.
+
+        생성자에 리터럴 문자열을 넘겼으면 그 값을, ``"auto"``를 넘겼으면
+        REQ-1/2가 계산한 실제 태그(예: ``"a1b2c3d4"``/``"a1b2c3d4-dirty-f3a91c"``)를,
+        미지정(``None``)이면 ``None``을 반환한다. ``model_name``과 동일하게
+        생성 시점에 결정되고 이후 불변인 필드라 setter는 없다.
+        """
+        return self._agent_version
 
     @property
     def golden_datasets(self) -> List[Any]:
@@ -2971,6 +3014,9 @@ class PerformanceMonitor:
             "git_commit": self._git_commit,
             "prompt_version": self._prompt_version,
             "agent_version": self._agent_version,
+            # SPEC-029: agent_version="auto"의 불투명한 dirty-hash에 사람이 읽을 수 있는
+            # 한 줄 메모를 붙인다 — 새 계산 없이 생성자 인자를 그대로 실어 보낸다.
+            "iteration_note": self._iteration_note,
             "judge_model_snapshot": _judge_snapshot,
             # SPEC-023: __init__에서 한 번만 계산된 값을 그대로 재사용(REQ-4) — judge가
             # 없으면(self.llm_judge is None) 판정 자체가 무의미하므로 False로 규약.
@@ -6077,6 +6123,47 @@ class PerformanceMonitor:
             snapshot.get("task_count", "unknown"),
         )
         return self
+
+    def rehydrate_from_storage(self, path: str, limit: int | None = None) -> int:
+        """SPEC-026 REQ-1: SQLite 백엔드(SPEC-016)에서 과거 태스크 이력을 재생(replay)해,
+        ``AnomalyDetector`` 등이 참조하는 기준선이 프로세스 재시작에도 살아남게 한다.
+
+        ``storage.sqlite_backend.load_tasks_from_db()``(SPEC-016, 그대로 재사용)로 저장된
+        ``TaskResult`` 목록을 불러온 뒤 각각 :meth:`record_task`로 재생한다 —
+        :meth:`load_from_file`(기존 JSON 복원 경로)이 이미 쓰는 것과 동일한
+        "``record_task`` 루프 재생" 패턴이며, 새 누적 로직을 만들지 않는다.
+
+        Args:
+            path: SPEC-016 ``save_tasks_to_db()``가 만든 SQLite DB 파일 경로.
+            limit: 지정하면 타임스탬프 오름차순 기준 마지막 N개만 재생한다. 지정하지
+                않으면(기본값) DB의 전체 이력을 재생한다 — 대용량 DB는 재생 시간이
+                길어질 수 있으므로, 상시 운영에는 ``AnomalyDetector(baseline_window=...,
+                detection_window=...)``에 여유를 더한 수준의 값을 지정하는 것을 권장한다.
+
+        Returns:
+            실제로 재생된 태스크 수(``limit`` 적용 후 값). 빈 DB는 ``0``.
+
+        Warning:
+            이 모니터에 ``enable_llm_judge``/``enable_hallucination_detection``/
+            ``enable_security_metrics``가 켜져 있으면, ``record_task()``의 기존 자동
+            평가 트리거가 재생 중에도 그대로 실행되어 각 태스크가 다시 채점된다
+            (:meth:`load_from_file`도 동일한 특성을 가진 기존 제약 — 이 메서드가 새로
+            만든 문제가 아니다). 이미 채점된 과거 이력을 비용 없이 그대로 재현하려면,
+            재수화 전용 모니터는 이 플래그들을 꺼둔 채 생성해 재생할 것.
+
+        Example::
+            monitor = PerformanceMonitor(output_dir="results/", enable_anomaly_detection=True)
+            n = monitor.rehydrate_from_storage("results/production_sessions.db", limit=500)
+            # 이후 monitor.record_task(...)로 신규 트래픽 기록 시작
+        """
+        from ...storage.sqlite_backend import load_tasks_from_db
+
+        tasks = load_tasks_from_db(path)
+        if limit is not None:
+            tasks = tasks[-limit:]
+        for task in tasks:
+            self.record_task(task)
+        return len(tasks)
 
     def get_timeseries_metrics(
         self,

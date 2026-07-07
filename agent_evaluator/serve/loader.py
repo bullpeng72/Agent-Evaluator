@@ -201,6 +201,27 @@ class ResultFile:
         return self.efficiency_metrics.get("tokens", {}).get("total_tokens", 0)
 
     @property
+    def prompt_version(self) -> str | None:
+        """SPEC-025 REQ-1: ``PerformanceMonitor(prompt_version=...)``가 채운 값 —
+        ``extra_metrics.lineage.prompt_version``(SPEC-007 ``_build_lineage()``)에서
+        읽는다. 신규 파싱 로직 없이 이미 보존된 ``raw``에서 읽기만 한다. 이 필드가
+        없는 구버전 결과 파일에서는 ``None``(에러 아님)."""
+        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("prompt_version")
+
+    @property
+    def agent_version(self) -> str | None:
+        """SPEC-025 REQ-1: :attr:`prompt_version`과 동일한 근거
+        (``extra_metrics.lineage.agent_version``)."""
+        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("agent_version")
+
+    @property
+    def iteration_note(self) -> str | None:
+        """SPEC-029: ``PerformanceMonitor(iteration_note=...)``가 채운 값 —
+        :attr:`agent_version`과 동일한 근거(``extra_metrics.lineage.iteration_note``).
+        이 필드가 없는 구버전 결과 파일에서는 ``None``(에러 아님)."""
+        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("iteration_note")
+
+    @property
     def has_security(self) -> bool:
         return bool(self.security_l1.input_evals or
                     self.security_l1.output_detections or

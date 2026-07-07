@@ -10,8 +10,9 @@ from __future__ import annotations
 import csv
 import io
 import json
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -281,6 +282,47 @@ def export_excel(file_id: str, request: Request):
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{rf.name}.xlsx"'},
+    )
+
+
+@router.get("/html/compare", summary="Comparison HTML report export")
+def export_html_compare(
+    request: Request,
+    ids: Optional[str] = Query(
+        default=None, description="Comma-separated file_id list (e.g. id1,id2)",
+    ),
+    group_by: Optional[str] = Query(
+        default=None, description="Group by prompt_version|agent_version instead of ids",
+    ),
+    pairwise: bool = Query(
+        default=False,
+        description="Include pairwise LLM Judge win-rate (requires exactly 2 resolved files)",
+    ),
+):
+    """Download a self-contained HTML report for a multi-file comparison
+    (``/api/compare`` — SPEC-025 REQ-2/5).
+
+    Registered before ``/html/{file_id}`` so the literal ``compare`` path segment
+    isn't swallowed by that route's ``{file_id}`` parameter.
+
+    Args:
+        ids: Comma-separated file_id list (mutually exclusive with ``group_by``).
+        group_by: ``prompt_version`` | ``agent_version`` — auto-picks the latest
+            file per distinct tag value instead of an explicit ``ids`` list.
+        pairwise: If true, also runs a pairwise LLM Judge comparison per common
+            task (real judge API calls — may be slow/costly for large task counts).
+    """
+    from .data import compare_results
+
+    compare_result = compare_results(
+        request, ids=ids, detailed=True, group_by=group_by, pairwise=pairwise,
+    )
+
+    from agent_evaluator.reporting.comprehensive_report import generate_comparison_html_report
+    html = generate_comparison_html_report(compare_result)
+    return HTMLResponse(
+        content=html,
+        headers={"Content-Disposition": 'attachment; filename="comparison_report.html"'},
     )
 
 

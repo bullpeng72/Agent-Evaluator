@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.7 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.8 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -28,6 +28,8 @@ agent-eval check                                          # config status
 agent-eval --version                                      # version info
 agent-eval dashboard                                      # FastAPI dashboard (port 8765)
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
+agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline (SPEC-025)
+agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3 (SPEC-025)
 agent-eval dataset build --source results/ --max-cases 30 # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
@@ -82,6 +84,16 @@ agent_evaluator/
 │   ├── shared_metrics.py  # SPEC-018: RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
 │   ├── live_guardrail.py  # SPEC-019: LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
 │   │                       #  체크를 실행 전 단일 tool call 단위로 동기 호출
+│   │                       #  SPEC-030: record_blocked_attempt() — check_before_tool_call()이 block=True를
+│   │                       #  반환한 시도를 호출자가 명시적으로 감사 이력(blocked_violations)에 기록
+│   │                       #  SPEC-031: record_tool_call(output=...) — success/exit_code/stdout/stderr
+│   │                       #  옵트인 전달, max_tool_output_chars로 truncate. 미지정 시 회귀 없음
+│   │                       #  SPEC-032: team_concurrency=TeamConcurrencyConfig(...) — 생성자 시점 1회
+│   │                       #  로드한 .aoo/claims.jsonl로 read/edit/write 스코프 겹침 자동 차단
+│   │                       #  (bash 제외), refresh_team_claims()로 수동 재조회
+│   ├── team_concurrency.py # SPEC-032: TeamConcurrencyConfig · load_active_claims() · check_scope_claim()·
+│   │                       #  append_claim() — Evaluator_Examples/ch28_local_ade_loop.py 예제 전용
+│   │                       #  코드였던 클레임 로그 파싱 로직을 재해석 없이 SDK로 승격
 │   ├── gate_a_goal/       # Gate A(Goal Achievement) — 완료
 │   │   ├── configs.py      # InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig ·
 │   │   │                   # ContextRetentionConfig · KnowledgeRetentionConfig
@@ -140,39 +152,80 @@ agent_evaluator/
 │   │   ├── layer1.py      # Layer 1 trackers
 │   │   ├── layer2.py      # Layer 2 trackers
 │   │   ├── security.py    # Security trackers
-│   │   ├── monitor.py     # PerformanceMonitor (central orchestrator)
+│   │   ├── monitor.py     # PerformanceMonitor (central orchestrator) · SPEC-026:
+│   │   │                  #  rehydrate_from_storage() — SQLite 이력 재생으로 재시작 생존 이상탐지 기준선
+│   │   │                  #  SPEC-027: agent_version="auto" — 캐싱된 self._git_commit 앞 8자 +
+│   │   │                  #  미커밋 변경(git diff HEAD) 해시 접미사로 자동 태깅, 읽기 전용
+│   │   │                  #  monitor.agent_version 프로퍼티로 최종 해석값 노출
+│   │   │                  #  SPEC-029: iteration_note — agent_version="auto"의 불투명한 dirty-hash
+│   │   │                  #  태그에 사람이 읽을 수 있는 한 줄 메모를 붙임. _build_lineage()가
+│   │   │                  #  extra_metrics.lineage.iteration_note로 그대로 실어 보냄(새 계산 없음)
 │   │   ├── conversation.py# ConversationSession, ConversationMetrics, ConversationTurn
 │   │   └── feedback.py    # ImplicitFeedbackTracker
 │   ├── monitor_context.py # evaluation_session · hybrid_evaluation_session · async_evaluation_session
 │   └── hybrid_monitor.py  # HybridPerformanceMonitor (DeepEval/Ragas integration)
 ├── integrations/
-│   ├── llm_judge.py       # LLMJudge (native)
+│   ├── llm_judge.py       # LLMJudge (native) · SPEC-025: judge_pairwise() — A/B 응답 맞대결
+│   │                       #  (swap-check로 포지션 편향 완화), self.pairwise_results에 별도 축적
 │   ├── llm_judge_calibration.py  # SPEC-022: LLMJudgeCalibration — judge-vs-human 골든셋 일치도
 │   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
 │   ├── live_guardrail_stdio.py   # SPEC-019: LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
 │   ├── live_guardrail_report.py  # SPEC-019: SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
+│   │                       #  SPEC-028: tool_calls를 TaskResult.tool_calls로 승격(Gate G) ·
+│   │                       #  execution_time/success 옵트인 필드(Gate D/A, success 미지정 시
+│   │                       #  completion_score=0.5 중립값 — None은 TaskResult 검증에 막혀 불가) ·
+│   │                       #  agent_version 기본값 "auto"(SPEC-027 자동 태깅 연결)
 │   ├── violation_search_mcp.py   # SPEC-024: search_violations() 도구 1개를 노출하는 stdio MCP 서버
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
+│   │                       #  SPEC-030: include_blocked=True로 호출 — 도구 docstring이 원래
+│   │                       #  약속한 "차단된 이력" 검색을 실제로 이행, [차단됨]/[관찰됨] 접두어
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
 │   └── pydanticai_integration.py
-├── anomaly/               # AnomalyDetector · AnomalyEvent
+├── anomaly/               # AnomalyDetector · AnomalyEvent — 6개 체크(SPEC-026: feedback_negativity
+│                          #  6번째로 추가, monitor.feedback_tracker의 is_positive 신호 재사용)
 ├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
 ├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
+│                          # SPEC-026: dispatch_anomaly_events() — AnomalyEvent를 type별 캐시된
+│                          #  AlertRule(self._anomaly_rules, evaluate()의 self._rules와 분리)로 발송
 ├── storage/               # SPEC-016: sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
 │                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
 │                          # SPEC-024: violation_search(FTS5, additive) + search_violations() —
 │                          #  Gate B/E 위반 이력 전문 검색(ctx의 OpenCode 세션 미색인 한계 우회)
-├── streaming/             # StreamingEvaluator · AgentEvalMiddleware
+│                          # SPEC-030: blocked_violations(FTS5, additive) — 완전 차단돼 tasks/
+│                          #  violation_search 어디에도 안 남는 시도의 감사 이력. search_violations
+│                          #  (..., include_blocked=True)로 관찰 모드 위반과 함께 조회(blocked 필드로 구분)
+├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — SPEC-026: anomaly_detector/
+│                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
+│                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend)
 │                          # opencode install --with-violation-search(SPEC-024): search_violations
 │                          #  MCP 서버 자동 등록(옵트인)
+│                          # gate --baseline-version/--golden-set/--fail-on-golden-regression(SPEC-025):
+│                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
+├── reporting/
+│   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
+│                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
+│                          #  (agent-eval gate 저장/대시보드 export_html 공용).
+│                          #  SPEC-025: generate_comparison_html_report(compare_result) —
+│                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음)
 └── serve/
     ├── server.py          # FastAPI dashboard (108 routes)
+    ├── templates/
+    │   └── dashboard2.html.j2  # `/dashboard` 라우트(유지 대상 — dashboard.html.j2는 레거시,
+    │                      #  마이그레이션 후 삭제 예정). File Compare 탭: SPEC-025 group_by
+    │                      #  드롭다운·⚖️ Pairwise Judge 서브탭·📄 Export HTML 버튼
+    │                      #  SPEC-029: Metric Comparison 표 상단에 agent_version/iteration_note
+    │                      #  메타데이터 행 — 새 API 호출 없이 이미 로드된 compareData에서 직접 렌더링
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export
                            # feedback · golden · stream · transparency · webhook
+                           # data.py: list_results(prompt_version=/agent_version=)·
+                           #  compare_results(group_by=/pairwise=)(SPEC-025)
+                           # export.py: GET /html/compare(SPEC-025) — ids 또는 group_by +
+                           #  선택적 pairwise → generate_comparison_html_report(). `/html/{file_id}`
+                           #  보다 먼저 등록해야 정적 경로가 파라미터 경로에 삼켜지지 않는다
 ```
 
 ### Harness Gate Config Groups (33 total)
@@ -262,6 +315,14 @@ monitor.save_to_file("evaluation")  # JSON + HTML
 ```
 
 > Use `PerformanceMonitor` for new projects. Use `HybridPerformanceMonitor` only when integrating DeepEval/Ragas.
+
+> **`agent_version="auto"` (SPEC-027)**: reserved sentinel — resolves to the current git commit's short
+> SHA (`git rev-parse HEAD`, cached once at `__init__`), with a `-dirty-<hash>` suffix appended when
+> tracked files have uncommitted changes (`git diff HEAD`, hashed — distinguishes iterations run without
+> committing between them). Falls back to `None` on any git failure. Read the resolved value back via the
+> read-only `monitor.agent_version` property (no setter — same "fixed at construction" contract as
+> `model_name`). Any other literal string (or `None`, the default) behaves exactly as before — `"auto"` is
+> the only reserved value.
 
 ### Harness Config in Decorator
 
@@ -448,7 +509,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**83 files, 3,270+ test functions** in `tests/`.
+**91 files, 3,486+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

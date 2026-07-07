@@ -215,7 +215,9 @@ class TestSnapshotEqualsBatchEvaluators:
         guardrail = LiveGuardrail(scope=ScopeConfig())
         guardrail.record_tool_call("t1", "search", {})
         snap = guardrail.snapshot()
-        assert set(snap.keys()) == {"scope"}
+        # SPEC-028 REQ-1 / SPEC-030 REQ-2: tool_calls/blocked_attempts는 설정된
+        # Config와 무관하게 항상 포함된다
+        assert set(snap.keys()) == {"scope", "tool_calls", "blocked_attempts"}
 
 
 class TestToTaskExtraBatchIntegration:
@@ -233,7 +235,13 @@ class TestToTaskExtraBatchIntegration:
         live_extra = guardrail.to_task_extra()
 
         tool_calls = [{"name": n, "arguments": p} for n, p in calls]
-        direct_extra = {"scope": gate_b_evaluators.eval_scope(tool_calls, scope_cfg)}
+        # SPEC-028 REQ-1 / SPEC-030 REQ-2: tool_calls/blocked_attempts도 이제
+        # snapshot()/to_task_extra()에 항상 포함된다
+        direct_extra = {
+            "scope": gate_b_evaluators.eval_scope(tool_calls, scope_cfg),
+            "tool_calls": tool_calls,
+            "blocked_attempts": [],
+        }
 
         assert live_extra == direct_extra
 
@@ -260,6 +268,140 @@ class TestLiveVerdictDefaults:
         assert v.gate is None
         assert v.reason is None
         assert v.detail == {}
+
+
+class TestRecordBlockedAttempt:
+    """SPEC-030 REQ-1/2: 완전 차단된 시도의 감사 이력."""
+
+    def test_rejects_non_blocking_verdict(self):
+        guardrail = LiveGuardrail()
+        verdict = LiveVerdict(block=False)
+        try:
+            guardrail.record_blocked_attempt("t1", "bash", verdict)
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
+
+    def test_records_blocked_verdict(self):
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(fail_on_dangerous=True),
+        )
+        verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "rm -rf / && echo done"})
+        assert verdict.block is True
+        guardrail.record_blocked_attempt("t1", "bash", verdict)
+        snap = guardrail.snapshot()
+        assert snap["blocked_attempts"] == [
+            {"tool_name": "bash", "gate": "B", "reason": verdict.reason},
+        ]
+
+    def test_check_before_tool_call_does_not_auto_record(self):
+        """check_before_tool_call()은 순수 조회 — 여러 번 호출해도 blocked_attempts는 그대로다."""
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(fail_on_dangerous=True),
+        )
+        for _ in range(3):
+            verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "rm -rf / && echo done"})
+            assert verdict.block is True
+        assert guardrail.snapshot()["blocked_attempts"] == []
+
+    def test_snapshot_always_includes_empty_list_when_none_recorded(self):
+        guardrail = LiveGuardrail(scope=ScopeConfig())
+        guardrail.record_tool_call("t1", "search", {})
+        assert guardrail.snapshot()["blocked_attempts"] == []
+
+    def test_does_not_affect_gate_b_scoring(self):
+        """blocked_attempts는 self._tool_calls(Gate B/E 점수 원천)와 완전히 분리된다."""
+        guardrail = LiveGuardrail(
+            loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, on_loop_detected="fail"),
+        )
+        verdict = guardrail.check_before_tool_call("t1", "search", {})
+        assert verdict.block is False
+        # 정상 호출 — 차단이 아니므로 record_blocked_attempt()는 호출하지 않는다.
+        guardrail.record_tool_call("t1", "search", {})
+        snap_before = guardrail.snapshot()
+
+        guardrail2 = LiveGuardrail(
+            loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, on_loop_detected="fail"),
+            tool_parameter_safety=ToolParameterSafetyConfig(fail_on_dangerous=True),
+        )
+        guardrail2.record_tool_call("t1", "search", {})
+        blocked_verdict = guardrail2.check_before_tool_call("t1", "bash", {"command": "rm -rf / && echo done"})
+        guardrail2.record_blocked_attempt("t1", "bash", blocked_verdict)
+        snap_after = guardrail2.snapshot()
+
+        # 두 세션 모두 확정 tool_calls는 search 1건뿐 — 차단 시도 기록 여부가
+        # loop_detection 판정에 아무 영향을 주지 않는다.
+        assert snap_before["loop_detection"] == snap_after["loop_detection"]
+
+
+class TestRecordToolCallOutput:
+    """SPEC-031 REQ-1: record_tool_call(output=...) — 도구 실행 결과 캡처."""
+
+    def test_output_none_is_fully_backward_compatible(self):
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call("t1", "search", {"q": "a"})
+        assert guardrail.snapshot()["tool_calls"] == [
+            {"name": "search", "arguments": {"q": "a"}},
+        ]
+
+    def test_success_key_is_merged(self):
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call("t1", "bash", {"command": "pytest"}, output={"success": False})
+        assert guardrail.snapshot()["tool_calls"] == [
+            {"name": "bash", "arguments": {"command": "pytest"}, "success": False},
+        ]
+
+    def test_all_allowed_keys_are_merged(self):
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call(
+            "t1", "bash", {"command": "pytest"},
+            output={"success": False, "exit_code": 1, "stdout": "out", "stderr": "err"},
+        )
+        entry = guardrail.snapshot()["tool_calls"][0]
+        assert entry["success"] is False
+        assert entry["exit_code"] == 1
+        assert entry["stdout"] == "out"
+        assert entry["stderr"] == "err"
+
+    def test_disallowed_keys_are_ignored(self):
+        """name/arguments를 output에 억지로 넣어도 실제 호출 인자를 덮어쓰지 않는다."""
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call(
+            "t1", "bash", {"command": "pytest"},
+            output={"name": "hacked", "arguments": {"evil": True}, "success": True},
+        )
+        entry = guardrail.snapshot()["tool_calls"][0]
+        assert entry["name"] == "bash"
+        assert entry["arguments"] == {"command": "pytest"}
+        assert entry["success"] is True
+
+    def test_stdout_stderr_truncated_to_max_tool_output_chars(self):
+        guardrail = LiveGuardrail(max_tool_output_chars=10)
+        guardrail.record_tool_call(
+            "t1", "bash", {},
+            output={"stdout": "0123456789ABCDEF", "stderr": "0123456789ABCDEF"},
+        )
+        entry = guardrail.snapshot()["tool_calls"][0]
+        assert entry["stdout"] == "0123456789"
+        assert entry["stderr"] == "0123456789"
+
+    def test_default_max_tool_output_chars_is_2000(self):
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call("t1", "bash", {}, output={"stdout": "x" * 3000})
+        assert len(guardrail.snapshot()["tool_calls"][0]["stdout"]) == 2000
+
+    def test_gate_g_tool_call_analyzer_reads_success_key(self):
+        """ToolCallAnalyzer는 신규 코드 없이 이미 success 키를 읽는다 — 통합 재확인."""
+        from agent_evaluator.core.trackers.layer2 import ToolCallAnalyzer
+
+        guardrail = LiveGuardrail()
+        guardrail.record_tool_call("t1", "bash", {"command": "pytest"}, output={"success": False})
+        guardrail.record_tool_call("t1", "search", {"q": "a"})  # success 신호 없음 -> 기본 True
+
+        analyzer = ToolCallAnalyzer()
+        result = analyzer.analyze_execution("t1", guardrail.snapshot()["tool_calls"])
+        assert result["failed_calls"] == 1
+        assert result["total_calls"] == 2
 
 
 # ── Gate E (SPEC-019 Rollout 3단계) ──────────────────────────────────────────
@@ -422,6 +564,10 @@ class TestToTaskExtraGateEIntegration:
             },
             "privilege_escalation": direct_pe,
             "tool_chain_attack": direct_tc,
+            # SPEC-028 REQ-1 / SPEC-030 REQ-2: tool_calls/blocked_attempts도 이제
+            # snapshot()/to_task_extra()에 항상 포함된다
+            "tool_calls": [{"name": n, "arguments": p} for n, p in calls],
+            "blocked_attempts": [],
         }
         assert live_extra == direct_extra
 

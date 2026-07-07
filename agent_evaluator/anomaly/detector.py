@@ -4,11 +4,12 @@ AnomalyDetector — Phase 3-B 이상 탐지
 외부 ML 라이브러리 없이 Z-score + IQR + 선형 회귀로 이상을 탐지한다.
 
 탐지 유형:
-  latency_trend    선형 회귀 기반 지속적 상승 추세
-  accuracy_drift   Z-score 기반 기준선 대비 통계적 이탈
-  token_spike      IQR 기반 급격한 토큰 사용량 이상
-  error_surge      오류율 급증
-  security_pattern 보안 위협 패턴 급증
+  latency_trend       선형 회귀 기반 지속적 상승 추세
+  accuracy_drift      Z-score 기반 기준선 대비 통계적 이탈
+  token_spike         IQR 기반 급격한 토큰 사용량 이상
+  error_surge         오류율 급증
+  security_pattern    보안 위협 패턴 급증
+  feedback_negativity 부정적 암묵 피드백(regenerate/thumbs_down 등) 급증 (SPEC-026 REQ-5)
 """
 from __future__ import annotations
 import logging
@@ -29,6 +30,7 @@ _TREND_SLOPE_THRESHOLD = 0.05  # 지연시간 상승 기울기 임계값 (초/�
 _ACCURACY_DRIFT_THRESHOLD = 0.15  # 정확도 기준선 대비 허용 이탈 비율
 _ERROR_SURGE_THRESHOLD = 0.20     # 오류율 급증 임계값
 _SECURITY_SURGE_THRESHOLD = 0.10  # 보안 위협율 급증 임계값
+_FEEDBACK_NEGATIVITY_SURGE_THRESHOLD = 0.20  # 부정 피드백 급증 임계값 (error_surge와 동일 기준)
 
 
 @dataclass
@@ -126,6 +128,7 @@ class AnomalyDetector:
         events.extend(self._check_token_spike(monitor))
         events.extend(self._check_error_surge(monitor))
         events.extend(self._check_security_pattern(monitor))
+        events.extend(self._check_feedback_negativity(monitor))
         return events
 
     def _get_latencies(self, monitor: "PerformanceMonitor") -> List[float]:
@@ -262,6 +265,55 @@ class AnomalyDetector:
             )]
         return []
 
+    def _get_feedback_negativity_rate(self, monitor: "PerformanceMonitor") -> tuple:
+        """SPEC-026 REQ-5: ``monitor.feedback_tracker.feedbacks``(이미 자동 수집됨,
+        ``record_task()``가 ``extra`` 필드의 피드백 신호를 감지할 때마다 채움)에서
+        ``_check_error_surge``/``_get_error_rate``와 동일한 윈도우 구조로 최근 구간
+        대비 기준선 구간의 부정 피드백(``is_positive=False`` — regenerate/thumbs_down/
+        abandon/correction) 비율을 계산한다."""
+        try:
+            tracker = getattr(monitor, "feedback_tracker", None)
+            if tracker is None:
+                return 0.0, 0.0
+            feedbacks = tracker.feedbacks
+            if not feedbacks:
+                return 0.0, 0.0
+            recent = feedbacks[-self.detection_window:]
+            baseline = (
+                feedbacks[-self.baseline_window:-self.detection_window]
+                if len(feedbacks) > self.detection_window else []
+            )
+
+            def _is_negative(f: Any) -> bool:
+                return not f.get("is_positive", True)
+
+            recent_rate = sum(1 for f in recent if _is_negative(f)) / len(recent)
+            base_rate = (
+                sum(1 for f in baseline if _is_negative(f)) / len(baseline) if baseline else 0.0
+            )
+            return recent_rate, base_rate
+        except Exception:
+            return 0.0, 0.0
+
+    def _check_feedback_negativity(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+        """SPEC-026 REQ-5: 부정적 암묵 피드백 급증 — ``_check_error_surge``와 동일한
+        비율 기반 판정(기준선 대비 2배 이상 + 절대 임계값 초과)을 그대로 적용한다."""
+        recent_rate, base_rate = self._get_feedback_negativity_rate(monitor)
+        if recent_rate > _FEEDBACK_NEGATIVITY_SURGE_THRESHOLD and recent_rate > base_rate * 2:
+            severity = "critical" if recent_rate > 0.3 else "warning"
+            return [AnomalyEvent(
+                type="feedback_negativity",
+                severity=severity,
+                detail=(
+                    f"Negative feedback rate {round(recent_rate * 100, 1)}% "
+                    f"(surge vs baseline {round(base_rate * 100, 1)}%)"
+                ),
+                value=round(recent_rate, 4),
+                threshold=_FEEDBACK_NEGATIVITY_SURGE_THRESHOLD,
+                algorithm="ratio",
+            )]
+        return []
+
     def _check_security_pattern(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
         try:
             if monitor.input_sanitizer is None:
@@ -305,6 +357,8 @@ class AnomalyDetector:
             "token_spike": "Token usage has spiked. Consider reducing context length or adding a summarization step.",
             "error_surge": "Error rate has surged. Check agent stability and external service connections.",
             "security_pattern": "Security pattern detected. Strengthen input validation and review audit logs.",
+            "feedback_negativity": "Negative feedback (regenerate/thumbs_down/etc.) has surged. "
+                                    "Review recent prompt/model changes.",
         }
 
         return {

@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from agent_evaluator.anomaly.detector import AnomalyEvent
     from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
 
@@ -207,6 +208,12 @@ class AlertEngine:
         self._dispatch_timestamps: List[float] = []
         self._counter_lock = threading.Lock()
 
+        # SPEC-026 REQ-3: AnomalyEvent.type별 AlertRule 캐시 — evaluate()가 순회하는
+        # self._rules와 의도적으로 분리한다. 이 캐시의 rule.condition은 항상 True를
+        # 반환하는 더미라, self._rules에 섞이면 evaluate() 폴링마다 매번 재발화되는
+        # 버그가 생긴다(이 캐시는 dispatch_anomaly_events()가 직접 조회할 때만 쓰인다).
+        self._anomaly_rules: Dict[str, AlertRule] = {}
+
     def add_rule(self, rule: AlertRule) -> "AlertEngine":
         with self._lock:
             self._rules.append(rule)
@@ -299,6 +306,78 @@ class AlertEngine:
             self.history.record(event)
 
             # SPEC-015 REQ-5: 전역 알림 폭풍 방지 — 히스토리에는 남기되 발송만 억제.
+            if not self._should_suppress_for_storm():
+                if self.async_dispatch:
+                    threading.Thread(
+                        target=self._dispatch, args=(rule, event), daemon=True,
+                    ).start()
+                else:
+                    self._dispatch(rule, event)
+
+            fired.append(event)
+        return fired
+
+    def _get_or_create_anomaly_rule(
+        self, anomaly_type: str, handler: Any, cooldown: int,
+    ) -> AlertRule:
+        """SPEC-026 REQ-3: ``AnomalyEvent.type``별 ``AlertRule``을 캐시한다 — 최초
+        등장 시 생성하고, 이후 같은 타입은 그 규칙을 그대로 재사용해 쿨다운 상태
+        (``_last_fired``)가 호출 간에 이어지게 한다. ``self._rules``(evaluate()가
+        순회)와는 별개인 ``self._anomaly_rules``에만 저장된다."""
+        rule_name = f"anomaly:{anomaly_type}"
+        with self._lock:
+            rule = self._anomaly_rules.get(rule_name)
+            if rule is None:
+                # condition은 이 경로에서 호출되지 않는다(이미 트리거된 이벤트를
+                # 넘겨받으므로) — AlertRule 생성에 필요한 자리만 채우는 더미.
+                rule = AlertRule(
+                    name=rule_name, condition=lambda _ev: True, handler=handler, cooldown=cooldown,
+                )
+                self._anomaly_rules[rule_name] = rule
+            return rule
+
+    def dispatch_anomaly_events(
+        self,
+        events: List["AnomalyEvent"],
+        handler: Any,
+        cooldown: int = 300,
+    ) -> List[AlertEvent]:
+        """SPEC-026 REQ-3: ``AnomalyDetector.scan()``이 반환한 ``AnomalyEvent`` 목록을
+        기존 쿨다운/재시도-백오프/알림폭풍 방지 인프라를 통해 발송한다.
+
+        새 쿨다운·재시도 로직을 만들지 않고, ``event.type``별로 캐시된 ``AlertRule``
+        (:meth:`_get_or_create_anomaly_rule`)의 ``is_on_cooldown()``/``mark_fired()``와
+        기존 :meth:`_dispatch`(SPEC-015 재시도-백오프)·:meth:`_should_suppress_for_storm`
+        (SPEC-015 전역 알림폭풍 방지)를 그대로 재사용한다 — :meth:`evaluate`와 동일한
+        발송 경로를 탄다.
+
+        Args:
+            events: ``AnomalyDetector.scan()``의 반환값.
+            handler: 알림 발송 핸들러(SlackHandler 등) — 이 호출의 모든 이벤트가
+                공유한다.
+            cooldown: 이 호출에서 신규로 캐시할 규칙의 쿨다운(초). 이미 캐시된
+                규칙(같은 ``event.type``)의 쿨다운은 최초 생성 시점 값을 유지한다
+                (재호출마다 바뀌지 않음).
+
+        Returns:
+            실제로 발송된(쿨다운을 통과한) ``AlertEvent`` 목록 — :meth:`evaluate`와
+            동일한 반환 형태.
+        """
+        fired: List[AlertEvent] = []
+        for anomaly in events:
+            rule = self._get_or_create_anomaly_rule(anomaly.type, handler, cooldown)
+            if rule.is_on_cooldown():
+                continue
+
+            event = AlertEvent(
+                rule_name=f"anomaly:{anomaly.type}",
+                severity=anomaly.severity,
+                message=anomaly.detail,
+                value=anomaly.value,
+            )
+            rule.mark_fired()
+            self.history.record(event)
+
             if not self._should_suppress_for_storm():
                 if self.async_dispatch:
                     threading.Thread(

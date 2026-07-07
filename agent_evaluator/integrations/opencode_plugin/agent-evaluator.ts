@@ -130,6 +130,29 @@ interface LiveVerdict {
   detail: Record<string, unknown>
 }
 
+// SPEC-031 REQ-3: record_tool_call(output=...)에 실어 보낼 실행 결과. success/exit_code는
+// 찾지 못하면 필드 자체를 생략한다(Python 쪽 allow-list가 없는 키를 무시하므로 안전).
+interface ToolExecutionOutput {
+  stdout?: string
+  success?: boolean
+  exit_code?: number
+}
+
+// "tool.execute.after"의 output.metadata는 @opencode-ai/plugin 타입 선언상 `any`다 —
+// 실제로 exit code가 어느 키에 담기는지 공개 타입으로 보장되지 않는다(SPEC-031 Risks에
+// 명시된 미검증 사항). 몇 가지 흔한 후보 키를 방어적으로 시도하고, 못 찾으면 success/
+// exit_code 필드를 아예 만들지 않는다 — 최악의 경우에도 기존 동작(success 미기록)으로
+// 안전하게 떨어진다.
+function extractToolExecutionOutput(output: { output: string; metadata: unknown }): ToolExecutionOutput {
+  const meta = output.metadata as Record<string, unknown> | undefined
+  const exitCode = [meta?.exit, meta?.exitCode, meta?.code]
+    .find((v): v is number => typeof v === "number")
+  return {
+    stdout: output.output,
+    ...(exitCode !== undefined ? { exit_code: exitCode, success: exitCode === 0 } : {}),
+  }
+}
+
 interface ReportResult {
   ok: boolean
   saved_to?: string
@@ -140,8 +163,17 @@ interface ReportResult {
 
 /** 세션 종료 시 정확히 1회 실행되는 단발성 브리지 — live_guardrail_stdio(세션
  * 내내 살아있는 요청-응답 루프)와 달리 매번 새 프로세스를 스폰하고 종료한다
- * (SPEC-019 REQ-6, agent_evaluator.integrations.live_guardrail_report 참조). */
-function recordSessionReport(sessionId: string, extra: Record<string, unknown>): Promise<ReportResult> {
+ * (SPEC-019 REQ-6, agent_evaluator.integrations.live_guardrail_report 참조).
+ *
+ * executionTime(SPEC-028 REQ-2): 세션 실제 경과 시간(초) — live_guardrail_report.py의
+ * 입력 스키마가 이미 이 필드를 받아들이도록 설계돼 있어(execution_time, 기본값 0.0)
+ * Python 쪽 변경 없이 여기서 실측값만 채워 넣는다. Gate D(성능계약)의 latency 기반
+ * 지표가 이전처럼 상수 0.0이 아니라 실제 세션 길이를 반영하게 된다. */
+function recordSessionReport(
+  sessionId: string,
+  extra: Record<string, unknown>,
+  executionTime: number,
+): Promise<ReportResult> {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_BIN, ["-m", "agent_evaluator.integrations.live_guardrail_report"], {
       stdio: ["pipe", "pipe", "inherit"],
@@ -158,7 +190,11 @@ function recordSessionReport(sessionId: string, extra: Record<string, unknown>):
         reject(new Error(`[agent-evaluator] live_guardrail_report produced no valid JSON: ${stdout}`))
       }
     })
-    proc.stdin.write(JSON.stringify({ task_id: sessionId, extra, output_dir: REPORT_OUTPUT_DIR }) + "\n")
+    proc.stdin.write(
+      JSON.stringify({
+        task_id: sessionId, extra, output_dir: REPORT_OUTPUT_DIR, execution_time: executionTime,
+      }) + "\n",
+    )
     proc.stdin.end()
   })
 }
@@ -169,6 +205,8 @@ class GuardrailSession {
   private readonly proc: ChildProcessWithoutNullStreams
   private readonly pending: Array<(msg: any) => void> = []
   private initPromise: Promise<void>
+  // SPEC-028 REQ-2: 세션 생성 시각 — session.idle 시점에 경과 시간을 계산하는 데 쓴다.
+  readonly startedAt: number = Date.now()
 
   constructor() {
     this.proc = spawn(PYTHON_BIN, ["-m", "agent_evaluator.integrations.live_guardrail_stdio"], {
@@ -198,9 +236,22 @@ class GuardrailSession {
     return this.send({ op: "check", task_id: taskId, tool_name: toolName, parameters })
   }
 
-  async record(taskId: string, toolName: string, parameters: unknown): Promise<void> {
+  async record(
+    taskId: string, toolName: string, parameters: unknown,
+    output?: ToolExecutionOutput,
+  ): Promise<void> {
     await this.initPromise
-    await this.send({ op: "record", task_id: taskId, tool_name: toolName, parameters })
+    await this.send({ op: "record", task_id: taskId, tool_name: toolName, parameters, output })
+  }
+
+  // SPEC-030 REQ-6: check()가 block=true를 반환했고 이 도구를 실제로 실행하지
+  // 않기로 했을 때만 호출한다 — 완전 차단된 시도를 감사 이력에 남긴다.
+  async recordBlocked(taskId: string, toolName: string, verdict: LiveVerdict): Promise<void> {
+    await this.initPromise
+    await this.send({
+      op: "record_blocked", task_id: taskId, tool_name: toolName,
+      gate: verdict.gate, reason: verdict.reason,
+    })
   }
 
   async snapshot(): Promise<Record<string, unknown>> {
@@ -328,7 +379,10 @@ async function handleSessionIdle(client: PluginInput["client"], sessionId: strin
   if (!session) return
   try {
     const extra = await session.snapshot()
-    const result = await recordSessionReport(sessionId, extra)
+    // SPEC-028 REQ-2: 세션 전체 경과 시간(초) — 도구 호출 사이 유휴 시간을 포함한
+    // 세션 생성~종료 시점 간 차이다(정확한 순수 실행 시간이 아님, 문서 참고).
+    const executionTime = (Date.now() - session.startedAt) / 1000
+    const result = await recordSessionReport(sessionId, extra, executionTime)
     if (result.ok) {
       console.log(
         `[agent-evaluator] session ${sessionId} recorded to ${result.saved_to} ` +
@@ -353,17 +407,23 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
       const session = getOrCreateSession(sessionId)
       const verdict = await session.check(sessionId, input.tool, output.args)
       if (verdict.block) {
+        // SPEC-030 REQ-6: 이 시도를 실제로 실행하지 않기로 확정하는 지점 —
+        // 에러를 던지기 전에 감사 이력에 기록한다.
+        await session.recordBlocked(sessionId, input.tool, verdict)
         // 이 에러 메시지가 다음 턴 컨텍스트에 노출되어 로컬 모델(qwen-code 등)의
         // 자가 교정 신호가 된다 — SPEC-019 Context 참조.
         throw new Error(`[agent-evaluator] blocked by Gate ${verdict.gate}: ${verdict.reason}`)
       }
     },
 
-    "tool.execute.after": async (input) => {
+    "tool.execute.after": async (input, output) => {
       // input.args (output.args 아님) — 위 파일 상단 주석 2번 참조.
+      // SPEC-031 REQ-3: output.output(타입 보장)을 stdout으로, output.metadata(any —
+      // 미검증, extractToolExecutionOutput() 주석 참조)에서 best-effort로 exit code를
+      // 뽑아 Gate G(ToolCallAnalyzer)가 실제 성공/실패를 반영하게 한다.
       const sessionId = input.sessionID
       const session = getOrCreateSession(sessionId)
-      await session.record(sessionId, input.tool, input.args)
+      await session.record(sessionId, input.tool, input.args, extractToolExecutionOutput(output))
     },
 
     // session.idle/session.error는 독립 훅이 아니라 이 단일 event 훅으로 전달된다.

@@ -13,11 +13,12 @@ from collections import deque
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
-from typing import Any, Deque, Dict, Optional, TYPE_CHECKING
+from typing import Any, Deque, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agent_evaluator.core.trackers.monitor import PerformanceMonitor
     from agent_evaluator.alerts.engine import AlertEngine
+    from agent_evaluator.anomaly.detector import AnomalyDetector, AnomalyEvent
 
 
 @dataclass
@@ -83,6 +84,20 @@ class StreamingEvaluator:
         monitor: 기존 PerformanceMonitor 인스턴스.
         flush_interval: 지표 집계 및 저장 간격 (초). Default 60.
         alert_handler: AlertEngine 인스턴스 (선택).
+        anomaly_detector: (SPEC-026 REQ-2, 선택) 지정하면 기존 flush 스레드가
+            ``anomaly_scan_interval``마다 ``anomaly_detector.scan(self.monitor)``을
+            호출해 그 결과를 :attr:`_last_anomalies`에 저장한다. 새 스레드를 만들지
+            않고 이미 있는 flush 루프에 조건부 호출을 얹는 형태 — 미지정(기본값)이면
+            기존 동작과 100% 동일.
+        anomaly_scan_interval: ``anomaly_detector`` 스캔 주기(초). Default 300.
+            ``flush_interval``과 독립적인 값 — 스트리밍 지표 flush는 자주(예: 60초),
+            이상탐지 스캔은 더 느슨하게(예: 300초) 돌리는 식으로 따로 조정한다.
+        anomaly_alert_handler: (SPEC-026 REQ-4, 선택) 지정하면 주기적 스캔이 이상을
+            발견할 때마다 ``alert_handler.dispatch_anomaly_events(events, handler=
+            anomaly_alert_handler)``(REQ-3)를 자동 호출해 실제로 알림을 발송한다.
+            ``alert_handler``(``AlertEngine`` 인스턴스)와 ``anomaly_detector`` 둘 다
+            설정돼 있어야 동작한다 — 셋 중 하나라도 없으면(기본값) 스캔 결과는
+            :attr:`_last_anomalies`에만 쌓이고 발송되지 않는다.
 
     Example::
         from agent_evaluator.streaming import StreamingEvaluator
@@ -97,10 +112,16 @@ class StreamingEvaluator:
         monitor: "PerformanceMonitor",
         flush_interval: int = 60,
         alert_handler: Optional["AlertEngine"] = None,
+        anomaly_detector: Optional["AnomalyDetector"] = None,
+        anomaly_scan_interval: int = 300,
+        anomaly_alert_handler: Optional[Any] = None,
     ) -> None:
         self.monitor = monitor
         self.flush_interval = flush_interval
         self.alert_handler = alert_handler
+        self.anomaly_detector = anomaly_detector
+        self.anomaly_scan_interval = anomaly_scan_interval
+        self.anomaly_alert_handler = anomaly_alert_handler
 
         # 슬라이딩 윈도우: 1분, 5분, 1시간
         self._windows = {
@@ -112,11 +133,19 @@ class StreamingEvaluator:
         self._flush_thread: Optional[threading.Thread] = None
         self._running = False
 
+        # SPEC-026 REQ-2: 가장 최근 주기적 이상탐지 스캔 결과 — anomaly_detector
+        # 미지정이면 항상 빈 리스트로 유지된다.
+        self._last_anomalies: List["AnomalyEvent"] = []
+        self._last_anomaly_scan_time: float = 0.0
+
     def start(self) -> None:
         """백그라운드 flush 스레드 시작."""
         if self._running:
             return
         self._running = True
+        # start() 시점을 기준선으로 삼아, 첫 이상탐지 스캔도 anomaly_scan_interval을
+        # 온전히 기다린 뒤 실행되게 한다(생성 시점이 아니라 실제 가동 시점 기준).
+        self._last_anomaly_scan_time = time.time()
         self._flush_thread = threading.Thread(target=self._flush_loop, daemon=True)
         self._flush_thread.start()
 
@@ -185,6 +214,47 @@ class StreamingEvaluator:
                 self._flush()
             except Exception as _e:
                 logger.debug("Streaming flush failed (ignored): %s", _e)
+            self._maybe_scan_anomalies()
+
+    def _maybe_scan_anomalies(self) -> None:
+        """SPEC-026 REQ-2: ``anomaly_detector``가 설정돼 있고 마지막 스캔 이후
+        ``anomaly_scan_interval``초 이상 지났으면 스캔을 실행한다. ``flush_interval``
+        주기로 도는 기존 루프 안에서 호출되므로, 실제 스캔 간격은 ``flush_interval``의
+        배수로 근사된다(예: flush_interval=60, anomaly_scan_interval=300이면 5회
+        flush마다 1회 스캔). 스캔이 이상을 발견하면 REQ-4(:meth:`_maybe_dispatch_anomalies`)로
+        이어져 실제 알림 발송을 시도한다."""
+        if self.anomaly_detector is None:
+            return
+        now = time.time()
+        if now - self._last_anomaly_scan_time < self.anomaly_scan_interval:
+            return
+        self._last_anomaly_scan_time = now
+        try:
+            self._last_anomalies = self.anomaly_detector.scan(self.monitor)
+        except Exception as _e:
+            logger.debug("Anomaly scan failed (ignored): %s", _e)
+            return
+        self._maybe_dispatch_anomalies()
+
+    def _maybe_dispatch_anomalies(self) -> None:
+        """SPEC-026 REQ-4: REQ-2의 스캔 결과(:attr:`_last_anomalies`)를 REQ-3의
+        ``AlertEngine.dispatch_anomaly_events()``로 넘겨 실제 알림을 발송한다.
+
+        ``_last_anomalies``가 비어 있거나(이상 없음), ``alert_handler``/
+        ``anomaly_alert_handler`` 중 하나라도 미설정이면 아무것도 하지 않는다 —
+        새 쿨다운·재시도 로직을 만들지 않고 REQ-3에 그대로 위임한다. 발송 자체가
+        실패해도(네트워크 등) flush 루프를 막지 않도록 예외를 삼킨다(``_flush()``/
+        ``_maybe_scan_anomalies()``와 동일한 관례)."""
+        if not self._last_anomalies:
+            return
+        if self.alert_handler is None or self.anomaly_alert_handler is None:
+            return
+        try:
+            self.alert_handler.dispatch_anomaly_events(
+                self._last_anomalies, handler=self.anomaly_alert_handler,
+            )
+        except Exception as _e:
+            logger.debug("Anomaly alert dispatch failed (ignored): %s", _e)
 
     def _flush(self) -> None:
         """슬라이딩 윈도우 현재 스냅샷을 PerformanceMonitor에 저장.

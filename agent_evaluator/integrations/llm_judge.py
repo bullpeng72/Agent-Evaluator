@@ -239,6 +239,37 @@ def _build_user_message(
 
 
 # ---------------------------------------------------------------------------
+# SPEC-025 REQ-4: pairwise (A/B) judge prompt builder
+# ---------------------------------------------------------------------------
+
+_PAIRWISE_SYSTEM_PROMPT = (
+    "You are an impartial evaluator comparing two AI agent responses (A and B) to the "
+    "same question. Decide which response is better overall, considering completeness, "
+    "relevance, and factual accuracy — or declare a tie if they are equally good.\n\n"
+    "Return ONLY valid JSON with this exact structure:\n"
+    "{\n"
+    '  "winner": "a" | "b" | "tie",\n'
+    '  "reasoning": "<one sentence explanation>"\n'
+    "}"
+)
+
+
+def _build_pairwise_user_message(
+    question: str,
+    response_a: str,
+    response_b: str,
+    context: str | None = None,
+    max_context_chars: int = 4000,
+) -> str:
+    parts = [f"QUESTION:\n{question}"]
+    if context:
+        parts.append(f"\nCONTEXT:\n{context[:max_context_chars]}")
+    parts.append(f"\nRESPONSE A:\n{response_a}")
+    parts.append(f"\nRESPONSE B:\n{response_b}")
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # SPEC-006 REQ-2: provider rate-limit(429) 예외 판별
 # ---------------------------------------------------------------------------
 
@@ -357,6 +388,10 @@ class LLMJudge:
         # Results store: task_id → judge result dict
         self.results: List[Dict[str, Any]] = []
 
+        # SPEC-025 REQ-4: pairwise(A/B) 비교 결과 이력 — self.results(절대 스코어링)와는
+        # 별개 목적이라 get_summary()의 절대 스코어 집계를 오염시키지 않도록 분리한다.
+        self.pairwise_results: list[dict[str, Any]] = []
+
         # SPEC-006 REQ-1: 동시 judge 호출 수 상한 — asyncio.Semaphore는 실행 중인
         # 이벤트 루프에 바인딩되므로 __init__(루프 없음) 시점에는 생성하지 않고
         # ajudge() 최초 호출 시점에 lazy하게 생성한다 (_get_semaphore 참고).
@@ -473,6 +508,141 @@ class LLMJudge:
         self._consecutive_errors = 0
         self._disabled_reason = None
         logger.info("LLMJudge: error counter reset — judge re-enabled")
+
+    def judge_pairwise(
+        self,
+        question: str,
+        response_a: str,
+        response_b: str,
+        context: str | None = None,
+        swap_check: bool = True,
+    ) -> dict[str, Any]:
+        """SPEC-025 REQ-4: 두 응답(A/B)을 직접 맞대결시켜 상대적으로 판정한다.
+
+        절대 스코어(``judge()``)보다 judge 모델의 채점 기준 이동(scale drift)에
+        덜 민감한 pairwise 비교를 제공한다 — 프롬프트 A/B 버전 비교처럼 "어느 쪽이
+        더 나은가"만 필요한 경우에 적합하다.
+
+        ``sample_rate`` 샘플링은 적용하지 않는다 — ``judge()``의 샘플링은 대량의
+        운영 태스크를 일부만 채점하기 위한 것이고, ``judge_pairwise()``는 호출자가
+        명시적으로 요청한 단발성 비교이기 때문이다. 예산 초과(``budget_per_day``)
+        및 연속 오류 자동 비활성화 게이트는 ``judge()``와 동일하게 적용된다.
+
+        Args:
+            question: 두 응답이 답하려는 동일한 질문/프롬프트.
+            response_a: 비교 대상 응답 A.
+            response_b: 비교 대상 응답 B.
+            context: 선택적 검색 컨텍스트(RAG) — 두 응답 모두에 동일하게 제공된다.
+            swap_check: ``True``(기본값)이면 A/B 순서를 뒤집어 한 번 더 호출해
+                포지션 편향(응답 순서 자체가 판정에 영향을 주는 현상)을 완화한다.
+                두 호출의 승자가 일치하면 그 결과를, 불일치하면 ``"tie"``를
+                반환한다. 호출 비용이 2배가 되므로, 비용에 민감하면 ``False``로
+                끌 수 있다.
+
+        Returns:
+            Dict with keys:
+              - ``winner``: ``"a"`` | ``"b"`` | ``"tie"``
+              - ``reasoning``: 최초 호출(A/B 원래 순서)의 근거 설명
+              - ``swap_check``: 실제로 swap-check가 반영됐는지 여부
+              - ``cost_usd``: 이번 호출(들)의 예상 비용 합계
+              - ``model``: 사용된 모델
+              - ``skipped``: 예산 초과·연속 오류 비활성화로 스킵된 경우 ``True``
+              - ``error``: API 호출/파싱 실패 시 오류 메시지(``winner``는 ``None``)
+
+        Example::
+            judge = LLMJudge(model="claude-haiku-4-5-20251001")
+            result = judge.judge_pairwise(
+                question="...", response_a="(v1 응답)", response_b="(v2 응답)",
+            )
+            print(result["winner"])  # "a" | "b" | "tie"
+        """
+        if self._disabled_reason is not None:
+            return {"skipped": True, "reason": self._disabled_reason}
+
+        if not self._check_budget():
+            warnings.warn(
+                f"LLMJudge: daily budget of ${self.budget_per_day:.2f} reached. "
+                "Skipping pairwise judge call.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return {"skipped": True, "reason": "budget_exceeded"}
+
+        first = self._call_pairwise_judge(question, response_a, response_b, context)
+        result = self._resolve_pairwise_result(
+            first, question, response_a, response_b, context, swap_check,
+        )
+
+        self.pairwise_results.append(result)
+
+        if result.get("error"):
+            self._consecutive_errors += 1
+            if self._consecutive_errors >= self._max_consecutive_errors:
+                self._disabled_reason = f"auto_disabled_after_{self._consecutive_errors}_errors"
+                warnings.warn(
+                    f"LLMJudge: {self._consecutive_errors}회 연속 오류로 자동 비활성화됨. "
+                    f"마지막 오류: {result['error']!r}. "
+                    "API 키·네트워크를 확인하거나 judge.reset_errors()를 호출해 재활성화하세요.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        else:
+            self._consecutive_errors = 0
+
+        return result
+
+    def _resolve_pairwise_result(
+        self,
+        first: dict[str, Any],
+        question: str,
+        response_a: str,
+        response_b: str,
+        context: str | None,
+        swap_check: bool,
+    ) -> dict[str, Any]:
+        """``judge_pairwise()``의 swap-check 결합 로직 — 최초 호출 결과와, 필요하면
+        A/B를 뒤집은 2차 호출 결과를 합쳐 최종 판정을 만든다."""
+        if first.get("error"):
+            first["swap_check"] = False
+            return first
+
+        if not swap_check:
+            first["swap_check"] = False
+            return first
+
+        # A/B를 뒤집어 2차 호출 — 응답 인자 순서만 교체하고 프롬프트 구성은 동일하다.
+        second = self._call_pairwise_judge(question, response_b, response_a, context)
+        combined_cost = round(first.get("cost_usd", 0.0) + second.get("cost_usd", 0.0), 8)
+
+        if second.get("error"):
+            # 2차 호출 실패 — swap-check를 완료하지 못했다는 것만 표시하고, 최초
+            # 호출(성공)을 그대로 신뢰한다(무작위로 "tie" 처리해 유효한 결과를
+            # 버리지 않는다).
+            first["swap_check"] = False
+            first["swap_check_error"] = second["error"]
+            first["cost_usd"] = combined_cost
+            return first
+
+        _flip = {"a": "b", "b": "a", "tie": "tie"}
+        _second_winner = second.get("winner")
+        second_winner_in_original_frame = (
+            _flip.get(_second_winner) if isinstance(_second_winner, str) else None
+        )
+        final_winner = (
+            first["winner"]
+            if second_winner_in_original_frame == first["winner"]
+            else "tie"
+        )
+
+        return {
+            "skipped": False,
+            "winner": final_winner,
+            "reasoning": first.get("reasoning", ""),
+            "swap_check": True,
+            "model": first.get("model"),
+            "model_snapshot": first.get("model_snapshot"),
+            "cost_usd": combined_cost,
+        }
 
     def _get_semaphore(self) -> asyncio.Semaphore:
         """(SPEC-006 REQ-1) 현재 실행 중인 이벤트 루프에 바인딩된 세마포어를 반환한다.
@@ -774,6 +944,77 @@ class LLMJudge:
                 "cost_usd": 0.0,
             }
 
+    def _call_pairwise_judge(
+        self,
+        question: str,
+        response_a: str,
+        response_b: str,
+        context: str | None,
+        *,
+        _model: str | None = None,
+    ) -> dict[str, Any]:
+        """SPEC-025 REQ-4: ``_call_judge()``와 동일한 원칙 — provider 이름으로 분기한다."""
+        model = _model or self.model
+        model_lower = model.lower()
+        if "claude" in model_lower:
+            return self._call_claude_pairwise(
+                question, response_a, response_b, context, _model=model,
+            )
+        elif "gpt" in model_lower or "openai" in model_lower:
+            return self._call_openai_pairwise(
+                question, response_a, response_b, context, _model=model,
+            )
+        else:
+            return {
+                "skipped": False,
+                "error": f"Unsupported model: {model}",
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+    def _parse_pairwise_response(
+        self,
+        raw_text: str,
+        cost: float,
+        model: str | None = None,
+        model_snapshot: str | None = None,
+    ) -> dict[str, Any]:
+        """SPEC-025 REQ-4: pairwise judge 응답에서 winner/reasoning을 파싱한다."""
+        try:
+            text = raw_text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+            data = json.loads(text.strip())
+
+            winner = str(data.get("winner", "")).strip().lower()
+            if winner not in ("a", "b", "tie"):
+                # 알 수 없는 값은 임의로 승자를 선언하지 않고 안전하게 tie로 처리한다.
+                winner = "tie"
+
+            return {
+                "skipped": False,
+                "winner": winner,
+                "reasoning": data.get("reasoning", ""),
+                "model": model or self.model,
+                "model_snapshot": model_snapshot or model or self.model,
+                "cost_usd": cost,
+            }
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(
+                "LLMJudge: failed to parse pairwise response: %s | raw=%r", e, raw_text[:200],
+            )
+            return {
+                "skipped": False,
+                "error": f"parse_error: {e}",
+                "winner": None,
+                "model": model or self.model,
+                "model_snapshot": model_snapshot or model or self.model,
+                "cost_usd": cost,
+            }
+
     def _parse_judge_response(
         self,
         task_id: str,
@@ -962,6 +1203,70 @@ class LLMJudge:
                 "cost_usd": 0.0,
             }
 
+    def _call_claude_pairwise(
+        self,
+        question: str,
+        response_a: str,
+        response_b: str,
+        context: str | None,
+        *,
+        _model: str | None = None,
+    ) -> dict[str, Any]:
+        """SPEC-025 REQ-4: ``_call_claude()``와 동일한 구조 — pairwise 프롬프트만 다르다."""
+        model = _model or self.model
+        try:
+            import anthropic
+        except ImportError:
+            return {
+                "skipped": False,
+                "error": "anthropic library not installed. Run: pip install anthropic",
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            return {
+                "skipped": False,
+                "error": "ANTHROPIC_API_KEY not set",
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+        try:
+            client = anthropic.Anthropic(api_key=api_key)
+            user_msg = _build_pairwise_user_message(
+                question, response_a, response_b, context, self.max_context_chars,
+            )
+            pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
+
+            msg = self._call_with_retry(lambda: client.messages.create(
+                model=model,
+                max_tokens=512,
+                system=_PAIRWISE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+            ))
+
+            raw = msg.content[0].text if msg.content else ""
+            in_tok = msg.usage.input_tokens if hasattr(msg, "usage") else 500
+            out_tok = msg.usage.output_tokens if hasattr(msg, "usage") else 100
+            cost = self._estimate_cost(in_tok, out_tok, pricing)
+            return self._parse_pairwise_response(
+                raw, cost, model=model, model_snapshot=getattr(msg, "model", None),
+            )
+
+        except Exception as e:
+            logger.warning("LLMJudge Claude pairwise call failed: %s", e)
+            return {
+                "skipped": False,
+                "error": str(e),
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
     def _call_openai(
         self,
         task_id: str,
@@ -1038,6 +1343,73 @@ class LLMJudge:
                 "skipped": False,
                 "error": str(e),
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+    def _call_openai_pairwise(
+        self,
+        question: str,
+        response_a: str,
+        response_b: str,
+        context: str | None,
+        *,
+        _model: str | None = None,
+    ) -> dict[str, Any]:
+        """SPEC-025 REQ-4: ``_call_openai()``와 동일한 구조 — pairwise 프롬프트만 다르다."""
+        model = _model or self.model
+        try:
+            import openai
+        except ImportError:
+            return {
+                "skipped": False,
+                "error": "openai library not installed. Run: pip install openai",
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {
+                "skipped": False,
+                "error": "OPENAI_API_KEY not set",
+                "winner": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+
+        try:
+            client = openai.OpenAI(api_key=api_key)
+            user_msg = _build_pairwise_user_message(
+                question, response_a, response_b, context, self.max_context_chars,
+            )
+            pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
+
+            completion = self._call_with_retry(lambda: client.chat.completions.create(
+                model=model,
+                max_completion_tokens=8192,
+                messages=[
+                    {"role": "system", "content": _PAIRWISE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_msg},
+                ],
+            ))
+
+            raw = completion.choices[0].message.content or ""
+            usage = completion.usage
+            in_tok = usage.prompt_tokens if usage else 500
+            out_tok = usage.completion_tokens if usage else 100
+            cost = self._estimate_cost(in_tok, out_tok, pricing)
+            return self._parse_pairwise_response(
+                raw, cost, model=model, model_snapshot=getattr(completion, "model", None),
+            )
+
+        except Exception as e:
+            logger.warning("LLMJudge OpenAI pairwise call failed: %s", e)
+            return {
+                "skipped": False,
+                "error": str(e),
+                "winner": None,
                 "model": model,
                 "cost_usd": 0.0,
             }

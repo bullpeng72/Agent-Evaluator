@@ -6124,7 +6124,29 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     <span class="badge-info" x-text="compareIds.length + '/5 selected'"></span>
   </div>
 
-  <div class="sdiv"><div class="sdiv-lbl">Select Files to Compare</div><div class="sdiv-line"></div></div>
+  <!-- SPEC-025: group_by 자동 선택 + HTML 내보내기 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <label style="font-size:12px;color:var(--text2)">Group by:</label>
+    <select class="btn" style="padding:4px 8px;font-size:12px"
+            x-model="compareGroupBy" @change="applyCompareGroupBy(compareGroupBy)">
+      <option value="">Manual selection</option>
+      <option value="prompt_version">prompt_version (latest per tag)</option>
+      <option value="agent_version">agent_version (latest per tag)</option>
+    </select>
+    <span x-show="compareGroupLoading" style="font-size:11px;color:var(--text2)">⏳ Loading groups...</span>
+    <a class="btn" :href="compareHtmlExportUrl()" download
+       x-show="compareIds.length>=2" style="text-decoration:none;font-size:12px;margin-left:auto">📄 Export HTML</a>
+  </div>
+
+  <!-- SPEC-025: group_by가 5개 초과 태그를 찾았을 때 절삭 경고 (라디오 차트/UI가 5개로 제한돼 있음) -->
+  <div x-show="compareGroupBy && compareGroupTotal > 5"
+       style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding:8px 12px;background:var(--bg3);border:1px solid var(--yellow);border-radius:6px;font-size:12px;color:var(--text2)">
+    <span>⚠️</span>
+    <span>Found <strong x-text="compareGroupTotal"></strong> distinct <span x-text="compareGroupBy"></span> values —
+          showing only the first 5 (alphabetical). Switch to manual selection to pick a different subset.</span>
+  </div>
+
+  <div class="sdiv"><div class="sdiv-lbl">Select Files to Compare <span class="text-xs-muted" x-show="compareGroupBy">(auto-selected by group — uncheck a file to switch back to manual)</span></div><div class="sdiv-line"></div></div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
     <template x-for="f in files" :key="f.id">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);font-size:12px"
@@ -6150,6 +6172,9 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <button class="btn"
                 :style="cmpTab==='trend'?'border-color:var(--accent);color:var(--accent);font-weight:700':''"
                 @click="cmpTab='trend';$nextTick(()=>drawTrendChart())">📈 Trend</button>
+        <button class="btn" x-show="compareIds.length===2"
+                :style="cmpTab==='pairwise'?'border-color:var(--accent);color:var(--accent);font-weight:700':''"
+                @click="cmpTab='pairwise';loadComparePairwise()">⚖️ Pairwise Judge</button>
       </div>
 
       <!-- 비교표 -->
@@ -6169,6 +6194,20 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </tr>
           </thead>
           <tbody>
+            <!-- SPEC-029: agent_version/iteration_note — group_by=agent_version로 나열된
+                 dirty-hash 태그 옆에 사람이 남긴 메모를 보여줘 어떤 시도가 무엇을 바꾼 것인지
+                 구분하기 쉽게 한다. 새 API 호출 없이 이미 로드된 compareData(원본 결과 JSON)의
+                 extra_metrics.lineage에서 직접 읽는다. -->
+            <template x-if="compareData.some(d => (d.extra_metrics?.lineage?.agent_version) || (d.extra_metrics?.lineage?.iteration_note))">
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:6px 10px;color:var(--text2)">agent_version <span style="font-size:10px">(iteration_note)</span></td>
+                <template x-for="d in compareData" :key="d.id">
+                  <td style="text-align:center;padding:6px 10px;font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                      :title="d.extra_metrics?.lineage?.iteration_note || ''"
+                      x-text="(d.extra_metrics?.lineage?.agent_version || '—') + (d.extra_metrics?.lineage?.iteration_note ? ' — ' + d.extra_metrics.lineage.iteration_note : '')"></td>
+                </template>
+              </tr>
+            </template>
             <!-- ── 레이더 6축 핵심 지표 ── -->
             <tr style="background:var(--bg2)">
               <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">🎯 Radar 6-Axis Key Metrics (0–100% · Higher is better)</td>
@@ -6343,6 +6382,69 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           P95 Latency is on the right y-axis (seconds).
         </div>
       </div><!-- /트렌드 -->
+
+      <!-- 페어와이즈 판정 탭 (SPEC-025) -->
+      <div x-show="cmpTab==='pairwise'">
+        <div class="sdiv"><div class="sdiv-lbl">⚖️ Pairwise LLM Judge <span class="text-xs-muted">Live judge call per common task — swap-check cancels out position bias</span></div><div class="sdiv-line"></div></div>
+
+        <template x-if="comparePairwiseLoading">
+          <div style="text-align:center;padding:32px;color:var(--text2)">⏳ Running pairwise judge (real API calls — may take a while)...</div>
+        </template>
+
+        <template x-if="!comparePairwiseLoading && comparePairwise">
+          <div>
+            <div class="kpi-grid" style="margin-bottom:16px">
+              <div class="kpi">
+                <div class="kpi-lbl" x-text="(compareData[0]?.name||compareData[0]?.id||'A')+' Wins'"></div>
+                <div class="kpi-val" x-text="comparePairwise.wins_a ?? 0"></div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-lbl">Ties</div>
+                <div class="kpi-val" x-text="comparePairwise.ties ?? 0"></div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-lbl" x-text="(compareData[1]?.name||compareData[1]?.id||'B')+' Wins'"></div>
+                <div class="kpi-val" x-text="comparePairwise.wins_b ?? 0"></div>
+              </div>
+              <div class="kpi" style="border-color:var(--accent)">
+                <div class="kpi-lbl">Win Rate (first file · ties=0.5)</div>
+                <div class="kpi-val" :style="`color:${bc((comparePairwise.win_rate||0)*100)}`"
+                     x-text="comparePairwise.win_rate!=null ? (comparePairwise.win_rate*100).toFixed(1)+'%' : 'N/A'"></div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:10px"
+                 x-text="(comparePairwise.judged_count ?? (comparePairwise.per_task||[]).length)+' common task(s) judged'"></div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                  <tr style="border-bottom:2px solid var(--border)">
+                    <th style="text-align:left;padding:6px 10px;color:var(--text2)">Task ID</th>
+                    <th style="text-align:center;padding:6px 10px;color:var(--text2)">Winner</th>
+                    <th style="text-align:left;padding:6px 10px;color:var(--text2)">Reasoning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="pt in (comparePairwise.per_task||[])" :key="pt.task_id">
+                    <tr style="border-bottom:1px solid var(--border)">
+                      <td style="padding:6px 10px;font-family:monospace;font-size:11px" x-text="pt.task_id"></td>
+                      <td style="text-align:center;padding:6px 10px;font-weight:700"
+                          :style="{color: pt.winner==='tie' ? 'var(--yellow)' : 'var(--accent)'}"
+                          x-text="pt.winner==='a' ? (compareData[0]?.name||'A') : pt.winner==='b' ? (compareData[1]?.name||'B') : 'Tie'"></td>
+                      <td style="padding:6px 10px;color:var(--text2)" x-text="pt.reasoning||''"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="!comparePairwiseLoading && !comparePairwise">
+          <div style="text-align:center;padding:32px;color:var(--text2)">
+            No pairwise result yet — click "⚖️ Pairwise Judge" again, or select exactly 2 files. This runs a live LLM Judge call per common task (API cost applies).
+          </div>
+        </template>
+      </div><!-- /페어와이즈 -->
     </div>
   </template>
 
@@ -10025,6 +10127,9 @@ function app2() {
     reliabilityData: {}, reliabilityLoading: false,
     /* compare */
     compareIds: [], compareData: [], compareLoading: false, cmpTab: 'compare',
+    /* compare — SPEC-025: group_by(prompt_version/agent_version) + pairwise judge */
+    compareGroupBy: '', compareGroupLoading: false, compareGroupTotal: 0,
+    comparePairwise: null, comparePairwiseLoading: false,
     /* regression */
     prevData: null, prevLoading: false,
     /* golden */
@@ -10869,6 +10974,9 @@ function app2() {
       const idx = this.compareIds.indexOf(id);
       if (idx >= 0) this.compareIds.splice(idx, 1);
       else if (this.compareIds.length < 5) this.compareIds.push(id);
+      this.compareGroupBy = '';
+      this.compareGroupTotal = 0;
+      this.comparePairwise = null;
     },
     async loadReliability() {
       if (!this.data) return;
@@ -10880,6 +10988,7 @@ function app2() {
       finally { this.reliabilityLoading = false; }
     },
     async loadCompareData() {
+      this.comparePairwise = null;
       if (!this.compareIds.length) { this.compareData = []; return; }
       this.compareLoading = true;
       try {
@@ -10888,6 +10997,44 @@ function app2() {
         this.$nextTick(() => this.drawCompareChart());
       } catch(e) { console.warn('compare error', e); }
       finally { this.compareLoading = false; }
+    },
+    /* SPEC-025: group_by로 프롬프트/에이전트 버전별 최신 파일을 자동 선택
+       (compareIds를 재계산할 뿐 — 이후 렌더링은 기존 compareData 흐름을 그대로 재사용) */
+    async applyCompareGroupBy(field) {
+      this.compareGroupBy = field;
+      this.compareGroupTotal = 0;
+      if (!field) return;
+      this.compareGroupLoading = true;
+      try {
+        const r = await fetch(`/api/compare?group_by=${encodeURIComponent(field)}`);
+        if (!r.ok) { console.warn('group_by compare failed', r.status); return; }
+        const j = await r.json();
+        const found = (j.files || []).filter(f => f.found);
+        this.compareGroupTotal = found.length;
+        this.compareIds = found.map(f => f.file_id).slice(0, 5);
+        await this.loadCompareData();
+      } catch(e) { console.warn('group_by compare error', e); }
+      finally { this.compareGroupLoading = false; }
+    },
+    /* SPEC-025: 페어와이즈 LLM Judge — 정확히 2개 파일 선택 시에만 의미가 있다 */
+    async loadComparePairwise() {
+      if (this.compareIds.length !== 2) { this.comparePairwise = null; return; }
+      this.comparePairwiseLoading = true;
+      try {
+        const idsParam = this.compareIds.join(',');
+        const r = await fetch(`/api/compare?ids=${encodeURIComponent(idsParam)}&detailed=true&pairwise=true`);
+        if (!r.ok) { console.warn('pairwise compare failed', r.status); this.comparePairwise = null; return; }
+        const j = await r.json();
+        this.comparePairwise = j.pairwise || null;
+      } catch(e) { console.warn('pairwise compare error', e); this.comparePairwise = null; }
+      finally { this.comparePairwiseLoading = false; }
+    },
+    compareHtmlExportUrl() {
+      const params = new URLSearchParams();
+      if (this.compareGroupBy) params.set('group_by', this.compareGroupBy);
+      else params.set('ids', this.compareIds.join(','));
+      if (this.cmpTab === 'pairwise') params.set('pairwise', 'true');
+      return `/api/export/html/compare?${params.toString()}`;
     },
     drawCompareChart() {
       if (this.compareData.length < 2) return;

@@ -1,14 +1,14 @@
 # API 레퍼런스
 
-Agent Evaluator v0.9.7 전체 API 문서
+Agent Evaluator v0.9.8 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.9.7
+- **버전:** v0.9.8
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-07-05
+- **최종 업데이트:** 2026-07-06
 
 ---
 
@@ -139,6 +139,39 @@ monitor = PerformanceMonitor(
 | `export_to_mlflow()` | `None` | MLflow 내보내기 (requires mlflow) |
 | `compare(other)` | `dict` | 다른 모니터와 지표 비교 |
 | `analyze()` | `dict` | 병목 분석 + 최적화 권고 |
+| `rehydrate_from_storage(path, limit=None)` *(v0.9.8+)* | `int` | SQLite(`storage_backend="sqlite"`) 이력을 `record_task()` 루프로 재생 — 프로세스 재시작 후에도 `AnomalyDetector` 기준선이 살아남게 한다. 반환값은 재생된 태스크 수 |
+| `agent_version` *(속성, SPEC-027)* | `Optional[str]` | 읽기 전용 — 생성자에 넘긴 값의 최종 해석 결과(`"auto"`면 자동 태깅 결과, 리터럴 문자열이면 그대로, 미지정이면 `None`). setter 없음 |
+| `iteration_note` *(생성자 파라미터, SPEC-029)* | `Optional[str]` | `agent_version="auto"`의 불투명한 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙인다. `extra_metrics.lineage.iteration_note`에 그대로 실림, 새 계산 없음. 대시보드 File Compare의 Metric Comparison 표에 `agent_version`과 나란히 렌더링된다. 생략(기본값 `None`)하면 회귀 없음 |
+
+> **`rehydrate_from_storage()` 사용 시 주의**: `enable_llm_judge`/`enable_hallucination_detection`/`enable_security_metrics`가 켜진 모니터로 재생하면 이미 채점된 과거 태스크가 **다시 채점**된다(LLM Judge라면 비용도 재발생). 과거 이력을 그대로 재현만 하려면 이 플래그들을 끈 모니터로 재생할 것.
+
+```python
+# 프로세스 시작 시 1회 — 이후 monitor.record_task(...)로 신규 트래픽 기록 시작
+monitor = PerformanceMonitor(output_dir="results/", enable_anomaly_detection=True)
+n = monitor.rehydrate_from_storage("results/production_sessions.db", limit=500)
+```
+
+> **`agent_version="auto"` (SPEC-027)**: 현재 git 커밋 SHA 앞 8자로 자동 태깅한다.
+> 커밋되지 않은 tracked 파일 변경이 있으면(`git diff HEAD`) 그 diff를 해시해
+> `{commit8}-dirty-{hash6}` 형태로 접미사를 붙인다 — 커밋 없이 반복 실행하는 로컬
+> 개발 루프에서도 서로 다른 코드 상태가 자동으로 구분된다. git 정보가 없으면(비-git
+> 환경 등) 예외 없이 `None`으로 떨어진다.
+>
+> ```python
+> monitor = PerformanceMonitor(output_dir="results/", agent_version="auto")
+> monitor.agent_version  # -> "a1b2c3d4" | "a1b2c3d4-dirty-f3a91c" | None
+> ```
+
+> **`iteration_note` (SPEC-029)**: 위 `-dirty-<hash>` 태그 자체는 의미를 담지
+> 않으므로, 어느 iteration이 무엇을 시도한 것인지 사람이 읽을 수 있는 메모를
+> 함께 남긴다.
+>
+> ```python
+> monitor = PerformanceMonitor(
+>     output_dir="results/", agent_version="auto",
+>     iteration_note="플랜 단계를 먼저 세우게 지시문 추가",
+> )
+> ```
 
 #### 팩토리 classmethod
 
@@ -960,6 +993,27 @@ AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic   # Anthropic API 우선 사용
 AGENT_EVALUATOR_JUDGE_PROVIDER=openai      # OpenAI API 우선 사용
 ```
 
+### 페어와이즈(A/B) 비교 — `judge_pairwise()` (v0.9.8+)
+
+절대 스코어(`judge()`)는 채점 모델의 그날그날 기준 이동(scale drift)에 민감하다. "이 프롬프트 변경이 더 나은가?"처럼 상대 비교가 필요하면 `judge_pairwise()`가 더 안정적이다.
+
+```python
+result = judge.judge_pairwise(
+    question="한국의 수도는?",
+    response_a="서울입니다.",              # 예: 프롬프트 v1의 응답
+    response_b="서울은 한국의 수도입니다.", # 예: 프롬프트 v2의 응답
+    context="",                            # 선택적 RAG 컨텍스트
+    swap_check=True,                       # 기본값 — 포지션 편향 완화
+)
+result["winner"]      # "a" | "b" | "tie"
+result["reasoning"]   # 1차 호출(A/B 원래 순서)의 근거 설명
+result["swap_check"]  # True면 실제로 A/B를 뒤집어 재확인한 결과
+```
+
+`swap_check=True`(기본값)이면 A/B 순서를 뒤집어 한 번 더 호출한다 — 두 호출의 승자가 일치하면 그 결과를, 불일치하면(포지션 편향 신호) `"tie"`로 수렴한다. 비용을 절반으로 줄이려면 `swap_check=False`를 지정한다. `sample_rate` 샘플링은 적용되지 않는다 — 호출자가 명시적으로 요청하는 단발성 비교이기 때문이다. 예산 초과·연속 오류 자동 비활성화는 `judge()`와 동일하게 적용되며, 판정 이력은 `judge.results`(절대 스코어)와 분리된 `judge.pairwise_results`에 쌓인다.
+
+대시보드에서는 `compare_results(detailed=True, pairwise=True)`가 공통 task마다 이 메서드를 호출해 `win_rate`를 집계한다 — 자세한 내용은 README의 "Version-Aware Comparison" 절 참고.
+
 ### QuickEval과 통합
 
 ```python
@@ -986,42 +1040,109 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 ### AnomalyDetector
 
+외부 ML 라이브러리 없이 Z-score/IQR/선형회귀로 6종의 이상을 탐지한다: `latency_trend` · `accuracy_drift` · `token_spike` · `error_surge` · `security_pattern` · `feedback_negativity` *(v0.9.8+, 부정 암묵 피드백 급증)*.
+
 ```python
 from agent_evaluator import AnomalyDetector, AnomalyEvent
 
 detector = AnomalyDetector(
-    latency_threshold=5.0,      # 초
-    accuracy_threshold=0.5,
-    window_size=100,
+    baseline_window=100,   # 기준선 계산에 쓸 최근 태스크 수
+    detection_window=20,   # 현재값 계산에 쓸 최근 태스크 수
 )
 
 events = detector.scan(monitor)
-# events: List[AnomalyEvent]
+# events: List[AnomalyEvent] — monitor.latency_tracker/accuracy_evaluator/token_tracker/
+# tcr_tracker/input_sanitizer/feedback_tracker의 인메모리 이력을 읽는다(재시작 시 초기화됨 —
+# 아래 rehydrate_from_storage()로 완화)
 
 event = events[0]
-event.event_type    # "latency_spike" | "accuracy_drop" | ...
-event.severity      # "low" | "medium" | "high"
-event.timestamp
+event.type          # "latency_trend" | "accuracy_drift" | "token_spike" | "error_surge" |
+                    # "security_pattern" | "feedback_negativity"
+event.severity      # "warning" | "critical"
+event.detail        # 사람이 읽을 수 있는 설명
+event.algorithm     # "linear_regression" | "z-score" | "iqr" | "ratio"
+event.detected_at
 
-# 원인 설명
+# 원인·권고 설명
 explanation = detector.explain_event(event)
-# {"cause": str, "recommendation": str, "affected_tasks": [...]}
+# {"metric", "value", "threshold", "deviation_pct", "severity", "explanation", "suggested_action", "detected_at"}
 
 events_with_explanation = detector.scan_with_explain(monitor)
+# [{**event.to_dict(), "explanation": {...}}, ...]
 ```
+
+> **재시작 생존 기준선 (v0.9.8+)**: `AnomalyDetector`는 인메모리 이력만 본다 — 프로세스가
+> 재시작되면 기준선이 비워진다. `monitor.rehydrate_from_storage(db_path)`(SQLite 백엔드
+> 필요)를 스캔 전에 호출하면 과거 이력을 재생해 즉시 의미 있는 기준선으로 사용할 수 있다.
+> 자세한 내용은 위 [PerformanceMonitor](#performancemonitor) 절 참고.
 
 ### StreamingEvaluator
 
+`PerformanceMonitor`를 감싸 실시간 슬라이딩 윈도우(1분/5분/1시간) 지표를 제공한다.
+
 ```python
 from agent_evaluator.streaming import StreamingEvaluator
+from agent_evaluator import AlertEngine, AnomalyDetector
 
 streaming_eval = StreamingEvaluator(
     monitor=monitor,
-    window_size=50,
-    slide_size=10,
+    flush_interval=60,          # 지표 집계·저장 주기(초)
+    alert_handler=AlertEngine(),  # 선택 — record()마다 evaluate() 호출
+    # v0.9.8+ — 기존 flush 스레드에 주기적 이상탐지를 얹는다(새 스레드 없음)
+    anomaly_detector=AnomalyDetector(baseline_window=200, detection_window=20),
+    anomaly_scan_interval=300,  # anomaly_detector 스캔 주기(초) — flush_interval과 독립적
+    anomaly_alert_handler=None, # 지정하면 스캔 결과를 AlertEngine.dispatch_anomaly_events()로 자동 발송
 )
-streaming_eval.process(task_result)
+streaming_eval.start()  # 백그라운드 flush(+ 이상탐지) 스레드 시작
+
+streaming_eval.record(
+    task_id="t1", success=True, execution_time=1.2, tokens_used=150,
+)
+stats = streaming_eval.get_stats("5m")  # count · tcr · avg_latency · p95_latency · error_rate · avg_tokens
+
+streaming_eval.stop()
 ```
+
+`anomaly_detector`/`alert_handler`/`anomaly_alert_handler` 셋 다 설정해야 이상 발견 시 실제 알림 발송까지 이어진다(완전 옵트인) — `anomaly_detector`만 설정하면 `streaming_eval._last_anomalies`에 스캔 결과만 쌓이고 발송되지 않는다.
+
+### AlertEngine & AlertRule
+
+`SimpleTaskAlertRule`(아래, 데코레이터용 태스크 단위 규칙)보다 저수준인 스트리밍 전용 알림 엔진. 재시도-백오프(지수 1s/2s/4s)·규칙별 쿨다운·전역 알림폭풍 방지를 갖췄다.
+
+```python
+from agent_evaluator import AlertEngine, AlertRule
+from agent_evaluator.alerts.handlers import SlackHandler
+
+engine = AlertEngine(
+    async_dispatch=False,        # True면 handler.send()를 백그라운드 스레드로 디스패치
+    max_alerts_per_window=None,  # 트레일링 윈도우 내 전역 발송 상한(알림폭풍 방지)
+    window_seconds=60,
+)
+engine.add_rule(AlertRule(
+    name="TCR 급락",
+    condition=lambda ev: ev.get_stats("5m")["tcr"] < 70,
+    handler=SlackHandler(webhook_url="https://..."),
+    cooldown=300,
+    severity="critical",
+))
+engine.evaluate(streaming_eval)  # StreamingEvaluator 폴링 — 조건 충족 시 규칙마다 발송
+```
+
+#### `dispatch_anomaly_events()` (v0.9.8+)
+
+`AnomalyDetector.scan()`의 결과를 `evaluate()`와 별개의 경로로 발송한다 — `AnomalyEvent.type`별로 캐시된 `AlertRule`을 통해 같은 쿨다운/재시도-백오프/알림폭풍 방지 인프라를 재사용하며, `evaluate()`가 순회하는 규칙 목록과는 분리되어 있어 재발화 사고가 없다.
+
+```python
+events = AnomalyDetector().scan(monitor)
+fired = engine.dispatch_anomaly_events(
+    events,
+    handler=SlackHandler(webhook_url="https://..."),
+    cooldown=300,  # 이 호출에서 신규로 캐시할 규칙의 쿨다운(초) — 기존 캐시된 규칙엔 영향 없음
+)
+# fired: List[AlertEvent] — 쿨다운을 통과해 실제로 발송된 이벤트만
+```
+
+`StreamingEvaluator(anomaly_detector=..., alert_handler=engine, anomaly_alert_handler=SlackHandler(...))`로 구성하면 이 호출이 자동으로 이루어진다(위 StreamingEvaluator 절 참고).
 
 ### SimpleTaskAlertRule & AlertRuleBuilder
 
@@ -1340,4 +1461,4 @@ FrameworkLiteral,   # 24개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.9.7 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.9.8 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

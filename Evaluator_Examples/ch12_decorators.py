@@ -39,6 +39,9 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
 
 결과:
     results/ch12_decorators.json
+    results/ch12_version_v1_baseline.json / ch12_version_v2_detailed.json
+        (동일 task_id 3건 공유 — agent-eval dashboard의 File Compare →
+         Group by: prompt_version / ⚖️ Pairwise Judge 탭 데모용)
     → deprecated 전체 예제: Evaluator_Examples/.deprecated/04_decorator_quickeval.py
 """
 
@@ -58,6 +61,7 @@ from agent_evaluator import (
     ConversationSession, ConversationMetrics,
     agent_eval, batch_eval, conversation_eval,
     flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig, LLMJudgeConfig,
+    create_taskresult,
 )
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -632,3 +636,94 @@ except Exception as _e:
 print(f"  @conversation_eval vs ConversationSession 직접 사용 비교:")
 print(f"    @conversation_eval  → session_id·turn 자동 관리, flush_conversation() 수동 종료")
 print(f"    ConversationSession → add_turn() 직접 호출, compute_metrics() 직접 실행")
+
+# ===========================================================================
+# 섹션 추가: 버전 비교(Version-Aware Comparison) + Pairwise Judge (v0.9.8+)
+#
+# 같은 질문 세트를 서로 다른 prompt_version으로 두 번 실행해 별도 결과 파일로
+# 저장하면, agent-eval dashboard의 File Compare 탭에서:
+#   - "Group by: prompt_version" → 태그별 최신 파일을 자동으로 골라준다
+#   - "⚖️ Pairwise Judge" 탭     → task_id가 일치하는 두 파일을 LLM Judge로 A/B 비교한다
+# 실제로 확인할 수 있다.
+#
+# 주의: task_id가 서로 다른 두 결과 파일(예: 서로 다른 챕터 예제)을 비교하면
+# 공통 task가 없어 "0 common task(s) judged"만 나온다 — 아래처럼 두 실행이
+# 반드시 같은 task_id를 공유해야 Pairwise Judge가 실제 결과를 낸다.
+# ===========================================================================
+print("\n=== 섹션 추가: 버전 비교(prompt_version) + Pairwise Judge ===")
+
+_VERSION_QA_CASES = [
+    ("vcmp_q1", "한국의 수도는 어디인가요?", "서울"),
+    ("vcmp_q2", "파이썬의 창시자는 누구인가요?", "귀도 반 로섬"),
+    ("vcmp_q3", "TCP와 UDP의 차이점은?", "TCP는 연결 지향, UDP는 비연결"),
+]
+
+
+def baseline_prompt_agent(task_id: str) -> str:
+    """v1-baseline: 근거 없이 한 줄짜리 짧은 답변만 반환."""
+    # TODO(현업 적용): 아래 Mock 대신 짧게 답하라는 system prompt로 LLM을 호출하세요.
+    answers = {
+        "vcmp_q1": "서울.",
+        "vcmp_q2": "귀도 반 로섬.",
+        "vcmp_q3": "TCP는 연결형, UDP는 비연결형입니다.",
+    }
+    return answers.get(task_id, "모름")
+
+
+def detailed_prompt_agent(task_id: str) -> str:
+    """v2-detailed: 근거를 덧붙인 상세 답변을 반환 — baseline과의 품질 차이를 의도적으로 만든다."""
+    # TODO(현업 적용): 아래 Mock 대신 "이유를 함께 설명하라"는 system prompt로 LLM을 호출하세요.
+    answers = {
+        "vcmp_q1": "한국의 수도는 서울입니다. 서울은 인구 약 950만 명의 대한민국 최대 도시입니다.",
+        "vcmp_q2": "파이썬은 귀도 반 로섬(Guido van Rossum)이 1991년에 처음 발표한 프로그래밍 언어입니다.",
+        "vcmp_q3": "TCP는 연결 지향 프로토콜로 신뢰성을 보장하고, UDP는 비연결 프로토콜로 속도를 우선합니다.",
+    }
+    return answers.get(task_id, "모름")
+
+
+monitor_v1 = PerformanceMonitor(output_dir=_OUTPUT_DIR, prompt_version="v1-baseline")
+monitor_v2 = PerformanceMonitor(output_dir=_OUTPUT_DIR, prompt_version="v2-detailed")
+
+for _task_id, _question, _ground_truth in _VERSION_QA_CASES:
+    monitor_v1.record_task(create_taskresult(
+        task_id=_task_id, question=_question,
+        response=baseline_prompt_agent(_task_id), ground_truth=_ground_truth,
+        execution_time=0.5,
+    ))
+    monitor_v2.record_task(create_taskresult(
+        task_id=_task_id, question=_question,
+        response=detailed_prompt_agent(_task_id), ground_truth=_ground_truth,
+        execution_time=0.8,
+    ))
+
+monitor_v1.save_to_file("ch12_version_v1_baseline")
+monitor_v2.save_to_file("ch12_version_v2_detailed")
+_version_task_ids = [c[0] for c in _VERSION_QA_CASES]
+print("  결과 저장: results/ch12_version_v1_baseline.json (prompt_version=v1-baseline)")
+print("  결과 저장: results/ch12_version_v2_detailed.json (prompt_version=v2-detailed)")
+print(f"  → 두 파일은 동일한 task_id {_version_task_ids}를 공유하므로,")
+print("    agent-eval dashboard의 File Compare → Pairwise Judge 탭에서 실제 비교가 가능하다.")
+
+# ── judge_pairwise() 직접 호출 (API 키 있을 때만 — 없으면 gracefully skip) ──
+try:
+    import os as _os_pw
+    if bool(_os_pw.getenv("ANTHROPIC_API_KEY") or _os_pw.getenv("OPENAI_API_KEY")):
+        pairwise_judge = LLMJudge(model=None)
+        _pw_task_id, _pw_question, _ = _VERSION_QA_CASES[0]
+        pw_result = pairwise_judge.judge_pairwise(
+            question=_pw_question,
+            response_a=baseline_prompt_agent(_pw_task_id),
+            response_b=detailed_prompt_agent(_pw_task_id),
+        )
+        if pw_result.get("error"):
+            print(f"  judge_pairwise() 오류: {pw_result['error']}")
+        else:
+            print(f"  judge_pairwise() 직접 호출 — winner={pw_result.get('winner')}  "
+                  f"swap_check={pw_result.get('swap_check')}")
+    else:
+        print("  API 키 없음 — judge_pairwise() 직접 호출 데모 skip")
+except Exception as _e:
+    print(f"  judge_pairwise() 실행 중 오류 (skip): {_e}")
+
+print("  확인: agent-eval dashboard → File Compare → \"Group by: prompt_version\" 또는")
+print("        ch12_version_v1_baseline / ch12_version_v2_detailed 수동 선택 → ⚖️ Pairwise Judge")

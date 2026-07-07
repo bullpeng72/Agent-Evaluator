@@ -2148,3 +2148,155 @@ def generate_html_from_result_file(rf) -> str:
         '</div></body></html>',
     ]
     return ''.join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Comparison report (SPEC-025 REQ-2/5 — group_by / pairwise dashboard export)
+# ---------------------------------------------------------------------------
+
+def _esc(v: Any) -> str:
+    """HTML 특수문자 이스케이프 — 비교 리포트는 task question/reasoning 등 사용자
+    생성 텍스트를 그대로 담으므로 반드시 이스케이프한다."""
+    return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def generate_comparison_html_report(compare_result: Dict[str, Any]) -> str:
+    """``compare_results()``(``serve/routers/data.py``)의 반환 dict를 그대로 받아
+    self-contained HTML 비교 리포트로 렌더링한다.
+
+    새 비교 로직을 만들지 않는다 — ``files``/``delta``/``detailed``/
+    ``regression_tasks``/``improvement_tasks``/``pairwise`` 키를 이미 계산된
+    그대로 표시만 한다(``group_by``/``pairwise`` 자체의 계산은 API 쪽 책임).
+
+    Args:
+        compare_result: ``compare_results()``가 반환한 dict.
+
+    Returns:
+        Self-contained HTML string (외부 CDN 의존성 없음, `_build_css()` 재사용).
+    """
+    files = compare_result.get("files") or []
+    delta = compare_result.get("delta") or []
+    detailed = compare_result.get("detailed")
+    regression_tasks = compare_result.get("regression_tasks") or []
+    improvement_tasks = compare_result.get("improvement_tasks") or []
+    pairwise = compare_result.get("pairwise")
+
+    found_files = [f for f in files if f.get("found")]
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def _name(f: Dict[str, Any]) -> str:
+        return _esc(f.get("name") or f.get("file_id") or "?")
+
+    css = _build_css().replace(
+        "<title>Agent Evaluator — Harness Gate Report</title>",
+        "<title>Agent Evaluator — Comparison Report</title>",
+    )
+
+    names = ", ".join(_name(f) for f in found_files) or "(no files found)"
+    header = f'''
+<div class="rpt-header">
+  <h1>📂 Result Comparison Report</h1>
+  <div class="sub">{names}</div>
+  <div class="meta">
+    <span>📊 {len(found_files)} file(s) compared</span>
+    <span>🕐 Generated {now_str}</span>
+  </div>
+</div>
+'''
+
+    if not found_files:
+        return css + header + '<div class="not-tested">No files found for the given ids/group_by.</div></div></body></html>'
+
+    _metric_rows = [
+        ("Total Tasks", "total_tasks", "{:.0f}"),
+        ("TCR", "tcr", "{:.1f}%"),
+        ("Accuracy", "accuracy", "{:.1f}%"),
+        ("Avg Latency", "avg_latency", "{:.3f}s"),
+        ("Total Cost", "total_cost", "${:.6f}"),
+    ]
+    thead = "<tr><th>Metric</th>" + "".join(f"<th>{_name(f)}</th>" for f in found_files) + "</tr>"
+    tbody = "".join(
+        f"<tr><td>{label}</td>" + "".join(f"<td>{fmt.format(f.get(key) or 0)}</td>" for f in found_files) + "</tr>"
+        for label, key, fmt in _metric_rows
+    )
+    metric_section = f'''
+<div class="gate-section">
+  <h2>📊 Metric Comparison</h2>
+  <table class="mtable"><thead>{thead}</thead><tbody>{tbody}</tbody></table>
+</div>
+'''
+
+    delta_section = ""
+    if delta:
+        delta_rows = "".join(
+            f"<tr><td>vs {_esc(d.get('vs'))}</td>"
+            f"<td>{d.get('tcr_delta', 0):+.2f}%</td>"
+            f"<td>{d.get('accuracy_delta', 0):+.2f}%</td>"
+            f"<td>{d.get('latency_delta', 0):+.3f}s</td></tr>"
+            for d in delta
+        )
+        delta_section = f'''
+<div class="gate-section">
+  <h2>&Delta; Delta <span style="font-size:12px;font-weight:400;color:#6b7280">(first file as baseline)</span></h2>
+  <table class="mtable"><thead><tr><th>Compared to</th><th>TCR &Delta;</th><th>Accuracy &Delta;</th><th>Latency &Delta;</th></tr></thead>
+  <tbody>{delta_rows}</tbody></table>
+</div>
+'''
+
+    detail_section = ""
+    if detailed:
+        def _task_rows(tasks: list) -> str:
+            if not tasks:
+                return '<tr><td colspan="4" style="text-align:center;color:#9ca3af">None</td></tr>'
+            return "".join(
+                f"<tr><td>{_esc(t.get('task_id'))}</td><td>{_esc(t.get('task_type', ''))}</td>"
+                f"<td>{t.get('accuracy_delta', 0):+.3f}</td><td>{t.get('latency_delta', 0):+.3f}s</td></tr>"
+                for t in tasks
+            )
+        detail_section = f'''
+<div class="gate-section">
+  <h2>🔍 Per-Task Detail</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-lbl">Common Tasks</div><div class="kpi-val">{detailed.get("common_task_count", 0)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Only in First</div><div class="kpi-val">{detailed.get("only_in_first", 0)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Only in Second</div><div class="kpi-val">{detailed.get("only_in_second", 0)}</div></div>
+  </div>
+  <h3><span class="badge badge-fail">Regressions ({len(regression_tasks)})</span></h3>
+  <table class="mtable"><thead><tr><th>Task ID</th><th>Type</th><th>Accuracy &Delta;</th><th>Latency &Delta;</th></tr></thead>
+  <tbody>{_task_rows(regression_tasks)}</tbody></table>
+  <h3><span class="badge badge-ok">Improvements ({len(improvement_tasks)})</span></h3>
+  <table class="mtable"><thead><tr><th>Task ID</th><th>Type</th><th>Accuracy &Delta;</th><th>Latency &Delta;</th></tr></thead>
+  <tbody>{_task_rows(improvement_tasks)}</tbody></table>
+</div>
+'''
+
+    pairwise_section = ""
+    if pairwise:
+        win_rate = pairwise.get("win_rate")
+        win_rate_str = f"{win_rate * 100:.1f}%" if win_rate is not None else "N/A"
+        per_task_rows = "".join(
+            f"<tr><td>{_esc(pt.get('task_id'))}</td><td>{_esc(pt.get('winner'))}</td>"
+            f"<td>{_esc(pt.get('reasoning', ''))}</td></tr>"
+            for pt in (pairwise.get("per_task") or [])
+        ) or '<tr><td colspan="3" style="text-align:center;color:#9ca3af">None</td></tr>'
+        judged_count = pairwise.get("judged_count", len(pairwise.get("per_task") or []))
+        pairwise_section = f'''
+<div class="gate-section">
+  <h2>⚖️ Pairwise LLM Judge</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-lbl">Wins A</div><div class="kpi-val">{pairwise.get("wins_a", 0)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Ties</div><div class="kpi-val">{pairwise.get("ties", 0)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Wins B</div><div class="kpi-val">{pairwise.get("wins_b", 0)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Win Rate (A)</div><div class="kpi-val">{win_rate_str}</div></div>
+  </div>
+  <p style="font-size:12px;color:#6b7280;margin:6px 0 10px">{judged_count} common task(s) judged</p>
+  <table class="mtable"><thead><tr><th>Task ID</th><th>Winner</th><th>Reasoning</th></tr></thead>
+  <tbody>{per_task_rows}</tbody></table>
+</div>
+'''
+
+    footer = f'<div class="footer">Generated by Agent Evaluator · {now_str}</div></div></body></html>'
+
+    return "".join([
+        css, header, metric_section, delta_section, detail_section, pairwise_section, footer,
+    ])

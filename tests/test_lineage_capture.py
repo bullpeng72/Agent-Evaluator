@@ -17,6 +17,7 @@ class TestLineageAlwaysPresent:
         assert "git_commit" in lineage
         assert lineage["prompt_version"] is None
         assert lineage["agent_version"] is None
+        assert lineage["iteration_note"] is None
         assert lineage["judge_model_snapshot"] is None
 
     def test_lineage_present_alongside_harness_groups(self):
@@ -34,6 +35,27 @@ class TestPromptAndAgentVersionPassthrough:
         lineage = report.extra_metrics["lineage"]
         assert lineage["prompt_version"] == "v3.2"
         assert lineage["agent_version"] == "agent-2026-07"
+
+
+class TestIterationNotePassthrough:
+    """SPEC-029: iteration_note는 새 계산 없이 그대로 lineage에 실린다."""
+
+    def test_note_stored_verbatim(self):
+        m = PerformanceMonitor(iteration_note="플랜 단계를 먼저 세우게 지시문 추가")
+        report = m.generate_report()
+        assert report.extra_metrics["lineage"]["iteration_note"] == "플랜 단계를 먼저 세우게 지시문 추가"
+
+    def test_note_alongside_agent_version(self):
+        m = PerformanceMonitor(agent_version="v2-cot", iteration_note="루프 탐지 threshold 완화")
+        report = m.generate_report()
+        lineage = report.extra_metrics["lineage"]
+        assert lineage["agent_version"] == "v2-cot"
+        assert lineage["iteration_note"] == "루프 탐지 threshold 완화"
+
+    def test_default_is_none(self):
+        m = PerformanceMonitor()
+        report = m.generate_report()
+        assert report.extra_metrics["lineage"]["iteration_note"] is None
 
 
 class TestGitCommitFailureSafety:

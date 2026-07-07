@@ -48,6 +48,13 @@ from agent_evaluator.gates.gate_b_behavioral.configs import (
     ScopeConfig,
     ToolParameterSafetyConfig,
 )
+from agent_evaluator.gates.team_concurrency import (
+    TeamConcurrencyConfig,
+    _load_shared_files,
+    _scopes_overlap,
+    extract_path_param,
+    load_active_claims,
+)
 
 
 @dataclasses.dataclass
@@ -81,6 +88,13 @@ class LiveGuardrail:
         tool_authorization: Optional[ToolAuthorizationTracker] = None,
         privilege_escalation: Optional[PrivilegeEscalationDetector] = None,
         tool_chain_attack: Optional[ToolChainAttackDetector] = None,
+        # SPEC-031 REQ-1: record_tool_call(output=...)로 넘어온 stdout/stderr를
+        # 이 길이로 truncate한다 — judge_max_context_chars와 동일한 길이 제한 원칙.
+        max_tool_output_chars: int = 2000,
+        # SPEC-032 REQ-3: 다중 세션 스코프 충돌 감지(축소 범위) — 설정되면 생성자
+        # 시점에 claims_path/shared_files_path를 1회만 읽어 캐싱한다(매 호출 재조회
+        # 없음 — check_before_tool_call()의 순수 조회 계약 유지).
+        team_concurrency: Optional[TeamConcurrencyConfig] = None,
     ) -> None:
         self._loop_detection = loop_detection
         self._deadlock = deadlock
@@ -89,7 +103,19 @@ class LiveGuardrail:
         self._tool_authorization = tool_authorization
         self._privilege_escalation = privilege_escalation
         self._tool_chain_attack = tool_chain_attack
+        self._max_tool_output_chars = max_tool_output_chars
+        self._team_concurrency = team_concurrency
+        self._team_claims: List[Dict[str, Any]] = []
+        self._shared_files: List[str] = []
+        if self._team_concurrency is not None:
+            self._team_claims = load_active_claims(self._team_concurrency.claims_path)
+            self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
         self._tool_calls: List[Dict[str, Any]] = []
+        # SPEC-030: 완전 차단된 시도의 감사 이력 — Gate B/E 점수 계산(self._tool_calls
+        # 기반)과 완전히 분리된 별도 목록. check_before_tool_call()은 이 목록을
+        # 건드리지 않는다(순수 조회 계약 유지) — record_blocked_attempt()를 호출자가
+        # 명시적으로 호출해야만 채워진다.
+        self._blocked_attempts: List[Dict[str, Any]] = []
         self._task_id: Optional[str] = None
 
     def _tool_call_names(self) -> List[str]:
@@ -152,6 +178,37 @@ class LiveGuardrail:
                     detail=_sc,
                 )
 
+        _tc_cfg = self._team_concurrency
+        if _tc_cfg is not None and tool_name in _tc_cfg.scoped_tool_names:
+            _path = extract_path_param(parameters, _tc_cfg.path_param_candidates)
+            if _path is not None:
+                _conflicts = [
+                    c for c in self._team_claims if _scopes_overlap(_path, c.get("scope", []))
+                ]
+                if _conflicts and _tc_cfg.fail_on_conflict:
+                    _c = _conflicts[0]
+                    return LiveVerdict(
+                        block=True,
+                        gate="B",
+                        reason=(
+                            f"team_concurrency: scope claimed by {_c.get('developer')} "
+                            f"(claim_id={_c.get('claim_id')}, task_id={task_id})"
+                        ),
+                        detail={"conflicts": _conflicts, "path": _path},
+                    )
+                if self._shared_files and any(
+                    _scopes_overlap(_path, [sf]) for sf in self._shared_files
+                ):
+                    return LiveVerdict(
+                        block=True,
+                        gate="B",
+                        reason=(
+                            f"team_concurrency: shared file requires coordination: "
+                            f"{_path} (task_id={task_id})"
+                        ),
+                        detail={"path": _path},
+                    )
+
         if self._tool_parameter_safety is not None:
             _tps = gate_b_evaluators.eval_tool_parameter_safety(_candidate, self._tool_parameter_safety)
             if self._tool_parameter_safety.fail_on_dangerous and _tps.get("dangerous_calls"):
@@ -200,11 +257,16 @@ class LiveGuardrail:
 
         return LiveVerdict(block=False)
 
+    # SPEC-031 REQ-1: record_tool_call(output=...)이 병합할 수 있는 키 화이트리스트 —
+    # 호출자가 실수로(또는 악의적으로) "name"/"arguments"를 output에 넣어도 무시된다.
+    _ALLOWED_OUTPUT_KEYS = ("success", "exit_code", "stdout", "stderr")
+
     def record_tool_call(
         self,
         task_id: str,
         tool_name: str,
         parameters: Optional[dict] = None,
+        output: Optional[Dict[str, Any]] = None,
     ) -> None:
         """실제로 실행된 도구 호출을 확정 반영한다 (SPEC-019 REQ-4).
 
@@ -216,11 +278,83 @@ class LiveGuardrail:
         1회"). ``privilege_escalation``/``tool_chain_attack``은 완결된 전체
         시퀀스가 필요한 태스크당-1회 분석기라 여기서는 갱신하지 않고
         :meth:`snapshot`에서 계산한다.
+
+        Args:
+            task_id: 세션/태스크 식별자.
+            tool_name: 실행된 도구 이름.
+            parameters: 도구 호출 인자.
+            output: (SPEC-031) 실행 결과 — ``"success"``(bool)/``"exit_code"``(int)/
+                ``"stdout"``/``"stderr"``(str) 중 있는 키만 반영한다. ``"success"``가
+                채워지면 ``ToolCallAnalyzer``(Gate G)가 이미 읽는 신호이므로 새 계산
+                로직 없이 그대로 성공/실패 판정에 반영된다. 생략하면(기본값 ``None``)
+                이전과 완전히 동일하게 동작한다(회귀 없음). ``stdout``/``stderr``는
+                ``max_tool_output_chars``로 truncate된다.
         """
         self._task_id = task_id
-        self._tool_calls.append({"name": tool_name, "arguments": parameters or {}})
+        entry: Dict[str, Any] = {"name": tool_name, "arguments": parameters or {}}
+        if output is not None:
+            for key in self._ALLOWED_OUTPUT_KEYS:
+                if key not in output:
+                    continue
+                value = output[key]
+                if key in ("stdout", "stderr") and isinstance(value, str):
+                    value = value[: self._max_tool_output_chars]
+                entry[key] = value
+        self._tool_calls.append(entry)
         if self._tool_authorization is not None:
             self._tool_authorization.track_tool_call(task_id, tool_name, parameters)
+
+    def record_blocked_attempt(
+        self,
+        task_id: str,
+        tool_name: str,
+        verdict: LiveVerdict,
+    ) -> None:
+        """완전히 차단된 시도를 감사(audit) 이력에 기록한다 (SPEC-030 REQ-1).
+
+        ``check_before_tool_call()``이 ``block=True``를 반환했고, 호출자가 실제로
+        그 판정을 따라 도구를 실행하지 않기로 했을 때만 명시적으로 호출한다 —
+        ``check_before_tool_call()``은 이 메서드를 내부적으로 호출하지 않는다
+        (순수 조회 계약 유지, 후보를 미리 여러 개 찔러보는 호출까지 감사 이력에
+        섞이는 것을 방지).
+
+        여기 기록되는 목록(``self._blocked_attempts``)은 Gate B/E 점수를 만드는
+        ``self._tool_calls``와 완전히 분리돼 있다 — 실행되지 않은 시도이므로
+        점수 계산에는 전혀 관여하지 않는다.
+
+        Args:
+            task_id: 세션/태스크 식별자.
+            tool_name: 차단된 도구 이름.
+            verdict: ``check_before_tool_call()``이 반환한 판정(``block=True``이어야 함).
+
+        Raises:
+            ValueError: ``verdict.block``이 ``False``일 때 — 차단되지 않은 시도를
+                차단 이력에 넣는 호출자 오류를 조용히 넘기지 않는다.
+        """
+        if not verdict.block:
+            raise ValueError(
+                "record_blocked_attempt() requires a verdict with block=True "
+                f"(got block=False for tool_name={tool_name!r})"
+            )
+        self._task_id = task_id
+        self._blocked_attempts.append({
+            "tool_name": tool_name,
+            "gate": verdict.gate,
+            "reason": verdict.reason,
+        })
+
+    def refresh_team_claims(self) -> None:
+        """``team_concurrency``의 클레임/공유파일 캐시를 다시 읽는다 (SPEC-032 REQ-6).
+
+        생성자 시점 1회 로드가 기본 계약이므로(``check_before_tool_call()``의
+        순수 조회 원칙 유지), 자동으로 호출되지 않는다 — 장시간 세션에서 다른
+        개발자의 새 클레임을 반영하고 싶을 때 호출자가 명시적으로 사용한다.
+        ``team_concurrency``가 설정되지 않았으면 아무 일도 하지 않는다.
+        """
+        if self._team_concurrency is None:
+            return
+        self._team_claims = load_active_claims(self._team_concurrency.claims_path)
+        self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
 
     def _tool_authorization_summary(self) -> Optional[Dict[str, Any]]:
         """``monitor.py:1877-1921``의 tool_authorization 집계 로직을 그대로
@@ -256,8 +390,24 @@ class LiveGuardrail:
         없다. 몇 번을 호출해도 부작용이 없다(``privilege_escalation``/
         ``tool_chain_attack``은 호출 후 로그 1건을 되돌려 반복 호출 시
         내부 이력이 중복 누적되지 않게 한다).
+
+        SPEC-028 REQ-1: ``tool_calls`` 키에 확정 호출 원본 로그(얕은 복사)를
+        항상 포함한다(설정된 Config와 무관 — 실제 관측 데이터라 조건부가
+        아니다). 이 키는 다른 Gate B/E 파생 지표와 달리 ``TaskResult.extra``가
+        아니라 최상위 ``TaskResult.tool_calls``로 옮겨 담기 위한 것이다 —
+        호출부(``live_guardrail_report.py``)가 이 키를 꺼내 쓰고 나머지만
+        ``extra``에 남긴다.
+
+        SPEC-030 REQ-2: ``blocked_attempts`` 키도 ``tool_calls``와 동일하게
+        항상 포함한다(비어 있어도 빈 리스트로). ``tool_calls``와 달리 이 키는
+        그대로 ``TaskResult.extra``에 남아(최상위로 승격되지 않음) —
+        ``storage/sqlite_backend.py``의 ``save_tasks_to_db()``가 ``extra``에서
+        직접 읽어 ``blocked_violations`` 테이블에 반영한다(SPEC-030 REQ-3).
         """
-        _result: Dict[str, Any] = {}
+        _result: Dict[str, Any] = {
+            "tool_calls": list(self._tool_calls),
+            "blocked_attempts": list(self._blocked_attempts),
+        }
         if self._loop_detection is not None:
             _result["loop_detection"] = gate_b_evaluators.eval_loop_detection(
                 self._tool_calls, None, self._loop_detection,

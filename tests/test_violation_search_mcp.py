@@ -39,6 +39,17 @@ def _violating_task(task_id: str):
     )
 
 
+def _blocked_task(task_id: str):
+    """SPEC-030: 완전 차단된 시도 — violation_search가 아니라 blocked_violations에 색인."""
+    return create_taskresult(
+        task_id=task_id, question="q", response="r",
+        ground_truth="r", execution_time=0.5, task_type="tool_use",
+        extra={"blocked_attempts": [
+            {"tool_name": "bash", "gate": "B", "reason": "dangerous tool parameters: ['bash']"},
+        ]},
+    )
+
+
 class TestFormatResults:
     def test_empty_results_says_no_match_explicitly(self):
         """결과가 없을 때 모델이 결과를 지어내지 않도록 명시적으로 "없다"고 말한다."""
@@ -54,6 +65,35 @@ class TestFormatResults:
         assert "session-1" in text
         assert "dangerous_pattern:bash:rm" in text
         assert "tool_use" in text
+
+    def test_no_blocked_key_yields_no_prefix(self):
+        """SPEC-030 REQ-5: include_blocked=False로 검색한(blocked 키가 아예 없는)
+        결과는 접두어 없이 기존과 동일하게 렌더링된다 — 회귀 없음."""
+        results = [{
+            "task_id": "session-1", "summary": "scope: ['out_of_scope:edit']",
+            "timestamp": "2026-07-05T00:00:00", "task_type": "tool_use", "success": False,
+        }]
+        text = format_results(results)
+        assert "[차단됨]" not in text
+        assert "[관찰됨]" not in text
+
+    def test_blocked_true_gets_blocked_prefix(self):
+        results = [{
+            "task_id": "session-1", "summary": "bash: dangerous tool parameters: ['bash']",
+            "timestamp": "2026-07-05T00:00:00", "task_type": "tool_use", "success": False,
+            "blocked": True,
+        }]
+        text = format_results(results)
+        assert "[차단됨]" in text
+
+    def test_blocked_false_gets_observed_prefix(self):
+        results = [{
+            "task_id": "session-1", "summary": "scope: ['out_of_scope:edit']",
+            "timestamp": "2026-07-05T00:00:00", "task_type": "tool_use", "success": False,
+            "blocked": False,
+        }]
+        text = format_results(results)
+        assert "[관찰됨]" in text
 
 
 class TestDefaultDbPath:
@@ -108,3 +148,16 @@ class TestSearchViolationsToolEndToEnd:
         server = build_server(None)
         content, _ = await server.call_tool("search_violations", {"query": "bash"})
         assert "session-1" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_fully_blocked_attempt_is_found_via_mcp_tool(self, tmp_path):
+        """SPEC-030 REQ-5: 이 도구의 docstring이 원래 약속한 "차단된 이력" 검색이
+        실제로 동작한다 — 완전 차단된 시도(observation 모드가 아닌)가 결과에 나온다."""
+        db_path = str(tmp_path / "test.db")
+        save_tasks_to_db(db_path, [_blocked_task("session-blocked")])
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("search_violations", {"query": "dangerous"})
+        text = content[0].text
+        assert "session-blocked" in text
+        assert "[차단됨]" in text

@@ -2,7 +2,7 @@
 
 임계값 설정 · 품질 게이팅 · CI/CD 통합
 
-**v0.9.7 | Python 3.8+**
+**v0.9.8 | Python 3.8+**
 
 ---
 
@@ -67,6 +67,35 @@ agent-eval gate results/eval.json \
 ```
 
 복합 점수는 `extra_metrics.harness_groups.{A-G}.score` 필드에서 추출합니다. 해당 데이터가 없는 Gate는 계산에서 제외됩니다.
+
+#### `--baseline-version` — 버전별 독립 기준선 (v0.9.8+)
+
+여러 프롬프트/에이전트 버전을 동시에 실험할 때, 버전마다 독립된 기준선을 두고 각자의 회귀 여부를 추적합니다. 미지정 시 기존 `<result_dir>/baseline.json` 단일 경로 동작과 100% 동일합니다.
+
+```bash
+# v2-cot 실험 전용 기준선 저장 — <result_dir>/baselines/v2-cot.json 에 저장됨
+agent-eval gate results/run_v2.json --save-baseline --baseline-version v2-cot
+
+# 같은 실험의 이후 실행을 v2-cot 기준선과만 비교 (다른 버전의 기준선에 영향 없음)
+agent-eval gate results/run_v2_latest.json --baseline-version v2-cot --fail-on-regression 10
+```
+
+`--baseline`(명시적 경로)을 함께 지정하면 `--baseline-version`보다 우선합니다.
+
+#### `--golden-set` / `--fail-on-golden-regression` — 골든셋 회귀 게이트 (v0.9.8+)
+
+사람이 승인한 골든 데이터셋(`agent-eval dataset build` 또는 대시보드 승인 워크플로우 결과, `data/golden_datasets/golden_*.json`)의 각 케이스가 **최신 실행 결과에 여전히 커버되고 통과하는지** 확인합니다. 매칭은 `task_id` 우선, 없으면 `question` 텍스트 완전 일치로 폴백합니다 — 골든셋을 병합할 때 가능하면 원본 `task_id`를 보존하세요(대시보드의 `merge_approved()`는 이미 이를 보존합니다).
+
+> 이 게이트는 **사후 분석**입니다 — 에이전트를 재실행하지 않고 이미 생성된 결과 JSON만 검사합니다. "골든셋으로 에이전트를 다시 돌려서 검증"하려면 위의 [Golden Dataset 기반 회귀 테스트](#golden-dataset-기반-회귀-테스트) 패턴(재실행 + `eval.gate()`)을 사용하세요 — 두 방식은 서로 대체가 아니라 보완 관계입니다.
+
+```bash
+agent-eval gate results/run_latest.json \
+  --golden-set data/golden_datasets/golden_20260705_120000.json \
+  --fail-on-golden-regression
+# exit 3: golden regression — 케이스 누락(커버리지 갭) 또는 success=False(품질 회귀)
+```
+
+`--fail-on-golden-regression` 없이 `--golden-set`만 지정하면 회귀를 stderr에 보고만 하고 종료 코드에는 반영하지 않습니다(다른 옵트인 체크와 동일한 관례) — 지정 시에만 전용 종료 코드 `3`을 반환합니다. 골든셋 파일이 없거나 파싱에 실패하면(경로 오탈자 등) 조용히 통과시키지 않고 즉시 exit 1로 실패합니다.
 
 ---
 
@@ -281,6 +310,10 @@ evaluate:
 ```
 
 ### Golden Dataset 기반 회귀 테스트
+
+> 이 패턴은 에이전트를 **재실행**해 골든셋을 통과하는지 확인합니다. 이미 만들어진 결과 JSON
+> 파일만으로(재실행 없이) 골든셋 커버리지/통과 여부를 확인하려면 위 "방법 1 — CLI gate"의
+> `--golden-set` / `--fail-on-golden-regression` (v0.9.8+)를 사용하세요.
 
 ```python
 # tests/test_quality_regression.py

@@ -14,10 +14,16 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
 섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations())/REQ-5(transcript 힌트) —
         위반 이력 검색. 완전히 차단된 시도는 record_tool_call()이 호출되지 않아
-        색인 대상이 아니라는 것(§27.6 4차 발견)과, fail_on_dangerous=False(감지·미차단)
-        모드에서는 실제로 검색 가능함을 대조. summarize_guardrail_result()로
-        agent-evaluator.ts의 summarizeGuardrailResult()(REQ-5 힌트 문구 포함)를
-        Python으로 재현해, 위반이 있을 때만 힌트가 붙는 것을 확인
+        tool_calls/violation_search 색인 대상이 아니라는 것(§27.6 4차 발견)과,
+        fail_on_dangerous=False(감지·미차단) 모드에서는 실제로 검색 가능함을 대조.
+        summarize_guardrail_result()로 agent-evaluator.ts의
+        summarizeGuardrailResult()(REQ-5 힌트 문구 포함)를 Python으로 재현해,
+        위반이 있을 때만 힌트가 붙는 것을 확인
+섹션 6: SPEC-030 record_blocked_attempt() — 섹션 5-A의 완전 차단 케이스를 감사
+        이력(blocked_violations, tool_calls/violation_search와 별도)에 남기고
+        search_violations(include_blocked=True)로 찾아본다. 이어서 SPEC-032
+        TeamConcurrencyConfig로 .aoo/claims.jsonl 기반 팀 스코프 겹침을
+        edit(검사 대상)에서는 차단하고 bash(검사 대상 아님)에서는 통과시킨다
 
 이 파일은 agent_evaluator.gates.live_guardrail의 공개 API만 사용한다 —
 OpenCode 플러그인(agent-evaluator.ts)이 이 API를 stdin/stdout으로 호출하는
@@ -109,7 +115,12 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
 
 
 def run_agent_step(guardrail: LiveGuardrail, task_id: str, tool_name: str, params: dict) -> str:
-    """§27.2 실전 예제와 동일한 최소 패턴 — check 먼저, 실행 확정 시에만 record."""
+    """§27.2 실전 예제와 같은 check-then-record 순서를 따르는 최소 패턴.
+
+    책의 예제는 단일 전역 guardrail을 닫힘(closure)으로 참조하는 더 짧은 형태를 쓴다 —
+    이 파일은 여러 섹션에서 서로 다른 LiveGuardrail 인스턴스를 재사용하기 위해
+    guardrail을 인자로 받는다. 로직(check 먼저, block이면 record하지 않음)은 동일하다.
+    """
     verdict = guardrail.check_before_tool_call(task_id, tool_name, params)
     if verdict.block:
         return f"차단됨 (Gate {verdict.gate}): {verdict.reason}"
@@ -363,6 +374,70 @@ no_hits = search_violations(_DB_PATH, "kubernetes")
 print(f"  무관한 검색어 결과: {len(no_hits)}건 (예상대로 0건)")
 
 # ===========================================================================
+# 섹션 6: SPEC-030(완전 차단 감사 이력) + SPEC-032(팀 스코프 충돌 자동 감지)
+# ===========================================================================
+print("\n=== 섹션 6: 완전 차단 감사 이력(SPEC-030) + 팀 스코프 충돌(SPEC-032) ===")
+
+# 6-A. record_blocked_attempt() — 섹션 5-A의 "완전 차단" 케이스를 이어서 쓴다.
+# check_before_tool_call()은 순수 조회라 자동으로 기록하지 않으므로, 호출자가
+# block=True를 확인한 뒤 명시적으로 호출해야 한다.
+_blocked_only_guardrail.record_blocked_attempt("session-blocked-only", "bash", _v_blocked)
+_blocked_snapshot_after = _blocked_only_guardrail.snapshot()
+print(f"  [완전 차단] blocked_attempts: {_blocked_snapshot_after['blocked_attempts']}")
+
+blocked_task = create_taskresult(
+    task_id="session-blocked-only",
+    question="(OpenCode 세션) 오래된 캐시 파일을 정리해줘",
+    response="(에이전트 응답 요약)",
+    execution_time=0.4,
+    task_type="tool_use",
+    extra=_blocked_snapshot_after,
+)
+# blocked_attempts는 tool_calls와 달리 그대로 extra에 남아 있다가, save_tasks_to_db()가
+# 자동으로 blocked_violations(FTS5, violation_search와 별도 테이블)에 색인한다.
+save_tasks_to_db(_DB_PATH, [blocked_task])
+monitor.record_task(blocked_task)
+
+# "parameters"는 완전 차단 케이스의 요약("dangerous tool parameters: [...]")에만 있는
+# 단어다 — 모니터 케이스의 요약("dangerous_pattern:bash:...")과는 겹치지 않아, 이
+# 검색어라면 include_blocked 여부에 따른 차이가 그대로 드러난다.
+# include_blocked=False(기본값)로는 여전히 못 찾는다 — 회귀 없음을 직접 확인.
+still_zero = search_violations(_DB_PATH, "parameters")
+print(f"  include_blocked=False(기본값) 결과: {len(still_zero)}건 (여전히 0건 — 관찰 모드 위반만 검색)")
+
+# include_blocked=True로만 완전 차단 이력이 보인다.
+blocked_hits = search_violations(_DB_PATH, "parameters", include_blocked=True)
+print(f"  include_blocked=True 결과 {len(blocked_hits)}건:")
+for r in blocked_hits:
+    print(f"    - task_id={r['task_id']}  blocked={r['blocked']}  summary={r['summary']}")
+
+# 6-B. TeamConcurrencyConfig — .aoo/claims.jsonl 기반 팀 스코프 충돌을 세션 도중 자동 감지.
+from agent_evaluator.gates.team_concurrency import TeamConcurrencyConfig, append_claim  # noqa: E402
+
+_team_claims_path = _OUTPUT_DIR / "ch27_team_claims_demo.jsonl"
+_team_claims_path.write_text("", encoding="utf-8")  # 데모를 매번 깨끗한 상태에서 시작
+append_claim(
+    _team_claims_path,
+    claim_id="c-ch27-demo", developer="alice",
+    scope=["agent_evaluator/gates/gate_d_performance/"], status="active",
+)
+
+team_guardrail = LiveGuardrail(
+    team_concurrency=TeamConcurrencyConfig(claims_path=str(_team_claims_path)),
+)
+_v_team_edit = team_guardrail.check_before_tool_call(
+    "session-team", "edit", {"file": "agent_evaluator/gates/gate_d_performance/aggregate.py"},
+)
+print(f"  [edit, 겹치는 클레임] 차단 여부: {_v_team_edit.block}  이유: {_v_team_edit.reason}")
+
+# bash는 scoped_tool_names 기본값(read/edit/write)에 없어 같은 경로를 건드려도 이 검사로는
+# 차단되지 않는다 — §27.2가 명시한 의도된 제약(자유 형식 명령의 경로 파싱 불가).
+_v_team_bash = team_guardrail.check_before_tool_call(
+    "session-team", "bash", {"command": "rm -rf agent_evaluator/gates/gate_d_performance/"},
+)
+print(f"  [bash, 검사 대상 아님] 차단 여부: {_v_team_bash.block}  (team_concurrency는 건드리지 않음)")
+
+# ===========================================================================
 # 요약 — Gate B/E 최종 점수 + JSON/HTML 리포트 저장 (agent-eval dashboard 연동)
 # ===========================================================================
 print("\n=== 요약: Gate B/E 최종 점수 + 리포트 저장 ===")
@@ -376,4 +451,4 @@ print(f"  Gate E: {final_gate_e.get('score')} ({final_gate_e.get('status', 'n/a'
 
 monitor.save_to_file("ch27_live_guardrail")
 print(f"\n결과 저장 완료: {_OUTPUT_DIR / 'ch27_live_guardrail.json'} (+ .html)")
-print(f"확인: agent-eval dashboard --results {_OUTPUT_DIR}")
+print(f"확인: agent-eval dashboard {_OUTPUT_DIR}")

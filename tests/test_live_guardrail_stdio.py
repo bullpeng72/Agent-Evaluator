@@ -94,3 +94,70 @@ class TestCheckRecordSnapshotRoundTrip:
             {"op": "check", "task_id": "t1", "tool_name": "x"},  # 이후 요청은 처리되지 않아야 함
         ])
         assert responses == [{"ok": True}, {"ok": True}]
+
+
+class TestRecordBlockedProtocol:
+    """SPEC-030 REQ-6: {"op": "record_blocked", ...} — 완전 차단된 시도의 감사 이력."""
+
+    def test_record_blocked_then_snapshot_reflects_it(self):
+        responses = _run_protocol([
+            {"op": "init", "scope": {"forbidden_tools": ["rm"], "fail_on_violation": True}},
+            {"op": "check", "task_id": "t1", "tool_name": "rm", "parameters": {"path": "/x"}},
+            {"op": "record_blocked", "task_id": "t1", "tool_name": "rm", "gate": "B", "reason": "scope violation"},
+            {"op": "snapshot"},
+        ])
+        check_verdict = responses[1]
+        assert check_verdict["block"] is True
+        assert responses[2] == {"ok": True}
+        extra = responses[3]["extra"]
+        assert extra["blocked_attempts"] == [
+            {"tool_name": "rm", "gate": "B", "reason": "scope violation"},
+        ]
+
+    def test_record_blocked_does_not_affect_confirmed_tool_calls(self):
+        responses = _run_protocol([
+            {"op": "init", "scope": {"allowed_tools": ["search"]}},
+            {"op": "record", "task_id": "t1", "tool_name": "search", "parameters": {"q": "a"}},
+            {"op": "record_blocked", "task_id": "t1", "tool_name": "rm", "gate": "B", "reason": "blocked"},
+            {"op": "snapshot"},
+        ])
+        extra = responses[3]["extra"]
+        assert extra["tool_calls"] == [{"name": "search", "arguments": {"q": "a"}}]
+        assert extra["blocked_attempts"] == [
+            {"tool_name": "rm", "gate": "B", "reason": "blocked"},
+        ]
+
+
+class TestRecordOutputProtocol:
+    """SPEC-031 REQ-2: {"op": "record", ..., "output": {...}} — 도구 실행 결과 캡처."""
+
+    def test_output_field_is_merged_into_tool_call(self):
+        responses = _run_protocol([
+            {"op": "init"},
+            {"op": "record", "task_id": "t1", "tool_name": "bash", "parameters": {"command": "pytest"},
+             "output": {"success": False, "exit_code": 1}},
+            {"op": "snapshot"},
+        ])
+        extra = responses[2]["extra"]
+        assert extra["tool_calls"] == [
+            {"name": "bash", "arguments": {"command": "pytest"}, "success": False, "exit_code": 1},
+        ]
+
+    def test_omitted_output_is_backward_compatible(self):
+        responses = _run_protocol([
+            {"op": "init"},
+            {"op": "record", "task_id": "t1", "tool_name": "search", "parameters": {"q": "a"}},
+            {"op": "snapshot"},
+        ])
+        extra = responses[2]["extra"]
+        assert extra["tool_calls"] == [{"name": "search", "arguments": {"q": "a"}}]
+
+    def test_init_max_tool_output_chars_is_applied(self):
+        responses = _run_protocol([
+            {"op": "init", "max_tool_output_chars": 5},
+            {"op": "record", "task_id": "t1", "tool_name": "bash", "parameters": {},
+             "output": {"stdout": "0123456789"}},
+            {"op": "snapshot"},
+        ])
+        extra = responses[2]["extra"]
+        assert extra["tool_calls"][0]["stdout"] == "01234"

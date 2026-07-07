@@ -891,6 +891,7 @@ def main() -> None:
             f"  {G}0{R}  All criteria passed\n"
             f"  {RD}1{R}  Below threshold\n"
             f"  {RD}2{R}  Regression detected vs previous version (when --fail-on-regression used)\n"
+            f"  {RD}3{R}  Golden set regression (--golden-set + --fail-on-golden-regression)\n"
             "\n"
             f"{B}Examples:{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85{R}\n"
@@ -898,6 +899,11 @@ def main() -> None:
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --fail-on-regression 10{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --junit-xml test-results.xml{R}\n"
+            f"  {G}agent-eval gate results/v2.json --save-baseline --baseline-version v2-cot{R}\n"
+            f"  {G}agent-eval gate results/v2.json --baseline-version v2-cot "
+            f"--fail-on-regression 10{R}\n"
+            f"  {G}agent-eval gate results/v2.json --golden-set data/golden_datasets/golden_1.json "
+            f"--fail-on-golden-regression{R}\n"
         ),
     )
     gate_p.add_argument("result_file", help="Evaluation result JSON file path")
@@ -922,6 +928,14 @@ def main() -> None:
     gate_p.add_argument(
         "--baseline", metavar="PATH",
         help="Baseline file path (default: <result_dir>/baseline.json)",
+    )
+    gate_p.add_argument(
+        "--baseline-version", metavar="TAG", dest="baseline_version",
+        help=(
+            "Use <result_dir>/baselines/<TAG>.json as the baseline instead of the single "
+            "baseline.json — lets multiple prompt/agent versions keep independent baselines "
+            "(SPEC-025). Ignored if --baseline is also given."
+        ),
     )
     gate_p.add_argument(
         "--save-baseline", action="store_true", dest="save_baseline",
@@ -964,6 +978,19 @@ def main() -> None:
     gate_p.add_argument(
         "--fail-on-gate-warn", action="store_true", dest="fail_on_gate_warn",
         help="Treat Gate status 'warn' as failure.",
+    )
+    gate_p.add_argument(
+        "--golden-set", metavar="PATH", dest="golden_set",
+        help=(
+            "Golden dataset JSON (from 'agent-eval dataset build' / dashboard "
+            "approval, e.g. data/golden_datasets/golden_*.json). Checks whether "
+            "each case's task_id (or question, as a fallback) is present in "
+            "result_file's tasks and succeeded (SPEC-025)."
+        ),
+    )
+    gate_p.add_argument(
+        "--fail-on-golden-regression", action="store_true", dest="fail_on_golden_regression",
+        help="Return exit code 3 if any --golden-set case is missing or failed.",
     )
 
     # dataset subcommand

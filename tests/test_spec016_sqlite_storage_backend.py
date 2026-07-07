@@ -416,3 +416,174 @@ class TestSearchViolations:
         db_path = tmp_path / "empty.db"
         save_tasks_to_db(db_path, [])
         assert search_violations(db_path, "anything") == []
+
+
+class TestBlockedViolationsIndexing:
+    """SPEC-030 REQ-3: blocked_violations(FTS5) — 완전 차단된 시도의 감사 이력."""
+
+    def _task_with_blocked(self, task_id: str, blocked_attempts: list):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra={"blocked_attempts": blocked_attempts},
+        )
+
+    def test_task_with_blocked_attempt_is_indexed(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_blocked("session-1", [
+            {"tool_name": "bash", "gate": "B", "reason": "dangerous tool parameters: ['bash']"},
+        ])
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        hits = conn.execute(
+            "SELECT task_id, tool_name, gate FROM blocked_violations "
+            "WHERE blocked_violations MATCH ?", ("dangerous",),
+        ).fetchall()
+        conn.close()
+        assert hits == [("session-1", "bash", "B")]
+
+    def test_task_without_blocked_attempts_is_not_indexed(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_blocked("session-clean", [])
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM blocked_violations").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_task_without_extra_is_not_indexed(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [_make_task("t1")])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM blocked_violations").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_multiple_attempts_produce_multiple_rows(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        t1 = self._task_with_blocked("session-1", [
+            {"tool_name": "bash", "gate": "B", "reason": "dangerous tool parameters: ['bash']"},
+            {"tool_name": "edit", "gate": "B", "reason": "scope violation: ['out_of_scope:edit']"},
+        ])
+        save_tasks_to_db(db_path, [t1])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT tool_name FROM blocked_violations WHERE task_id = ?", ("session-1",)).fetchall()
+        conn.close()
+        assert {r[0] for r in rows} == {"bash", "edit"}
+
+    def test_re_saving_without_blocked_attempts_clears_entries(self, tmp_path):
+        """delete-then-insert — 재저장 시 이전 차단 이력 행이 남지 않는다."""
+        db_path = tmp_path / "test.db"
+        first = self._task_with_blocked("session-1", [
+            {"tool_name": "bash", "gate": "B", "reason": "dangerous"},
+        ])
+        save_tasks_to_db(db_path, [first])
+
+        second = self._task_with_blocked("session-1", [])
+        save_tasks_to_db(db_path, [second])
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute("SELECT task_id FROM blocked_violations").fetchall()
+        conn.close()
+        assert rows == []
+
+    def test_pre_existing_db_without_table_migrates_cleanly(self, tmp_path):
+        """blocked_violations 테이블 없이 만들어진(REQ-3 이전) DB를 새 코드로 열어도 에러 없다."""
+        from agent_evaluator.storage.sqlite_backend import (
+            _CREATE_SCHEMA_VERSION_TABLE,
+            _CREATE_TASKS_TABLE,
+        )
+
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(_CREATE_SCHEMA_VERSION_TABLE)
+        conn.execute(_CREATE_TASKS_TABLE)
+        conn.execute("INSERT INTO schema_version (version) VALUES (1)")
+        conn.commit()
+        conn.close()
+
+        loaded = load_tasks_from_db(db_path)
+        assert loaded == []
+
+        conn = sqlite3.connect(str(db_path))
+        tables = {
+            r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        conn.close()
+        assert "blocked_violations" in tables
+
+
+class TestSearchViolationsIncludeBlocked:
+    """SPEC-030 REQ-4: search_violations(include_blocked=...)."""
+
+    def _violating_task(self, task_id: str):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra={
+                "tool_parameter_safety": {
+                    "safety_score": 0.75, "dangerous_calls": ["bash"],
+                    "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                    "checked_calls": 1, "violation_count": 1,
+                },
+            },
+        )
+
+    def _blocked_task(self, task_id: str):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra={"blocked_attempts": [
+                {"tool_name": "bash", "gate": "B", "reason": "dangerous tool parameters: ['bash']"},
+            ]},
+        )
+
+    def test_default_omits_blocked_key_entirely(self, tmp_path):
+        """회귀 없음 — include_blocked 기본값 False는 기존 반환 스키마와 100% 동일."""
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._violating_task("session-1")])
+
+        results = search_violations(db_path, "bash")
+        assert len(results) == 1
+        assert "blocked" not in results[0]
+
+    def test_include_blocked_false_ignores_blocked_table(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task("session-1")])
+
+        assert search_violations(db_path, "dangerous", include_blocked=False) == []
+
+    def test_include_blocked_true_returns_both_kinds(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [
+            self._violating_task("session-observed"),
+            self._blocked_task("session-blocked"),
+        ])
+
+        results = search_violations(db_path, "bash", include_blocked=True)
+        by_task = {r["task_id"]: r for r in results}
+        assert by_task["session-observed"]["blocked"] is False
+        assert by_task["session-blocked"]["blocked"] is True
+        assert "dangerous tool parameters" in by_task["session-blocked"]["summary"]
+
+    def test_include_blocked_true_with_no_blocked_rows_is_empty_but_no_error(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._violating_task("session-1")])
+
+        results = search_violations(db_path, "bash", include_blocked=True)
+        assert len(results) == 1
+        assert results[0]["blocked"] is False
+
+    def test_limit_applies_independently_to_each_subquery(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        tasks = [self._blocked_task(f"session-{i}") for i in range(5)]
+        save_tasks_to_db(db_path, tasks)
+
+        results = search_violations(db_path, "bash", limit=2, include_blocked=True)
+        assert len(results) == 2
