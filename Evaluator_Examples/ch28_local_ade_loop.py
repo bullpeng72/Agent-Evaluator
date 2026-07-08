@@ -14,7 +14,10 @@ SDK) 부분뿐**이다 — Ollama/OpenCode는 별도로 설치해야 하는 외�
         목표 템플릿까지 네 산출물을 실행 가능한 데이터로 만든다. 이 산출물이
         섹션 1 이후의 GUARDRAIL_CONFIG·완료조건의 원천이 된다.
 섹션 1: §28.9.3(리팩토링 워크플로우) 저장소 전용 확장 GUARDRAIL_CONFIG — git 안전장치
-        (강제 푸시·--no-verify·git reset --hard 차단) + 린트 은폐 차단 데모.
+        (강제 푸시·--no-verify·git reset --hard 차단) 데모. "#\s*noqa" 패턴도 목록에
+        있지만 scope_tool_names=["bash"]가 검사를 bash 호출로만 한정하므로, edit로
+        직접 "# noqa"를 써넣는 가장 흔한 경로는 이 설정으로 차단되지 않는다는 것을
+        실측으로 함께 보여준다(bash 경유 시도만 잡힘).
         이어서 scope_tool_names 없이는 edit 호출까지 오탐하는 것과, 지정 시
         오탐이 사라지는 것을 대조
 섹션 2: §28.5의 다섯 단계 폐루프(차단 → 즉시노출 → 기록 → 색인 → 검색)를
@@ -261,6 +264,13 @@ for tool_name, params in _REPO_ATTEMPTS:
     else:
         print(f"  [{tool_name:<5s}] 통과 — {params}")
         repo_guardrail.record_tool_call("repo-session-1", tool_name, params)
+
+# ⚠️ 위 3번째 시도("x = 1  # noqa: E501" 담은 edit 호출)는 실측상 항상 "통과"로 찍힌다 —
+# scope_tool_names=["bash"]가 dangerous_patterns 검사를 bash 호출로만 한정하기 때문에,
+# 실제로 "# noqa"를 코드에 심는 가장 흔한 경로(edit 도구로 소스 파일을 직접 수정)는 이
+# Config로는 잡히지 않는다. 이 패턴이 실제로 막을 수 있는 건 "echo '# noqa' >> file.py"
+# 처럼 bash를 경유하는 경우뿐이다 — "린트 은폐 차단"이 이 설정만으로는 절반만 참이라는
+# 뜻이다(§28.9.3 참고, edit 호출까지 커버하려면 별도 코드 리뷰·린트 CI 게이트가 필요하다).
 
 # --- scope_tool_names 없이는 edit도 오탐한다 — 이 챕터 자체를 다루는 파일(예: 이
 #     예제 파일)을 편집하려 하면, 그 파일 내용에 "git push --force" 같은 문자열이

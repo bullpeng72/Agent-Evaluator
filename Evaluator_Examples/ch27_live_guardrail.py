@@ -70,6 +70,12 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
     Node/Bun 없이는 실행할 수 없으므로 여기서는 같은 조건 분기를 Python으로 옮겨
     적어 REQ-5(위반이 있을 때만 search_violations 힌트를 붙이는 로직)를 순수 Python
     환경에서도 직접 실행해 확인할 수 있게 한다.
+
+    실측 확인(2026-07): TS 원본은 이 위반 목록 앞에 항상
+    "Gate B score: .../ Gate E score: ..." 줄을 하나 더 출력한다(agent-evaluator.ts
+    summarizeGuardrailResult() 참고) — 이 재현본은 그 스코어 줄은 생략하고 위반
+    분기 로직만 옮겼다. REQ-5 조건("위반이 있을 때만 힌트 추가")은 TS·Python 양쪽 모두
+    "기본 줄 수 이후로 늘어났는가"를 보므로 이 생략은 REQ-5 로직 자체에는 영향이 없다.
     """
     lines = [f"[agent-evaluator] Gate B/E guardrail summary (session {session_id})"]
 

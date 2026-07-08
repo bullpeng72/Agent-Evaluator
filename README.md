@@ -815,7 +815,7 @@ help?".
 monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.8")
 ```
 
-**Auto-tagging from git (SPEC-027)**: pass `agent_version="auto"` instead of a literal string to tag every
+**Auto-tagging from git**: pass `agent_version="auto"` instead of a literal string to tag every
 run with the current git state automatically — no manual bookkeeping needed:
 
 ```python
