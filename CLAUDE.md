@@ -91,9 +91,19 @@ agent_evaluator/
 │   │                       #  SPEC-032: team_concurrency=TeamConcurrencyConfig(...) — 생성자 시점 1회
 │   │                       #  로드한 .aoo/claims.jsonl로 read/edit/write 스코프 겹침 자동 차단
 │   │                       #  (bash 제외), refresh_team_claims()로 수동 재조회
+│   │                       #  SPEC-035: branch_guard=BranchGuardConfig(...) — 생성자 시점 1회 조회한
+│   │                       #  현재 git 브랜치가 protected_branches(기본 main/master)이거나
+│   │                       #  require_branch_prefix와 불일치하면 git commit/push 자동 차단(fail-open)
 │   ├── team_concurrency.py # SPEC-032: TeamConcurrencyConfig · load_active_claims() · check_scope_claim()·
 │   │                       #  append_claim() — Evaluator_Examples/ch28_local_ade_loop.py 예제 전용
 │   │                       #  코드였던 클레임 로그 파싱 로직을 재해석 없이 SDK로 승격
+│   │                       #  SPEC-034: audit_claims() — load_active_claims()/_scopes_overlap() 재사용해
+│   │                       #  TTL 초과·겹치는 active 클레임을 CI가 소비할 위반 리스트로 반환(sys.exit 없음)
+│   │                       #  SPEC-036: TeamConcurrencyConfig.owner — 지정 시 developer==owner인
+│   │                       #  자기 자신의 클레임을 충돌 후보에서 제외(미지정 시 옛 동작 그대로 보존)
+│   ├── branch_guard.py     # SPEC-035: BranchGuardConfig · get_current_branch() · is_branch_protected() ·
+│   │                       #  matches_git_mutation() — Ch28 §28.2 "전용 브랜치" 그라운드 룰(지금까지
+│   │                       #  체크리스트로만 존재)을 LiveGuardrail이 실행 전 자동으로 강제
 │   ├── gate_a_goal/       # Gate A(Goal Achievement) — 완료
 │   │   ├── configs.py      # InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig ·
 │   │   │                   # ContextRetentionConfig · KnowledgeRetentionConfig
@@ -107,6 +117,10 @@ agent_evaluator/
 │   │   │                   # ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig
 │   │   ├── evaluators.py   # eval_loop_detection · eval_state_consistency · eval_deadlock · eval_scope ·
 │   │   │                   # eval_tool_parameter_safety · eval_context_window (+ _normalize_agent_interactions)
+│   │   │                   # SPEC-033: _extract_decoded_candidates() — ToolParameterSafetyConfig
+│   │   │                   #  (decode_encodings=True) 옵트인 시 base64/hex로 인코딩된 위험 명령을
+│   │   │                   #  디코드해 기존 dangerous_patterns로 재매치(새 탐지 규칙 아님, printable
+│   │   │                   #  90% 필터로 오탐 방지, max_depth=2까지 재귀)
 │   │   └── aggregate.py    # Gate B 집계 로직 (loop+state_consistency+deadlock+scope+tps+context_window;
 │   │                       #  avg_goal_alignment/avg_plan_coherence는 Gate A에서 파라미터로 전달받아 진단용 재참조)
 │   ├── gate_c_reliability/ # Gate C(Reliability) — 완료

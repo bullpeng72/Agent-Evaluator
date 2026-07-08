@@ -34,12 +34,19 @@ Gate E 트래커는 (Gate B 순수 함수와 달리) 호출마다 내부 상태�
 from __future__ import annotations
 
 import dataclasses
+import json
 from typing import Any, Dict, List, Optional
 
 from agent_evaluator.core.trackers.security import (
     PrivilegeEscalationDetector,
     ToolAuthorizationTracker,
     ToolChainAttackDetector,
+)
+from agent_evaluator.gates.branch_guard import (
+    BranchGuardConfig,
+    get_current_branch,
+    is_branch_protected,
+    matches_git_mutation,
 )
 from agent_evaluator.gates.gate_b_behavioral import evaluators as gate_b_evaluators
 from agent_evaluator.gates.gate_b_behavioral.configs import (
@@ -95,6 +102,9 @@ class LiveGuardrail:
         # 시점에 claims_path/shared_files_path를 1회만 읽어 캐싱한다(매 호출 재조회
         # 없음 — check_before_tool_call()의 순수 조회 계약 유지).
         team_concurrency: Optional[TeamConcurrencyConfig] = None,
+        # SPEC-035: 보호 브랜치(main/master) git commit/push 차단 — 설정되면 생성자
+        # 시점에 현재 브랜치를 1회만 조회해 캐싱한다(team_concurrency와 동일 원칙).
+        branch_guard: Optional[BranchGuardConfig] = None,
     ) -> None:
         self._loop_detection = loop_detection
         self._deadlock = deadlock
@@ -110,6 +120,10 @@ class LiveGuardrail:
         if self._team_concurrency is not None:
             self._team_claims = load_active_claims(self._team_concurrency.claims_path)
             self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
+        self._branch_guard = branch_guard
+        self._current_branch: Optional[str] = None
+        if self._branch_guard is not None:
+            self._current_branch = get_current_branch()
         self._tool_calls: List[Dict[str, Any]] = []
         # SPEC-030: 완전 차단된 시도의 감사 이력 — Gate B/E 점수 계산(self._tool_calls
         # 기반)과 완전히 분리된 별도 목록. check_before_tool_call()은 이 목록을
@@ -182,8 +196,13 @@ class LiveGuardrail:
         if _tc_cfg is not None and tool_name in _tc_cfg.scoped_tool_names:
             _path = extract_path_param(parameters, _tc_cfg.path_param_candidates)
             if _path is not None:
+                # SPEC-036: owner가 설정되면 자기 자신(developer == owner)의 클레임은
+                # 충돌 후보에서 제외한다 — owner 미설정(None)이면 이 필터를 적용하지
+                # 않아 기존 동작(자기 클레임도 충돌로 잡힘) 그대로 유지된다.
                 _conflicts = [
-                    c for c in self._team_claims if _scopes_overlap(_path, c.get("scope", []))
+                    c for c in self._team_claims
+                    if (_tc_cfg.owner is None or c.get("developer") != _tc_cfg.owner)
+                    and _scopes_overlap(_path, c.get("scope", []))
                 ]
                 if _conflicts and _tc_cfg.fail_on_conflict:
                     _c = _conflicts[0]
@@ -208,6 +227,26 @@ class LiveGuardrail:
                         ),
                         detail={"path": _path},
                     )
+
+        _bg_cfg = self._branch_guard
+        if _bg_cfg is not None and tool_name in _bg_cfg.scoped_tool_names:
+            _args_str = (
+                json.dumps(parameters) if isinstance(parameters, dict) else str(parameters or "")
+            )
+            if (
+                matches_git_mutation(_args_str, _bg_cfg)
+                and is_branch_protected(self._current_branch, _bg_cfg)
+                and _bg_cfg.fail_on_violation
+            ):
+                return LiveVerdict(
+                    block=True,
+                    gate="B",
+                    reason=(
+                        f"branch_guard: git mutation blocked on branch "
+                        f"'{self._current_branch}' (task_id={task_id})"
+                    ),
+                    detail={"branch": self._current_branch, "tool_name": tool_name},
+                )
 
         if self._tool_parameter_safety is not None:
             _tps = gate_b_evaluators.eval_tool_parameter_safety(_candidate, self._tool_parameter_safety)

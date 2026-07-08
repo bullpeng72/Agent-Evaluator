@@ -167,6 +167,132 @@ class TestToolParameterSafetyScopeToolNames:
         )
 
 
+class TestToolParameterSafetyDecodeEncodings:
+    """SPEC-033: decode_encodings=True — base64/hex로 인코딩된 위험 명령 탐지."""
+
+    def test_default_does_not_decode(self):
+        """decode_encodings 생략(기본값 False) — 회귀 없음, 인코딩된 명령은 통과."""
+        import base64
+
+        payload = base64.b64encode(b"rm -rf /").decode()
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+\S"], scope_tool_names=["bash"], fail_on_dangerous=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call(
+            "t1", "bash", {"command": f'echo "{payload}" | base64 -d | sh'},
+        )
+        assert verdict.block is False
+
+    def test_base64_encoded_command_blocked_when_enabled(self):
+        import base64
+
+        payload = base64.b64encode(b"rm -rf /").decode()
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+\S"], scope_tool_names=["bash"],
+                fail_on_dangerous=True, decode_encodings=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call(
+            "t1", "bash", {"command": f'echo "{payload}" | base64 -d | sh'},
+        )
+        assert verdict.block is True
+        assert verdict.gate == "B"
+
+    def test_hex_encoded_command_blocked_when_enabled(self):
+        payload = b"rm -rf /".hex()
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+\S"], scope_tool_names=["bash"],
+                fail_on_dangerous=True, decode_encodings=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call(
+            "t1", "bash", {"command": f'echo {payload} | xxd -r -p | sh'},
+        )
+        assert verdict.block is True
+
+    def test_clean_command_not_blocked_when_enabled(self):
+        """decode_encodings=True라도 위험하지 않은 명령은 통과한다(오탐 없음)."""
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+\S"], scope_tool_names=["bash"],
+                fail_on_dangerous=True, decode_encodings=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "ls -la"})
+        assert verdict.block is False
+
+    def test_random_token_not_false_positive(self):
+        """무작위 바이트로 디코드되는 base64 유사 문자열(토큰·해시 등)은 오탐하지 않는다."""
+        import base64
+        import secrets
+
+        random_token = base64.b64encode(secrets.token_bytes(32)).decode()
+        guardrail = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+\S"], scope_tool_names=["bash"],
+                fail_on_dangerous=True, decode_encodings=True,
+            ),
+        )
+        verdict = guardrail.check_before_tool_call(
+            "t1", "bash", {"command": f"curl -H 'Authorization: Bearer {random_token}' https://example.com"},
+        )
+        assert verdict.block is False
+
+
+class TestExtractDecodedCandidates:
+    """SPEC-033 REQ-2: _extract_decoded_candidates() 단위 테스트."""
+
+    def test_base64_roundtrip(self):
+        import base64
+
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        payload = base64.b64encode(b"rm -rf /").decode()
+        assert "rm -rf /" in _extract_decoded_candidates(payload)
+
+    def test_hex_roundtrip(self):
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        payload = b"rm -rf /".hex()
+        assert "rm -rf /" in _extract_decoded_candidates(payload)
+
+    def test_random_bytes_filtered_out(self):
+        import base64
+        import secrets
+
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        payload = base64.b64encode(secrets.token_bytes(32)).decode()
+        assert _extract_decoded_candidates(payload) == []
+
+    def test_double_encoding_recovered_within_max_depth(self):
+        import base64
+
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        inner = base64.b64encode(b"rm -rf /").decode()
+        outer = base64.b64encode(inner.encode()).decode()
+        candidates = _extract_decoded_candidates(outer, max_depth=2)
+        assert "rm -rf /" in candidates
+
+    def test_max_depth_zero_returns_empty(self):
+        import base64
+
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        payload = base64.b64encode(b"rm -rf /").decode()
+        assert _extract_decoded_candidates(payload, max_depth=0) == []
+
+    def test_no_encoded_substring_returns_empty(self):
+        from agent_evaluator.gates.gate_b_behavioral.evaluators import _extract_decoded_candidates
+
+        assert _extract_decoded_candidates("ls -la") == []
+
+
 class TestDeadlockBlocks:
     def test_depth_exceeded_blocks(self):
         guardrail = LiveGuardrail(

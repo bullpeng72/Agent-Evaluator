@@ -6,7 +6,7 @@ Book Chapter 27 — LiveGuardrail 실시간 가드레일 (SPEC-019)
 OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시연한다.
 
 섹션 1: check_before_tool_call() / record_tool_call() — 조회 vs 확정 분리
-섹션 2: §27.6에서 실제 라이브 테스트로 발견된 "rm 우회" 재현(2026-07-03 rm -f, 07-05 플래그
+섹션 2: §27.7에서 실제 라이브 테스트로 발견된 "rm 우회" 재현(2026-07-03 rm -f, 07-05 플래그
         없는 rm 두 차례) — 기본 위험 패턴 7개로는 둘 다 통과하고, \\brm\\s+\\S 패턴
         추가 후에야 차단됨을 대조. 이어서 그 반대 방향(과탐지) — \\brm\\s+\\S가 rm과
         무관한 도구까지 막는 것을 재현하고, scope_tool_names(SPEC-024)로 해소함을 대조
@@ -14,7 +14,7 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
 섹션 4: load_tasks_from_db()로 저장된 세션 재조회
 섹션 5: SPEC-024 REQ-2(FTS5 색인)/REQ-3(search_violations())/REQ-5(transcript 힌트) —
         위반 이력 검색. 완전히 차단된 시도는 record_tool_call()이 호출되지 않아
-        tool_calls/violation_search 색인 대상이 아니라는 것(§27.6 4차 발견)과,
+        tool_calls/violation_search 색인 대상이 아니라는 것(§27.6 참고)과,
         fail_on_dangerous=False(감지·미차단) 모드에서는 실제로 검색 가능함을 대조.
         summarize_guardrail_result()로 agent-evaluator.ts의
         summarizeGuardrailResult()(REQ-5 힌트 문구 포함)를 Python으로 재현해,
@@ -27,7 +27,7 @@ OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시
 
 이 파일은 agent_evaluator.gates.live_guardrail의 공개 API만 사용한다 —
 OpenCode 플러그인(agent-evaluator.ts)이 이 API를 stdin/stdout으로 호출하는
-방식은 Chapter 27 §27.3을 참고하라. 여기서는 OpenCode 없이 "자체 에이전트
+방식은 Chapter 27 §27.5를 참고하라. 여기서는 OpenCode 없이 "자체 에이전트
 루프에 직접 붙이는" 최소 패턴만 다룬다.
 
 의존성:
@@ -137,7 +137,7 @@ print("\n=== 섹션 1: LiveGuardrail 기본 사용 ===")
 
 guardrail = LiveGuardrail(
     loop_detection=LoopDetectionConfig(
-        consecutive_repeat_threshold=6,   # §27.6 — OpenCode는 모든 셸 명령을 "bash" 하나로 처리하므로
+        consecutive_repeat_threshold=6,   # §27.7 — OpenCode는 모든 셸 명령을 "bash" 하나로 처리하므로
         on_loop_detected="record",        # threshold=3(기본값)이면 정상적인 연속 bash 호출도 오탐한다
     ),
     scope=ScopeConfig(
@@ -154,9 +154,9 @@ for cmd in ["ls -la", "cat victim2.txt", "ls -la"]:
     print(f"  [{cmd:<20s}] {out}")
 
 # ===========================================================================
-# 섹션 2: rm 우회 시나리오 — §27.6 라이브 검증 재현 (2026-07-03, 07-05 두 차례 발견)
+# 섹션 2: rm 우회 시나리오 — §27.7 라이브 검증 재현 (2026-07-03, 07-05 두 차례 발견)
 # ===========================================================================
-print("\n=== 섹션 2: rm 우회 시나리오 (§27.6 재현) ===")
+print("\n=== 섹션 2: rm 우회 시나리오 (§27.7 재현) ===")
 
 # 2-A. 기본 위험 패턴 7개만 있는 경우 — rm -f 도, 플래그 없는 rm 도 모두 통과한다
 # (실제 라이브 테스트에서 발견된 버그 — 1차: rm -f, 2차: 플래그 없는 rm)
@@ -182,7 +182,7 @@ guardrail_after_fix = LiveGuardrail(
     tool_parameter_safety=ToolParameterSafetyConfig(
         dangerous_patterns=[
             r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-            r"\brm\s+\S",   # §27.6 2차 발견 반영 — 플래그 유무와 무관하게 모든 rm 호출을 잡는다
+            r"\brm\s+\S",   # §27.7 2차 발견 반영 — 플래그 유무와 무관하게 모든 rm 호출을 잡는다
         ],
         fail_on_dangerous=True,
     ),
@@ -271,7 +271,7 @@ gate_e = harness.get("E", {})
 print(f"  Gate B: {gate_b.get('score')} ({gate_b.get('status', 'n/a')})")
 print(f"  Gate E: {gate_e.get('score')} ({gate_e.get('status', 'n/a')})")
 
-# Ch27 §27.5와 동일한 upsert 저장 — task_id 기준으로 재실행 시 갱신된다.
+# Ch27 §27.6과 동일한 upsert 저장 — task_id 기준으로 재실행 시 갱신된다.
 save_tasks_to_db(_DB_PATH, [session_task])
 print(f"  저장 완료: {_DB_PATH}")
 
@@ -374,9 +374,9 @@ no_hits = search_violations(_DB_PATH, "kubernetes")
 print(f"  무관한 검색어 결과: {len(no_hits)}건 (예상대로 0건)")
 
 # ===========================================================================
-# 섹션 6: SPEC-030(완전 차단 감사 이력) + SPEC-032(팀 스코프 충돌 자동 감지)
+# 섹션 6: SPEC-030(완전 차단 감사 이력) + SPEC-032(팀 스코프 충돌) + SPEC-035(브랜치 가드)
 # ===========================================================================
-print("\n=== 섹션 6: 완전 차단 감사 이력(SPEC-030) + 팀 스코프 충돌(SPEC-032) ===")
+print("\n=== 섹션 6: 완전 차단 감사 이력(SPEC-030) + 팀 스코프 충돌(SPEC-032) + 브랜치 가드(SPEC-035) ===")
 
 # 6-A. record_blocked_attempt() — 섹션 5-A의 "완전 차단" 케이스를 이어서 쓴다.
 # check_before_tool_call()은 순수 조회라 자동으로 기록하지 않으므로, 호출자가
@@ -431,11 +431,32 @@ _v_team_edit = team_guardrail.check_before_tool_call(
 print(f"  [edit, 겹치는 클레임] 차단 여부: {_v_team_edit.block}  이유: {_v_team_edit.reason}")
 
 # bash는 scoped_tool_names 기본값(read/edit/write)에 없어 같은 경로를 건드려도 이 검사로는
-# 차단되지 않는다 — §27.2가 명시한 의도된 제약(자유 형식 명령의 경로 파싱 불가).
+# 차단되지 않는다 — §27.3이 명시한 의도된 제약(자유 형식 명령의 경로 파싱 불가).
 _v_team_bash = team_guardrail.check_before_tool_call(
     "session-team", "bash", {"command": "rm -rf agent_evaluator/gates/gate_d_performance/"},
 )
 print(f"  [bash, 검사 대상 아님] 차단 여부: {_v_team_bash.block}  (team_concurrency는 건드리지 않음)")
+
+# 6-C. BranchGuardConfig(SPEC-035) — 보호 브랜치에서의 git commit/push를 실행 전 자동 차단.
+# 브랜치는 monkeypatch 없이 이 저장소의 실제 현재 브랜치를 그대로 쓴다 —
+# require_branch_prefix="feature/"를 주면, 이 스크립트를 어떤 브랜치에서 실행하든
+# (그 접두어와 일치하지 않는 한) 보호 대상이 되는 것을 그대로 보여준다.
+from agent_evaluator.gates.branch_guard import BranchGuardConfig  # noqa: E402
+
+branch_guardrail = LiveGuardrail(
+    branch_guard=BranchGuardConfig(require_branch_prefix="feature/"),
+)
+print(f"  [branch_guard] 캐싱된 현재 브랜치: {branch_guardrail._current_branch}")
+_v_branch_commit = branch_guardrail.check_before_tool_call(
+    "session-branch", "bash", {"command": "git commit -m 'AI 세션 커밋'"},
+)
+print(f"  [git commit, feature/ 접두어 불일치] 차단 여부: {_v_branch_commit.block}  이유: {_v_branch_commit.reason}")
+
+# git과 무관한 명령은 같은 브랜치에서도 그대로 통과한다.
+_v_branch_pytest = branch_guardrail.check_before_tool_call(
+    "session-branch", "bash", {"command": "pytest tests/"},
+)
+print(f"  [git과 무관한 명령] 차단 여부: {_v_branch_pytest.block}")
 
 # ===========================================================================
 # 요약 — Gate B/E 최종 점수 + JSON/HTML 리포트 저장 (agent-eval dashboard 연동)

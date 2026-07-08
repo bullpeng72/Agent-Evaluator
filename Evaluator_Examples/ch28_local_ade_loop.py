@@ -80,7 +80,7 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
     실제 요약 로직의 유일한 소스는 TypeScript 쪽(agent-evaluator.ts)이지만, 그 파일은
     Node/Bun 없이는 실행할 수 없으므로 여기서는 같은 조건 분기를 Python으로 옮겨
     적어 위반이 있을 때만 search_violations 힌트를 붙이는 로직을 순수 Python
-    환경에서도 직접 실행해 확인할 수 있게 한다. Ch27 §27.2의 동명 함수와 동일하다.
+    환경에서도 직접 실행해 확인할 수 있게 한다. Ch27의 동명 함수와 동일하다.
     """
     lines = [f"[agent-evaluator] Gate B/E guardrail summary (session {session_id})"]
 
@@ -217,7 +217,7 @@ print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG ===")
 
 _REPO_DANGEROUS_PATTERNS = [
     r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-    r"\brm\s+\S",               # 플래그 유무와 무관하게 모든 rm 호출 차단 (Ch27 §27.5)
+    r"\brm\s+\S",               # 플래그 유무와 무관하게 모든 rm 호출 차단 (Ch27 §27.7)
     # 여기부터 저장소 자체 개선 세션 전용 추가 (§28.9.3)
     r"--no-verify",             # 커밋 훅 우회 시도 차단
     r"git\s+push\s+.*--force",  # 강제 푸시 차단
@@ -264,7 +264,7 @@ for tool_name, params in _REPO_ATTEMPTS:
 
 # --- scope_tool_names 없이는 edit도 오탐한다 — 이 챕터 자체를 다루는 파일(예: 이
 #     예제 파일)을 편집하려 하면, 그 파일 내용에 "git push --force" 같은 문자열이
-#     들어있다는 이유만으로 edit 호출까지 차단된다 (Ch27 §27.5 참고) ---
+#     들어있다는 이유만으로 edit 호출까지 차단된다 (Ch27 §27.7 참고) ---
 _edit_this_file = {
     "file": "Evaluator_Examples/ch28_local_ade_loop.py",
     "content": '_REPO_ATTEMPTS = [("bash", {"command": "git push origin main --force"})]',
@@ -306,7 +306,7 @@ verdict1 = session1_guardrail.check_before_tool_call(
 )
 print(f"  [1. 차단] 차단됨: {verdict1.block}  이유: {verdict1.reason}")
 # 2. 즉시 노출은 OpenCode 훅의 throw로 이뤄지므로 여기서는 verdict.reason이 그 역할을 대신한다.
-#    실제 세션에서는 이 문자열이 그 턴의 모델에게 즉시 전달된다(Ch27 §27.3).
+#    실제 세션에서는 이 문자열이 그 턴의 모델에게 즉시 전달된다(Ch27 §27.5).
 
 # 3. 기록 — check_before_tool_call()은 순수 조회라 완전히 차단된 호출은
 #    record_tool_call()이 호출되지 않는다(§27.2) — 그래서 snapshot()의
@@ -564,7 +564,7 @@ _n_after_release = len(_conflicts_after_release)
 print(f"  [클레임 해제 후 재확인] 겹치는 활성 클레임: {_n_after_release}건 → 이제 시작 가능")
 
 # 위는 세션을 "시작하기 전"의 수동 확인이다 — TeamConcurrencyConfig는 세션이 "시작된 뒤"의
-# read/edit/write 호출도 자동으로 검사한다(§27.2/§28.5). 개발자 A의 클레임을 다시 열어
+# read/edit/write 호출도 자동으로 검사한다(§27.3/§28.5). 개발자 A의 클레임을 다시 열어
 # 이 두 번째 안전망을 시연한다.
 append_claim(
     _claims_path,
@@ -582,7 +582,7 @@ if _v_edit_conflict.block:
     team_guardrail.record_blocked_attempt("session-team-demo", "edit", _v_edit_conflict)
 
 # bash는 scoped_tool_names 기본값(read/edit/write)에 없어 같은 경로를 건드려도 이 자동
-# 검사로는 잡히지 않는다 — §27.2가 명시한 의도된 제약(자유 형식 명령의 경로 파싱 불가).
+# 검사로는 잡히지 않는다 — §27.3이 명시한 의도된 제약(자유 형식 명령의 경로 파싱 불가).
 _v_bash_same_path = team_guardrail.check_before_tool_call(
     "session-team-demo", "bash", {"command": "rm -rf agent_evaluator/gates/gate_d_performance/"},
 )
@@ -600,7 +600,7 @@ print("  그라운드 룰 지원:       클레임 로그로 다중 세션 스코
 print("  SPEC-032:              TeamConcurrencyConfig로 세션 도중 read/edit/write 자동 검사(섹션 6)")
 print("  실제 SDK로 검증된 부분: LiveGuardrail 차단(섹션 1·2·4) — Ch27과 동일한 메커니즘")
 print("  실제 SDK로 검증된 부분: search_violations()로 '관찰 모드' 위반 검색(섹션 2)")
-print("  SPEC-030:               record_blocked_attempt()로 완전 차단 시도도 감사 이력에 남길 수 있다(Ch27 §27.4)")
+print("  SPEC-030:               record_blocked_attempt()로 완전 차단 시도도 감사 이력에 남길 수 있다(Ch27 §27.6)")
 print("  개발자 워크플로우 규율: pytest 재통과 강제(섹션 3) — LiveGuardrail이 아니라 사람이 강제")
 print("  실제 SDK로 검증된 부분: 배치 Gate A/D/G 통합(섹션 5)")
 print("                        기존 agent-eval gate/dashboard 그대로 재사용")

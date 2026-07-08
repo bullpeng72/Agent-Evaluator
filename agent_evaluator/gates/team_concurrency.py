@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -37,6 +38,11 @@ class TeamConcurrencyConfig:
             후보 키, 순서대로 시도한다. 못 찾으면 이 도구 호출에 대해서만
             검사를 건너뛴다(오탐 대신 안전한 폴백).
         fail_on_conflict: ``True``(기본값)면 겹침 발견 시 실제로 차단한다.
+        owner: (SPEC-036) 이 세션을 운영하는 개발자 이름. 클레임 로그의
+            ``developer`` 필드와 정확히 일치하면, 그 클레임은 충돌 검사에서
+            제외된다 — 자기 자신이 정당하게 건 클레임이 자기 세션을 막지
+            않게 하기 위함. ``None``(기본값)이면 예외를 적용하지 않는다
+            (기존 동작 그대로 — 자기 자신의 클레임도 충돌로 잡힌다).
     """
 
     claims_path: str = ".aoo/claims.jsonl"
@@ -44,6 +50,7 @@ class TeamConcurrencyConfig:
     scoped_tool_names: Tuple[str, ...] = ("read", "edit", "write")
     path_param_candidates: Tuple[str, ...] = ("file", "filePath", "path")
     fail_on_conflict: bool = True
+    owner: Optional[str] = None
 
 
 def load_active_claims(claims_path: Union[str, Path]) -> List[Dict[str, Any]]:
@@ -102,6 +109,66 @@ def append_claim(claims_path: Union[str, Path], **fields: Any) -> None:
     """클레임 로그에 이벤트 한 줄을 append한다(개설 또는 해제) (SPEC-032 REQ-1)."""
     with open(claims_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(fields, ensure_ascii=False) + "\n")
+
+
+def audit_claims(
+    claims_path: Union[str, Path] = ".aoo/claims.jsonl", ttl_hours: float = 8.0,
+) -> List[Dict[str, Any]]:
+    """CI에서 클레임 로그의 정합성을 점검한다 (SPEC-034 REQ-1~4).
+
+    TTL을 초과하도록 해제되지 않은 활성 클레임과, 스코프가 겹치는 두 개 이상의
+    활성 클레임을 찾는다. ``load_active_claims()``(SPEC-032)를 그대로 재사용하므로
+    "같은 claim_id는 최신 상태만 유효하다"는 규칙을 다시 구현하지 않는다 — 이미
+    해제된 클레임이 여기서 다시 위반으로 잡히는 일은 없다.
+
+    Args:
+        claims_path: ``.aoo/claims.jsonl`` 경로.
+        ttl_hours: 이 시간을 넘도록 해제되지 않은 활성 클레임을 위반으로 본다.
+
+    Returns:
+        위반 dict 리스트. 비어 있으면 위반 없음(``sys.exit()``은 호출하지 않는다 —
+        CI 종료 코드 결정은 호출자의 몫).
+    """
+    claims = load_active_claims(claims_path)
+    violations: List[Dict[str, Any]] = []
+    now = datetime.now(timezone.utc)
+
+    for claim in claims:
+        started_at = claim.get("started_at")
+        if not started_at:
+            continue
+        try:
+            started = datetime.fromisoformat(started_at)
+        except ValueError:
+            continue  # 파싱 불가능한 타임스탬프는 조용히 건너뜀 — TTL 판정 불가로 예외 전파 방지
+        if started.tzinfo is None:
+            # naive는 UTC로 간주 — offset-aware datetime.now(timezone.utc)와 뺄셈 가능하게
+            started = started.replace(tzinfo=timezone.utc)
+        age_hours = (now - started).total_seconds() / 3600
+        if age_hours > ttl_hours:
+            violations.append({
+                "type": "ttl_exceeded",
+                "claim_id": claim.get("claim_id"),
+                "developer": claim.get("developer"),
+                "scope": claim.get("scope", []),
+                "age_hours": round(age_hours, 2),
+            })
+
+    for i, c1 in enumerate(claims):
+        for c2 in claims[i + 1:]:
+            _scope1 = c1.get("scope", [])
+            _scope2 = c2.get("scope", [])
+            if any(_scopes_overlap(p, _scope2) for p in _scope1):
+                violations.append({
+                    "type": "overlapping_claims",
+                    "claim_id_a": c1.get("claim_id"),
+                    "developer_a": c1.get("developer"),
+                    "claim_id_b": c2.get("claim_id"),
+                    "developer_b": c2.get("developer"),
+                    "scope": _scope1,
+                })
+
+    return violations
 
 
 def _load_shared_files(shared_files_path: Optional[str]) -> List[str]:

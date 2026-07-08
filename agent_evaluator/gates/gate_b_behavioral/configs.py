@@ -306,6 +306,11 @@ class ToolParameterSafetyConfig:
     max_argument_length: int = 2000
     fail_on_dangerous: bool = False
     violation_penalty: float = 0.25  # 위험 도구 1개당 penalty (IdempotencyConfig.non_idempotent_penalty와 동일 역할)
+    # SPEC-033: True면 인자 문자열에서 base64/hex로 보이는 하위 문자열을 디코드해
+    # dangerous_patterns를 재매치한다(예: base64로 인코딩된 "rm -rf /" 탐지). 기본값
+    # False는 기존 동작과 100% 동일 — 새 탐지 규칙이 아니라 검사 대상 텍스트를
+    # 하나 더(디코드 결과) 추가하는 순수 전처리 계층이다.
+    decode_encodings: bool = False
 
     def __post_init__(self) -> None:
         import warnings as _w
