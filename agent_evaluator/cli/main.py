@@ -39,6 +39,7 @@ from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
 from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
 from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
+from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli._utils import _supports_color
 
 
@@ -1069,6 +1070,9 @@ def main() -> None:
     # trend subcommand
     build_trend_subparser(sub)
 
+    # claims subcommand
+    build_claims_subparser(sub)
+
     parser.add_argument(
         "--version", action="store_true",
         help="Show package version",
@@ -1088,6 +1092,7 @@ def main() -> None:
         "gate":      cmd_gate,
         "dataset":   cmd_dataset,
         "trend":     cmd_trend,
+        "claims":    cmd_claims,
     }
 
     if args.command is None:

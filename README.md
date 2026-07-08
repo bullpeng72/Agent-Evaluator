@@ -160,24 +160,13 @@ pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/
 pipx install 'agent-evaluator[sdk]'              # dashboard + monitor + PDF all available
 ```
 
-### Adding `[mcp]` after `[examples]` is already installed
+### Adding `[mcp]` to an existing install
 
-`[examples]` and `[mcp]` are independent extras (`[mcp]` is not included in the `[examples]` bundle), so
-installing one does not pull in the other. To add the `search_violations` MCP server on top of an
-existing `[examples]` install, without reinstalling the heavy `[examples]` dependencies:
+`[mcp]` is independent of `[examples]` (not bundled in), so add it separately without reinstalling:
 
 ```bash
-# pip — re-running install with a new extra only adds what's missing (already
-# satisfied requirements from [examples] are left untouched)
-pip install "agent-evaluator[examples]"    # already installed
-pip install "agent-evaluator[mcp]"         # adds just `mcp>=1.0.0` on top
-
-# pipx — pipx keeps each app in an isolated venv, so extras aren't additive by
-# default. Either inject the single extra package directly:
-pipx inject agent-evaluator "mcp>=1.0.0"
-
-# ...or reinstall with both extras combined (re-syncs the isolated venv):
-pipx install --force 'agent-evaluator[examples,mcp]'
+pip install "agent-evaluator[mcp]"          # pip: adds just mcp>=1.0.0 on top
+pipx inject agent-evaluator "mcp>=1.0.0"    # pipx: isolated venvs need explicit inject
 ```
 
 ---
@@ -579,407 +568,40 @@ info = get_framework_info("langchain")
 
 ---
 
-### Orchestration Frameworks
+### Framework Integration Examples
 
-#### LangChain
-
-Auto-extracts tool calls and chain steps from `intermediate_steps` in `AgentExecutor.invoke()` results.
+Every adapter follows the same pattern: pass `framework="..."`, return the framework's native response
+object as-is, and the fields listed in the table above are auto-extracted. Two representative examples
+(LangChain for tool-based orchestration, Anthropic for a raw LLM provider) — the rest work identically,
+just swap the `framework=` value and the client call:
 
 ```python
 from langchain.agents import AgentExecutor
 from agent_evaluator.decorators import agent_eval
 
-# intermediate_steps → tool_calls + chain_steps auto-conversion
-# usage_metadata / response_metadata.token_usage → tokens_used auto-extraction
+# intermediate_steps -> tool_calls + chain_steps; usage_metadata -> tokens_used
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def lc_agent(question: str, ground_truth: str = "") -> str:
-    result = agent_executor.invoke({"input": question})
-    return result  # return dict as-is — text auto-extracted from "output" key
+    return agent_executor.invoke({"input": question})  # dict returned as-is, "output" key auto-extracted
 
-# Framework-specific alias (agent_evaluator.integrations)
-from agent_evaluator.integrations import langchain_eval
-
-@langchain_eval(monitor, task_type="tool_use")
-def lc_agent2(question: str, ground_truth: str = "") -> str:
-    return agent_executor.invoke({"input": question})
-```
-
-#### LangGraph
-
-Extracts state transitions · graph paths · tool calls from `messages` array in graph execution results.
-Graph metadata is also auto-collected if `__metadata__` key is present.
-
-```python
-from langgraph.graph import StateGraph
-from agent_evaluator.decorators import agent_eval
-
-# messages → state_transitions + graph_traversal
-# ToolMessage / AIMessage → chain_steps + timestamp-based execution time
-@agent_eval(monitor, task_type="tool_use", framework="langgraph")
-def lg_agent(question: str, ground_truth: str = "") -> str:
-    result = graph.invoke({"messages": [("user", question)]})
-    return result  # "messages"[-1].content auto-extracted
-
-from agent_evaluator.integrations import langgraph_eval
-
-@langgraph_eval(monitor, task_type="tool_use")
-def lg_agent2(question: str, ground_truth: str = "") -> str:
-    return graph.invoke({"messages": [("user", question)]})
-```
-
-#### CrewAI
-
-Extracts inter-agent interactions from `tasks_output` in `Crew.kickoff()` results.
-Supports `output_pydantic` / `output_format` (v2.x) fields.
-
-```python
-from crewai import Crew, Agent, Task
-from agent_evaluator.decorators import agent_eval
-
-# tasks_output → agent_interactions auto-conversion
-# Note: CrewAI does not support async — use synchronous functions only
-@agent_eval(monitor, task_type="tool_use", framework="crewai")
-def crew_agent(question: str, ground_truth: str = "") -> str:
-    result = crew.kickoff(inputs={"topic": question})
-    return str(result)
-
-from agent_evaluator.integrations import crewai_eval
-
-@crewai_eval(monitor, task_type="tool_use")
-def crew_agent2(question: str, ground_truth: str = "") -> str:
-    return str(crew.kickoff(inputs={"topic": question}))
-```
-
-#### AutoGen
-
-Extracts conversation turns and cost information from `chat_result.messages` / `chat_history`.
-For AutoGen 0.4+ async API, use the `autogen_eval_async` dedicated decorator.
-
-```python
-from autogen import ConversableAgent
-from agent_evaluator.decorators import agent_eval
-from agent_evaluator.integrations import autogen_eval, autogen_eval_async
-
-# messages/chat_history → conversation_turns
-# cost/usage_summary → tokens_used
-@agent_eval(monitor, task_type="qa", framework="autogen")
-def autogen_agent(question: str, ground_truth: str = "") -> str:
-    result = assistant.initiate_chat(user_proxy, message=question, max_turns=3)
-    return result.summary
-
-# AutoGen 0.4+ async API dedicated
-@autogen_eval_async(monitor, task_type="qa")
-async def autogen_agent_async(question: str, ground_truth: str = "") -> str:
-    result = await team.run(task=question)
-    return result.messages[-1].content
-```
-
----
-
-### LLM Providers
-
-#### OpenAI
-
-Auto-extracts `choices[0].message.tool_calls` and `usage.total_tokens` from `ChatCompletion` responses.
-Also supports Assistants API `required_action`.
-
-```python
-import openai
-from agent_evaluator.decorators import agent_eval
-
-client = openai.OpenAI()
-
-@agent_eval(monitor, task_type="tool_use", framework="openai")
-def gpt_agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": question}],
-        tools=[...],
-    )  # return ChatCompletion object as-is — choices[0].message.content auto-extracted
-```
-
-#### Anthropic
-
-Extracts `content[].tool_use` and `usage.input_tokens/output_tokens` from `Message` responses.
-Cache tokens (`cache_creation_input_tokens`, `cache_read_input_tokens`, SDK ≥0.29) also supported.
-
-```python
 import anthropic
 from agent_evaluator.decorators import agent_eval
 
 client = anthropic.Anthropic()
 
+# content[].tool_use -> tool_calls; usage.input_tokens/output_tokens -> tokens_used
 @agent_eval(monitor, task_type="tool_use", framework="anthropic")
 def claude_agent(question: str, ground_truth: str = "") -> str:
     return client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": question}],
-        tools=[...],
-    )  # return Message object as-is — content[0].text auto-extracted
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": question}], tools=[...],
+    )  # Message object returned as-is, content[0].text auto-extracted
 ```
 
-#### Google Gemini / Vertex AI
-
-Extracts `candidates[0].content.parts[].function_call` and `usage_metadata` from `GenerateContentResponse`.
-
-```python
-import google.generativeai as genai
-from agent_evaluator.decorators import agent_eval
-
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-@agent_eval(monitor, task_type="tool_use", framework="gemini")
-def gemini_agent(question: str, ground_truth: str = "") -> str:
-    return model.generate_content(question)  # return GenerateContentResponse as-is
-
-# Vertex AI uses the same response structure — framework="vertexai"
-@agent_eval(monitor, task_type="tool_use", framework="vertexai")
-def vertex_agent(question: str, ground_truth: str = "") -> str:
-    return vertex_model.generate_content(question)
-```
-
-#### Cohere
-
-Extracts `tool_calls` and `meta.tokens` from `NonStreamedChatResponse`.
-Streaming responses (`finish_reason` attribute) also auto-detected.
-
-```python
-import cohere
-from agent_evaluator.decorators import agent_eval
-
-co = cohere.Client()
-
-@agent_eval(monitor, task_type="tool_use", framework="cohere")
-def cohere_agent(question: str, ground_truth: str = "") -> str:
-    return co.chat(message=question, tools=[...])
-```
-
-#### Groq
-
-OpenAI-compatible API structure — extracts `tool_calls` and `usage`.
-Cache tokens (`cache_creation_input_tokens`, `cache_read_input_tokens`, v0.9+) also supported.
-
-```python
-from groq import Groq
-from agent_evaluator.decorators import agent_eval
-
-client = Groq()
-
-@agent_eval(monitor, task_type="tool_use", framework="groq")
-def groq_agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": question}],
-    )
-```
-
-#### Mistral AI
-
-Extracts `tool_calls` and `usage` from `ChatCompletionResponse`.
-Legacy `function_call` field also supported.
-
-```python
-from mistralai import Mistral
-from agent_evaluator.decorators import agent_eval
-
-client = Mistral()
-
-@agent_eval(monitor, task_type="tool_use", framework="mistral")
-def mistral_agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.complete(
-        model="mistral-large-latest",
-        messages=[{"role": "user", "content": question}],
-    )
-```
-
-#### AWS Bedrock
-
-Branches handling of Titan / Mistral on Bedrock / Claude responses based on `model_id` from Bedrock Converse API responses.
-
-```python
-import boto3
-from agent_evaluator.decorators import agent_eval
-
-client = boto3.client("bedrock-runtime", region_name="us-east-1")
-
-@agent_eval(monitor, task_type="tool_use", framework="bedrock")
-def bedrock_agent(question: str, ground_truth: str = "") -> str:
-    return client.converse(
-        modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
-        messages=[{"role": "user", "content": [{"text": question}]}],
-    )
-```
-
-#### Ollama
-
-Extracts `tool_calls` and `prompt_eval_count` / `eval_count` from `ollama.chat()` / `ollama.generate()` responses.
-Note: Ollama does not support async.
-
-```python
-import ollama
-from agent_evaluator.decorators import agent_eval
-
-@agent_eval(monitor, task_type="qa", framework="ollama")
-def ollama_agent(question: str, ground_truth: str = "") -> str:
-    return ollama.chat(
-        model="llama3.2",
-        messages=[{"role": "user", "content": question}],
-    )
-```
-
----
-
-### AI Frameworks
-
-#### DSPy
-
-Extracts chain steps from `_completions` attribute of `dspy.Prediction`.
-Full LM history multi-step also supported. Note: DSPy does not support async.
-
-```python
-import dspy
-from agent_evaluator.decorators import agent_eval
-from agent_evaluator.integrations import dspy_eval
-
-lm = dspy.LM("openai/gpt-4o-mini")
-dspy.configure(lm=lm)
-
-@agent_eval(monitor, task_type="qa", framework="dspy")
-def dspy_agent(question: str, ground_truth: str = "") -> str:
-    predictor = dspy.Predict("question -> answer")
-    return predictor(question=question)  # Prediction object → .answer auto-extracted
-
-@dspy_eval(monitor, task_type="qa")
-def dspy_agent2(question: str, ground_truth: str = "") -> str:
-    return dspy.ChainOfThought("question -> answer")(question=question)
-```
-
-#### PydanticAI
-
-Extracts chain steps from `RunResult.all_messages()` (preferred) or `.messages` (fallback).
-Finely extracts `ToolCallPart` / `ToolReturnPart` / `TextPart`.
-
-```python
-from pydantic_ai import Agent
-from agent_evaluator.decorators import agent_eval
-from agent_evaluator.integrations import pydanticai_eval
-
-agent = Agent("openai:gpt-4o-mini", system_prompt="...")
-
-@agent_eval(monitor, task_type="qa", framework="pydanticai")
-async def pydantic_agent(question: str, ground_truth: str = "") -> str:
-    result = await agent.run(question)
-    return result  # RunResult object → .data auto-extracted
-
-@pydanticai_eval(monitor, task_type="qa")
-async def pydantic_agent2(question: str, ground_truth: str = "") -> str:
-    return await agent.run(question)
-```
-
-#### LlamaIndex
-
-Extracts chain steps from `Response.source_nodes`.
-`ToolOutput` from `AgentChatResponse.sources` also supported.
-
-```python
-from llama_index.core import VectorStoreIndex
-from agent_evaluator.decorators import agent_eval
-
-index = VectorStoreIndex.from_documents([...])
-query_engine = index.as_query_engine()
-
-# source_nodes → chain_steps (with score + metadata)
-@agent_eval(monitor, task_type="information_retrieval", framework="llamaindex", rag_mode=True)
-def llamaindex_agent(question: str, ground_truth: str = "") -> str:
-    return query_engine.query(question)
-```
-
-#### Haystack
-
-Extracts retriever / generator / reader / embedder / ranker from pipeline component output dict as `chain_steps`.
-
-```python
-from haystack import Pipeline
-from agent_evaluator.decorators import agent_eval
-
-pipeline = Pipeline()
-# ... add components ...
-
-# Component output dict → chain_steps
-@agent_eval(monitor, task_type="information_retrieval", framework="haystack", rag_mode=True)
-def haystack_agent(question: str, ground_truth: str = "") -> str:
-    return pipeline.run({"query": question})
-```
-
-#### Semantic Kernel
-
-Auto-extracts tokens from OpenAI / Anthropic backends via `inner_content`.
-`function_name` + `plugin_name` → `"Plugin.function"` format tool calls also supported.
-
-```python
-import semantic_kernel as sk
-from agent_evaluator.decorators import agent_eval
-
-kernel = sk.Kernel()
-
-# inner_content → tokens_used (auto-detects OpenAI/Anthropic backend)
-@agent_eval(monitor, task_type="tool_use", framework="semantic_kernel")
-async def sk_agent(question: str, ground_truth: str = "") -> str:
-    result = await kernel.invoke(plugin_name, function_name, input=question)
-    return str(result)
-```
-
-#### HuggingFace smolagents
-
-Normalizes `ToolCall` step list for success/failure status and input values, extracting as `tool_calls` + `chain_steps`.
-Note: smolagents does not support async.
-
-```python
-from smolagents import CodeAgent, HfApiModel
-from agent_evaluator.decorators import agent_eval
-
-model = HfApiModel()
-agent = CodeAgent(tools=[...], model=model)
-
-@agent_eval(monitor, task_type="tool_use", framework="smolagents")
-def smol_agent(question: str, ground_truth: str = "") -> str:
-    return agent.run(question)
-```
-
-#### vLLM
-
-OpenAI-compatible API — extracts `choices[0].message.tool_calls` and `usage.total_tokens`.
-
-```python
-from openai import OpenAI  # vLLM uses OpenAI-compatible client
-from agent_evaluator.decorators import agent_eval
-
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="vllm")
-
-@agent_eval(monitor, task_type="qa", framework="vllm")
-def vllm_agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.completions.create(
-        model="meta-llama/Llama-3.2-3B-Instruct",
-        messages=[{"role": "user", "content": question}],
-    )
-```
-
-#### HuggingFace
-
-Extracts chain steps from `generated_text` in `pipeline()` results, and tool calls from `actions` / `tool_calls` fields.
-Note: HuggingFace does not support async.
-
-```python
-from transformers import pipeline
-from agent_evaluator.decorators import agent_eval
-
-pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
-
-@agent_eval(monitor, task_type="qa", framework="huggingface")
-def hf_agent(question: str, ground_truth: str = "") -> str:
-    return pipe(question, max_new_tokens=200)
-```
+Framework-specific aliases are also available for the 4 major orchestration frameworks
+(`agent_evaluator.integrations.langchain_eval` / `langgraph_eval` / `crewai_eval` / `autogen_eval`).
+Full per-framework notes (async support, extras, quirks like AutoGen 0.4+'s dedicated
+`autogen_eval_async`) live in `Evaluator_Examples/ch13_frameworks.py`.
 
 ---
 
@@ -1203,12 +825,10 @@ monitor.agent_version  # -> "a1b2c3d4" (clean working tree)
                        # -> None (no git info — not a git repo, git not installed, etc.)
 ```
 
-`"auto"` resolves to the current commit's short SHA (`git rev-parse HEAD`, cached once at construction —
-no repeated subprocess calls). If the working tree has uncommitted changes, a hash of `git diff HEAD` is
-appended as a `-dirty-<hash>` suffix, so iterations you run *without* committing between them (the normal
-rhythm of a fast local dev loop, e.g. AOO — see below) still get distinct, reproducible tags instead of all
-collapsing into the same commit's tag. Falls back to `None` on any failure (not a git repo, `git` missing,
-timeout) rather than raising.
+`"auto"` resolves to the current commit's short SHA (cached once at construction), with a
+`-dirty-<hash>` suffix when tracked files have uncommitted changes — so local iterations run without
+committing between them (common in the [AOO dev loop](Docs/AOO_STACK.md)) still get distinct,
+reproducible tags. Falls back to `None` on any git failure (not a repo, `git` missing, timeout).
 
 ```bash
 # Filter the dashboard's file list by tag
@@ -1248,68 +868,28 @@ HTML** button that downloads a self-contained comparison report (same data as ab
 
 ---
 
-## Real-Time Guardrail — OpenCode Plugin
+## Real-Time Guardrail — AOO Stack (Agent-Evaluator + Ollama + OpenCode)
 
-Every Gate above scores a session *after* it finishes. `LiveGuardrail` (`agent_evaluator.gates.live_guardrail`) is the real-time counterpart — it checks a single tool call *before* it executes and can block it, reusing the same Behavioral Integrity (loop detection, deadlock, scope, tool-parameter safety) and Security Boundary (tool authorization, privilege escalation, tool-chain attack) checks that power Gates B/E in batch mode. No new detection logic — same evaluators, called synchronously per tool call instead of per session.
+Every Gate above scores a session *after* it finishes. `LiveGuardrail` is the real-time counterpart —
+it checks a single tool call *before* it executes and can block it, reusing the same Gate B
+(Behavioral Integrity) and Gate E (Security Boundary) evaluators, called synchronously per tool call
+instead of per session. No new detection logic.
 
-A reference integration ships for [OpenCode](https://opencode.ai) (a local coding-agent CLI), bundled inside the pip package under `agent_evaluator/integrations/opencode_plugin/` and installable via the `agent-eval opencode install` CLI subcommand, wiring `LiveGuardrail` into OpenCode's `tool.execute.before`/`tool.execute.after` hooks. Since Agent-Evaluator is a Python SDK and OpenCode plugins run on Node/Bun, the plugin doesn't reimplement Gate B/E logic in TypeScript — it spawns one long-lived Python subprocess per session (`python -m agent_evaluator.integrations.live_guardrail_stdio`) and exchanges JSON Lines over stdin/stdout.
-
-### Setup
-
-```bash
-# 1. Install Agent-Evaluator
-pip install agent-evaluator   # or from a repo checkout: pip install -e .
-
-# 2. Install the plugin where OpenCode auto-loads it (project-local by default)
-agent-eval opencode install
-# or: agent-eval opencode install --global    # ~/.config/opencode/plugin/agent-evaluator.ts
-# or: agent-eval opencode install --force     # overwrite an existing install
-
-# or: also register the search_violations MCP server (requires: pip install "agent-evaluator[mcp]")
-agent-eval opencode install --with-violation-search
-```
-
-`agent-eval opencode install` bakes the interpreter that ran the command in as the plugin's default `PYTHON_BIN` — you usually don't need `AGENT_EVALUATOR_PYTHON` unless you want to point at a different interpreter. To override that or the SQLite report location:
+A reference integration ships for [OpenCode](https://opencode.ai) (a local coding-agent CLI):
 
 ```bash
-export AGENT_EVALUATOR_PYTHON=/path/to/venv/bin/python
-export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project
+pip install agent-evaluator
+agent-eval opencode install                          # project-local (--global / --force also available)
+agent-eval opencode install --with-violation-search   # + search_violations MCP server (needs [mcp] extra)
 ```
 
-Then adjust `GUARDRAIL_CONFIG` at the top of the installed `.opencode/plugin/agent-evaluator.ts` (the copy, not the package-bundled source — reinstalling overwrites it) — it takes the same `LoopDetectionConfig`/`DeadlockConfig`/`ScopeConfig`/`ToolParameterSafetyConfig` (Gate B) and `ToolAuthorizationTracker`/`PrivilegeEscalationDetector`/`ToolChainAttackDetector` (Gate E) fields as `@agent_eval`.
+Unsafe tool calls are blocked mid-session with an error the model sees and can self-correct on; each
+session's Gate B/E verdict lands in a local SQLite store; and since v0.9.8 the same session also feeds
+Gate A/D/G through the normal batch pipeline. Live-tested against a real OpenCode + local Ollama
+session — it blocked a live `rm -f` deletion attempt mid-session.
 
-Once loaded: unsafe tool calls are blocked mid-session with an error the model sees immediately (and can self-correct on), each session's Gate B/E verdict is upserted into a local SQLite store (`results/opencode_live_guardrail/opencode_sessions.db` by default — read it back with `agent_evaluator.storage.sqlite_backend.load_tasks_from_db`), and the verdict is also written back into the OpenCode session transcript (`noReply: true`, no extra LLM turn) so a memory-indexing agent like `ctx` can recall past violations in later sessions.
-
-### Batch Gate A–G Integration (SPEC-028)
-
-Real-time (per-tool-call, Gate B/E) and batch (per-session, Gate A–G) evaluation are the same
-pipeline underneath — the plugin's session-end bridge (`live_guardrail_report.record_and_save()`)
-calls the exact same `PerformanceMonitor.record_task()`/`generate_report()` that `@agent_eval`/`QuickEval`
-use, so every recorded session is automatically scored on all 7 Gates, not just B/E:
-
-- **Gate G (Observability)**: the confirmed tool-call log LiveGuardrail already tracks internally is
-  now included automatically — no extra wiring needed.
-- **Gate D (Performance Contract)**: the plugin measures each session's actual wall-clock duration
-  (from session start to `session.idle`) and sends it along — previously this was always a hardcoded
-  `0.0`, which made every session look impossibly fast.
-- **Gate A (Goal Achievement)**: without an explicit success signal there's no way to know whether the
-  session actually accomplished its goal, so `completion_score` defaults to a neutral `0.5` rather than
-  a misleadingly perfect `1.0`. If you have an automated check (e.g. "did the tests I asked the agent to
-  fix now pass?"), report it by adding `"success": true|false` to the JSON payload sent to
-  `live_guardrail_report` — `agent_version` also defaults to `"auto"` (see above) so different local
-  iterations are distinguished automatically, even without committing between them.
-
-The result is a normal result file — point `agent-eval gate`/`agent-eval dashboard` at
-`results/opencode_live_guardrail/` exactly as you would for any other run. See
-`Evaluator_Examples/ch28_local_ade_loop.py` (Section 5) for a runnable, end-to-end demonstration.
-
-**`search_violations` MCP server** (opt-in, `pip install "agent-evaluator[mcp]"`) — `agent_evaluator.integrations.violation_search_mcp` exposes a single stdio MCP tool, `search_violations(query: str)`, that full-text searches that same SQLite store (via an additive FTS5 index) and returns a human-readable summary of past Gate B/E blocks. `agent-eval opencode install --with-violation-search` registers it automatically via `opencode mcp add`; to register it manually (or for other MCP clients):
-
-```bash
-opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
-```
-
-> **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it blocked a live `rm -f` deletion attempt mid-session and left the file intact. The plugin file itself now ships inside the pip package, but the integration's design maturity is still prototype-level, with documented limitations (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard `kill -9`). See [`opencode-plugin/README.md`](opencode-plugin/README.md) for full design notes and known limitations.
+> **Full setup, configuration, batch Gate A–G integration, the `search_violations` MCP tool, and known
+> prototype limitations: [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md).**
 
 ---
 
@@ -1385,6 +965,7 @@ All 3 decorator types support the same `preset=` parameter.
 | `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
 | `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin (`--global`/`--force`/`--with-violation-search`) |
+| `agent-eval claims add\|list\|release\|audit` | Manage `.aoo/claims.jsonl` team scope claims used by `TeamConcurrencyConfig` |
 | `agent-eval --version` | Print package version |
 
 ---
@@ -1553,42 +1134,16 @@ Consists of 28 files based on book chapters. Each file is independently runnable
 | `ch24_quickeval_entry.py` | Ch24 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
 | `ch25_harness_full.py` | Ch25 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
 | `ch26_cicd_weekly.py` | Ch26 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
-| `ch27_live_guardrail.py` | Ch27 | LiveGuardrail real-time single-tool-call guardrail — check/record split, dangerous-pattern false-positive/negative tradeoffs, SQLite batch report + `search_violations()` | — |
-| `ch28_local_ade_loop.py` | Ch28 | Local ADE self-correction loop (AOO stack: Agent-Evaluator + Ollama + OpenCode) — repo-safety `LiveGuardrail` extensions, 5-step closed loop (block → surface → record → index → search), read-only self-review pattern, batch Gate A/D/G integration via `live_guardrail_report.record_and_save()` + `agent-eval gate` (SPEC-028) | — |
+| `ch27_live_guardrail.py` | Ch27 | LiveGuardrail real-time single-tool-call guardrail — SQLite batch report + `search_violations()` | — |
+| `ch28_local_ade_loop.py` | Ch28 | Local ADE self-correction loop ([AOO stack](Docs/AOO_STACK.md)) — closed loop block → surface → record → index → search, batch Gate A/D/G integration | — |
 
 ### Running Examples
 
+Each file is standalone — see the table above for what each chapter covers.
+
 ```bash
 cd Evaluator_Examples
-
-python ch01_first_eval.py      # Layer 1 basics — Accuracy · Hallucination · Quality · Latency · Token · TCR
-python ch02_quickstart.py      # QuickEval 5-minute first evaluation
-python ch03_harness_basics.py  # Harness Gate A–G overview — 7 Gates · 33 Configs
-python ch04_group_a.py         # Gate A: Goal Achievement — InstructionConfig · GoalAlignmentConfig · etc.
-python ch05_group_b.py         # Gate B: Behavioral Integrity — LoopDetectionConfig · StateConsistencyConfig · etc.
-python ch06_group_c.py         # Gate C: Reliability — ReproducibilityConfig · FaultToleranceConfig · etc.
-python ch07_group_d.py         # Gate D: Performance Contract — SLAConfig · TTFTVariabilityConfig · etc.
-python ch08_group_e.py         # Gate E: Security Boundary — ThreatSeverityConfig · ComplianceConfig · etc.
-python ch09_group_f.py         # Gate F: Multi-Agent Coordination — ConsensusConfig · AgentRoleConfig · etc.
-python ch10_group_g.py         # Gate G: Observability + AnomalyDetector · CostTracker
-python ch11_eval_data.py       # Evaluation data design — GoldenSetBuilder · evaluation_session
-python ch12_decorators.py      # Decorators mastery — @agent_eval · @batch_eval · QuickEval · LLMJudge
-python ch13_frameworks.py      # Framework integration — LangChain · LangGraph · CrewAI · AutoGen
-python ch14_thresholds.py      # Threshold configuration and quality standards
-python ch15_dashboard.py       # Dashboard visualization data generation
-python ch16_alerts.py          # Alert system — StreamingEvaluator · AlertEngine
-python ch17_weekly_review.py   # Weekly/monthly quality review automation
-python ch18_cicd_gate.py       # CI/CD quality gating
-python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
-python ch20_deployment.py      # Production deployment strategy
-python ch21_pipeline.py        # Comprehensive production pipeline
-python ch22_project_analysis.py  # Existing project analysis — 4 stages
-python ch23_gate_mapping.py    # Gate mapping strategy
-python ch24_quickeval_entry.py # First migration — Level 0/1 invasiveness
-python ch25_harness_full.py    # Full integration pipeline
-python ch26_cicd_weekly.py     # CI/CD completion + weekly review
-python ch27_live_guardrail.py  # LiveGuardrail real-time guardrail + search_violations()
-python ch28_local_ade_loop.py  # Local ADE self-correction loop (AOO stack)
+python ch01_first_eval.py      # ... through ch28_local_ade_loop.py
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 agent-eval monitor             # Start Phoenix server (http://localhost:6006)
@@ -1628,7 +1183,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 28 example files (ch01~ch28)
-├── tests/                       # 3,486+ test functions, 91 files
+├── tests/                       # 3,543+ test functions, 96 files
 └── pyproject.toml
 ```
 
@@ -1689,7 +1244,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (2,795+)
+pytest                          # run tests (3,543+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1701,70 +1256,48 @@ mypy agent_evaluator/          # type check
 
 ### v0.9.8 (2026-07-06) — Version-Aware Comparison · Persistent Anomaly Baseline · AOO ADE Local Dev Loop
 
-- 📊 **Version-aware comparison**: `prompt_version`/`agent_version` (already accepted by `PerformanceMonitor`) are now surfaced as first-class `ResultFile` properties and dashboard filters (`GET /api/results?prompt_version=...`), and `compare_results` gained `group_by=prompt_version|agent_version` to auto-pick the latest file per tag instead of manually choosing `ids=`.
-- ⚖️ **Pairwise LLM Judge**: new `LLMJudge.judge_pairwise(question, response_a, response_b)` runs an A/B comparison (`swap_check=True` by default cancels out position bias by swapping and re-judging) — lower-variance than absolute scores for "did this prompt change help?" questions. `compare_results(pairwise=True)` runs it across every common task and reports a `win_rate`, alongside (not replacing) the existing `accuracy_delta`-based regression/improvement lists.
-- 🖥️ **Dashboard + HTML export for the above**: the File Compare tab gained a **Group by** dropdown (`prompt_version`/`agent_version`), a **⚖️ Pairwise Judge** sub-tab, and a **📄 Export HTML** button — backed by a new self-contained comparison report generator (`generate_comparison_html_report()`) and `GET /api/export/html/compare`.
-- 🧪 **Per-version CI baselines**: `agent-eval gate --baseline-version TAG` stores an independent `baselines/<TAG>.json` per prompt/agent experiment instead of one shared `baseline.json`.
-- ✅ **Golden-set regression gate**: `agent-eval gate --golden-set PATH --fail-on-golden-regression` checks whether every case in an approved golden dataset is still present and passing in the latest result file (new exit code `3` when it isn't) — a CI-friendly complement to re-running the golden set through the live agent.
-- 🔁 **Persistent anomaly baseline**: `PerformanceMonitor.rehydrate_from_storage(path)` replays a SQLite-backed task history through `record_task()` so `AnomalyDetector`'s baseline survives process restarts (containers, autoscaling) instead of resetting to empty every time.
-- 📡 **Streaming anomaly detection + auto-alerting**: `StreamingEvaluator(anomaly_detector=..., anomaly_scan_interval=..., anomaly_alert_handler=...)` runs periodic anomaly scans on its existing flush thread and, when both an `AlertEngine` and a notification handler are configured, automatically dispatches findings through it via the new `AlertEngine.dispatch_anomaly_events()` (reuses the existing per-rule cooldown/backoff — no new alerting logic).
-- 🧭 **6th anomaly check — negative feedback surge**: `AnomalyDetector.scan()` now also flags a spike in negative implicit feedback (`regenerate`/`thumbs_down`/`abandon`/`correction`), reusing the same ratio-based threshold logic as the existing error-surge check.
-- 🏷️ **`agent_version="auto"`**: resolves to the current git commit's short SHA, with a `-dirty-<hash>` suffix when tracked files have uncommitted changes — no more manually bumping a version string between local iterations. Read back via the new read-only `monitor.agent_version` property.
-- 🔗 **AOO batch harness integration**: OpenCode sessions that already flow through `LiveGuardrail`/`record_and_save()` now get meaningful Gate A/D/G scores instead of misleading constants — `LiveGuardrail.snapshot()` exposes confirmed tool calls as `TaskResult.tool_calls` (Gate G), the OpenCode plugin passes real elapsed session time as `execution_time` (Gate D), and an optional `success` field lets completion be reflected explicitly (Gate A) instead of a placeholder response always scoring as perfect.
-- 📝 **`iteration_note`**: attach a human-readable one-line note to a `PerformanceMonitor`/`record_and_save()` run (`extra_metrics.lineage.iteration_note`, surfaced via `ResultFile.iteration_note`) so dashboard File Compare groups by `agent_version`'s opaque dirty-hash tags are actually distinguishable at a glance.
-- 🔍 **`blocked_violations` audit trail**: fully blocked tool-call attempts (`fail_on_*=True`) previously left no trace anywhere searchable. `LiveGuardrail.record_blocked_attempt()` records them to a new FTS5 table completely separate from Gate B/E scoring, and `search_violations(include_blocked=True)` (and the bundled MCP tool) can now surface them — closing the gap between "fully blocked" and "audit trail exists."
-- 📈 **Tool execution result capture**: `LiveGuardrail.record_tool_call(..., output={...})` accepts `success`/`exit_code`/`stdout`/`stderr` (length-capped) so `ToolCallAnalyzer` (Gate G) reflects real success/failure instead of always defaulting to "succeeded." The bundled OpenCode plugin now captures the tool result it previously discarded.
+- 📊 **Version-aware comparison**: `prompt_version`/`agent_version` dashboard filters + `compare_results(group_by=...)`, plus a swap-checked pairwise `LLMJudge.judge_pairwise()` A/B comparison (`win_rate`) — lower-variance than absolute scores for "did this prompt change help?".
+- 🧪 **CI gating**: per-version baselines (`--baseline-version`) and a golden-set regression gate (`--golden-set --fail-on-golden-regression`, exit `3`).
+- 🔁 **Persistent anomaly baseline**: `rehydrate_from_storage()` replays SQLite history so `AnomalyDetector` survives restarts; streaming auto-alerting and a 6th check (negative-feedback surge) added.
+- 🔗 **AOO stack**: batch Gate A/D/G integration for OpenCode sessions + `agent_version="auto"` git tagging — see [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md).
+- 🔒 **Team-concurrency & branch-guard hardening**: `.aoo/claims.jsonl` scope-conflict checks gain an `owner`/`owner="auto"` self-claim exclusion and a CI `audit_claims()` gate, plus a new `agent-eval claims add/list/release/audit` CLI; `BranchGuardConfig` blocks commits/pushes on protected branches; `ToolParameterSafetyConfig` now decodes base64/hex-encoded dangerous commands before matching.
 
 ### v0.9.7 (2026-07-05) — Local ADE Self-Correction Memory Layer
 
-- 🧠 **`ToolParameterSafetyConfig.scope_tool_names`**: scopes `dangerous_patterns` checks to specific tool names (default `None` = all tools, unchanged behavior). Fixes a live-verified false positive where a broad shell-safety pattern (e.g. `\brm\s+\S`) also blocked unrelated tool calls whose text merely mentioned the pattern.
-- 🔍 **Self-contained violation search**: the SQLite storage backend (opt-in `storage_backend="sqlite"`) gained an additive FTS5 index (`violation_search`) plus a new `search_violations()` API, letting a local agent loop search its own past Gate B/E guardrail violations without depending on third-party session-history tools that don't (yet) index this SDK's session content.
-- 🔌 **New MCP server**: `agent_evaluator.integrations.violation_search_mcp` exposes `search_violations` as a single stdio MCP tool (opt-in `pip install "agent-evaluator[mcp]"`); `agent-eval opencode install --with-violation-search` registers it automatically via `opencode mcp add`.
-- 📝 **OpenCode plugin**: session-idle guardrail summaries now include a hint to call `search_violations` before repeating a previously-blocked action, when violations were detected.
+- 🧠 `ToolParameterSafetyConfig.scope_tool_names` scopes dangerous-pattern checks to specific tools, fixing a false-positive block on unrelated calls.
+- 🔍 SQLite backend gained an FTS5 `search_violations()` index over past Gate B/E guardrail violations, plus a stdio MCP server exposing it.
+- See [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md) for the OpenCode integration these tie into.
 
 ### v0.9.6 (2026-07-04) — Real-Time Guardrail API · Gate Package Decomposition · PII Redaction & LLM Judge Trust Tooling
 
-- 🛡️ **Real-time guardrail API**: new `LiveGuardrail` checks (and blocks) a single tool call *before* it executes, reusing the same Behavioral Integrity and Security Boundary checks that power the batch Gates. Ships with a stdio bridge for non-Python callers, an SQLite-backed batch-report bridge, and a reference OpenCode plugin — now bundled inside the pip package (`agent_evaluator/integrations/opencode_plugin/`) and installable via the new `agent-eval opencode install` CLI subcommand (`--global`/`--force`), which also bakes in the current interpreter's path as the plugin's default `PYTHON_BIN`.
-- 🐛 **Fixed a real pydantic-ai 2.x incompatibility**: `AgentRunResult.data`/`.usage()` were renamed/changed to `.output`/a property in current pydantic-ai releases, silently corrupting `PydanticAIEvaluator` task records (marked as failed even on success); both call sites now handle old and new APIs.
-- 🔧 **CI fix**: the `pytest` job was missing the `serve` extra (FastAPI), causing ~120 dashboard-route tests to fail identically across all 6 Python versions regardless of what changed; Dependabot now also skips major-version bumps for 4 packages (`pydantic-ai`, `arize-phoenix`, `deepeval`, `sentence-transformers`) with a history of breaking changes.
-- 🔒 **Opt-in PII redaction at save time**: `PerformanceMonitor(enable_pii_redaction=True)` masks emails/phone numbers/SSNs/credit cards in persisted task text (JSON or SQLite); in-memory data and live scoring are untouched.
-- 📏 **LLM Judge trust tooling**: new `LLMJudgeCalibration` harness scores judge-vs-human agreement (MAE, Pearson, Cohen's kappa), and `PerformanceMonitor` now warns when the judge model and the agent's execution model are the same (no independent verification).
-- 🔌 **3 new framework adapters, 2 existing ones enhanced — 24 total**: `openai_agents` (OpenAI Agents SDK), `google_adk` (Google Agent Development Kit), and `claude_agent_sdk` (Claude Agent SDK) join the lineup; `openai` now also parses the Responses API (`client.responses.create()`), and `langchain` now also parses direct LCEL tool-calling `AIMessage` returns, not just `AgentExecutor.invoke()`.
-- 🏗️ **Gate A–G decomposed into 7 self-contained packages**: scoring logic moved out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/{configs,evaluators,aggregate}.py` — no behavior change.
-- ⚡ **Windowed retention mode now reflects full history for all 7 Gates** (previously only 2 metrics did), via new running-aggregate primitives; two metrics use documented bounded approximations where exact O(1) tracking isn't possible.
-- 🐛 **Fixed a silent scoring bug**: Observability Gate's tool-coverage metric always evaluated to `None` due to a wrong attribute name — now computes correctly.
-- 💾 **Optional SQLite storage backend** (upsert by task ID) and **opt-in dashboard authentication** with audit lineage (SDK version, git commit, judge model snapshot) on every saved report.
-- 🛡️ **Supply-chain hardening**: CI matrix across Python 3.8–3.13, `pip-audit` scanning, Dependabot, SBOM on tagged releases, plus a ruff/mypy quality ratchet that fails CI on regression past a tracked baseline.
-- 🔧 **Reliability rollup**: minimum-sample-size warnings on every Gate, async LLM Judge calls with backoff, structured-signal scoring for Multi-Agent/Behavioral Gates, CI regression gate extended to all 7 Gate scores, cached/incremental dashboard reports, retrying alert delivery with storm suppression, and PCI-DSS/SOC2 compliance framework support.
+- 🛡️ **`LiveGuardrail`**: new real-time API blocks a single tool call before it executes, reusing the batch Gate B/E checks — see [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md).
+- 🐛 Fixed a real pydantic-ai 2.x incompatibility (`.data`/`.usage()` → `.output`) that silently corrupted `PydanticAIEvaluator` records.
+- 🏗️ Gate A–G scoring logic decomposed out of the `decorators.py`/`monitor.py` God Objects into `gates/gate_x/*` packages — no behavior change.
+- 🔒 Opt-in PII redaction at save time; new `LLMJudgeCalibration` judge-vs-human trust harness.
+- 🔌 3 new framework adapters (`openai_agents`, `google_adk`, `claude_agent_sdk` — 24 total); CI, Dependabot, and SQLite storage hardening.
 
 ### v0.9.5 (2026-06-02) — CLAUDE.md Rewrite · Import Path Fix · Model Name Modernization
 
-- 📝 CLAUDE.md fully rewritten in English with accurate SDK facts (v0.9.4→v0.9.5 sync, 103 dashboard routes, Phase 6 Harness Config params added).
-- 🔧 Example files `ch11`, `ch14`, `ch21`: `from agent_evaluator.decorators import agent_eval` → `from agent_evaluator import agent_eval` (public API path).
-- 🔧 `ch22`: removed unused `QuickEval` import.
-- 🔧 `ch19`: `ragas_model` / `DeepEvalAdapter model` updated `gpt-4o-mini` → `gpt-5-nano`.
-- 🔧 `ch15`, `ch23`: added `TODO(현업 적용)` comments to mock agent functions.
-- 🐛 `monitor.py`: `judge_result` attachment condition relaxed to `if judge_result` — skipped results now serialized into `TaskResult.llm_judge` so Gate C filtering in `_compute_harness_groups` works correctly.
-- 🐛 Gate C: LLM faithfulness usage now accurately reflected in dashboard and HTML reports.
-- ✨ `ToolCallAnalyzer`: added `unique_tools` cumulative aggregation.
-- 🐛 Gate G always-fail bug fixed · LLMJudge token budget · PlanConfig default values corrected.
+- 📝 CLAUDE.md fully rewritten in English with accurate SDK facts.
+- 🔧 Fixed decorator import paths in example files (`ch11`/`ch14`/`ch21`) to the public API.
+- 🐛 `judge_result` attachment condition relaxed — Gate C LLM-faithfulness filtering now works correctly.
+- ✨ `ToolCallAnalyzer` gained `unique_tools` cumulative aggregation.
+- 🐛 Fixed Gate G always-fail bug, LLM Judge token budget, and `PlanConfig` defaults.
 
 ### v0.9.4 (2026-05-28) — Parallel Execution Bug Fixes · macOS NFD Filename Fix
 
-- 🐛 `@batch_eval(concurrency=N)` sync path: positional argument calls silently returned empty strings — added `questions_arg in kwargs` guard to match async path behavior (falls back to sequential).
-- 🐛 `@batch_eval(concurrency=N)` async path: `item_timeout` parameter was ignored; per-item `asyncio.wait_for` now uses `item_timeout` with fallback to batch `timeout`.
-- 🐛 `@batch_eval(concurrency=N)` async path: `on_item_error` callback was never invoked on item failure — now called consistently with sync path.
-- 🐛 `@batch_eval(concurrency=N)` sync + async: `contexts_arg` and `expected_tools_arg` lists were passed whole to every worker instead of being sliced to `[i]` — each parallel item now receives exactly its own context and expected tools.
-- 🐛 `build_pdf_chapters.py` glob pattern: macOS APFS stores filenames in NFD; `rglob(f"*{arg}*.md")` with NFC pattern failed to match Korean filenames (e.g. `서문`) — pattern now normalized to NFD before glob.
+- 🐛 `@batch_eval(concurrency=N)` sync path: positional-arg calls silently returned empty strings (missing `kwargs` guard).
+- 🐛 async path: `item_timeout` was ignored and `on_item_error` was never invoked on item failure.
+- 🐛 sync + async: `contexts_arg`/`expected_tools_arg` were passed whole to every worker instead of sliced per item.
+- 🐛 `build_pdf_chapters.py` glob pattern now normalizes to NFD, fixing a macOS filename-matching bug on Korean filenames.
 
 ### v0.9.3 (2026-05-23) — Gate Attribution Correction · HTML Report Score Breakdown · harness_groups Serialization Fix
 
-- 🐛 `AccuracyEvaluator` (`overall_accuracy / 100`) now correctly contributes to Gate A `_a_vals` — previously omitted despite CLAUDE.md indicating this behavior.
-- 🐛 `HallucinationDetector` now contributes to Gate C `_rel_vals` (faithfulness, `1 − hall_rate`) in addition to Gate G `_obs_vals`. Previously Gate G contribution was silently broken due to a non-existent `get_hallucination_stats()` call.
-- 🐛 HTML report score breakdown (`_build_score_breakdown`) now shows **Accuracy Score** row in Gate A and **Hallucination Faithfulness** row in Gate C — previously these score components were invisible in the breakdown widget.
-- 🐛 Gate G breakdown: `hallucination_rate` percentage display corrected from "0.3%" → "30.0%" (0-1 scale normalized to 100).
-- 🐛 `generate_comprehensive_html_report()` hardcoded flags (`has_rag`, `has_conversation`) and Gate E tracker attribute errors fixed — live-monitor HTML and dashboard export HTML now render identically.
-- 🐛 `_append_report_data()` now serializes `extra_metrics.harness_groups` to JSON, preventing the loader from using an approximate fallback formula (Gate A = (TCR+Accuracy)/2) for dashboard exports.
+- 🐛 `AccuracyEvaluator` now correctly contributes to Gate A (previously silently omitted).
+- 🐛 `HallucinationDetector` now also contributes to Gate C faithfulness, not just Gate G.
+- 🐛 HTML report breakdown now shows the Accuracy Score (Gate A) and Hallucination Faithfulness (Gate C) rows.
+- 🐛 Gate G `hallucination_rate` display fixed (was off by a factor of 100).
+- 🐛 `harness_groups` now serialized to JSON so dashboard exports stop using an approximate fallback formula.
 
 ### v0.9.2 (2026-05-15) — GPT-5 Standardization · Token Parameter Modernization
 

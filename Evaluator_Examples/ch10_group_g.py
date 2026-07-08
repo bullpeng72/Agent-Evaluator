@@ -86,7 +86,7 @@ def explainable_agent(question: str, ground_truth: str = "") -> str:
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return (
-        f"[추론] {question}을 分析한 결과: "
+        f"[추론] {question}을 분석한 결과: "
         f"왜냐하면 입력에서 핵심 패턴이 발견되었기 때문입니다. "
         f"따라서 적절한 조치를 취했습니다. "
         f"결론: 요청한 작업이 정상적으로 완료되었습니다."
@@ -129,7 +129,7 @@ def observable_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
-    """오류 진단 에이전트 (mock) — 오류 원인 分析 + 해결 방향 제시."""
+    """오류 진단 에이전트 (mock) — 오류 원인 분석 + 해결 방향 제시."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
@@ -151,16 +151,16 @@ def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def latency_attributed_agent(question: str, ground_truth: str = "") -> tuple:
-    """지연 원인 分析 에이전트 (mock) — 구간별 지연 기여도 노출."""
+    """지연 원인 분석 에이전트 (mock) — 구간별 지연 기여도 노출."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content
     response = json.dumps({"answer": f"{question}에 대한 응답"})
     return response, EvalMetadata(
         extra={
-            "tool_latencies":   120,
-            "model_latency_ms": 350,
-            "network_ms":       30,
+            "tool_latencies":     120,
+            "model_latency_ms":  350,
+            "network_latency_ms": 30,
         }
     )
 
@@ -169,7 +169,7 @@ def latency_attributed_agent(question: str, ground_truth: str = "") -> tuple:
 OBSERVABILITY_CASES = [
     ("머신러닝 모델의 과적합을 어떻게 방지하나요?", "정규화, 드롭아웃, 데이터 증강"),
     ("데이터베이스 오류가 발생했습니다", "오류 진단 및 복구"),
-    ("API 응답 지연 원인을 分析해주세요", "지연 원인 分析"),
+    ("API 응답 지연 원인을 분석해주세요", "지연 원인 분석"),
     ("추론 과정을 설명해줘", "단계별 추론 설명"),
 ]
 
@@ -345,4 +345,4 @@ except Exception:
 
 monitor.save_to_file("ch10_group_g")
 print("\n결과 저장 완료: results/ch10_group_g.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

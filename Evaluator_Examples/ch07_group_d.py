@@ -297,4 +297,4 @@ if _tok_rep.get("total_cost"):
 
 monitor.save_to_file("ch07_group_d")
 print("\n결과 저장 완료: results/ch07_group_d.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

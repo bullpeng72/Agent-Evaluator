@@ -61,6 +61,7 @@ from agent_evaluator.gates.team_concurrency import (
     _scopes_overlap,
     extract_path_param,
     load_active_claims,
+    resolve_owner,
 )
 
 
@@ -117,9 +118,16 @@ class LiveGuardrail:
         self._team_concurrency = team_concurrency
         self._team_claims: List[Dict[str, Any]] = []
         self._shared_files: List[str] = []
+        # SPEC-037: owner="auto" 센티널은 생성자 시점에 git config user.name을
+        # 1회 조회해 해석한다(team_claims 로딩과 동일한 "1회만" 원칙). 원본
+        # TeamConcurrencyConfig 객체는 변경하지 않는다 — 호출자가 같은 config를
+        # 재사용하거나 다른 LiveGuardrail 인스턴스에 공유해도 원본 owner="auto"가
+        # 그대로 보존된다.
+        self._team_concurrency_owner: Optional[str] = None
         if self._team_concurrency is not None:
             self._team_claims = load_active_claims(self._team_concurrency.claims_path)
             self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
+            self._team_concurrency_owner = resolve_owner(self._team_concurrency.owner)
         self._branch_guard = branch_guard
         self._current_branch: Optional[str] = None
         if self._branch_guard is not None:
@@ -196,12 +204,14 @@ class LiveGuardrail:
         if _tc_cfg is not None and tool_name in _tc_cfg.scoped_tool_names:
             _path = extract_path_param(parameters, _tc_cfg.path_param_candidates)
             if _path is not None:
-                # SPEC-036: owner가 설정되면 자기 자신(developer == owner)의 클레임은
-                # 충돌 후보에서 제외한다 — owner 미설정(None)이면 이 필터를 적용하지
-                # 않아 기존 동작(자기 클레임도 충돌로 잡힘) 그대로 유지된다.
+                # SPEC-036/037: owner가 설정되면(또는 "auto"가 해석되면) 자기
+                # 자신(developer == owner)의 클레임은 충돌 후보에서 제외한다 —
+                # owner 미설정(None, "auto" 해석 실패 포함)이면 이 필터를
+                # 적용하지 않아 기존 동작(자기 클레임도 충돌로 잡힘) 그대로 유지된다.
+                _resolved_owner = self._team_concurrency_owner
                 _conflicts = [
                     c for c in self._team_claims
-                    if (_tc_cfg.owner is None or c.get("developer") != _tc_cfg.owner)
+                    if (_resolved_owner is None or c.get("developer") != _resolved_owner)
                     and _scopes_overlap(_path, c.get("scope", []))
                 ]
                 if _conflicts and _tc_cfg.fail_on_conflict:

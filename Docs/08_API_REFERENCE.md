@@ -1399,6 +1399,13 @@ agent-eval trend results/ --fail-on-regression
 agent-eval opencode install
 agent-eval opencode install --global   # 전역 설치
 agent-eval opencode install --force    # 기존 설치 덮어쓰기
+agent-eval opencode install --with-violation-search   # + search_violations MCP 서버 등록
+
+# .aoo/claims.jsonl 팀 스코프 클레임 관리 (TeamConcurrencyConfig 연동)
+agent-eval claims add src/ --developer auto   # 클레임 개설 (git config user.name으로 자동 해석)
+agent-eval claims list                        # 활성 클레임 목록
+agent-eval claims release <claim_id>          # 클레임 해제
+agent-eval claims audit --ttl-hours 8         # CI: TTL 초과·스코프 겹침 위반 점검 (위반 시 exit 1)
 
 # 버전 확인
 agent-eval --version

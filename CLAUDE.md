@@ -36,6 +36,10 @@ agent-eval opencode install                               # LiveGuardrail OpenCo
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
+agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim (SPEC-038)
+agent-eval claims list                                     # show active claims
+agent-eval claims release c-a1b2c3d4                       # release a claim
+agent-eval claims audit --ttl-hours 8                      # CI: flag TTL-exceeded/overlapping claims
 
 # Quality
 pytest
@@ -101,6 +105,9 @@ agent_evaluator/
 │   │                       #  TTL 초과·겹치는 active 클레임을 CI가 소비할 위반 리스트로 반환(sys.exit 없음)
 │   │                       #  SPEC-036: TeamConcurrencyConfig.owner — 지정 시 developer==owner인
 │   │                       #  자기 자신의 클레임을 충돌 후보에서 제외(미지정 시 옛 동작 그대로 보존)
+│   │                       #  SPEC-037: owner="auto" 예약 센티널 — resolve_owner()가 LiveGuardrail
+│   │                       #  생성 시점에 git config user.name을 1회 조회해 치환(agent_version="auto"와
+│   │                       #  동일 패턴), 조회 실패 시 예외 없이 None으로 폴백(기존 동작 유지)
 │   ├── branch_guard.py     # SPEC-035: BranchGuardConfig · get_current_branch() · is_branch_protected() ·
 │   │                       #  matches_git_mutation() — Ch28 §28.2 "전용 브랜치" 그라운드 룰(지금까지
 │   │                       #  체크리스트로만 존재)을 LiveGuardrail이 실행 전 자동으로 강제
@@ -214,11 +221,14 @@ agent_evaluator/
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — SPEC-026: anomaly_detector/
 │                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
 │                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
-├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend)
+├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend·claims)
 │                          # opencode install --with-violation-search(SPEC-024): search_violations
 │                          #  MCP 서버 자동 등록(옵트인)
 │                          # gate --baseline-version/--golden-set/--fail-on-golden-regression(SPEC-025):
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
+├── cli/claims.py          # SPEC-038: claims add/list/release/audit — append_claim()/load_active_claims()/
+│                          #  audit_claims()(SPEC-032/034/036/037)를 감싸는 얇은 터미널 래퍼, 새 판정
+│                          #  로직 없음
 ├── reporting/
 │   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
@@ -226,7 +236,7 @@ agent_evaluator/
 │                          #  SPEC-025: generate_comparison_html_report(compare_result) —
 │                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음)
 └── serve/
-    ├── server.py          # FastAPI dashboard (108 routes)
+    ├── server.py          # FastAPI dashboard (109 routes)
     ├── templates/
     │   └── dashboard2.html.j2  # `/dashboard` 라우트(유지 대상 — dashboard.html.j2는 레거시,
     │                      #  마이그레이션 후 삭제 예정). File Compare 탭: SPEC-025 group_by
@@ -523,7 +533,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**91 files, 3,486+ test functions** in `tests/`.
+**96 files, 3,543+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

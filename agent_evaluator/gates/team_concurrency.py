@@ -43,6 +43,14 @@ class TeamConcurrencyConfig:
             제외된다 — 자기 자신이 정당하게 건 클레임이 자기 세션을 막지
             않게 하기 위함. ``None``(기본값)이면 예외를 적용하지 않는다
             (기존 동작 그대로 — 자기 자신의 클레임도 충돌로 잡힌다).
+
+            (SPEC-037) ``"auto"``는 예약 센티널이다 — ``LiveGuardrail`` 생성
+            시점에 ``git config user.name``을 1회 조회해 그 값으로 치환한다
+            (``agent_version="auto"``, SPEC-027과 동일한 패턴). git 미설치·
+            ``user.name`` 미설정 등 어떤 이유로든 조회에 실패하면 예외 없이
+            ``None``으로 조용히 떨어진다 — 이 경우 기존 동작(자기 자신의
+            클레임도 충돌로 잡힘)이 그대로 유지된다. ``"auto"`` 외의 다른
+            문자열이나 ``None``은 이전과 동일하게 그대로 사용된다.
     """
 
     claims_path: str = ".aoo/claims.jsonl"
@@ -51,6 +59,39 @@ class TeamConcurrencyConfig:
     path_param_candidates: Tuple[str, ...] = ("file", "filePath", "path")
     fail_on_conflict: bool = True
     owner: Optional[str] = None
+
+
+def resolve_owner(owner: Optional[str]) -> Optional[str]:
+    """``owner`` 필드의 ``"auto"`` 센티널을 해석한다 (SPEC-037).
+
+    ``"auto"``가 아니면(``None`` 포함) 인자를 그대로 반환한다 — 이 함수는
+    센티널 값 하나만 처리하는 순수 변환이다.
+
+    ``"auto"``이면 ``git config user.name``을 1회 조회해 그 결과를 반환한다.
+    git 미설치, 리포지토리 밖, ``user.name`` 미설정 등 어떤 이유로든 조회에
+    실패하거나 빈 문자열이 나오면 예외를 전파하지 않고 ``None``을 반환한다
+    (``agent_version="auto"``의 git 조회와 동일한 fail-open 원칙,
+    ``core/trackers/monitor.py``의 ``self._git_commit`` 계산부 참고).
+
+    Args:
+        owner: ``TeamConcurrencyConfig.owner``에 설정된 원본 값.
+
+    Returns:
+        해석된 owner 문자열, 또는 조회 실패/미해당 시 원본 값 그대로
+        (``"auto"``였다면 ``None``).
+    """
+    if owner != "auto":
+        return owner
+    try:
+        import subprocess as _subprocess
+        _result = _subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True, text=True, timeout=2,
+        )
+        _name = _result.stdout.strip() if _result.returncode == 0 else ""
+        return _name or None
+    except Exception:
+        return None
 
 
 def load_active_claims(claims_path: Union[str, Path]) -> List[Dict[str, Any]]:
