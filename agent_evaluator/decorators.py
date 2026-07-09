@@ -4897,6 +4897,23 @@ def _build_and_record(
 # H1: Agent eval parameter presets — 공통 파라미터 묶음
 # ---------------------------------------------------------------------------
 
+# SPEC-039 REQ-1: preset과 명시적 파라미터가 충돌할 때 "파이썬 기본값과 우연히 같은 값"을
+# "미지정"으로 오인하지 않기 위한 sentinel. `sample_rate=1.0`처럼 명시적으로 전달한 값이
+# 기본값과 같다는 이유로 preset에 조용히 덮어써지는 걸 막는다 — `is` 비교로만 판정한다.
+_UNSET: Any = object()
+
+
+def _resolve_preset_field(
+    explicit: Any, unset: bool, preset_vals: Dict[str, Any], key: str, default: Any
+) -> Any:
+    """SPEC-039 REQ-1: `explicit`이 실제로 호출자가 전달한 값이면(``unset=False``) 그 값을
+    preset보다 항상 우선한다. `unset=True`(호출자가 아예 전달하지 않음)일 때만 preset 값을
+    쓰고, preset에도 키가 없으면 `default`로 떨어진다."""
+    if not unset:
+        return explicit
+    return preset_vals.get(key, default)
+
+
 AGENT_EVAL_PRESETS: Dict[str, Dict[str, Any]] = {
     "production": {
         # E5: 프로덕션 환경 — 샘플링 10%, 타임아웃 30s, 50건마다 flush, 중복 task_id 차단
@@ -5067,13 +5084,16 @@ def agent_eval(
     score_fn: Optional[Callable[[str, str], float]] = None,
     completion_fn: Optional[Callable[[str, str], float]] = None,
     task_id_fn: Optional[Callable] = None,
-    sample_rate: float = 1.0,
+    # SPEC-039 REQ-1: 기본값은 아래 docstring/Args에 문서화된 그대로다 — `_UNSET`은
+    # "호출자가 이 인자를 아예 전달하지 않았다"를 preset/eval_config 자동 로드와
+    # 구분하기 위한 내부 sentinel일 뿐, 함수 진입 직후 바로 실제 기본값으로 치환된다.
+    sample_rate: float = _UNSET,  # 실제 기본값: 1.0
     on_record: Optional[Callable] = None,
     on_error: Optional[Callable] = None,
-    timeout: Optional[float] = None,
-    enabled: bool = True,
+    timeout: Optional[float] = _UNSET,  # 실제 기본값: None (무제한)
+    enabled: bool = _UNSET,  # 실제 기본값: True
     alert_rules: Optional[List["SimpleTaskAlertRule"]] = None,
-    flush_every: Optional[int] = None,
+    flush_every: Optional[int] = _UNSET,  # 실제 기본값: None
     # v0.8.1+: retry/llm_judge/security パラメータ묶음
     retry: Optional["RetryConfig"] = None,
     llm_judge: Optional["LLMJudgeConfig"] = None,
@@ -5083,10 +5103,10 @@ def agent_eval(
     # H1: preset — 사전 정의된 파라미터 묶음 ("production" | "development" | "testing" | "canary")
     preset: Optional[str] = None,
     # G4: 이 데코레이터에서만 hallucination detection 활성화 (monitor 전역 설정 우선)
-    enable_hallucination_detection: bool = False,
+    enable_hallucination_detection: bool = _UNSET,  # 실제 기본값: False
     # E2: RAG 단축 — context_arg + hallucination + task_type 자동 설정
     rag_mode: bool = False,
-    enable_anomaly_detection: bool = False,
+    enable_anomaly_detection: bool = _UNSET,  # 실제 기본값: False
     ttft_seconds: Optional[float] = None,
     # S: alert 핸들러 예외 처리 모드 ("log" | "strict", 기본: "log")
     alert_error_mode: str = "log",
@@ -5227,6 +5247,30 @@ def agent_eval(
                 ctx.chain_steps = parse_steps(result)
             return result["output"]
     """
+    # SPEC-039 REQ-1: 호출자가 실제로 이 값들을 전달했는지 여부를 sentinel(`_UNSET`)로
+    # 기록해둔다 — 이후 eval_config 파일 자동 로드 블록과 preset 블록 둘 다 "값이 SDK
+    # 기본값과 같음"이 아니라 "호출자가 실제로 안 넘겼음"으로 override 여부를 판정하게 한다.
+    # `sample_rate=1.0`처럼 기본값과 우연히 같은 명시적 값이 preset/config에 조용히
+    # 덮어써지던 버그(및 eval_config 경로의 동일 버그)를 여기서 함께 해소한다.
+    _explicit_sample_rate = sample_rate is not _UNSET
+    _explicit_timeout = timeout is not _UNSET
+    _explicit_flush_every = flush_every is not _UNSET
+    _explicit_enabled = enabled is not _UNSET
+    _explicit_enable_anomaly = enable_anomaly_detection is not _UNSET
+    _explicit_enable_hallucination = enable_hallucination_detection is not _UNSET
+    if sample_rate is _UNSET:
+        sample_rate = 1.0
+    if timeout is _UNSET:
+        timeout = None
+    if flush_every is _UNSET:
+        flush_every = None
+    if enabled is _UNSET:
+        enabled = True
+    if enable_anomaly_detection is _UNSET:
+        enable_anomaly_detection = False
+    if enable_hallucination_detection is _UNSET:
+        enable_hallucination_detection = False
+
     # ── Phase 1: Config-based zero-param decorator support ─────────────────
     # Usage modes:
     #   @agent_eval                    → monitor_or_fn is the function (bare decorator)
@@ -5252,11 +5296,11 @@ def agent_eval(
                 framework = _cfg.framework
             if model_name == "":
                 model_name = _cfg.model_name
-            if sample_rate == 1.0:
+            if not _explicit_sample_rate:
                 sample_rate = _cfg.sample_rate
             if not rag_mode:
                 rag_mode = getattr(_cfg, "rag_mode", False)
-            if not enable_hallucination_detection:
+            if not _explicit_enable_hallucination:
                 enable_hallucination_detection = getattr(_cfg, "enable_hallucination", False) or getattr(_cfg, "enable_hallucination_detection", False)
             if llm_judge is None:
                 _judge_cfg = getattr(_cfg, "judge", None)
@@ -5265,9 +5309,9 @@ def agent_eval(
                         model=getattr(_judge_cfg, "model", None),
                         criteria=getattr(_judge_cfg, "criteria", None),
                     )
-            if not enable_anomaly_detection:
+            if not _explicit_enable_anomaly:
                 enable_anomaly_detection = getattr(_cfg, "enable_anomaly_detection", False) or getattr(getattr(_cfg, "anomaly", None), "enabled", False)
-            if flush_every is None:
+            if not _explicit_flush_every:
                 flush_every = getattr(_cfg, "flush_every", None)
             if retry is None:
                 _max_r = getattr(_cfg, "max_retries", 1)
@@ -5302,13 +5346,30 @@ def agent_eval(
                 UserWarning,
                 stacklevel=2,
             )
-    # preset 값 적용 (기본값인 경우에만)
-    _effective_sample_rate = sample_rate if sample_rate != 1.0 else _preset_vals.get("sample_rate", sample_rate)
-    _effective_timeout = timeout if timeout is not None else _preset_vals.get("timeout", timeout)
-    _effective_flush_every = flush_every if flush_every else _preset_vals.get("flush_every", flush_every)
-    _effective_enabled = enabled if not enabled else _preset_vals.get("enabled", enabled)
-    _effective_enable_anomaly = enable_anomaly_detection or _preset_vals.get("enable_anomaly_detection", False)
-    _effective_enable_hallucination = enable_hallucination_detection or _preset_vals.get("enable_hallucination", False) or _preset_vals.get("enable_hallucination_detection", False)
+    # SPEC-039 REQ-1: preset 값 적용 — "호출자가 명시적으로 전달했는가"로만 판정한다
+    # (더 이상 "현재 값이 SDK 기본값과 같은가"로 오판하지 않음 — eval_config 블록이
+    # 이미 값을 바꿔놨을 수 있으므로 함수 진입 시점에 캡처해둔 _explicit_* 플래그를 쓴다).
+    _effective_sample_rate = _resolve_preset_field(
+        sample_rate, not _explicit_sample_rate, _preset_vals, "sample_rate", sample_rate
+    )
+    _effective_timeout = _resolve_preset_field(
+        timeout, not _explicit_timeout, _preset_vals, "timeout", timeout
+    )
+    _effective_flush_every = _resolve_preset_field(
+        flush_every, not _explicit_flush_every, _preset_vals, "flush_every", flush_every
+    )
+    _effective_enabled = _resolve_preset_field(
+        enabled, not _explicit_enabled, _preset_vals, "enabled", enabled
+    )
+    _effective_enable_anomaly = _resolve_preset_field(
+        enable_anomaly_detection, not _explicit_enable_anomaly, _preset_vals,
+        "enable_anomaly_detection", enable_anomaly_detection
+    )
+    _effective_enable_hallucination = _resolve_preset_field(
+        enable_hallucination_detection, not _explicit_enable_hallucination, _preset_vals,
+        "enable_hallucination",
+        _preset_vals.get("enable_hallucination_detection", enable_hallucination_detection),
+    )
 
     # v0.8.2+: resolve llm_judge config → internal variables for _build_and_record
     if llm_judge is not None:
@@ -5349,6 +5410,10 @@ def agent_eval(
         _effective_security_sample_rate = None
 
     # H1: 계산된 effective 값을 원본 변수에 재할당
+    # SPEC-039 REQ-1: sample_rate도 함께 재할당 — 이전에는 _effective_sample_rate가
+    # 계산만 되고 실제 샘플링 게이트(`if sample_rate < 1.0 and ...`)에는 전혀 반영되지
+    # 않는 죽은 변수였다(preset의 sample_rate가 한 번도 실제로 적용된 적이 없었음).
+    sample_rate = _effective_sample_rate
     flush_every = _effective_flush_every
     enabled = _effective_enabled
 
@@ -5708,6 +5773,11 @@ def agent_eval(
                     _async_state_before = _async_state_fn()
                 except Exception as _se:
                     logger.debug("StateConsistencyConfig state_fn async (before) 실패 (무시): %s", _se)
+            # SPEC-039 REQ-2: ReproducibilityConfig: 응답 목록 (추가 실행 후 채움) — sync
+            # wrapper와 동일한 필드. 이전에는 async에 이 로직이 아예 없어
+            # reproducibility_responses=None이 하드코딩돼 있었고 async 에이전트에서
+            # Gate C avg_reproducibility가 항상 조용히 None이었다.
+            _repro_responses: Optional[List[str]] = None
 
             try:
                 while _attempt < _n_tries:
@@ -5760,6 +5830,26 @@ def agent_eval(
                         _async_state_after = _async_state_fn()
                     except Exception as _se:
                         logger.debug("StateConsistencyConfig state_fn async (after) 실패 (무시): %s", _se)
+                # SPEC-039 REQ-2: ReproducibilityConfig: 추가 실행 수집 (async) — sync
+                # wrapper(위 `caller_result, _ = _split_raw(raw)  # EvalMetadata 분리` 직후)와
+                # 동일한 로직, `func(*args, **kwargs)` 대신 `await func(*args, **kwargs)`만 다르다.
+                if reproducibility is not None and not has_error:
+                    _repro_responses = [str(caller_result) if caller_result is not None else ""]
+                    if not getattr(reproducibility, "skip_side_effects", False):
+                        _extra_runs = max(0, getattr(reproducibility, "runs", 3) - 1)
+                        for _ in range(_extra_runs):
+                            try:
+                                _ex_raw = await func(*args, **kwargs)
+                                _ex_resp, _ = _split_raw(_ex_raw)
+                                _repro_responses.append(
+                                    str(_ex_resp) if _ex_resp is not None else ""
+                                )
+                            except Exception as _re:
+                                logger.debug(
+                                    "reproducibility 추가 실행 실패 (async, 무시): %s", _re
+                                )
+                                _repro_responses.append("")
+                    # skip_side_effects=True: 추가 실행 skip → run_count=1, score=1.0 반환
                 return caller_result
             except Exception:
                 raise
@@ -5828,7 +5918,8 @@ def agent_eval(
                         loop_detection=loop_detection,
                         goal_alignment=goal_alignment,
                         reproducibility=reproducibility,
-                        reproducibility_responses=None,  # async reproducibility는 미지원
+                        # SPEC-039 REQ-2: sync와 동일 지원
+                        reproducibility_responses=_repro_responses,
                         fault_tolerance=fault_tolerance,
                         plan_tracking=plan_tracking,
                         sla=sla,
@@ -6123,6 +6214,23 @@ def agent_eval(
             _warnings_b.warn(_timeout_msg, UserWarning, stacklevel=3)
             logger.warning(_timeout_msg)  # 기존 테스트(caplog) 호환성 유지
 
+        # SPEC-039 REQ-3: generator 함수에 retry 지정 시 UserWarning 발행 — 위 timeout
+        # 경고(항목 B)와 동일한 이유. gen_wrapper/agen_wrapper에는 재시도 루프 자체가
+        # 없다(이미 호출자에게 일부 청크를 yield한 뒤 "재시도"가 무엇을 의미하는지 자체가
+        # 정의되지 않으므로 — SPEC-039 Non-Goals). retry는 조용히 무시되던 것을 명시적으로
+        # 알리기만 한다 — 동작 자체(재시도 없이 그대로 실행)는 바뀌지 않는다.
+        if retry is not None and (
+            inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func)
+        ):
+            _retry_gen_msg = (
+                "agent_eval: retry=RetryConfig(...)는 generator/스트리밍 함수에 적용되지 않습니다 "
+                "(재시도 없이 그대로 실행됩니다). 이미 호출자에게 전달된 청크를 재시도 시점에 "
+                "어떻게 처리할지가 정의되지 않아 지원하지 않습니다."
+            )
+            import warnings as _warnings_c
+            _warnings_c.warn(_retry_gen_msg, UserWarning, stacklevel=3)
+            logger.warning(_retry_gen_msg)
+
         if inspect.isasyncgenfunction(func):
             return agen_wrapper
         if asyncio.iscoroutinefunction(func):
@@ -6332,6 +6440,24 @@ def _do_flush(entry: Dict[str, Any]) -> None:
             stored_monitor.enable_llm_judge = False
 
 
+# SPEC-039 REQ-5: conversation_eval이 시그니처로는 받지만 실제 평가에 전혀 반영하지 않는
+# Harness Config 파라미터 27개. `_do_flush()`가 `_build_and_record()`(agent_eval/batch_eval/
+# eval_context가 공유하는 경로)를 거치지 않고 `conv.turn()`이라는 별도 경로로 기록하기
+# 때문이다(2026-07-09 세션에서 `grep -n "\binstructions\b"`로 함수 본문 전체를 확인해
+# 참조가 0건임을 검증). 실제 턴 단위 Harness 평가 배선은 이 스펙의 Non-Goals — 여기서는
+# 호출자가 이 사실을 모른 채 조용히 무시당하지 않도록 경고만 낸다.
+_CONVERSATION_EVAL_UNUSED_HARNESS_PARAMS = (
+    "instructions", "loop_detection", "goal_alignment", "reproducibility",
+    "fault_tolerance", "plan_tracking",
+    "sla", "threat_severity", "efficiency", "state_consistency", "deadlock",
+    "observability", "consensus",
+    "scope", "context_retention", "explainability", "subtask_tracking", "propagation",
+    "agent_role", "graceful_degradation", "compliance", "resource_budget", "conflict_resolution",
+    "tool_parameter_safety", "knowledge_retention", "retry_consistency", "error_diagnosis",
+    "idempotency", "threat_response", "context_window", "latency_attribution",
+)
+
+
 def conversation_eval(
     monitor: "PerformanceMonitor",
     *,
@@ -6340,7 +6466,7 @@ def conversation_eval(
     ground_truth_arg: str = "ground_truth",
     max_turns: Optional[int] = None,
     flush_on_error: bool = True,
-    sample_rate: float = 1.0,
+    sample_rate: float = _UNSET,  # SPEC-039 REQ-1: 실제 기본값 1.0 (sentinel, preset 충돌 판정용)
     on_flush: Optional[Callable] = None,              # Gap M: (metrics, session_id: str) → None
     on_turn: Optional[Callable] = None,               # Gap Z: (session_id, user, response, metadata) → None
     on_record: Optional[Callable[["TaskResult"], Optional["TaskResult"]]] = None,  # C: (TaskResult) → Optional[TaskResult]
@@ -6349,8 +6475,8 @@ def conversation_eval(
     max_session_seconds: Optional[float] = None,      # Gap AY: 비활성 세션 자동 flush 타이머
     on_session_timeout: Optional[Callable] = None,    # Gap J: (session_id: str) → None — 타임아웃 시 호출
     alert_rules: Optional[List[Any]] = None,          # SimpleTaskAlertRule 리스트 — 세션 flush 후 발동
-    flush_every: Optional[int] = None,                # A3: N 세션마다 save_to_file() 자동 실행
-    enabled: bool = True,
+    flush_every: Optional[int] = _UNSET,  # A3: 실제 기본값 None, N 세션마다 자동 저장
+    enabled: bool = _UNSET,                           # 실제 기본값 True
     # A1: preset — AGENT_EVAL_PRESETS 키로 공통 파라미터 적용
     preset: Optional[str] = None,
     # LLM Judge 통합
@@ -6368,19 +6494,26 @@ def conversation_eval(
     instructions: Optional["InstructionConfig"] = None,
     loop_detection: Optional["LoopDetectionConfig"] = None,
     goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    # SPEC-039 REQ-4: agent_eval에는 있었지만 conversation_eval 시그니처에 아예 빠져있던
+    # 4개 Harness Config를 추가(드리프트 감지 테스트로 발견). 다른 26개와 마찬가지로
+    # 현재는 평가에 반영되지 않는다(REQ-5 경고 대상).
+    reproducibility: Optional["ReproducibilityConfig"] = None,
     fault_tolerance: Optional["FaultToleranceConfig"] = None,
     plan_tracking: Optional["PlanConfig"] = None,
     # v0.9.1+: 신규 Harness Config
     sla: Optional["SLAConfig"] = None,
     threat_severity: Optional["ThreatSeverityConfig"] = None,
     efficiency: Optional["EfficiencyConfig"] = None,
+    state_consistency: Optional["StateConsistencyConfig"] = None,  # SPEC-039 REQ-4
     deadlock: Optional["DeadlockConfig"] = None,
     observability: Optional["ObservabilityConfig"] = None,
+    consensus: Optional["ConsensusConfig"] = None,  # SPEC-039 REQ-4
     # v0.9.2+: Phase 3 Harness Config
     scope: Optional["ScopeConfig"] = None,
     context_retention: Optional["ContextRetentionConfig"] = None,
     explainability: Optional["ExplainabilityConfig"] = None,
     subtask_tracking: Optional["SubtaskConfig"] = None,
+    propagation: Optional["PropagationConfig"] = None,  # SPEC-039 REQ-4
     # v0.9.3+: Phase 4 Harness Config
     agent_role: Optional["AgentRoleConfig"] = None,
     graceful_degradation: Optional["GracefulDegradationConfig"] = None,
@@ -6425,6 +6558,14 @@ def conversation_eval(
     (model, tokens, tool_calls 등)가 ``ConversationSession.turn()`` 에 전달된다.
     호출자에게는 ``response`` 만 반환된다.
 
+    .. warning::
+        SPEC-039 REQ-5: ``instructions``/``sla``/``scope`` 등 27개 Harness Config
+        파라미터(``agent_eval``/``batch_eval``이 받는 것과 동일한 이름)는 시그니처로는
+        받지만 **현재 평가에 전혀 반영되지 않는다** — ``conversation_eval``은 이 값들을
+        ``TaskResult``/``_build_and_record()`` 경로가 아니라 별도의
+        ``ConversationSession``/``conv.turn()`` 경로로 기록하기 때문이다. 하나라도
+        전달하면 데코레이션 시점에 ``UserWarning``이 발생한다.
+
     Example::
 
         @conversation_eval(monitor, session_id_arg="sid", max_turns=5)
@@ -6438,13 +6579,48 @@ def conversation_eval(
         flush_conversation("conv_001")
         # → ConversationSession: context_retention, topic_coherence 등 계산 후 기록
     """
+    # SPEC-039 REQ-5: 이 27개 Harness Config 파라미터는 시그니처로는 받지만 conversation_eval의
+    # 실제 기록 경로(_do_flush → conv.turn())가 전혀 참조하지 않는다 — 조용히 무시되던 것을
+    # 호출자에게 알린다. 실제 평가 배선은 이 스펙의 범위 밖(Non-Goals).
+    # 주의: `locals()`는 list comprehension 내부에서 호출하면 컴프리헨션 자체의 스코프를
+    # 반환해 함수 파라미터를 보지 못한다 — 반드시 컴프리헨션 밖에서 한 번 캡처해야 한다.
+    _conv_locals = locals()
+    _conv_ignored_harness = [
+        _name for _name in _CONVERSATION_EVAL_UNUSED_HARNESS_PARAMS
+        if _conv_locals.get(_name) is not None
+    ]
+    if _conv_ignored_harness:
+        import warnings as _w_conv
+        _w_conv.warn(
+            f"conversation_eval: {_conv_ignored_harness}는 현재 평가에 반영되지 않습니다 "
+            "(conversation_eval은 TaskResult가 아니라 ConversationSession에 기록하며, 이 "
+            "Harness Config 파라미터들을 평가하는 경로가 아직 구현돼 있지 않습니다 — "
+            "SPEC-039 REQ-5 Non-Goals). 시그니처에는 남아 있으나 실제 효과가 없습니다.",
+            UserWarning, stacklevel=2,
+        )
+
+    # SPEC-039 REQ-1: 호출자 전달 여부를 preset 병합 전에 캡처(sentinel 치환 전에 판정).
+    _explicit_sample_rate = sample_rate is not _UNSET
+    _explicit_flush_every = flush_every is not _UNSET
+    _explicit_enabled = enabled is not _UNSET
+    if sample_rate is _UNSET:
+        sample_rate = 1.0
+    if flush_every is _UNSET:
+        flush_every = None
+    if enabled is _UNSET:
+        enabled = True
+
     # A1: preset — conversation_eval도 동일한 preset 시스템 지원
     if preset is not None:
         if preset in AGENT_EVAL_PRESETS:
             _cp = AGENT_EVAL_PRESETS[preset]
-            sample_rate = sample_rate if sample_rate != 1.0 else _cp.get("sample_rate", sample_rate)
-            flush_every = flush_every if flush_every else _cp.get("flush_every", flush_every)
-            enabled = enabled if not enabled else _cp.get("enabled", enabled)
+            sample_rate = _resolve_preset_field(
+                sample_rate, not _explicit_sample_rate, _cp, "sample_rate", sample_rate
+            )
+            flush_every = _resolve_preset_field(
+                flush_every, not _explicit_flush_every, _cp, "flush_every", flush_every
+            )
+            enabled = _resolve_preset_field(enabled, not _explicit_enabled, _cp, "enabled", enabled)
         else:
             import warnings as _w
             _w.warn(
@@ -6803,10 +6979,11 @@ def batch_eval(
     on_batch_complete: Optional[Callable] = None,
     on_batch_progress: Optional[Callable] = None,
     alert_rules: Optional[List[Any]] = None,
-    flush_every: Optional[int] = None,          # N 배치 호출마다 monitor.save_to_file() 자동 실행
-    sample_rate: float = 1.0,
-    timeout: Optional[float] = None,
-    enabled: bool = True,
+    # SPEC-039 REQ-1: `_UNSET` sentinel — 실제 기본값은 주석대로, preset과의 충돌 판정용.
+    flush_every: Optional[int] = _UNSET,          # 실제 기본값: None (N 배치 호출마다 자동 저장)
+    sample_rate: float = _UNSET,                  # 실제 기본값: 1.0
+    timeout: Optional[float] = _UNSET,            # 실제 기본값: None
+    enabled: bool = _UNSET,                       # 실제 기본값: True
     concurrency: int = 0,                       # >0이면 항목별로 병렬 실행 (asyncio.gather), 상한 설정
     # SPEC-006 REQ-4: LLM Judge 호출을 asyncio.gather로 동시 처리(옵트인). 기본 False=기존 순차 처리.
     concurrent_judge: bool = False,
@@ -6902,14 +7079,32 @@ def batch_eval(
         )
         # → 2개의 TaskResult 가 monitor 에 기록됨
     """
+    # SPEC-039 REQ-1: 호출자 전달 여부를 preset 병합 전에 캡처(sentinel 치환 전에 판정).
+    _explicit_sample_rate = sample_rate is not _UNSET
+    _explicit_timeout = timeout is not _UNSET
+    _explicit_flush_every = flush_every is not _UNSET
+    _explicit_enabled = enabled is not _UNSET
+    if sample_rate is _UNSET:
+        sample_rate = 1.0
+    if timeout is _UNSET:
+        timeout = None
+    if flush_every is _UNSET:
+        flush_every = None
+    if enabled is _UNSET:
+        enabled = True
+
     # A1: preset — batch_eval도 agent_eval과 동일한 preset 시스템 지원
     if preset is not None:
         if preset in AGENT_EVAL_PRESETS:
             _bp = AGENT_EVAL_PRESETS[preset]
-            sample_rate = sample_rate if sample_rate != 1.0 else _bp.get("sample_rate", sample_rate)
-            timeout = timeout if timeout is not None else _bp.get("timeout", timeout)
-            flush_every = flush_every if flush_every else _bp.get("flush_every", flush_every)
-            enabled = enabled if not enabled else _bp.get("enabled", enabled)
+            sample_rate = _resolve_preset_field(
+                sample_rate, not _explicit_sample_rate, _bp, "sample_rate", sample_rate
+            )
+            timeout = _resolve_preset_field(timeout, not _explicit_timeout, _bp, "timeout", timeout)
+            flush_every = _resolve_preset_field(
+                flush_every, not _explicit_flush_every, _bp, "flush_every", flush_every
+            )
+            enabled = _resolve_preset_field(enabled, not _explicit_enabled, _bp, "enabled", enabled)
         else:
             import warnings as _w
             _w.warn(
@@ -6941,14 +7136,24 @@ def batch_eval(
         # F-A: batch_eval은 consensus_responses를 각 항목에 전달하지 않으므로
         # consensus=ConsensusConfig(...)를 설정해도 eval_consensus가 항상 건너뛰어짐
         # (agent_eval 내부 조건: `if consensus is not None and consensus_responses:` → 항상 False)
+        #
+        # 2026-07 Ch09 리뷰에서 확인: `consensus_responses`는 `_build_and_record()`(내부 헬퍼)
+        # 에만 존재하고 공개 `agent_eval()`/`batch_eval()` 시그니처에는 노출되지 않는다
+        # (agent_eval(consensus_responses=...)는 TypeError). 아래 경고문이 예전에는
+        # "agent_eval의 consensus_responses= 파라미터"를 대안으로 안내했지만, 그 파라미터
+        # 자체를 호출자가 쓸 수 없으므로 실재하지 않는 해결책을 가리키고 있었다 — 실제로
+        # 동작하는 유일한 경로(EvalMetadata(extra={"consensus": {...}}) 수동 주입, 또는
+        # eval_consensus()를 직접 호출)로 안내를 정정한다.
         if consensus is not None:
             import warnings as _w_fa
             _w_fa.warn(
                 "batch_eval에 consensus=ConsensusConfig(...)가 설정되어 있지만 "
                 "batch_eval은 각 항목에 consensus_responses를 주입하지 않으므로 "
                 "consensus 평가가 항상 건너뜁니다. "
-                "ConsensusConfig는 agent_eval의 consensus_responses= 파라미터와 함께 사용하거나, "
-                "배치 응답 목록을 직접 eval_consensus()에 전달하세요.",
+                "ConsensusConfig 점수는 "
+                "EvalMetadata(extra={'consensus': {'consensus_score': ...}})로 직접 계산해 "
+                "주입하거나, agent_evaluator.gates.gate_f_multiagent.evaluators."
+                "eval_consensus()를 배치 응답 목록에 직접 호출한 뒤 그 결과를 주입하세요.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -8040,11 +8245,13 @@ class EvalDecorator:
         "on_record",              # C: 세션 flush 후 마지막 TaskResult에 호출되는 콜백
         "llm_judge",              # LLMJudgeConfig 통합
         # v0.9.0+: Phase 1 Harness Config
-        "instructions", "loop_detection", "goal_alignment", "fault_tolerance", "plan_tracking",
+        "instructions", "loop_detection", "goal_alignment", "reproducibility",
+        "fault_tolerance", "plan_tracking",
         # v0.9.1+: 신규 Harness Config
-        "sla", "threat_severity", "efficiency", "deadlock", "observability",
+        "sla", "threat_severity", "efficiency", "state_consistency", "deadlock",
+        "observability", "consensus",
         # v0.9.2+: Phase 3 Harness Config
-        "scope", "context_retention", "explainability", "subtask_tracking",
+        "scope", "context_retention", "explainability", "subtask_tracking", "propagation",
         # v0.9.3+: Phase 4 Harness Config
         "agent_role", "graceful_degradation", "compliance", "resource_budget", "conflict_resolution",
         # v0.9.4+: Phase 5 Harness Config

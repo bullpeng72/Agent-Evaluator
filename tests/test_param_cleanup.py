@@ -285,9 +285,15 @@ class TestStrictTypesRemoved:
 
 class TestBatchFlushEveryDefault:
     def test_flush_every_default_is_none(self):
-        """batch_eval flush_every 기본값이 None이어야 한다."""
+        """batch_eval flush_every 기본값이 None이어야 한다.
+
+        SPEC-039 REQ-1: 시그니처 기본값은 이제 preset 충돌 판정용 내부 sentinel(`_UNSET`)이다.
+        "명시하지 않으면 None으로 해석된다"는 실제 동작은 함수 호출 기반 테스트가 검증한다.
+        """
+        from agent_evaluator.decorators import _UNSET
+
         sig = inspect.signature(batch_eval)
-        assert sig.parameters["flush_every"].default is None
+        assert sig.parameters["flush_every"].default is _UNSET
 
     def test_flush_every_in_signature(self):
         """flush_every= 는 여전히 batch_eval 서명에 있다."""
@@ -450,10 +456,15 @@ class TestBatchEvalParamCount:
 
 class TestConversationEvalParamCount:
     def test_param_count_is_28(self):
-        """conversation_eval 파라미터 수가 v0.9.5+ 기준 54개이어야 한다 (Phase 6 Harness Config 4개 추가)."""
+        """conversation_eval 파라미터 수가 58개이어야 한다.
+
+        SPEC-039 REQ-4: agent_eval에는 있었지만 conversation_eval 시그니처에서 빠져 있던
+        4개 Harness Config(reproducibility/state_consistency/consensus/propagation)를
+        드리프트 감지 테스트로 발견해 추가 — 54 + 4 = 58.
+        """
         sig = inspect.signature(conversation_eval)
-        assert len(sig.parameters) == 54, (
-            f"conversation_eval 파라미터 수: {len(sig.parameters)}개 (예상: 54개)\n"
+        assert len(sig.parameters) == 58, (
+            f"conversation_eval 파라미터 수: {len(sig.parameters)}개 (예상: 58개)\n"
             f"파라미터 목록: {list(sig.parameters.keys())}"
         )
 
@@ -896,8 +907,11 @@ class TestEnableHallucinationRename:
             agent_eval(monitor, task_type="qa", enable_hallucination=True)
 
     def test_new_name_default_false(self):
+        # SPEC-039 REQ-1: 시그니처 기본값은 이제 preset 충돌 판정용 내부 sentinel(`_UNSET`)이다.
+        from agent_evaluator.decorators import _UNSET
+
         sig = inspect.signature(agent_eval)
-        assert sig.parameters["enable_hallucination_detection"].default is False
+        assert sig.parameters["enable_hallucination_detection"].default is _UNSET
 
     def test_new_name_works(self, monitor):
         """enable_hallucination_detection=True 로 DeprecationWarning 없이 동작."""

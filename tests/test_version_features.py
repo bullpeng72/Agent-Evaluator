@@ -3041,9 +3041,13 @@ class TestAgentEvalEnableHallucination:
         assert "enable_hallucination_detection" in sig.parameters
 
     def test_enable_hallucination_false_by_default(self):
-        from agent_evaluator.decorators import agent_eval
+        # SPEC-039 REQ-1: 시그니처 기본값은 이제 preset 충돌 판정용 내부 sentinel(`_UNSET`)이다
+        # — "명시하지 않으면 False로 해석된다"는 실제 동작은 함수 호출 기반 테스트들이
+        # 별도로 검증한다(예: test_spec039_decorator_architecture.py). 여기서는 sentinel이
+        # 여전히 이 파라미터의 기본값으로 연결돼 있는지만 확인한다.
+        from agent_evaluator.decorators import _UNSET, agent_eval
         sig = inspect.signature(agent_eval)
-        assert sig.parameters["enable_hallucination_detection"].default is False
+        assert sig.parameters["enable_hallucination_detection"].default is _UNSET
 
     def test_hallucination_runs_when_enabled(self):
         from agent_evaluator import PerformanceMonitor

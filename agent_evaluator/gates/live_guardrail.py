@@ -33,9 +33,15 @@ Gate E 트래커는 (Gate B 순수 함수와 달리) 호출마다 내부 상태�
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import contextvars
 import dataclasses
+import functools
+import inspect
 import json
-from typing import Any, Dict, List, Optional
+import warnings
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent_evaluator.core.trackers.security import (
     PrivilegeEscalationDetector,
@@ -497,3 +503,208 @@ class LiveGuardrail:
         편입하는 용도임을 호출부에서 드러내기 위한 별도 이름.
         """
         return self.snapshot()
+
+
+# ---------------------------------------------------------------------------
+# SPEC-039 REQ-6: contextvars 기반 세션 + tool_guard 데코레이터
+#
+# 지금까지 자체 Python 에이전트 루프에서 LiveGuardrail을 쓰려면 도구 호출
+# 지점마다 `check_before_tool_call()` → (통과 시) 실제 실행 → `record_tool_call()`을
+# 손으로 반복해야 했다(Ch27 `run_agent_step()` 헬퍼가 이 패턴을 감싸지만, 그래도
+# 호출 스타일 자체를 그 헬퍼로 바꿔야 하는 침습적 변경이었다). `agent_eval`은 이미
+# `contextvars.ContextVar`(`decorators.py`의 `_eval_ctx_var`) + `_push_ctx()`/`_pop_ctx()`로
+# "현재 실행 컨텍스트"를 암묵 전달하는 인프라를 갖고 있다 — 여기서는 정확히 같은
+# 패턴을 LiveGuardrail 전용으로 재현한다(별도의 새 ContextVar, `_eval_ctx_var`와는
+# 무관 — 의미가 다른 두 컨텍스트를 하나로 합치지 않는다).
+#
+# 사용 패턴::
+#
+#     from agent_evaluator.gates.live_guardrail import (
+#         LiveGuardrail, live_guardrail_session, tool_guard, GuardrailBlockedError,
+#     )
+#
+#     guardrail = LiveGuardrail(tool_parameter_safety=ToolParameterSafetyConfig(...))
+#
+#     @tool_guard()
+#     def bash(command: str) -> str:
+#         ...  # 실제 구현 — guardrail을 전혀 모른다
+#         return result
+#
+#     with live_guardrail_session(guardrail, task_id="session-1"):
+#         bash("ls -la")       # 자동으로 check_before_tool_call → 실행 → record_tool_call
+#         bash("rm -rf /")     # GuardrailBlockedError 발생
+# ---------------------------------------------------------------------------
+
+_guardrail_ctx_var: "contextvars.ContextVar[Optional[Tuple[LiveGuardrail, str]]]" = (
+    contextvars.ContextVar("_live_guardrail_ctx", default=None)
+)
+
+
+class GuardrailBlockedError(Exception):
+    """:meth:`tool_guard`로 감싼 함수 호출이 차단됐을 때 발생 (SPEC-039 REQ-6).
+
+    Attributes:
+        verdict: 차단을 유발한 :class:`LiveVerdict` (``.gate``/``.reason``/``.detail`` 포함).
+    """
+
+    def __init__(self, verdict: "LiveVerdict") -> None:
+        self.verdict = verdict
+        super().__init__(verdict.reason or "blocked by LiveGuardrail")
+
+
+@contextlib.contextmanager
+def live_guardrail_session(guardrail: "LiveGuardrail", task_id: str):
+    """이 ``with`` 블록 안에서 실행되는 :func:`tool_guard` 함수 호출이 자동으로 이
+    ``guardrail``/``task_id``를 쓰게 한다 (SPEC-039 REQ-6).
+
+    ``decorators.py``의 ``_push_ctx()``/``_pop_ctx()``와 동일한 토큰 기반
+    contextvars 패턴 — 세션(에이전트 루프 1회 실행)마다 새로 진입해야 한다.
+    ``asyncio.create_task()``로 만든 동시 태스크 사이에서도 서로 다른 세션이
+    섞이지 않는다(``contextvars.ContextVar``의 표준 보장).
+
+    Args:
+        guardrail: 이 세션에 쓸 :class:`LiveGuardrail` 인스턴스.
+        task_id: 이 세션의 태스크/세션 식별자.
+
+    Example::
+
+        with live_guardrail_session(guardrail, task_id="session-1"):
+            bash("ls -la")
+    """
+    token = _guardrail_ctx_var.set((guardrail, task_id))
+    try:
+        yield guardrail
+    finally:
+        _guardrail_ctx_var.reset(token)
+
+
+def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> Dict[str, Any]:
+    """``func(*args, **kwargs)`` 호출의 실제 인자를 이름 기반 dict로 변환한다.
+
+    ``check_before_tool_call()``/``record_tool_call()``이 기대하는
+    ``parameters: dict`` 형태로 맞추기 위함 — 바인딩 실패 시(가변 인자 등
+    드문 시그니처) 빈 dict로 안전하게 폴백한다.
+    """
+    try:
+        bound = inspect.signature(func).bind(*args, **kwargs)
+        bound.apply_defaults()
+        return dict(bound.arguments)
+    except Exception:
+        return {}
+
+
+def tool_guard(
+    tool_name: Optional[str] = None,
+    *,
+    audit_blocked: bool = False,
+    fail_closed: bool = False,
+    capture_output: Optional[Callable[[Any], Dict[str, Any]]] = None,
+) -> Callable:
+    """도구 함수를 :class:`LiveGuardrail`로 비침습적으로 감싸는 데코레이터 (SPEC-039 REQ-6).
+
+    ``live_guardrail_session()`` 블록 안에서 이 데코레이터가 붙은 함수가 호출되면,
+    실제 실행 전에 자동으로 ``check_before_tool_call()``을 거치고 차단되지 않으면
+    실행 후 ``record_tool_call()``까지 자동 호출한다 — 호출자는 도구 함수를
+    평소처럼 그냥 호출하면 된다(``run_agent_step()`` 같은 별도 헬퍼로 호출 스타일을
+    바꿀 필요가 없다).
+
+    새로운 위험 탐지 로직은 없다 — :class:`LiveGuardrail`의 기존 메서드를
+    호출 지점마다 반복해서 쓰지 않도록 감싸는 순수 적용 계층이다.
+
+    Args:
+        tool_name: ``check_before_tool_call()``/``record_tool_call()``에 넘길 도구
+            이름. 생략하면 데코레이트된 함수의 ``__name__``을 쓴다.
+        audit_blocked: ``True``면 차단된 시도를 ``record_blocked_attempt()``로
+            감사 이력에도 남긴다(기본 ``False`` — SPEC-030과 동일하게 옵트인).
+        fail_closed: 활성 ``live_guardrail_session()``이 없는 상태에서 호출되면
+            ``True``일 때 :class:`RuntimeError`를 발생시킨다. ``False``(기본)면
+            ``RuntimeWarning``만 내고 가드 없이 원본 함수를 그대로 실행한다
+            (다른 ``fail_on_*`` 옵션들과 달리 여기서는 기본값을 fail-open으로 둔다 —
+            세션 밖에서의 우발적 호출까지 막으면 테스트·REPL 사용성이 크게 떨어지기
+            때문이다. "단 하나의 누락도 허용하지 않아야" 하는 운영 환경이라면
+            반드시 ``fail_closed=True``로 명시할 것).
+        capture_output: 함수의 반환값을 받아 ``record_tool_call(output=...)``에 넘길
+            ``{"success": ..., "exit_code": ..., "stdout": ..., "stderr": ...}``
+            형태의 dict로 변환하는 콜백(선택). 지정하지 않으면 ``output``은
+            생략되고(기존과 동일한 낙관적 기본값), 예외가 발생하지 않고 정상
+            반환됐다는 사실만으로 ``success``를 추론하지 않는다 — 반환값 형태가
+            도구마다 제각각이라 매직 추론은 하지 않는다(SPEC-039 설계 결정).
+
+    Raises:
+        GuardrailBlockedError: 호출이 차단됐을 때. ``.verdict``에 판정 상세가 담긴다.
+
+    Example::
+
+        @tool_guard(audit_blocked=True, fail_closed=True)
+        def bash(command: str) -> str:
+            ...
+            return result
+
+        with live_guardrail_session(guardrail, task_id="s1"):
+            bash("ls -la")
+    """
+
+    def decorator(func: Callable) -> Callable:
+        _name = tool_name or func.__name__
+        _is_async = asyncio.iscoroutinefunction(func)
+
+        def _resolve_ctx() -> Optional[Tuple["LiveGuardrail", str]]:
+            ctx = _guardrail_ctx_var.get()
+            if ctx is not None:
+                return ctx
+            _msg = (
+                f"tool_guard({_name!r}): 활성 live_guardrail_session()이 없습니다 — "
+                "가드 없이 원본 함수를 그대로 실행합니다. 이 호출이 반드시 검사돼야 "
+                "한다면 tool_guard(fail_closed=True)를 쓰세요."
+            )
+            if fail_closed:
+                raise RuntimeError(_msg)
+            warnings.warn(_msg, RuntimeWarning, stacklevel=3)
+            return None
+
+        def _check(
+            guardrail: "LiveGuardrail", task_id: str, params: Dict[str, Any]
+        ) -> "LiveVerdict":
+            verdict = guardrail.check_before_tool_call(task_id, _name, params)
+            if verdict.block:
+                if audit_blocked:
+                    guardrail.record_blocked_attempt(task_id, _name, verdict)
+                raise GuardrailBlockedError(verdict)
+            return verdict
+
+        def _record(
+            guardrail: "LiveGuardrail", task_id: str, params: Dict[str, Any], result: Any
+        ) -> None:
+            output = capture_output(result) if capture_output is not None else None
+            guardrail.record_tool_call(task_id, _name, params, output)
+
+        if _is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                ctx = _resolve_ctx()
+                if ctx is None:
+                    return await func(*args, **kwargs)
+                guardrail, task_id = ctx
+                params = _bind_call_params(func, args, kwargs)
+                _check(guardrail, task_id, params)
+                result = await func(*args, **kwargs)
+                _record(guardrail, task_id, params, result)
+                return result
+
+            return async_wrapper
+
+        @functools.wraps(func)
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            ctx = _resolve_ctx()
+            if ctx is None:
+                return func(*args, **kwargs)
+            guardrail, task_id = ctx
+            params = _bind_call_params(func, args, kwargs)
+            _check(guardrail, task_id, params)
+            result = func(*args, **kwargs)
+            _record(guardrail, task_id, params, result)
+            return result
+
+        return sync_wrapper
+
+    return decorator
