@@ -1102,7 +1102,7 @@ from agent_evaluator.decorators import (
 
 ## Example Guide
 
-Consists of 28 files based on book chapters. Each file is independently runnable.
+Consists of 32 files based on book chapters (Ch28's AOO stack install walkthrough has no standalone script; Ch33 instead ships `scripts/generate_pr_summary.py`). Each file is independently runnable.
 
 ### Example Dependencies
 
@@ -1129,13 +1129,19 @@ Consists of 28 files based on book chapters. Each file is independently runnable
 | `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (optional) |
 | `ch20_deployment.py` | Ch20 | Production deployment strategy — v1 vs v2 Gate score comparison | — |
 | `ch21_pipeline.py` | Ch21 | Comprehensive production pipeline — dev→CI→ops→improvement 4 stages | — |
-| `ch22_project_analysis.py` | Ch22 | Existing project analysis — topology · LLM enumeration · risk prioritization | — |
-| `ch23_gate_mapping.py` | Ch23 | Gate mapping strategy — failure mode catalog → Config translation + weight design | — |
-| `ch24_quickeval_entry.py` | Ch24 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
-| `ch25_harness_full.py` | Ch25 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
-| `ch26_cicd_weekly.py` | Ch26 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
-| `ch27_live_guardrail.py` | Ch27 | LiveGuardrail real-time single-tool-call guardrail — SQLite batch report + `search_violations()` | — |
-| `ch28_local_ade_loop.py` | Ch28 | Local ADE self-correction loop ([AOO stack](Docs/AOO_STACK.md)) — closed loop block → surface → record → index → search, batch Gate A/D/G integration | — |
+| `ch22_tool_guard_realtime.py` | Ch22 | Real-time security control — `@tool_guard` decorator, `fail_closed`, `capture_output`, async tools, blocked-attempt audit | — |
+| `ch23_project_analysis.py` | Ch23 | Existing project analysis — topology · LLM enumeration · risk prioritization | — |
+| `ch24_gate_mapping.py` | Ch24 | Gate mapping strategy — failure mode catalog → Config translation + weight design | — |
+| `ch25_quickeval_entry.py` | Ch25 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
+| `ch26_harness_full.py` | Ch26 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
+| `ch27_cicd_weekly.py` | Ch27 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
+| `ch29_spec_driven.py` | Ch29 | Spec-Driven development — failure mode catalog → Gate mapping → golden set → session goal template | — |
+| `ch30_live_guardrail.py` | Ch30 | LiveGuardrail core API — SQLite batch report + `search_violations()` + blocked-attempt audit | — |
+| `ch31_team_concurrency.py` | Ch31 | Team concurrency risk control — claims log, `TeamConcurrencyConfig`, `BranchGuardConfig` | — |
+| `ch32_tdd_local_loop.py` | Ch32 | TDD-AI local dev loop — self-correction, batch Gate A/D/G integration ([AOO stack](Docs/AOO_STACK.md)) | — |
+| `ch34_capstone.py` | Ch34 | 3-person team capstone — Spec split → claims → LiveGuardrail → batch Gate A/B → PR summary → CI claim audit | — |
+
+Ch33 (PR verification & governance) has no `Evaluator_Examples` file of its own — it ships `scripts/generate_pr_summary.py`, a standalone CLI reused by `ch34_capstone.py`'s Phase 5.
 
 ### Running Examples
 
@@ -1143,7 +1149,7 @@ Each file is standalone — see the table above for what each chapter covers.
 
 ```bash
 cd Evaluator_Examples
-python ch01_first_eval.py      # ... through ch28_local_ade_loop.py
+python ch01_first_eval.py      # ... through ch34_capstone.py
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 agent-eval monitor             # Start Phoenix server (http://localhost:6006)

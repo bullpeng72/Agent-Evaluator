@@ -73,7 +73,7 @@ exact same `PerformanceMonitor.record_task()`/`generate_report()` that `@agent_e
 
 The result is a normal result file — point `agent-eval gate`/`agent-eval dashboard` at
 `results/opencode_live_guardrail/` exactly as for any other run. See
-`Evaluator_Examples/ch28_local_ade_loop.py` (Section 5) for a runnable, end-to-end demonstration.
+`Evaluator_Examples/ch32_tdd_local_loop.py` (Section 5) for a runnable, end-to-end demonstration.
 
 ## Team scope claims — `.aoo/claims.jsonl` (SPEC-032/034/036/037/038)
 
@@ -133,5 +133,5 @@ opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integra
   `SPEC-035-branch-guard.md`, `SPEC-036-team-concurrency-owner-exclusion.md`,
   `SPEC-037-team-concurrency-owner-auto.md`, `SPEC-038-claims-cli.md` — team-concurrency/branch-guard
   design history.
-- `Evaluator_Examples/ch27_live_guardrail.py`, `Evaluator_Examples/ch28_local_ade_loop.py` — runnable
-  examples.
+- `Evaluator_Examples/ch30_live_guardrail.py`, `Evaluator_Examples/ch31_team_concurrency.py`,
+  `Evaluator_Examples/ch32_tdd_local_loop.py` — runnable examples.

@@ -130,7 +130,7 @@ Judge 비교가 무의미해지는 문제를 해소합니다.
 
 이 변경들은 새 CLI 서브커맨드나 새 비교 로직을 만들지 않았습니다 — 이미
 존재하는 `agent-eval gate`/`agent-eval dashboard`가 그대로 이 데이터를 읽습니다.
-`Evaluator_Examples/ch28_local_ade_loop.py`(섹션 5)에서 `record_and_save()`를
+`Evaluator_Examples/ch32_tdd_local_loop.py`(섹션 5)에서 `record_and_save()`를
 직접 호출해 Gate A/D/G가 실제로 채워지는 것과 `agent-eval gate`가 exit 0으로
 통과하는 것을 실행 검증했습니다. 상세는 `Docs/specs/SPEC-027-git-based-agent-version-tagging.md`/
 `Docs/specs/SPEC-028-aoo-batch-harness-integration.md` 참조.
@@ -298,4 +298,4 @@ rm -f victim2.txt → [agent-evaluator] blocked by Gate B: dangerous tool parame
   Python 브리지(OpenCode 전용이 아닌 범용 stdio 프로토콜).
 - `agent_evaluator/integrations/live_guardrail_report.py` — 세션 종료 시 1회
   실행되는 배치 편입 브리지 + `success`/`execution_time`/`agent_version` 옵트인 필드(SPEC-028).
-- `Evaluator_Examples/ch28_local_ade_loop.py`(섹션 5) — 배치 Gate A–G 통합 실행 예제.
+- `Evaluator_Examples/ch32_tdd_local_loop.py`(섹션 5) — 배치 Gate A–G 통합 실행 예제.
