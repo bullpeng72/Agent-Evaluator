@@ -28,15 +28,18 @@ class TestAuditClaimsReleasedClaimsExcluded:
         assert violations == []
 
     def test_released_claim_not_flagged_for_overlap(self, tmp_path):
+        from datetime import datetime, timezone
+
+        now_iso = datetime.now(timezone.utc).isoformat()
         claims_path = tmp_path / "claims.jsonl"
         append_claim(
             claims_path, claim_id="c1", developer="sungwoo", scope=["x/"],
-            started_at="2026-07-08T09:00:00+09:00", status="active",
+            started_at=now_iso, status="active",
         )
         append_claim(claims_path, claim_id="c1", status="released")
         append_claim(
             claims_path, claim_id="c2", developer="alice", scope=["x/"],
-            started_at="2026-07-08T09:00:00+09:00", status="active",
+            started_at=now_iso, status="active",
         )
         violations = audit_claims(claims_path, ttl_hours=8)
         assert violations == []
@@ -126,14 +129,17 @@ class TestAuditClaimsOverlap:
         assert len(overlaps) == 1
 
     def test_non_overlapping_scopes_not_flagged(self, tmp_path):
+        from datetime import datetime, timezone
+
+        now_iso = datetime.now(timezone.utc).isoformat()
         claims_path = tmp_path / "claims.jsonl"
         append_claim(
             claims_path, claim_id="c1", developer="sungwoo", scope=["x/"],
-            started_at="2026-07-08T09:00:00+09:00", status="active",
+            started_at=now_iso, status="active",
         )
         append_claim(
             claims_path, claim_id="c2", developer="alice", scope=["y/"],
-            started_at="2026-07-08T09:00:00+09:00", status="active",
+            started_at=now_iso, status="active",
         )
         violations = audit_claims(claims_path, ttl_hours=8)
         assert violations == []
