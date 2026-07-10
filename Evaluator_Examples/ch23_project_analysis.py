@@ -1,7 +1,7 @@
 """
-ch22_project_analysis.py — 기존 프로젝트 해부: 평가 가능한 단위 찾기
+ch23_project_analysis.py — 기존 프로젝트 해부: 평가 가능한 단위 찾기
 ====================================================================
-Book Chapter 22 — 기존 프로젝트 해부
+Book Chapter 23 — 기존 프로젝트 해부
 
 분석 4단계 방법론을 3가지 가상 프로젝트 토폴로지에 적용한다.
 Lecture_forge 실제 사례와 비교하며 "측정 가능한 단위"를 추출하는
@@ -17,10 +17,10 @@ Lecture_forge 실제 사례와 비교하며 "측정 가능한 단위"를 추출�
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch22_project_analysis.py
+    python Evaluator_Examples/ch23_project_analysis.py
 
 결과:
-    results/ch22_project_analysis.json  (+ .html)
+    results/ch23_project_analysis.json  (+ .html)
 """
 
 import random
@@ -58,7 +58,7 @@ except Exception:
     pass
 
 print("=" * 60)
-print("  Ch22: 기존 프로젝트 해부 방법론 실습")
+print("  Ch23: 기존 프로젝트 해부 방법론 실습")
 print("=" * 60)
 
 # ===========================================================================
@@ -324,12 +324,12 @@ print(f"  총 태스크: {report.total_tasks}건")
 # ===========================================================================
 # 최종 저장
 # ===========================================================================
-monitor.save_to_file("ch22_project_analysis")
-print("\n결과 저장 완료: results/ch22_project_analysis.json")
+monitor.save_to_file("ch23_project_analysis")
+print("\n결과 저장 완료: results/ch23_project_analysis.json")
 print("확인: agent-eval dashboard --results results/")
 
 print("""
-=== Ch22 분석 4단계 완료 요약 ===
+=== Ch23 분석 4단계 완료 요약 ===
 
   Step 1 토폴로지:  순차(A) + 루프(B) 복합 패턴 확인
                    외부 입력 경로 3개 (PDF·URL·사용자 질문) 식별
@@ -341,7 +341,7 @@ print("""
                    5개 측정 공백 → Gate A/B/D/E/F/G 매핑 예정
 
   Step 4 우선순위: E(보안) > B+D(루프+비용) > A(목표달성) 순
-                   → Ch23에서 Gate Config로 번역 시작
+                   → Ch24에서 Gate Config로 번역 시작
 
-  다음 단계: Ch23 Gate 매핑 — 실패 모드 카탈로그 작성
+  다음 단계: Ch24 Gate 매핑 — 실패 모드 카탈로그 작성
 """)

@@ -1,7 +1,7 @@
 """
-ch23_gate_mapping.py — Gate 매핑 전략: 실패 모드에서 Config로
+ch24_gate_mapping.py — Gate 매핑 전략: 실패 모드에서 Config로
 =============================================================
-Book Chapter 23 — Gate 매핑 전략
+Book Chapter 24 — Gate 매핑 전략
 
 실패 모드 카탈로그 3문항 → Gate Config 번역 과정을 단계별로 실습한다.
 범용 매핑 테이블을 먼저 보고, Lecture_forge 실제 사례로 검증한다.
@@ -16,10 +16,10 @@ Book Chapter 23 — Gate 매핑 전략
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch23_gate_mapping.py
+    python Evaluator_Examples/ch24_gate_mapping.py
 
 결과:
-    results/ch23_gate_mapping.json  (+ .html)
+    results/ch24_gate_mapping.json  (+ .html)
 """
 
 import random
@@ -88,7 +88,7 @@ except Exception:
     pass
 
 print("=" * 60)
-print("  Ch23: Gate 매핑 전략 — 실패 모드에서 Config로")
+print("  Ch24: Gate 매핑 전략 — 실패 모드에서 Config로")
 print("=" * 60)
 
 # ===========================================================================
@@ -232,7 +232,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    task_id_prefix="ch23_goal",
+    task_id_prefix="ch24_goal",
     instructions=InstructionConfig(
         required_keywords=["학습목표"],
         fail_on_violation=True,
@@ -252,7 +252,7 @@ def goal_aligned_writer(question: str, ground_truth: str = "") -> str:
 @agent_eval(
     monitor,
     task_type="tool_use",
-    task_id_prefix="ch23_loop",
+    task_id_prefix="ch24_loop",
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
     scope=ScopeConfig(allowed_tools=["search", "write", "revise"]),
 )
@@ -268,7 +268,7 @@ def loop_safe_writer(question: str, ground_truth: str = "") -> str:
 @agent_eval(
     monitor,
     task_type="qa",
-    task_id_prefix="ch23_sla",
+    task_id_prefix="ch24_sla",
     sla=SLAConfig(p95_ms=3_000),
     resource_budget=ResourceBudgetConfig(max_tokens=5_000, max_cost_usd=0.01),
 )
@@ -352,12 +352,12 @@ print(f"  Accuracy:   {_acc(report):.1f}%")
 print(f"  P95:        {_p95(report):.2f}초")
 print(f"  총 태스크:   {report.total_tasks}건")
 
-monitor.save_to_file("ch23_gate_mapping")
-print("\n결과 저장 완료: results/ch23_gate_mapping.json")
+monitor.save_to_file("ch24_gate_mapping")
+print("\n결과 저장 완료: results/ch24_gate_mapping.json")
 print("확인: agent-eval dashboard --results results/")
 
 print("""
-=== Ch23 Gate 매핑 완료 요약 ===
+=== Ch24 Gate 매핑 완료 요약 ===
 
   방법론:   실패 모드 3문항 → 범용 매핑 테이블 → Gate Config
   핵심 원칙: Gate부터 시작하지 않는다 — 실패 모드부터 시작한다
@@ -369,5 +369,5 @@ print("""
     Gate B × 1.5  → 루프 = 비용 폭발
     Gate F × 1.5  → audience_level 전파 무음 실패
 
-  다음 단계: Ch24 첫 번째 이식 — 30분 안에 첫 숫자 얻기
+  다음 단계: Ch25 첫 번째 이식 — 30분 안에 첫 숫자 얻기
 """)

@@ -1,7 +1,7 @@
 """
-ch26_cicd_weekly.py — CI/CD 완성: 자동화로 지속 가능하게 만들기
+ch27_cicd_weekly.py — CI/CD 완성: 자동화로 지속 가능하게 만들기
 ================================================================
-Book Chapter 26 — CI/CD 완성
+Book Chapter 27 — CI/CD 완성
 
 골든 데이터셋 재현 평가, 8주 추세 분석, 주간 리뷰 자동화를
 단계별로 실습한다. Gate D 비용 추세에서 숨겨진 드리프트를 발견한다.
@@ -16,10 +16,10 @@ Book Chapter 26 — CI/CD 완성
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch26_cicd_weekly.py
+    python Evaluator_Examples/ch27_cicd_weekly.py
 
 결과:
-    results/ch26_cicd_weekly.json  (+ .html)
+    results/ch27_cicd_weekly.json  (+ .html)
 """
 
 import json
@@ -60,7 +60,7 @@ except Exception:
     pass
 
 print("=" * 60)
-print("  Ch26: CI/CD 완성 — 자동화로 지속 가능하게 만들기")
+print("  Ch27: CI/CD 완성 — 자동화로 지속 가능하게 만들기")
 print("=" * 60)
 
 # ===========================================================================
@@ -174,7 +174,7 @@ print(f"\n  TCR:      {_tcr(ci_report):.1f}%  {'✅ PASS' if tcr_pass else '❌ 
 print(f"  Accuracy: {_acc(ci_report):.1f}%  {'✅ PASS' if acc_pass else '❌ FAIL'} (임계값: 70%)")
 print(f"  P95:      {_p95(ci_report):.2f}초")
 
-gate_cmd = "agent-eval gate results/ch26_cicd_weekly.json --tcr 85 --accuracy 70"
+gate_cmd = "agent-eval gate results/ch27_cicd_weekly.json --tcr 85 --accuracy 70"
 overall = "✅ PR 통과 — 머지 허용" if (tcr_pass and acc_pass) else "❌ PR 차단 — 품질 기준 미달"
 print(f"\n  $ {gate_cmd}")
 print(f"  → {overall}")
@@ -338,12 +338,12 @@ print(f"  평균 TCR:     {_tcr(weekly_report):.1f}%")
 print(f"  평균 Accuracy: {_acc(weekly_report):.1f}%")
 print(f"  비용 드리프트: +{cost_increase_pct:.1f}% (W1→W8)")
 
-weekly_monitor.save_to_file("ch26_cicd_weekly")
-print("\n결과 저장 완료: results/ch26_cicd_weekly.json")
+weekly_monitor.save_to_file("ch27_cicd_weekly")
+print("\n결과 저장 완료: results/ch27_cicd_weekly.json")
 print("확인: agent-eval dashboard --results results/")
 
 print("""
-=== Ch26 CI/CD 완성 요약 ===
+=== Ch27 CI/CD 완성 요약 ===
 
   3단계 자동화:
     PR 검증    → 골든 데이터셋 50건, ~3분, 실패 시 차단

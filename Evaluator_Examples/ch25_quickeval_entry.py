@@ -1,7 +1,7 @@
 """
-ch24_quickeval_entry.py — 첫 번째 이식: 30분 안에 첫 숫자 얻기
+ch25_quickeval_entry.py — 첫 번째 이식: 30분 안에 첫 숫자 얻기
 ===============================================================
-Book Chapter 24 — 첫 번째 이식
+Book Chapter 25 — 첫 번째 이식
 
 침습도(Invasiveness) 최소화 원칙으로 기존 코드를 건드리지 않고
 첫 번째 측정값을 얻는 방법을 실습한다.
@@ -16,10 +16,10 @@ Book Chapter 24 — 첫 번째 이식
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch24_quickeval_entry.py
+    python Evaluator_Examples/ch25_quickeval_entry.py
 
 결과:
-    results/ch24_quickeval_entry.json  (+ .html)
+    results/ch25_quickeval_entry.json  (+ .html)
 """
 
 import random
@@ -60,7 +60,7 @@ except Exception:
     pass
 
 print("=" * 60)
-print("  Ch24: 첫 번째 이식 — 30분 안에 첫 숫자 얻기")
+print("  Ch25: 첫 번째 이식 — 30분 안에 첫 숫자 얻기")
 print("=" * 60)
 
 # ===========================================================================
@@ -361,7 +361,7 @@ print("""
   · Accuracy 50–80% → ground_truth 키워드가 생성 본문에 얼마나 포함됐는지 측정
     (학습목표가 실제 콘텐츠에 반영되는지 — Gate A의 시작점)
   · P95 > 0.5초  → 실제 LLM 환경에서는 수십 초 예상
-    → SLAConfig(p95_ms=45_000) 설정으로 모니터링 시작 (Ch25)
+    → SLAConfig(p95_ms=45_000) 설정으로 모니터링 시작 (Ch26)
   · 기존 에이전트 파일 수정: 0줄
     → 어댑터를 제거하면 원래 코드로 즉시 복구 가능
 """)
@@ -384,21 +384,21 @@ print("""
 
   ③ 중앙 모니터로 통합 (Level 2 진입)
     기준: 여러 에이전트의 측정값을 한 리포트로 보고 싶다
-    행동: Ch25 전체 통합으로 이동
+    행동: Ch26 전체 통합으로 이동
 
   Lecture_forge 권장 순서:
     1단계: QAAgent Level 0 래핑 (5분)               ← 섹션 2에서 완료
     2단계: ContentWriterAdapter 위임 어댑터 (20분)   ← 섹션 3에서 완료
-    3단계: 4개 에이전트 어댑터 + 중앙 모니터 (1시간)  ← Ch25
-    4단계: CI/CD 통합 (Ch26)
+    3단계: 4개 에이전트 어댑터 + 중앙 모니터 (1시간)  ← Ch26
+    4단계: CI/CD 통합 (Ch27)
 """)
 
-monitor_adapter.save_to_file("ch24_quickeval_entry")
-print("결과 저장 완료: results/ch24_quickeval_entry.json")
+monitor_adapter.save_to_file("ch25_quickeval_entry")
+print("결과 저장 완료: results/ch25_quickeval_entry.json")
 print("확인: agent-eval dashboard --results results/")
 
 print("""
-=== Ch24 첫 번째 이식 완료 요약 ===
+=== Ch25 첫 번째 이식 완료 요약 ===
 
   Level 0 래핑:       QAAgent — @eval_session.qa 래퍼 함수 (str 반환)
   위임 어댑터 패턴:   ContentWriterAdapter — Pydantic 반환 에이전트 계측
@@ -411,5 +411,5 @@ print("""
   핵심 원칙: 완벽한 측정이 아니라 빠른 첫 측정
     → 데이터가 있어야 Gate를 설계할 수 있다
 
-  다음 단계: Ch25 전체 통합 — 4개 에이전트 어댑터 + 중앙 모니터 연결
+  다음 단계: Ch26 전체 통합 — 4개 에이전트 어댑터 + 중앙 모니터 연결
 """)

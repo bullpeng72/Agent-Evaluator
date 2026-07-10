@@ -1,7 +1,7 @@
 """
-ch25_harness_full.py — 전체 통합: Gate A–G를 파이프라인에 연결
+ch26_harness_full.py — 전체 통합: Gate A–G를 파이프라인에 연결
 ==============================================================
-Book Chapter 25 — 전체 통합
+Book Chapter 26 — 전체 통합
 
 중앙 모니터 패턴과 위임 어댑터 패턴을 결합해 기존 파이프라인에
 Gate A–G를 완전히 연결하고, Gate F 경고에서 실제 버그를 발견한다.
@@ -17,10 +17,10 @@ Gate A–G를 완전히 연결하고, Gate F 경고에서 실제 버그를 발�
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch25_harness_full.py
+    python Evaluator_Examples/ch26_harness_full.py
 
 결과:
-    results/ch25_harness_full.json  (+ .html)
+    results/ch26_harness_full.json  (+ .html)
 """
 
 import random
@@ -70,7 +70,7 @@ except Exception:
     pass
 
 print("=" * 60)
-print("  Ch25: 전체 통합 — Gate A–G 파이프라인 연결")
+print("  Ch26: 전체 통합 — Gate A–G 파이프라인 연결")
 print("=" * 60)
 
 # ===========================================================================
@@ -468,7 +468,7 @@ print("""
 @agent_eval(
     monitor,
     task_type="qa",
-    task_id_prefix="ch25_qa",
+    task_id_prefix="ch26_qa",
     # Gate A — 목표 달성
     instructions=InstructionConfig(
         required_keywords=["FastAPI", "Depends"],
@@ -637,12 +637,12 @@ print(f"  TCR:      {_tcr(report_fixed):.1f}%  (이전: {_tcr(report_buggy):.1f}
 print(f"  Accuracy: {_acc(report_fixed):.1f}%  (이전: {_acc(report_buggy):.1f}%)")
 print(f"  audience_level 전파율: 100% → Gate F 0.720 → 0.950 (1줄 수정)")
 
-monitor.save_to_file("ch25_harness_full")
-print("\n결과 저장 완료: results/ch25_harness_full.json")
+monitor.save_to_file("ch26_harness_full")
+print("\n결과 저장 완료: results/ch26_harness_full.json")
 print("확인: agent-eval dashboard --results results/")
 
 print("""
-=== Ch25 전체 통합 완료 요약 ===
+=== Ch26 전체 통합 완료 요약 ===
 
   패턴:   build_lecture_monitor() + 위임 어댑터 4종
     · ContentAnalyzerAdapter   — task_type="information_retrieval"
@@ -662,5 +662,5 @@ print("""
   핵심 통찰: Gate는 단순 점수가 아니다.
     "어느 코드 라인이 품질을 낮추는가"를 가리키는 진단 도구다.
 
-  다음 단계: Ch26 CI/CD 완성 — 자동화로 지속 가능하게 만들기
+  다음 단계: Ch27 CI/CD 완성 — 자동화로 지속 가능하게 만들기
 """)
