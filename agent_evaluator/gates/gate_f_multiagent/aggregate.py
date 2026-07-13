@@ -15,7 +15,7 @@ conflict_resolution)는 서로 독립적인 필터 조건이므로 단일 `for t
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
@@ -25,8 +25,8 @@ def compute(
     agent_coordination_tracker: Any,
     tool_selection_tracker: Any,
     min_samples_default: int,
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate F(Multi-Agent Coordination) 그룹 딕셔너리를 계산한다.
 
     Args:
@@ -46,7 +46,7 @@ def compute(
     """
     # Fix1+2: self.coordination_tracker(없는 속성) + get_coordination_stats()(없는 메서드) 수정
     # calculate_coordination_score()의 overall_score(0-10)를 /10으로 정규화
-    _coord_data: Optional[float] = None
+    _coord_data: float | None = None
     _coord_total_interactions = 0
     try:
         _coord_score_data = agent_coordination_tracker.calculate_coordination_score()
@@ -59,7 +59,7 @@ def compute(
         pass
 
     # Fix7: ToolSelectionTracker → Gate F (avg_f1_score 0-100 → /100 정규화)
-    _ts_data: Optional[float] = None
+    _ts_data: float | None = None
     _ts_total_evaluations = 0
     try:
         _ts_stats = tool_selection_tracker.get_accuracy_stats()
@@ -72,10 +72,10 @@ def compute(
         pass
 
     if shared_running is not None:
-        avg_consensus: Optional[float] = shared_running["consensus_avg"]
-        avg_propagation: Optional[float] = shared_running["propagation_avg"]
-        _avg_role: Optional[float] = shared_running["role_avg"]
-        _avg_conflict_res: Optional[float] = shared_running["conflict_avg"]
+        avg_consensus: float | None = shared_running["consensus_avg"]
+        avg_propagation: float | None = shared_running["propagation_avg"]
+        _avg_role: float | None = shared_running["role_avg"]
+        _avg_conflict_res: float | None = shared_running["conflict_avg"]
         _consensus_n = shared_running["consensus_count"]
         _prop_n = shared_running["propagation_count"]
         _role_n = shared_running["role_count"]
@@ -84,10 +84,10 @@ def compute(
         # 단일 패스 병합(SPEC-000 REQ-2) — 4개 지표 모두 서로 독립적인 필터 조건(t.extra의
         # "consensus"/"propagation"/"agent_role"/"conflict_resolution" 키, consensus는 추가로
         # method != "single")이므로 하나의 for 루프에서 동시에 축적 가능.
-        _consensus_scores: List[float] = []
-        _prop_vals: List[float] = []
-        _role_scores: List[float] = []
-        _conflict_scores: List[float] = []
+        _consensus_scores: list[float] = []
+        _prop_vals: list[float] = []
+        _role_scores: list[float] = []
+        _conflict_scores: list[float] = []
         for t in tasks:
             extra = t.extra or {}
 
@@ -133,7 +133,7 @@ def compute(
         _role_n = len(_role_scores)
         _conflict_n = len(_conflict_scores)
 
-    _f_vals: List[float] = []
+    _f_vals: list[float] = []
     if _coord_data is not None:
         _f_vals.append(_coord_data)
     if _ts_data is not None:
@@ -146,10 +146,10 @@ def compute(
         _f_vals.append(_avg_role)
     if _avg_conflict_res is not None:
         _f_vals.append(_avg_conflict_res)
-    _f_score: Optional[float] = float(sum(_f_vals) / len(_f_vals)) if _f_vals else None
+    _f_score: float | None = float(sum(_f_vals) / len(_f_vals)) if _f_vals else None
 
     # SPEC-002: insufficient_data 경고 (task 기반 4개 지표)
-    _f_insufficient: List[str] = []
+    _f_insufficient: list[str] = []
     for _name, _cnt in (
         ("consensus", _consensus_n),
         ("propagation", _prop_n),

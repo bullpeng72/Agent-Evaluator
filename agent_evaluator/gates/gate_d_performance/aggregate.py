@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g
 
@@ -25,15 +25,15 @@ from agent_evaluator.gates.base import _g
 def compute(
     tasks: list,
     latency_tracker: Any,
-    ttft_variability_config: Optional[Any],
-    cost_predictability_config: Optional[Any],
+    ttft_variability_config: Any | None,
+    cost_predictability_config: Any | None,
     min_samples_default: int,
-    sla_results: List[Dict[str, Any]],
+    sla_results: list[dict[str, Any]],
     sla_window_penalty: float,
     sla_budget_penalty: float,
-    sla_warning: Optional[str],
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    sla_warning: str | None,
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate D(Performance Contract) 그룹 딕셔너리를 계산한다.
 
     Args:
@@ -74,13 +74,13 @@ def compute(
         avg_eff_ratio = shared_running["eff_ratio_avg"]
         _eff_calibrated_n = shared_running["eff_calibrated_count"]
         if _eff_calibrated_n >= max(1, _eff_ratio_n // 2):
-            avg_eff_calibrated: Optional[float] = shared_running["eff_calibrated_avg"]
+            avg_eff_calibrated: float | None = shared_running["eff_calibrated_avg"]
         else:
             avg_eff_calibrated = None
 
         # resource_budget — 정확 (SPEC-018 Phase 7): 누적합/최근 config 덮어쓰기로 항등 재현.
         _rb_n = shared_running["rb_n"]
-        _avg_budget: Optional[float] = None
+        _avg_budget: float | None = None
         if _rb_n > 0:
             _rb_cfg = shared_running["rb_config"]
             _use_rollover = bool(_rb_cfg.get("rollover", False))
@@ -94,7 +94,7 @@ def compute(
                 _max_tok = shared_running["rb_max_tokens"]
                 _max_cost = shared_running["rb_max_cost"]
                 _max_time = shared_running["rb_max_time"]
-                _utils: List[float] = []
+                _utils: list[float] = []
                 if _max_tok > 0:
                     _utils.append(_total_tokens_consumed / _max_tok)
                 if _max_cost > 0:
@@ -106,8 +106,8 @@ def compute(
                 _avg_budget = shared_running["rb_budget_score_avg"]
     else:
         # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
-        _eff_calibrated_vals: List[float] = []
-        _eff_ratios_by_unit: Dict[str, List[float]] = {}  # unit → ratios (단위 혼재 방지)
+        _eff_calibrated_vals: list[float] = []
+        _eff_ratios_by_unit: dict[str, list[float]] = {}  # unit → ratios (단위 혼재 방지)
         for _t in tasks:
             _eff = ((_t.extra or {}).get("efficiency") or {})
             if not _eff:
@@ -119,7 +119,7 @@ def compute(
                 _unit = str(_eff.get("cost_unit") or "tokens")
                 _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
         # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
-        _eff_ratios: List[float] = max(
+        _eff_ratios: list[float] = max(
             _eff_ratios_by_unit.values(), key=len, default=[]
         )
         _eff_cost_unit = (
@@ -201,7 +201,7 @@ def compute(
         # 전체 이력이 이 샘플 크기를 넘으면 가장 오래된 원시값부터 밀려나 있을 수 있다
         # (승인된 의도적 근사 — 아래 sorted/IQR/stddev/percentile 계산 자체는 정확하다,
         # 다만 "무엇을 대상으로" 계산하는지가 전체 이력이 아닌 샘플이라는 차이다).
-        _ttft_values: List[float] = list(shared_running["ttft_values"])
+        _ttft_values: list[float] = list(shared_running["ttft_values"])
     else:
         _ttft_values = []
         for _t in tasks:
@@ -230,10 +230,10 @@ def compute(
         except Exception:
             pass
 
-    _avg_ttft_variability: Optional[float] = None
-    _ttft_stddev: Optional[float] = None
-    _ttft_p50: Optional[float] = None
-    _ttft_p95: Optional[float] = None
+    _avg_ttft_variability: float | None = None
+    _ttft_stddev: float | None = None
+    _ttft_p50: float | None = None
+    _ttft_p95: float | None = None
     if len(_ttft_values) >= _ttft_min_samples:
         _ttft_sorted = sorted(_ttft_values)
         if _ttft_remove_outliers and len(_ttft_sorted) >= 4:
@@ -273,7 +273,7 @@ def compute(
     _cost_metric: str = str(getattr(_cost_cfg, "cost_metric", "tokens")) if _cost_cfg else "tokens"
     _outlier_mult: float = float(getattr(_cost_cfg, "outlier_multiplier", 3.0)) if _cost_cfg else 3.0
 
-    def _filter_outliers(values: List[float], multiplier: float) -> List[float]:
+    def _filter_outliers(values: list[float], multiplier: float) -> list[float]:
         """mean ± multiplier * std 범위 밖의 값을 제거한다."""
         if len(values) < 4:
             return values
@@ -283,13 +283,13 @@ def compute(
             return values
         return [v for v in values if abs(v - _mean) <= multiplier * _std]
 
-    _avg_cost_predictability: Optional[float] = None
+    _avg_cost_predictability: float | None = None
     _cost_gate_n = shared_running["total_n"] if shared_running is not None else len(tasks)
     if _cost_gate_n >= _cost_min_samples:
         if shared_running is not None:
             # cost_predictability — 근사 (SPEC-018 Phase 7): ttft_variability와 동일한
             # 이유로 window_size와 독립적인 최근 샘플(task_type별 별도 링버퍼)에서 계산한다.
-            _costs_by_type: Dict[str, List[float]] = dict(
+            _costs_by_type: dict[str, list[float]] = dict(
                 shared_running["cost_by_metric"].get(_cost_metric, {})
             )
         else:
@@ -326,7 +326,7 @@ def compute(
                 if _cv_cost <= 0.0:
                     continue
                 _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
-        _cv_scores_d: List[float] = []
+        _cv_scores_d: list[float] = []
         for _costs_list in _costs_by_type.values():
             # outlier_multiplier로 이상치 제거 후 CV 계산
             _filtered = _filter_outliers(_costs_list, _outlier_mult)
@@ -342,7 +342,7 @@ def compute(
             _avg_cost_predictability = sum(_cv_scores_d) / len(_cv_scores_d)
 
     # ── D 그룹: insufficient_data 경고 수집 ──
-    _d_insufficient: List[str] = []
+    _d_insufficient: list[str] = []
     if _ttft_values and len(_ttft_values) < _ttft_min_samples:
         _d_insufficient.append(
             f"ttft_variability: {len(_ttft_values)} samples < min_samples={_ttft_min_samples}"
@@ -365,7 +365,7 @@ def compute(
     if sla_warning:
         _d_insufficient.append(sla_warning)
 
-    _perf_vals: List[float] = []
+    _perf_vals: list[float] = []
     if _p95 > 0:
         # SLAConfig.p95_ms 전체 평균을 임계값으로 사용 (태스크별 설정 혼재 시 last-task-wins 방지)
         # 없으면 기본 10s 기준
@@ -396,7 +396,7 @@ def compute(
         _perf_vals.append(_avg_ttft_variability)
     if _avg_cost_predictability is not None:
         _perf_vals.append(_avg_cost_predictability)
-    _perf_score: Optional[float] = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
+    _perf_score: float | None = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
     # SLA breach_window/budget_usd 패널티 적용 (데이터 있을 때만)
     if _perf_score is not None:
         _perf_score = max(0.0, _perf_score - sla_window_penalty - sla_budget_penalty)

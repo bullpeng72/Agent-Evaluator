@@ -2,11 +2,11 @@
 Context manager for evaluation sessions
 Provides automatic resource management and result saving
 """
+from __future__ import annotations
 
 import contextlib
 import logging
 from contextlib import asynccontextmanager, contextmanager
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,11 @@ def evaluation_session(
     Raises:
         Any exception raised in the context block (after auto-saving)
     """
-    from .agent_evaluator import PerformanceMonitor
-
     # output_filename에서 사람이 읽기 쉬운 레이블 추출
     # 예: "results/01_quality_eval.json" → "01_quality_eval"
     import os as _os
+
+    from .agent_evaluator import PerformanceMonitor
     _label = _os.path.splitext(_os.path.basename(output_filename))[0]
 
     # Create monitor (session_label → Phoenix Sessions 탭 그룹핑 & ae.source 속성)
@@ -191,7 +191,7 @@ def hybrid_evaluation_session(
 @asynccontextmanager
 async def async_evaluation_session(
     output_filename: str = "evaluation",
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     monitor=None,
     **monitor_kwargs,
 ):
@@ -214,8 +214,9 @@ async def async_evaluation_session(
         ...     result = await agent.ainvoke(question)
         ...     monitor.record_task(create_taskresult(...))
     """
-    from .agent_evaluator import PerformanceMonitor
     import os as _os
+
+    from .agent_evaluator import PerformanceMonitor
     _label = _os.path.splitext(_os.path.basename(output_filename))[0]
 
     _monitor = monitor or PerformanceMonitor(

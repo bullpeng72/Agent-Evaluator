@@ -31,7 +31,7 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Sequence, Union
 
 import numpy as np
 
@@ -45,11 +45,11 @@ class CalibrationCase:
     task_id: str
     question: str
     response: str
-    human_scores: Dict[str, float]
-    context: Optional[str] = None
+    human_scores: dict[str, float]
+    context: str | None = None
 
 
-def _pearson_r(x: Sequence[float], y: Sequence[float]) -> Optional[float]:
+def _pearson_r(x: Sequence[float], y: Sequence[float]) -> float | None:
     """표준편차가 0이거나(상수 배열) n<2면 상관계수가 정의되지 않으므로 None."""
     if len(x) < 2:
         return None
@@ -61,7 +61,7 @@ def _pearson_r(x: Sequence[float], y: Sequence[float]) -> Optional[float]:
 
 def _weighted_kappa(
     rater1: Sequence[int], rater2: Sequence[int], n_categories: int, weights: str = "quadratic",
-) -> Optional[float]:
+) -> float | None:
     """Cohen's weighted kappa — scikit-learn 없이 numpy만으로 직접 구현.
 
     표준 공식 ``kappa = 1 - sum(W*O) / sum(W*E)``:
@@ -94,8 +94,8 @@ def _weighted_kappa(
 def compute_agreement(
     judge_scores: Sequence[float],
     human_scores: Sequence[float],
-    category_range: Tuple[int, int] = (0, 5),
-) -> Dict[str, Any]:
+    category_range: tuple[int, int] = (0, 5),
+) -> dict[str, Any]:
     """judge/human 점수 쌍의 합의도 지표를 계산한다.
 
     Args:
@@ -132,7 +132,7 @@ def compute_agreement(
     _human_cat = [int(round(min(max(s, lo), hi))) - lo for s in _human]
     _exact_match = sum(1 for j, h in zip(_judge_cat, _human_cat) if j == h) / n
 
-    def _round_or_none(value: Optional[float]) -> Optional[float]:
+    def _round_or_none(value: float | None) -> float | None:
         return round(value, 4) if value is not None else None
 
     return {
@@ -156,7 +156,7 @@ class LLMJudgeCalibration:
     def __init__(self, judge: LLMJudge) -> None:
         self._judge = judge
 
-    def run(self, cases: List[CalibrationCase]) -> Dict[str, Any]:
+    def run(self, cases: list[CalibrationCase]) -> dict[str, Any]:
         """각 케이스를 ``judge()``로 채점하고, 사람 라벨이 있는 차원별로
         :func:`compute_agreement`를 실행한 리포트를 반환한다.
 
@@ -176,7 +176,7 @@ class LLMJudgeCalibration:
         for case in cases:
             dimensions.update(case.human_scores.keys())
 
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "n_cases": len(cases),
             "skipped_count": skipped_count,
             "dimensions": {},
@@ -198,7 +198,7 @@ class LLMJudgeCalibration:
         return report
 
 
-def load_cases_from_json(path: Union[str, Path]) -> List[CalibrationCase]:
+def load_cases_from_json(path: Union[str, Path]) -> list[CalibrationCase]:
     """``[{"task_id", "question", "response", "human_scores", "context"?}, ...]``
     형식의 JSON 파일을 읽어 :class:`CalibrationCase` 리스트로 변환한다."""
     with open(path, encoding="utf-8") as f:

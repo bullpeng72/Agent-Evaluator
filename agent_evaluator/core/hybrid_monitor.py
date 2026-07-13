@@ -4,6 +4,7 @@ Hybrid Performance Monitor
 Extends native Agent Evaluator with external library metrics
 (DeepEval, Ragas)
 """
+from __future__ import annotations
 
 import atexit
 import json
@@ -13,7 +14,7 @@ import tempfile
 import warnings
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +43,16 @@ warnings.filterwarnings('ignore', message='.*coroutine.*was never awaited.*')
 @dataclass(frozen=True)
 class ExtendedTaskResult(TaskResult):
     """TaskResult with advanced metrics from external libraries"""
-    advanced_metrics: Dict[str, Any] = field(default_factory=dict)
-    evaluation_context: Optional[Dict[str, Any]] = None
-    metric_providers_used: List[str] = field(default_factory=list)
+    advanced_metrics: dict[str, Any] = field(default_factory=dict)
+    evaluation_context: dict[str, Any] | None = None
+    metric_providers_used: list[str] = field(default_factory=list)
 
 
 @dataclass
 class HybridEvaluationReport(EvaluationReport):
     """Evaluation report with advanced metrics"""
-    advanced_metrics_summary: Dict[str, Any] = field(default_factory=dict)
-    providers_used: List[str] = field(default_factory=list)
+    advanced_metrics_summary: dict[str, Any] = field(default_factory=dict)
+    providers_used: list[str] = field(default_factory=list)
 
 
 # ============================================================================
@@ -76,9 +77,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         ragas_model: str = "gpt-5-nano",
         enable_hallucination_detection: bool = True,
         enable_security_metrics: bool = False,
-        security_config: Optional[Dict[str, Any]] = None,
+        security_config: dict[str, Any] | None = None,
         enable_transparency: bool = False,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         **parent_kwargs: Any,
     ):
         """
@@ -110,8 +111,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         )
 
         # Initialize metric adapters
-        self.metric_adapters: Dict[MetricProvider, MetricAdapter] = {}
-        self.enabled_providers: List[str] = ["native"]
+        self.metric_adapters: dict[MetricProvider, MetricAdapter] = {}
+        self.enabled_providers: list[str] = ["native"]
 
         logger.info("Initializing HybridPerformanceMonitor")
 
@@ -139,7 +140,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         # Storage for extended results — bounded to prevent unbounded memory growth (L4)
         # For long-running services, consider periodic flush or external storage
-        self.extended_tasks: List[ExtendedTaskResult] = []
+        self.extended_tasks: list[ExtendedTaskResult] = []
 
         # Register cleanup handler
         atexit.register(self._cleanup)
@@ -150,10 +151,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         enable_advanced_metrics: bool = True,
         input_text: str = "",
         output_text: str = "",
-        expected_output: Optional[str] = None,
-        retrieved_context: Optional[List[str]] = None,
-        quality_criteria: Optional[str] = None
-    ) -> "HybridPerformanceMonitor":
+        expected_output: str | None = None,
+        retrieved_context: list[str] | None = None,
+        quality_criteria: str | None = None
+    ) -> HybridPerformanceMonitor:
         """
         Record task with both native and advanced metrics
 
@@ -186,7 +187,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         # 2. Evaluate with external libraries (optional, slower)
         # M7: use None when disabled to distinguish "not collected" from "collected but empty"
-        advanced_metrics: Optional[Dict[str, Any]] = None
+        advanced_metrics: dict[str, Any] | None = None
         providers_used = ["native"]
 
         if enable_advanced_metrics and (input_text or output_text):
@@ -341,7 +342,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         return hybrid_report
 
-    def _aggregate_advanced_metrics(self, debug: bool = False) -> Dict[str, Any]:
+    def _aggregate_advanced_metrics(self, debug: bool = False) -> dict[str, Any]:
         """
         Aggregate advanced metrics across all tasks
 
@@ -427,7 +428,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         return summary
 
-    def _calculate_pass_rate(self, passed_key: str) -> Dict[str, Any]:
+    def _calculate_pass_rate(self, passed_key: str) -> dict[str, Any]:
         """Calculate pass rate for a given metric"""
         passed = 0
         total = 0
@@ -444,7 +445,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             'rate': passed / total if total > 0 else 0
         }
 
-    def _summarize_detections(self, metric_name: str) -> Dict[str, int]:
+    def _summarize_detections(self, metric_name: str) -> dict[str, int]:
         """Summarize boolean detection metrics"""
         detected = 0
         total = 0
@@ -557,7 +558,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         logger.info("Hybrid evaluation results saved to: %s", filename)
 
     @classmethod
-    def load_from_file(cls, filename: str) -> 'HybridPerformanceMonitor':
+    def load_from_file(cls, filename: str) -> HybridPerformanceMonitor:
         """Load results from JSON file"""
         # results/ 디렉토리에서 탐색 (현재 디렉토리에 없는 경우)
         if not os.path.exists(filename):
@@ -804,7 +805,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         print("\n" + "="*70 + "\n")
 
-    def _generate_advanced_recommendations(self, advanced_summary: Dict[str, Any]) -> List[Dict[str, str]]:
+    def _generate_advanced_recommendations(self, advanced_summary: dict[str, Any]) -> list[dict[str, str]]:
         """Generate recommendations based on advanced metrics"""
         recommendations = []
 
@@ -930,7 +931,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
 def create_monitor(
     profile: str = "balanced",
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     **kwargs
 ) -> HybridPerformanceMonitor:
     """

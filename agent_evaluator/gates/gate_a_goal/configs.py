@@ -9,7 +9,6 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다.
 from __future__ import annotations
 
 import dataclasses
-from typing import Dict, List, Optional
 
 
 @dataclasses.dataclass
@@ -22,18 +21,18 @@ class InstructionConfig:
                     instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
         def agent(question, ground_truth=""): ...
     """
-    expected_format: Optional[str] = None                     # "json"|"markdown"|"yaml"|"plain"|None
-    required_sections: List[str] = dataclasses.field(default_factory=list)
-    max_chars: Optional[int] = None
-    min_chars: Optional[int] = None
-    max_words: Optional[int] = None
-    min_words: Optional[int] = None
-    forbidden_phrases: List[str] = dataclasses.field(default_factory=list)
-    required_keywords: List[str] = dataclasses.field(default_factory=list)
-    expected_language: Optional[str] = None
+    expected_format: str | None = None                     # "json"|"markdown"|"yaml"|"plain"|None
+    required_sections: list[str] = dataclasses.field(default_factory=list)
+    max_chars: int | None = None
+    min_chars: int | None = None
+    max_words: int | None = None
+    min_words: int | None = None
+    forbidden_phrases: list[str] = dataclasses.field(default_factory=list)
+    required_keywords: list[str] = dataclasses.field(default_factory=list)
+    expected_language: str | None = None
     fail_on_violation: bool = False
     violation_weight: float = 0.1
-    violation_weights: Dict[str, float] = dataclasses.field(default_factory=dict)  # 위반 유형별 가중치 (format/sections/length/forbidden/keywords/language)
+    violation_weights: dict[str, float] = dataclasses.field(default_factory=dict)  # 위반 유형별 가중치 (format/sections/length/forbidden/keywords/language)
 
 
 @dataclasses.dataclass
@@ -47,7 +46,7 @@ class GoalAlignmentConfig:
         def agent(question, ground_truth=""): ...
     """
     use_keyword_overlap: bool = True                              # 질문 키워드 ↔ 도구명 오버랩 계산
-    goal_tool_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 목표 키워드 → 도구 목록 매핑
+    goal_tool_map: dict[str, list[str]] = dataclasses.field(default_factory=dict)  # 목표 키워드 → 도구 목록 매핑
     use_llm_scoring: bool = False                                 # LLM-as-Judge 정렬 점수 (opt-in)
     llm_blend_weight: float = 0.5                                 # LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only)
     alignment_threshold: float = 0.6                             # 경고 임계값 (0.0~1.0)
@@ -69,7 +68,7 @@ class PlanConfig:
     check_goal_coverage: bool = True                  # 목표 키워드가 계획 단계에 포함되는지 확인
     check_step_ordering: bool = True                  # 단계 순서 논리성 확인
     check_executability: bool = True                  # 각 단계가 사용 가능한 도구로 실행 가능한지 확인
-    available_tools: List[str] = dataclasses.field(default_factory=list)  # 사용 가능한 도구 목록
+    available_tools: list[str] = dataclasses.field(default_factory=list)  # 사용 가능한 도구 목록
     use_llm_scoring: bool = False                     # LLM-as-Judge 계획 품질 채점 (opt-in)
     llm_blend_weight: float = 0.5                     # LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only)
     min_steps: int = 2                                # 최소 계획 단계 수
@@ -86,7 +85,7 @@ class ContextRetentionConfig:
                     context_retention=ContextRetentionConfig(key_entities=["Seoul", "Korea"]))
         def agent(question, ground_truth=""): ...
     """
-    key_entities: List[str] = dataclasses.field(default_factory=list)
+    key_entities: list[str] = dataclasses.field(default_factory=list)
     context_arg: str = "context"
     retention_threshold: float = 0.7
     check_original_goal: bool = True
@@ -105,8 +104,8 @@ class SubtaskConfig:
                     subtask_tracking=SubtaskConfig(expected_subtasks=["검색", "요약", "작성"]))
         def agent(question, ground_truth=""): ...
     """
-    expected_subtasks: List[str] = dataclasses.field(default_factory=list)
-    completion_markers: List[str] = dataclasses.field(
+    expected_subtasks: list[str] = dataclasses.field(default_factory=list)
+    completion_markers: list[str] = dataclasses.field(
         default_factory=lambda: ["done", "completed", "finished", "✓", "완료", "처리"]
     )
     check_ordering: bool = False
@@ -127,7 +126,7 @@ class KnowledgeRetentionConfig:
                         facts_to_retain=["서울", "2024"], seed_turns=2))
         def agent(question, ground_truth=""): ...
     """
-    facts_to_retain: List[str] = dataclasses.field(default_factory=list)
+    facts_to_retain: list[str] = dataclasses.field(default_factory=list)
     seed_turns: int = 2
     check_from_turn: int = 3
     allow_implicit_retention: bool = True

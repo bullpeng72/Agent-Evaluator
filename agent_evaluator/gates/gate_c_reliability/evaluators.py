@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.helpers.taskresult_helpers import _token_overlap_ratio
 
@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 def eval_fault_tolerance(
-    tool_calls: List[Dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """도구 호출 실패 후 폴백·복구 시도 여부를 평가.
 
     Args:
@@ -36,7 +36,7 @@ def eval_fault_tolerance(
     if not tool_calls:
         return {"failures_detected": False, "fallback_attempts": 0, "recovery_rate": 1.0, "grade": "none"}
 
-    failed_indices: List[int] = []
+    failed_indices: list[int] = []
     for i, tc in enumerate(tool_calls):
         if isinstance(tc, dict) and not tc.get("success", True):
             failed_indices.append(i)
@@ -54,12 +54,12 @@ def eval_fault_tolerance(
         }
 
     # expected_fallback_tools: {failed_tool_name: [allowed_fallback_names]}
-    expected_fallbacks: Dict[str, List[str]] = getattr(config, "expected_fallback_tools", {}) or {}
+    expected_fallbacks: dict[str, list[str]] = getattr(config, "expected_fallback_tools", {}) or {}
 
     # 폴백 탐지: 실패 직후 다른 도구 호출 시 폴백으로 간주
     fallback_attempts = 0
     recovered = 0
-    wrong_fallbacks: List[str] = []
+    wrong_fallbacks: list[str] = []
     for fi in failed_indices:
         next_idx = fi + 1
         if next_idx < len(tool_calls):
@@ -92,7 +92,7 @@ def eval_fault_tolerance(
     else:
         grade = "partial"
 
-    result_dict: Dict[str, Any] = {
+    result_dict: dict[str, Any] = {
         "failures_detected": True,
         "fallback_attempts": fallback_attempts,
         "recovery_rate": recovery_rate,
@@ -119,9 +119,9 @@ def eval_fault_tolerance(
 
 
 def compute_reproducibility_score(
-    responses: List[str],
+    responses: list[str],
     measure: str = "token_f1",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """여러 번 실행된 응답 간의 유사도로 재현성 점수를 계산.
 
     Args:
@@ -168,7 +168,7 @@ def compute_reproducibility_score(
         else:  # token_f1 (default)
             return _token_overlap_ratio(a, b)
 
-    pairwise: List[float] = []
+    pairwise: list[float] = []
     for i in range(run_count):
         for j in range(i + 1, run_count):
             pairwise.append(_sim(responses[i], responses[j]))
@@ -186,11 +186,11 @@ def compute_reproducibility_score(
 
 def eval_graceful_degradation(
     response: str,
-    tool_calls: List[Any],
+    tool_calls: list[Any],
     has_error: bool,
     execution_time: float,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """장애/저하 상황에서의 응답 품질을 평가한다.
 
     Args:
@@ -275,7 +275,7 @@ def eval_graceful_degradation(
     }
 
 
-def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, Any]]:
+def eval_retry_consistency(task_result: Any, config: Any) -> dict[str, Any] | None:
     """재시도 일관성 평가 (Harness C — Reliability).
 
     단일 태스크의 시도 횟수와 성공 여부를 기반으로 재시도 효율성을 산출한다.
@@ -327,8 +327,8 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
 
 
 def eval_idempotency(
-    tool_calls: List[Any], response: str, config: Any
-) -> Dict[str, Any]:
+    tool_calls: list[Any], response: str, config: Any
+) -> dict[str, Any]:
     """Evaluate whether the task is safe to retry without side effects.
 
     Args:
@@ -340,7 +340,7 @@ def eval_idempotency(
         idempotency_score, non_idempotent_tools, duplicate_detected, safe_to_retry,
         non_idempotent_count 를 담은 딕셔너리.
     """
-    tool_names: List[str] = []
+    tool_names: list[str] = []
     for tc in (tool_calls or []):
         if isinstance(tc, dict):
             # B-51: tc["function"]이 string이면 str.get() → AttributeError
@@ -356,7 +356,7 @@ def eval_idempotency(
 
     # Check for non-idempotent tool patterns
     # 토큰 단위 매칭: "recreate_session"에서 "create"가 오탐되지 않도록 구분자(_-/.)로 분리 후 정확 매칭
-    non_idempotent_tools: List[str] = []
+    non_idempotent_tools: list[str] = []
     _idem_sep_re = re.compile(r"[_\-\/\.\s]+")
     for tool_name in tool_names:
         _parts = _idem_sep_re.split(tool_name.lower())

@@ -18,7 +18,7 @@ windowed 모드의 스냅숏이 "전체 이력을 tasks로 재계산했을 때"�
 from __future__ import annotations
 
 from collections import OrderedDict, deque
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 
 class RunningAverage:
@@ -38,7 +38,7 @@ class RunningAverage:
     def count(self) -> int:
         return self._count
 
-    def average(self) -> Optional[float]:
+    def average(self) -> float | None:
         if self._count == 0:
             return None
         return self._sum / self._count
@@ -90,7 +90,7 @@ class RunningWindow:
 
     def __init__(self, maxlen: int) -> None:
         self._maxlen = maxlen
-        self._buf: Deque[Any] = deque(maxlen=maxlen)
+        self._buf: deque[Any] = deque(maxlen=maxlen)
 
     def resize(self, new_maxlen: int) -> None:
         if new_maxlen == self._maxlen:
@@ -134,12 +134,12 @@ class RunningCategoryCounter:
     __slots__ = ("_counts",)
 
     def __init__(self) -> None:
-        self._counts: Dict[str, int] = {}
+        self._counts: dict[str, int] = {}
 
     def add(self, key: str) -> None:
         self._counts[key] = self._counts.get(key, 0) + 1
 
-    def snapshot(self) -> Dict[str, int]:
+    def snapshot(self) -> dict[str, int]:
         return dict(self._counts)
 
 
@@ -244,7 +244,7 @@ class GateESharedAgg:
         if _tr and _tr.get("response_score") is not None:
             self.threat_response.add(float(_tr["response_score"]))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "n": max(self.n.count, 1),
             "sec_threats": self.sec_threats.count,
@@ -309,7 +309,7 @@ class GateFSharedAgg:
             if _rs is not None:
                 self.conflict.add(float(_rs))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "consensus_avg": self.consensus.average(),
             "consensus_count": self.consensus.count,
@@ -365,7 +365,7 @@ class GateGSharedAgg:
             if _s is not None:
                 self.latency_attribution.add(_s)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "observability_avg": self.observability.average(),
             "observability_count": self.observability.count,
@@ -432,7 +432,7 @@ class GateBSharedAgg:
         if _cw and _cw.get("context_window_score") is not None:
             self.context_window.add(float(_cw["context_window_score"]))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "loop_count": self.loop_count.count,
             "loop_n": self.loop_n.count,
@@ -537,7 +537,7 @@ class GateASharedAgg:
         if _kr is not None and _kr.get("retention_score") is not None:
             self.knowledge_retention.add(float(_kr["retention_score"]))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "ifr_avg": self.instruction_adherence.average(),
             "ifr_count": self.instruction_adherence.count,
@@ -631,7 +631,7 @@ class GateCSharedAgg:
                 self.sla_window.resize(int(_cfg.get("breach_window", 10)))
             self.sla_window.add(bool(_sla.get("sla_met", True)))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         _cfg = self.sla_config.get() or {}
         _sla_n = self.sla_n.count
 
@@ -701,7 +701,7 @@ class GateDSharedAgg:
     def __init__(self) -> None:
         # efficiency (정확)
         self.eff_calibrated = RunningAverage()
-        self._eff_ratio_by_unit: Dict[str, RunningAverage] = {}
+        self._eff_ratio_by_unit: dict[str, RunningAverage] = {}
         # resource_budget (정확)
         self.rb_config = RunningLastValue()  # 마지막 resource_budget 태스크의 _config
         self.rb_tokens_consumed = RunningSum()
@@ -714,7 +714,7 @@ class GateDSharedAgg:
         self.rb_n = RunningCount()
         # ttft_variability / cost_predictability (근사 — 슬라이딩 샘플)
         self.ttft_reservoir = RunningWindow(maxlen=self._RESERVOIR_SIZE)
-        self._cost_reservoir_by_type: Dict[str, RunningWindow] = {}
+        self._cost_reservoir_by_type: dict[str, RunningWindow] = {}
         # cost_predictability의 min_samples 게이팅은 원본이 len(tasks)(태그 무관, 전체 태스크 수)를
         # 쓰므로 이를 그대로 재현하기 위한 무조건 카운터.
         self.total_n = RunningCount()
@@ -791,7 +791,7 @@ class GateDSharedAgg:
                 self._cost_reservoir_by_type[_key] = RunningWindow(maxlen=self._RESERVOIR_SIZE)
             self._cost_reservoir_by_type[_key].add(_val)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         _eff_unit = (
             max(self._eff_ratio_by_unit, key=lambda u: self._eff_ratio_by_unit[u].count)
             if self._eff_ratio_by_unit else "tokens"
@@ -805,7 +805,7 @@ class GateDSharedAgg:
         _cfg = self.rb_config.get() or {}
         # "{metric}::{task_type}" 키를 metric별로 재구성 — compute()가 자신의 cost_metric
         # (CostPredictabilityConfig에서 파생)으로 필요한 것만 선택하도록 raw 형태 그대로 반환.
-        _cost_by_metric: Dict[str, Dict[str, List[float]]] = {}
+        _cost_by_metric: dict[str, dict[str, list[float]]] = {}
         for _key, _rw in self._cost_reservoir_by_type.items():
             _metric, _, _ttype = _key.partition("::")
             _cost_by_metric.setdefault(_metric, {})[_ttype] = _rw.values()
@@ -853,7 +853,7 @@ class GateCRetryConsistencyAgg:
     _MAX_PREFIXES = 5000
 
     def __init__(self) -> None:
-        self._prefixes: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+        self._prefixes: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.flat_avg = RunningAverage()
         self.prefix_true_seen = RunningCount()  # any(group_by_task_prefix truthy) 재현용
         self.rc_n = RunningCount()  # retry_consistency 존재하는 태스크 수(점수 유무 무관)
@@ -881,7 +881,7 @@ class GateCRetryConsistencyAgg:
         self._touch_prefix(_prefix, _tid, _sc_f, _acc, _cfg)
 
     def _touch_prefix(
-        self, prefix: str, tid: str, score: float, acc: float, cfg: Dict[str, Any]
+        self, prefix: str, tid: str, score: float, acc: float, cfg: dict[str, Any]
     ) -> None:
         if prefix not in self._prefixes:
             if len(self._prefixes) >= self._MAX_PREFIXES:
@@ -905,8 +905,8 @@ class GateCRetryConsistencyAgg:
             entry["max_tid"] = tid
             entry["max_acc"] = acc
 
-    def snapshot(self) -> Dict[str, Any]:
-        _group_avgs: List[float] = []
+    def snapshot(self) -> dict[str, Any]:
+        _group_avgs: list[float] = []
         for entry in self._prefixes.values():
             if entry["score_count"] == 0:
                 continue

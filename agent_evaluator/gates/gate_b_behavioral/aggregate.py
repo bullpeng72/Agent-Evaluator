@@ -13,19 +13,19 @@ Gate A(Goal Achievement)의 avg_goal_alignment/avg_plan_coherence는 진단용�
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
 
 def compute(
-    tasks: List[Any],
+    tasks: list[Any],
     gate_b_loop_weight: float,
     min_samples_default: int,
-    avg_goal_alignment_ref: Optional[float],
-    avg_plan_coherence_ref: Optional[float],
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    avg_goal_alignment_ref: float | None,
+    avg_plan_coherence_ref: float | None,
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate B(행동 무결성) 점수를 집계한다.
 
     Args:
@@ -55,12 +55,12 @@ def compute(
         _sc_n = shared_running["sc_count"]
         _deadlock_count = shared_running["deadlock_count"]
         _n_dl_tasks = shared_running["deadlock_n"]
-        _deadlock_by_type: Dict[str, int] = shared_running["deadlock_by_type"]
+        _deadlock_by_type: dict[str, int] = shared_running["deadlock_by_type"]
         avg_scope_score = shared_running["scope_avg"]
         _scope_n = shared_running["scope_count"]
-        avg_tool_param_safety: Optional[float] = shared_running["tps_avg"]
+        avg_tool_param_safety: float | None = shared_running["tps_avg"]
         _tps_n = shared_running["tps_count"]
-        _avg_context_window: Optional[float] = shared_running["cw_avg"]
+        _avg_context_window: float | None = shared_running["cw_avg"]
         _cw_n = shared_running["cw_count"]
     else:
         _loop_counts = sum(
@@ -133,8 +133,8 @@ def compute(
     # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
     # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
     _has_loop_data = _n_loop_tasks > 0
-    _loop_score: Optional[float] = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
-    _deadlock_score: Optional[float] = (
+    _loop_score: float | None = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
+    _deadlock_score: float | None = (
         max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
     )
     _other_bint_vals = [
@@ -145,7 +145,7 @@ def compute(
     _gate_b_lw = gate_b_loop_weight
     if _gate_b_lw > 0.0 and _loop_score is not None and _other_bint_vals:
         # 루프 감지 가중치 적용 — gate_a_tcr_weight·gate_c_tcr_weight와 동일 패턴
-        _bint_score: Optional[float] = (
+        _bint_score: float | None = (
             _gate_b_lw * _loop_score
             + (1.0 - _gate_b_lw) * (sum(_other_bint_vals) / len(_other_bint_vals))
         )
@@ -160,7 +160,7 @@ def compute(
     # ── B 그룹: insufficient_data 경고 수집 (SPEC-002) ──
     # goal_alignment/plan_coherence는 Gate A 진단용 재참조일 뿐 Gate B 스코어링에 미포함되므로
     # 여기서 중복 경고하지 않는다 — Gate A의 insufficient_data_warnings에서 이미 표시됨.
-    _b_insufficient: List[str] = []
+    _b_insufficient: list[str] = []
     for _name, _cnt in (
         ("loop_detection", _n_loop_tasks),
         ("state_consistency", _sc_n),

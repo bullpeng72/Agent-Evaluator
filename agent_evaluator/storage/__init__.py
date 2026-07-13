@@ -9,6 +9,8 @@ SPEC-016: 영속성 저장소 옵션 — SQLite 백엔드 (JSON 파일 전용의
 
 SPEC-024 REQ-3: ``search_violations()`` — Gate B/E 위반 이력 전문 검색(FTS5, REQ-2).
 """
+from __future__ import annotations
+
 from .sqlite_backend import (
     SCHEMA_VERSION,
     load_tasks_from_db,

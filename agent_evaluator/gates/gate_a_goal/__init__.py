@@ -12,3 +12,5 @@ Gate B(Behavioral Integrity)가 avg_goal_alignment/avg_plan_coherence를 진단�
 Gate B 섹션에서 이 값을 aggregate 반환값에서 읽어온다(재계산하지 않음).
 원래 위치에는 하위호환을 위한 re-export만 남는다.
 """
+from __future__ import annotations
+

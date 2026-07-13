@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -19,11 +19,11 @@ router = APIRouter(prefix="/api/webhook", tags=["webhook"])
 
 class WebhookTestBody(BaseModel):
     url: str
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
 
 @router.post("/test", summary="Webhook test")
-async def test_webhook(body: WebhookTestBody) -> Dict[str, Any]:
+async def test_webhook(body: WebhookTestBody) -> dict[str, Any]:
     """Proxy a test POST to the provided webhook URL.
 
     Returns:

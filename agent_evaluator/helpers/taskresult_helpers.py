@@ -16,13 +16,14 @@ TaskResult 동적 데이터 생성 헬퍼 함수 라이브러리
 - check_output_leakage(): 출력 민감정보 유출 검사
 - validate_tool_authorization(): 도구 호출 권한 검증
 """
+from __future__ import annotations
 
 import ast
 import dataclasses
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.utils.text_similarity import lcs_ratio as _lcs_ratio_util
 
@@ -108,12 +109,11 @@ logger = logging.getLogger(__name__)
 # Gate A의 6개 eval 함수 전용으로만 사용됨을 확인(다른 Gate와 비공유).
 # 기존 테스트(tests/test_decorators_harness.py)가 일부를 직접 import하므로 재노출한다.
 from agent_evaluator.gates.gate_a_goal.evaluators import (  # noqa: F401,E402
-    _kr_strip_particle,
-    _is_fact_retained_in_text,
-    _KOREAN_UNITS,
     _KOREAN_PARTICLES_1,
+    _KOREAN_UNITS,
+    _is_fact_retained_in_text,
+    _kr_strip_particle,
 )
-
 
 # ============================================================================
 # 1. Completion Score 계산
@@ -123,9 +123,9 @@ def calculate_completion_score(
     response: str,
     expected_min_length: int = 10,
     has_error: bool = False,
-    ground_truth: Optional[str] = None,
-    task_type: Optional[str] = None,
-    tool_calls: Optional[List[Any]] = None,
+    ground_truth: str | None = None,
+    task_type: str | None = None,
+    tool_calls: list[Any] | None = None,
 ) -> float:
     """
     작업 완료도 점수 계산 (0.0 ~ 1.0)
@@ -217,7 +217,7 @@ def calculate_completion_score(
 
 def calculate_accuracy_score(
     response: str,
-    ground_truth: Optional[str],
+    ground_truth: str | None,
     method: str = "combined"
 ) -> float:
     """
@@ -366,7 +366,7 @@ def _calculate_simple_similarity(text1: str, text2: str) -> float:
 # 3. Token 추출 및 추정
 # ============================================================================
 
-def extract_tokens_from_openai(openai_response: Any) -> Dict[str, int]:
+def extract_tokens_from_openai(openai_response: Any) -> dict[str, int]:
     """
     OpenAI API 응답에서 토큰 사용량 추출
 
@@ -392,7 +392,7 @@ def extract_tokens_from_openai(openai_response: Any) -> Dict[str, int]:
         return {"input": 0, "output": 0, "total": 0}
 
 
-def extract_tokens_from_langchain(langchain_result: Any) -> Dict[str, int]:
+def extract_tokens_from_langchain(langchain_result: Any) -> dict[str, int]:
     """
     LangChain 실행 결과에서 토큰 사용량 추출
 
@@ -459,7 +459,7 @@ def estimate_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
 # 4. Tool Calls 추출
 # ============================================================================
 
-def extract_tool_calls_from_langchain(langchain_result) -> List[Dict[str, Any]]:
+def extract_tool_calls_from_langchain(langchain_result) -> list[dict[str, Any]]:
     """
     LangChain intermediate_steps에서 tool calls 추출
 
@@ -490,7 +490,7 @@ def extract_tool_calls_from_langchain(langchain_result) -> List[Dict[str, Any]]:
     return tool_calls
 
 
-def extract_tool_calls_from_openai_functions(openai_response) -> List[Dict[str, Any]]:
+def extract_tool_calls_from_openai_functions(openai_response) -> list[dict[str, Any]]:
     """
     OpenAI Function Calling 응답에서 tool calls 추출
 
@@ -527,16 +527,16 @@ def create_taskresult_from_execution(
     response: str,
     ground_truth: str = "",
     execution_time: float = 0.0,
-    openai_response: Optional[Any] = None,
-    langchain_result: Optional[Any] = None,
+    openai_response: Any | None = None,
+    langchain_result: Any | None = None,
     has_error: bool = False,
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
     task_type: str = "qa",
-    partial_reason: Optional[str] = None,
-    context: Optional[str] = None,
+    partial_reason: str | None = None,
+    context: str | None = None,
     model_name: str = "",
-    metadata: Optional[Dict[str, Any]] = None,
-    extra: Optional[Dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
     use_korean_tokenizer: bool = False,
     **extra_fields: Any,
 ):
@@ -675,13 +675,13 @@ def create_taskresult_from_execution(
     # metadata가 있으면 extra에 병합 (metadata가 우선)
     if metadata:
         if extra:
-            merged_extra: Optional[Dict[str, Any]] = {**extra, **metadata}
+            merged_extra: dict[str, Any] | None = {**extra, **metadata}
         else:
             merged_extra = dict(metadata)
         extra = merged_extra
 
     # 7. TaskResult 생성 (기본값 dict 먼저 구성)
-    _base_kwargs: Dict[str, Any] = dict(
+    _base_kwargs: dict[str, Any] = dict(
         task_id=task_id,
         task_type=getattr(TaskType, task_type.upper(), TaskType.QA).value,
         success=not has_error,
@@ -714,7 +714,7 @@ def create_taskresult_from_execution(
 # 6. 간편 헬퍼 함수들
 # ============================================================================
 
-def simulate_agent_response(question: str, responses_map: Dict[str, str]) -> Dict[str, Any]:
+def simulate_agent_response(question: str, responses_map: dict[str, str]) -> dict[str, Any]:
     """
     간단한 에이전트 응답 시뮬레이션 (테스트/예제용)
 
@@ -790,7 +790,7 @@ if __name__ == "__main__":
 # 7. 보안 검증 함수
 # ============================================================================
 
-def validate_input_security(input_text: str) -> Dict[str, Any]:
+def validate_input_security(input_text: str) -> dict[str, Any]:
     """
     입력 텍스트의 보안 위협 검증
 
@@ -891,7 +891,7 @@ def validate_input_security(input_text: str) -> Dict[str, Any]:
     }
 
 
-def check_output_leakage(output_text: str) -> Dict[str, Any]:
+def check_output_leakage(output_text: str) -> dict[str, Any]:
     """
     출력 텍스트에서 민감정보 유출 검사
 
@@ -1008,10 +1008,10 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
 
 def validate_tool_authorization(
     tool_name: str,
-    tool_params: Dict[str, Any],
-    allowed_tools: Optional[List[str]] = None,
-    restricted_tools: Optional[List[str]] = None
-) -> Dict[str, Any]:
+    tool_params: dict[str, Any],
+    allowed_tools: list[str] | None = None,
+    restricted_tools: list[str] | None = None
+) -> dict[str, Any]:
     """
     도구 호출 권한 검증
 
@@ -1117,146 +1117,71 @@ def validate_tool_authorization(
 
 
 # SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_instruction_adherence  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import eval_loop_detection  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_goal_alignment  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
-from agent_evaluator.gates.gate_c_reliability.evaluators import eval_fault_tolerance  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_plan_coherence  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
-from agent_evaluator.gates.gate_c_reliability.evaluators import compute_reproducibility_score  # noqa: F401,E402
-
-
-# ---------------------------------------------------------------------------
-# v0.9.1: 신규 Harness Config 헬퍼 함수 7개
-# ---------------------------------------------------------------------------
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/evaluators.py 참조
-from agent_evaluator.gates.gate_d_performance.evaluators import eval_sla  # noqa: F401,E402
-
-
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/evaluators.py 참조
-from agent_evaluator.gates.gate_e_security.evaluators import eval_threat_severity  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/evaluators.py 참조
-from agent_evaluator.gates.gate_d_performance.evaluators import eval_efficiency  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import eval_state_consistency  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import (  # noqa: F401,E402
-    _normalize_agent_interactions,
-    eval_deadlock,
+from agent_evaluator.gates.gate_a_goal.evaluators import (  # noqa: F401,E402
+    eval_context_retention,
+    eval_goal_alignment,
+    eval_instruction_adherence,
+    eval_knowledge_retention,
+    eval_plan_coherence,
+    eval_subtask_completion,
 )
-
-
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/evaluators.py 참조
-from agent_evaluator.gates.gate_g_observability.evaluators import eval_observability  # noqa: F401,E402
-
-
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
-from agent_evaluator.gates.gate_f_multiagent.evaluators import eval_consensus  # noqa: F401,E402
-
 
 # ---------------------------------------------------------------------------
 # v0.9.2: Phase 3 Harness Config 헬퍼 함수 5개
 # ---------------------------------------------------------------------------
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import eval_scope  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_context_retention  # noqa: F401,E402
-
-
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/evaluators.py 참조
-from agent_evaluator.gates.gate_g_observability.evaluators import eval_explainability  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_subtask_completion  # noqa: F401,E402
-
-
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
-from agent_evaluator.gates.gate_f_multiagent.evaluators import eval_propagation  # noqa: F401,E402
-
-
-# ── Phase 4 Harness helpers ──────────────────────────────────────────────────
-
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
-from agent_evaluator.gates.gate_f_multiagent.evaluators import eval_role_adherence  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
-from agent_evaluator.gates.gate_c_reliability.evaluators import eval_graceful_degradation  # noqa: F401,E402
-
-
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현(및 _PII_PATTERNS)은 gates/gate_e_security/evaluators.py 참조
-from agent_evaluator.gates.gate_e_security.evaluators import eval_compliance  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/evaluators.py 참조
-from agent_evaluator.gates.gate_d_performance.evaluators import eval_resource_budget  # noqa: F401,E402
-
-
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
-from agent_evaluator.gates.gate_f_multiagent.evaluators import eval_conflict_resolution  # noqa: F401,E402
-
-
-# ---------------------------------------------------------------------------
 # Phase 5 Harness Helpers (v0.9.4+)
 # ---------------------------------------------------------------------------
-
-
 # SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import eval_tool_parameter_safety  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
-from agent_evaluator.gates.gate_a_goal.evaluators import eval_knowledge_retention  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
-from agent_evaluator.gates.gate_c_reliability.evaluators import eval_retry_consistency  # noqa: F401,E402
-
-
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/evaluators.py 참조
-from agent_evaluator.gates.gate_g_observability.evaluators import eval_error_diagnosis  # noqa: F401,E402
-
+from agent_evaluator.gates.gate_b_behavioral.evaluators import (  # noqa: F401,E402
+    _normalize_agent_interactions,
+    eval_context_window,
+    eval_deadlock,
+    eval_loop_detection,
+    eval_scope,
+    eval_state_consistency,
+    eval_tool_parameter_safety,
+)
 
 # ── Phase 6 Harness helpers ──────────────────────────────────────────────────
-
 # SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
-from agent_evaluator.gates.gate_c_reliability.evaluators import eval_idempotency  # noqa: F401,E402
+from agent_evaluator.gates.gate_c_reliability.evaluators import (  # noqa: F401,E402
+    compute_reproducibility_score,
+    eval_fault_tolerance,
+    eval_graceful_degradation,
+    eval_idempotency,
+    eval_retry_consistency,
+)
 
+# ---------------------------------------------------------------------------
+# v0.9.1: 신규 Harness Config 헬퍼 함수 7개
+# ---------------------------------------------------------------------------
+# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/evaluators.py 참조
+from agent_evaluator.gates.gate_d_performance.evaluators import (  # noqa: F401,E402
+    eval_efficiency,
+    eval_resource_budget,
+    eval_sla,
+)
 
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/evaluators.py 참조
-from agent_evaluator.gates.gate_e_security.evaluators import eval_threat_response  # noqa: F401,E402
+# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현(및 _PII_PATTERNS)은 gates/gate_e_security/evaluators.py 참조
+from agent_evaluator.gates.gate_e_security.evaluators import (  # noqa: F401,E402
+    eval_compliance,
+    eval_threat_response,
+    eval_threat_severity,
+)
 
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
-from agent_evaluator.gates.gate_b_behavioral.evaluators import eval_context_window  # noqa: F401,E402
-
+# ── Phase 4 Harness helpers ──────────────────────────────────────────────────
+# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
+from agent_evaluator.gates.gate_f_multiagent.evaluators import (  # noqa: F401,E402
+    eval_conflict_resolution,
+    eval_consensus,
+    eval_propagation,
+    eval_role_adherence,
+)
 
 # SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/evaluators.py 참조
-from agent_evaluator.gates.gate_g_observability.evaluators import eval_latency_attribution  # noqa: F401,E402
+from agent_evaluator.gates.gate_g_observability.evaluators import (  # noqa: F401,E402
+    eval_error_diagnosis,
+    eval_explainability,
+    eval_latency_attribution,
+    eval_observability,
+)

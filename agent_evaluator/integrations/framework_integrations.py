@@ -11,11 +11,11 @@ v0.8.0: Direct-API wrapper classes (LangChainEvaluator, CrewAIEvaluator 등) 완
     @agent_eval(monitor, task_type="qa", framework="langchain")
     def my_agent(question, ground_truth=""): ...
 """
+from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.core.trackers.security import infer_privilege_level
-
 
 # ==============================================================================
 # Input Type Adapters — framework-agnostic 변환 헬퍼
@@ -24,7 +24,7 @@ from agent_evaluator.core.trackers.security import infer_privilege_level
 def to_graph_state(
     user_input: Any,
     messages_key: str = "messages",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """문자열 또는 dict 입력을 LangGraph 그래프 상태 dict로 변환합니다.
 
     Args:
@@ -61,7 +61,7 @@ def to_graph_state(
 def to_crew_inputs(
     user_input: Any,
     input_key: str = "input",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """문자열 또는 dict 입력을 CrewAI ``kickoff(inputs=...)`` 형식으로 변환합니다.
 
     Args:
@@ -124,7 +124,7 @@ def to_task_string(user_input: Any) -> str:
 # Utility Functions
 # ==============================================================================
 
-def check_framework_availability(framework: str = None) -> Dict[str, bool]:
+def check_framework_availability(framework: str = None) -> dict[str, bool]:
     """
     Check availability of AI frameworks
 
@@ -346,10 +346,10 @@ class EvaluatorProtocol(Protocol):
     def run_sync(
         self,
         user_input: Any,
-        ground_truth: Optional[str] = None,
-        expected_tools: Optional[List[str]] = None,
-        expected_elements: Optional[List[str]] = None,
-        expected_agents: Optional[List[str]] = None,
+        ground_truth: str | None = None,
+        expected_tools: list[str] | None = None,
+        expected_elements: list[str] | None = None,
+        expected_agents: list[str] | None = None,
         **kwargs: Any,
     ) -> Any:
         """동기 실행 진입점 (프레임워크 무관 통일 인터페이스).
@@ -371,7 +371,7 @@ class EvaluatorProtocol(Protocol):
         """
         ...
 
-    def generate_report(self, output_path: Optional[str] = None) -> Any:
+    def generate_report(self, output_path: str | None = None) -> Any:
         """평가 리포트 생성 (모든 프레임워크 동일 시그니처)"""
         ...
 
@@ -382,7 +382,7 @@ class EvaluatorProtocol(Protocol):
 
 def ensure_security_trackers(
     monitor: Any,
-    privilege_registry: Optional[Dict[str, Any]] = None,
+    privilege_registry: dict[str, Any] | None = None,
 ) -> None:
     """monitor에 보안 트래커가 없으면 자동 초기화합니다.
 
@@ -395,9 +395,13 @@ def ensure_security_trackers(
             제공 시 키워드 휴리스틱보다 우선 적용됩니다.
     """
     import warnings as _w
+
     from agent_evaluator.core.trackers.security import (
-        InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker,
-        PrivilegeEscalationDetector, ToolChainAttackDetector,
+        InputSanitizationTracker,
+        OutputLeakageDetector,
+        PrivilegeEscalationDetector,
+        ToolAuthorizationTracker,
+        ToolChainAttackDetector,
     )
     if getattr(monitor, "input_sanitizer", None) is None:
         monitor.input_sanitizer = InputSanitizationTracker()
@@ -439,7 +443,7 @@ def ensure_security_trackers(
         )
 
 
-def extract_tools_from_framework_object(obj: Any) -> List[str]:
+def extract_tools_from_framework_object(obj: Any) -> list[str]:
     """프레임워크 객체에서 등록된 도구 이름 목록을 자동 추출합니다.
 
     4개 framework 공통 헬퍼. 각 wrapper의 __init__에서 authorized_tools 미제공 시
@@ -459,7 +463,7 @@ def extract_tools_from_framework_object(obj: Any) -> List[str]:
     Returns:
         도구 이름 문자열 리스트 (중복 제거, 빈 이름 제외)
     """
-    tool_names: List[str] = []
+    tool_names: list[str] = []
     seen: set = set()
 
     def _add(name: str) -> None:

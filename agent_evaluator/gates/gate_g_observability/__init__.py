@@ -14,3 +14,5 @@ Gate G는 Gate C(Reliability)가 계산한 hall_rate/avg_llm_faithfulness를 파
 비활성화하는 이중 반영 방지 로직 — Gate C의 `compute()`가 반환하는 shared_raw 원본값을
 그대로 사용).
 """
+from __future__ import annotations
+

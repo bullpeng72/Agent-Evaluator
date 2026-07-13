@@ -9,7 +9,6 @@ import urllib.request
 from contextlib import asynccontextmanager
 from html import escape as _html_escape
 from pathlib import Path
-from typing import Optional
 from urllib.parse import quote as _urlquote
 
 try:
@@ -18,12 +17,11 @@ try:
 except Exception:
     _VERSION = "0.6.0"
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # SPEC-005: 대시보드 옵트인 인증 — 쿠키 이름
@@ -102,18 +100,18 @@ class BearerOrCookieAuthMiddleware(BaseHTTPMiddleware):
         return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
 from .loader import load_results
+from .routers import alerts as alerts_router
+from .routers import anomaly as anomaly_router
+from .routers import config as config_router
+from .routers import conversation as conversation_router
+from .routers import cost as cost_router
 from .routers import data as data_router
 from .routers import export as export_router
+from .routers import feedback as feedback_router
+from .routers import golden as golden_router
 from .routers import stream as stream_router
 from .routers import transparency as transparency_router
-from .routers import golden as golden_router
-from .routers import config as config_router
 from .routers import webhook as webhook_router
-from .routers import conversation as conversation_router
-from .routers import alerts as alerts_router
-from .routers import feedback as feedback_router
-from .routers import anomaly as anomaly_router
-from .routers import cost as cost_router
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 # CDN 에셋 캐시는 사용자 홈 디렉토리에 저장 — pip 설치 경로(site-packages)는 읽기 전용일 수 있음
@@ -174,7 +172,7 @@ def create_app(
     watch: bool = False,
     version: str = _VERSION,
     offline: bool = False,
-    auth_token: Optional[str] = None,
+    auth_token: str | None = None,
 ) -> FastAPI:
     # ------------------------------------------------------------------ #
     # Lifespan: file watcher startup / shutdown

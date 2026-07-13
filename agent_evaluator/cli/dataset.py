@@ -11,7 +11,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # ANSI helpers (main.py에서 직접 복사 불가 — 경량 재정의)
 # ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
     print()
     print(f"  💾  Saved to: {_G}{saved_path}{_R}")
     if not no_review:
-        print(f"  📋  Human-review flags are included. Review then merge into the golden set.")
+        print("  📋  Human-review flags are included. Review then merge into the golden set.")
         print(f"  {_Y}Hint:{_R} Use builder.merge_to_golden(cases, version='v1.0') to merge")
     print()
     return 0

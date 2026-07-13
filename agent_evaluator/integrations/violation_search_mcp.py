@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.storage.sqlite_backend import search_violations as _search_violations
 
@@ -48,7 +48,7 @@ def _default_db_path() -> str:
     return os.path.join(output_dir, _DEFAULT_DB_FILENAME)
 
 
-def format_results(results: List[Dict[str, Any]]) -> str:
+def format_results(results: list[dict[str, Any]]) -> str:
     """(REQ-4) REQ-3의 구조화 검색 결과를 사람이 읽기 쉬운 문자열로 변환한다.
 
     Args:
@@ -74,7 +74,7 @@ def format_results(results: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def build_server(db_path: Optional[str] = None) -> Any:
+def build_server(db_path: str | None = None) -> Any:
     """(REQ-4) ``search_violations`` 도구 1개를 노출하는 ``FastMCP`` 인스턴스를 만든다.
 
     Args:
@@ -105,7 +105,7 @@ def build_server(db_path: Optional[str] = None) -> Any:
     return server
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     db_path = argv[0] if argv else None
     server = build_server(db_path)

@@ -10,7 +10,6 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다
 from __future__ import annotations
 
 import dataclasses
-from typing import Dict, List
 
 
 @dataclasses.dataclass
@@ -28,7 +27,7 @@ class ConsensusConfig:
         def ensemble_agent(questions, ground_truths=None): ...
     """
     consensus_method: str = "majority"   # "majority" | "weighted" | "unanimity"
-    agent_weights: Dict[str, float] = dataclasses.field(default_factory=dict)
+    agent_weights: dict[str, float] = dataclasses.field(default_factory=dict)
     similarity_threshold: float = 0.7
     select_consensus_response: bool = False
 
@@ -94,7 +93,7 @@ class PropagationConfig:
         def agent(question, ground_truth=""): ...
     """
     source_agent: str = ""
-    key_facts: List[str] = dataclasses.field(default_factory=list)
+    key_facts: list[str] = dataclasses.field(default_factory=list)
     check_in_response: bool = True
     check_in_tool_calls: bool = False
     similarity_threshold: float = 0.7
@@ -132,10 +131,10 @@ class AgentRoleConfig:
         def agent(question, ground_truth=""): ...
     """
     role_name: str = ""
-    allowed_tools: List[str] = dataclasses.field(default_factory=list)
-    forbidden_tools: List[str] = dataclasses.field(default_factory=list)
-    allowed_action_keywords: List[str] = dataclasses.field(default_factory=list)
-    forbidden_action_keywords: List[str] = dataclasses.field(default_factory=list)
+    allowed_tools: list[str] = dataclasses.field(default_factory=list)
+    forbidden_tools: list[str] = dataclasses.field(default_factory=list)
+    allowed_action_keywords: list[str] = dataclasses.field(default_factory=list)
+    forbidden_action_keywords: list[str] = dataclasses.field(default_factory=list)
     check_tool_role_alignment: bool = True
     role_violation_penalty: float = 0.3
 
@@ -182,10 +181,10 @@ class ConflictResolutionConfig:
                         expect_escalation_on_fail=True))
         def agent(question, ground_truth=""): ...
     """
-    conflict_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    conflict_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "disagree", "conflict", "contradiction", "inconsistent", "반대", "충돌", "모순"
     ])
-    resolution_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    resolution_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "resolved", "consensus", "agreed", "decided", "해결", "합의", "결정"
     ])
     check_resolution_quality: bool = True

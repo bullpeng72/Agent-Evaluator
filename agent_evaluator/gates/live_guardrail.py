@@ -41,7 +41,7 @@ import functools
 import inspect
 import json
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable
 
 from agent_evaluator.core.trackers.security import (
     PrivilegeEscalationDetector,
@@ -76,9 +76,9 @@ class LiveVerdict:
     """``LiveGuardrail.check_before_tool_call()``의 반환값 (SPEC-019 Interface)."""
 
     block: bool
-    gate: Optional[str] = None  # "B" | "E" | None
-    reason: Optional[str] = None
-    detail: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    gate: str | None = None  # "B" | "E" | None
+    reason: str | None = None
+    detail: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class LiveGuardrail:
@@ -95,23 +95,23 @@ class LiveGuardrail:
 
     def __init__(
         self,
-        loop_detection: Optional[LoopDetectionConfig] = None,
-        deadlock: Optional[DeadlockConfig] = None,
-        scope: Optional[ScopeConfig] = None,
-        tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
-        tool_authorization: Optional[ToolAuthorizationTracker] = None,
-        privilege_escalation: Optional[PrivilegeEscalationDetector] = None,
-        tool_chain_attack: Optional[ToolChainAttackDetector] = None,
+        loop_detection: LoopDetectionConfig | None = None,
+        deadlock: DeadlockConfig | None = None,
+        scope: ScopeConfig | None = None,
+        tool_parameter_safety: ToolParameterSafetyConfig | None = None,
+        tool_authorization: ToolAuthorizationTracker | None = None,
+        privilege_escalation: PrivilegeEscalationDetector | None = None,
+        tool_chain_attack: ToolChainAttackDetector | None = None,
         # SPEC-031 REQ-1: record_tool_call(output=...)로 넘어온 stdout/stderr를
         # 이 길이로 truncate한다 — judge_max_context_chars와 동일한 길이 제한 원칙.
         max_tool_output_chars: int = 2000,
         # SPEC-032 REQ-3: 다중 세션 스코프 충돌 감지(축소 범위) — 설정되면 생성자
         # 시점에 claims_path/shared_files_path를 1회만 읽어 캐싱한다(매 호출 재조회
         # 없음 — check_before_tool_call()의 순수 조회 계약 유지).
-        team_concurrency: Optional[TeamConcurrencyConfig] = None,
+        team_concurrency: TeamConcurrencyConfig | None = None,
         # SPEC-035: 보호 브랜치(main/master) git commit/push 차단 — 설정되면 생성자
         # 시점에 현재 브랜치를 1회만 조회해 캐싱한다(team_concurrency와 동일 원칙).
-        branch_guard: Optional[BranchGuardConfig] = None,
+        branch_guard: BranchGuardConfig | None = None,
     ) -> None:
         self._loop_detection = loop_detection
         self._deadlock = deadlock
@@ -122,38 +122,38 @@ class LiveGuardrail:
         self._tool_chain_attack = tool_chain_attack
         self._max_tool_output_chars = max_tool_output_chars
         self._team_concurrency = team_concurrency
-        self._team_claims: List[Dict[str, Any]] = []
-        self._shared_files: List[str] = []
+        self._team_claims: list[dict[str, Any]] = []
+        self._shared_files: list[str] = []
         # SPEC-037: owner="auto" 센티널은 생성자 시점에 git config user.name을
         # 1회 조회해 해석한다(team_claims 로딩과 동일한 "1회만" 원칙). 원본
         # TeamConcurrencyConfig 객체는 변경하지 않는다 — 호출자가 같은 config를
         # 재사용하거나 다른 LiveGuardrail 인스턴스에 공유해도 원본 owner="auto"가
         # 그대로 보존된다.
-        self._team_concurrency_owner: Optional[str] = None
+        self._team_concurrency_owner: str | None = None
         if self._team_concurrency is not None:
             self._team_claims = load_active_claims(self._team_concurrency.claims_path)
             self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
             self._team_concurrency_owner = resolve_owner(self._team_concurrency.owner)
         self._branch_guard = branch_guard
-        self._current_branch: Optional[str] = None
+        self._current_branch: str | None = None
         if self._branch_guard is not None:
             self._current_branch = get_current_branch()
-        self._tool_calls: List[Dict[str, Any]] = []
+        self._tool_calls: list[dict[str, Any]] = []
         # SPEC-030: 완전 차단된 시도의 감사 이력 — Gate B/E 점수 계산(self._tool_calls
         # 기반)과 완전히 분리된 별도 목록. check_before_tool_call()은 이 목록을
         # 건드리지 않는다(순수 조회 계약 유지) — record_blocked_attempt()를 호출자가
         # 명시적으로 호출해야만 채워진다.
-        self._blocked_attempts: List[Dict[str, Any]] = []
-        self._task_id: Optional[str] = None
+        self._blocked_attempts: list[dict[str, Any]] = []
+        self._task_id: str | None = None
 
-    def _tool_call_names(self) -> List[str]:
+    def _tool_call_names(self) -> list[str]:
         return [tc.get("name", "") for tc in self._tool_calls]
 
     def check_before_tool_call(
         self,
         task_id: str,
         tool_name: str,
-        parameters: Optional[dict] = None,
+        parameters: dict | None = None,
     ) -> LiveVerdict:
         """도구 호출 직전 Gate B 위반 여부를 조회한다 (SPEC-019 REQ-3).
 
@@ -320,8 +320,8 @@ class LiveGuardrail:
         self,
         task_id: str,
         tool_name: str,
-        parameters: Optional[dict] = None,
-        output: Optional[Dict[str, Any]] = None,
+        parameters: dict | None = None,
+        output: dict[str, Any] | None = None,
     ) -> None:
         """실제로 실행된 도구 호출을 확정 반영한다 (SPEC-019 REQ-4).
 
@@ -346,7 +346,7 @@ class LiveGuardrail:
                 ``max_tool_output_chars``로 truncate된다.
         """
         self._task_id = task_id
-        entry: Dict[str, Any] = {"name": tool_name, "arguments": parameters or {}}
+        entry: dict[str, Any] = {"name": tool_name, "arguments": parameters or {}}
         if output is not None:
             for key in self._ALLOWED_OUTPUT_KEYS:
                 if key not in output:
@@ -411,7 +411,7 @@ class LiveGuardrail:
         self._team_claims = load_active_claims(self._team_concurrency.claims_path)
         self._shared_files = _load_shared_files(self._team_concurrency.shared_files_path)
 
-    def _tool_authorization_summary(self) -> Optional[Dict[str, Any]]:
+    def _tool_authorization_summary(self) -> dict[str, Any] | None:
         """``monitor.py:1877-1921``의 tool_authorization 집계 로직을 그대로
         재현한다 — ``ToolAuthorizationTracker.tool_calls``(확정된 호출 로그,
         :meth:`record_tool_call`이 매번 append)에서 재집계할 뿐, 새 호출을
@@ -434,7 +434,7 @@ class LiveGuardrail:
             "compliance_rate": round((_total - _violations) / _total, 4),
         }
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """확정 누적된 tool_calls에 대한 Gate B/E 평가 결과 (SPEC-019 REQ-5).
 
         ``TaskResult.extra``와 동일한 키(``loop_detection``/``deadlock``/
@@ -459,7 +459,7 @@ class LiveGuardrail:
         ``storage/sqlite_backend.py``의 ``save_tasks_to_db()``가 ``extra``에서
         직접 읽어 ``blocked_violations`` 테이블에 반영한다(SPEC-030 REQ-3).
         """
-        _result: Dict[str, Any] = {
+        _result: dict[str, Any] = {
             "tool_calls": list(self._tool_calls),
             "blocked_attempts": list(self._blocked_attempts),
         }
@@ -496,7 +496,7 @@ class LiveGuardrail:
 
         return _result
 
-    def to_task_extra(self) -> Dict[str, Any]:
+    def to_task_extra(self) -> dict[str, Any]:
         """``TaskResult(extra=...)``에 그대로 대입 가능한 형태 (SPEC-019 REQ-6).
 
         :meth:`snapshot`과 내용은 동일하다 — 세션 종료 시 배치 리포트로
@@ -535,7 +535,7 @@ class LiveGuardrail:
 #         bash("rm -rf /")     # GuardrailBlockedError 발생
 # ---------------------------------------------------------------------------
 
-_guardrail_ctx_var: contextvars.ContextVar[Optional[Tuple[LiveGuardrail, str]]] = (
+_guardrail_ctx_var: contextvars.ContextVar[tuple[LiveGuardrail, str] | None] = (
     contextvars.ContextVar("_live_guardrail_ctx", default=None)
 )
 
@@ -578,7 +578,7 @@ def live_guardrail_session(guardrail: LiveGuardrail, task_id: str):
         _guardrail_ctx_var.reset(token)
 
 
-def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> Dict[str, Any]:
+def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> dict[str, Any]:
     """``func(*args, **kwargs)`` 호출의 실제 인자를 이름 기반 dict로 변환한다.
 
     ``check_before_tool_call()``/``record_tool_call()``이 기대하는
@@ -594,11 +594,11 @@ def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> Dict[str, An
 
 
 def tool_guard(
-    tool_name: Optional[str] = None,
+    tool_name: str | None = None,
     *,
     audit_blocked: bool = False,
     fail_closed: bool = False,
-    capture_output: Optional[Callable[[Any], Dict[str, Any]]] = None,
+    capture_output: Callable[[Any], dict[str, Any]] | None = None,
 ) -> Callable:
     """도구 함수를 :class:`LiveGuardrail`로 비침습적으로 감싸는 데코레이터 (SPEC-039 REQ-6).
 
@@ -648,7 +648,7 @@ def tool_guard(
         _name = tool_name or func.__name__
         _is_async = asyncio.iscoroutinefunction(func)
 
-        def _resolve_ctx() -> Optional[Tuple[LiveGuardrail, str]]:
+        def _resolve_ctx() -> tuple[LiveGuardrail, str] | None:
             ctx = _guardrail_ctx_var.get()
             if ctx is not None:
                 return ctx
@@ -663,7 +663,7 @@ def tool_guard(
             return None
 
         def _check(
-            guardrail: LiveGuardrail, task_id: str, params: Dict[str, Any]
+            guardrail: LiveGuardrail, task_id: str, params: dict[str, Any]
         ) -> LiveVerdict:
             verdict = guardrail.check_before_tool_call(task_id, _name, params)
             if verdict.block:
@@ -673,7 +673,7 @@ def tool_guard(
             return verdict
 
         def _record(
-            guardrail: LiveGuardrail, task_id: str, params: Dict[str, Any], result: Any
+            guardrail: LiveGuardrail, task_id: str, params: dict[str, Any], result: Any
         ) -> None:
             output = capture_output(result) if capture_output is not None else None
             guardrail.record_tool_call(task_id, _name, params, output)

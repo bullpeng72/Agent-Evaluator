@@ -12,15 +12,14 @@ from __future__ import annotations
 import json
 import random
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import pandas as pd
 
 from .base import BaseTracker
 
-
 # 재시도 에러 자동 분류 매핑 — RetryCorrectionTracker retry_reason 고도화
-RETRY_ERROR_CATEGORY_MAP: Dict[str, str] = {
+RETRY_ERROR_CATEGORY_MAP: dict[str, str] = {
     "RateLimitError": "rate_limit",
     "APIStatusError": "api_error",
     "TimeoutError": "timeout",
@@ -41,7 +40,7 @@ RETRY_ERROR_CATEGORY_MAP: Dict[str, str] = {
 }
 
 
-def categorize_retry_error(error_str: Optional[str]) -> str:
+def categorize_retry_error(error_str: str | None) -> str:
     """에러 문자열에서 재시도 원인 카테고리를 자동 분류합니다.
 
     Args:
@@ -112,10 +111,10 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 
     def __init__(
         self,
-        whitelist_patterns: Optional[List[str]] = None,
+        whitelist_patterns: list[str] | None = None,
         sample_rate: float = 1.0,
     ):
-        self._evaluations: List[Dict[str, Any]] = []
+        self._evaluations: list[dict[str, Any]] = []
         self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
         self._sample_rate = max(0.0, min(1.0, float(sample_rate)))
 
@@ -209,12 +208,12 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         ]
 
     @property
-    def evaluations(self) -> List[Dict[str, Any]]:
+    def evaluations(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated input evaluation records."""
         return list(self._evaluations)
 
     @evaluations.setter
-    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+    def evaluations(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._evaluations = list(value)
 
@@ -222,7 +221,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         """Clear all accumulated evaluation records."""
         self._evaluations.clear()
 
-    def evaluate_input(self, task_id: str, input_text: str) -> Dict[str, Any]:
+    def evaluate_input(self, task_id: str, input_text: str) -> dict[str, Any]:
         """Evaluate input text for security threats.
 
         Args:
@@ -247,7 +246,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         """
         # Sampling check — skip this call probabilistically to reduce overhead
         if self._sample_rate < 1.0 and random.random() > self._sample_rate:
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "task_id": task_id,
                 "has_sql_injection": False,
                 "has_command_injection": False,
@@ -362,9 +361,9 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         self._evaluations.append(result)
         return result
 
-    def get_security_stats(self) -> Dict[str, Any]:
+    def get_security_stats(self) -> dict[str, Any]:
         """Get input security statistics"""
-        _zero: Dict[str, Any] = {
+        _zero: dict[str, Any] = {
             "total_inputs_evaluated": 0,
             "inputs_with_threats": 0,
             "threat_rate": 0.0,
@@ -413,7 +412,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 # Layer 1 Security: Output Leakage Detection
 # ============================================================================
 
-_DEFAULT_EXCLUDED_UNIX_PATHS: List[str] = [
+_DEFAULT_EXCLUDED_UNIX_PATHS: list[str] = [
     # 시스템 경로
     "usr/", "bin/", "sbin/", "lib/", "lib64/", "proc/", "sys/", "dev/",
     # URL 경로 — /api/v1/... 등 REST API 경로 오탐 방지
@@ -441,11 +440,11 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
     def __init__(
         self,
-        whitelist_patterns: Optional[List[str]] = None,
-        excluded_unix_paths: Optional[List[str]] = None,
+        whitelist_patterns: list[str] | None = None,
+        excluded_unix_paths: list[str] | None = None,
         sample_rate: float = 1.0,
     ):
-        self._detections: List[Dict[str, Any]] = []
+        self._detections: list[dict[str, Any]] = []
         self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
         self._sample_rate = max(0.0, min(1.0, float(sample_rate)))
 
@@ -533,12 +532,12 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         ]
 
     @property
-    def detections(self) -> List[Dict[str, Any]]:
+    def detections(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated leakage detection records."""
         return list(self._detections)
 
     @detections.setter
-    def detections(self, value: List[Dict[str, Any]]) -> None:
+    def detections(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._detections = list(value)
 
@@ -546,7 +545,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         """Clear all accumulated detection records."""
         self._detections.clear()
 
-    def detect_leakage(self, task_id: str, output_text: str) -> Dict[str, Any]:
+    def detect_leakage(self, task_id: str, output_text: str) -> dict[str, Any]:
         """Detect sensitive information leakage in an output string.
 
         Args:
@@ -565,7 +564,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         """
         # Sampling check — skip this call probabilistically to reduce overhead
         if self._sample_rate < 1.0 and random.random() > self._sample_rate:
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "task_id": task_id,
                 **{k: False for k in [
                     "contains_api_key", "contains_password", "contains_credit_card",
@@ -659,9 +658,9 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         self._detections.append(result)
         return result
 
-    def get_leakage_stats(self) -> Dict[str, Any]:
+    def get_leakage_stats(self) -> dict[str, Any]:
         """Get output leakage statistics."""
-        _zero: Dict[str, Any] = {
+        _zero: dict[str, Any] = {
             "total_outputs_evaluated": 0, "outputs_with_leakage": 0, "leakage_rate": 0.0,
             "api_key_leaks": 0, "password_leaks": 0, "credit_card_leaks": 0,
             "email_leaks": 0, "ssn_leaks": 0, "phone_leaks": 0,
@@ -769,15 +768,15 @@ class ToolAuthorizationTracker(BaseTracker):
 
     def __init__(
         self,
-        allowed_tools: Optional[List[str]] = None,
-        restricted_tools: Optional[List[str]] = None,
+        allowed_tools: list[str] | None = None,
+        restricted_tools: list[str] | None = None,
     ) -> None:
         # allowed_tools=None  → 화이트리스트 없음 (모든 도구 허용)
         # allowed_tools=[]   → 모든 도구 차단 (BUG-E13: 빈 set이 falsy여서 체크 스킵되는 버그 수정)
         # allowed_tools=[..] → 명시된 도구만 허용
-        self.allowed_tools: Optional[set] = set(allowed_tools) if allowed_tools is not None else None
+        self.allowed_tools: set | None = set(allowed_tools) if allowed_tools is not None else None
         self.restricted_tools: set = set(restricted_tools) if restricted_tools else set()
-        self._tool_calls: List[Dict[str, Any]] = []
+        self._tool_calls: list[dict[str, Any]] = []
 
         # Dangerous parameter patterns (pre-compiled for performance)
         self.dangerous_patterns = [
@@ -789,12 +788,12 @@ class ToolAuthorizationTracker(BaseTracker):
         ]
 
     @property
-    def tool_calls(self) -> List[Dict[str, Any]]:
+    def tool_calls(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated tool authorization records."""
         return list(self._tool_calls)
 
     @tool_calls.setter
-    def tool_calls(self, value: List[Dict[str, Any]]) -> None:
+    def tool_calls(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._tool_calls = list(value)
 
@@ -806,8 +805,8 @@ class ToolAuthorizationTracker(BaseTracker):
         self,
         task_id: str,
         tool_name: str,
-        parameters: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Track and evaluate tool call authorization.
 
         Checks *tool_name* against the whitelist (``allowed_tools``) and
@@ -884,7 +883,7 @@ class ToolAuthorizationTracker(BaseTracker):
         self._tool_calls.append(result)
         return result
 
-    def get_compliance_stats(self) -> Dict[str, Any]:
+    def get_compliance_stats(self) -> dict[str, Any]:
         """Get tool authorization compliance statistics"""
         if not self._tool_calls:
             return {
@@ -931,7 +930,7 @@ class PrivilegeEscalationDetector(BaseTracker):
 
     def __init__(
         self,
-        safe_sequences: Optional[List[List[str]]] = None,
+        safe_sequences: list[list[str]] | None = None,
         min_jump_to_flag: int = 2,
     ):
         """
@@ -943,8 +942,8 @@ class PrivilegeEscalationDetector(BaseTracker):
                 기본값 2 = read(1)→execute(3) 이상일 때만 플래그. 1로 낮추면
                 read→write도 플래그되어 false positive가 증가함.
         """
-        self._escalation_events: List[Dict[str, Any]] = []
-        self._safe_sequences: List[List[str]] = safe_sequences or []
+        self._escalation_events: list[dict[str, Any]] = []
+        self._safe_sequences: list[list[str]] = safe_sequences or []
         self._min_jump_to_flag: int = max(1, int(min_jump_to_flag))
 
         # Privilege levels (0 = lowest, 4 = highest)
@@ -967,12 +966,12 @@ class PrivilegeEscalationDetector(BaseTracker):
         ]
 
     @property
-    def escalation_events(self) -> List[Dict[str, Any]]:
+    def escalation_events(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated privilege escalation event records."""
         return list(self._escalation_events)
 
     @escalation_events.setter
-    def escalation_events(self, value: List[Dict[str, Any]]) -> None:
+    def escalation_events(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._escalation_events = list(value)
 
@@ -981,8 +980,8 @@ class PrivilegeEscalationDetector(BaseTracker):
         self._escalation_events.clear()
 
     def analyze_privilege_chain(
-        self, task_id: str, tool_calls: List[Union[str, Dict[str, Any]]]
-    ) -> Dict[str, Any]:
+        self, task_id: str, tool_calls: list[Union[str, dict[str, Any]]]
+    ) -> dict[str, Any]:
         """Analyze tool call chain for privilege escalation.
 
         Supports both string and dict elements in *tool_calls*:
@@ -1092,7 +1091,7 @@ class PrivilegeEscalationDetector(BaseTracker):
         self._escalation_events.append(result)
         return result
 
-    def _check_suspicious_sequences(self, tools: List[str]) -> List[str]:
+    def _check_suspicious_sequences(self, tools: list[str]) -> list[str]:
         """Check if tools match suspicious sequences using fuzzy substring matching."""
         found = []
         for seq in self.suspicious_sequences:
@@ -1100,12 +1099,12 @@ class PrivilegeEscalationDetector(BaseTracker):
                 found.append(" -> ".join(seq))
         return found
 
-    def _is_exact_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
+    def _is_exact_subsequence(self, subseq: list[str], seq: list[str]) -> bool:
         """Check if subseq is an exact subsequence of seq (used for safe_sequences whitelist)."""
         it = iter(seq)
         return all(item in it for item in subseq)
 
-    def _is_fuzzy_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
+    def _is_fuzzy_subsequence(self, subseq: list[str], seq: list[str]) -> bool:
         """Case-insensitive substring subsequence match — ToolChainAttackDetector와 동일 방식.
 
         각 패턴 키워드가 실제 도구 이름의 부분 문자열로 순서대로 등장하면 매칭된다.
@@ -1117,7 +1116,7 @@ class PrivilegeEscalationDetector(BaseTracker):
             for kw in subseq
         )
 
-    def get_escalation_stats(self) -> Dict[str, Any]:
+    def get_escalation_stats(self) -> dict[str, Any]:
         """Get privilege escalation statistics"""
         if not self._escalation_events:
             return {
@@ -1155,7 +1154,7 @@ class ToolChainAttackDetector(BaseTracker):
 
     def __init__(
         self,
-        safe_workflows: Optional[List[List[str]]] = None,
+        safe_workflows: list[list[str]] | None = None,
         min_chain_gap: int = 0,
     ):
         """
@@ -1168,8 +1167,8 @@ class ToolChainAttackDetector(BaseTracker):
                 5개 이내의 도구 호출 간격 내에 있어야 탐지됨.
                 이 값을 낮출수록 false positive가 감소하나 탐지율도 하락.
         """
-        self._detections: List[Dict[str, Any]] = []
-        self._safe_workflows: List[List[str]] = safe_workflows or []
+        self._detections: list[dict[str, Any]] = []
+        self._safe_workflows: list[list[str]] = safe_workflows or []
         self._min_chain_gap: int = max(0, int(min_chain_gap))
 
         # Attack patterns — 짧은 키워드 조각으로 정의하여 실제 도구 이름과 매칭 가능
@@ -1203,12 +1202,12 @@ class ToolChainAttackDetector(BaseTracker):
         }
 
     @property
-    def detections(self) -> List[Dict[str, Any]]:
+    def detections(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated tool chain attack detection records."""
         return list(self._detections)
 
     @detections.setter
-    def detections(self, value: List[Dict[str, Any]]) -> None:
+    def detections(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._detections = list(value)
 
@@ -1216,7 +1215,7 @@ class ToolChainAttackDetector(BaseTracker):
         """Clear all accumulated attack detection records. Preserves registered patterns."""
         self._detections.clear()
 
-    def register_pattern(self, attack_type: str, pattern: List[str]) -> None:
+    def register_pattern(self, attack_type: str, pattern: list[str]) -> None:
         """사용자 정의 공격 패턴 등록.
 
         Args:
@@ -1233,7 +1232,7 @@ class ToolChainAttackDetector(BaseTracker):
             self.attack_patterns[attack_type] = []
         self.attack_patterns[attack_type].append(pattern)
 
-    def analyze_tool_chain(self, task_id: str, tool_sequence: List[str]) -> Dict[str, Any]:
+    def analyze_tool_chain(self, task_id: str, tool_sequence: list[str]) -> dict[str, Any]:
         """Analyze tool sequence for attack patterns.
 
         Args:
@@ -1308,8 +1307,8 @@ class ToolChainAttackDetector(BaseTracker):
 
     def _is_fuzzy_subsequence(
         self,
-        subseq: List[str],
-        seq: List[str],
+        subseq: list[str],
+        seq: list[str],
         max_gap: int = 0,
     ) -> bool:
         """Check if ``subseq`` appears as an **ordered** subsequence of ``seq``
@@ -1346,7 +1345,7 @@ class ToolChainAttackDetector(BaseTracker):
                 return False
         return True
 
-    def get_attack_stats(self) -> Dict[str, Any]:
+    def get_attack_stats(self) -> dict[str, Any]:
         """Get tool chain attack statistics"""
         if not self._detections:
             return {

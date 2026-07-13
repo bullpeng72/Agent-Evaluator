@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class AgentEvaluatorError(Exception):
@@ -17,7 +17,7 @@ class ValidationError(AgentEvaluatorError):
         context: 추가 컨텍스트 정보 (선택). H2: task_id, task_type 등 진단 정보.
     """
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, message: str, context: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.context = context or {}
 
@@ -63,7 +63,7 @@ class InvalidOperationError(AgentEvaluatorError):
         context: 추가 컨텍스트 정보 (선택). H2: task_id, task_type 등 진단 정보.
     """
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, message: str, context: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.context = context or {}
 
@@ -72,7 +72,7 @@ def format_error_context(
     task_id: str,
     task_type: str,
     error: Exception,
-    additional: Optional[Dict[str, Any]] = None,
+    additional: dict[str, Any] | None = None,
 ) -> str:
     """H2: 오류 메시지에 컨텍스트 정보를 포함시킨다.
 

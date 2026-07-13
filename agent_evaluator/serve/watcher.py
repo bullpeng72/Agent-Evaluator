@@ -9,7 +9,6 @@ import asyncio
 import threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 
 class FileWatcher:
@@ -22,11 +21,11 @@ class FileWatcher:
         self._dir = watch_dir
         self._poll_interval = poll_interval
         # Store (loop, queue) pairs so _broadcast can use call_soon_threadsafe
-        self._subscribers: List[Tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
+        self._subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
         self._lock = threading.Lock()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._running = False
-        self._last_snapshot: Dict[str, float] = {}
+        self._last_snapshot: dict[str, float] = {}
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -57,8 +56,8 @@ class FileWatcher:
     # Internal
     # ------------------------------------------------------------------ #
 
-    def _snapshot(self) -> Dict[str, float]:
-        result: Dict[str, float] = {}
+    def _snapshot(self) -> dict[str, float]:
+        result: dict[str, float] = {}
         if not self._dir.exists():
             return result
         for p in self._dir.rglob("*.json"):

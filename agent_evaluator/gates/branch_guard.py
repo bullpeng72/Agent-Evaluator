@@ -18,7 +18,6 @@ from __future__ import annotations
 import dataclasses
 import re
 import subprocess
-from typing import Optional, Tuple
 
 
 @dataclasses.dataclass
@@ -31,14 +30,14 @@ class BranchGuardConfig:
             protected_branches=("main", "master"),
         ))
     """
-    protected_branches: Tuple[str, ...] = ("main", "master")
-    git_mutation_patterns: Tuple[str, ...] = (r"git\s+commit", r"git\s+push")
-    require_branch_prefix: Optional[str] = None
-    scoped_tool_names: Tuple[str, ...] = ("bash",)
+    protected_branches: tuple[str, ...] = ("main", "master")
+    git_mutation_patterns: tuple[str, ...] = (r"git\s+commit", r"git\s+push")
+    require_branch_prefix: str | None = None
+    scoped_tool_names: tuple[str, ...] = ("bash",)
     fail_on_violation: bool = True
 
 
-def get_current_branch() -> Optional[str]:
+def get_current_branch() -> str | None:
     """현재 git 브랜치 이름을 조회한다 (SPEC-035 REQ-2).
 
     git 미설치·비-git 디렉토리·타임아웃 등 어떤 실패든 예외 전파 없이 ``None``을
@@ -56,7 +55,7 @@ def get_current_branch() -> Optional[str]:
         return None
 
 
-def is_branch_protected(branch: Optional[str], config: BranchGuardConfig) -> bool:
+def is_branch_protected(branch: str | None, config: BranchGuardConfig) -> bool:
     """``branch``가 ``config`` 기준으로 보호 대상인지 판정한다 (SPEC-035 REQ-3).
 
     ``branch``가 ``None``이면(비-git 환경 등 브랜치를 알 수 없는 경우) 차단하지

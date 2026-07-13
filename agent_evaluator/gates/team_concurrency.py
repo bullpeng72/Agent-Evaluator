@@ -21,7 +21,7 @@ import dataclasses
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Union
 
 
 @dataclasses.dataclass
@@ -54,14 +54,14 @@ class TeamConcurrencyConfig:
     """
 
     claims_path: str = ".aoo/claims.jsonl"
-    shared_files_path: Optional[str] = None
-    scoped_tool_names: Tuple[str, ...] = ("read", "edit", "write")
-    path_param_candidates: Tuple[str, ...] = ("file", "filePath", "path")
+    shared_files_path: str | None = None
+    scoped_tool_names: tuple[str, ...] = ("read", "edit", "write")
+    path_param_candidates: tuple[str, ...] = ("file", "filePath", "path")
     fail_on_conflict: bool = True
-    owner: Optional[str] = None
+    owner: str | None = None
 
 
-def resolve_owner(owner: Optional[str]) -> Optional[str]:
+def resolve_owner(owner: str | None) -> str | None:
     """``owner`` 필드의 ``"auto"`` 센티널을 해석한다 (SPEC-037).
 
     ``"auto"``가 아니면(``None`` 포함) 인자를 그대로 반환한다 — 이 함수는
@@ -94,7 +94,7 @@ def resolve_owner(owner: Optional[str]) -> Optional[str]:
         return None
 
 
-def load_active_claims(claims_path: Union[str, Path]) -> List[Dict[str, Any]]:
+def load_active_claims(claims_path: Union[str, Path]) -> list[dict[str, Any]]:
     """``claims_path``에서 ``status == "active"``인 최신 클레임만 읽어 반환한다.
 
     클레임 로그는 append-only JSON Lines다 — 각 줄이 클레임 개설(active) 또는
@@ -106,7 +106,7 @@ def load_active_claims(claims_path: Union[str, Path]) -> List[Dict[str, Any]]:
     Returns:
         활성 클레임 dict 리스트(각각 ``claim_id``/``developer``/``scope``/... 포함).
     """
-    latest_by_id: Dict[str, Dict[str, Any]] = {}
+    latest_by_id: dict[str, dict[str, Any]] = {}
     path = Path(claims_path)
     if path.exists():
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -117,15 +117,15 @@ def load_active_claims(claims_path: Union[str, Path]) -> List[Dict[str, Any]]:
     return [claim for claim in latest_by_id.values() if claim.get("status") == "active"]
 
 
-def _scopes_overlap(path_a: str, scopes: List[str]) -> bool:
+def _scopes_overlap(path_a: str, scopes: list[str]) -> bool:
     """prefix 겹침 판정 — ``p1 == p2 or p1.startswith(p2) or p2.startswith(p1)``와
     동일한 원칙(``check_scope_claim()``이 이미 쓰던 로직, 재해석 없음)."""
     return any(path_a == s or path_a.startswith(s) or s.startswith(path_a) for s in scopes)
 
 
 def check_scope_claim(
-    proposed_scope: List[str], claims_path: Union[str, Path] = ".aoo/claims.jsonl",
-) -> List[Dict[str, Any]]:
+    proposed_scope: list[str], claims_path: Union[str, Path] = ".aoo/claims.jsonl",
+) -> list[dict[str, Any]]:
     """활성 클레임 중 ``proposed_scope``와 겹치는 것이 있으면 반환한다 (SPEC-032 REQ-1).
 
     ``Evaluator_Examples/ch28_local_ade_loop.py`` 섹션 6의 예제 코드를 그대로
@@ -154,7 +154,7 @@ def append_claim(claims_path: Union[str, Path], **fields: Any) -> None:
 
 def audit_claims(
     claims_path: Union[str, Path] = ".aoo/claims.jsonl", ttl_hours: float = 8.0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """CI에서 클레임 로그의 정합성을 점검한다 (SPEC-034 REQ-1~4).
 
     TTL을 초과하도록 해제되지 않은 활성 클레임과, 스코프가 겹치는 두 개 이상의
@@ -171,7 +171,7 @@ def audit_claims(
         CI 종료 코드 결정은 호출자의 몫).
     """
     claims = load_active_claims(claims_path)
-    violations: List[Dict[str, Any]] = []
+    violations: list[dict[str, Any]] = []
     now = datetime.now(timezone.utc)
 
     for claim in claims:
@@ -212,7 +212,7 @@ def audit_claims(
     return violations
 
 
-def _load_shared_files(shared_files_path: Optional[str]) -> List[str]:
+def _load_shared_files(shared_files_path: str | None) -> list[str]:
     """``shared_files_path``의 비어있지 않은 줄만 읽어 반환한다. ``None``이거나
     파일이 없으면 빈 리스트(에러 아님)."""
     if shared_files_path is None:
@@ -224,8 +224,8 @@ def _load_shared_files(shared_files_path: Optional[str]) -> List[str]:
 
 
 def extract_path_param(
-    parameters: Optional[dict], candidates: Tuple[str, ...],
-) -> Optional[str]:
+    parameters: dict | None, candidates: tuple[str, ...],
+) -> str | None:
     """``parameters``에서 ``candidates`` 순서로 첫 문자열 값을 찾는다 (SPEC-032 REQ-4).
 
     못 찾으면 ``None`` — 호출자는 이 경우 team_concurrency 검사를 건너뛴다

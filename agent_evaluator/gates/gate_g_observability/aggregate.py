@@ -15,19 +15,19 @@ fallback을 비활성화해 이중 반영을 방지하는 기존 로직 그대�
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
 
 def compute(
-    tasks: List[Any],
+    tasks: list[Any],
     tool_call_analyzer: Any,
     min_samples_default: int,
-    hall_rate: Optional[float],
-    avg_llm_faithfulness: Optional[float],
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    hall_rate: float | None,
+    avg_llm_faithfulness: float | None,
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate G(관측 가능성) 점수를 집계한다.
 
     Args:
@@ -46,7 +46,7 @@ def compute(
     Returns:
         gates/base.py의 `_g()` 형식 Gate 결과 dict.
     """
-    _tool_coverage: Optional[float] = None
+    _tool_coverage: float | None = None
     _tc_total_calls = 0
     try:
         _tc_stats = tool_call_analyzer.get_efficiency_stats()
@@ -59,11 +59,11 @@ def compute(
     if shared_running is not None:
         avg_obs_custom = shared_running["observability_avg"]
         _obs_custom_n = shared_running["observability_count"]
-        avg_explainability: Optional[float] = shared_running["explainability_avg"]
+        avg_explainability: float | None = shared_running["explainability_avg"]
         _expl_n = shared_running["explainability_count"]
-        avg_error_diagnosis: Optional[float] = shared_running["error_diagnosis_avg"]
+        avg_error_diagnosis: float | None = shared_running["error_diagnosis_avg"]
         _ed_n = shared_running["error_diagnosis_count"]
-        _avg_latency_attribution: Optional[float] = shared_running["latency_attribution_avg"]
+        _avg_latency_attribution: float | None = shared_running["latency_attribution_avg"]
         _la_n = shared_running["latency_attribution_count"]
     else:
         _obs_custom_scores = [
@@ -112,7 +112,7 @@ def compute(
         )
         _la_n = len(_la_scores)
 
-    _obs_vals: List[float] = []
+    _obs_vals: list[float] = []
     if _tool_coverage is not None:
         _obs_vals.append(_tool_coverage)
     # hall_rate → Gate G: LLMJudge faithfulness 비활성 시에만 사용
@@ -127,10 +127,10 @@ def compute(
         _obs_vals.append(avg_error_diagnosis)
     if _avg_latency_attribution is not None:
         _obs_vals.append(_avg_latency_attribution)
-    _obs_score: Optional[float] = sum(_obs_vals) / len(_obs_vals) if _obs_vals else None
+    _obs_score: float | None = sum(_obs_vals) / len(_obs_vals) if _obs_vals else None
 
     # ── G 그룹: insufficient_data 경고 수집 (SPEC-002, task 기반 4개 지표) ──
-    _g_insufficient: List[str] = []
+    _g_insufficient: list[str] = []
     for _name, _cnt in (
         ("observability", _obs_custom_n),
         ("explainability", _expl_n),

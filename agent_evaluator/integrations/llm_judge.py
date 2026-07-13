@@ -46,14 +46,14 @@ import time
 import warnings
 from datetime import date
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Pricing (USD per 1 000 tokens) — used for budget tracking
 # ---------------------------------------------------------------------------
-_MODEL_PRICING: Dict[str, Dict[str, float]] = {
+_MODEL_PRICING: dict[str, dict[str, float]] = {
     # Anthropic — 가격 단위: USD per 1,000 tokens (출처: anthropic.com/pricing, 2026-04)
     # claude-3-5-haiku: $0.80/$4.00 per 1M = $0.0008/$0.004 per 1K
     "claude-3-5-haiku-20241022": {"input": 0.0008,  "output": 0.004},
@@ -85,7 +85,7 @@ _DEFAULT_PRICING = {"input": 0.001, "output": 0.004}
 
 def _build_system_prompt(
     context_available: bool = False,
-    judge_criteria: Optional[List[str]] = None,
+    judge_criteria: list[str] | None = None,
 ) -> str:
     """Build a dynamic judge system prompt.
 
@@ -229,7 +229,7 @@ def _resolve_default_model() -> str:
 def _build_user_message(
     question: str,
     response: str,
-    context: Optional[str] = None,
+    context: str | None = None,
     max_context_chars: int = 4000,
 ) -> str:
     parts = [f"QUESTION:\n{question}", f"\nAGENT RESPONSE:\n{response}"]
@@ -334,14 +334,14 @@ class LLMJudge:
 
     def __init__(
         self,
-        model: Optional[str] = None,
+        model: str | None = None,
         sample_rate: float = 0.1,
-        budget_per_day: Optional[float] = None,
-        budget_storage_path: Optional[str] = None,
-        seed: Optional[int] = None,
-        judge_criteria: Optional[List[str]] = None,
+        budget_per_day: float | None = None,
+        budget_storage_path: str | None = None,
+        seed: int | None = None,
+        judge_criteria: list[str] | None = None,
         max_context_chars: int = 4000,
-        escalation_model: Optional[str] = None,
+        escalation_model: str | None = None,
         escalation_threshold: float = 2.5,
         max_concurrent_judge_calls: int = 5,
         max_retries: int = 3,
@@ -352,30 +352,30 @@ class LLMJudge:
         # model=None → agent-eval init 설정(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정
         self.model = model if model is not None else _resolve_default_model()
         # escalation_model: primary 점수가 escalation_threshold 미만이면 이 모델로 재채점
-        self.escalation_model: Optional[str] = escalation_model
+        self.escalation_model: str | None = escalation_model
         self.escalation_threshold: float = float(escalation_threshold)
         self.sample_rate = sample_rate
         self.budget_per_day = budget_per_day
 
         # 예산 영속 저장 경로 (None이면 in-memory only)
-        self._budget_storage_path: Optional[Path] = (
+        self._budget_storage_path: Path | None = (
             Path(budget_storage_path) if budget_storage_path else None
         )
         self._budget_lock = threading.Lock()
 
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"] → 각 기준마다 0–5 점수 추가
-        self.judge_criteria: List[str] = list(judge_criteria) if judge_criteria else []
+        self.judge_criteria: list[str] = list(judge_criteria) if judge_criteria else []
 
         # Context 잘림 한도 — 기본 4000자 (RAG 문서 평균 1~2페이지 커버)
         self.max_context_chars: int = max(100, max_context_chars)
 
-        self.seed: Optional[int] = seed
+        self.seed: int | None = seed
         self._rng = random.Random(seed)
         self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
 
         # In-memory daily budget tracking (resets on a new calendar day)
-        self._budget_day: Optional[date] = None
+        self._budget_day: date | None = None
         self._budget_spent: float = 0.0
 
         # 연속 오류 자동 비활성화 — API 키 만료·한도 초과처럼 재시도해도 소용없는 오류가
@@ -383,10 +383,10 @@ class LLMJudge:
         # 성공 시 카운터는 0으로 리셋된다.
         self._consecutive_errors: int = 0
         self._max_consecutive_errors: int = 3
-        self._disabled_reason: Optional[str] = None  # 비활성화 사유 (None = 정상)
+        self._disabled_reason: str | None = None  # 비활성화 사유 (None = 정상)
 
         # Results store: task_id → judge result dict
-        self.results: List[Dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
 
         # SPEC-025 REQ-4: pairwise(A/B) 비교 결과 이력 — self.results(절대 스코어링)와는
         # 별개 목적이라 get_summary()의 절대 스코어 집계를 오염시키지 않도록 분리한다.
@@ -396,8 +396,8 @@ class LLMJudge:
         # 이벤트 루프에 바인딩되므로 __init__(루프 없음) 시점에는 생성하지 않고
         # ajudge() 최초 호출 시점에 lazy하게 생성한다 (_get_semaphore 참고).
         self.max_concurrent_judge_calls: int = max(1, int(max_concurrent_judge_calls))
-        self._semaphore: Optional[asyncio.Semaphore] = None
-        self._semaphore_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._semaphore: asyncio.Semaphore | None = None
+        self._semaphore_loop: asyncio.AbstractEventLoop | None = None
 
         # SPEC-006 REQ-2: rate-limit(429) 재시도 최대 횟수 (지수 백오프: 1s, 2s, 4s, ...)
         self.max_retries: int = max(0, int(max_retries))
@@ -411,8 +411,8 @@ class LLMJudge:
         task_id: str,
         question: str,
         response: str,
-        context: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        context: str | None = None,
+    ) -> dict[str, Any]:
         """
         Judge a single task response.
 
@@ -686,8 +686,8 @@ class LLMJudge:
         task_id: str,
         question: str,
         response: str,
-        context: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        context: str | None = None,
+    ) -> dict[str, Any]:
         """비동기 진입점 — sync `judge()`를 스레드 풀에서 실행해 이벤트 루프 블로킹을 방지한다.
 
         async def 에이전트 함수와 함께 사용할 때 권장한다.
@@ -708,7 +708,7 @@ class LLMJudge:
                 None, self.judge, task_id, question, response, context
             )
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """
         Aggregate summary of all judge results collected so far.
 
@@ -728,7 +728,7 @@ class LLMJudge:
                     if k != "criteria_scores" and isinstance(v, (int, float)):
                         all_scalar_dims.add(k)
 
-        avg_scores: Dict[str, Any] = {}
+        avg_scores: dict[str, Any] = {}
         for dim in sorted(all_scalar_dims):
             # faithfulness는 None 값을 제외하고 평균 계산 (누락 필드를 0으로 오염시키지 않음)
             vals = [
@@ -739,7 +739,7 @@ class LLMJudge:
             avg_scores[dim] = round(sum(vals) / len(vals), 3) if vals else 0.0
 
         # Aggregate criteria_scores across results (G-Eval)
-        all_criteria: Dict[str, List[float]] = {}
+        all_criteria: dict[str, list[float]] = {}
         for r in judged:
             cs = r.get("scores", {}).get("criteria_scores", {})
             if isinstance(cs, dict):
@@ -764,7 +764,7 @@ class LLMJudge:
         self,
         prompt_name: str = "agent-eval-judge",
         phoenix_endpoint: str = "http://localhost:6006",
-    ) -> Optional[str]:
+    ) -> str | None:
         """현재 LLMJudge 채점 프롬프트를 Phoenix Prompts에 등록한다.
 
         Phoenix UI → Prompts 탭에서 버전 이력 확인 및 Playground 연동이 가능해진다.
@@ -790,7 +790,7 @@ class LLMJudge:
         #           template_format, invocation_parameters, description}
         model_provider = "OPENAI" if self.model.startswith("gpt") else "ANTHROPIC"
         inv_type = "openai" if model_provider == "OPENAI" else "anthropic"
-        inv_content: Dict[str, Any] = {"temperature": 0.0, "max_tokens": 512}
+        inv_content: dict[str, Any] = {"temperature": 0.0, "max_tokens": 512}
         payload = json.dumps({
             "prompt": {
                 "name": prompt_name,
@@ -836,7 +836,7 @@ class LLMJudge:
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 result = json.loads(resp.read().decode())
-                prompt_id: Optional[str] = (
+                prompt_id: str | None = (
                     result.get("data", {}).get("id")
                     or result.get("id")
                 )
@@ -902,7 +902,7 @@ class LLMJudge:
         self,
         input_tokens: int,
         output_tokens: int,
-        pricing: Optional[Dict[str, float]] = None,
+        pricing: dict[str, float] | None = None,
     ) -> float:
         p = pricing or self._pricing
         cost = (
@@ -919,10 +919,10 @@ class LLMJudge:
         task_id: str,
         question: str,
         response: str,
-        context: Optional[str],
+        context: str | None,
         *,
-        _model: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        _model: str | None = None,
+    ) -> dict[str, Any]:
         """Dispatch to the correct provider.
 
         ``_model`` overrides ``self.model`` for this call only (used by escalation)
@@ -1021,10 +1021,10 @@ class LLMJudge:
         raw_text: str,
         cost: float,
         context_available: bool = False,
-        judge_criteria: Optional[List[str]] = None,
-        model: Optional[str] = None,
-        model_snapshot: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        judge_criteria: list[str] | None = None,
+        model: str | None = None,
+        model_snapshot: str | None = None,
+    ) -> dict[str, Any]:
         """Parse JSON from the judge's response.
 
         Args:
@@ -1057,7 +1057,7 @@ class LLMJudge:
             _std = _math.sqrt(_variance)
             confidence = round(max(0.0, min(1.0, 1.0 - _std / 2.5)), 3)
 
-            scores: Dict[str, Any] = {
+            scores: dict[str, Any] = {
                 "completeness": completeness,
                 "relevance": relevance,
                 "factual_consistency": factual,
@@ -1092,7 +1092,7 @@ class LLMJudge:
                     c for c in judge_criteria
                     if not (context_available and c.lower().replace(" ", "_").replace("-", "_") == "faithfulness")
                 ]
-                criteria_scores: Dict[str, int] = {}
+                criteria_scores: dict[str, int] = {}
                 for criterion in _effective_criteria:
                     key = criterion.lower().replace(" ", "_").replace("-", "_")
                     criteria_scores[key] = max(0, min(5, int(data.get(key, 0))))
@@ -1134,10 +1134,10 @@ class LLMJudge:
         task_id: str,
         question: str,
         response: str,
-        context: Optional[str],
+        context: str | None,
         *,
-        _model: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        _model: str | None = None,
+    ) -> dict[str, Any]:
         model = _model or self.model
         try:
             import anthropic
@@ -1272,10 +1272,10 @@ class LLMJudge:
         task_id: str,
         question: str,
         response: str,
-        context: Optional[str],
+        context: str | None,
         *,
-        _model: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        _model: str | None = None,
+    ) -> dict[str, Any]:
         model = _model or self.model
         try:
             import openai

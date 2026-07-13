@@ -8,15 +8,15 @@ opentelemetry-sdk 미설치 시 no-op.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
     from opentelemetry import metrics
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 
     _HAS_OTEL_METRICS = True
 except ImportError:
@@ -42,7 +42,7 @@ class OTELMetrics:
     """
 
     # 발행 지표 정의: name → (kind, description)
-    METRIC_DEFS: Dict[str, tuple] = {
+    METRIC_DEFS: dict[str, tuple] = {
         "ae.tcr": ("gauge", "Task Completion Rate (%)"),
         "ae.accuracy": ("gauge", "Accuracy Score (0–1)"),
         "ae.latency_seconds": ("histogram", "Task Execution Latency (s)"),
@@ -52,7 +52,7 @@ class OTELMetrics:
 
     def __init__(self, endpoint: str, enabled: bool = True) -> None:
         self._enabled = enabled and _HAS_OTEL_METRICS
-        self._instruments: Dict[str, Any] = {}
+        self._instruments: dict[str, Any] = {}
 
         if not self._enabled:
             return
@@ -83,7 +83,7 @@ class OTELMetrics:
         self,
         name: str,
         value: float,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: dict[str, Any] | None = None,
     ) -> None:
         """지표 값 기록. 미활성화 또는 미등록 지표면 no-op.
 

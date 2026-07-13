@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class PydanticAITokenExtractor:
     """
 
     @staticmethod
-    def extract(run_result: Any) -> Optional[Dict[str, int]]:
+    def extract(run_result: Any) -> dict[str, int] | None:
         """RunResult 에서 토큰 사용량을 ``{"input", "output", "total"}`` 형식으로 추출.
 
         Args:
@@ -172,7 +172,7 @@ class PydanticAIEvaluator:
         monitor: Any,
         agent: Any,
         task_type: str = "qa",
-        score_fn: Optional[Callable] = None,
+        score_fn: Callable | None = None,
     ) -> None:
         self.monitor = monitor
         self.agent = agent
@@ -183,7 +183,7 @@ class PydanticAIEvaluator:
         self,
         question: str,
         ground_truth: str = "",
-        task_id: Optional[str] = None,
+        task_id: str | None = None,
     ) -> str:
         """단건 비동기 평가 실행.
 
@@ -195,11 +195,12 @@ class PydanticAIEvaluator:
         Returns:
             에이전트 응답 문자열.
         """
-        import uuid
-        import time
         import dataclasses
-        from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
+        import time
+        import uuid
+
         from agent_evaluator.decorators import _extract_pydanticai_metadata
+        from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
 
         if task_id is None:
             task_id = f"pai_{uuid.uuid4().hex[:8]}"
@@ -240,7 +241,7 @@ class PydanticAIEvaluator:
                 pass
 
         # 점수 계산
-        accuracy_score: Optional[float] = None
+        accuracy_score: float | None = None
         if self.score_fn and response and ground_truth:
             try:
                 accuracy_score = float(self.score_fn(response, ground_truth))
@@ -259,7 +260,7 @@ class PydanticAIEvaluator:
                 error_message=error_msg,
                 task_type=self.task_type,
             )
-            overrides: Dict[str, Any] = {"framework": "pydanticai"}
+            overrides: dict[str, Any] = {"framework": "pydanticai"}
             if tokens_used:
                 overrides["tokens_used"] = tokens_used
             if accuracy_score is not None:
@@ -277,7 +278,7 @@ class PydanticAIEvaluator:
         self,
         question: str,
         ground_truth: str = "",
-        task_id: Optional[str] = None,
+        task_id: str | None = None,
     ) -> str:
         """단건 동기 평가 실행 (asyncio.run 래퍼).
 
@@ -289,7 +290,7 @@ class PydanticAIEvaluator:
 
     async def evaluate_async(
         self,
-        dataset: List[Dict[str, str]],
+        dataset: list[dict[str, str]],
         question_key: str = "question",
         ground_truth_key: str = "ground_truth",
         concurrency: int = 1,
@@ -308,9 +309,9 @@ class PydanticAIEvaluator:
         import uuid
 
         semaphore = asyncio.Semaphore(concurrency)
-        scores: List[float] = []
+        scores: list[float] = []
 
-        async def _run_one(item: Dict[str, str]) -> float:
+        async def _run_one(item: dict[str, str]) -> float:
             async with semaphore:
                 q = item.get(question_key, "")
                 gt = item.get(ground_truth_key, "")

@@ -13,7 +13,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
-from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agent_evaluator.alerts.engine import AlertEngine
@@ -38,7 +38,7 @@ class SlidingWindow:
 
     def __init__(self, window_seconds: int) -> None:
         self.window_seconds = window_seconds
-        self._records: Deque[StreamingRecord] = deque()
+        self._records: deque[StreamingRecord] = deque()
         self._lock = threading.Lock()
 
     def add(self, record: StreamingRecord) -> None:
@@ -51,7 +51,7 @@ class SlidingWindow:
         while self._records and self._records[0].timestamp < cutoff:
             self._records.popleft()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
             self._evict()
             records = list(self._records)
@@ -111,10 +111,10 @@ class StreamingEvaluator:
         self,
         monitor: PerformanceMonitor,
         flush_interval: int = 60,
-        alert_handler: Optional[AlertEngine] = None,
-        anomaly_detector: Optional[AnomalyDetector] = None,
+        alert_handler: AlertEngine | None = None,
+        anomaly_detector: AnomalyDetector | None = None,
         anomaly_scan_interval: int = 300,
-        anomaly_alert_handler: Optional[Any] = None,
+        anomaly_alert_handler: Any | None = None,
     ) -> None:
         self.monitor = monitor
         self.flush_interval = flush_interval
@@ -130,12 +130,12 @@ class StreamingEvaluator:
             "1h": SlidingWindow(3600),
         }
         self._lock = threading.Lock()
-        self._flush_thread: Optional[threading.Thread] = None
+        self._flush_thread: threading.Thread | None = None
         self._running = False
 
         # SPEC-026 REQ-2: 가장 최근 주기적 이상탐지 스캔 결과 — anomaly_detector
         # 미지정이면 항상 빈 리스트로 유지된다.
-        self._last_anomalies: List[AnomalyEvent] = []
+        self._last_anomalies: list[AnomalyEvent] = []
         self._last_anomaly_scan_time: float = 0.0
 
     def start(self) -> None:
@@ -189,7 +189,7 @@ class StreamingEvaluator:
             except Exception as _e:
                 logger.debug("Alert handler evaluation failed (ignored): %s", _e)
 
-    def get_stats(self, window: str = "5m") -> Dict[str, Any]:
+    def get_stats(self, window: str = "5m") -> dict[str, Any]:
         """슬라이딩 윈도우 통계 반환.
 
         Args:
@@ -203,7 +203,7 @@ class StreamingEvaluator:
             raise ValueError(f"window must be one of {list(self._windows.keys())}")
         return w.get_stats()
 
-    def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_stats(self) -> dict[str, dict[str, Any]]:
         """모든 윈도우의 통계를 반환."""
         return {name: w.get_stats() for name, w in self._windows.items()}
 

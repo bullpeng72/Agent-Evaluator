@@ -6,14 +6,14 @@ Core data classes: TaskResult, EvaluationReport, TaskType, _TaskContext.
 
 from __future__ import annotations
 
+import dataclasses
 import json as _json
 import warnings
-import dataclasses
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from agent_evaluator.exceptions import ValidationError
 
@@ -44,30 +44,30 @@ class TaskResult:
     completion_score: float
     accuracy_score: float
     execution_time: float
-    tokens_used: Dict[str, int]
-    tool_calls: List[Dict[str, Any]]
+    tokens_used: dict[str, int]
+    tool_calls: list[dict[str, Any]]
     attempts: int
-    errors: List[str]
+    errors: list[str]
     timestamp: datetime = field(default_factory=datetime.now)
 
     # Agentic AI specific fields
-    agent_interactions: Optional[List[Dict[str, Any]]] = None      # Multi-agent interactions (CrewAI)
-    chain_steps: Optional[List[Dict[str, Any]]] = None             # Chain execution steps (LangChain)
-    graph_traversal: Optional[Dict[str, Any]] = None               # Graph traversal path (LangGraph)
-    conversation_turns: Optional[List[Dict[str, Any]]] = None      # Conversation turns (AutoGen)
-    expected_tools: Optional[List[str]] = None                     # Expected tools from golden dataset
-    state_transitions: Optional[List[Dict[str, Any]]] = None       # State transitions (LangGraph)
-    framework: Optional[str] = None                                 # Framework used (crewai, langchain, langgraph, autogen)
-    partial_reason: Optional[str] = None                            # 부분 성공/실패 원인 설명 (자동 추론 또는 사용자 직접 지정)
+    agent_interactions: list[dict[str, Any]] | None = None      # Multi-agent interactions (CrewAI)
+    chain_steps: list[dict[str, Any]] | None = None             # Chain execution steps (LangChain)
+    graph_traversal: dict[str, Any] | None = None               # Graph traversal path (LangGraph)
+    conversation_turns: list[dict[str, Any]] | None = None      # Conversation turns (AutoGen)
+    expected_tools: list[str] | None = None                     # Expected tools from golden dataset
+    state_transitions: list[dict[str, Any]] | None = None       # State transitions (LangGraph)
+    framework: str | None = None                                 # Framework used (crewai, langchain, langgraph, autogen)
+    partial_reason: str | None = None                            # 부분 성공/실패 원인 설명 (자동 추론 또는 사용자 직접 지정)
     # Raw content fields — persisted to JSON for dashboard display
-    question: Optional[str] = None                                  # User question / input
-    response: Optional[str] = None                                  # Agent response / output
-    ground_truth: Optional[str] = None                              # Expected answer
-    context: Optional[str] = None                                   # RAG context (for judge / hallucination)
+    question: str | None = None                                  # User question / input
+    response: str | None = None                                  # Agent response / output
+    ground_truth: str | None = None                              # Expected answer
+    context: str | None = None                                   # RAG context (for judge / hallucination)
     # LLM Judge result (Phase 1-A) — set by PerformanceMonitor when enable_llm_judge=True
-    llm_judge: Optional[Dict[str, Any]] = None                      # {scores, reasoning, model, cost_usd}
+    llm_judge: dict[str, Any] | None = None                      # {scores, reasoning, model, cost_usd}
     # Free-form user-defined metadata — attached via EvalMetadata.extra or get_eval_ctx().extra
-    extra: Optional[Dict[str, Any]] = None                          # {"intent": "search", "source": "api", ...}
+    extra: dict[str, Any] | None = None                          # {"intent": "search", "source": "api", ...}
 
     def __post_init__(self) -> None:
         """입력값 유효성 검증 및 task_type 정규화."""
@@ -115,7 +115,7 @@ class TaskResult:
         return hash(self.task_id)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskResult":
+    def from_dict(cls, data: dict[str, Any]) -> TaskResult:
         """Create a TaskResult from a plain dict (e.g. loaded from JSON).
 
         Extra keys in *data* are silently ignored so that dicts produced by
@@ -144,7 +144,7 @@ class TaskResult:
             restored = TaskResult.from_json(serialized)
         """
         valid_fields = {f.name for f in dataclasses.fields(cls)}
-        kwargs: Dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
+        kwargs: dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
 
         # Convert timestamp from ISO-8601 string to datetime if needed
         ts = kwargs.get("timestamp")
@@ -157,7 +157,7 @@ class TaskResult:
         return cls(**kwargs)
 
     @classmethod
-    def from_json(cls, json_str: str) -> "TaskResult":
+    def from_json(cls, json_str: str) -> TaskResult:
         """Create a TaskResult from a JSON string.
 
         Convenience wrapper around :meth:`from_dict` for JSON strings
@@ -178,7 +178,7 @@ class TaskResult:
         """
         return cls.from_dict(_json.loads(json_str))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert this TaskResult to a plain dict.
 
         ``datetime`` fields are serialized to ISO-8601 strings so the
@@ -236,14 +236,14 @@ class EvaluationReport:
     """Comprehensive evaluation report"""
     period: str
     total_tasks: int
-    accuracy_metrics: Dict[str, Any]   # {"tcr": {...}, "accuracy_scores": {...}, ...}
-    efficiency_metrics: Dict[str, Any]
-    quality_metrics: Dict[str, Any]    # {"avg_total_score": float, "grade_distribution": {...}, ...}
-    security_metrics: Optional[Dict[str, Any]] = None  # Optional security metrics (Layer 1 & 2)
-    alerts: Optional[List[Dict[str, str]]] = None
-    recommendations: Optional[List[Dict[str, str]]] = None
-    timestamp: Optional[datetime] = None
-    extra_metrics: Optional[Dict[str, Any]] = None  # v0.9.0+: harness_groups, etc.
+    accuracy_metrics: dict[str, Any]   # {"tcr": {...}, "accuracy_scores": {...}, ...}
+    efficiency_metrics: dict[str, Any]
+    quality_metrics: dict[str, Any]    # {"avg_total_score": float, "grade_distribution": {...}, ...}
+    security_metrics: dict[str, Any] | None = None  # Optional security metrics (Layer 1 & 2)
+    alerts: list[dict[str, str]] | None = None
+    recommendations: list[dict[str, str]] | None = None
+    timestamp: datetime | None = None
+    extra_metrics: dict[str, Any] | None = None  # v0.9.0+: harness_groups, etc.
 
     def __eq__(self, other: object) -> bool:
         """Semantic equality — compares evaluation data fields, excludes ``timestamp``.
@@ -267,7 +267,7 @@ class EvaluationReport:
             and self.recommendations == other.recommendations
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """EvaluationReport를 dict로 변환한다.
 
         datetime 필드는 ISO-8601 문자열로 변환되므로 반환값은
@@ -315,7 +315,7 @@ class EvaluationReport:
         return _json.dumps(self.to_dict(), indent=indent, default=_serialize)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "EvaluationReport":
+    def from_dict(cls, data: dict[str, Any]) -> EvaluationReport:
         """Reconstruct an EvaluationReport from a dict (e.g. loaded from JSON).
 
         Extra keys in *data* are silently ignored.  The ``timestamp`` field
@@ -337,7 +337,7 @@ class EvaluationReport:
             assert restored.total_tasks == report.total_tasks
         """
         valid_fields = {f.name for f in dataclasses.fields(cls)}
-        kwargs: Dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
+        kwargs: dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
 
         ts = kwargs.get("timestamp")
         if isinstance(ts, str):
@@ -349,7 +349,7 @@ class EvaluationReport:
         return cls(**kwargs)
 
     @classmethod
-    def from_json(cls, json_str: str) -> "EvaluationReport":
+    def from_json(cls, json_str: str) -> EvaluationReport:
         """Reconstruct an EvaluationReport from a JSON string.
 
         Convenience wrapper around :meth:`from_dict` for JSON strings
@@ -363,7 +363,7 @@ class EvaluationReport:
         """
         return cls.from_dict(_json.loads(json_str))
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """핵심 지표만 담은 요약 dict를 반환한다.
 
         Returns:
@@ -468,10 +468,10 @@ class _TaskContext:
 
     def __init__(
         self,
-        monitor: "PerformanceMonitor",
+        monitor: PerformanceMonitor,
         task_id: str,
         task_type: str,
-        question: Optional[str],
+        question: str | None,
         **kwargs: Any,
     ) -> None:
         self._monitor = monitor
@@ -479,19 +479,19 @@ class _TaskContext:
         self._task_type = task_type
         self._question = question
         self._kwargs = kwargs
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
 
         # Public attributes set by the user inside the with-block
-        self.response: Optional[str] = None
-        self.ground_truth: Optional[str] = None
-        self.context: Optional[str] = None
-        self.success: Optional[bool] = None
-        self.tool_calls: List[Dict[str, Any]] = []
-        self.errors: List[str] = []
+        self.response: str | None = None
+        self.ground_truth: str | None = None
+        self.context: str | None = None
+        self.success: bool | None = None
+        self.tool_calls: list[dict[str, Any]] = []
+        self.errors: list[str] = []
         self.attempts: int = 1
-        self.tokens_used: Optional[Dict[str, int]] = None
+        self.tokens_used: dict[str, int] | None = None
 
-    def __enter__(self) -> "_TaskContext":
+    def __enter__(self) -> _TaskContext:
         import time as _time
         self._start_time = _time.time()
         return self

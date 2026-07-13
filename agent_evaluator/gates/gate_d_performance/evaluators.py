@@ -11,16 +11,16 @@ eval_sla의 반환 dict(특히 "_config" 서브딕셔너리)는 Gate C(Reliabili
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def eval_sla(
     execution_time_s: float,
     tokens_used: Any,
-    cost_usd: Optional[float],
+    cost_usd: float | None,
     config: Any,
-    ttft_ms: Optional[float] = None,
-) -> Dict[str, Any]:
+    ttft_ms: float | None = None,
+) -> dict[str, Any]:
     """SLA 준수 여부 단일 태스크 수준 평가.
 
     Args:
@@ -44,7 +44,7 @@ def eval_sla(
     ttft_threshold = getattr(config, "ttft_ms", None)
 
     actual_ms = execution_time_s * 1000.0
-    breaches: List[str] = []
+    breaches: list[str] = []
 
     latency_ok = actual_ms <= p95_ms and actual_ms <= p99_ms
     if actual_ms > p95_ms:
@@ -120,9 +120,9 @@ def eval_efficiency(
     completion_score: float,
     tokens_used: int,
     execution_time_s: float,
-    cost_usd: Optional[float],
+    cost_usd: float | None,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """비용 대비 완료율(ROI) 단일 태스크 수준 평가.
 
     Args:
@@ -168,7 +168,7 @@ def eval_efficiency(
 
     # efficiency = completion_score / cost
     # cost_value=0은 tokens_used=0/None 등 측정 불가 상황 — ratio=None으로 집계 제외
-    ratio: Optional[float]
+    ratio: float | None
     if cost_value <= 0:
         ratio = None
     else:
@@ -187,7 +187,7 @@ def eval_efficiency(
     target = getattr(config, "target_cost_per_completion", None)
     warn_ratio = float(getattr(config, "warn_ratio", 2.0) or 2.0)
     fail_ratio = float(getattr(config, "fail_ratio", 4.0) or 4.0)
-    calibrated_score: Optional[float] = None
+    calibrated_score: float | None = None
     efficiency_grade: str = "n/a"
 
     # D-C: penalized=True이면 efficiency_ratio=0.0(패널티)이지만 calibrated_score는
@@ -217,7 +217,7 @@ def eval_efficiency(
             calibrated_score = max(0.0, 0.3 - 0.3 * (ratio_vs_target - fail_ratio) / max(fail_ratio, 1e-6))
             efficiency_grade = "fail"
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "efficiency_ratio": round(ratio, 8) if ratio is not None else None,
         "cost_value": round(cost_value, 4),
         "cost_unit": cost_unit,
@@ -237,7 +237,7 @@ def eval_resource_budget(
     elapsed_ms: float,
     config: Any,
     task_succeeded: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """정의된 예산 한도에 대한 리소스 소비를 평가한다.
 
     Args:
@@ -250,7 +250,7 @@ def eval_resource_budget(
     Returns:
         {budget_score, token_utilization, cost_utilization, time_utilization, over_budget, warnings}
     """
-    warnings_list: List[str] = []
+    warnings_list: list[str] = []
     over_budget = False
     count_failed = bool(getattr(config, "count_failed_tokens", True))
 
@@ -262,7 +262,7 @@ def eval_resource_budget(
         float(cost_usd) if (count_failed or task_succeeded) and cost_usd is not None else 0.0
     )
 
-    def _utilization(used: float, limit: Optional[float]) -> Optional[float]:
+    def _utilization(used: float, limit: float | None) -> float | None:
         if limit is None or limit <= 0:
             return None
         return used / limit
@@ -288,7 +288,7 @@ def eval_resource_budget(
     # rather than inflating the score with an artificial 1.0.
     utils = [u for u in [token_util, cost_util, time_util] if u is not None]
     if utils:
-        budget_score: Optional[float] = max(0.0, 1.0 - max(utils))
+        budget_score: float | None = max(0.0, 1.0 - max(utils))
     else:
         budget_score = None
 

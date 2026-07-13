@@ -11,10 +11,8 @@ otel 패키지 미설치 시 setup_otel()은 no-op OTELProvider를 반환하며
 
 from __future__ import annotations
 
-from typing import Optional
-
-_provider: Optional["OTELProvider"] = None  # type: ignore[name-defined]  # noqa: F821
-_metrics: Optional["OTELMetrics"] = None   # type: ignore[name-defined]  # noqa: F821
+_provider: OTELProvider | None = None  # type: ignore[name-defined]  # noqa: F821
+_metrics: OTELMetrics | None = None   # type: ignore[name-defined]  # noqa: F821
 
 
 def setup_otel(
@@ -22,7 +20,7 @@ def setup_otel(
     service_name: str = "agent-evaluator",
     enabled: bool = True,
     enable_metrics: bool = False,
-) -> "OTELProvider":  # type: ignore[name-defined]  # noqa: F821
+) -> OTELProvider:  # type: ignore[name-defined]  # noqa: F821
     """OTELProvider를 초기화하고 전역 등록한다.
 
     PerformanceMonitor는 이 전역 provider를 자동으로 감지해
@@ -59,11 +57,11 @@ def setup_otel(
     return _provider
 
 
-def get_provider() -> Optional["OTELProvider"]:  # type: ignore[name-defined]  # noqa: F821
+def get_provider() -> OTELProvider | None:  # type: ignore[name-defined]  # noqa: F821
     """현재 활성화된 OTELProvider를 반환. 미설정 시 None."""
     return _provider
 
 
-def get_metrics() -> Optional["OTELMetrics"]:  # type: ignore[name-defined]  # noqa: F821
+def get_metrics() -> OTELMetrics | None:  # type: ignore[name-defined]  # noqa: F821
     """현재 활성화된 OTELMetrics를 반환. 미설정 시 None."""
     return _metrics

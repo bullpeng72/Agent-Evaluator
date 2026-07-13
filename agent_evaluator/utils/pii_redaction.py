@@ -18,20 +18,19 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from typing import List, Optional
 
 from agent_evaluator.core.trackers.base import TaskResult
 from agent_evaluator.gates.gate_e_security.evaluators import _PII_PATTERNS
 
 #: name/address는 매칭 범위가 넓어(일반 텍스트 과잉 매칭 위험) 기본에서 제외한다.
-DEFAULT_REDACTION_CATEGORIES: List[str] = [
+DEFAULT_REDACTION_CATEGORIES: list[str] = [
     category for category in _PII_PATTERNS if category not in ("name", "address")
 ]
 
 _REDACTED_TEXT_FIELDS = ("question", "response", "ground_truth", "context")
 
 
-def redact_pii_text(text: Optional[str], categories: List[str]) -> Optional[str]:
+def redact_pii_text(text: str | None, categories: list[str]) -> str | None:
     """``categories``에 해당하는 ``_PII_PATTERNS`` 정규식을 ``text``에서 찾아
     ``[REDACTED:<category>]``로 치환한다.
 
@@ -52,7 +51,7 @@ def redact_pii_text(text: Optional[str], categories: List[str]) -> Optional[str]
     return text
 
 
-def redact_task_pii(task: TaskResult, categories: Optional[List[str]] = None) -> TaskResult:
+def redact_task_pii(task: TaskResult, categories: list[str] | None = None) -> TaskResult:
     """``task``의 원문 텍스트 필드를 redact한 **새** ``TaskResult``를 반환한다.
 
     ``TaskResult``는 frozen dataclass이므로 ``dataclasses.replace()``로 사본을 만든다 —

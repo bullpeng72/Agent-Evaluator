@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent_evaluator.helpers.taskresult_helpers import _token_overlap_ratio, normalize_text
 
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 def _consensus_structured_signals(
-    agent_interactions: Optional[List[Any]],
-    names: List[str],
-) -> Optional[Dict[str, Tuple[Optional[str], Optional[str]]]]:
+    agent_interactions: list[Any] | None,
+    names: list[str],
+) -> dict[str, tuple[str | None, str | None]] | None:
     """agent_interactions에서 에이전트별 구조화 의도/액션 신호를 추출한다(REQ-1).
 
     각 interaction dict가 에이전트 식별자("agent"/"agent_name"/"name")와 구조화 필드
@@ -53,7 +53,7 @@ def _consensus_structured_signals(
     if not agent_interactions:
         return None
 
-    by_name: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    by_name: dict[str, tuple[str | None, str | None]] = {}
     for interaction in agent_interactions:
         if not isinstance(interaction, dict):
             continue
@@ -69,7 +69,7 @@ def _consensus_structured_signals(
         if intent is None and action is None:
             continue  # 구조화 필드 없음 — 이 항목은 신호로 사용 불가
 
-        def _norm(v: Any) -> Optional[str]:
+        def _norm(v: Any) -> str | None:
             return str(v).strip().lower() if v is not None else None
 
         by_name[str(agent_id)] = (_norm(intent), _norm(action))
@@ -83,11 +83,11 @@ def _consensus_structured_signals(
 
 
 def eval_consensus(
-    responses: List[str],
-    agent_names: Optional[List[str]],
+    responses: list[str],
+    agent_names: list[str] | None,
     config: Any,
-    agent_interactions: Optional[List[Any]] = None,
-) -> Dict[str, Any]:
+    agent_interactions: list[Any] | None = None,
+) -> dict[str, Any]:
     """다중 에이전트 응답의 합의 품질을 측정한다.
 
     SPEC-009 REQ-1: ``agent_interactions``에 에이전트별 구조화 의도/액션 필드
@@ -119,7 +119,7 @@ def eval_consensus(
         }
 
     method: str = getattr(config, "consensus_method", "majority") or "majority"
-    agent_weights: Dict[str, float] = getattr(config, "agent_weights", {}) or {}
+    agent_weights: dict[str, float] = getattr(config, "agent_weights", {}) or {}
     # F-6: `or 0.7` falsy 패턴 — similarity_threshold=0.0 입력 시 0.7로 강제 override되는 버그
     # ConsensusConfig.__post_init__이 0.0을 차단하지만 방어 코드로 명시적 None 체크로 수정
     _raw_thresh = getattr(config, "similarity_threshold", None)
@@ -133,7 +133,7 @@ def eval_consensus(
     signal_source = "structured" if _structured_signals is not None else "text_fallback"
 
     # pairwise similarity matrix
-    sim_matrix: List[List[float]] = []
+    sim_matrix: list[list[float]] = []
     for i in range(len(responses)):
         row = []
         for j in range(len(responses)):
@@ -152,7 +152,7 @@ def eval_consensus(
         sim_matrix.append(row)
 
     # 동의 쌍 (threshold 이상이면 동의)
-    agreement_pairs: List[Dict[str, Any]] = []
+    agreement_pairs: list[dict[str, Any]] = []
     agree_count = 0
     total_pairs = 0
     for i in range(len(responses)):
@@ -209,7 +209,7 @@ def eval_consensus(
         consensus_score = agree_count / total_pairs if total_pairs > 0 else 1.0
 
     # 대표 응답 선택
-    selected_response: Optional[str] = None
+    selected_response: str | None = None
     if select_best:
         if method == "weighted" and agent_weights:
             # 가중치가 높은 에이전트의 응답 선택
@@ -237,9 +237,9 @@ def eval_consensus(
 
 
 def _propagation_structured_signal(
-    agent_interactions: Optional[List[Any]],
-    key_facts: List[str],
-) -> Optional[Dict[str, set]]:
+    agent_interactions: list[Any] | None,
+    key_facts: list[str],
+) -> dict[str, set] | None:
     """agent_interactions의 각 홉에서 구조화된 fact 전파 신호를 추출한다(SPEC-009 REQ-3).
 
     interaction dict가 "facts_relayed"(또는 "relayed_facts") 키로 해당 홉이 실제로
@@ -282,8 +282,8 @@ def _propagation_structured_signal(
 
 
 def eval_propagation(
-    response: str, agent_interactions: List[Any], config: Any
-) -> Dict[str, Any]:
+    response: str, agent_interactions: list[Any], config: Any
+) -> dict[str, Any]:
     """멀티에이전트 조율에서 정보 전파 충실도를 평가한다.
 
     SPEC-009 REQ-3: ``agent_interactions``의 각 홉이 "facts_relayed"/"distorted_facts"
@@ -336,8 +336,8 @@ def eval_propagation(
                 return matched >= similarity_threshold
         return False
 
-    facts_propagated: List[str] = []
-    facts_lost: List[str] = []
+    facts_propagated: list[str] = []
+    facts_lost: list[str] = []
 
     if _structured_prop is not None:
         # SPEC-009 REQ-3: 홉이 명시한 구조화 relay 신호를 그대로 채택 — 텍스트 매칭 생략
@@ -409,8 +409,8 @@ def eval_propagation(
 
 
 def eval_role_adherence(
-    tool_calls: List[Any], response: str, config: Any
-) -> Dict[str, Any]:
+    tool_calls: list[Any], response: str, config: Any
+) -> dict[str, Any]:
     """에이전트 행동이 선언된 역할에 부합하는지 평가한다.
 
     SPEC-009 REQ-2: ``tool_calls``에서 도구 식별자를 추출할 수 있으면(``tool_names``
@@ -430,7 +430,7 @@ def eval_role_adherence(
         {role_compliance_score, role_violations, misused_tools, role_name, violation_count,
          signal_source}
     """
-    tool_names: List[str] = []
+    tool_names: list[str] = []
     for tc in (tool_calls or []):
         if isinstance(tc, dict):
             name = tc.get("name") or tc.get("tool") or tc.get("function", {}).get("name", "")
@@ -445,8 +445,8 @@ def eval_role_adherence(
     # 얻지 못했으면(도구 미사용/이름 없음) 텍스트 키워드 매칭으로 폴백
     signal_source = "structured" if tool_names else "text_fallback"
 
-    role_violations: List[str] = []
-    misused_tools: List[str] = []
+    role_violations: list[str] = []
+    misused_tools: list[str] = []
 
     # Check forbidden tools
     for t in tool_names:
@@ -476,7 +476,7 @@ def eval_role_adherence(
     # SPEC-009 REQ-2: 텍스트 기반 액션 키워드 매칭은 tool_calls에서 도구 식별자를
     # 얻지 못했을 때(text_fallback)만 수행 — 도구명이 있으면 그 식별자 비교로 충분하고
     # 키워드 오탐(false positive) 위험을 감수할 필요가 없다.
-    missing_required: List[str] = []
+    missing_required: list[str] = []
     if signal_source == "text_fallback":
         # Check forbidden action keywords in response
         response_lower = (response or "").lower()
@@ -519,8 +519,8 @@ def eval_role_adherence(
 
 
 def eval_conflict_resolution(
-    response: str, agent_interactions: List[Any], config: Any
-) -> Dict[str, Any]:
+    response: str, agent_interactions: list[Any], config: Any
+) -> dict[str, Any]:
     """멀티에이전트 충돌 감지 및 해결 품질을 평가한다.
 
     Args:

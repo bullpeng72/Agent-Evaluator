@@ -16,7 +16,7 @@ SPEC-018 Phase 1: `shared_running`(선택)이 주어지면(retention_mode="windo
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
@@ -25,8 +25,8 @@ def compute(
     tasks: list,
     enable_security_metrics: bool,
     min_samples_default: int,
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate E(Security Boundary) 그룹 딕셔너리를 계산한다.
 
     Args:
@@ -155,7 +155,7 @@ def compute(
     _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
 
     # Native security tracker data (Phase 5 — already stored in TaskResult.extra)
-    _native_e_scores: List[float] = []
+    _native_e_scores: list[float] = []
 
     if _priv_esc_count > 0 or _priv_esc_n > 0:
         _native_e_scores.append(max(0.0, 1.0 - _priv_esc_count / max(n, 1)))
@@ -178,7 +178,7 @@ def compute(
     _include_sec_raw = enable_security_metrics and not _native_e_scores
     if _cvss_count > 0:
         _cvss_normalized = max(0.0, 1.0 - _cvss_avg / 10.0)
-        _e_base_scores: List[float] = (
+        _e_base_scores: list[float] = (
             [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
         )
         if _avg_compliance is not None:
@@ -192,7 +192,7 @@ def compute(
 
     # SPEC-002: insufficient_data 경고 — native score 4종은 위반 건수(_priv_esc_count 등)가
     # 아니라 "해당 트래커 데이터가 존재하는 태스크 수"를 표본으로 삼는다.
-    _e_insufficient: List[str] = []
+    _e_insufficient: list[str] = []
     for _name, _cnt in (
         ("threat_severity", _cvss_count),
         ("compliance", _compliance_count),
@@ -215,7 +215,7 @@ def compute(
         or _avg_threat_response is not None
         or _native_e_scores
     )
-    _sec_score: Optional[float]
+    _sec_score: float | None
     if not enable_security_metrics and not _has_security_config_data:
         _sec_score = None
     else:

@@ -1,7 +1,9 @@
 """Evaluation cost API — Phase 3-C."""
 from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from agent_evaluator.serve.routers._utils import _rs
@@ -9,11 +11,11 @@ from agent_evaluator.serve.routers._utils import _rs
 router = APIRouter(prefix="/api/cost", tags=["cost"])
 
 @router.get("/summary", summary="Cost summary")
-def cost_summary(request: Request) -> Dict[str, Any]:
+def cost_summary(request: Request) -> dict[str, Any]:
     """Overall evaluation cost summary."""
     rs = _rs(request)
     total_usd = 0.0
-    by_file: List[Dict[str, Any]] = []
+    by_file: list[dict[str, Any]] = []
 
     for f in rs.files:
         cost_data = getattr(f, "cost_data", {})
@@ -37,7 +39,7 @@ def cost_summary(request: Request) -> Dict[str, Any]:
 def cost_trend(
     request: Request,
     days: int = Query(default=30, ge=1, le=365),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Cost trend by date — aggregates per-file costs into daily buckets over the last N days.
 
     Returns:
@@ -48,8 +50,8 @@ def cost_trend(
     since = datetime.now() - timedelta(days=days)
 
     # Initialize date buckets
-    bucket_costs: Dict[str, float] = {}
-    by_file: List[Dict[str, Any]] = []
+    bucket_costs: dict[str, float] = {}
+    by_file: list[dict[str, Any]] = []
 
     for f in rs.files:
         ts_raw = getattr(f, "timestamp", None) or ""
@@ -75,7 +77,7 @@ def cost_trend(
     # Sort by date
     buckets = sorted(bucket_costs.keys())
     values = [round(bucket_costs[b], 6) for b in buckets]
-    cumulative: List[float] = []
+    cumulative: list[float] = []
     running = 0.0
     for v in values:
         running += v
@@ -95,7 +97,7 @@ def cost_trend(
 def cost_breakdown(
     request: Request,
     by: str = Query(default="model", description="Grouping key: model|task_type|file"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Cost breakdown — grouped by the specified key.
 
     Returns:
@@ -166,7 +168,7 @@ def cost_breakdown(
 
 
 @router.get("/{file_id}", summary="Cost detail for a file")
-def get_file_cost(file_id: str, request: Request) -> Dict[str, Any]:
+def get_file_cost(file_id: str, request: Request) -> dict[str, Any]:
     """Cost detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)

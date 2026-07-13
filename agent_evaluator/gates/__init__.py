@@ -9,3 +9,5 @@ Strangler Fig 방식으로 Gate 단위 이관 중이며, 원래 위치에는 하
 
 이관 진행 상황은 Docs/specs/SPEC-000-gate-package-decomposition.md 참조.
 """
+from __future__ import annotations
+

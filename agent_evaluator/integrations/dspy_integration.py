@@ -32,7 +32,7 @@ Examples::
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +110,8 @@ class DSPyEvaluator:
 
     def evaluate(
         self,
-        devset: List[Any],
-        metric: Optional[Callable] = None,
+        devset: list[Any],
+        metric: Callable | None = None,
         num_threads: int = 1,
         display_progress: bool = False,
     ) -> float:
@@ -126,17 +126,17 @@ class DSPyEvaluator:
         Returns:
             평균 metric 점수 (0.0 – 1.0).
         """
-        import uuid
         import time
+        import uuid
 
         try:
-            from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
             from agent_evaluator.decorators import _extract_dspy_metadata
+            from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
         except ImportError as e:
             logger.warning("DSPyEvaluator: import failed — %s", e)
             return 0.0
 
-        scores: List[float] = []
+        scores: list[float] = []
 
         for i, example in enumerate(devset):
             task_id = f"dspy_{uuid.uuid4().hex[:8]}"
@@ -194,7 +194,7 @@ class DSPyEvaluator:
                     task_type=self.task_type,
                 )
                 import dataclasses
-                overrides: Dict[str, Any] = {
+                overrides: dict[str, Any] = {
                     "accuracy_score": score,
                     "framework": "dspy",
                 }
@@ -241,7 +241,7 @@ class DSPyMetricAdapter:
     def __init__(
         self,
         metric: Callable,
-        example_factory: Optional[Callable] = None,
+        example_factory: Callable | None = None,
     ) -> None:
         self.metric = metric
         self.example_factory = example_factory

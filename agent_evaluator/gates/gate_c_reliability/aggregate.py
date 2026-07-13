@@ -22,15 +22,15 @@ Gate C 블록에서 그대로 이관(로직 변경 없음). monitor.py는 이 �
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
 
 def compute_sla_shared_data(
-    tasks: List[Any],
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    tasks: list[Any],
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """SLA 관련 공유 데이터 계산 (Gate C·D 양쪽에서 소비).
 
     Args:
@@ -57,7 +57,7 @@ def compute_sla_shared_data(
         _sla_n = shared_running["sla_n"]
         _sla_breach_count = shared_running["sla_breach_count"]
         _sla_breach_rate = _sla_breach_count / _sla_n if _sla_n > 0 else None
-        _sla_warning: Optional[str] = _min_sample_warning("sla", _sla_n, 5)
+        _sla_warning: str | None = _min_sample_warning("sla", _sla_n, 5)
         _sla_window_penalty = shared_running["sla_window_penalty"]
         _sla_budget_penalty = shared_running["sla_budget_penalty"]
     else:
@@ -72,7 +72,7 @@ def compute_sla_shared_data(
 
         # breach_window/warn_threshold/fail_threshold: 최근 window 내 연속 breach 감지
         _sla_window_penalty = 0.0
-        _sla_cfg_summary: Dict[str, Any] = {}
+        _sla_cfg_summary: dict[str, Any] = {}
         if _sla_results:
             _sla_cfg_summary = next(
                 (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
@@ -113,15 +113,15 @@ def compute_sla_shared_data(
 
 
 def compute(
-    tasks: List[Any],
+    tasks: list[Any],
     hallucination_detector: Any,
     tcr_tracker: Any,
     gate_c_tcr_weight: float,
     min_samples_default: int,
-    sla_shared: Dict[str, Any],
-    shared_running: Optional[Dict[str, Any]] = None,
-    retry_consistency_shared: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    sla_shared: dict[str, Any],
+    shared_running: dict[str, Any] | None = None,
+    retry_consistency_shared: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Gate C(신뢰성) 점수를 집계한다.
 
     Args:
@@ -168,7 +168,7 @@ def compute(
     except Exception:
         pass
 
-    _rel_vals: List[float] = [tcr_pct / 100.0]
+    _rel_vals: list[float] = [tcr_pct / 100.0]
 
     _sla_n = sla_shared["sla_n"]
     _sla_breach_count = sla_shared["sla_breach_count"]
@@ -178,11 +178,11 @@ def compute(
         _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
 
     if shared_running is not None:
-        avg_reproducibility: Optional[float] = shared_running["repro_avg"]
+        avg_reproducibility: float | None = shared_running["repro_avg"]
         _repro_n = shared_running["repro_count"]
-        avg_ft: Optional[float] = shared_running["ft_avg"]
+        avg_ft: float | None = shared_running["ft_avg"]
         _ft_n = shared_running["ft_count"]
-        _avg_degradation: Optional[float] = shared_running["deg_avg"]
+        _avg_degradation: float | None = shared_running["deg_avg"]
         _deg_n = shared_running["deg_count"]
     else:
         # reproducibility → Group C
@@ -242,7 +242,7 @@ def compute(
         t for t in tasks
         if (t.extra or {}).get("retry_consistency") is not None
     ]
-    _avg_retry_consistency: Optional[float] = None
+    _avg_retry_consistency: float | None = None
     if retry_consistency_shared is not None:
         # SPEC-018 Phase 7 — 근사(REQ-C1): 프리픽스 카디널리티 LRU 캡(GateCRetryConsistencyAgg,
         # 기본 5,000) 적용. 캡 초과 시 가장 오래전에 갱신된 프리픽스가 제거되고 그 기여분이
@@ -260,7 +260,7 @@ def compute(
         if _use_prefix:
             # task_id를 '_' 기준으로 접두사별 그룹화 후 그룹별 평균 산출
             # 정렬 후 첫→마지막 accuracy delta로 cross-task 개선/저하 보너스/페널티 적용
-            _rc_by_prefix: Dict[str, List] = {}
+            _rc_by_prefix: dict[str, list] = {}
             for _t in _rc_tasks_with_score:
                 _tid = str(getattr(_t, "task_id", "") or "")
                 _parts = _tid.rsplit("_", 1)
@@ -301,9 +301,9 @@ def compute(
         _rel_vals.append(_avg_retry_consistency)
 
     if shared_running is not None:
-        _avg_idempotency: Optional[float] = shared_running["idem_avg"]
+        _avg_idempotency: float | None = shared_running["idem_avg"]
         _idem_n = shared_running["idem_count"]
-        _avg_llm_faithfulness: Optional[float] = shared_running["faith_avg"]
+        _avg_llm_faithfulness: float | None = shared_running["faith_avg"]
         _faith_n = shared_running["faith_count"]
     else:
         # idempotency → Group C (Phase 6)
@@ -341,7 +341,7 @@ def compute(
 
     # ── C 그룹: insufficient_data 경고 수집 (SPEC-002) ──
     # hall_rate 폴백 분기는 "측정값 없음 시 대체 신호"이므로 표본 개념이 없어 제외한다.
-    _c_insufficient: List[str] = []
+    _c_insufficient: list[str] = []
     if _sla_warning:
         _c_insufficient.append(_sla_warning)
     for _name, _cnt in (

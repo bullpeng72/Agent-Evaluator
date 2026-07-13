@@ -19,7 +19,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...exceptions import InvalidOperationError
 
@@ -79,7 +79,7 @@ def _strip_ko_suffix(token: str) -> str:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     """단어 단위 토큰화, stopword 제거, 소문자화. 2글자 이상만 반환.
 
     한국어 어절에서 조사/어미를 제거하여 어근 기반 비교가 가능하도록 정규화합니다.
@@ -127,7 +127,7 @@ class ConversationTurn:
     user: str
     agent: str
     timestamp: datetime
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         user_preview = self.user[:40] + "…" if len(self.user) > 40 else self.user
@@ -148,13 +148,13 @@ class ConversationMetrics:
     topic_coherence: float
     progressive_depth: float
     session_completion: float
-    avg_turn_latency: Optional[float]
+    avg_turn_latency: float | None
     overall_score: float
     score_stddev: float  # 4개 구성 점수의 표준편차. **낮을수록 균형 잡힌 대화**를 의미.
     #   0.0 = 모든 차원 점수 동일(완벽한 균형), 0.5 = 보통, ≥0.3 = 특정 차원 편중 주의.
     computed_at: str  # ISO-8601 datetime string
     # F1: 턴별 품질 점수 (선택 항목 — turn_score_fn 지정 시 채워짐)
-    turn_scores: Optional[Dict[int, float]] = None
+    turn_scores: dict[int, float] | None = None
 
     def __repr__(self) -> str:
         return (
@@ -181,7 +181,7 @@ class ConversationMetrics:
         lines.append(f"  Computed At       : {self.computed_at}")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """JSON 직렬화용 dict 반환."""
         return {
             "session_id": self.session_id,
@@ -197,7 +197,7 @@ class ConversationMetrics:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConversationMetrics":
+    def from_dict(cls, data: dict[str, Any]) -> ConversationMetrics:
         """Reconstruct ConversationMetrics from a dict (e.g. loaded from JSON).
 
         Extra keys in *data* are silently ignored so that saved JSON files
@@ -249,22 +249,22 @@ class ConversationSession:
     def __init__(
         self,
         session_id: str,
-        monitor: Optional[Any] = None,
+        monitor: Any | None = None,
         task_type: str = "qa",
     ) -> None:
         self.session_id = session_id
         self.task_type = task_type
         self._monitor = monitor
-        self._turns: List[ConversationTurn] = []
-        self.metrics: Optional[ConversationMetrics] = None
+        self._turns: list[ConversationTurn] = []
+        self.metrics: ConversationMetrics | None = None
 
     @property
-    def turns(self) -> "List[ConversationTurn]":
+    def turns(self) -> list[ConversationTurn]:
         """Shallow copy of accumulated conversation turns."""
         return list(self._turns)
 
     @turns.setter
-    def turns(self, value: "List[ConversationTurn]") -> None:
+    def turns(self, value: list[ConversationTurn]) -> None:
         """Restore internal state."""
         self._turns = list(value)
 
@@ -276,8 +276,8 @@ class ConversationSession:
         self,
         user: str,
         agent: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> "ConversationSession":
+        metadata: dict[str, Any] | None = None,
+    ) -> ConversationSession:
         """대화 턴 추가.
 
         Args:
@@ -309,8 +309,8 @@ class ConversationSession:
         self,
         user: str,
         agent: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> "ConversationSession":
+        metadata: dict[str, Any] | None = None,
+    ) -> ConversationSession:
         """add_turn()의 짧은 별칭. 컨텍스트 매니저 패턴에서 편의 사용."""
         return self.add_turn(user=user, agent=agent, metadata=metadata)
 
@@ -356,7 +356,7 @@ class ConversationSession:
         )
         return self.metrics
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """JSON 직렬화용 dict 반환."""
         return {
             "session_id": self.session_id,
@@ -378,7 +378,7 @@ class ConversationSession:
     # Context manager support
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "ConversationSession":
+    def __enter__(self) -> ConversationSession:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
@@ -416,7 +416,7 @@ class ConversationSession:
         if n <= 1:
             return 0.5  # M4: 1-turn → neutral 0.5 (not 1.0) to align with progressive_depth=0.0
 
-        scores: List[float] = []
+        scores: list[float] = []
         for i in range(1, n):
             prev_top = _top_tokens(self._turns[i - 1].agent, n=10)
             curr_tokens = set(_tokenize(self._turns[i].agent))
@@ -438,7 +438,7 @@ class ConversationSession:
         if n <= 1:
             return 1.0
 
-        scores: List[float] = []
+        scores: list[float] = []
         for i in range(1, n):
             prev_set = set(_tokenize(self._turns[i - 1].user + " " + self._turns[i - 1].agent))
             curr_set = set(_tokenize(self._turns[i].user + " " + self._turns[i].agent))
@@ -455,7 +455,7 @@ class ConversationSession:
         if n <= 1:
             return 0.0
 
-        scores: List[float] = []
+        scores: list[float] = []
         for i in range(1, n):
             prev_top = _top_tokens(self._turns[i - 1].agent, n=10)
             user_tokens = set(_tokenize(self._turns[i].user))
@@ -484,7 +484,7 @@ class ConversationSession:
         last_len = lengths[-1]
         return min(1.0, last_len / avg_len)
 
-    def _compute_avg_turn_latency(self) -> Optional[float]:
+    def _compute_avg_turn_latency(self) -> float | None:
         """metadata의 'latency' 값 평균. 없으면 None."""
         latencies = [
             t.metadata["latency"]

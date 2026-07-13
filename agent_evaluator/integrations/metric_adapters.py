@@ -4,19 +4,21 @@ Metric Adapters for Hybrid Evaluation Architecture
 Integrates external evaluation libraries (DeepEval, Ragas)
 with Agent Evaluator's native metrics system.
 """
+from __future__ import annotations
 
 import logging
 import math
 import os
 import traceback
 import warnings
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
 # DeepEval / Ragas 의 비동기 이벤트 루프 정리 관련
 # DeprecationWarning 만 타겟 억제 (전역 억제 금지 — CLAUDE.md 참조)
@@ -52,18 +54,18 @@ class EvaluationContext:
     """Context information for advanced evaluation"""
     input_text: str
     output_text: str
-    expected_output: Optional[str] = None
-    retrieved_context: Optional[List[str]] = None
-    quality_criteria: Optional[str] = None
-    task_type: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    expected_output: str | None = None
+    retrieved_context: list[str] | None = None
+    quality_criteria: str | None = None
+    task_type: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class MetricAdapter(ABC):
     """Abstract base class for metric provider adapters"""
 
     @abstractmethod
-    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluationContext) -> dict[str, Any]:
         """
         Evaluate using the provider's metrics
 
@@ -76,7 +78,7 @@ class MetricAdapter(ABC):
         pass
 
     @abstractmethod
-    def get_metric_names(self) -> List[str]:
+    def get_metric_names(self) -> list[str]:
         """Get list of metric names this adapter provides"""
         pass
 
@@ -122,11 +124,11 @@ class DeepEvalAdapter(MetricAdapter):
 
         try:
             from deepeval.metrics import (
+                AnswerRelevancyMetric,
+                BiasMetric,
                 GEval,
                 HallucinationMetric,
                 ToxicityMetric,
-                BiasMetric,
-                AnswerRelevancyMetric
             )
             from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 
@@ -163,7 +165,7 @@ class DeepEvalAdapter(MetricAdapter):
                 )
                 return {}
 
-    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluationContext) -> dict[str, Any]:
         """Evaluate using DeepEval metrics.
 
         Each individual metric call is bounded by ``self.timeout`` seconds.
@@ -215,7 +217,7 @@ class DeepEvalAdapter(MetricAdapter):
 
         return results
 
-    def _evaluate_geval(self, test_case, criteria: str) -> Dict[str, Any]:
+    def _evaluate_geval(self, test_case, criteria: str) -> dict[str, Any]:
         """
         Evaluate using G-Eval with custom criteria
 
@@ -265,7 +267,7 @@ class DeepEvalAdapter(MetricAdapter):
             logger.debug("G-Eval traceback: %s", traceback.format_exc())
             return {}
 
-    def _evaluate_hallucination(self, test_case) -> Dict[str, Any]:
+    def _evaluate_hallucination(self, test_case) -> dict[str, Any]:
         """Evaluate hallucination (contextual consistency)"""
         try:
             metric = self.HallucinationMetric(
@@ -290,7 +292,7 @@ class DeepEvalAdapter(MetricAdapter):
             logger.warning("Hallucination metric unexpected error: %s", e)
             return {}
 
-    def _evaluate_toxicity(self, test_case) -> Dict[str, Any]:
+    def _evaluate_toxicity(self, test_case) -> dict[str, Any]:
         """Evaluate toxicity"""
         try:
             metric = self.ToxicityMetric(
@@ -315,7 +317,7 @@ class DeepEvalAdapter(MetricAdapter):
             logger.warning("Toxicity metric unexpected error: %s", e)
             return {}
 
-    def _evaluate_bias(self, test_case) -> Dict[str, Any]:
+    def _evaluate_bias(self, test_case) -> dict[str, Any]:
         """Evaluate bias"""
         try:
             metric = self.BiasMetric(
@@ -340,7 +342,7 @@ class DeepEvalAdapter(MetricAdapter):
             logger.warning("Bias metric unexpected error: %s", e)
             return {}
 
-    def _evaluate_answer_relevancy(self, test_case) -> Dict[str, Any]:
+    def _evaluate_answer_relevancy(self, test_case) -> dict[str, Any]:
         """Evaluate answer relevancy"""
         try:
             metric = self.AnswerRelevancyMetric(
@@ -364,7 +366,7 @@ class DeepEvalAdapter(MetricAdapter):
             logger.warning("Answer relevancy metric unexpected error: %s", e)
             return {}
 
-    def get_metric_names(self) -> List[str]:
+    def get_metric_names(self) -> list[str]:
         return [
             'g_eval_score',
             'g_eval_reason',
@@ -410,10 +412,10 @@ class RagasAdapter(MetricAdapter):
 
         try:
             # ragas 0.4.x API: EvaluationDataset + SingleTurnSample
-            from ragas import evaluate, EvaluationDataset
+            from ragas import EvaluationDataset, evaluate
             from ragas.dataset_schema import SingleTurnSample
-            from ragas.metrics import Faithfulness, AnswerRelevancy, ContextRecall, ContextPrecision
             from ragas.llms import LangchainLLMWrapper
+            from ragas.metrics import AnswerRelevancy, ContextPrecision, ContextRecall, Faithfulness
 
             # Use OpenAI if available, otherwise fall back to Anthropic
             openai_key = os.getenv("OPENAI_API_KEY")
@@ -465,7 +467,7 @@ class RagasAdapter(MetricAdapter):
     def is_available(self) -> bool:
         return self._available
 
-    def evaluate(self, context: EvaluationContext) -> Optional[Dict[str, Any]]:
+    def evaluate(self, context: EvaluationContext) -> dict[str, Any] | None:
         """Evaluate using Ragas RAG metrics (ragas 0.4.x API)"""
         if not self._available:
             return None  # M7: None signals "adapter unavailable"; {} means "available but no results"
@@ -555,7 +557,7 @@ class RagasAdapter(MetricAdapter):
 
         return results
 
-    def get_metric_names(self) -> List[str]:
+    def get_metric_names(self) -> list[str]:
         return [
             'ragas_faithfulness',
             'ragas_answer_relevancy',
@@ -574,7 +576,7 @@ class MetricAdapterFactory:
     """Factory for creating metric adapters"""
 
     @staticmethod
-    def create_adapter(provider: MetricProvider, **kwargs) -> Optional[MetricAdapter]:
+    def create_adapter(provider: MetricProvider, **kwargs) -> MetricAdapter | None:
         """
         Create a metric adapter for the specified provider
 
@@ -597,7 +599,7 @@ class MetricAdapterFactory:
             raise ValueError(f"Unknown provider: {provider}")
 
     @staticmethod
-    def get_available_providers() -> List[MetricProvider]:
+    def get_available_providers() -> list[MetricProvider]:
         """Get list of available providers"""
         available = [MetricProvider.NATIVE]  # Always available
 

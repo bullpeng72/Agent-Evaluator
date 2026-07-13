@@ -2,10 +2,12 @@
 ExampleRunner - Base class for running agent evaluation examples
 Handles common patterns: environment check, file prefix, dashboard instructions
 """
+from __future__ import annotations
 
-import traceback
-from typing import Optional, List, Callable
 import os
+import traceback
+from typing import Callable
+
 from dotenv import load_dotenv
 
 
@@ -40,7 +42,7 @@ class ExampleRunner:
         example_id: str,
         level: int,
         title: str,
-        required_libs: Optional[List[str]] = None,
+        required_libs: list[str] | None = None,
         requires_api_key: bool = False
     ):
         """
@@ -98,7 +100,7 @@ class ExampleRunner:
                 print(f"❌ {lib} 설치 필요")
 
         if missing_libs:
-            print(f"\n❌ 다음 라이브러리를 설치하세요:")
+            print("\n❌ 다음 라이브러리를 설치하세요:")
             print(f"   pip install {' '.join(missing_libs)}")
             return False
 
@@ -115,7 +117,7 @@ class ExampleRunner:
         self,
         monitor,
         filename_suffix: str,
-        dashboard_tabs: Optional[List[str]] = None
+        dashboard_tabs: list[str] | None = None
     ) -> None:
         """
         Save results and print dashboard instructions

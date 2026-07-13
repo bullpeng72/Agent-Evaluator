@@ -13,7 +13,7 @@ Gate B(Behavioral Integrity)가 avg_goal_alignment/avg_plan_coherence를 진단�
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
 
@@ -25,8 +25,8 @@ def compute(
     quality_evaluator: Any,
     gate_a_tcr_weight: float,
     min_samples_default: int,
-    shared_running: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    shared_running: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Gate A(Goal Achievement) 그룹 딕셔너리를 계산한다.
 
     Args:
@@ -68,7 +68,7 @@ def compute(
         _subtask_n = shared_running["subtask_count"]
         avg_context_r = shared_running["context_retention_avg"]
         _cr_n = shared_running["context_retention_count"]
-        avg_knowledge_ret: Optional[float] = shared_running["knowledge_retention_avg"]
+        avg_knowledge_ret: float | None = shared_running["knowledge_retention_avg"]
         _kr_n = shared_running["knowledge_retention_count"]
     else:
         _ifr_scores = [
@@ -80,7 +80,7 @@ def compute(
         avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
         _ifr_n = len(_ifr_scores)
 
-        _goal_a_vals: List[float] = []
+        _goal_a_vals: list[float] = []
         _goal_a_excluded = 0
         for _t in tasks:
             _ga = ((_t.extra or {}).get("goal_alignment") or {})
@@ -114,7 +114,7 @@ def compute(
                 _goal_a_excluded,
             )
 
-        _plan_a_vals: List[float] = []
+        _plan_a_vals: list[float] = []
         for _t in tasks:
             _pc = ((_t.extra or {}).get("plan_coherence") or {})
             if not _pc:
@@ -169,7 +169,7 @@ def compute(
         _kr_n = len(_kr_vals)
 
     # ── A 그룹: insufficient_data 경고 수집 (SPEC-002) ──
-    _a_insufficient: List[str] = []
+    _a_insufficient: list[str] = []
     for _name, _cnt in (
         ("instruction_adherence", _ifr_n),
         ("goal_alignment", _goal_a_n),
@@ -182,7 +182,7 @@ def compute(
         if _w:
             _a_insufficient.append(_w)
 
-    _a_vals: List[float] = [tcr_pct_a / 100.0]
+    _a_vals: list[float] = [tcr_pct_a / 100.0]
     if avg_ifr is not None:
         _a_vals.append(avg_ifr)
     if avg_goal_a is not None:
@@ -199,7 +199,7 @@ def compute(
     # AccuracyEvaluator → TCR 보정 (상관 중복 방지)
     # completion_score(3-버킷)와 accuracy(4-metric 연속)는 같은 ground_truth 신호를 공유
     # → 별도 컴포넌트 추가 대신, AccuracyEvaluator 정밀도로 TCR 컴포넌트를 블렌딩
-    _avg_accuracy_a: Optional[float] = None
+    _avg_accuracy_a: float | None = None
     try:
         _acc_evals_a = accuracy_evaluator._evaluations
         _acc_measured_a = [e for e in _acc_evals_a if e.get("accuracy") is not None]
@@ -211,7 +211,7 @@ def compute(
         pass
 
     # ResponseQualityEvaluator → Gate A: relevance + completeness 차원 (0-5 → 0-1)
-    _rqe_a: Optional[float] = None
+    _rqe_a: float | None = None
     try:
         _dim_avgs_q = quality_evaluator.get_quality_metrics().get("dimension_averages", {})
         _rqe_q_scores = [

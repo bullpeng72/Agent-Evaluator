@@ -16,3 +16,5 @@ Gate C는 두 개의 교차 Gate 공유 데이터의 원천이다:
   담아 Gate G 섹션이 재사용할 수 있도록 한다(group_dict 자체는 다른 Gate와 동일하게
   `_g()` 형식 — JSON 리포트에 노출되는 형태는 변경되지 않는다).
 """
+from __future__ import annotations
+

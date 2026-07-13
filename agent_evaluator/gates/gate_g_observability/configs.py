@@ -9,7 +9,6 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다.
 from __future__ import annotations
 
 import dataclasses
-from typing import List
 
 
 @dataclasses.dataclass
@@ -22,11 +21,11 @@ class ObservabilityConfig:
                     observability=ObservabilityConfig(min_coverage=0.99))
         def agent(question, ground_truth=""): ...
     """
-    required_span_attributes: List[str] = dataclasses.field(
+    required_span_attributes: list[str] = dataclasses.field(
         default_factory=lambda: ["task_id", "task_type", "execution_time"]
     )
     check_trace_continuity: bool = True
-    audit_events: List[str] = dataclasses.field(default_factory=list)
+    audit_events: list[str] = dataclasses.field(default_factory=list)
     min_coverage: float = 0.95
 
 
@@ -41,15 +40,15 @@ class ExplainabilityConfig:
         def agent(question, ground_truth=""): ...
     """
     require_reasoning: bool = True
-    reasoning_markers: List[str] = dataclasses.field(
+    reasoning_markers: list[str] = dataclasses.field(
         default_factory=lambda: ["because", "therefore", "since", "thus", "reason", "왜냐하면", "따라서"]
     )
     require_uncertainty_expression: bool = False
-    uncertainty_markers: List[str] = dataclasses.field(
+    uncertainty_markers: list[str] = dataclasses.field(
         default_factory=lambda: ["uncertain", "may", "might", "possibly", "not sure", "불확실"]
     )
     require_citations: bool = False
-    citation_markers: List[str] = dataclasses.field(
+    citation_markers: list[str] = dataclasses.field(
         default_factory=lambda: ["according to", "based on", "source:", "ref:", "참고:"]
     )
     min_reasoning_length: int = 20
@@ -81,13 +80,13 @@ class ErrorDiagnosisConfig:
                     error_diagnosis=ErrorDiagnosisConfig(only_on_failure=True))
         def agent(question, ground_truth=""): ...
     """
-    failure_acknowledgment_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    failure_acknowledgment_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "failed", "unable", "error", "could not", "오류", "실패", "불가능", "할 수 없"
     ])
-    root_cause_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    root_cause_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "because", "due to", "caused by", "reason", "왜냐하면", "때문에", "원인"
     ])
-    suggestion_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    suggestion_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "try", "suggest", "recommend", "alternatively", "시도", "제안", "대신"
     ])
     only_on_failure: bool = True

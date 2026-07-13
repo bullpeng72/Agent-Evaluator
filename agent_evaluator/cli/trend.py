@@ -16,11 +16,9 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.gate import _load_metrics
-
 
 # ---------------------------------------------------------------------------
 # ANSI 색상
@@ -48,11 +46,11 @@ class RunPoint:
     """단일 평가 실행에서 추출한 지표 스냅샷."""
 
     path: str
-    tcr: Optional[float]
-    accuracy: Optional[float]
-    p95_latency: Optional[float]
-    hallucination: Optional[float]
-    total_cost: Optional[float] = None
+    tcr: float | None
+    accuracy: float | None
+    p95_latency: float | None
+    hallucination: float | None
+    total_cost: float | None = None
 
 
 @dataclass
@@ -63,8 +61,8 @@ class MetricTrend:
     label: str                      # 표시 이름
     slope: float                    # run당 변화율
     direction: str                  # "improving" | "degrading" | "stable"
-    first_val: Optional[float]      # 윈도우 첫 값
-    last_val: Optional[float]       # 윈도우 마지막 값
+    first_val: float | None      # 윈도우 첫 값
+    last_val: float | None       # 윈도우 마지막 값
     data_points: int                # 유효 데이터 포인트 수
 
     @property
@@ -79,12 +77,12 @@ class RunTrendReport:
     results_dir: str
     window: int                          # 분석에 사용된 파일 수
     pattern: str
-    runs: List[RunPoint] = field(default_factory=list)
-    tcr_trend: Optional[MetricTrend] = None
-    accuracy_trend: Optional[MetricTrend] = None
-    latency_trend: Optional[MetricTrend] = None
-    hallucination_trend: Optional[MetricTrend] = None
-    cost_trend: Optional[MetricTrend] = None
+    runs: list[RunPoint] = field(default_factory=list)
+    tcr_trend: MetricTrend | None = None
+    accuracy_trend: MetricTrend | None = None
+    latency_trend: MetricTrend | None = None
+    hallucination_trend: MetricTrend | None = None
+    cost_trend: MetricTrend | None = None
 
     @property
     def any_regression(self) -> bool:
@@ -100,8 +98,8 @@ class RunTrendReport:
             if t is not None
         )
 
-    def to_dict(self) -> Dict:
-        def _trend_dict(t: Optional[MetricTrend]) -> Optional[Dict]:
+    def to_dict(self) -> dict:
+        def _trend_dict(t: MetricTrend | None) -> dict | None:
             if t is None:
                 return None
             return {
@@ -192,7 +190,7 @@ class RunTrendAnalyzer:
             )
 
         files = sorted(self.results_dir.glob(self.pattern))[-self.window :]
-        runs: List[RunPoint] = []
+        runs: list[RunPoint] = []
         for f in files:
             try:
                 with open(f, encoding="utf-8") as fh:
@@ -250,14 +248,14 @@ class RunTrendAnalyzer:
         self,
         metric: str,
         label: str,
-        values: List[Optional[float]],
+        values: list[float | None],
         higher_is_better: bool,
-    ) -> Optional[MetricTrend]:
+    ) -> MetricTrend | None:
         """값 목록에서 MetricTrend 를 계산한다.
 
         유효 데이터 포인트가 3개 미만이면 None 반환.
         """
-        pts: List[Tuple[int, float]] = [
+        pts: list[tuple[int, float]] = [
             (i, v) for i, v in enumerate(values) if v is not None
         ]
         if len(pts) < 3:
@@ -290,7 +288,7 @@ class RunTrendAnalyzer:
 # 선형 회귀 (slope 계산)
 # ---------------------------------------------------------------------------
 
-def _slope(xs: List[float], ys: List[float]) -> float:
+def _slope(xs: list[float], ys: list[float]) -> float:
     """단순 선형 회귀 기울기(a)를 반환한다 (y = ax + b)."""
     n = len(xs)
     if n < 2:
@@ -320,7 +318,7 @@ def _direction_label(direction: str) -> str:
     }.get(direction, direction)
 
 
-def _fmt(val: Optional[float], unit: str) -> str:
+def _fmt(val: float | None, unit: str) -> str:
     if val is None:
         return f"{D}N/A{R}"
     if unit == "%":

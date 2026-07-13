@@ -54,7 +54,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
-from typing import Any, Dict, Optional, TextIO
+from typing import Any, TextIO
 
 from agent_evaluator.core.trackers.security import (
     PrivilegeEscalationDetector,
@@ -69,22 +69,22 @@ from agent_evaluator.gates.gate_b_behavioral.configs import (
 )
 from agent_evaluator.gates.live_guardrail import LiveGuardrail, LiveVerdict
 
-_CONFIG_CLASSES: Dict[str, type] = {
+_CONFIG_CLASSES: dict[str, type] = {
     "loop_detection": LoopDetectionConfig,
     "deadlock": DeadlockConfig,
     "scope": ScopeConfig,
     "tool_parameter_safety": ToolParameterSafetyConfig,
 }
-_TRACKER_CLASSES: Dict[str, type] = {
+_TRACKER_CLASSES: dict[str, type] = {
     "tool_authorization": ToolAuthorizationTracker,
     "privilege_escalation": PrivilegeEscalationDetector,
     "tool_chain_attack": ToolChainAttackDetector,
 }
 
 
-def build_guardrail(init_msg: Dict[str, Any]) -> LiveGuardrail:
+def build_guardrail(init_msg: dict[str, Any]) -> LiveGuardrail:
     """``{"op": "init", ...}`` 메시지를 ``LiveGuardrail`` 인스턴스로 변환한다."""
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     for key, cls in _CONFIG_CLASSES.items():
         if init_msg.get(key) is not None:
             kwargs[key] = cls(**init_msg[key])
@@ -97,18 +97,18 @@ def build_guardrail(init_msg: Dict[str, Any]) -> LiveGuardrail:
     return LiveGuardrail(**kwargs)
 
 
-def _verdict_to_dict(v: LiveVerdict) -> Dict[str, Any]:
+def _verdict_to_dict(v: LiveVerdict) -> dict[str, Any]:
     return dataclasses.asdict(v)
 
 
-def _write(outstream: TextIO, payload: Dict[str, Any]) -> None:
+def _write(outstream: TextIO, payload: dict[str, Any]) -> None:
     outstream.write(json.dumps(payload) + "\n")
     outstream.flush()
 
 
 def run(instream: TextIO = sys.stdin, outstream: TextIO = sys.stdout) -> None:
     """stdio 요청-응답 루프. ``{"op": "shutdown"}``을 받거나 입력이 끝나면 반환한다."""
-    guardrail: Optional[LiveGuardrail] = None
+    guardrail: LiveGuardrail | None = None
 
     for line in instream:
         line = line.strip()

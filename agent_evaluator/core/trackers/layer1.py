@@ -14,14 +14,14 @@ import re
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .base import BaseTracker, TaskResult, TaskType
 from ...exceptions import ValidationError
 from ...utils.text_similarity import lcs_ratio as _lcs_ratio
+from .base import BaseTracker, TaskResult, TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ def _assign_grade(score: float) -> str:
 
 # TaskType alias mapping: canonical form used for bucketing in get_tcr_by_type().
 # TaskType.CODING ("coding") is a legacy alias for CODE_GENERATION ("code_generation").
-_TASK_TYPE_ALIASES: Dict[str, str] = {
+_TASK_TYPE_ALIASES: dict[str, str] = {
     "coding": "code_generation",
 }
 
@@ -171,7 +171,7 @@ class TaskCompletionTracker(BaseTracker):
     """Track and analyze task completion rates"""
 
     def __init__(self):
-        self._tasks: List[TaskResult] = []
+        self._tasks: list[TaskResult] = []
         self.completion_criteria = {
             "full_success": 1.0,
             "partial_success": 0.7,
@@ -179,12 +179,12 @@ class TaskCompletionTracker(BaseTracker):
         }
 
     @property
-    def tasks(self) -> List[TaskResult]:
+    def tasks(self) -> list[TaskResult]:
         """Shallow copy of accumulated tasks — prevents external mutation of internal state."""
         return list(self._tasks)
 
     @tasks.setter
-    def tasks(self, value: List[TaskResult]) -> None:
+    def tasks(self, value: list[TaskResult]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._tasks = list(value)
 
@@ -196,7 +196,7 @@ class TaskCompletionTracker(BaseTracker):
         """Clear all accumulated tasks.  Useful for reusing the tracker across sessions."""
         self._tasks.clear()
 
-    def calculate_tcr(self, task_type: Optional[str] = None) -> Dict[str, float]:
+    def calculate_tcr(self, task_type: str | None = None) -> dict[str, float]:
         """Calculate Task Completion Rate"""
         tasks = self._tasks
         if task_type:
@@ -232,7 +232,7 @@ class TaskCompletionTracker(BaseTracker):
     # Alias for naming consistency with other trackers' get_*_metrics() pattern
     get_completion_metrics = calculate_tcr
 
-    def get_tcr_by_type(self) -> Dict[str, Dict[str, float]]:
+    def get_tcr_by_type(self) -> dict[str, dict[str, float]]:
         """Get TCR breakdown by task type.
 
         ``TaskType.CODING`` ("coding") is merged into the
@@ -266,9 +266,9 @@ class AccuracyEvaluator(BaseTracker):
     """Evaluate accuracy across different dimensions"""
 
     def __init__(self, use_korean_tokenizer: bool = False):
-        self._evaluations: List[Dict[str, Any]] = []
-        self._cached_avg: Optional[float] = None  # invalidated on each add_evaluation()
-        self._task_ids: Set[str] = set()
+        self._evaluations: list[dict[str, Any]] = []
+        self._cached_avg: float | None = None  # invalidated on each add_evaluation()
+        self._task_ids: set[str] = set()
         self._kiwi = _try_load_kiwi() if use_korean_tokenizer else None
 
     def _tokenize_words(self, text: str) -> set:
@@ -281,7 +281,7 @@ class AccuracyEvaluator(BaseTracker):
         return set(normalized.split())
 
     @property
-    def evaluations(self) -> List[Dict[str, Any]]:
+    def evaluations(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated evaluations.
 
         Returns a new list each time so callers cannot accidentally mutate
@@ -291,7 +291,7 @@ class AccuracyEvaluator(BaseTracker):
         return list(self._evaluations)
 
     @evaluations.setter
-    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+    def evaluations(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file).  Invalidates repr cache."""
         self._cached_avg = None
         self._evaluations = list(value)
@@ -304,7 +304,7 @@ class AccuracyEvaluator(BaseTracker):
         self._task_ids.clear()
 
     def record_score(
-        self, task_id: str, task_type: str, accuracy: Optional[float]
+        self, task_id: str, task_type: str, accuracy: float | None
     ) -> None:
         """Record a pre-computed accuracy score (cache-safe).
 
@@ -502,7 +502,7 @@ class AccuracyEvaluator(BaseTracker):
         """General accuracy"""
         return 1.0 if str(ground_truth) == str(prediction) else 0.0
 
-    def get_accuracy_scores(self) -> Dict[str, float]:
+    def get_accuracy_scores(self) -> dict[str, float]:
         """Get aggregated accuracy scores"""
         if not self._evaluations:
             return {
@@ -541,7 +541,7 @@ class AccuracyEvaluator(BaseTracker):
             "low_accuracy_count": int((measured < 0.7).sum()),
         }
 
-    def get_accuracy_by_type(self) -> Dict[str, float]:
+    def get_accuracy_by_type(self) -> dict[str, float]:
         """Get accuracy breakdown by task type"""
         if not self._evaluations:
             return {}
@@ -555,7 +555,7 @@ class AccuracyEvaluator(BaseTracker):
             .to_dict()
         )
 
-    def get_accuracy_metrics(self) -> Dict[str, Any]:
+    def get_accuracy_metrics(self) -> dict[str, Any]:
         """Get aggregated accuracy metrics — consistent superset of get_accuracy_scores().
 
         Returns the same keys as :meth:`get_accuracy_scores` so callers can use either
@@ -633,8 +633,8 @@ class HallucinationDetector(BaseTracker):
         use_semantic_similarity: bool = False,
         semantic_weight: float = 0.5,
     ):
-        self._detections: List[Dict[str, Any]] = []
-        self._rag_metrics: List[Dict[str, Any]] = []
+        self._detections: list[dict[str, Any]] = []
+        self._rag_metrics: list[dict[str, Any]] = []
         self._kiwi = _try_load_kiwi() if use_korean_tokenizer else None
         self._encoder = _try_load_encoder() if use_semantic_similarity else None
         # semantic_weight: 0.0 = 단어 중복만, 1.0 = 의미 유사도만, 0.5 = 균등 혼합
@@ -649,7 +649,7 @@ class HallucinationDetector(BaseTracker):
             return set(tokens) if tokens else set(normalized.split())
         return set(normalized.split())
 
-    def _semantic_support_score(self, sentence: str, support_texts: List[str]) -> float:
+    def _semantic_support_score(self, sentence: str, support_texts: list[str]) -> float:
         """sentence-transformers 코사인 유사도로 sentence의 지지도 반환.
 
         Args:
@@ -683,7 +683,7 @@ class HallucinationDetector(BaseTracker):
             return 0.0
 
     @property
-    def detections(self) -> List[Dict[str, Any]]:
+    def detections(self) -> list[dict[str, Any]]:
         """Read-only snapshot of accumulated detection records.
 
         Returns a shallow copy so callers cannot mutate internal state.
@@ -692,7 +692,7 @@ class HallucinationDetector(BaseTracker):
         return list(self._detections)
 
     @detections.setter
-    def detections(self, value: List[Dict[str, Any]]) -> None:
+    def detections(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._detections = list(value)
 
@@ -702,8 +702,8 @@ class HallucinationDetector(BaseTracker):
         self._rag_metrics.clear()
 
     def detect_hallucination(self, task_id: str, response: str,
-                            context: str, ground_truth: Optional[str] = None,
-                            request: Optional[str] = None) -> Dict[str, Any]:
+                            context: str, ground_truth: str | None = None,
+                            request: str | None = None) -> dict[str, Any]:
         """
         Detect hallucinations using rule-based patterns
 
@@ -854,8 +854,8 @@ class HallucinationDetector(BaseTracker):
         task_id: str,
         response: str,
         context: str,
-        ground_truth: Optional[str] = None,
-    ) -> Dict[str, float]:
+        ground_truth: str | None = None,
+    ) -> dict[str, float]:
         """Context Recall / Precision 을 계산하고 내부 목록에 저장한다.
 
         ``PerformanceMonitor.record_task()`` 에서 ``enable_hallucination_detection=True``
@@ -873,7 +873,7 @@ class HallucinationDetector(BaseTracker):
         """
         recall = self.compute_context_recall(ground_truth or "", context) if ground_truth else None
         precision = self.compute_context_precision(response, context)
-        record: Dict[str, Any] = {
+        record: dict[str, Any] = {
             "task_id": task_id,
             "context_precision": precision,
             "context_recall": recall,
@@ -881,7 +881,7 @@ class HallucinationDetector(BaseTracker):
         self._rag_metrics.append(record)
         return {k: v for k, v in record.items() if k != "task_id" and v is not None}
 
-    def get_rag_metrics(self) -> Dict[str, Any]:
+    def get_rag_metrics(self) -> dict[str, Any]:
         """Context Recall / Precision 집계 통계를 반환한다.
 
         Returns:
@@ -906,7 +906,7 @@ class HallucinationDetector(BaseTracker):
             "per_task": list(self._rag_metrics),
         }
 
-    def get_hallucination_rate(self) -> Dict[str, float]:
+    def get_hallucination_rate(self) -> dict[str, float]:
         """Get overall hallucination statistics"""
         if not self._detections:
             return {
@@ -947,7 +947,7 @@ class HallucinationDetector(BaseTracker):
             "numerical_inconsistencies_count": numerical_inconsistencies_count  # Added for dashboard
         }
 
-    def get_hallucination_by_type(self) -> Dict[str, Any]:
+    def get_hallucination_by_type(self) -> dict[str, Any]:
         """Get hallucination statistics broken down by type
 
         Returns:
@@ -1032,7 +1032,7 @@ class ResponseQualityEvaluator(BaseTracker):
     """Evaluate response quality across multiple dimensions"""
 
     #: Default dimension weights (must sum to 1.0). Override via constructor.
-    DEFAULT_DIMENSIONS: Dict[str, float] = {
+    DEFAULT_DIMENSIONS: dict[str, float] = {
         "relevance": 0.25,
         "completeness": 0.25,
         "accuracy": 0.20,
@@ -1042,7 +1042,7 @@ class ResponseQualityEvaluator(BaseTracker):
 
     def __init__(
         self,
-        dimensions: Optional[Dict[str, float]] = None,
+        dimensions: dict[str, float] | None = None,
         format_bonus: bool = False,
     ):
         """
@@ -1074,16 +1074,16 @@ class ResponseQualityEvaluator(BaseTracker):
         else:
             self.dimensions = dict(self.DEFAULT_DIMENSIONS)
         self.format_bonus = format_bonus
-        self._evaluations: List[Dict[str, Any]] = []
-        self._task_ids: Set[str] = set()
+        self._evaluations: list[dict[str, Any]] = []
+        self._task_ids: set[str] = set()
 
     @property
-    def evaluations(self) -> List[Dict[str, Any]]:
+    def evaluations(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated quality evaluations."""
         return list(self._evaluations)
 
     @evaluations.setter
-    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+    def evaluations(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._evaluations = list(value)
         self._task_ids = {e.get("task_id") for e in value if e.get("task_id") is not None}
@@ -1094,8 +1094,8 @@ class ResponseQualityEvaluator(BaseTracker):
         self._task_ids.clear()
 
     def evaluate_response(self, task_id: str, response: str,
-                         request: str, expected_elements: Optional[List[str]] = None,
-                         ground_truth: Optional[str] = None) -> Dict[str, Any]:
+                         request: str, expected_elements: list[str] | None = None,
+                         ground_truth: str | None = None) -> dict[str, Any]:
         """
         Evaluate response quality
 
@@ -1231,7 +1231,7 @@ class ResponseQualityEvaluator(BaseTracker):
 
         return min(similarity, 1.0)
 
-    def get_quality_metrics(self) -> Dict[str, Any]:
+    def get_quality_metrics(self) -> dict[str, Any]:
         """Get aggregated quality metrics"""
         if not self._evaluations:
             return {
@@ -1296,7 +1296,7 @@ class ResponseQualityEvaluator(BaseTracker):
             "quality_distribution": quality_distribution  # Add quality distribution for dashboard
         }
 
-    def get_quality_by_dimension(self) -> Dict[str, Any]:
+    def get_quality_by_dimension(self) -> dict[str, Any]:
         """Get detailed quality statistics broken down by each dimension
 
         Returns:
@@ -1356,7 +1356,7 @@ class ResponseQualityEvaluator(BaseTracker):
             "total_evaluations": len(self._evaluations)
         }
 
-    def _get_score_distribution(self, scores: List[float]) -> Dict[str, int]:
+    def _get_score_distribution(self, scores: list[float]) -> dict[str, int]:
         """Get distribution of scores in ranges"""
         distribution = {
             "0-1": 0,
@@ -1398,17 +1398,17 @@ class LatencyTracker(BaseTracker):
     """Track and analyze response latency"""
 
     def __init__(self):
-        self._latencies: List[Dict[str, Any]] = []
-        self._cached_stats: Optional[Dict[str, float]] = None  # invalidated on each record
-        self._ttft_records: List[Dict[str, Any]] = []  # C1: TTFT records
+        self._latencies: list[dict[str, Any]] = []
+        self._cached_stats: dict[str, float] | None = None  # invalidated on each record
+        self._ttft_records: list[dict[str, Any]] = []  # C1: TTFT records
 
     @property
-    def latencies(self) -> List[Dict[str, Any]]:
+    def latencies(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated latency records."""
         return list(self._latencies)
 
     @latencies.setter
-    def latencies(self, value: List[Dict[str, Any]]) -> None:
+    def latencies(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._latencies = list(value)
         self._cached_stats = None
@@ -1420,7 +1420,7 @@ class LatencyTracker(BaseTracker):
         self._ttft_records.clear()  # C1
 
     def record_latency(self, task_id: str, task_type: str,
-                       total_time: float, breakdown: Dict[str, float]):
+                       total_time: float, breakdown: dict[str, float]):
         """Record latency for a task"""
         self._cached_stats = None  # invalidate cache on new record
         self._latencies.append({
@@ -1431,7 +1431,7 @@ class LatencyTracker(BaseTracker):
             "timestamp": datetime.now()
         })
 
-    def get_latency_stats(self, task_type: Optional[str] = None) -> Dict[str, float]:
+    def get_latency_stats(self, task_type: str | None = None) -> dict[str, float]:
         """Get latency statistics.
 
         Results for the full dataset (``task_type=None``) are cached and
@@ -1450,7 +1450,7 @@ class LatencyTracker(BaseTracker):
         self._cached_stats = self._compute_stats(self._latencies)
         return self._cached_stats
 
-    def _compute_stats(self, latencies: List[Dict[str, Any]]) -> Dict[str, float]:
+    def _compute_stats(self, latencies: list[dict[str, Any]]) -> dict[str, float]:
         """Compute latency statistics from a list of latency records."""
         if not latencies:
             return {"mean": 0.0, "median": 0.0, "p50": 0.0, "p90": 0.0, "p95": 0.0, "p99": 0.0,
@@ -1470,7 +1470,7 @@ class LatencyTracker(BaseTracker):
             "std": round(statistics.stdev(times) if len(times) > 1 else 0, 4),
         }
 
-    def analyze_bottlenecks(self) -> Dict[str, Any]:
+    def analyze_bottlenecks(self) -> dict[str, Any]:
         """Identify performance bottlenecks"""
         if not self._latencies:
             return {}
@@ -1504,7 +1504,7 @@ class LatencyTracker(BaseTracker):
             "bottleneck_avg_time": round(breakdown_avgs[bottleneck], 3)
         }
 
-    def get_latency_by_type(self) -> Dict[str, Dict[str, float]]:
+    def get_latency_by_type(self) -> dict[str, dict[str, float]]:
         """Get latency statistics broken down by task type
 
         Returns:
@@ -1538,7 +1538,7 @@ class LatencyTracker(BaseTracker):
         return type_stats
 
     @property
-    def ttft_records(self) -> List[Dict[str, Any]]:
+    def ttft_records(self) -> list[dict[str, Any]]:
         """Shallow copy of TTFT records."""
         return list(self._ttft_records)
 
@@ -1563,7 +1563,7 @@ class LatencyTracker(BaseTracker):
             "timestamp": datetime.now(),
         })
 
-    def get_ttft_stats(self, task_type: Optional[str] = None) -> Dict[str, Any]:
+    def get_ttft_stats(self, task_type: str | None = None) -> dict[str, Any]:
         """TTFT(Time-To-First-Token) 통계를 반환한다 (C1).
 
         Args:
@@ -1590,7 +1590,7 @@ class LatencyTracker(BaseTracker):
             "count": len(times),
         }
 
-    def check_sla_compliance(self, sla_targets: Dict[str, float]) -> Dict[str, Any]:
+    def check_sla_compliance(self, sla_targets: dict[str, float]) -> dict[str, Any]:
         """Check SLA compliance"""
         results = {}
 
@@ -1631,7 +1631,7 @@ class LatencyTracker(BaseTracker):
 class TokenEconomyTracker(BaseTracker):
     """Track token usage and costs"""
 
-    def __init__(self, pricing: Dict[str, float]):
+    def __init__(self, pricing: dict[str, float]):
         """
         Args:
             pricing: {"input": cost_per_1k_tokens, "output": cost_per_1k_tokens}
@@ -1656,15 +1656,15 @@ class TokenEconomyTracker(BaseTracker):
                     f"pricing['{key}'] = {price} is invalid: token prices must be >= 0"
                 )
         self.pricing = pricing
-        self._usage_log: List[Dict[str, Any]] = []
+        self._usage_log: list[dict[str, Any]] = []
 
     @property
-    def usage_log(self) -> List[Dict[str, Any]]:
+    def usage_log(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated usage records."""
         return list(self._usage_log)
 
     @usage_log.setter
-    def usage_log(self, value: List[Dict[str, Any]]) -> None:
+    def usage_log(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._usage_log = list(value)
 
@@ -1672,7 +1672,7 @@ class TokenEconomyTracker(BaseTracker):
         """Clear all token usage records."""
         self._usage_log.clear()
 
-    def update_pricing(self, pricing: Dict[str, float]) -> None:
+    def update_pricing(self, pricing: dict[str, float]) -> None:
         """Update token pricing after construction.
 
         Useful when switching models during a long evaluation session without
@@ -1732,7 +1732,7 @@ class TokenEconomyTracker(BaseTracker):
         output_cost = (output_tokens / 1000) * self.pricing["output"]
         return input_cost + output_cost
 
-    def get_usage_stats(self) -> Dict[str, Any]:
+    def get_usage_stats(self) -> dict[str, Any]:
         """Get token usage statistics"""
         if not self._usage_log:
             return {
@@ -1766,7 +1766,7 @@ class TokenEconomyTracker(BaseTracker):
             "cost_percentiles": self._compute_cost_percentiles(df)
         }
 
-    def _compute_cost_percentiles(self, df: "pd.DataFrame") -> Dict[str, float]:
+    def _compute_cost_percentiles(self, df: pd.DataFrame) -> dict[str, float]:
         """p50/p90/p95 비용 백분위 계산.
 
         소표본(n<5)에서는 선형 보간 결과가 불안정할 수 있으므로 경고를 발생시킨다.
@@ -1784,7 +1784,7 @@ class TokenEconomyTracker(BaseTracker):
             "p95": round(df["cost"].quantile(0.95), 4),
         }
 
-    def get_usage_by_type(self) -> Dict[str, Dict[str, float]]:
+    def get_usage_by_type(self) -> dict[str, dict[str, float]]:
         """Get usage breakdown by task type"""
         if not self._usage_log:
             return {}
@@ -1800,7 +1800,7 @@ class TokenEconomyTracker(BaseTracker):
         grouped.columns = ["_".join(col) for col in grouped.columns]
         return grouped.to_dict("index")
 
-    def get_cost_breakdown_by_model(self) -> Dict[str, Dict[str, Any]]:
+    def get_cost_breakdown_by_model(self) -> dict[str, dict[str, Any]]:
         """Get detailed cost breakdown by model"""
         if not self._usage_log:
             return {}
@@ -1847,7 +1847,7 @@ class TokenEconomyTracker(BaseTracker):
 
         return breakdown
 
-    def get_cost_breakdown_by_framework(self) -> Dict[str, Dict[str, Any]]:
+    def get_cost_breakdown_by_framework(self) -> dict[str, dict[str, Any]]:
         """프레임워크별 비용 분류를 반환한다 (C2).
 
         ``_usage_log`` 의 ``framework`` 필드 기준으로 집계한다.
@@ -1866,7 +1866,7 @@ class TokenEconomyTracker(BaseTracker):
         if not self._usage_log:
             return {}
 
-        framework_data: Dict[str, Dict[str, Any]] = {}
+        framework_data: dict[str, dict[str, Any]] = {}
         for entry in self._usage_log:
             fw = str(entry.get("framework", "unknown") or "unknown")
             if fw not in framework_data:
@@ -1875,7 +1875,7 @@ class TokenEconomyTracker(BaseTracker):
             framework_data[fw]["tokens"].append(int(entry.get("total_tokens", 0)))
             framework_data[fw]["task_count"] += 1
 
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         for fw, data in framework_data.items():
             costs = data["costs"]
             tokens = data["tokens"]

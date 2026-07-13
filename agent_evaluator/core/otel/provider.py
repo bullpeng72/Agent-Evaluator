@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Iterator
 
 logger = logging.getLogger(__name__)
 
 try:
     from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
     _HAS_OTEL = True
 except ImportError:
@@ -49,8 +49,8 @@ class OTELProvider:
         enabled: bool = True,
     ) -> None:
         self._enabled = enabled and _HAS_OTEL
-        self._tracer: Optional[Any] = None
-        self._base_endpoint: Optional[str] = endpoint if (enabled and _HAS_OTEL) else None
+        self._tracer: Any | None = None
+        self._base_endpoint: str | None = endpoint if (enabled and _HAS_OTEL) else None
 
         if not self._enabled:
             if enabled and not _HAS_OTEL:
@@ -86,8 +86,8 @@ class OTELProvider:
     def span(
         self,
         name: str,
-        attributes: Dict[str, Any],
-        start_time_ns: Optional[int] = None,
+        attributes: dict[str, Any],
+        start_time_ns: int | None = None,
     ) -> Iterator[Any]:
         """컨텍스트 매니저형 스팬. 미활성화 시 no-op.
 
@@ -145,7 +145,7 @@ class OTELProvider:
         return self._enabled
 
     @property
-    def base_endpoint(self) -> Optional[str]:
+    def base_endpoint(self) -> str | None:
         """OTLP 수신 서버 기본 URL (예: http://localhost:6006). 비활성화 시 None."""
         return self._base_endpoint
 

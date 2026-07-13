@@ -7,9 +7,10 @@ LLM 기반 평가(LLM Judge, DeepEval 등) 비용을 추적하고
 from __future__ import annotations
 
 import threading
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from agent_evaluator.exceptions import ValidationError
 
 
@@ -28,7 +29,7 @@ class CostTracker:
         stats = tracker.get_daily_stats()
     """
 
-    def __init__(self, budget_per_day: Optional[float] = None, alert_at: float = 0.8) -> None:
+    def __init__(self, budget_per_day: float | None = None, alert_at: float = 0.8) -> None:
         """
         Args:
             budget_per_day: 일 예산 USD 한도. None이면 한도 없음.
@@ -38,7 +39,7 @@ class CostTracker:
             raise ValidationError(f"alert_at must be in [0.0, 1.0], got {alert_at}")
         self.budget_per_day = budget_per_day
         self.alert_at = alert_at
-        self._records: List[Dict[str, Any]] = []
+        self._records: list[dict[str, Any]] = []
         self._lock = threading.Lock()
 
     def record(self, provider: str, model: str, cost_usd: float,
@@ -82,15 +83,15 @@ class CostTracker:
             return False
         return self.get_today_cost() >= self.budget_per_day * self.alert_at
 
-    def get_daily_stats(self) -> Dict[str, Any]:
+    def get_daily_stats(self) -> dict[str, Any]:
         today = date.today().isoformat()
         with self._lock:
             today_records = [r for r in self._records if r.get("date") == today]
             all_records = list(self._records)
 
         today_total = sum(r["cost_usd"] for r in today_records)
-        by_provider: Dict[str, float] = {}
-        by_type: Dict[str, float] = {}
+        by_provider: dict[str, float] = {}
+        by_type: dict[str, float] = {}
         for r in today_records:
             p = r["provider"]
             t = r["evaluation_type"]
@@ -102,7 +103,7 @@ class CostTracker:
             budget_remaining = max(0.0, self.budget_per_day - today_total)
 
         # 7일 일별 추이
-        daily_history: Dict[str, float] = {}
+        daily_history: dict[str, float] = {}
         for r in all_records:
             d = r.get("date", "")
             daily_history[d] = daily_history.get(d, 0.0) + r["cost_usd"]
@@ -119,7 +120,7 @@ class CostTracker:
             "daily_history": {k: round(v, 6) for k, v in sorted(daily_history.items())},
         }
 
-    def get_all_records(self) -> List[Dict[str, Any]]:
+    def get_all_records(self) -> list[dict[str, Any]]:
         with self._lock:
             return list(self._records)
 
@@ -128,10 +129,10 @@ class CostTracker:
             self._records.clear()
 
 
-    def learn_cost_model(self, tasks: list) -> "Dict[str, float]":
+    def learn_cost_model(self, tasks: list) -> dict[str, float]:
         """태스크 결과에서 모델별 비용을 학습한다 (F2)."""
-        _model_costs: Dict[str, list] = {}
-        _model_tokens: Dict[str, int] = {}
+        _model_costs: dict[str, list] = {}
+        _model_tokens: dict[str, int] = {}
         for t in tasks:
             _tu = getattr(t, "tokens_used", {}) or {}
             if not isinstance(_tu, dict):
@@ -143,7 +144,7 @@ class CostTracker:
             if _total_tok > 0 and _cost > 0:
                 _model_costs.setdefault(_model, []).append(_cost)
                 _model_tokens[_model] = _model_tokens.get(_model, 0) + _total_tok
-        _learned: Dict[str, float] = {}
+        _learned: dict[str, float] = {}
         for _m, _costs in _model_costs.items():
             _total_cost = sum(_costs)
             _total_tok = _model_tokens.get(_m, 1)
@@ -152,7 +153,7 @@ class CostTracker:
         return _learned
 
     @property
-    def auto_price_map(self) -> "Dict[str, float]":
+    def auto_price_map(self) -> dict[str, float]:
         """학습된 가격과 기본 가격을 병합해 반환한다 (F2)."""
         _base = {
             "claude-opus-4-6": 0.015,
@@ -190,7 +191,7 @@ class AdaptivePolicy:
         self,
         default_sample_rate: float = 0.1,
         anomaly_sample_rate: float = 1.0,
-        budget_per_day: Optional[float] = None,
+        budget_per_day: float | None = None,
         alert_at: float = 0.8,
     ) -> None:
         for rate, name in [(default_sample_rate, "default_sample_rate"), (anomaly_sample_rate, "anomaly_sample_rate")]:
@@ -201,7 +202,7 @@ class AdaptivePolicy:
         self.anomaly_sample_rate = anomaly_sample_rate
         self.cost_tracker = CostTracker(budget_per_day=budget_per_day, alert_at=alert_at)
         self._stage = SamplingStage.DEFAULT
-        self._stage_history: List[Dict[str, Any]] = []
+        self._stage_history: list[dict[str, Any]] = []
         self._lock = threading.Lock()
 
     @property
@@ -247,7 +248,7 @@ class AdaptivePolicy:
                 "at": datetime.now().isoformat(),
             })
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """현재 정책 상태 반환."""
         return {
             "stage": self.current_stage.value,
@@ -259,7 +260,7 @@ class AdaptivePolicy:
         }
 
 
-    def learn_cost_model(self, tasks: list) -> Dict[str, float]:
+    def learn_cost_model(self, tasks: list) -> dict[str, float]:
         """태스크 결과에서 모델별 비용을 학습한다 (F2).
 
         각 태스크의 ``tokens_used["model"]`` 과 ``extra["cost_usd"]`` 또는
@@ -271,8 +272,8 @@ class AdaptivePolicy:
         Returns:
             ``{model_name: cost_per_1k_tokens}`` 딕셔너리.
         """
-        _model_costs: Dict[str, list] = {}
-        _model_tokens: Dict[str, int] = {}
+        _model_costs: dict[str, list] = {}
+        _model_tokens: dict[str, int] = {}
 
         for t in tasks:
             _tu = getattr(t, "tokens_used", {}) or {}
@@ -287,7 +288,7 @@ class AdaptivePolicy:
                 _model_costs.setdefault(_model, []).append(_cost)
                 _model_tokens[_model] = _model_tokens.get(_model, 0) + _total_tok
 
-        _learned: Dict[str, float] = {}
+        _learned: dict[str, float] = {}
         for _m, _costs in _model_costs.items():
             _total_cost = sum(_costs)
             _total_tok = _model_tokens.get(_m, 1)
@@ -297,7 +298,7 @@ class AdaptivePolicy:
         return _learned
 
     @property
-    def auto_price_map(self) -> Dict[str, float]:
+    def auto_price_map(self) -> dict[str, float]:
         """학습된 가격과 설정된 가격을 병합해 반환한다 (F2).
 
         학습된 가격이 설정된 가격보다 우선한다.

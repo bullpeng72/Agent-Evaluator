@@ -66,12 +66,12 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Dict, TextIO
+from typing import Any, TextIO
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 
-def record_and_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+def record_and_save(payload: dict[str, Any]) -> dict[str, Any]:
     """단일 세션의 ``extra``를 배치 리포트에 편입한다 (SPEC-019 REQ-6).
 
     Args:
@@ -113,7 +113,7 @@ def record_and_save(payload: Dict[str, Any]) -> Dict[str, Any]:
     # success 미지정 시 accuracy_score는 기존처럼 자연 계산값(ground_truth 없음 → 0.0)을
     # 그대로 둔다 — 이미 "측정 불가"를 정직하게 반영하고 있어 별도 override가 필요
     # 없다. success가 주어지면 완료 판정과 일관되게 맞춘다.
-    extra_score_fields: Dict[str, Any] = {"completion_score": 0.5}
+    extra_score_fields: dict[str, Any] = {"completion_score": 0.5}
     if success is not None:
         extra_score_fields = {
             "completion_score": 1.0 if success else 0.0,

@@ -15,7 +15,6 @@ import sys
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from agent_evaluator.exceptions import ConfigurationError
 
@@ -28,7 +27,7 @@ _PRE_LOAD_KEYS: frozenset = frozenset(os.environ.keys())
 # .env 탐색 유틸
 # ---------------------------------------------------------------------------
 
-def find_dotenv(start: Optional[Path] = None, max_depth: int = 20) -> Optional[Path]:
+def find_dotenv(start: Path | None = None, max_depth: int = 20) -> Path | None:
     """
     start 디렉토리부터 루트까지 올라가며 .env 파일을 찾는다.
 
@@ -61,7 +60,7 @@ def get_global_env_path() -> Path:
     return get_global_config_dir() / ".env"
 
 
-def load_env(dotenv_path: Optional[Path] = None) -> Optional[Path]:
+def load_env(dotenv_path: Path | None = None) -> Path | None:
     """
     우선순위에 따라 .env 를 로드하고 실제로 로드된 경로를 반환한다.
 
@@ -79,7 +78,7 @@ def load_env(dotenv_path: Optional[Path] = None) -> Optional[Path]:
     except ImportError:
         return None
 
-    loaded: Optional[Path] = None
+    loaded: Path | None = None
 
     # 4순위: 전역 폴백
     global_env = get_global_env_path()
@@ -126,7 +125,7 @@ def key_source(env_var: str) -> str:
 # ---------------------------------------------------------------------------
 
 # 기본값 상수 (중복 제거 — Settings, KEY_DEFS, cmd_check 에서 공유)
-DEFAULTS: Dict[str, str] = {
+DEFAULTS: dict[str, str] = {
     "OPENAI_MODEL":                    "gpt-5-nano",
     "ANTHROPIC_MODEL":                 "claude-haiku-4-5-20251001",
     "LANGCHAIN_TRACING_V2":            "false",
@@ -146,7 +145,7 @@ class Settings:
     """
 
     # OpenAI
-    openai_api_key: Optional[str] = field(
+    openai_api_key: str | None = field(
         default_factory=lambda: os.getenv("OPENAI_API_KEY")
     )
     openai_model: str = field(
@@ -154,7 +153,7 @@ class Settings:
     )
 
     # Anthropic
-    anthropic_api_key: Optional[str] = field(
+    anthropic_api_key: str | None = field(
         default_factory=lambda: os.getenv("ANTHROPIC_API_KEY")
     )
     anthropic_model: str = field(
@@ -191,7 +190,7 @@ class Settings:
         self.output_dir = Path(self.output_dir)
 
     def __repr__(self) -> str:
-        def mask(s: Optional[str]) -> str:
+        def mask(s: str | None) -> str:
             if not s:
                 return "(not set)"
             return s[:6] + "..." + s[-4:] if len(s) > 10 else "***"
@@ -216,12 +215,12 @@ class Settings:
 # 싱글턴 (thread-safe)
 # ---------------------------------------------------------------------------
 
-_settings: Optional[Settings] = None
+_settings: Settings | None = None
 _settings_lock = threading.Lock()
 
 
 def get_settings(
-    dotenv_path: Optional[Path] = None,
+    dotenv_path: Path | None = None,
     reload: bool = False,
 ) -> Settings:
     """
@@ -246,10 +245,10 @@ def get_settings(
 # ---------------------------------------------------------------------------
 
 def init_from_app(
-    dotenv_path: Optional[Path] = None,
-    required_keys: Optional[List[str]] = None,
+    dotenv_path: Path | None = None,
+    required_keys: list[str] | None = None,
     raise_on_missing: bool = False,
-) -> Dict[str, Optional[str]]:
+) -> dict[str, str | None]:
     """
     라이브러리를 호출하는 앱에서 programmatic 하게 초기화하는 헬퍼.
 
@@ -276,7 +275,7 @@ def init_from_app(
     """
     settings = get_settings(dotenv_path=dotenv_path, reload=True)
 
-    status: Dict[str, Optional[str]] = {
+    status: dict[str, str | None] = {
         "OPENAI_API_KEY":             settings.openai_api_key,
         "ANTHROPIC_API_KEY":          settings.anthropic_api_key,
         "AGENT_EVALUATOR_OUTPUT_DIR": str(settings.output_dir),

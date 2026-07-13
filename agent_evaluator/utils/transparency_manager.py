@@ -10,6 +10,7 @@ Test Transparency Manager
 4. 감사 로그 기록 (Audit Logs)
 5. 투명성 요약 생성
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -18,7 +19,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class TestTransparencyManager:
     Enhanced transparency manager for dashboard with insights and analysis
     """
 
-    def __init__(self, output_dir: Optional[str] = None):
+    def __init__(self, output_dir: str | None = None):
         """
         Args:
             output_dir: Base output directory (None이면 자동 감지)
@@ -69,10 +70,10 @@ class TestTransparencyManager:
             dir_path.mkdir(parents=True, exist_ok=True)
 
         # Data storage
-        self.traces: Dict[str, Dict[str, Any]] = {}
-        self.annotations: Dict[str, Dict[str, Any]] = {}
-        self.audit_logs: List[Dict[str, Any]] = []
-        self.reports: List[Dict[str, Any]] = []  # Track generated reports
+        self.traces: dict[str, dict[str, Any]] = {}
+        self.annotations: dict[str, dict[str, Any]] = {}
+        self.audit_logs: list[dict[str, Any]] = []
+        self.reports: list[dict[str, Any]] = []  # Track generated reports
 
     # -------------------------------------------------------------------------
     # Metric Calculation Traces
@@ -82,7 +83,7 @@ class TestTransparencyManager:
         self,
         metric_name: str,
         metric_type: str,
-        task_id: Optional[str] = None
+        task_id: str | None = None
     ) -> str:
         """
         Start tracking a metric calculation
@@ -117,8 +118,8 @@ class TestTransparencyManager:
         trace_id: str,
         step_name: str,
         description: str,
-        input_data: Dict[str, Any],
-        output_data: Dict[str, Any],
+        input_data: dict[str, Any],
+        output_data: dict[str, Any],
         status: TestStepStatus
     ):
         """
@@ -150,7 +151,7 @@ class TestTransparencyManager:
         self,
         trace_id: str,
         final_value: Any,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ):
         """
         Complete a metric calculation trace
@@ -195,7 +196,7 @@ class TestTransparencyManager:
         title: str,
         content: str,
         author: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> str:
         """
         Add an annotation
@@ -293,7 +294,7 @@ class TestTransparencyManager:
         action: str,
         target_type: str,
         target_id: str,
-        details: Dict[str, Any],
+        details: dict[str, Any],
         success: bool = True
     ):
         """
@@ -327,7 +328,7 @@ class TestTransparencyManager:
 
         return log_entry
 
-    def _save_audit_log(self, log_entry: Dict[str, Any]):
+    def _save_audit_log(self, log_entry: dict[str, Any]):
         """Save audit log entry to JSON file"""
         filepath = self.audit_logs_dir / f"{log_entry['log_id']}.json"
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -342,10 +343,10 @@ class TestTransparencyManager:
         task_id: str,
         task_type: str,
         success: bool,
-        metadata: Optional[Dict[str, Any]] = None,
-        monitor: Optional[Any] = None,
+        metadata: dict[str, Any] | None = None,
+        monitor: Any | None = None,
         auto_save: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate a comprehensive transparency report with enhanced features
 
@@ -425,9 +426,9 @@ class TestTransparencyManager:
 
     def _extract_test_configuration(
         self,
-        metadata: Optional[Dict[str, Any]],
-        monitor: Optional[Any]
-    ) -> Dict[str, Any]:
+        metadata: dict[str, Any] | None,
+        monitor: Any | None
+    ) -> dict[str, Any]:
         """
         Phase 1: Extract test configuration from metadata or monitor
 
@@ -465,7 +466,7 @@ class TestTransparencyManager:
 
         return config
 
-    def _calculate_reliability(self, monitor) -> Dict[str, Any]:
+    def _calculate_reliability(self, monitor) -> dict[str, Any]:
         """
         Phase 3: Calculate reliability analysis
 
@@ -531,9 +532,9 @@ class TestTransparencyManager:
     def _compare_with_previous(
         self,
         task_id: str,
-        current_report: Dict[str, Any],
-        monitor: Optional[Any]
-    ) -> Dict[str, Any]:
+        current_report: dict[str, Any],
+        monitor: Any | None
+    ) -> dict[str, Any]:
         """
         Phase 5: Compare with previous report
 
@@ -631,7 +632,7 @@ class TestTransparencyManager:
     # Analysis & Insights
     # -------------------------------------------------------------------------
 
-    def analyze_metric_anomalies(self, monitor) -> Dict[str, Any]:
+    def analyze_metric_anomalies(self, monitor) -> dict[str, Any]:
         """Analyze metrics for anomalies and inconsistencies"""
         anomalies = []
         warnings = []
@@ -678,7 +679,7 @@ class TestTransparencyManager:
             "insights": insights
         }
 
-    def analyze_metric_correlations(self, monitor) -> Dict[str, Any]:
+    def analyze_metric_correlations(self, monitor) -> dict[str, Any]:
         """Analyze correlations between metrics"""
         correlations = []
 
@@ -690,7 +691,7 @@ class TestTransparencyManager:
             "insights": []
         }
 
-    def identify_performance_bottlenecks(self, monitor) -> Dict[str, Any]:
+    def identify_performance_bottlenecks(self, monitor) -> dict[str, Any]:
         """Identify performance bottlenecks"""
         bottlenecks = []
 
@@ -702,7 +703,7 @@ class TestTransparencyManager:
             "recommendations": []
         }
 
-    def generate_data_quality_report(self, monitor) -> Dict[str, Any]:
+    def generate_data_quality_report(self, monitor) -> dict[str, Any]:
         """Generate data quality report"""
         quality_issues = []
         passed_checks = []
@@ -790,7 +791,7 @@ class TestTransparencyManager:
             "passed_checks": passed_checks
         }
 
-    def generate_actionable_insights(self, monitor) -> List[Dict[str, Any]]:
+    def generate_actionable_insights(self, monitor) -> list[dict[str, Any]]:
         """Generate actionable insights from metrics"""
         insights = []
 
@@ -891,11 +892,11 @@ class TestTransparencyManager:
 
     def load_annotations(
         self,
-        annotation_type: Optional[str] = None,
-        status: Optional[str] = None,
-        target_type: Optional[str] = None,
-        priority: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        annotation_type: str | None = None,
+        status: str | None = None,
+        target_type: str | None = None,
+        priority: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Load annotations from files
 
@@ -950,10 +951,10 @@ class TestTransparencyManager:
 
     def load_audit_logs(
         self,
-        event_type: Optional[str] = None,
-        user: Optional[str] = None,
+        event_type: str | None = None,
+        user: str | None = None,
         limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Load audit logs from files
 
@@ -1008,10 +1009,10 @@ class TestTransparencyManager:
 
     def load_traces(
         self,
-        metric_name: Optional[str] = None,
-        metric_type: Optional[str] = None,
-        status: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        metric_name: str | None = None,
+        metric_type: str | None = None,
+        status: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Load metric calculation traces from files
 
@@ -1060,8 +1061,8 @@ class TestTransparencyManager:
 
     def save_report(
         self,
-        report: Dict[str, Any],
-        filename: Optional[str] = None
+        report: dict[str, Any],
+        filename: str | None = None
     ) -> Path:
         """
         Save a report to transparent_reports directory
@@ -1087,7 +1088,7 @@ class TestTransparencyManager:
 
         return filepath
 
-    def save_all_reports(self) -> List[Path]:
+    def save_all_reports(self) -> list[Path]:
         """
         Save all generated reports to files
 
@@ -1101,7 +1102,7 @@ class TestTransparencyManager:
 
         return saved_files
 
-    def get_transparency_summary(self) -> Dict[str, Any]:
+    def get_transparency_summary(self) -> dict[str, Any]:
         """
         Get summary statistics of transparency data
 
@@ -1132,7 +1133,7 @@ class TestTransparencyManager:
     # Report Version Management
     # -------------------------------------------------------------------------
 
-    def list_report_versions(self, task_id_prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_report_versions(self, task_id_prefix: str | None = None) -> list[dict[str, Any]]:
         """
         List all report versions, optionally filtered by task_id prefix
 
@@ -1180,7 +1181,7 @@ class TestTransparencyManager:
 
         return report_list
 
-    def get_report_version_history(self, task_id_prefix: str) -> List[Dict[str, Any]]:
+    def get_report_version_history(self, task_id_prefix: str) -> list[dict[str, Any]]:
         """
         Get version history for a specific task
 
@@ -1192,7 +1193,7 @@ class TestTransparencyManager:
         """
         return self.list_report_versions(task_id_prefix=task_id_prefix)
 
-    def load_report_by_id(self, report_id: str) -> Optional[Dict[str, Any]]:
+    def load_report_by_id(self, report_id: str) -> dict[str, Any] | None:
         """
         Load a specific report by ID
 
@@ -1223,7 +1224,7 @@ class TestTransparencyManager:
         self,
         report_id_1: str,
         report_id_2: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Compare two report versions
 
@@ -1291,7 +1292,7 @@ class TestTransparencyManager:
 
         return comparison
 
-    def delete_old_reports(self, keep_last_n: int = 10, task_id_prefix: Optional[str] = None) -> int:
+    def delete_old_reports(self, keep_last_n: int = 10, task_id_prefix: str | None = None) -> int:
         """
         Delete old reports, keeping only the most recent N
 
@@ -1327,7 +1328,7 @@ class TestTransparencyManager:
     # Export Functions
     # -------------------------------------------------------------------------
 
-    def export_report_to_excel(self, report_id: str, output_path: Optional[str] = None) -> Optional[Path]:
+    def export_report_to_excel(self, report_id: str, output_path: str | None = None) -> Path | None:
         """
         Export a transparency report to Excel format
 
@@ -1440,7 +1441,7 @@ class TestTransparencyManager:
 
         return output_path
 
-    def export_report_to_markdown(self, report_id: str, output_path: Optional[str] = None) -> Optional[Path]:
+    def export_report_to_markdown(self, report_id: str, output_path: str | None = None) -> Path | None:
         """
         Export a transparency report to Markdown format (useful for PDF conversion)
 

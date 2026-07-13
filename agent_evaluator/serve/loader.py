@@ -12,7 +12,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,80 +28,80 @@ class TaskRecord:
     completion_score: float
     accuracy_score: float
     execution_time: float
-    tokens_used: Dict[str, int]
-    tool_calls: List[Any]
+    tokens_used: dict[str, int]
+    tool_calls: list[Any]
     attempts: int
-    errors: List[Any]
+    errors: list[Any]
     timestamp: str
-    expected_tools: Optional[List[str]]
-    framework: Optional[str]
-    advanced_metrics: Dict[str, Any]
-    raw: Dict[str, Any]
+    expected_tools: list[str] | None
+    framework: str | None
+    advanced_metrics: dict[str, Any]
+    raw: dict[str, Any]
 
 
 @dataclass
 class SecurityL1:
-    input_security: Dict[str, Any] = field(default_factory=dict)
-    output_leakage: Dict[str, Any] = field(default_factory=dict)
-    authorization: Dict[str, Any] = field(default_factory=dict)
+    input_security: dict[str, Any] = field(default_factory=dict)
+    output_leakage: dict[str, Any] = field(default_factory=dict)
+    authorization: dict[str, Any] = field(default_factory=dict)
     # Raw evaluator arrays for detail views
-    input_evals: List[Dict[str, Any]] = field(default_factory=list)
-    output_detections: List[Dict[str, Any]] = field(default_factory=list)
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    input_evals: list[dict[str, Any]] = field(default_factory=list)
+    output_detections: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class SecurityL2:
-    privilege_escalation: Dict[str, Any] = field(default_factory=dict)
-    attack_detection: Dict[str, Any] = field(default_factory=dict)
-    escalation_events: List[Dict[str, Any]] = field(default_factory=list)
-    attack_detections: List[Dict[str, Any]] = field(default_factory=list)
+    privilege_escalation: dict[str, Any] = field(default_factory=dict)
+    attack_detection: dict[str, Any] = field(default_factory=dict)
+    escalation_events: list[dict[str, Any]] = field(default_factory=list)
+    attack_detections: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class AgenticMetrics:
     # Tool Selection
-    tool_selections: List[Dict[str, Any]] = field(default_factory=list)   # per-task precision/recall/f1
-    tool_selection_summary: Dict[str, Any] = field(default_factory=dict)
+    tool_selections: list[dict[str, Any]] = field(default_factory=list)   # per-task precision/recall/f1
+    tool_selection_summary: dict[str, Any] = field(default_factory=dict)
     # Tool Efficiency
-    tool_efficiency: Dict[str, Any] = field(default_factory=dict)
-    tool_call_executions: List[Dict[str, Any]] = field(default_factory=list)  # per-task call metrics
+    tool_efficiency: dict[str, Any] = field(default_factory=dict)
+    tool_call_executions: list[dict[str, Any]] = field(default_factory=list)  # per-task call metrics
     # Multi-Agent Coordination
-    agent_interactions: List[Dict[str, Any]] = field(default_factory=list)
-    coordination_summary: Dict[str, Any] = field(default_factory=dict)
+    agent_interactions: list[dict[str, Any]] = field(default_factory=list)
+    coordination_summary: dict[str, Any] = field(default_factory=dict)
     # Workflow
-    workflow_executions: List[Dict[str, Any]] = field(default_factory=list)
-    workflow_summary: Dict[str, Any] = field(default_factory=dict)
+    workflow_executions: list[dict[str, Any]] = field(default_factory=list)
+    workflow_summary: dict[str, Any] = field(default_factory=dict)
     # Retry
-    retry_attempts: List[Dict[str, Any]] = field(default_factory=list)
-    retry_summary: Dict[str, Any] = field(default_factory=dict)
+    retry_attempts: list[dict[str, Any]] = field(default_factory=list)
+    retry_summary: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class QualityDetail:
-    evaluations: List[Dict[str, Any]] = field(default_factory=list)
-    dimension_summary: Dict[str, float] = field(default_factory=dict)
-    grade_distribution: Dict[str, int] = field(default_factory=dict)
+    evaluations: list[dict[str, Any]] = field(default_factory=list)
+    dimension_summary: dict[str, float] = field(default_factory=dict)
+    grade_distribution: dict[str, int] = field(default_factory=dict)
     avg_score: float = 0.0
 
 
 @dataclass
 class HallucinationDetail:
-    detections: List[Dict[str, Any]] = field(default_factory=list)
-    indicator_types: Dict[str, int] = field(default_factory=dict)
+    detections: list[dict[str, Any]] = field(default_factory=list)
+    indicator_types: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
 class AdvancedMetrics:
-    summary: Dict[str, Any] = field(default_factory=dict)   # from report.advanced_metrics_summary
-    rag_metrics: Dict[str, List[float]] = field(default_factory=dict)
-    per_task: List[Dict[str, Any]] = field(default_factory=list)
+    summary: dict[str, Any] = field(default_factory=dict)   # from report.advanced_metrics_summary
+    rag_metrics: dict[str, list[float]] = field(default_factory=dict)
+    per_task: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class LLMJudgeData:
     """Aggregated LLM Judge results from tasks[*].llm_judge"""
-    results: List[Dict[str, Any]] = field(default_factory=list)   # per-task judge results
+    results: list[dict[str, Any]] = field(default_factory=list)   # per-task judge results
     avg_completeness: float = 0.0
     avg_relevance: float = 0.0
     avg_factual_consistency: float = 0.0
@@ -117,16 +117,16 @@ class LLMJudgeData:
 
 @dataclass
 class InsightsData:
-    alerts: List[Dict[str, Any]] = field(default_factory=list)
-    recommendations: List[Dict[str, Any]] = field(default_factory=list)
+    alerts: list[dict[str, Any]] = field(default_factory=list)
+    recommendations: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
 class TransparencyMeta:
     """Pointers to transparency files adjacent to results_dir."""
-    trace_files: List[Path] = field(default_factory=list)
-    audit_files: List[Path] = field(default_factory=list)
-    annotation_files: List[Path] = field(default_factory=list)
+    trace_files: list[Path] = field(default_factory=list)
+    audit_files: list[Path] = field(default_factory=list)
+    annotation_files: list[Path] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +140,9 @@ class ResultFile:
     name: str
     timestamp: str
     total_tasks: int
-    tasks: List[TaskRecord]
-    accuracy_metrics: Dict[str, Any]
-    efficiency_metrics: Dict[str, Any]
+    tasks: list[TaskRecord]
+    accuracy_metrics: dict[str, Any]
+    efficiency_metrics: dict[str, Any]
     security_l1: SecurityL1
     security_l2: SecurityL2
     agentic: AgenticMetrics
@@ -150,19 +150,19 @@ class ResultFile:
     hallucination_detail: HallucinationDetail
     advanced: AdvancedMetrics
     insights: InsightsData
-    rag_metrics: Dict[str, List[float]]
-    pricing: Dict[str, Any]
-    raw: Dict[str, Any]
-    llm_judge: "LLMJudgeData" = field(default_factory=LLMJudgeData)
-    conversation_sessions: List[Dict[str, Any]] = field(default_factory=list)
-    feedback_data: Dict[str, Any] = field(default_factory=dict)
-    anomaly_data: List[Dict[str, Any]] = field(default_factory=list)
-    cost_data: Dict[str, Any] = field(default_factory=dict)
-    streaming_data: Dict[str, Any] = field(default_factory=dict)
+    rag_metrics: dict[str, list[float]]
+    pricing: dict[str, Any]
+    raw: dict[str, Any]
+    llm_judge: LLMJudgeData = field(default_factory=LLMJudgeData)
+    conversation_sessions: list[dict[str, Any]] = field(default_factory=list)
+    feedback_data: dict[str, Any] = field(default_factory=dict)
+    anomaly_data: list[dict[str, Any]] = field(default_factory=list)
+    cost_data: dict[str, Any] = field(default_factory=dict)
+    streaming_data: dict[str, Any] = field(default_factory=dict)
     # Phase 2: Harness 그룹 집계 (EvaluationReport.extra_metrics["harness_groups"])
-    harness_groups: Optional[Dict[str, Any]] = field(default_factory=dict)
-    loop_events: List[Dict[str, Any]] = field(default_factory=list)
-    fault_tolerance_by_tool: Dict[str, Any] = field(default_factory=dict)
+    harness_groups: dict[str, Any] | None = field(default_factory=dict)
+    loop_events: list[dict[str, Any]] = field(default_factory=list)
+    fault_tolerance_by_tool: dict[str, Any] = field(default_factory=dict)
     # SPEC-013: 증분 캐싱을 위한 파싱 시점 mtime — load_results()가 재파싱 스킵 여부를
     # 판단하는 데 사용한다(캐시된 ResultFile.mtime과 현재 path.stat().st_mtime을 비교).
     mtime: float = 0.0
@@ -358,7 +358,7 @@ class ResultFile:
         return isinstance(extra.get("harness_groups"), dict)
 
     @property
-    def gate_data_presence(self) -> Dict[str, bool]:
+    def gate_data_presence(self) -> dict[str, bool]:
         """각 Gate(A~G)에 실제 데이터가 있는지 판정하는 단일 정규 소스.
 
         대시보드 전체(미니패널·에이전틱탭·내보내기 배지·파일목록)가 이 값만 사용해야 한다.
@@ -383,16 +383,16 @@ class ResultFile:
 
 @dataclass
 class ResultSet:
-    files: List[ResultFile] = field(default_factory=list)
+    files: list[ResultFile] = field(default_factory=list)
     transparency: TransparencyMeta = field(default_factory=TransparencyMeta)
 
-    def by_id(self, file_id: str) -> Optional[ResultFile]:
+    def by_id(self, file_id: str) -> ResultFile | None:
         for f in self.files:
             if f.file_id == file_id:
                 return f
         return None
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         if not self.files:
             return {}
         return {
@@ -637,7 +637,7 @@ def _parse_security_l2(raw: dict) -> SecurityL2:
 # Conversation / Feedback / Cost parsing
 # ---------------------------------------------------------------------------
 
-def _parse_conversation_sessions(raw: dict) -> List[Dict[str, Any]]:
+def _parse_conversation_sessions(raw: dict) -> list[dict[str, Any]]:
     """conversation_sessions 파싱."""
     sessions_raw = raw.get("conversation_sessions", [])
     if not isinstance(sessions_raw, list):
@@ -675,7 +675,7 @@ def _parse_conversation_sessions(raw: dict) -> List[Dict[str, Any]]:
     return result
 
 
-def _parse_feedback_data(raw: dict) -> Dict[str, Any]:
+def _parse_feedback_data(raw: dict) -> dict[str, Any]:
     """피드백 데이터 파싱."""
     fb = raw.get("feedback", {})
     if not fb:
@@ -693,7 +693,7 @@ def _parse_feedback_data(raw: dict) -> Dict[str, Any]:
     }
 
 
-def _parse_cost_data(raw: dict) -> Dict[str, Any]:
+def _parse_cost_data(raw: dict) -> dict[str, Any]:
     """비용 데이터 파싱 — budget/sampling 필드 포함.
 
     evaluation_cost: CostTracker 결과 (total_usd, by_provider, call_count 등)
@@ -727,7 +727,7 @@ def _parse_cost_data(raw: dict) -> Dict[str, Any]:
     }
 
 
-def _parse_streaming_data(raw: dict) -> Dict[str, Any]:
+def _parse_streaming_data(raw: dict) -> dict[str, Any]:
     """StreamingEvaluator 슬라이딩 윈도우 스냅샷 파싱.
 
     save_to_file()에서 ``streaming_data`` 키로 저장된 dict를 그대로 반환한다.
@@ -739,7 +739,7 @@ def _parse_streaming_data(raw: dict) -> Dict[str, Any]:
     return sd
 
 
-def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
+def _parse_anomaly_data(raw: dict) -> list[dict[str, Any]]:
     """이상 탐지 데이터 파싱.
 
     save_to_file()은 ``anomaly_data.anomalies`` 구조로 저장한다.
@@ -769,7 +769,7 @@ def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
     return result
 
 
-def _compute_harness_groups_fallback(report: dict) -> Dict[str, Any]:
+def _compute_harness_groups_fallback(report: dict) -> dict[str, Any]:
     """기존 JSON 파일에 harness_groups 없을 때 기존 지표에서 A~G 그룹 계산.
 
     monitor.py의 _compute_harness_groups()와 동일한 그룹 체계를 따르되,
@@ -823,12 +823,12 @@ def _compute_harness_groups_fallback(report: dict) -> Dict[str, Any]:
     hall_rate = hall_block.get("overall_rate") or hall_block.get("average_hallucination_rate") or 0.0
     g_score = round(max(0.0, 1.0 - float(hall_rate) / 100.0), 4)
 
-    def _gate(score: Optional[float], hi: float = 0.7, lo: float = 0.5) -> str:
+    def _gate(score: float | None, hi: float = 0.7, lo: float = 0.5) -> str:
         if score is None:
             return "n/a"
         return "pass" if score >= hi else ("warn" if score >= lo else "fail")
 
-    groups: Dict[str, Any] = {
+    groups: dict[str, Any] = {
         "A": {"name": "Goal Achievement",          "score": a_score, "gate": _gate(a_score)},
         "B": {"name": "Behavioral Integrity",       "score": b_score, "gate": _gate(b_score)},
         "C": {"name": "Reliability",               "score": c_score, "gate": _gate(c_score)},
@@ -847,7 +847,7 @@ def _compute_harness_groups_fallback(report: dict) -> Dict[str, Any]:
 
 def _parse_harness_data(
     raw: dict,
-) -> "tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]":
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]], dict[str, Any]]:
     """EvaluationReport.extra_metrics["harness_groups"] 및 task extras 파싱.
 
     Returns:
@@ -859,7 +859,7 @@ def _parse_harness_data(
     extra = report.get("extra_metrics", {})
     if not isinstance(extra, dict):
         extra = {}
-    harness_groups: Optional[Dict[str, Any]] = extra.get("harness_groups")
+    harness_groups: dict[str, Any] | None = extra.get("harness_groups")
     if not isinstance(harness_groups, dict):
         harness_groups = None
 
@@ -877,9 +877,9 @@ def _parse_harness_data(
             harness_groups = None
 
     # loop_events: tasks[*].extra.loop_detection.detected=True 목록 병합
-    loop_events: List[Dict[str, Any]] = []
+    loop_events: list[dict[str, Any]] = []
     # fault_tolerance_by_tool: tasks[*].extra.fault_tolerance 도구별 집계
-    ft_acc: Dict[str, Dict[str, int]] = {}
+    ft_acc: dict[str, dict[str, int]] = {}
 
     for t in raw.get("tasks", []):
         if not isinstance(t, dict):
@@ -921,7 +921,7 @@ def _parse_harness_data(
                 ft_acc[tool_name]["total"] += failures
                 ft_acc[tool_name]["recovered"] += min(fallbacks, failures)
 
-    fault_tolerance_by_tool: Dict[str, Any] = {
+    fault_tolerance_by_tool: dict[str, Any] = {
         tool: {
             "total": v["total"],
             "recovered": v["recovered"],
@@ -942,7 +942,7 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
 
     # Tool Selection
     selections = _safe_list(ev, "tool_selection", "selections")
-    tool_sel_summary: Dict[str, Any] = {}
+    tool_sel_summary: dict[str, Any] = {}
     if selections:
         prec  = _avg(s.get("precision",  0) for s in selections)
         rec   = _avg(s.get("recall",     0) for s in selections)
@@ -967,7 +967,7 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
 
     # Agent Coordination
     interactions = _safe_list(ev, "agent_coordination", "interactions")
-    coord_summary: Dict[str, Any] = {}
+    coord_summary: dict[str, Any] = {}
     if interactions:
         successful = sum(1 for i in interactions if i.get("success"))
         agents = set()
@@ -985,7 +985,7 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
 
     # Workflow
     wf_executions = _safe_list(ev, "workflow", "executions")
-    wf_summary: Dict[str, Any] = {}
+    wf_summary: dict[str, Any] = {}
     if wf_executions:
         successful_steps = sum(1 for s in wf_executions if s.get("success"))
         frameworks = list({s.get("framework", "") for s in wf_executions} - {""})
@@ -1058,7 +1058,7 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
     # Deduplicate by task_id — keep the latest evaluation per task (same task may be
     # evaluated multiple times when record_task() auto-eval + explicit evaluate_response()
     # are both called; duplicate keys break x-for rendering in the frontend).
-    seen: Dict[str, int] = {}  # task_id → last index
+    seen: dict[str, int] = {}  # task_id → last index
     for i, ev in enumerate(evals):
         tid = ev.get("task_id")
         if tid is not None:
@@ -1066,9 +1066,9 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
     evals = [evals[i] for i in sorted(seen.values())]
 
     # Aggregate dimension scores from evaluations
-    dim_sums: Dict[str, float] = {}
-    dim_counts: Dict[str, int] = {}
-    grades: Dict[str, int] = {}
+    dim_sums: dict[str, float] = {}
+    dim_counts: dict[str, int] = {}
+    grades: dict[str, int] = {}
     scores = []
     for ev in evals:
         ds = ev.get("dimension_scores", {})
@@ -1090,7 +1090,7 @@ def _parse_hallucination_detail(raw: dict) -> HallucinationDetail:
     dets = _safe_list(raw, "evaluators", "hallucination", "detections")
     # Layer 3(DeepEval) 기록은 외부 평가 탭으로 분리 — 품질 탭은 Layer 1(네이티브)만 표시
     dets = [d for d in dets if d.get("source") != "deepeval"]
-    ind_types: Dict[str, int] = {}
+    ind_types: dict[str, int] = {}
     for d in dets:
         for ind in d.get("indicators", []):
             t = ind.get("type", "unknown")
@@ -1130,7 +1130,7 @@ def _parse_advanced(raw: dict) -> AdvancedMetrics:
     # If the top-level rag_metrics has no actual values, try to build from per-task
     # (e.g. files generated by RAGPipelineEvaluator store ragas_* in task.advanced_metrics)
     if not any(isinstance(v, list) and len(v) > 0 for v in rag.values()):
-        built: Dict[str, List[float]] = {}
+        built: dict[str, list[float]] = {}
         for t_am in per_task:
             for k in _RAGAS_KEYS:
                 v = t_am.get(k)
@@ -1148,7 +1148,7 @@ def _parse_advanced(raw: dict) -> AdvancedMetrics:
 # Task parsing
 # ---------------------------------------------------------------------------
 
-def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
+def _parse_llm_judge(raw_tasks: list[dict[str, Any]]) -> LLMJudgeData:
     """Collect llm_judge entries from task list and compute aggregates."""
     results = []
     model = ""
@@ -1196,7 +1196,7 @@ def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
     )
 
 
-def _parse_tasks(raw_tasks: List[Dict[str, Any]]) -> List[TaskRecord]:
+def _parse_tasks(raw_tasks: list[dict[str, Any]]) -> list[TaskRecord]:
     result = []
     for t in raw_tasks:
         result.append(TaskRecord(
@@ -1232,7 +1232,7 @@ def parse_file(path: Path) -> ResultFile:
         _mtime = 0.0
 
     try:
-        raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as _parse_err:
         logger.warning("parse_file: '%s' parse failed (returning empty result): %s", path, _parse_err)
         raw = {}
@@ -1321,7 +1321,7 @@ def _load_transparency(results_dir: Path) -> TransparencyMeta:
 # Top-level load
 # ---------------------------------------------------------------------------
 
-def load_results(results_dir: Path, previous: Optional[ResultSet] = None) -> ResultSet:
+def load_results(results_dir: Path, previous: ResultSet | None = None) -> ResultSet:
     """
     Recursively parse all result JSON files in results_dir.
     Auto-detects transparency sub-directories (zero configuration).
@@ -1333,10 +1333,10 @@ def load_results(results_dir: Path, previous: Optional[ResultSet] = None) -> Res
             건너뛰고 캐시된 ``ResultFile``을 재사용한다(증분 로딩). 생략(``None``, 기본값)
             시 기존 동작과 100% 동일하게 모든 파일을 처음부터 파싱한다.
     """
-    files: List[ResultFile] = []
+    files: list[ResultFile] = []
 
     # SPEC-013 REQ-2: previous가 주어지면 경로 → ResultFile 캐시를 구성해 재사용한다.
-    _cache: Dict[Path, ResultFile] = (
+    _cache: dict[Path, ResultFile] = (
         {rf.path: rf for rf in previous.files} if previous is not None else {}
     )
 

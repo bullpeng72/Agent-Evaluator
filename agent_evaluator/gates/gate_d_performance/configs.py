@@ -12,7 +12,6 @@ SLAConfig는 Gate C(Reliability)에도 breach_rate로 이중 기여한다 — CL
 from __future__ import annotations
 
 import dataclasses
-from typing import Optional
 
 
 @dataclasses.dataclass
@@ -27,13 +26,13 @@ class SLAConfig:
     """
     p95_ms: float = 5000.0
     p99_ms: float = 10000.0
-    ttft_ms: Optional[float] = None
+    ttft_ms: float | None = None
     breach_window: int = 10
     warn_threshold: int = 2
     fail_threshold: int = 5
-    max_cost_per_task: Optional[float] = None
-    budget_usd: Optional[float] = None
-    token_limit: Optional[int] = None          # 태스크당 최대 허용 토큰 수 (None = 제한 없음)
+    max_cost_per_task: float | None = None
+    budget_usd: float | None = None
+    token_limit: int | None = None          # 태스크당 최대 허용 토큰 수 (None = 제한 없음)
 
     def __post_init__(self) -> None:
         import warnings as _w
@@ -143,7 +142,7 @@ class EfficiencyConfig:
         def agent(question, ground_truth=""): ...
     """
     cost_unit: str = "tokens"   # "tokens" | "usd" | "time_ms"
-    target_cost_per_completion: Optional[float] = None
+    target_cost_per_completion: float | None = None
     penalize_failed_tokens: bool = True
     warn_ratio: float = 2.0
     fail_ratio: float = 4.0
@@ -207,9 +206,9 @@ class ResourceBudgetConfig:
                     resource_budget=ResourceBudgetConfig(max_tokens=2000, max_cost_usd=0.05))
         def agent(question, ground_truth=""): ...
     """
-    max_tokens: Optional[int] = None
-    max_cost_usd: Optional[float] = None
-    max_execution_time_ms: Optional[float] = None
+    max_tokens: int | None = None
+    max_cost_usd: float | None = None
+    max_execution_time_ms: float | None = None
     warn_at_pct: float = 0.8
     count_failed_tokens: bool = True
     rollover: bool = False
@@ -239,9 +238,9 @@ class ResourceBudgetConfig:
         # 이것은 의도된 동작이지만 사용자가 놓치기 쉬우므로 경고
         if self.max_tokens is None and self.max_cost_usd is None and self.max_execution_time_ms is None:
             _w.warn(
-                f"ResourceBudgetConfig: max_tokens, max_cost_usd, max_execution_time_ms가 모두 None입니다. "
-                f"최소 하나 이상의 한도를 설정해야 Gate D resource_budget 점수가 산출됩니다. "
-                f"현재 설정에서는 budget_score=None이 되어 Gate D 집계에서 제외됩니다.",
+                "ResourceBudgetConfig: max_tokens, max_cost_usd, max_execution_time_ms가 모두 None입니다. "
+                "최소 하나 이상의 한도를 설정해야 Gate D resource_budget 점수가 산출됩니다. "
+                "현재 설정에서는 budget_score=None이 되어 Gate D 집계에서 제외됩니다.",
                 UserWarning, stacklevel=2,
             )
 

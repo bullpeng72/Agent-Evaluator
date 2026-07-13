@@ -5,7 +5,9 @@ GET /api/conversation/{file_id}              — Session aggregate stats + list 
 GET /api/conversation/{file_id}/{session_id} — Turn-by-turn detail for a specific session
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Request
 
 from agent_evaluator.serve.routers._utils import _rs
@@ -13,7 +15,7 @@ from agent_evaluator.serve.routers._utils import _rs
 router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 @router.get("", summary="Conversation sessions list")
-def list_conversations(request: Request) -> List[Dict[str, Any]]:
+def list_conversations(request: Request) -> list[dict[str, Any]]:
     """Summary list of conversation sessions across all files."""
     rs = _rs(request)
     result = []
@@ -29,7 +31,7 @@ def list_conversations(request: Request) -> List[Dict[str, Any]]:
     return result
 
 @router.get("/{file_id}", summary="Conversation sessions for a file")
-def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
+def get_conversations(file_id: str, request: Request) -> dict[str, Any]:
     """Conversation session detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -67,7 +69,7 @@ def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
 
 
 @router.get("/{file_id}/{session_id}", summary="Conversation session detail")
-def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[str, Any]:
+def get_session_detail(file_id: str, session_id: str, request: Request) -> dict[str, Any]:
     """Turn-by-turn detail + 6-metric analysis for a specific session.
 
     Returns:
@@ -88,11 +90,11 @@ def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[
         raise HTTPException(status_code=404, detail="Session not found")
 
     metrics = session.get("metrics", {})
-    turns: List[Dict[str, Any]] = session.get("turns", [])
+    turns: list[dict[str, Any]] = session.get("turns", [])
 
     # Top/bottom turn analysis (by latency)
     latencies = [t.get("latency", 0.0) for t in turns if t.get("latency") is not None]
-    quality_summary: Dict[str, Any] = {}
+    quality_summary: dict[str, Any] = {}
     if latencies:
         quality_summary["avg_latency"] = round(sum(latencies) / len(latencies), 3)
         quality_summary["max_latency"] = round(max(latencies), 3)

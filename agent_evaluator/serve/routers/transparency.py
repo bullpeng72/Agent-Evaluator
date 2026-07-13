@@ -17,7 +17,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class AnnotationCreate(BaseModel):
     author: str = "dashboard"
     target_type: str = "evaluation"
     target_id: str = ""
-    tags: List[str] = []
+    tags: list[str] = []
     source_file_id: str = ""        # evaluation file ID this annotation belongs to ("" = global)
 
 
@@ -66,7 +66,7 @@ def _reload_transparency(request: Request):
     )
 
 
-def _list_files(paths: List[Path]) -> List[Dict[str, Any]]:
+def _list_files(paths: list[Path]) -> list[dict[str, Any]]:
     result = []
     for p in paths:
         try:

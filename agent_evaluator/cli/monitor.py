@@ -25,8 +25,6 @@ import subprocess
 import sys
 import time
 import webbrowser
-from typing import Dict, List, Optional
-
 
 # ---------------------------------------------------------------------------
 # 도움말 포맷터 — RawDescriptionHelpFormatter + 한국어 "사용법:" 접두사
@@ -56,7 +54,7 @@ def _pkg_installed(import_name: str) -> bool:
     return importlib.util.find_spec(import_name) is not None
 
 
-def _phoenix_version() -> Optional[str]:
+def _phoenix_version() -> str | None:
     """설치된 arize-phoenix 버전 반환. 미설치 시 None."""
     try:
         from importlib.metadata import version
@@ -66,7 +64,7 @@ def _phoenix_version() -> Optional[str]:
         return None
 
 
-def _check_deps() -> Dict[str, bool]:
+def _check_deps() -> dict[str, bool]:
     """필수 패키지 설치 여부 반환."""
     return {
         "arize-phoenix": _pkg_installed("phoenix"),
@@ -84,7 +82,7 @@ def _port_in_use(port: int, host: str = "localhost") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-def _get_pids_on_port(port: int) -> List[int]:
+def _get_pids_on_port(port: int) -> list[int]:
     """포트를 점유 중인 PID 목록 반환 (lsof 사용, 없으면 빈 리스트)."""
     try:
         import subprocess as _sp
@@ -99,8 +97,8 @@ def _get_pids_on_port(port: int) -> List[int]:
 
 
 def _report_startup_failure(
-    proc: "subprocess.Popen[bytes]",
-    output_lines: List[str],
+    proc: subprocess.Popen[bytes],
+    output_lines: list[str],
     ui_port: int,
     grpc_port: int,
     host: str,
@@ -115,7 +113,7 @@ def _report_startup_failure(
         print(f"  ❌  Phoenix startup failed — gRPC port {grpc_port} conflict{pid_hint}")
         print(f"     Another Phoenix instance is occupying port {grpc_port}.")
         print(f"     Fix:  kill $(lsof -ti :{grpc_port})  then retry")
-        print(f"     Or:   PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+        print("     Or:   PHOENIX_GRPC_PORT=4318 agent-eval monitor")
     elif returncode is not None:
         print(f"  ❌  Phoenix process exited immediately (exitcode={returncode}).")
         error_lines = [
@@ -130,8 +128,8 @@ def _report_startup_failure(
             print("     Run directly to see the error:")
             print(f"       PHOENIX_PORT={ui_port} phoenix serve")
     else:
-        print(f"  ❌  Phoenix server startup timed out (30s).")
-        print(f"     Run directly to see the error:")
+        print("  ❌  Phoenix server startup timed out (30s).")
+        print("     Run directly to see the error:")
         print(f"       PHOENIX_PORT={ui_port} phoenix serve")
         if _port_in_use(grpc_port, host):
             pids = _get_pids_on_port(grpc_port)
@@ -140,7 +138,7 @@ def _report_startup_failure(
     print()
 
 
-def _phoenix_cmd() -> List[str]:
+def _phoenix_cmd() -> list[str]:
     """Phoenix 기동 명령 반환.
 
     `phoenix` CLI 바이너리가 있으면 우선 사용,
@@ -447,14 +445,14 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         print()
         print(f"  ❌  gRPC port {_GRPC_PORT} is already in use.{pid_hint}")
         print(f"     Phoenix uses both UI port ({port}) and gRPC port ({_GRPC_PORT}).")
-        print(f"     Fix:")
+        print("     Fix:")
         print(f"       1. Stop existing process:  kill $(lsof -ti :{_GRPC_PORT})")
-        print(f"       2. Change gRPC port:        PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+        print("       2. Change gRPC port:        PHOENIX_GRPC_PORT=4318 agent-eval monitor")
         print()
         return 1
 
     # Phoenix 서버 기동
-    print(f"\n  Agent Evaluator — Starting operations monitoring...\n")
+    print("\n  Agent Evaluator — Starting operations monitoring...\n")
     try:
         env = os.environ.copy()
         env["PHOENIX_PORT"] = str(port)
@@ -508,8 +506,8 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     import threading
 
     def _watch_projects(base_url: str) -> None:
-        import urllib.request
         import json as _json
+        import urllib.request
 
         known: set = set()
         initialized = False

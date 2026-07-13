@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 from agent_evaluator.core.trackers.base import TaskResult
 
@@ -94,7 +94,7 @@ def _connect(path: Union[str, Path]) -> sqlite3.Connection:
     return conn
 
 
-def _summarize_violations(extra: Dict[str, Any]) -> Optional[str]:
+def _summarize_violations(extra: dict[str, Any]) -> str | None:
     """(SPEC-024 REQ-2) Gate B/E 판정 상세를 검색 가능한 한 줄 요약으로 변환한다.
 
     점수가 아니라 "무엇이 왜 위반됐는지"를 담는다 — SPEC-019가 확립한 TypeScript
@@ -109,7 +109,7 @@ def _summarize_violations(extra: Dict[str, Any]) -> Optional[str]:
     Returns:
         위반이 있으면 " | "로 구분된 한 줄 요약, 없으면 ``None``.
     """
-    parts: List[str] = []
+    parts: list[str] = []
 
     _loop = extra.get("loop_detection")
     if isinstance(_loop, dict) and _loop.get("detected"):
@@ -157,7 +157,7 @@ def _summarize_violations(extra: Dict[str, Any]) -> Optional[str]:
     return " | ".join(parts) if parts else None
 
 
-def save_tasks_to_db(path: Union[str, Path], tasks: List[TaskResult]) -> None:
+def save_tasks_to_db(path: Union[str, Path], tasks: list[TaskResult]) -> None:
     """(REQ-2) 태스크 리스트를 ``task_id`` 기준 upsert로 SQLite에 기록한다.
 
     이미 저장된 ``task_id``는 최신 값으로 갱신되고, 신규 ``task_id``는 추가된다 —
@@ -224,7 +224,7 @@ def save_tasks_to_db(path: Union[str, Path], tasks: List[TaskResult]) -> None:
         conn.close()
 
 
-def load_tasks_from_db(path: Union[str, Path]) -> List[TaskResult]:
+def load_tasks_from_db(path: Union[str, Path]) -> list[TaskResult]:
     """(REQ-5) SQLite DB 파일에서 저장된 ``TaskResult`` 리스트를 재구성한다.
 
     Args:
@@ -246,7 +246,7 @@ def load_tasks_from_db(path: Union[str, Path]) -> List[TaskResult]:
 
 def _match_with_phrase_fallback(
     conn: sqlite3.Connection, sql: str, query: str, limit: int
-) -> List[Any]:
+) -> list[Any]:
     """FTS5 MATCH 쿼리를 실행하고, 쿼리 문법 오류 시 통째로 구(phrase)로 감싸 재시도한다.
 
     ``search_violations()``의 두 하위 쿼리(관찰 모드/차단 이력)가 공유하는 재시도 로직 —
@@ -262,7 +262,7 @@ def _match_with_phrase_fallback(
 
 def search_violations(
     path: Union[str, Path], query: str, limit: int = 10, include_blocked: bool = False,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """(SPEC-024 REQ-3) ``violation_search``(FTS5)에서 Gate B/E 위반 이력을 검색한다.
 
     ``save_tasks_to_db()``가 위반이 있는 태스크에 한해 채워둔 요약(REQ-2)을

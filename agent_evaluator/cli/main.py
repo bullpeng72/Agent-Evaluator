@@ -16,10 +16,10 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 try:
-    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
     try:
@@ -27,6 +27,13 @@ except PackageNotFoundError:
     except ImportError:
         __version__ = "unknown"
 
+from agent_evaluator.cli._utils import _supports_color
+from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
+from agent_evaluator.cli.dataset import cmd_dataset
+from agent_evaluator.cli.gate import cmd_gate
+from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
+from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
+from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
 from agent_evaluator.config import (
     DEFAULTS,
     find_dotenv,
@@ -34,14 +41,6 @@ from agent_evaluator.config import (
     key_source,
     load_env,
 )
-from agent_evaluator.cli.gate import cmd_gate
-from agent_evaluator.cli.dataset import cmd_dataset
-from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
-from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
-from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
-from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
-from agent_evaluator.cli._utils import _supports_color
-
 
 # ---------------------------------------------------------------------------
 # ANSI 색상 (터미널이 아닌 경우 비활성화)
@@ -77,7 +76,7 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
     TTY 여부는 _COLOR 전역 변수로 제어된다 (non-TTY 에서는 색상 없음).
     """
 
-    def start_section(self, heading: Optional[str]) -> None:  # type: ignore[override]
+    def start_section(self, heading: str | None) -> None:  # type: ignore[override]
         if heading and _COLOR:
             heading = f"{B}{heading}{R}"
         super().start_section(heading)
@@ -103,7 +102,7 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
 # 키 메타데이터
 # ---------------------------------------------------------------------------
 
-KEY_DEFS: List[Dict] = [
+KEY_DEFS: list[dict] = [
     {
         "env":      "OPENAI_API_KEY",
         "label":    "OpenAI API Key",
@@ -145,7 +144,7 @@ def _mask(value: str) -> str:
     return value[:visible] + "..."
 
 
-def _current_value(env_var: str) -> Tuple[Optional[str], str]:
+def _current_value(env_var: str) -> tuple[str | None, str]:
     """
     환경 변수의 현재 값과 출처를 반환한다.
 
@@ -166,9 +165,9 @@ def _current_value(env_var: str) -> Tuple[Optional[str], str]:
 # .env 파일 읽기 / 쓰기
 # ---------------------------------------------------------------------------
 
-def _read_env_file(path: Path) -> Dict[str, str]:
+def _read_env_file(path: Path) -> dict[str, str]:
     """기존 .env 파일을 파싱해 {key: value} 딕셔너리로 반환한다."""
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     if not path.is_file():
         return result
     with open(path, encoding="utf-8") as f:
@@ -185,12 +184,12 @@ def _read_env_file(path: Path) -> Dict[str, str]:
     return result
 
 
-def _update_env_file(env_path: Path, updates: Dict[str, str]) -> None:
+def _update_env_file(env_path: Path, updates: dict[str, str]) -> None:
     """
     .env 파일의 특정 키만 업데이트하거나 새로 추가한다.
     기존 주석·공백·다른 키는 그대로 보존한다.
     """
-    lines: List[str] = []
+    lines: list[str] = []
     updated_keys: set = set()
 
     if env_path.is_file():
@@ -234,7 +233,7 @@ def _update_env_file(env_path: Path, updates: Dict[str, str]) -> None:
 # 저장 위치 선택
 # ---------------------------------------------------------------------------
 
-def _choose_save_location(detected: Optional[Path]) -> Optional[Path]:
+def _choose_save_location(detected: Path | None) -> Path | None:
     """
     .env 저장 위치를 대화형으로 묻고 경로를 반환한다.
     None 이면 저장하지 않는다.
@@ -242,7 +241,7 @@ def _choose_save_location(detected: Optional[Path]) -> Optional[Path]:
     print()
     print(f"{B}Where do you want to save?{R}")
 
-    options: List[Tuple[str, Optional[Path]]] = []
+    options: list[tuple[str, Path | None]] = []
 
     if detected:
         label = f"Update existing file       {_dim(str(detected))}"
@@ -302,7 +301,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     print()
 
     # 수집할 키값 저장
-    to_save: Dict[str, str] = {}
+    to_save: dict[str, str] = {}
 
     for step_num, key_def in enumerate(KEY_DEFS, 1):
         env_var   = key_def["env"]
@@ -426,7 +425,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     print()
 
     # 저장된 키에 따라 필요한 extra 설치 힌트
-    extras_needed: List[str] = []
+    extras_needed: list[str] = []
     for kd in KEY_DEFS:
         if kd["env"] in to_save and kd.get("extra") not in extras_needed:
             extras_needed.append(kd["extra"])
@@ -474,7 +473,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
     print()
 
     # 존재하는 .env 파일들
-    existing_files: List[Path] = []
+    existing_files: list[Path] = []
     if detected:
         existing_files.append(detected)
     global_env = get_global_env_path()
@@ -490,7 +489,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
 
     # API 키 상태
     print(f"{B}API Key Status:{R}")
-    rows: List[Tuple[str, str, str, str]] = []
+    rows: list[tuple[str, str, str, str]] = []
     for kd in KEY_DEFS:
         env_var = kd["env"]
         label   = kd["label"]
@@ -513,7 +512,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
 
     # 기타 설정 (DEFAULTS 상수로 단일 출처 유지)
     print(f"{B}Other Settings:{R}")
-    for extra_var, desc in [
+    for extra_var, _desc in [
         ("AGENT_EVALUATOR_OUTPUT_DIR", "Results directory"),
         ("OPENAI_MODEL",               "OpenAI model"),
         ("ANTHROPIC_MODEL",            "Claude model"),

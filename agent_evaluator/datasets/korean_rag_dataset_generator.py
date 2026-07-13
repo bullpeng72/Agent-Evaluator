@@ -9,15 +9,16 @@ Korean RAG Dataset Generator
 - Faithfulness, Context Recall, Context Precision, Answer Relevancy 평가를 위한 데이터셋 구축
 - Golden data 저장/로드 (JSON, CSV)
 """
+from __future__ import annotations
 
 import hashlib
 import json
 import os
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
 # Pre-compiled patterns for clean_text() and _parse_qa_pairs()
 _RE_MULTI_SPACE = re.compile(r'\s+')
@@ -59,7 +60,7 @@ class DocumentChunk:
     content: str
     page_number: int
     chunk_index: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -70,12 +71,12 @@ class QAPair:
     answer: str
     context: str
     ground_truth: str  # 기대되는 정답
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
     # Layer 2: Agentic AI Metrics 필드 (Optional)
-    expected_tools: Optional[List[str]] = None  # Tool Selection 평가용
-    expected_agents: Optional[List[str]] = None  # Agent Coordination 평가용
-    expected_workflow_steps: Optional[List[str]] = None  # Workflow Execution 평가용
+    expected_tools: list[str] | None = None  # Tool Selection 평가용
+    expected_agents: list[str] | None = None  # Agent Coordination 평가용
+    expected_workflow_steps: list[str] | None = None  # Workflow Execution 평가용
 
 
 @dataclass
@@ -85,8 +86,8 @@ class GoldenDataset:
     source_document: str
     created_at: str
     total_qa_pairs: int
-    qa_pairs: List[QAPair]
-    metadata: Dict[str, Any]
+    qa_pairs: list[QAPair]
+    metadata: dict[str, Any]
 
 
 # ============================================================================
@@ -104,7 +105,7 @@ class KoreanPDFExtractor:
             )
         self.library = PDF_LIBRARY
 
-    def extract_text(self, pdf_path: str) -> List[Tuple[int, str]]:
+    def extract_text(self, pdf_path: str) -> list[tuple[int, str]]:
         """
         PDF에서 텍스트 추출
 
@@ -119,11 +120,12 @@ class KoreanPDFExtractor:
 
         return self._extract_with_pdfplumber(pdf_path)
 
-    def _extract_with_pdfplumber(self, pdf_path: str) -> List[Tuple[int, str]]:
+    def _extract_with_pdfplumber(self, pdf_path: str) -> list[tuple[int, str]]:
         """pdfplumber를 사용한 텍스트 추출 (더 정확함)"""
-        import pdfplumber
         import logging
         import warnings
+
+        import pdfplumber
 
         # Suppress FontBBox warnings from pdfminer
         logging.getLogger('pdfminer').setLevel(logging.ERROR)
@@ -172,7 +174,7 @@ class TextChunker:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-    def chunk_documents(self, pages_text: List[Tuple[int, str]]) -> List[DocumentChunk]:
+    def chunk_documents(self, pages_text: list[tuple[int, str]]) -> list[DocumentChunk]:
         """문서를 청크로 분할"""
         chunks = []
         chunk_index = 0
@@ -199,7 +201,7 @@ class TextChunker:
 
         return chunks
 
-    def _chunk_text(self, text: str, page_num: int) -> List[str]:
+    def _chunk_text(self, text: str, page_num: int) -> list[str]:
         """텍스트를 청크로 분할"""
         chunks = []
         start = 0
@@ -239,7 +241,7 @@ class TextChunker:
 class KoreanQAGenerator:
     """한국어 QA 쌍 생성기 (OpenAI GPT 사용)"""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-5-nano"):
+    def __init__(self, api_key: str | None = None, model: str = "gpt-5-nano"):
         """
         Args:
             api_key: OpenAI API 키 (없으면 환경 변수에서 가져옴)
@@ -259,8 +261,8 @@ class KoreanQAGenerator:
         self,
         chunk: DocumentChunk,
         num_questions: int = 3,
-        question_types: Optional[List[str]] = None
-    ) -> List[QAPair]:
+        question_types: list[str] | None = None
+    ) -> list[QAPair]:
         """
         청크에서 QA 쌍 생성
 
@@ -297,7 +299,7 @@ class KoreanQAGenerator:
             print(f"⚠️  QA generation failed (chunk_id: {chunk.chunk_id}): {str(e)}")
             return []
 
-    def _build_prompt(self, context: str, num_questions: int, question_types: List[str]) -> str:
+    def _build_prompt(self, context: str, num_questions: int, question_types: list[str]) -> str:
         """프롬프트 생성"""
         types_desc = {
             "factual": "사실 확인 질문 (문서에 명시된 정보)",
@@ -345,7 +347,7 @@ ground_truth: [평가를 위한 핵심 정답 (1-2문장, 간결하게)]
 """
         return prompt
 
-    def _parse_qa_pairs(self, response_text: str, chunk: DocumentChunk) -> List[QAPair]:
+    def _parse_qa_pairs(self, response_text: str, chunk: DocumentChunk) -> list[QAPair]:
         """AI 응답에서 QA 쌍 파싱"""
         qa_pairs = []
 
@@ -403,9 +405,9 @@ class GoldenDatasetManager:
 
     def create_dataset(
         self,
-        qa_pairs: List[QAPair],
+        qa_pairs: list[QAPair],
         source_document: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> GoldenDataset:
         """Golden Dataset 생성"""
         dataset_id = self._generate_dataset_id(source_document)
@@ -428,7 +430,7 @@ class GoldenDatasetManager:
         self,
         dataset: GoldenDataset,
         format: str = "json",
-        filename: Optional[str] = None
+        filename: str | None = None
     ) -> str:
         """
         Dataset 저장
@@ -557,7 +559,7 @@ class GoldenDatasetManager:
         print(f"✅ Loaded from CSV: {filepath} ({len(qa_pairs)} QA pairs)")
         return dataset
 
-    def validate_dataset(self, dataset: GoldenDataset) -> Dict[str, Any]:
+    def validate_dataset(self, dataset: GoldenDataset) -> dict[str, Any]:
         """Dataset 검증"""
         validation_results = {
             "is_valid": True,
@@ -607,7 +609,7 @@ class KoreanRAGDatasetGenerator:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gpt-5-nano",
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
@@ -630,9 +632,9 @@ class KoreanRAGDatasetGenerator:
         self,
         pdf_path: str,
         num_questions_per_chunk: int = 3,
-        question_types: Optional[List[str]] = None,
+        question_types: list[str] | None = None,
         save_format: str = "json",
-        max_chunks: Optional[int] = None
+        max_chunks: int | None = None
     ) -> GoldenDataset:
         """
         PDF에서 Golden Dataset 생성 (전체 파이프라인)
@@ -648,7 +650,7 @@ class KoreanRAGDatasetGenerator:
             생성된 Golden Dataset
         """
         print(f"\n{'='*80}")
-        print(f"Korean RAG Golden Dataset generation started")
+        print("Korean RAG Golden Dataset generation started")
         print(f"{'='*80}\n")
 
         # 1. PDF 텍스트 추출
@@ -720,9 +722,9 @@ class KoreanRAGDatasetGenerator:
         # 5. 검증
         validation = self.dataset_manager.validate_dataset(dataset)
         if validation["is_valid"]:
-            print(f"   ✓ Dataset validation passed")
+            print("   ✓ Dataset validation passed")
         else:
-            print(f"   ⚠️  Dataset validation failed:")
+            print("   ⚠️  Dataset validation failed:")
             for issue in validation["issues"][:5]:  # 처음 5개만 표시
                 print(f"      - {issue}")
 
@@ -738,7 +740,7 @@ class KoreanRAGDatasetGenerator:
     def _print_summary(self, dataset: GoldenDataset):
         """생성 결과 요약 출력"""
         print(f"{'='*80}")
-        print(f"📊 Generation summary")
+        print("📊 Generation summary")
         print(f"{'='*80}\n")
 
         print(f"Dataset ID: {dataset.dataset_id}")
@@ -757,7 +759,7 @@ class KoreanRAGDatasetGenerator:
             print(f"Context (first 100 chars): {sample.context[:100]}...")
             print("-" * 80 + "\n")
 
-        print(f"✅ Golden Dataset generation complete!\n")
+        print("✅ Golden Dataset generation complete!\n")
 
 
 # ============================================================================

@@ -5,10 +5,10 @@ Path Helper Utilities for Zero Configuration
 이 모듈은 agent_evaluator 패키지 전체에서 사용되는 경로 관련 유틸리티를 제공합니다.
 Zero Configuration 원칙에 따라 프로젝트 루트를 자동으로 탐지합니다.
 """
+from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
 def find_project_root() -> Path:
@@ -54,7 +54,7 @@ def find_project_root() -> Path:
     return Path.cwd().resolve()
 
 
-def get_evaluation_results_dir(project_root: Optional[Path] = None, create: bool = False) -> Path:
+def get_evaluation_results_dir(project_root: Path | None = None, create: bool = False) -> Path:
     """
     평가 결과 저장 디렉토리 경로 반환
 
@@ -96,7 +96,7 @@ def get_evaluation_results_dir(project_root: Optional[Path] = None, create: bool
     return results_dir
 
 
-def get_dashboard_dir(project_root: Optional[Path] = None) -> Path:
+def get_dashboard_dir(project_root: Path | None = None) -> Path:
     """
     Dashboard 디렉토리 경로 반환 (하위 호환성 유지)
 

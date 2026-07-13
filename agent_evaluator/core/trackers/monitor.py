@@ -25,7 +25,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Literal, Optional
+from typing import Any, Iterator, Literal
 
 import numpy as np
 import pandas as pd
@@ -98,7 +98,7 @@ def _json_serializer(obj: Any) -> Any:
 _STREAMING_THRESHOLD: int = 5000
 
 
-def _write_json_streaming(file_obj: Any, data: Dict[str, Any], tasks_list: List) -> None:
+def _write_json_streaming(file_obj: Any, data: dict[str, Any], tasks_list: list) -> None:
     """대용량 tasks를 chunk 단위로 파일에 직접 기록합니다 (R 항목).
 
     전체 data dict를 메모리에 한 번에 직렬화하지 않고, tasks 제외한 필드를 먼저
@@ -152,7 +152,7 @@ _QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
 #   CHAIN     — 멀티스텝 파이프라인 (data_analysis)
 # 참고: Phoenix "Top models by cost/tokens" 차트는 LLM kind 스팬만 집계하므로
 #       RETRIEVER/TOOL/AGENT/CHAIN 태스크는 Traces 탭에서 직접 확인.
-_OTEL_SPAN_KIND_MAP: Dict[str, str] = {
+_OTEL_SPAN_KIND_MAP: dict[str, str] = {
     "qa": "LLM",
     "code_generation": "LLM",
     "coding": "LLM",
@@ -168,7 +168,7 @@ _OTEL_SPAN_KIND_MAP: Dict[str, str] = {
 # 신규 Claude/OpenAI 모델명 → Phoenix(LiteLLM) 가격 테이블 등록명 매핑
 # Phoenix는 LiteLLM 가격 DB를 사용하므로 미등록 모델은 "Top models by cost"에 표시 안 됨.
 # 신규 모델은 nearest 등록 모델로 매핑해 비용 추정이 가능하게 한다.
-_PHOENIX_MODEL_ALIAS: Dict[str, str] = {
+_PHOENIX_MODEL_ALIAS: dict[str, str] = {
     # Claude 4.x / 4.5 / 4.6 → 가장 가까운 등록 모델
     "claude-opus-4-6":              "claude-3-opus-20240229",
     "claude-sonnet-4-6":            "claude-3-5-sonnet-20241022",
@@ -196,10 +196,10 @@ class _RunningTCRView:
     지원하지 않는다(REQ-2 축소 범위, SPEC-004 구현 노트 참조).
     """
 
-    def __init__(self, agg: Dict[str, float]) -> None:
+    def __init__(self, agg: dict[str, float]) -> None:
         self._agg = agg
 
-    def calculate_tcr(self, task_type: Optional[str] = None) -> Dict[str, float]:
+    def calculate_tcr(self, task_type: str | None = None) -> dict[str, float]:
         """전체 이력 기준 러닝 집계로부터 TCR 통계를 계산한다.
 
         Args:
@@ -226,30 +226,30 @@ class PerformanceMonitor:
 
     def __init__(
         self,
-        pricing: Dict[str, float] = None,
+        pricing: dict[str, float] = None,
         model_name: str = "",
         session_label: str = "",
         enable_transparency: bool = False,
         enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
-        security_config: Optional[Dict[str, Any]] = None,
-        output_dir: Optional[str] = None,
+        security_config: dict[str, Any] | None = None,
+        output_dir: str | None = None,
         # LLM Judge (Phase 1-A)
         enable_llm_judge: bool = False,
-        judge_model: Optional[str] = None,
+        judge_model: str | None = None,
         judge_sample_rate: float = 0.1,
-        judge_budget_per_day: Optional[float] = None,
-        judge_budget_storage_path: Optional[str] = None,
+        judge_budget_per_day: float | None = None,
+        judge_budget_storage_path: str | None = None,
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"]
-        judge_criteria: Optional[List[str]] = None,
+        judge_criteria: list[str] | None = None,
         # LLM Judge context 잘림 한도 (기본 4000자 — RAG 문서 1~2페이지 커버)
         judge_max_context_chars: int = 4000,
         # LLM Judge escalation — primary 점수 미달 시 상위 모델 자동 재채점 (v0.8.3+)
-        judge_escalation_model: Optional[str] = None,
+        judge_escalation_model: str | None = None,
         judge_escalation_threshold: float = 2.5,
         # LLM Judge 샘플링 재현성 시드
-        judge_seed: Optional[int] = None,
+        judge_seed: int | None = None,
         # 한국어 형태소 분석 기반 토큰화 (kiwipiepy 필요)
         use_korean_tokenizer: bool = False,
         # 의미 기반 환각 탐지 (sentence-transformers 필요, opt-in)
@@ -264,12 +264,12 @@ class PerformanceMonitor:
         auto_save_interval: int = 10,
         auto_save_filename: str = "auto_save",
         # D3: 선택적 보안 트래커 활성화 (enable_security_metrics=True 일 때만 유효)
-        enabled_security_trackers: Optional[List[str]] = None,
+        enabled_security_trackers: list[str] | None = None,
         # D2: OTEL 자식 스팬 — chain_steps 각 항목을 별도 자식 스팬으로 발행
         enable_otel_child_spans: bool = False,
         # Phase 1: Harness D Config 파라미터 연동
-        ttft_variability_config: Optional[Any] = None,
-        cost_predictability_config: Optional[Any] = None,
+        ttft_variability_config: Any | None = None,
+        cost_predictability_config: Any | None = None,
         # Gate A TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Config 지표의 상대 중요도 조정
         gate_a_tcr_weight: float = 0.4,
         # Gate C TCR 가중치 (0.0~1.0, 기본 0.4) — TCR과 Reliability Config 지표의 상대 중요도 조정
@@ -279,11 +279,11 @@ class PerformanceMonitor:
         # SPEC-002: 전 Gate 공통 최소 표본 가드 기본값 (Config 자체 min_samples가 없는 지표용)
         min_samples_default: int = 3,
         # SPEC-007: 감사/재현성 lineage — 사용자 지정 태그 (선택)
-        prompt_version: Optional[str] = None,
-        agent_version: Optional[str] = None,
+        prompt_version: str | None = None,
+        agent_version: str | None = None,
         # SPEC-029: agent_version="auto"(SPEC-027)가 만드는 dirty-hash 태그에 사람이
         # 읽을 수 있는 한 줄 메모를 붙인다 — 순수 표시용, 점수 계산에는 관여하지 않는다.
-        iteration_note: Optional[str] = None,
+        iteration_note: str | None = None,
         # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
         retention_mode: Literal["full", "windowed"] = "full",
         window_size: int = 10000,
@@ -294,7 +294,7 @@ class PerformanceMonitor:
         # 100% 동일. True면 저장 시점에만(인메모리 self.tasks는 원문 유지) question/response/
         # ground_truth/context에서 Gate E의 기존 _PII_PATTERNS를 재사용해 마스킹한다.
         enable_pii_redaction: bool = False,
-        pii_redaction_categories: Optional[List[str]] = None,
+        pii_redaction_categories: list[str] | None = None,
     ):
         """
         Initialize Performance Monitor
@@ -380,7 +380,7 @@ class PerformanceMonitor:
         # record_task()에서 windowed 모드일 때만 갱신되며(REQ-1: full 모드는 기존 동작과
         # 100% 동일해야 하므로 불필요한 유지비용을 두지 않는다), _RunningTCRView를 통해
         # gate_a_aggregate.compute()/gate_c_aggregate.compute()에 주입된다.
-        self._running_tcr_agg: Dict[str, float] = {
+        self._running_tcr_agg: dict[str, float] = {
             "weighted_sum": 0.0,
             "total_count": 0,
             "full_success": 0,
@@ -476,7 +476,7 @@ class PerformanceMonitor:
             "InputSanitization", "OutputLeakage", "ToolAuthorization",
             "PrivilegeEscalation", "ToolChainAttack",
         }
-        _sec_set: Optional[set] = (
+        _sec_set: set | None = (
             set(enabled_security_trackers) if enabled_security_trackers is not None else None
         )
         # D2: OTEL 자식 스팬 활성화 여부
@@ -497,7 +497,7 @@ class PerformanceMonitor:
         self._iteration_note = iteration_note
         try:
             from importlib.metadata import version as _pkg_version_lookup
-            self._sdk_version: Optional[str] = _pkg_version_lookup("agent-evaluator")
+            self._sdk_version: str | None = _pkg_version_lookup("agent-evaluator")
         except Exception:
             self._sdk_version = None
         try:
@@ -506,7 +506,7 @@ class PerformanceMonitor:
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True, text=True, timeout=2,
             )
-            self._git_commit: Optional[str] = (
+            self._git_commit: str | None = (
                 _git_result.stdout.strip() if _git_result.returncode == 0 else None
             )
         except Exception:
@@ -670,16 +670,16 @@ class PerformanceMonitor:
         self._anomaly_detection_window = anomaly_detection_window
 
         # 임계값 설정 (DataEditorManager에서 로드 가능)
-        self._thresholds: Optional[Dict[str, float]] = None
+        self._thresholds: dict[str, float] | None = None
         self.golden_dataset_path = None
-        self._golden_datasets: List[Any] = []
+        self._golden_datasets: list[Any] = []
 
         # Phase 1-C: 멀티턴 대화 세션 목록
-        self.conversation_sessions: List[Any] = []
+        self.conversation_sessions: list[Any] = []
 
         # Phase 2-C: 암묵적 피드백 트래커 (optional — graceful degradation when unavailable)
         if _FEEDBACK_AVAILABLE and _ImplicitFeedbackTracker is not None:
-            self.feedback_tracker: Optional[Any] = _ImplicitFeedbackTracker()
+            self.feedback_tracker: Any | None = _ImplicitFeedbackTracker()
         else:
             self.feedback_tracker = None
 
@@ -687,7 +687,7 @@ class PerformanceMonitor:
         self.multimodal_tracker = MultimodalMetricsTracker()
 
         # Phase 2-A: StreamingEvaluator 스냅샷 (외부에서 set → save_to_file에 자동 포함)
-        self._streaming_snapshot: Optional[Dict[str, Any]] = None
+        self._streaming_snapshot: dict[str, Any] | None = None
 
         # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
         # RLock allows the same thread to acquire the lock multiple times (re-entrant).
@@ -701,7 +701,7 @@ class PerformanceMonitor:
         # dirty-flag 읽기/쓰기는 self._lock으로 보호(REQ-5) — record_task()가 dirty=True로
         # 설정하고, invalidate_report_cache()가 post-record in-place 수정 지점(BUG-E6,
         # SPEC-006 비동기 judge 패치)에서 동일하게 호출된다.
-        self._report_cache: Optional[EvaluationReport] = None
+        self._report_cache: EvaluationReport | None = None
         self._report_cache_dirty: bool = True
 
         # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
@@ -711,12 +711,12 @@ class PerformanceMonitor:
         self._otel_session_id: str = f"{session_label}_{_uid}" if session_label else _uid
 
         # Phoenix Annotation API 전송 대기열 — save_to_file() 시 일괄 POST
-        self._pending_annotations: List[Dict[str, Any]] = []
+        self._pending_annotations: list[dict[str, Any]] = []
 
         # Phoenix Experiments — begin_experiment() / end_experiment() 로 관리
-        self._phoenix_experiment_id: Optional[str] = None
-        self._phoenix_experiment_name: Optional[str] = None
-        self._phoenix_dataset_id: Optional[str] = None
+        self._phoenix_experiment_id: str | None = None
+        self._phoenix_experiment_name: str | None = None
+        self._phoenix_dataset_id: str | None = None
 
         # Task 2: auto_save — record_task() N회마다 save_to_file() 자동 호출
         self.auto_save: bool = auto_save
@@ -733,7 +733,7 @@ class PerformanceMonitor:
         self._cache_window_seconds: float = 300.0  # 최대 5분 보관
 
     @property
-    def agent_version(self) -> Optional[str]:
+    def agent_version(self) -> str | None:
         """SPEC-027 REQ-3: 최종 해석된 ``agent_version`` 값.
 
         생성자에 리터럴 문자열을 넘겼으면 그 값을, ``"auto"``를 넘겼으면
@@ -744,22 +744,22 @@ class PerformanceMonitor:
         return self._agent_version
 
     @property
-    def golden_datasets(self) -> List[Any]:
+    def golden_datasets(self) -> list[Any]:
         """Shallow copy of loaded golden datasets."""
         return list(self._golden_datasets)
 
     @golden_datasets.setter
-    def golden_datasets(self, value: List[Any]) -> None:
+    def golden_datasets(self, value: list[Any]) -> None:
         """Set golden datasets (used by load_golden_dataset)."""
         self._golden_datasets = list(value)
 
     @property
-    def thresholds(self) -> Optional[Dict[str, float]]:
+    def thresholds(self) -> dict[str, float] | None:
         """Evaluation threshold dict, or ``None`` if unset."""
         return self._thresholds
 
     @thresholds.setter
-    def thresholds(self, value: Optional[Dict[str, float]]) -> None:
+    def thresholds(self, value: dict[str, float] | None) -> None:
         """Set evaluation thresholds with type validation.
 
         Args:
@@ -785,7 +785,7 @@ class PerformanceMonitor:
         self._thresholds = dict(value)
 
     @property
-    def tasks(self) -> List[TaskResult]:
+    def tasks(self) -> list[TaskResult]:
         """기록된 모든 TaskResult 리스트.
 
         Example::
@@ -831,7 +831,7 @@ class PerformanceMonitor:
             )
 
     @property
-    def rag_metrics(self) -> Dict[str, List]:
+    def rag_metrics(self) -> dict[str, list]:
         """RAG 지표 딕셔너리의 얕은 복사본.
 
         각 키의 리스트도 복사되므로 반환값을 변경해도 내부 상태에
@@ -858,7 +858,7 @@ class PerformanceMonitor:
         """
         return ConversationSession(session_id=session_id, monitor=self, task_type=task_type)
 
-    def load_golden_dataset(self, dataset_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    def load_golden_dataset(self, dataset_path: str | None = None) -> list[dict[str, Any]]:
         """
         Golden Dataset 로드
 
@@ -926,11 +926,11 @@ class PerformanceMonitor:
     def evaluate_with_golden_dataset(
         self,
         agent_fn,
-        dataset_path: Optional[str] = None,
+        dataset_path: str | None = None,
         enable_layer2_metrics: bool = True,
         enable_advanced_metrics: bool = False,
         verbose: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Golden Dataset 기반 자동 평가 파이프라인
 
@@ -1108,7 +1108,7 @@ class PerformanceMonitor:
 
         return results
 
-    def compare_with_thresholds(self) -> Dict[str, Any]:
+    def compare_with_thresholds(self) -> dict[str, Any]:
         """현재 메트릭 값을 설정된 임계값과 비교한다.
 
         ``monitor.thresholds``가 설정되어 있어야 하며, 설정되지 않은 경우 빈 dict를 반환한다.
@@ -1443,7 +1443,7 @@ class PerformanceMonitor:
         self,
         task_id: str,
         task_type: str = "qa",
-        question: Optional[str] = None,
+        question: str | None = None,
         **kwargs: Any,
     ) -> _TaskContext:
         """
@@ -1473,11 +1473,11 @@ class PerformanceMonitor:
         question: str,
         response: str,
         ground_truth: str,
-        task_id: Optional[str] = None,
+        task_id: str | None = None,
         execution_time: float = 0.0,
         task_type: str = "qa",
-        context: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        context: str | None = None,
+    ) -> dict[str, Any]:
         """단일 QA 태스크를 즉시 평가하고 결과를 반환한다.
 
         create_taskresult_from_execution() + record_task() + 점수 반환을 한 번에 처리하는
@@ -1524,10 +1524,10 @@ class PerformanceMonitor:
 
     def evaluate_batch(
         self,
-        items: List[Dict[str, Any]],
+        items: list[dict[str, Any]],
         task_type: str = "qa",
         task_id_prefix: str = "batch",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """여러 QA 태스크를 일괄 평가하고 결과 목록을 반환한다.
 
         **API 선택 가이드**
@@ -1604,7 +1604,7 @@ class PerformanceMonitor:
     @classmethod
     def for_rag_evaluation(
         cls,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         enable_hallucination_detection: bool = True,
         **kwargs: Any,
     ) -> PerformanceMonitor:
@@ -1636,8 +1636,8 @@ class PerformanceMonitor:
     @classmethod
     def for_secure_agents(
         cls,
-        security_config: Optional[Dict[str, Any]] = None,
-        output_dir: Optional[str] = None,
+        security_config: dict[str, Any] | None = None,
+        output_dir: str | None = None,
         **kwargs: Any,
     ) -> PerformanceMonitor:
         """Create a monitor pre-configured for security-sensitive agent evaluation.
@@ -1674,11 +1674,11 @@ class PerformanceMonitor:
     # ------------------------------------------------------------------
 
     def record_task(self, task_result: TaskResult,
-                   ground_truth: Optional[Any] = None,
-                   context: Optional[str] = None,
-                   request: Optional[str] = None,       # deprecated: use task_result.question
-                   response: Optional[str] = None,      # deprecated: use task_result.response
-                   expected_elements: Optional[List[str]] = None) -> PerformanceMonitor:
+                   ground_truth: Any | None = None,
+                   context: str | None = None,
+                   request: str | None = None,       # deprecated: use task_result.question
+                   response: str | None = None,      # deprecated: use task_result.response
+                   expected_elements: list[str] | None = None) -> PerformanceMonitor:
         """Record a complete task execution.
 
         Args:
@@ -1744,7 +1744,7 @@ class PerformanceMonitor:
         # An empty-string field is treated the same as "not set" so that callers
         # who pass TaskResult() without a question/response still benefit from the
         # deprecated params.  TaskResult is frozen → use dataclasses.replace().
-        _replacements: Dict[str, Any] = {}
+        _replacements: dict[str, Any] = {}
         if request is not None and not task_result.question:
             _replacements["question"] = str(request) if not isinstance(request, str) else request
         if response is not None and not task_result.response:
@@ -1930,7 +1930,7 @@ class PerformanceMonitor:
                 _sec_q = _eff_request or task_result.question
                 _sec_r = _eff_response or task_result.response
                 # 보안 Tracker 결과를 task_result.extra에 저장하기 위한 dict
-                _sec_extra: Dict[str, Any] = dict(task_result.extra or {})
+                _sec_extra: dict[str, Any] = dict(task_result.extra or {})
 
                 # Layer 1: Input Sanitization — 입력 텍스트 위협 스캔
                 if self.input_sanitizer is not None and _sec_q:
@@ -2010,7 +2010,7 @@ class PerformanceMonitor:
                 # Layer 2: Tool Chain Attack — 연속 도구 호출 공격 패턴 감지
                 if self.tool_chain_attack_detector is not None and task_result.tool_calls:
                     try:
-                        _sec_tool_seq: List[str] = []
+                        _sec_tool_seq: list[str] = []
                         for _stc in task_result.tool_calls:
                             if isinstance(_stc, dict):
                                 _sec_tool_seq.append(_stc.get("tool_name") or _stc.get("tool") or _stc.get("name", "unknown"))
@@ -2229,13 +2229,13 @@ class PerformanceMonitor:
             model_name = _PHOENIX_MODEL_ALIAS.get(raw_model, raw_model)
 
             # metadata: 스팬 상세 탭 커스텀 정보 (JSON 문자열)
-            metadata_dict: Dict[str, Any] = {"task_type": type_label}
+            metadata_dict: dict[str, Any] = {"task_type": type_label}
             if result.framework:
                 metadata_dict["framework"] = result.framework
             if getattr(result, "partial_reason", None):
                 metadata_dict["partial_reason"] = result.partial_reason
 
-            attributes: Dict[str, Any] = {
+            attributes: dict[str, Any] = {
                 # Phoenix UI: kind / input / output 컬럼
                 "openinference.span.kind": span_kind,
                 "input.value": str(input_val),
@@ -2381,7 +2381,7 @@ class PerformanceMonitor:
             # 현재 시각 기준으로 역산 → Phoenix "Last 15 Min" 등 시간 필터에 항상 표시됨.
             # (result.timestamp가 시뮬레이션 과거 시간이어도 Phoenix UI에 정상 노출)
             # start_time = now - execution_time (나노초 단위)
-            start_time_ns: Optional[int] = None
+            start_time_ns: int | None = None
             try:
                 import time as _time_mod
                 exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
@@ -2405,7 +2405,7 @@ class PerformanceMonitor:
                         if ctx and ctx.is_valid:
                             # hallucination: HallucinationDetector.get_hallucination_rate()
                             # overall_rate (0–1): 낮을수록 좋음 → annotation score = rate
-                            hal_score: Optional[float] = None
+                            hal_score: float | None = None
                             try:
                                 hal_data = self.hallucination_detector.get_hallucination_rate()
                                 if hal_data.get("total_evaluated", 0) > 0:
@@ -2414,7 +2414,7 @@ class PerformanceMonitor:
                                 logger.debug("hallucination score extraction failed (ignored): %s", _e)
                             # quality: ResponseQualityEvaluator.get_quality_metrics()
                             # avg_total_score (0–10) → 0–1 정규화
-                            qual_score: Optional[float] = None
+                            qual_score: float | None = None
                             try:
                                 qual_data = self.quality_evaluator.get_quality_metrics()
                                 if qual_data.get("total_evaluated", 0) > 0:
@@ -2455,7 +2455,7 @@ class PerformanceMonitor:
                             _tool_args = _tc.get("arguments") or _tc.get("args") or {}
                             _tool_result_val = _tc.get("result") or _tc.get("output") or ""
                             _tool_success = bool(_tc.get("success", True))
-                            _tool_attrs: Dict[str, Any] = {
+                            _tool_attrs: dict[str, Any] = {
                                 "openinference.span.kind": "TOOL",
                                 "tool.name": str(_tool_name),
                                 "input.value": (
@@ -2495,7 +2495,7 @@ class PerformanceMonitor:
                                 _step_name = _step.get("name") or _step.get("type") or f"step_{_idx}"
                                 _step_time_val = float(_step.get("execution_time") or _step.get("timestamp") or 0.0)
                                 _child_start_ns = _step_offset + int(_step.get("timestamp", 0) * 1_000_000_000) if start_time_ns else None
-                                _child_attrs: Dict[str, Any] = {
+                                _child_attrs: dict[str, Any] = {
                                     "openinference.span.kind": "CHAIN",
                                     "ae.task_id": result.task_id or "",
                                     "ae.step_index": _idx,
@@ -2571,7 +2571,7 @@ class PerformanceMonitor:
             # BatchSpanProcessor 플러시 — Phoenix /v1/traces로 전송 완료 대기
             provider.force_flush(timeout_ms=3000)
 
-            data: List[Dict[str, Any]] = []
+            data: list[dict[str, Any]] = []
             for ann in self._pending_annotations:
                 span_id = ann["span_id"]
                 # 전송 대상 지표: None이면 해당 스팬에서 생략
@@ -2615,7 +2615,7 @@ class PerformanceMonitor:
             # 0.5s 간격으로 최대 3회 재시도한다.
             _MAX_RETRIES = 3
             _RETRY_DELAY = 0.5  # seconds
-            last_exc: Optional[Exception] = None
+            last_exc: Exception | None = None
 
             for attempt in range(_MAX_RETRIES):
                 if attempt > 0:
@@ -2677,10 +2677,10 @@ class PerformanceMonitor:
     def begin_experiment(
         self,
         name: str,
-        dataset_id: Optional[str] = None,
+        dataset_id: str | None = None,
         description: str = "",
         phoenix_endpoint: str = "http://localhost:6006",
-    ) -> Optional[str]:
+    ) -> str | None:
         """Phoenix에 Experiment를 등록하고 experiment_id를 반환한다.
 
         이후 record_task() 가 발행하는 모든 OTEL 스팬에 ``ae.experiment_id`` /
@@ -2703,7 +2703,7 @@ class PerformanceMonitor:
                 ...
             monitor.end_experiment(report)
         """
-        payload: Dict[str, Any] = {"name": name, "description": description}
+        payload: dict[str, Any] = {"name": name, "description": description}
         if dataset_id:
             payload["dataset_id"] = dataset_id
 
@@ -2717,7 +2717,7 @@ class PerformanceMonitor:
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 result = json.loads(resp.read().decode())
-                exp_id: Optional[str] = (
+                exp_id: str | None = (
                     result.get("data", {}).get("id")
                     or result.get("id")
                 )
@@ -2733,7 +2733,7 @@ class PerformanceMonitor:
 
     def end_experiment(
         self,
-        report: Optional[Any] = None,
+        report: Any | None = None,
         phoenix_endpoint: str = "http://localhost:6006",
     ) -> None:
         """현재 Experiment에 최종 집계 지표를 Annotation으로 전송하고 세션을 닫는다.
@@ -2784,10 +2784,10 @@ class PerformanceMonitor:
 
     def record_rag_metrics(
         self,
-        faithfulness: Optional[float] = None,
-        answer_relevancy: Optional[float] = None,
-        context_recall: Optional[float] = None,
-        context_precision: Optional[float] = None
+        faithfulness: float | None = None,
+        answer_relevancy: float | None = None,
+        context_recall: float | None = None,
+        context_precision: float | None = None
     ) -> None:
         """
         Record RAG evaluation metrics
@@ -2812,7 +2812,7 @@ class PerformanceMonitor:
         self,
         task_id: str,
         feedback_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PerformanceMonitor:
         """사용자 암묵적 피드백 기록.
 
@@ -2831,7 +2831,7 @@ class PerformanceMonitor:
         self.feedback_tracker.record(task_id=task_id, feedback_type=feedback_type, metadata=metadata)
         return self
 
-    def get_rag_metrics_summary(self) -> Dict[str, Any]:
+    def get_rag_metrics_summary(self) -> dict[str, Any]:
         """
         Get summary of RAG metrics
 
@@ -2863,7 +2863,7 @@ class PerformanceMonitor:
 
         return summary
 
-    def _collect_layer1_metrics(self) -> Dict[str, Any]:
+    def _collect_layer1_metrics(self) -> dict[str, Any]:
         """Layer 1 지표 수집: TCR, Accuracy, Hallucination, Quality, Latency, Token.
 
         Returns:
@@ -2875,20 +2875,20 @@ class PerformanceMonitor:
                      len(self.accuracy_evaluator._evaluations),
                      len(self.hallucination_detector._detections),
                      len(self.quality_evaluator._evaluations))
-        accuracy_metrics: Dict[str, Any] = {
+        accuracy_metrics: dict[str, Any] = {
             "tcr": self.tcr_tracker.calculate_tcr(),
             "accuracy_scores": self.accuracy_evaluator.get_accuracy_scores(),
             "hallucination": self.hallucination_detector.get_hallucination_rate(),
             "quality": self.quality_evaluator.get_quality_metrics(),
             "rag_metrics": self.hallucination_detector.get_rag_metrics(),
         }
-        efficiency_metrics: Dict[str, Any] = {
+        efficiency_metrics: dict[str, Any] = {
             "latency": self.latency_tracker.get_latency_stats(),
             "tokens": self.token_tracker.get_usage_stats(),
         }
         return {"accuracy": accuracy_metrics, "efficiency": efficiency_metrics}
 
-    def _collect_layer2_metrics(self) -> Dict[str, Any]:
+    def _collect_layer2_metrics(self) -> dict[str, Any]:
         """Layer 2 지표 수집: ToolCall, Retry, ToolSelection, Coordination, Workflow.
 
         Returns:
@@ -2908,7 +2908,7 @@ class PerformanceMonitor:
             len(self.tool_chain_attack_detector._detections)
             if self.tool_chain_attack_detector else 0,
         )
-        _tool_sel_data: Dict[str, Any] = {}
+        _tool_sel_data: dict[str, Any] = {}
         # M2: 도구별 F1
         try:
             _f1_by_tool = self.tool_selection_tracker.get_f1_by_tool()
@@ -2917,7 +2917,7 @@ class PerformanceMonitor:
         except Exception as _e:
             logger.debug("get_f1_by_tool failed (ignored): %s", _e)
 
-        _coord_data: Dict[str, Any] = {}
+        _coord_data: dict[str, Any] = {}
         # M3: 상호작용 패턴
         try:
             _patterns = self.agent_coordination_tracker.get_interaction_patterns()
@@ -2926,7 +2926,7 @@ class PerformanceMonitor:
         except Exception as _e:
             logger.debug("get_interaction_patterns failed (ignored): %s", _e)
 
-        _latency_data: Dict[str, Any] = {}
+        _latency_data: dict[str, Any] = {}
         # M4: 병목 분석
         try:
             _bottlenecks = self.latency_tracker.analyze_bottlenecks() if hasattr(self.latency_tracker, "analyze_bottlenecks") else {}
@@ -2935,7 +2935,7 @@ class PerformanceMonitor:
         except Exception as _e:
             logger.debug("analyze_bottlenecks failed (ignored): %s", _e)
 
-        _workflow_data: Dict[str, Any] = {}
+        _workflow_data: dict[str, Any] = {}
         # M5: 크리티컬 패스 분석
         try:
             _critical_path = self.workflow_tracker.get_critical_path_analysis() if hasattr(self.workflow_tracker, "get_critical_path_analysis") else {}
@@ -2944,7 +2944,7 @@ class PerformanceMonitor:
         except Exception as _e:
             logger.debug("get_critical_path_analysis failed (ignored): %s", _e)
 
-        _result: Dict[str, Any] = {
+        _result: dict[str, Any] = {
             "tool_efficiency": self.tool_analyzer.get_efficiency_stats(),
             "retries": self.retry_tracker.get_retry_metrics(),
         }
@@ -2958,7 +2958,7 @@ class PerformanceMonitor:
             _result["workflow_analysis"] = _workflow_data
         return _result
 
-    def _collect_security_metrics(self) -> Dict[str, Any]:
+    def _collect_security_metrics(self) -> dict[str, Any]:
         """보안 지표 수집 (enable_security_metrics=True 일 때만 의미 있음).
 
         Returns:
@@ -2996,7 +2996,7 @@ class PerformanceMonitor:
             },
         }
 
-    def _build_lineage(self) -> Dict[str, Any]:
+    def _build_lineage(self) -> dict[str, Any]:
         """SPEC-007: 감사/재현성 lineage 메타데이터를 조립한다.
 
         judge_model_snapshot: LLM Judge가 활성화된 경우, provider 응답이 실제로 반환한
@@ -3008,7 +3008,7 @@ class PerformanceMonitor:
         동일한 문자열이었는지 — True면 자기평가(self-evaluation) 편향 위험이 있었다는
         뜻. __init__에서 한 번 계산된 값을 그대로 재사용(경고 발행 시점과 동일 판정).
         """
-        _judge_snapshot: Optional[str] = None
+        _judge_snapshot: str | None = None
         if self.llm_judge is not None:
             for _t in reversed(self.tcr_tracker.tasks):
                 _lj = getattr(_t, "llm_judge", None)
@@ -3102,7 +3102,7 @@ class PerformanceMonitor:
             logger.debug("multimodal_metrics report add failed (ignored): %s", _e)
 
         # v0.9.0+: Harness groups 집계
-        extra_metrics: Optional[Dict[str, Any]] = None
+        extra_metrics: dict[str, Any] | None = None
         if self.tcr_tracker.tasks:
             try:
                 harness_groups = self._compute_harness_groups(
@@ -3147,10 +3147,10 @@ class PerformanceMonitor:
         self,
         tasks: list,
         security_metrics: dict,
-        layer1: Optional[Dict[str, Any]] = None,
-        layer2: Optional[Dict[str, Any]] = None,
-        ttft_variability_config: Optional[Any] = None,
-        cost_predictability_config: Optional[Any] = None,
+        layer1: dict[str, Any] | None = None,
+        layer2: dict[str, Any] | None = None,
+        ttft_variability_config: Any | None = None,
+        cost_predictability_config: Any | None = None,
     ) -> dict:
         """v0.9.1+: Harness Config 지표가 기록된 TaskResult들에서 그룹별 집계 점수를 계산한다.
 
@@ -3295,7 +3295,7 @@ class PerformanceMonitor:
         _overall_score = round(float(sum(_scored) / len(_scored)), 4) if _scored else 0.0
         # _g: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
 
-        groups: Dict[str, Any] = {
+        groups: dict[str, Any] = {
             "A": _a_group,  # SPEC-000: gates/gate_a_goal/aggregate.py가 완전한 그룹 dict를 반환
             "B": _b_group,  # SPEC-000: gates/gate_b_behavioral/aggregate.py가 완전한 그룹 dict를 반환
             "C": _c_group,  # SPEC-000: gates/gate_c_reliability/aggregate.py가 완전한 그룹 dict를 반환
@@ -3316,7 +3316,7 @@ class PerformanceMonitor:
         self,
         window_seconds: float = 60.0,
         include_frameworks: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """최근 N초 이내 태스크의 실시간 집계 통계 반환 (E1).
 
         대시보드의 실시간 모니터링 뷰에서 가장 최근 활동을 표시할 때 사용.
@@ -3400,14 +3400,14 @@ class PerformanceMonitor:
         error_rate = round(error_count / n, 4) if n else 0.0
         avg_completion_score = round(sum(t.completion_score for t in recent_tasks) / n, 4)
         from collections import defaultdict as _dd2
-        _type_dist: Dict[str, int] = _dd2(int)
+        _type_dist: dict[str, int] = _dd2(int)
         for t in recent_tasks:
             tt = t.task_type
             if hasattr(tt, "value"):
                 tt = tt.value
             _type_dist[str(tt).lower()] += 1
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "window_seconds": window_seconds,
             "task_count": n,
             "tcr": tcr,
@@ -3423,7 +3423,7 @@ class PerformanceMonitor:
 
         if include_frameworks:
             from collections import defaultdict as _dd
-            fw_counts: Dict[str, int] = _dd(int)
+            fw_counts: dict[str, int] = _dd(int)
             for t in recent_tasks:
                 fw = getattr(t, "framework", None) or "native"
                 fw_counts[fw] += 1
@@ -3431,7 +3431,7 @@ class PerformanceMonitor:
 
         return result
 
-    def get_report_by_type(self, task_type: str) -> Dict[str, Any]:
+    def get_report_by_type(self, task_type: str) -> dict[str, Any]:
         """태스크 유형별 지표를 분해해서 반환한다 (편의 메서드).
 
         ``generate_report()`` 의 전체 집계 대신 특정 ``task_type`` 의 태스크만
@@ -3484,7 +3484,7 @@ class PerformanceMonitor:
             "task_types_found": list({str(t.task_type) for t in _tasks}),
         }
 
-    def get_report_by_framework(self, framework: str) -> Dict[str, Any]:
+    def get_report_by_framework(self, framework: str) -> dict[str, Any]:
         """지정한 프레임워크의 태스크만 필터링해서 지표를 반환합니다.
 
         Args:
@@ -3529,7 +3529,7 @@ class PerformanceMonitor:
             "matched_task_ids": [t.task_id for t in matched],
         }
 
-    def _generate_alerts(self) -> List[Dict[str, str]]:
+    def _generate_alerts(self) -> list[dict[str, str]]:
         """Generate alerts for metric violations"""
         alerts = []
 
@@ -3784,7 +3784,7 @@ class PerformanceMonitor:
 
         return alerts
     
-    def _generate_recommendations(self) -> List[Dict[str, str]]:
+    def _generate_recommendations(self) -> list[dict[str, str]]:
         """Generate improvement recommendations"""
         recommendations = []
 
@@ -4350,7 +4350,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def print_metric_breakdown(self, task_id: Optional[str] = None, verbose: bool = True) -> None:
+    def print_metric_breakdown(self, task_id: str | None = None, verbose: bool = True) -> None:
         """
         Print detailed calculation breakdown for transparency (NEW)
 
@@ -4897,7 +4897,7 @@ class PerformanceMonitor:
         if not os.path.splitext(filename)[1]:
             filename = filename + ".json"
 
-        pricing_data: Dict[str, Any] = dict(self.token_tracker.pricing)
+        pricing_data: dict[str, Any] = dict(self.token_tracker.pricing)
 
         # P: tasks 읽기 시 얕은 복사로 lock 보호 — 다른 스레드의 record_task()와 충돌 방지
         with self._tasks_lock:
@@ -5005,7 +5005,7 @@ class PerformanceMonitor:
                 task["task_type"] = tt.value
 
         # R: 태스크 수가 임계값 이상이면 스트리밍 직렬화 모드 사용 (메모리 효율)
-        _serialized_tasks: List = data["tasks"]
+        _serialized_tasks: list = data["tasks"]
         _task_count = len(_serialized_tasks)
 
         # Atomic write: write to a temp file in the same directory, then rename.
@@ -5136,7 +5136,7 @@ class PerformanceMonitor:
     def aggregate_by_time(
         self,
         granularity: str = "hour",
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """시간 단위별 지표 집계.
 
         ``tcr_tracker.tasks`` 의 ``timestamp`` 필드를 기준으로 태스크를
@@ -5162,14 +5162,14 @@ class PerformanceMonitor:
         """
         from datetime import datetime as _dt
 
-        _FMT: Dict[str, str] = {
+        _FMT: dict[str, str] = {
             "minute": "%Y-%m-%dT%H:%M",
             "hour":   "%Y-%m-%dT%H:00",
             "day":    "%Y-%m-%d",
         }
         fmt = _FMT.get(granularity, _FMT["hour"])
 
-        buckets: Dict[str, list] = {}
+        buckets: dict[str, list] = {}
         for task in self.tcr_tracker.tasks:
             try:
                 ts_raw = task.timestamp
@@ -5184,7 +5184,7 @@ class PerformanceMonitor:
                 continue
             buckets.setdefault(key, []).append(task)
 
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         for key in sorted(buckets):
             tasks = buckets[key]
             n = len(tasks)
@@ -5204,8 +5204,8 @@ class PerformanceMonitor:
 
     def estimate_token_cost_per_request(
         self,
-        task_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        task_type: str | None = None,
+    ) -> dict[str, Any]:
         """요청 1건당 평균 토큰 비용을 추정한다 (C1).
 
         Args:
@@ -5268,8 +5268,8 @@ class PerformanceMonitor:
 
     def compare_models(
         self,
-        model_names: Optional[List[str]] = None,
-    ) -> Dict[str, Dict[str, Any]]:
+        model_names: list[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         """모델별 성능 지표를 비교한다 (C2).
 
         ``TaskResult.tokens_used["model"]`` 필드를 기준으로 태스크를 그룹화한다.
@@ -5289,7 +5289,7 @@ class PerformanceMonitor:
         inp_price = float(pricing.get("input", 0.003))
         out_price = float(pricing.get("output", 0.015))
 
-        groups: Dict[str, List[Any]] = defaultdict(list)
+        groups: dict[str, list[Any]] = defaultdict(list)
         for t in self.tcr_tracker.tasks:
             tu = t.tokens_used or {}
             model = str(tu.get("model") or getattr(t, "framework", "unknown") or "unknown")
@@ -5298,7 +5298,7 @@ class PerformanceMonitor:
         if model_names is not None:
             groups = {k: v for k, v in groups.items() if k in model_names}
 
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         for model, tasks in groups.items():
             n = len(tasks)
             successes = sum(1 for t in tasks if t.success)
@@ -5328,7 +5328,7 @@ class PerformanceMonitor:
     def export_to_wandb(
         self,
         project: str,
-        run_name: Optional[str] = None,
+        run_name: str | None = None,
         **init_kwargs: Any,
     ) -> None:
         """평가 지표를 Weights & Biases 에 기록한다 (C3).
@@ -5373,8 +5373,8 @@ class PerformanceMonitor:
     def export_to_mlflow(
         self,
         experiment_name: str,
-        run_name: Optional[str] = None,
-        tracking_uri: Optional[str] = None,
+        run_name: str | None = None,
+        tracking_uri: str | None = None,
     ) -> None:
         """평가 지표를 MLflow 에 기록한다 (C3).
 
@@ -5423,7 +5423,7 @@ class PerformanceMonitor:
 
     def configure_suspicious_patterns(
         self,
-        patterns: List[str],
+        patterns: list[str],
     ) -> None:
         """의심 패턴 목록을 설정한다 (F1).
 
@@ -5441,13 +5441,13 @@ class PerformanceMonitor:
                 "DROP TABLE",
             ])
         """
-        self._suspicious_patterns: List[str] = list(patterns)
+        self._suspicious_patterns: list[str] = list(patterns)
         logger.debug("%d suspicious patterns configured", len(self._suspicious_patterns))
 
     def evaluate_suspicious_patterns(
         self,
         text: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """텍스트에서 의심 패턴을 탐지한다 (F1).
 
         ``configure_suspicious_patterns()`` 로 설정된 패턴 목록을 사용한다.
@@ -5469,7 +5469,7 @@ class PerformanceMonitor:
         if not patterns:
             return {"matched": False, "patterns_matched": [], "match_count": 0}
 
-        matched: List[str] = []
+        matched: list[str] = []
         for pattern in patterns:
             try:
                 if re.search(pattern, text, re.IGNORECASE):
@@ -5510,7 +5510,7 @@ class PerformanceMonitor:
         self._compression_algorithm: str = algorithm
         logger.debug("Compression enabled: algorithm=%s", algorithm)
 
-    def compare(self, other: PerformanceMonitor) -> Dict[str, Any]:
+    def compare(self, other: PerformanceMonitor) -> dict[str, Any]:
         """두 PerformanceMonitor 인스턴스의 주요 지표를 비교한다 (D1).
 
         Args:
@@ -5529,7 +5529,7 @@ class PerformanceMonitor:
             diff = baseline.compare(candidate)
             print(f"TCR delta: {diff['delta']['tcr']:+.2f}%")
         """
-        def _extract(m: PerformanceMonitor) -> Dict[str, Any]:
+        def _extract(m: PerformanceMonitor) -> dict[str, Any]:
             try:
                 r = m.generate_report()
                 acc = r.accuracy_metrics or {}
@@ -5549,7 +5549,7 @@ class PerformanceMonitor:
 
         s = _extract(self)
         o = _extract(other)
-        delta: Dict[str, Any] = {}
+        delta: dict[str, Any] = {}
         for key in ("tcr", "accuracy", "avg_latency", "p95_latency", "total_tokens", "total_tasks"):
             try:
                 delta[key] = round(float(s.get(key, 0)) - float(o.get(key, 0)), 4)
@@ -5563,18 +5563,18 @@ class PerformanceMonitor:
 
     def filter_tasks(
         self,
-        task_type: Optional[str] = None,
-        min_accuracy: Optional[float] = None,
-        max_accuracy: Optional[float] = None,
-        min_latency: Optional[float] = None,
-        max_latency: Optional[float] = None,
-        framework: Optional[str] = None,
-        success_only: Optional[bool] = None,
-        has_error: Optional[bool] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        min_completion: Optional[float] = None,
-    ) -> List[TaskResult]:
+        task_type: str | None = None,
+        min_accuracy: float | None = None,
+        max_accuracy: float | None = None,
+        min_latency: float | None = None,
+        max_latency: float | None = None,
+        framework: str | None = None,
+        success_only: bool | None = None,
+        has_error: bool | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        min_completion: float | None = None,
+    ) -> list[TaskResult]:
         """조건에 맞는 태스크 결과를 필터링해 반환 (D1).
 
         모든 조건은 AND로 결합된다.  조건이 ``None`` 이면 해당 조건은 스킵한다.
@@ -5603,7 +5603,7 @@ class PerformanceMonitor:
                 min_latency=5.0,
             )
         """
-        result: List[TaskResult] = []
+        result: list[TaskResult] = []
         for task in self.tasks:
             # task_type 필터
             if task_type is not None:
@@ -5699,10 +5699,10 @@ class PerformanceMonitor:
 
     def aggregate_metrics(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        by: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        since: datetime | None = None,
+        until: datetime | None = None,
+        by: str | None = None,
+    ) -> dict[str, Any]:
         """지표를 시간 범위 및 그룹별로 집계 (D2).
 
         Args:
@@ -5730,7 +5730,7 @@ class PerformanceMonitor:
         # 시간 필터 적용
         tasks = self.filter_tasks(since=since, until=until)
 
-        def _calc(task_list: List[TaskResult]) -> Dict[str, Any]:
+        def _calc(task_list: list[TaskResult]) -> dict[str, Any]:
             n = len(task_list)
             if n == 0:
                 return {
@@ -5764,7 +5764,7 @@ class PerformanceMonitor:
         if by is None:
             return _calc(tasks)
 
-        groups: Dict[str, List[TaskResult]] = {}
+        groups: dict[str, list[TaskResult]] = {}
 
         for task in tasks:
             if by == "task_type":
@@ -5800,7 +5800,7 @@ class PerformanceMonitor:
     # D4: 트래커 메서드명 별칭 헬퍼
     # ------------------------------------------------------------------
 
-    def get_tcr_metrics(self) -> Dict[str, Any]:
+    def get_tcr_metrics(self) -> dict[str, Any]:
         """TCR 지표 반환 (D4 — TaskCompletionTracker.calculate_tcr() 별칭).
 
         Returns:
@@ -5812,7 +5812,7 @@ class PerformanceMonitor:
         fn = getattr(tcr, "calculate_tcr", None)
         return fn() if callable(fn) else {}
 
-    def get_accuracy_metrics(self) -> Dict[str, Any]:
+    def get_accuracy_metrics(self) -> dict[str, Any]:
         """정확도 지표 반환 (D4 — AccuracyEvaluator.get_accuracy_metrics() 별칭).
 
         Returns:
@@ -5824,7 +5824,7 @@ class PerformanceMonitor:
         fn = getattr(ev, "get_accuracy_metrics", None)
         return fn() if callable(fn) else {}
 
-    def get_latency_metrics(self) -> Dict[str, Any]:
+    def get_latency_metrics(self) -> dict[str, Any]:
         """레이턴시 지표 반환 (D4 — LatencyTracker.get_latency_stats() 별칭).
 
         Returns:
@@ -5836,7 +5836,7 @@ class PerformanceMonitor:
         fn = getattr(lt, "get_latency_stats", None)
         return fn() if callable(fn) else {}
 
-    def get_token_metrics(self) -> Dict[str, Any]:
+    def get_token_metrics(self) -> dict[str, Any]:
         """토큰 사용량 지표 반환 (D4 — TokenEconomyTracker.get_usage_stats() 별칭).
 
         Returns:
@@ -5855,9 +5855,9 @@ class PerformanceMonitor:
     def get_bottleneck_tasks(
         self,
         accuracy_threshold: float = 0.5,
-        latency_threshold: Optional[float] = None,
+        latency_threshold: float | None = None,
         top_n: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """성능 병목 태스크 식별 (D5).
 
         Args:
@@ -5873,7 +5873,7 @@ class PerformanceMonitor:
         """
         all_tasks = self.tasks
 
-        def _task_info(t: TaskResult) -> Dict[str, Any]:
+        def _task_info(t: TaskResult) -> dict[str, Any]:
             tt = t.task_type
             return {
                 "task_id": t.task_id,
@@ -5918,7 +5918,7 @@ class PerformanceMonitor:
             },
         }
 
-    def get_optimization_recommendations(self) -> List[Dict[str, Any]]:
+    def get_optimization_recommendations(self) -> list[dict[str, Any]]:
         """현재 지표 기반 최적화 권고사항 자동 생성 (D5).
 
         Returns:
@@ -5926,7 +5926,7 @@ class PerformanceMonitor:
             각 항목: ``{"priority": "high"|"medium"|"low", "category": str,
             "message": str, "metric": float}``.
         """
-        recommendations: List[Dict[str, Any]] = []
+        recommendations: list[dict[str, Any]] = []
         all_tasks = self.tasks
         n = len(all_tasks)
         if n == 0:
@@ -6002,7 +6002,7 @@ class PerformanceMonitor:
         recommendations.sort(key=lambda x: _priority_order.get(x["priority"], 9))
         return recommendations
 
-    def analyze(self) -> Dict[str, Any]:
+    def analyze(self) -> dict[str, Any]:
         """종합 분석 — 병목 태스크 + 권고사항 + 요약 지표 (D5).
 
         Returns:
@@ -6044,7 +6044,7 @@ class PerformanceMonitor:
     # D2-D8: v0.7.9 신규 분석·유틸리티 메서드
     # -----------------------------------------------------------------------
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """현재 평가 상태의 스냅샷을 반환한다 (D2).
 
         ``compare_with_snapshot()`` 과 함께 사용해 시간 경과에 따른 지표 변화를 추적한다.
@@ -6068,7 +6068,7 @@ class PerformanceMonitor:
             "report": _report_dict,
         }
 
-    def compare_with_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    def compare_with_snapshot(self, snapshot: dict[str, Any]) -> dict[str, Any]:
         """현재 상태와 이전 스냅샷의 지표 차이를 반환한다 (D2).
 
         Args:
@@ -6083,7 +6083,7 @@ class PerformanceMonitor:
         except Exception:
             _current_report = {}
         _snap_report = snapshot.get("report", {})
-        _delta: Dict[str, Any] = {}
+        _delta: dict[str, Any] = {}
         for _k, _cv in _current_report.items():
             if isinstance(_cv, (int, float)) and _k in _snap_report:
                 _sv = _snap_report[_k]
@@ -6096,7 +6096,7 @@ class PerformanceMonitor:
             "task_count_delta": self.task_count - snapshot.get("task_count", 0),
         }
 
-    def restore_from_snapshot(self, snapshot: Dict[str, Any]) -> PerformanceMonitor:
+    def restore_from_snapshot(self, snapshot: dict[str, Any]) -> PerformanceMonitor:
         """스냅샷에서 모니터 상태를 복원한다 (E1).
 
         :meth:`snapshot` 이 반환한 dict를 받아 기록 시점의 집계 상태를 로그에 남긴다.
@@ -6177,7 +6177,7 @@ class PerformanceMonitor:
         self,
         metric: str,
         granularity: str = "hour",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """특정 지표의 시계열 데이터를 반환한다 (D3).
 
         Args:
@@ -6205,7 +6205,7 @@ class PerformanceMonitor:
             "day": "%Y-%m-%d",
         }.get(granularity, "%Y-%m-%dT%H:00")
 
-        _buckets: Dict[str, List[float]] = {}
+        _buckets: dict[str, list[float]] = {}
         for _t in _tasks:
             _ts = getattr(_t, "timestamp", None)
             if _ts is None:
@@ -6244,7 +6244,7 @@ class PerformanceMonitor:
 
     def export_to_dataframe(
         self,
-        include_fields: Optional[List[str]] = None,
+        include_fields: list[str] | None = None,
     ) -> Any:
         """모든 태스크를 pandas DataFrame으로 내보낸다 (D4).
 
@@ -6266,7 +6266,7 @@ class PerformanceMonitor:
         _rows = []
         for _t in _tasks:
             _tu = getattr(_t, "tokens_used", {}) or {}
-            _row: Dict[str, Any] = {
+            _row: dict[str, Any] = {
                 "task_id": getattr(_t, "task_id", ""),
                 "task_type": getattr(_t, "task_type", ""),
                 "success": getattr(_t, "success", None),
@@ -6337,7 +6337,7 @@ class PerformanceMonitor:
         """
         self._warn_windowed_retention("register_aggregator")
         if not hasattr(self, "_custom_aggregators"):
-            self._custom_aggregators: Dict[str, Any] = {}
+            self._custom_aggregators: dict[str, Any] = {}
         self._custom_aggregators[name] = fn
         return self
 
@@ -6357,7 +6357,7 @@ class PerformanceMonitor:
             raise KeyError(f"'{name}' aggregator is not registered. Use register_aggregator() first.")
         return self._custom_aggregators[name](self.tasks)
 
-    def list_aggregators(self) -> List[str]:
+    def list_aggregators(self) -> list[str]:
         """등록된 집계 함수 이름 목록을 반환한다 (D7).
 
         Returns:
@@ -6397,7 +6397,7 @@ class PerformanceMonitor:
                 logger.debug("merge: other task record failed (ignored): %s", _e)
         return _merged
 
-    def flush(self) -> Dict[str, Any]:
+    def flush(self) -> dict[str, Any]:
         """지금까지 수집된 평가 데이터의 요약을 반환하고 내부 상태를 초기화한다.
 
         장시간 운영되는 서비스에서 주기적으로 호출해 메모리를 관리한다.
@@ -6431,7 +6431,7 @@ class PerformanceMonitor:
         latency_data = (report.efficiency_metrics.get("latency") or {})
         accuracy_data = report.accuracy_metrics.get("accuracy_scores") or {}
 
-        summary: Dict[str, Any] = {
+        summary: dict[str, Any] = {
             "total_tasks": report.total_tasks,
             "success_rate": tcr_data.get("success_rate", 0.0),
             "avg_latency_s": latency_data.get("mean", 0.0),

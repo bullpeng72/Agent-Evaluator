@@ -9,7 +9,6 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다.
 from __future__ import annotations
 
 import dataclasses
-from typing import Dict, List, Optional
 
 
 @dataclasses.dataclass
@@ -70,7 +69,7 @@ class FaultToleranceConfig:
     check_fallback_attempts: bool = True             # 실패 후 폴백 도구 사용 여부 추적
     partial_success_threshold: float = 0.5           # 부분 성공 임계값 (0.0~1.0)
     score_recovery_quality: bool = True              # 폴백 복구 품질 채점
-    expected_fallback_tools: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 도구명 → 폴백 도구 목록
+    expected_fallback_tools: dict[str, list[str]] = dataclasses.field(default_factory=dict)  # 도구명 → 폴백 도구 목록
 
     def __post_init__(self) -> None:
         import warnings as _w
@@ -98,12 +97,12 @@ class GracefulDegradationConfig:
                     graceful_degradation=GracefulDegradationConfig(quality_floor=0.4))
         def agent(question, ground_truth=""): ...
     """
-    partial_result_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    partial_result_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "partial", "incomplete", "best effort", "부분", "일부", "완전하지 않"
     ])
     quality_floor: float = 0.3
     detect_timeout_fallback: bool = True
-    timeout_threshold_ms: Optional[float] = None  # detect_timeout_fallback 실행 시간 기준(ms); None이면 도구명만 검사
+    timeout_threshold_ms: float | None = None  # detect_timeout_fallback 실행 시간 기준(ms); None이면 도구명만 검사
     empty_response_penalty: float = 1.0
     check_error_acknowledgment: bool = True
 
@@ -211,11 +210,11 @@ class IdempotencyConfig:
                     idempotency=IdempotencyConfig(non_idempotent_penalty=0.2))
         def agent(question, ground_truth=""): ...
     """
-    non_idempotent_patterns: List[str] = dataclasses.field(default_factory=lambda: [
+    non_idempotent_patterns: list[str] = dataclasses.field(default_factory=lambda: [
         "create", "delete", "insert", "update", "post", "write",
         "생성", "삭제", "저장", "수정", "전송",
     ])
-    duplicate_detection_markers: List[str] = dataclasses.field(default_factory=lambda: [
+    duplicate_detection_markers: list[str] = dataclasses.field(default_factory=lambda: [
         "already", "duplicate", "exists", "이미", "중복", "존재",
     ])
     non_idempotent_penalty: float = 0.2

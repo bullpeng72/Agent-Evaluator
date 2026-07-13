@@ -9,14 +9,14 @@ _compute_harness_groups 내부 nested closure(_status, _g)를 순수 함수로 �
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 # SPEC-002: 전 Gate 공통 최소 표본 가드 기본값 — Config에 자체 min_samples 필드가 없는
 # 지표(A/B/C-비SLA/E/F/G)에 적용된다. Gate D의 TTFT/Cost는 기존 Config 필드(기본 5)를 그대로 쓴다.
 _DEFAULT_MIN_SAMPLES: int = 3
 
 
-def _min_sample_warning(metric_name: str, count: int, min_samples: int, unit: str = "samples") -> Optional[str]:
+def _min_sample_warning(metric_name: str, count: int, min_samples: int, unit: str = "samples") -> str | None:
     """count가 1개 이상이지만 min_samples 미만이면 표준 포맷 경고 문자열을 반환한다.
 
     count == 0(해당 지표가 아예 측정되지 않음)은 경고 대상이 아니다 — "데이터 없음"은
@@ -34,7 +34,7 @@ def _min_sample_warning(metric_name: str, count: int, min_samples: int, unit: st
     return None
 
 
-def _status(score: Optional[float], warn: float = 0.7, fail: float = 0.5) -> str:
+def _status(score: float | None, warn: float = 0.7, fail: float = 0.5) -> str:
     """Gate 점수 → pass/warn/fail/n-a 판정."""
     if score is None:
         return "n/a"
@@ -46,11 +46,11 @@ def _status(score: Optional[float], warn: float = 0.7, fail: float = 0.5) -> str
 
 
 def _g(
-    score: Optional[float],
+    score: float | None,
     name: str,
-    details: Dict[str, Any],
+    details: dict[str, Any],
     f_score: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """그룹 딕셔너리 생성 헬퍼 — status와 gate 키를 동시에 출력."""
     _st = (_status(score) if not f_score else (_status(score) if score is not None else "n/a"))
     return {"name": name, "score": score, "status": _st, "gate": _st, "details": details}

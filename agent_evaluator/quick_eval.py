@@ -30,7 +30,7 @@ from __future__ import annotations
 import functools
 import logging
 import re
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import Any, Callable, Iterator, Union
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,8 @@ __all__ = ["QuickEval", "HarnessEvaluationGate", "CompareResult"]
 # ANSI helpers (터미널 색상 — 미지원 환경에서는 공백 문자열)
 # ---------------------------------------------------------------------------
 def _ansi_support() -> bool:
-    import sys, os
+    import os
+    import sys
     return hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and os.name != "nt"
 
 _USE_COLOR = _ansi_support()
@@ -103,9 +104,9 @@ class CompareResult:
 
     def __init__(
         self,
-        self_summary: Dict[str, Any],
-        other_summary: Dict[str, Any],
-        delta: Dict[str, Any],
+        self_summary: dict[str, Any],
+        other_summary: dict[str, Any],
+        delta: dict[str, Any],
         self_name: str = "eval_a",
         other_name: str = "eval_b",
     ) -> None:
@@ -137,7 +138,7 @@ class CompareResult:
         except KeyError:
             return default
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """기존 raw dict 구조로 반환한다."""
         return {"self": self._self, "other": self._other, "delta": self._delta}
 
@@ -231,7 +232,7 @@ class CompareResult:
         SEP  = "═" * (COL_METRIC + COL_VAL * 2 + COL_DELTA + 8)
         SEP2 = "─" * (COL_METRIC + COL_VAL * 2 + COL_DELTA + 8)
 
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append(f"  {_B}{SEP}{_R}")
         lines.append(f"  {_B}QuickEval Comparison{_R}")
         lines.append(f"  {SEP}")
@@ -437,27 +438,28 @@ class QuickEval:
         auto_save: bool = False,
         auto_save_interval: int = 10,
         auto_save_filename: str = "quickeval_auto",
-        alert_rules: Optional[List[Any]] = None,
+        alert_rules: list[Any] | None = None,
         flush_every: int = 0,
         flush_filename: str = "quickeval_flush",
         # Harness Config 그룹별 파라미터
-        instructions: Optional[Any] = None,         # InstructionConfig
-        goal_alignment: Optional[Any] = None,        # GoalAlignmentConfig
-        plan_tracking: Optional[Any] = None,         # PlanConfig
-        loop_detection: Optional[Any] = None,        # LoopDetectionConfig
-        scope: Optional[Any] = None,                 # ScopeConfig
-        sla: Optional[Any] = None,                   # SLAConfig
-        threat_severity: Optional[Any] = None,       # ThreatSeverityConfig
-        compliance: Optional[Any] = None,            # ComplianceConfig
-        fault_tolerance: Optional[Any] = None,       # FaultToleranceConfig
-        reproducibility: Optional[Any] = None,       # ReproducibilityConfig
-        observability: Optional[Any] = None,         # ObservabilityConfig
-        explainability: Optional[Any] = None,        # ExplainabilityConfig
-        consensus: Optional[Any] = None,             # ConsensusConfig
+        instructions: Any | None = None,         # InstructionConfig
+        goal_alignment: Any | None = None,        # GoalAlignmentConfig
+        plan_tracking: Any | None = None,         # PlanConfig
+        loop_detection: Any | None = None,        # LoopDetectionConfig
+        scope: Any | None = None,                 # ScopeConfig
+        sla: Any | None = None,                   # SLAConfig
+        threat_severity: Any | None = None,       # ThreatSeverityConfig
+        compliance: Any | None = None,            # ComplianceConfig
+        fault_tolerance: Any | None = None,       # FaultToleranceConfig
+        reproducibility: Any | None = None,       # ReproducibilityConfig
+        observability: Any | None = None,         # ObservabilityConfig
+        explainability: Any | None = None,        # ExplainabilityConfig
+        consensus: Any | None = None,             # ConsensusConfig
         **monitor_kwargs: Any,
     ) -> None:
         import inspect as _inspect
         import warnings as _warnings
+
         from agent_evaluator.core.trackers.monitor import PerformanceMonitor
         from agent_evaluator.decorators import EvalDecorator
 
@@ -482,7 +484,7 @@ class QuickEval:
                 logger.debug("QuickEval.__init__: monitor_kwargs validation failed (ignored): %s", _e)
 
         # Harness defaults — None이 아닌 파라미터만 저장
-        self._harness_defaults: Dict[str, Any] = {
+        self._harness_defaults: dict[str, Any] = {
             k: v for k, v in {
                 "instructions": instructions,
                 "goal_alignment": goal_alignment,
@@ -514,7 +516,7 @@ class QuickEval:
         )
 
     @classmethod
-    def for_rag(cls, output_dir: str = "results/", **kwargs: Any) -> "QuickEval":
+    def for_rag(cls, output_dir: str = "results/", **kwargs: Any) -> QuickEval:
         """RAG 파이프라인 평가에 최적화된 QuickEval 인스턴스.
 
         hallucination_detection 이 기본 활성화된다.
@@ -530,7 +532,7 @@ class QuickEval:
         return cls(output_dir, **kwargs)
 
     @classmethod
-    def for_security(cls, output_dir: str = "results/", **kwargs: Any) -> "QuickEval":
+    def for_security(cls, output_dir: str = "results/", **kwargs: Any) -> QuickEval:
         """보안 에이전트 평가에 최적화된 QuickEval 인스턴스.
 
         모든 보안 트래커(InputSanitization, OutputLeakage, ToolAuth 등)가 기본 활성화된다.
@@ -549,10 +551,10 @@ class QuickEval:
     def for_regression_eval(
         cls,
         output_dir: str = "results/",
-        baseline_file: Optional[str] = None,
+        baseline_file: str | None = None,
         regression_threshold: float = 0.05,
         **kwargs: Any,
-    ) -> "QuickEval":
+    ) -> QuickEval:
         """회귀 평가에 최적화된 QuickEval 인스턴스 (D2 / Y).
 
         자동 저장 + LLM Judge 를 활성화해 점수 회귀를 바로 감지할 수 있도록 한다.
@@ -593,7 +595,7 @@ class QuickEval:
         # baseline 로드
         if baseline_file and _os.path.exists(baseline_file):
             try:
-                with open(baseline_file, "r", encoding="utf-8") as _f:
+                with open(baseline_file, encoding="utf-8") as _f:
                     instance._baseline_summary = _json.load(_f)
             except Exception as _e:
                 logger.debug("for_regression_eval: baseline load failed (ignored): %s", _e)
@@ -603,7 +605,7 @@ class QuickEval:
 
         return instance
 
-    def check_regression(self) -> Dict[str, Any]:
+    def check_regression(self) -> dict[str, Any]:
         """현재 지표와 baseline을 비교해 성능 저하 여부를 반환합니다 (Y).
 
         ``for_regression_eval(baseline_file=...)`` 로 생성한 인스턴스에서 사용한다.
@@ -627,7 +629,7 @@ class QuickEval:
 
         current = self.summary()
         threshold = getattr(self, "_regression_threshold", 0.05)
-        regressions: Dict[str, Any] = {}
+        regressions: dict[str, Any] = {}
 
         for key in ("tcr", "accuracy", "quality_avg"):
             baseline_val = self._baseline_summary.get(key)
@@ -659,9 +661,9 @@ class QuickEval:
     def for_llm_judge(
         cls,
         output_dir: str = "results/",
-        model: Optional[str] = None,
+        model: str | None = None,
         **kwargs: Any,
-    ) -> "QuickEval":
+    ) -> QuickEval:
         """LLM Judge 자동 채점에 최적화된 QuickEval 인스턴스.
 
         ``[llm]`` extras 필요: ``pip install "agent-evaluator[llm]"``.
@@ -683,11 +685,11 @@ class QuickEval:
         cls,
         output_dir: str = "results/",
         *,
-        sla_p95: Optional[float] = None,
+        sla_p95: float | None = None,
         reproducibility_runs: int = 3,
         enable_security: bool = True,
         **kwargs: Any,
-    ) -> "QuickEval":
+    ) -> QuickEval:
         """Harness 관점의 완전 평가에 최적화된 QuickEval 인스턴스.
 
         Goal Achievement · Behavioral Integrity · Reliability · Performance Contract ·
@@ -720,9 +722,9 @@ class QuickEval:
         *,
         sla_p95: float = 5.0,
         reproducibility_runs: int = 3,
-        judge_model: Optional[str] = None,
+        judge_model: str | None = None,
         **kwargs: Any,
-    ) -> "QuickEval":
+    ) -> QuickEval:
         """프로덕션 배포 전 종합 평가에 최적화된 QuickEval 인스턴스.
 
         SLA · 재현성 · 보안 · LLM Judge 모두 활성화한다.
@@ -755,7 +757,7 @@ class QuickEval:
     # ------------------------------------------------------------------
 
     @classmethod
-    def list_presets(cls) -> List[str]:
+    def list_presets(cls) -> list[str]:
         """사용 가능한 QuickEval 팩토리 프리셋 목록을 반환합니다.
 
         Returns:
@@ -774,7 +776,7 @@ class QuickEval:
         preset_name: str,
         output_dir: str = "results/",
         **kwargs: Any,
-    ) -> "QuickEval":
+    ) -> QuickEval:
         """프리셋 이름으로 QuickEval 인스턴스를 생성합니다.
 
         Args:
@@ -794,7 +796,7 @@ class QuickEval:
             eval = QuickEval.from_preset("rag", "results/")
             eval = QuickEval.from_preset("security", "results/", model="claude-sonnet-4-6")
         """
-        _preset_map: Dict[str, Any] = {
+        _preset_map: dict[str, Any] = {
             "default": cls,
             "rag": cls.for_rag,
             "security": cls.for_security,
@@ -934,8 +936,8 @@ class QuickEval:
         """
         # harness defaults와 kwargs 병합 (kwargs가 우선)
         # __new__ 후 __init__ 미호출 시 방어 처리
-        harness_defaults: Dict[str, Any] = getattr(self, "_harness_defaults", {})
-        merged: Dict[str, Any] = {**harness_defaults, **kwargs}
+        harness_defaults: dict[str, Any] = getattr(self, "_harness_defaults", {})
+        merged: dict[str, Any] = {**harness_defaults, **kwargs}
         return self._eval(task_type=task_type, **merged)
 
     def with_retry(self, task_type: Any = "qa", **kwargs: Any) -> Callable:
@@ -980,21 +982,21 @@ class QuickEval:
 
     def gate(
         self,
-        tcr: Optional[float] = None,
-        accuracy: Optional[float] = None,
-        config_file: Optional[str] = None,
+        tcr: float | None = None,
+        accuracy: float | None = None,
+        config_file: str | None = None,
         dry_run: bool = False,
         # C: 고급 지표 임계값
-        token_efficiency_min: Optional[float] = None,
-        tool_f1_min: Optional[float] = None,
-        coordination_success_rate_min: Optional[float] = None,
+        token_efficiency_min: float | None = None,
+        tool_f1_min: float | None = None,
+        coordination_success_rate_min: float | None = None,
         # Harness Gate A~G 점수 기반 판정
-        gate_min: Optional[float] = None,
-        gate_thresholds: Optional[Dict[str, float]] = None,
-        required_gates: Optional[List[str]] = None,
+        gate_min: float | None = None,
+        gate_thresholds: dict[str, float] | None = None,
+        required_gates: list[str] | None = None,
         fail_on_gate_warn: bool = False,
         **thresholds: float,
-    ) -> Union[bool, Dict[str, Any]]:
+    ) -> Union[bool, dict[str, Any]]:
         """CI/CD 품질 게이팅 — 임계값 미달 시 ``SystemExit`` 발생.
 
         Args:
@@ -1037,7 +1039,7 @@ class QuickEval:
         if config_file is not None:
             try:
                 with open(config_file, encoding="utf-8") as _f:
-                    _cfg: Dict[str, Any] = json.load(_f)
+                    _cfg: dict[str, Any] = json.load(_f)
                 if tcr is None and "tcr" in _cfg:
                     tcr = float(_cfg["tcr"])
                 if accuracy is None and "accuracy" in _cfg:
@@ -1049,9 +1051,9 @@ class QuickEval:
                 logger.warning("gate config_file load failed (ignored): %s", _e)
 
         report = self._monitor.generate_report()
-        failures: List[str] = []
+        failures: list[str] = []
         # dry_run 모드 전용: 각 지표별 상세 결과 수집
-        dry_run_results: Dict[str, Any] = {}
+        dry_run_results: dict[str, Any] = {}
 
         if tcr is not None:
             actual_tcr = float(
@@ -1222,7 +1224,7 @@ class QuickEval:
                 )
 
         # Harness Gate A~G 점수 기반 판정
-        gate_run_results: Dict[str, Any] = {}
+        gate_run_results: dict[str, Any] = {}
         if gate_min is not None or gate_thresholds:
             d = report.to_dict() if hasattr(report, "to_dict") else {}
             harness = (d.get("extra_metrics") or {}).get("harness_groups", {})
@@ -1258,7 +1260,7 @@ class QuickEval:
                     )
 
         if dry_run:
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "passed": len(failures) == 0,
                 "results": dry_run_results,
             }
@@ -1312,7 +1314,7 @@ class QuickEval:
             _json.dump(config, _f, indent=2, ensure_ascii=False)
         return config
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """주요 지표 요약 딕셔너리를 반환 (A6: 확장).
 
         Returns:
@@ -1357,7 +1359,7 @@ class QuickEval:
         _quality_enabled = getattr(self._monitor, "_enable_quality", True)
         # cost는 TokenEconomyTracker가 항상 활성
         # latency는 LatencyTracker가 항상 활성
-        _meta: Dict[str, Any] = {
+        _meta: dict[str, Any] = {
             "tcr_computed": report.total_tasks > 0,
             "accuracy_computed": report.total_tasks > 0,
             "quality_avg_computed": bool(_quality_enabled) and quality_avg > 0.0,
@@ -1381,10 +1383,10 @@ class QuickEval:
 
     def compare(
         self,
-        other: "QuickEval",
+        other: QuickEval,
         self_name: str = "eval_a",
         other_name: str = "eval_b",
-    ) -> "CompareResult":
+    ) -> CompareResult:
         """두 QuickEval 인스턴스의 주요 지표를 비교한다 (D1).
 
         Args:
@@ -1406,7 +1408,7 @@ class QuickEval:
         """
         s = self.summary()
         o = other.summary()
-        delta: Dict[str, Any] = {}
+        delta: dict[str, Any] = {}
         for key in ("tcr", "accuracy", "avg_latency", "total_tokens", "total_tasks",
                     "quality_avg", "hallucination_rate", "p95_latency", "total_cost_usd"):
             sv = s.get(key, 0.0)
@@ -1423,7 +1425,7 @@ class QuickEval:
     # -----------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, config_file: str) -> "QuickEval":
+    def from_config(cls, config_file: str) -> QuickEval:
         """YAML 또는 JSON 설정 파일에서 QuickEval 인스턴스를 생성한다 (E1).
 
         설정 파일 형식::
@@ -1444,21 +1446,21 @@ class QuickEval:
         import json as _json
         import os as _os
 
-        config: Dict[str, Any] = {}
+        config: dict[str, Any] = {}
         if not _os.path.exists(config_file):
             raise FileNotFoundError(f"Config file not found: {config_file}")
 
         if config_file.endswith((".yaml", ".yml")):
             try:
                 import yaml as _yaml  # type: ignore
-                with open(config_file, "r", encoding="utf-8") as _f:
+                with open(config_file, encoding="utf-8") as _f:
                     config = _yaml.safe_load(_f) or {}
             except ImportError:
                 # YAML 없으면 JSON fallback 시도
-                with open(config_file, "r", encoding="utf-8") as _f:
+                with open(config_file, encoding="utf-8") as _f:
                     config = _json.load(_f)
         else:
-            with open(config_file, "r", encoding="utf-8") as _f:
+            with open(config_file, encoding="utf-8") as _f:
                 config = _json.load(_f)
 
         return cls(
@@ -1472,7 +1474,7 @@ class QuickEval:
 
     def export_to_dataframe(
         self,
-        include_fields: Optional[List[str]] = None,
+        include_fields: list[str] | None = None,
     ) -> Any:
         """모든 태스크를 pandas DataFrame으로 내보낸다 (E2).
 
@@ -1491,7 +1493,7 @@ class QuickEval:
             raise RuntimeError("No tasks recorded. Run an evaluation first.")
         return self._monitor.export_to_dataframe(include_fields=include_fields)
 
-    def replay(self, results_file: str) -> "QuickEval":
+    def replay(self, results_file: str) -> QuickEval:
         """저장된 결과 파일에서 TaskResult를 재로드한다 (E3).
 
         이전 평가 결과를 현재 모니터에 다시 기록해 지표를 재계산하거나
@@ -1504,7 +1506,7 @@ class QuickEval:
             ``self`` — 메서드 체이닝 지원.
         """
         import json as _json
-        with open(results_file, "r", encoding="utf-8") as _f:
+        with open(results_file, encoding="utf-8") as _f:
             data = _json.load(_f)
         tasks_data = data.get("task_results", data.get("tasks", []))
         from .core.trackers.base import TaskResult
@@ -1517,7 +1519,7 @@ class QuickEval:
         logger.info("replay: %d tasks loaded (%s)", len(tasks_data), results_file)
         return self
 
-    def ab_test(self, other: "QuickEval") -> Dict[str, Any]:
+    def ab_test(self, other: QuickEval) -> dict[str, Any]:
         """두 QuickEval 인스턴스의 정확도 분포를 통계적으로 비교한다 (E4).
 
         t-검정으로 두 에이전트의 성능 차이가 통계적으로 유의미한지 검증한다.
@@ -1536,9 +1538,9 @@ class QuickEval:
         delta = round(self_mean - other_mean, 6)
         better = "self" if delta > 0 else ("other" if delta < 0 else "equal")
 
-        t_stat: Optional[float] = None
-        p_val: Optional[float] = None
-        significant: Optional[bool] = None
+        t_stat: float | None = None
+        p_val: float | None = None
+        significant: bool | None = None
         try:
             from scipy import stats as _stats  # type: ignore
             if len(self_scores) >= 2 and len(other_scores) >= 2:
@@ -1563,7 +1565,7 @@ class QuickEval:
     def cached(
         self,
         ttl: int = 3600,
-        cache_key_fn: Optional[Callable] = None,
+        cache_key_fn: Callable | None = None,
     ) -> Callable:
         """응답 캐싱 데코레이터를 반환한다 (E5).
 
@@ -1587,7 +1589,7 @@ class QuickEval:
         """
         import time as _t_mod
         if not hasattr(self, "_response_cache"):
-            self._response_cache: Dict[str, Any] = {}
+            self._response_cache: dict[str, Any] = {}
 
         def _make_key(*args, **kwargs) -> str:
             if cache_key_fn is not None:
@@ -1633,8 +1635,8 @@ class QuickEval:
 
     def watch(
         self,
-        directory: Optional[str] = None,
-        callback: Optional[Callable] = None,
+        directory: str | None = None,
+        callback: Callable | None = None,
         max_watched_files: int = 10_000,
     ) -> Any:
         """디렉토리의 새 JSON 결과 파일을 감시해 자동으로 replay한다 (E6).
@@ -1699,9 +1701,9 @@ class QuickEval:
     def harness_gate(
         self,
         min_group_score: float = 0.7,
-        required_groups: Optional[List[str]] = None,
+        required_groups: list[str] | None = None,
         fail_on_warn: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Harness 그룹 점수 기반 CI/CD 게이팅.
 
         Args:
@@ -1739,8 +1741,8 @@ class QuickEval:
             logger.warning("[harness_gate] No harness data available — skipping gate")
             return {"passed": True, "groups": {}, "failed_groups": []}
 
-        results: Dict[str, Any] = {}
-        failed: List[str] = []
+        results: dict[str, Any] = {}
+        failed: list[str] = []
 
         groups_to_check = required_groups or [
             k for k in harness_groups
@@ -1784,7 +1786,7 @@ class QuickEval:
 
         return {"passed": overall_passed, "groups": results, "failed_groups": failed}
 
-    def harness_summary(self) -> Dict[str, Any]:
+    def harness_summary(self) -> dict[str, Any]:
         """Harness 그룹별 요약 리포트를 반환합니다.
 
         Returns:
@@ -1803,7 +1805,7 @@ class QuickEval:
         if not harness_groups:
             return {"overall": None, "groups": {}}
 
-        group_summary: Dict[str, Any] = {}
+        group_summary: dict[str, Any] = {}
         for k, v in harness_groups.items():
             if k == "overall":
                 continue
@@ -1830,10 +1832,10 @@ class QuickEval:
 # ---------------------------------------------------------------------------
 
 def _compute_gate_regressions(
-    current_scores: Dict[str, Optional[float]],
-    baseline_scores: Dict[str, Optional[float]],
+    current_scores: dict[str, float | None],
+    baseline_scores: dict[str, float | None],
     regression_threshold: float,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Harness Gate A-G 점수가 베이스라인 대비 회귀했는지 판정한다.
 
     ``cli/gate.py::_check_regression()``이 5개 평면 지표(TCR/accuracy 등)에 쓰는 것과
@@ -1852,7 +1854,7 @@ def _compute_gate_regressions(
         회귀가 감지된 Gate 목록. 각 항목:
         ``{"gate": str, "baseline_score": float, "current_score": float, "delta": float}``.
     """
-    regressions: List[Dict[str, Any]] = []
+    regressions: list[dict[str, Any]] = []
     for gate_id, current in current_scores.items():
         if current is None:
             continue
@@ -1873,7 +1875,7 @@ def _compute_gate_regressions(
     return regressions
 
 
-def _normalize_gate_score_dict(raw: Optional[Dict[str, Any]]) -> Dict[str, Optional[float]]:
+def _normalize_gate_score_dict(raw: dict[str, Any] | None) -> dict[str, float | None]:
     """``baseline`` 인자로 받은 dict를 ``{"A": float|None, ...}`` 평면 형식으로 정규화한다.
 
     두 가지 입력 형태를 모두 허용한다(SPEC-010 REQ-3의 사용 편의성):
@@ -1884,7 +1886,7 @@ def _normalize_gate_score_dict(raw: Optional[Dict[str, Any]]) -> Dict[str, Optio
     """
     if not raw:
         return {}
-    normalized: Dict[str, Optional[float]] = {}
+    normalized: dict[str, float | None] = {}
     for key, value in raw.items():
         if isinstance(value, dict):
             score = value.get("score")
@@ -1952,14 +1954,14 @@ class HarnessEvaluationGate:
         report: Any,
         *,
         min_group_score: float = 0.7,
-        required_groups: Optional[List[str]] = None,
+        required_groups: list[str] | None = None,
         fail_on_warn: bool = False,
     ) -> None:
         self._report = report
         self._min_group_score = min_group_score
         self._required_groups = required_groups
         self._fail_on_warn = fail_on_warn
-        self._result: Optional[Dict[str, Any]] = None
+        self._result: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -1967,9 +1969,9 @@ class HarnessEvaluationGate:
 
     def evaluate(
         self,
-        baseline: Optional[Dict[str, Any]] = None,
+        baseline: dict[str, Any] | None = None,
         regression_threshold: float = 0.05,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Group A-G 전체를 평가하고 결과 dict를 반환한다.
 
         Args:
@@ -2027,13 +2029,13 @@ class HarnessEvaluationGate:
                 self._result["regressions"] = []
             return self._result
 
-        groups_to_check: List[str] = self._required_groups or [
+        groups_to_check: list[str] = self._required_groups or [
             k for k in harness_groups
             if k != "overall" and isinstance(harness_groups[k], dict)
         ]
 
-        results: Dict[str, Any] = {}
-        violations: List[Dict[str, Any]] = []
+        results: dict[str, Any] = {}
+        violations: list[dict[str, Any]] = []
 
         for group_name in groups_to_check:
             group_data = harness_groups.get(group_name, {})
@@ -2083,7 +2085,7 @@ class HarnessEvaluationGate:
         # SPEC-010 REQ-3: baseline이 주어졌을 때만 회귀 비교를 수행한다 — 미지정 시(기본값)
         # 기존 dict 형태(regressions 키 없음)와 100% 동일해야 하므로 이 블록 전체가 조건부다.
         if baseline is not None:
-            _current_scores: Dict[str, Optional[float]] = {
+            _current_scores: dict[str, float | None] = {
                 name: r.get("score") for name, r in results.items()
             }
             _baseline_scores = _normalize_gate_score_dict(baseline)
@@ -2100,9 +2102,9 @@ class HarnessEvaluationGate:
         self,
         exit_on_fail: bool = True,
         *,
-        baseline: Optional[Dict[str, Any]] = None,
+        baseline: dict[str, Any] | None = None,
         regression_threshold: float = 0.05,
-    ) -> "HarnessEvaluationGate":
+    ) -> HarnessEvaluationGate:
         """``evaluate()``를 실행하고 실패 시 ``sys.exit(1)``을 호출한다.
 
         Args:
@@ -2138,9 +2140,9 @@ class HarnessEvaluationGate:
         result_file: str,
         *,
         min_group_score: float = 0.7,
-        required_groups: Optional[List[str]] = None,
+        required_groups: list[str] | None = None,
         fail_on_warn: bool = False,
-    ) -> "HarnessEvaluationGate":
+    ) -> HarnessEvaluationGate:
         """JSON 결과 파일에서 Gate를 직접 생성한다.
 
         Args:
@@ -2157,11 +2159,11 @@ class HarnessEvaluationGate:
         import json
 
         with open(result_file, encoding="utf-8") as _f:
-            data: Dict[str, Any] = json.load(_f)
+            data: dict[str, Any] = json.load(_f)
 
         class _ReportProxy:
             """JSON 데이터를 EvaluationReport처럼 노출하는 최소 프록시."""
-            def __init__(self, extra: Dict[str, Any]) -> None:
+            def __init__(self, extra: dict[str, Any]) -> None:
                 self.extra_metrics = extra
 
         # JSON 최상위에 extra_metrics 또는 harness_groups 키가 있을 수 있음
@@ -2181,12 +2183,12 @@ class HarnessEvaluationGate:
     # ------------------------------------------------------------------
 
     @property
-    def result(self) -> Optional[Dict[str, Any]]:
+    def result(self) -> dict[str, Any] | None:
         """마지막 ``evaluate()`` 또는 ``enforce()`` 결과. 호출 전에는 ``None``."""
         return self._result
 
     @property
-    def passed(self) -> Optional[bool]:
+    def passed(self) -> bool | None:
         """``evaluate()`` 호출 후 통과 여부. 호출 전에는 ``None``."""
         return self._result["passed"] if self._result is not None else None
 
@@ -2194,7 +2196,7 @@ class HarnessEvaluationGate:
     # Internal
     # ------------------------------------------------------------------
 
-    def _print_result(self, result: Dict[str, Any]) -> None:
+    def _print_result(self, result: dict[str, Any]) -> None:
         ok = result["passed"]
         summary = result["summary"]
         print(f"\n{'=' * 52}")
@@ -2211,7 +2213,7 @@ class HarnessEvaluationGate:
             + (f"  |  Overall: {summary['overall_score']:.3f}" if summary["overall_score"] is not None else "")
         )
         if result["violations"]:
-            print(f"\n  ⚠ Violations:")
+            print("\n  ⚠ Violations:")
             for v in result["violations"]:
                 print(f"    Group {v['group']}: score={v['score']:.3f}  status={v['status']}")
         print(f"{'=' * 52}\n")

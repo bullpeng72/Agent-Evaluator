@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ def _is_fact_retained_in_text(fact_lower: str, text_lower: str) -> bool:
         idx = pos + 1
 
 
-def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
+def eval_instruction_adherence(response: str, config: Any) -> dict[str, Any]:
     """응답이 InstructionConfig의 형식·길이·키워드 지시를 준수하는지 평가.
 
     Args:
@@ -145,8 +145,8 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
     Returns:
         {score, violations, violation_count, checks}
     """
-    violations: List[str] = []
-    checks: Dict[str, bool] = {}
+    violations: list[str] = []
+    checks: dict[str, bool] = {}
 
     # 1. 형식 검사
     if config.expected_format:
@@ -158,7 +158,7 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
                 checks["format"] = True
             except Exception:
                 checks["format"] = False
-                violations.append(f"응답이 JSON 형식이 아님")
+                violations.append("응답이 JSON 형식이 아님")
         elif fmt == "markdown":
             checks["format"] = bool(
                 re.search(r"#{1,6}\s", response) or
@@ -288,9 +288,9 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
 
 def eval_goal_alignment(
     question: str,
-    tool_calls: List[Dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
     config: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """질문(목표)과 도구 호출(행동)의 정렬 점수를 계산.
 
     Args:
@@ -312,8 +312,8 @@ def eval_goal_alignment(
         for n in [tc.get("tool_name") or tc.get("tool") or tc.get("name", "")]
         if n  # 빈 문자열 제거
     ]
-    aligned_tools: List[str] = []
-    unaligned_tools: List[str] = []
+    aligned_tools: list[str] = []
+    unaligned_tools: list[str] = []
     method = "none"
     score = 0.0
 
@@ -411,7 +411,7 @@ def eval_goal_alignment(
     misaligned = unaligned_tools
     threshold = getattr(config, "alignment_threshold", 0.6) or 0.6
     below_threshold = score < threshold
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "score": score,
         "method": method,
         "misaligned": misaligned,
@@ -431,7 +431,7 @@ def eval_plan_coherence(
     response: str,
     question: str,
     config: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """응답에서 계획(단계 목록)을 추출하고 일관성을 평가.
 
     Args:
@@ -444,7 +444,7 @@ def eval_plan_coherence(
     """
     import json as _json
 
-    steps: List[str] = []
+    steps: list[str] = []
     _from_json = False  # JSON 배열에서 파싱 성공 여부 — 순서가 인덱스에 내재됨
 
     # 1. JSON 파싱 시도
@@ -585,7 +585,7 @@ def eval_plan_coherence(
 
 def eval_context_retention(
     response: str, question: str, context: str, config: Any
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """에이전트가 핵심 컨텍스트 엔티티 및 원래 목표를 보존하는지 평가한다.
 
     Args:
@@ -606,13 +606,13 @@ def eval_context_retention(
 
     # key_entities 미지정 + context 제공 시 context에서 엔티티 자동 추출
     if not key_entities and context:
-        _auto: List[str] = []
+        _auto: list[str] = []
         _auto.extend(re.findall(r'\d{2,}', context))
         _auto.extend(re.findall(r'\b[A-Z][a-z]+', context))
         _auto.extend(re.findall(r'[가-힣]{3,}', context))  # 2글자는 기능어 오염 — knowledge_retention과 동일 기준
         # 문장 시작 기능어("The", "In", "An" 등) 제거는 dedup 단계에서 — eval_knowledge_retention과 동일 패턴
         # [:20] 제한은 필터 후 적용해야 의미 있는 엔티티 20개를 보장 (필터 전 적용 시 기능어가 슬롯 차지)
-        _seen_e: Dict[str, None] = {}
+        _seen_e: dict[str, None] = {}
         for _e in _auto:
             if _e.lower() not in _GOAL_STOPWORDS and len(_e) >= 2:
                 _seen_e[_e] = None
@@ -620,8 +620,8 @@ def eval_context_retention(
 
     # Entity retention — 경계 인식 매칭으로 false positive 방지
     # eval_knowledge_retention과 동일한 _is_fact_retained_in_text 사용
-    entities_retained: List[str] = []
-    entities_lost: List[str] = []
+    entities_retained: list[str] = []
+    entities_lost: list[str] = []
     for entity in key_entities:
         if _is_fact_retained_in_text(entity.lower(), response_lower):
             entities_retained.append(entity)
@@ -698,8 +698,8 @@ def eval_context_retention(
 
 
 def eval_subtask_completion(
-    response: str, tool_calls: List[Any], config: Any, question: str = ""
-) -> Dict[str, Any]:
+    response: str, tool_calls: list[Any], config: Any, question: str = ""
+) -> dict[str, Any]:
     """예상 하위 작업의 완료율을 평가한다.
 
     Args:
@@ -731,7 +731,7 @@ def eval_subtask_completion(
             )
         else:
             lines = question.split("\n")
-            extracted: List[str] = []
+            extracted: list[str] = []
             for line in lines:
                 line = line.strip()
                 if _re.match(r"^(\d+[.)]\s+|\-\s+|\*\s+|•\s+)", line) and len(line) > 3:
@@ -747,8 +747,8 @@ def eval_subtask_completion(
             "ordering_ok": True,
         }
 
-    completed: List[str] = []
-    incomplete: List[str] = []
+    completed: list[str] = []
+    incomplete: list[str] = []
     non_empty_lines = [l for l in response_lower.split("\n") if l.strip()]
 
     for i, subtask in enumerate(expected_subtasks):
@@ -777,7 +777,7 @@ def eval_subtask_completion(
     ordering_ok = True
     if check_ordering and len(completed) >= 2:
         # pos=-1(마커 완료, 텍스트 위치 미확인) → float('inf')로 처리 (가장 뒤에 있다고 보수적 가정)
-        positions: List[float] = []
+        positions: list[float] = []
         for task in completed:
             pos = _is_subtask_find_pos(task.lower(), response_lower)
             positions.append(float(pos) if pos >= 0 else float("inf"))
@@ -796,10 +796,10 @@ def eval_subtask_completion(
 
 
 def eval_knowledge_retention(
-    response: Optional[str],
-    conversation_history: Optional[List[Dict[str, Any]]],
+    response: str | None,
+    conversation_history: list[dict[str, Any]] | None,
     config: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """대화 중 사실 보존 평가 (Harness A — Goal Achievement).
 
     Args:
@@ -817,7 +817,7 @@ def eval_knowledge_retention(
     if current_turn < check_from:
         return None
 
-    facts: List[str] = list(config.facts_to_retain or [])
+    facts: list[str] = list(config.facts_to_retain or [])
 
     # auto_extract_seed=True 일 때만 seed 턴에서 사실 자동 추출 (opt-in)
     # 광범위한 정규식(특히 한국어 [가-힣]{3,})은 노이즈를 유발하므로 기본 비활성
@@ -841,7 +841,7 @@ def eval_knowledge_retention(
         # Deduplicate + stopword 필터 (eval_context_retention 자동 추출과 동일 패턴)
         # 문장 시작 기능어 "The", "In", "What" 등이 facts에 포함되면 응답에서 항상 발견되어
         # retention_score를 허위 상향시키므로 제거 (Round 20 eval_context_retention 수정과 동일 이슈)
-        _seen: Dict[str, None] = {}
+        _seen: dict[str, None] = {}
         for f in facts:
             if f.lower() not in _GOAL_STOPWORDS and len(f) >= 2:
                 _seen[f] = None

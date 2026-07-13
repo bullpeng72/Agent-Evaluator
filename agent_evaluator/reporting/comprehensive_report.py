@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Utility: markdown → html
@@ -32,7 +32,7 @@ def markdown_to_html(text: str) -> str:
     in_bullet_list = False
     result_lines = []
 
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         stripped = line.strip()
 
         # Check for numbered list item (1. 2. 3.)
@@ -101,7 +101,7 @@ def markdown_to_html(text: str) -> str:
 # Gate helpers
 # ---------------------------------------------------------------------------
 
-_GATE_COLORS: Dict[str, str] = {
+_GATE_COLORS: dict[str, str] = {
     "A": "#10b981",  # emerald
     "B": "#3b82f6",  # blue
     "C": "#f59e0b",  # amber
@@ -111,7 +111,7 @@ _GATE_COLORS: Dict[str, str] = {
     "G": "#06b6d4",  # cyan
 }
 
-_GATE_NAMES: Dict[str, str] = {
+_GATE_NAMES: dict[str, str] = {
     "A": "Goal Achievement",
     "B": "Behavioral Integrity",
     "C": "Reliability",
@@ -330,7 +330,7 @@ def _not_tested(reason: str = "") -> str:
 # Scorecard
 # ---------------------------------------------------------------------------
 
-def _build_scorecard(harness_groups: Dict[str, Any]) -> str:
+def _build_scorecard(harness_groups: dict[str, Any]) -> str:
     cards = []
     for key in "ABCDEFG":
         color = _GATE_COLORS[key]
@@ -359,7 +359,7 @@ def _build_scorecard(harness_groups: Dict[str, Any]) -> str:
 # Score Breakdown widget
 # ---------------------------------------------------------------------------
 
-def _bd_row(label: str, raw_str: Optional[str], contrib: Optional[float],
+def _bd_row(label: str, raw_str: str | None, contrib: float | None,
             always: bool = False, note: str = "") -> str:
     """Single row for the score breakdown table."""
     if contrib is None:
@@ -386,7 +386,7 @@ def _bd_row(label: str, raw_str: Optional[str], contrib: Optional[float],
     )
 
 
-def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
+def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
     """Build a score computation breakdown widget for a Gate detail section."""
     if not harness_group:
         return ""
@@ -399,14 +399,14 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
     formula_parts: list = []
     included_vals: list = []
 
-    def _add(label: str, raw_str: Optional[str], contrib: Optional[float],
+    def _add(label: str, raw_str: str | None, contrib: float | None,
               formula_label: str = "", always: bool = False, note: str = "") -> None:
         formula_parts.append(formula_label or label)
         rows.append(_bd_row(label, raw_str, contrib, always=always, note=note))
         if contrib is not None:
             included_vals.append(contrib)
 
-    def _fmt_ratio(v: Any) -> Optional[str]:
+    def _fmt_ratio(v: Any) -> str | None:
         if v is None:
             return None
         try:
@@ -414,7 +414,7 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
         except (TypeError, ValueError):
             return None
 
-    def _fmt_pct(v: Any, scale: float = 1.0) -> Optional[str]:
+    def _fmt_pct(v: Any, scale: float = 1.0) -> str | None:
         if v is None:
             return None
         try:
@@ -706,8 +706,10 @@ def _build_score_breakdown(gate_key: str, harness_group: Dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _build_gate_a(tcr: float, success_rate: float, acc: float,
-                  accuracy_metrics: Dict, harness_a: Dict,
-                  quality_metrics: Dict = {}) -> str:
+                  accuracy_metrics: dict, harness_a: dict,
+                  quality_metrics: dict | None = None) -> str:
+    if quality_metrics is None:
+        quality_metrics = {}
     color = _GATE_COLORS["A"]
     gate_status = (harness_a.get("gate") or harness_a.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -833,8 +835,8 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
 # Gate B — Behavioral Integrity
 # ---------------------------------------------------------------------------
 
-def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
-                  harness_b: Dict) -> str:
+def _build_gate_b(tool_selection_stats: dict, has_agentic: bool,
+                  harness_b: dict) -> str:
     color = _GATE_COLORS["B"]
     gate_status = (harness_b.get("gate") or harness_b.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -919,8 +921,10 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
 # Gate C — Reliability
 # ---------------------------------------------------------------------------
 
-def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict = {},
+def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict | None = None,
                   llm_judge_data: Any = None) -> str:
+    if hallucination_data is None:
+        hallucination_data = {}
     color = _GATE_COLORS["C"]
     gate_status = (harness_c.get("gate") or harness_c.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1066,7 +1070,7 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
 # Gate D — Performance Contract
 # ---------------------------------------------------------------------------
 
-def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> str:
+def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict) -> str:
     color = _GATE_COLORS["D"]
     gate_status = (harness_d.get("gate") or harness_d.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1177,7 +1181,7 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
 # Gate E — Security Boundary
 # ---------------------------------------------------------------------------
 
-def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
+def _build_gate_e_from_monitor(monitor, harness_e: dict) -> str:
     """monitor 객체에서 보안 데이터를 직접 추출."""
     color = _GATE_COLORS["E"]
     gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
@@ -1194,7 +1198,7 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
         _any_active = any(t is not None for t in [_inp, _out, _auth, _priv, _atk])
         if _any_active:
             # 이벤트 0건이면 RF 경로와 동일하게 빈 dict 처리
-            def _sec_or_empty(d: Dict, total_key: str) -> Dict:
+            def _sec_or_empty(d: dict, total_key: str) -> dict:
                 return d if d and d.get(total_key, 0) > 0 else {}
             _is = _inp.get_security_stats()    if _inp  is not None else {}
             _ol = _out.get_leakage_stats()     if _out  is not None else {}
@@ -1241,7 +1245,7 @@ def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
     )
 
 
-def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
+def _build_gate_e_from_rf(rf, harness_e: dict) -> str:
     """ResultFile 객체에서 보안 데이터를 추출."""
     color = _GATE_COLORS["E"]
     gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
@@ -1292,8 +1296,8 @@ def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
     )
 
 
-def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
-                          priv_esc: Dict, chain_atk: Dict) -> str:
+def _build_security_kpis(input_sec: dict, output_leak: dict, tool_auth: dict,
+                          priv_esc: dict, chain_atk: dict) -> str:
     """공통 보안 KPI 블록 생성."""
     kpi_parts = []
 
@@ -1359,8 +1363,8 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
 # Gate F — Multi-Agent Coordination
 # ---------------------------------------------------------------------------
 
-def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
-                  has_agentic: bool, harness_f: Dict) -> str:
+def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
+                  has_agentic: bool, harness_f: dict) -> str:
     color = _GATE_COLORS["F"]
     gate_status = (harness_f.get("gate") or harness_f.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1437,8 +1441,8 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
 # Gate G — Observability
 # ---------------------------------------------------------------------------
 
-def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
-                  harness_g: Dict) -> str:
+def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
+                  harness_g: dict) -> str:
     color = _GATE_COLORS["G"]
     gate_status = (harness_g.get("gate") or harness_g.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1555,7 +1559,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
 # Advanced / RAG / Conversation
 # ---------------------------------------------------------------------------
 
-def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
+def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
                              has_advanced: bool, has_rag: bool,
                              has_conversation: bool,
                              conversation_sessions: list) -> str:
@@ -1659,9 +1663,9 @@ def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
 # Recommendations
 # ---------------------------------------------------------------------------
 
-def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
+def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              hall_rate: float, latency: float,
-                             quality_metrics: Dict) -> str:
+                             quality_metrics: dict) -> str:
     recs = []
 
     # Gate-based FAIL/WARN recommendations
@@ -1734,7 +1738,7 @@ def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
 # ---------------------------------------------------------------------------
 
 def _build_conclusion(total_tasks: int, tcr: float, acc: float,
-                       hall_rate: float, harness_groups: Dict) -> str:
+                       hall_rate: float, harness_groups: dict) -> str:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
@@ -1778,7 +1782,7 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
 # ---------------------------------------------------------------------------
 
 def _build_header(total_tasks: int, tcr: float, acc: float,
-                  latency: float, harness_groups: Dict) -> str:
+                  latency: float, harness_groups: dict) -> str:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
@@ -1832,62 +1836,62 @@ def generate_comprehensive_html_report(monitor) -> str:
     else:
         report = monitor.generate_report()
 
-    quality_metrics: Dict = {}
+    quality_metrics: dict = {}
     try:
         quality_metrics = monitor.quality_evaluator.get_quality_metrics()
     except Exception:
         pass
 
-    hallucination_data: Dict = {}
+    hallucination_data: dict = {}
     try:
         hallucination_data = monitor.hallucination_detector.get_hallucination_rate()
     except Exception:
         pass
 
-    token_stats: Dict = {}
+    token_stats: dict = {}
     try:
         token_stats = monitor.token_tracker.get_usage_stats()
     except Exception:
         pass
 
-    tool_selection_stats: Dict = {}
+    tool_selection_stats: dict = {}
     try:
         tool_selection_stats = monitor.tool_selection_tracker.get_accuracy_stats()
     except Exception:
         pass
 
-    coordination_stats: Dict = {}
+    coordination_stats: dict = {}
     try:
         coordination_stats = monitor.agent_coordination_tracker.calculate_coordination_score()
     except Exception:
         pass
 
-    workflow_stats: Dict = {}
+    workflow_stats: dict = {}
     try:
         workflow_stats = monitor.workflow_tracker.calculate_execution_success_rate()
     except Exception:
         pass
 
-    retry_metrics: Dict = {}
+    retry_metrics: dict = {}
     try:
         retry_metrics = monitor.retry_tracker.get_retry_metrics()
     except Exception:
         pass
 
-    latency_stats: Dict = {}
+    latency_stats: dict = {}
     try:
         latency_stats = monitor.latency_tracker.get_latency_stats()
     except Exception:
         pass
 
-    adv_metrics: Dict = {}
+    adv_metrics: dict = {}
     try:
         adv_metrics = report.advanced_metrics_summary if hasattr(report, "advanced_metrics_summary") else {}
     except Exception:
         pass
 
     # Scalar values
-    accuracy_metrics: Dict = {}
+    accuracy_metrics: dict = {}
     try:
         accuracy_metrics = monitor.accuracy_evaluator.get_accuracy_scores()
     except Exception:
@@ -1910,7 +1914,7 @@ def generate_comprehensive_html_report(monitor) -> str:
     hall_rate = float(hallucination_data.get("overall_rate") or 0)
 
     # Harness groups
-    harness_groups: Dict = getattr(report, "harness_groups", None) or {}
+    harness_groups: dict = getattr(report, "harness_groups", None) or {}
     if not harness_groups and hasattr(report, "extra_metrics"):
         harness_groups = (report.extra_metrics or {}).get("harness_groups") or {}
 
@@ -1957,7 +1961,7 @@ def generate_comprehensive_html_report(monitor) -> str:
             if _judged:
                 _dims = ["completeness", "relevance", "factual_consistency", "overall",
                          "toxicity", "bias", "faithfulness", "criteria_overall"]
-                _avs2: Dict = {}
+                _avs2: dict = {}
                 for _d in _dims:
                     _vs = [
                         r["scores"][_d] for r in _judged
@@ -1983,7 +1987,7 @@ def generate_comprehensive_html_report(monitor) -> str:
 
     # RAG / advanced flags
     has_advanced = bool(adv_metrics)
-    rag_metrics: Dict = {}
+    rag_metrics: dict = {}
     try:
         rag_metrics = monitor.rag_metrics or {}
     except Exception:
@@ -2050,17 +2054,17 @@ def generate_html_from_result_file(rf) -> str:
     hall_rate = _f(hall_data.get("overall_rate"))
     total_tasks = rf.total_tasks
 
-    harness_groups: Dict = getattr(rf, "harness_groups", None) or {}
+    harness_groups: dict = getattr(rf, "harness_groups", None) or {}
     has_agentic = getattr(rf, "has_agentic", False)
 
     # accuracy_metrics dict for task_type breakdown
-    accuracy_metrics: Dict = acc_data
+    accuracy_metrics: dict = acc_data
 
     # hallucination_data
-    hallucination_data: Dict = hall_data
+    hallucination_data: dict = hall_data
 
     # quality_metrics from quality_detail
-    quality_metrics: Dict = {}
+    quality_metrics: dict = {}
     if getattr(rf, "has_quality_detail", False):
         qd = rf.quality_detail
         try:
@@ -2073,7 +2077,7 @@ def generate_html_from_result_file(rf) -> str:
             pass
 
     # retry metrics
-    retry_metrics: Dict = {}
+    retry_metrics: dict = {}
     if has_agentic:
         ag = rf.agentic
         retry = ag.get("retry_summary") if isinstance(ag, dict) else getattr(ag, "retry_summary", None)
@@ -2081,13 +2085,13 @@ def generate_html_from_result_file(rf) -> str:
             retry_metrics = retry
 
     # latency stats
-    latency_stats: Dict = lat_data
+    latency_stats: dict = lat_data
 
     # token stats
-    token_stats: Dict = tok_data
+    token_stats: dict = tok_data
 
     # tool_selection_stats
-    tool_selection_stats: Dict = {}
+    tool_selection_stats: dict = {}
     if has_agentic:
         ag = rf.agentic
         tool_eff = ag.get("tool_efficiency") if isinstance(ag, dict) else getattr(ag, "tool_efficiency", None)
@@ -2098,8 +2102,8 @@ def generate_html_from_result_file(rf) -> str:
             tool_selection_stats.update(tool_sel)
 
     # coordination / workflow
-    coordination_stats: Dict = {}
-    workflow_stats: Dict = {}
+    coordination_stats: dict = {}
+    workflow_stats: dict = {}
     if has_agentic:
         ag = rf.agentic
         coord = ag.get("coordination_summary") if isinstance(ag, dict) else getattr(ag, "coordination_summary", None)
@@ -2116,7 +2120,7 @@ def generate_html_from_result_file(rf) -> str:
 
     # Advanced
     has_advanced = getattr(rf, "has_advanced", False)
-    adv_metrics: Dict = {}
+    adv_metrics: dict = {}
     if has_advanced:
         try:
             adv_metrics = rf.advanced.summary or {}
@@ -2124,7 +2128,7 @@ def generate_html_from_result_file(rf) -> str:
             pass
 
     has_rag = getattr(rf, "has_rag", False)
-    rag_metrics: Dict = rf.rag_metrics if has_rag else {}
+    rag_metrics: dict = rf.rag_metrics if has_rag else {}
 
     has_conversation = getattr(rf, "has_conversation", False)
     conversation_sessions: list = rf.conversation_sessions if has_conversation else []
@@ -2159,7 +2163,7 @@ def _esc(v: Any) -> str:
     return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def generate_comparison_html_report(compare_result: Dict[str, Any]) -> str:
+def generate_comparison_html_report(compare_result: dict[str, Any]) -> str:
     """``compare_results()``(``serve/routers/data.py``)의 반환 dict를 그대로 받아
     self-contained HTML 비교 리포트로 렌더링한다.
 
@@ -2183,7 +2187,7 @@ def generate_comparison_html_report(compare_result: Dict[str, Any]) -> str:
     found_files = [f for f in files if f.get("found")]
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def _name(f: Dict[str, Any]) -> str:
+    def _name(f: dict[str, Any]) -> str:
         return _esc(f.get("name") or f.get("file_id") or "?")
 
     css = _build_css().replace(

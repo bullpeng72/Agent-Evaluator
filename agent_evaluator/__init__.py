@@ -37,41 +37,17 @@ Quick Start (Decorator):
     ...     return client.chat.completions.create(...)
     >>> # Metrics auto-recorded on every call!
 """
+from __future__ import annotations
 
 __version__ = "0.9.8"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
-from .exceptions import (
-    AgentEvaluatorError,
-    ValidationError,
-    FrameworkNotInstalledError,
-    MetricComputationError,
-    ConfigurationError,
-    StorageError,
-    InvalidOperationError,
-)
+# Anomaly Detection (Phase 3-B)
+from .anomaly import AnomalyDetector, AnomalyEvent
 
 # Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
 from .config import get_settings, init_from_app, load_env
-
-# Framework-agnostic utilities (경량)
-from .integrations.framework_integrations import (
-    EvaluatorProtocol,
-    to_graph_state,
-    to_crew_inputs,
-    to_task_string,
-)
-
-# Transparency
-from .utils.transparency_manager import (
-    AnnotationType,
-    TestStepStatus,
-    TestTransparencyManager,
-)
-
-# BaseTracker ABC — 커스텀 트래커 구현 시 상속
-from .core.trackers.base import BaseTracker
 
 # Core (numpy/pandas를 사용하지만 SDK의 핵심이므로 즉시 로드)
 from .core.agent_evaluator import (
@@ -79,8 +55,6 @@ from .core.agent_evaluator import (
     AgentCoordinationTracker,
     EvaluationReport,
     HallucinationDetector,
-    # Security Metrics (Layer 1 & 2)
-    infer_privilege_level,
     InputSanitizationTracker,
     LatencyTracker,
     OutputLeakageDetector,
@@ -97,97 +71,128 @@ from .core.agent_evaluator import (
     ToolChainAttackDetector,
     ToolSelectionTracker,
     WorkflowExecutionTracker,
+    # Security Metrics (Layer 1 & 2)
+    infer_privilege_level,
 )
+
 # Import context managers
-from .core.monitor_context import evaluation_session, hybrid_evaluation_session, async_evaluation_session
+from .core.monitor_context import (
+    async_evaluation_session,
+    evaluation_session,
+    hybrid_evaluation_session,
+)
+
+# BaseTracker ABC — 커스텀 트래커 구현 시 상속
+from .core.trackers.base import BaseTracker
+
+# Conversation Evaluation (Phase 1-C)
+from .core.trackers.conversation import ConversationMetrics, ConversationSession, ConversationTurn
+
+# Cost Optimization (Phase 3-C)
+from .cost import AdaptivePolicy, CostTracker, SamplingStage
 
 # Decorator-based evaluation (Opik @track 스타일)
 from .decorators import (
+    # C6: 어댑터 메타데이터 레지스트리
+    _FRAMEWORK_ADAPTER_META,
+    # Task 1: 프레임워크 어댑터 레지스트리 (고급 사용자용)
+    _FRAMEWORK_ADAPTERS,
+    # H1: 사전 정의된 파라미터 묶음
+    AGENT_EVAL_PRESETS,
+    # v0.9.3+: Phase 4 Harness Config 데이터클래스
+    AgentRoleConfig,
+    AlertRuleBuilder,
+    ComplianceConfig,
+    ConflictResolutionConfig,
+    ConsensusConfig,
+    ContextRetentionConfig,
+    ContextWindowConfig,
+    CostPredictabilityConfig,
+    DeadlockConfig,
+    EfficiencyConfig,
+    ErrorDiagnosisConfig,
+    EvalDecorator,
+    EvalMetadata,
+    ExplainabilityConfig,
+    FaultToleranceConfig,
+    # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
+    FrameworkLiteral,
+    GoalAlignmentConfig,
+    GracefulDegradationConfig,
+    # v0.9.5+: Phase 6 Harness Config 데이터클래스
+    IdempotencyConfig,
+    # v0.9.0+: Phase 1 Harness Config 데이터클래스
+    InstructionConfig,
+    KnowledgeRetentionConfig,
+    LatencyAttributionConfig,
+    # LLMJudgeConfig — LLM-as-Judge 파라미터 묶음 (v0.8.2+)
+    LLMJudgeConfig,
+    LoopDetectionConfig,
+    ObservabilityConfig,
+    PlanConfig,
+    PropagationConfig,
+    ReproducibilityConfig,
+    ResourceBudgetConfig,
+    # RetryConfig — 재시도 파라미터 묶음
+    RetryConfig,
+    RetryConsistencyConfig,
+    # v0.9.2+: Phase 3 Harness Config 데이터클래스
+    ScopeConfig,
+    # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
+    SecurityConfig,
+    # Task 5: SimpleTaskAlertRule + E6: AlertRuleBuilder
+    SimpleTaskAlertRule,
+    # v0.9.1+: 신규 Harness Config 데이터클래스
+    SLAConfig,
+    StateConsistencyConfig,
+    SubtaskConfig,
+    ThreatResponseConfig,
+    ThreatSeverityConfig,
+    # v0.9.4+: Phase 5 Harness Config 데이터클래스
+    ToolParameterSafetyConfig,
+    TTFTVariabilityConfig,
+    TurnMetadata,
     agent_eval,
     batch_eval,
     conversation_eval,
-    flush_conversation,
-    flush_all_conversations,
     eval_context,
-    EvalDecorator,
-    EvalMetadata,
-    TurnMetadata,
+    flush_all_conversations,
+    flush_conversation,
     get_eval_ctx,
-    # Task 5: SimpleTaskAlertRule + E6: AlertRuleBuilder
-    SimpleTaskAlertRule,
-    AlertRuleBuilder,
-    # Task 1: 프레임워크 어댑터 레지스트리 (고급 사용자용)
-    _FRAMEWORK_ADAPTERS,
-    # C6: 어댑터 메타데이터 레지스트리
-    _FRAMEWORK_ADAPTER_META,
     get_framework_info,
-    # H1: 사전 정의된 파라미터 묶음
-    AGENT_EVAL_PRESETS,
     # 항목 W: preset 런타임 등록
     register_preset,
-    # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
-    FrameworkLiteral,
-    # RetryConfig — 재시도 파라미터 묶음
-    RetryConfig,
-    # LLMJudgeConfig — LLM-as-Judge 파라미터 묶음 (v0.8.2+)
-    LLMJudgeConfig,
-    # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
-    SecurityConfig,
-    # v0.9.0+: Phase 1 Harness Config 데이터클래스
-    InstructionConfig,
-    LoopDetectionConfig,
-    GoalAlignmentConfig,
-    ReproducibilityConfig,
-    FaultToleranceConfig,
-    PlanConfig,
-    # v0.9.1+: 신규 Harness Config 데이터클래스
-    SLAConfig,
-    ThreatSeverityConfig,
-    EfficiencyConfig,
-    StateConsistencyConfig,
-    DeadlockConfig,
-    ObservabilityConfig,
-    ConsensusConfig,
-    # v0.9.2+: Phase 3 Harness Config 데이터클래스
-    ScopeConfig,
-    ContextRetentionConfig,
-    ExplainabilityConfig,
-    SubtaskConfig,
-    PropagationConfig,
-    # v0.9.3+: Phase 4 Harness Config 데이터클래스
-    AgentRoleConfig,
-    GracefulDegradationConfig,
-    ComplianceConfig,
-    ResourceBudgetConfig,
-    ConflictResolutionConfig,
-    # v0.9.4+: Phase 5 Harness Config 데이터클래스
-    ToolParameterSafetyConfig,
-    KnowledgeRetentionConfig,
-    RetryConsistencyConfig,
-    TTFTVariabilityConfig,
-    ErrorDiagnosisConfig,
-    # v0.9.5+: Phase 6 Harness Config 데이터클래스
-    IdempotencyConfig,
-    CostPredictabilityConfig,
-    ThreatResponseConfig,
-    ContextWindowConfig,
-    LatencyAttributionConfig,
 )
-
-# Task 6: QuickEval — 원스톱 평가 Facade
-from .quick_eval import QuickEval, HarnessEvaluationGate, CompareResult
+from .exceptions import (
+    AgentEvaluatorError,
+    ConfigurationError,
+    FrameworkNotInstalledError,
+    InvalidOperationError,
+    MetricComputationError,
+    StorageError,
+    ValidationError,
+)
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
 
-# Conversation Evaluation (Phase 1-C)
-from .core.trackers.conversation import ConversationSession, ConversationMetrics, ConversationTurn
+# Framework-agnostic utilities (경량)
+from .integrations.framework_integrations import (
+    EvaluatorProtocol,
+    to_crew_inputs,
+    to_graph_state,
+    to_task_string,
+)
 
-# Anomaly Detection (Phase 3-B)
-from .anomaly import AnomalyDetector, AnomalyEvent
+# Task 6: QuickEval — 원스톱 평가 Facade
+from .quick_eval import CompareResult, HarnessEvaluationGate, QuickEval
 
-# Cost Optimization (Phase 3-C)
-from .cost import CostTracker, AdaptivePolicy, SamplingStage
+# Transparency
+from .utils.transparency_manager import (
+    AnnotationType,
+    TestStepStatus,
+    TestTransparencyManager,
+)
 
 # ---------------------------------------------------------------------------
 # Lazy imports — 무거운 패키지(litellm, crewai, autogen, langchain, etc.)는

@@ -10,19 +10,19 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def eval_observability(
-    tool_calls: List[Dict[str, Any]],
-    task_result_extra: Dict[str, Any],
+    tool_calls: list[dict[str, Any]],
+    task_result_extra: dict[str, Any],
     task_id: str,
     task_type: str,
     execution_time_s: float,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Trace 완성도·필수 속성 존재 여부·감사 이벤트 커버리지를 측정한다.
 
     Args:
@@ -39,18 +39,18 @@ def eval_observability(
     # BUG-G2 fix: `or [...]` falsy trap — required_span_attributes=[] means "check nothing",
     # must use explicit None check instead of truthy override.
     _raw_attrs = getattr(config, "required_span_attributes", None)
-    required_attrs: List[str] = (
+    required_attrs: list[str] = (
         _raw_attrs if _raw_attrs is not None
         else ["task_id", "task_type", "execution_time"]
     )
     check_continuity: bool = getattr(config, "check_trace_continuity", True)
-    audit_events: List[str] = getattr(config, "audit_events", []) or []
+    audit_events: list[str] = getattr(config, "audit_events", []) or []
     # BUG-G3 fix: `or 0.95` falsy trap — min_coverage=0.0 must not be overridden.
     _raw_cov = getattr(config, "min_coverage", None)
     min_coverage: float = _raw_cov if _raw_cov is not None else 0.95
 
     extra = task_result_extra or {}
-    actual_attrs: Dict[str, Any] = {
+    actual_attrs: dict[str, Any] = {
         "task_id": task_id,
         "task_type": task_type,
         "execution_time": execution_time_s,
@@ -105,8 +105,8 @@ def eval_observability(
 
 
 def eval_explainability(
-    response: str, tool_calls: List[Any], config: Any
-) -> Dict[str, Any]:
+    response: str, tool_calls: list[Any], config: Any
+) -> dict[str, Any]:
     """에이전트 응답에 필요한 설명이 포함되어 있는지 평가한다.
 
     Args:
@@ -118,8 +118,8 @@ def eval_explainability(
         {score, checks, violations, has_reasoning, has_citations}
     """
     response_lower = response.lower() if response else ""
-    checks: Dict[str, bool] = {}
-    violations: List[str] = []
+    checks: dict[str, bool] = {}
+    violations: list[str] = []
 
     require_reasoning = getattr(config, "require_reasoning", True)
     reasoning_markers = getattr(config, "reasoning_markers", [])
@@ -154,9 +154,9 @@ def eval_explainability(
     # Action-Explanation Alignment check (check_action_explanation_alignment=True)
     # 각 도구 호출이 응답에서 언급(설명)되는지 확인
     # 도구명을 underscore 분리 후 핵심 토큰이 응답에 있는지 검사
-    unexplained_tools: List[str] = []
+    unexplained_tools: list[str] = []
     if getattr(config, "check_action_explanation_alignment", False) and tool_calls:
-        _tool_names_expl: List[str] = []
+        _tool_names_expl: list[str] = []
         for tc in tool_calls:
             if isinstance(tc, dict):
                 _n = tc.get("name") or tc.get("tool", "")
@@ -183,7 +183,7 @@ def eval_explainability(
     # checks가 비었으면 요구 사항 없음 → score=None으로 Gate G 집계에서 제외
     # (요구사항을 모두 비활성화한 상태에서 만점 1.0이 Gate G에 기여되던 문제 방지)
     passed = sum(1 for v in checks.values() if v)
-    score: Optional[float] = passed / len(checks) if checks else None
+    score: float | None = passed / len(checks) if checks else None
 
     return {
         "score": round(score, 4) if score is not None else None,
@@ -196,11 +196,11 @@ def eval_explainability(
 
 
 def eval_error_diagnosis(
-    response: Optional[str],
+    response: str | None,
     has_error: bool,
     task_success: bool,
     config: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """오류 진단 품질 평가 (Harness G — Observability).
 
     실패 응답이 오류를 인정하고, 근본 원인을 제시하며, 대안을 제안하는지 평가한다.
@@ -257,9 +257,9 @@ def eval_error_diagnosis(
 
 def eval_latency_attribution(
     execution_time_ms: float,
-    extra: Optional[Dict[str, Any]],
+    extra: dict[str, Any] | None,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Evaluate latency breakdown across components.
 
     Args:

@@ -12,14 +12,15 @@ Data Registry Module
 - 파일 락(fcntl/msvcrt)을 사용하여 멀티프로세스 환경에서 안전하게 동작
 - CI/CD 파이프라인, 병렬 테스트 환경에서도 데이터 무결성 보장
 """
+from __future__ import annotations
 
 import json
 import logging
 import sys
 import time
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, List, Any
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,8 @@ class DataRegistry:
     def register_data_file(
         cls,
         filepath: str,
-        project_name: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        project_name: str | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> bool:
         """
         데이터 파일을 레지스트리에 등록
@@ -185,7 +186,7 @@ class DataRegistry:
             logger.debug("File lock release failed (ignored): %s", _e)
 
     @classmethod
-    def _load_registry(cls) -> Dict[str, Any]:
+    def _load_registry(cls) -> dict[str, Any]:
         """
         레지스트리 파일 로드 (동시성 안전)
 
@@ -224,7 +225,7 @@ class DataRegistry:
             }
 
     @classmethod
-    def _save_registry(cls, registry: Dict[str, Any]) -> bool:
+    def _save_registry(cls, registry: dict[str, Any]) -> bool:
         """
         레지스트리 파일 저장 (동시성 안전)
 
@@ -259,8 +260,8 @@ class DataRegistry:
     @classmethod
     def get_all_data_files(
         cls,
-        project_name: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        project_name: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         등록된 모든 데이터 파일 가져오기
 
@@ -292,7 +293,7 @@ class DataRegistry:
         return data_files
 
     @classmethod
-    def get_projects(cls) -> List[Dict[str, Any]]:
+    def get_projects(cls) -> list[dict[str, Any]]:
         """
         등록된 모든 프로젝트 정보 가져오기
 
@@ -308,7 +309,7 @@ class DataRegistry:
         data_files = registry["data_files"].values()
 
         # 프로젝트별로 그룹화
-        projects_dict: Dict[str, Dict[str, Any]] = {}
+        projects_dict: dict[str, dict[str, Any]] = {}
 
         for entry in data_files:
             project = entry.get("project_name", "unknown")
@@ -371,7 +372,7 @@ class DataRegistry:
         return removed_count
 
     @classmethod
-    def get_registry_info(cls) -> Dict[str, Any]:
+    def get_registry_info(cls) -> dict[str, Any]:
         """
         레지스트리 전체 정보 가져오기
 

@@ -9,7 +9,7 @@ decorators.py는 이 모듈을 re-export하여 하위호환을 유지한다.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 
 @dataclasses.dataclass
@@ -117,9 +117,9 @@ class StateConsistencyConfig:
                     ))
         def agent(question, ground_truth=""): ...
     """
-    state_fn: Optional[Callable[[], Dict[str, Any]]] = None
-    expected_changes: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    unchanged_keys: List[str] = dataclasses.field(default_factory=list)
+    state_fn: Callable[[], dict[str, Any]] | None = None
+    expected_changes: dict[str, Any] = dataclasses.field(default_factory=dict)
+    unchanged_keys: list[str] = dataclasses.field(default_factory=list)
     fail_on_unexpected_change: bool = False
 
     def __post_init__(self) -> None:
@@ -219,10 +219,10 @@ class ScopeConfig:
                     scope=ScopeConfig(allowed_tools=["search", "summarize"], fail_on_violation=True))
         def agent(question, ground_truth=""): ...
     """
-    allowed_tools: List[str] = dataclasses.field(default_factory=list)
-    forbidden_tools: List[str] = dataclasses.field(default_factory=list)
-    max_tool_calls: Optional[int] = None
-    max_unique_tools: Optional[int] = None
+    allowed_tools: list[str] = dataclasses.field(default_factory=list)
+    forbidden_tools: list[str] = dataclasses.field(default_factory=list)
+    max_tool_calls: int | None = None
+    max_unique_tools: int | None = None
     fail_on_violation: bool = False
     violation_penalty: float = 0.2  # 위반 1건당 penalty (forbidden/out_of_scope/excess)
 
@@ -289,8 +289,8 @@ class ToolParameterSafetyConfig:
                         forbidden_argument_keys={"shell_exec": ["cmd"]}))
         def agent(question, ground_truth=""): ...
     """
-    tool_schemas: Dict[str, Dict[str, Any]] = dataclasses.field(default_factory=dict)
-    dangerous_patterns: List[str] = dataclasses.field(default_factory=lambda: [
+    tool_schemas: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)
+    dangerous_patterns: list[str] = dataclasses.field(default_factory=lambda: [
         r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
     ])
     # SPEC-024 REQ-1: dangerous_patterns 검사를 지정된 도구 이름으로만 한정한다.
@@ -301,8 +301,8 @@ class ToolParameterSafetyConfig:
     # (예: 메모리 저장 도구)의 자연어 파라미터 안에서도 매치될 수 있다 — 실제로
     # `dangerous_patterns=[r"\brm\s+\S"]`가 `save_memory` 도구의
     # "...rm 시도가 거부됨..." 같은 텍스트를 오탐하는 것을 재현해 확인했다.
-    scope_tool_names: Optional[List[str]] = None
-    forbidden_argument_keys: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
+    scope_tool_names: list[str] | None = None
+    forbidden_argument_keys: dict[str, list[str]] = dataclasses.field(default_factory=dict)
     max_argument_length: int = 2000
     fail_on_dangerous: bool = False
     violation_penalty: float = 0.25  # 위험 도구 1개당 penalty (IdempotencyConfig.non_idempotent_penalty와 동일 역할)

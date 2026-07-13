@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent_evaluator.helpers.taskresult_helpers import _token_overlap_ratio
 
@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 def eval_loop_detection(
-    tool_calls: List[Dict[str, Any]],
-    chain_steps: Optional[List[Dict[str, Any]]],
+    tool_calls: list[dict[str, Any]],
+    chain_steps: list[dict[str, Any]] | None,
     config: Any,
-    response: Optional[str] = None,
-    previous_responses: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    response: str | None = None,
+    previous_responses: list[str] | None = None,
+) -> dict[str, Any]:
     """도구 호출 패턴에서 루프(연속 반복·윈도우 중복)를 감지.
 
     Args:
@@ -54,7 +54,7 @@ def eval_loop_detection(
     # 볼 수 없으므로 루프 탐지 대상에서 제외. 미포함 시 name="" 3개가 consecutive loop으로 오탐.
     names = [tc.get("name", "") for tc in source if isinstance(tc, dict) and tc.get("name")]
 
-    _detected_loops: List[Dict[str, Any]] = []
+    _detected_loops: list[dict[str, Any]] = []
 
     if names:
         # 1. 연속 반복 감지 — 모든 연속 반복 구간 수집 (early-return 제거로 복수 루프 타입 동시 감지)
@@ -114,7 +114,7 @@ def eval_loop_detection(
 
     _any_detected = len(_detected_loops) > 0
     _first = _detected_loops[0] if _any_detected else {}
-    _result: Dict[str, Any] = {
+    _result: dict[str, Any] = {
         "detected": _any_detected,
         "loop_type": _first.get("loop_type"),
         "loop_at_step": _first.get("loop_at_step"),
@@ -126,10 +126,10 @@ def eval_loop_detection(
 
 
 def eval_state_consistency(
-    state_before: Optional[Dict[str, Any]],
-    state_after: Optional[Dict[str, Any]],
+    state_before: dict[str, Any] | None,
+    state_after: dict[str, Any] | None,
     config: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """실행 전후 상태 비교로 상태 일관성 점수를 계산한다.
 
     Args:
@@ -154,13 +154,13 @@ def eval_state_consistency(
         )
         return None
 
-    expected_changes: Dict[str, Any] = getattr(config, "expected_changes", {}) or {}
-    unchanged_keys: List[str] = getattr(config, "unchanged_keys", []) or []
+    expected_changes: dict[str, Any] = getattr(config, "expected_changes", {}) or {}
+    unchanged_keys: list[str] = getattr(config, "unchanged_keys", []) or []
 
     all_keys = set(state_before.keys()) | set(state_after.keys())
-    state_delta: Dict[str, Any] = {}
-    unexpected_changes: List[str] = []
-    invariant_violations: List[str] = []
+    state_delta: dict[str, Any] = {}
+    unexpected_changes: list[str] = []
+    invariant_violations: list[str] = []
     checks_total = 0
     checks_passed = 0
 
@@ -169,7 +169,7 @@ def eval_state_consistency(
         after_val = state_after.get(key)
         changed = before_val != after_val
 
-        delta_entry: Dict[str, Any] = {
+        delta_entry: dict[str, Any] = {
             "before": before_val,
             "after": after_val,
             "changed": changed,
@@ -210,7 +210,7 @@ def eval_state_consistency(
 
     # checks_total=0이면 unchanged_keys·expected_changes 미설정 → 일관성 검사 없음 → None 반환
     # 0태스크 "완벽 일관성"으로 오해되지 않도록 None으로 구분
-    consistency_score: Optional[float] = (
+    consistency_score: float | None = (
         checks_passed / checks_total if checks_total > 0 else None
     )
 
@@ -228,14 +228,14 @@ def eval_state_consistency(
 
 def _normalize_agent_interactions(
     agent_interactions: Any,
-) -> Dict[Any, Any]:
+) -> dict[Any, Any]:
     """agent_interactions를 eval_deadlock이 처리할 수 있는 dict 포맷으로 정규화.
 
     List[Dict] 형식 (EvalMetadata.agent_interactions) → {(from, to): {"calls": N, "successes": M}}
     dict 형식은 그대로 반환.
     """
     if isinstance(agent_interactions, list):
-        result: Dict[Any, Any] = {}
+        result: dict[Any, Any] = {}
         for item in agent_interactions:
             if not isinstance(item, dict):
                 continue
@@ -256,10 +256,10 @@ def _normalize_agent_interactions(
 
 
 def eval_deadlock(
-    tool_calls: List[Dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
     agent_interactions: Any,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """다중 에이전트 교착(deadlock) 탐지.
 
     Args:
@@ -285,9 +285,9 @@ def eval_deadlock(
     agent_interactions = _normalize_agent_interactions(agent_interactions)
 
     deadlock_detected = False
-    deadlock_type: Optional[str] = None
-    cycle_path: List[str] = []
-    starved_agents: List[str] = []
+    deadlock_type: str | None = None
+    cycle_path: list[str] = []
+    starved_agents: list[str] = []
 
     # tool_calls에서 agent 위임 체인 추출
     # tool name이 "agent_" 접두어 또는 "delegate_"를 가지면 에이전트 호출로 간주
@@ -304,7 +304,7 @@ def eval_deadlock(
     # 예: A→B, A→C, A→D 순차 호출은 depth=1이지만 len=3으로 잘못 계산됨
     # B-44: int(tc["depth"])가 비숫자 문자열("deep" 등)이면 ValueError 크래시
     # try/except로 각 항목을 개별 변환 — 변환 실패 항목은 건너뜀
-    _depth_values: List[int] = []
+    _depth_values: list[int] = []
     for _tc in delegation_calls:
         _d = _tc.get("depth")
         if _d is not None:
@@ -318,7 +318,7 @@ def eval_deadlock(
     # agent_interactions로 directed graph 구성 후 cycle 탐지 (DFS)
     if check_circular and agent_interactions:
         # agent_interactions: {(caller, callee): count} 또는 {caller: [callee, ...]}
-        adj: Dict[str, List[str]] = {}
+        adj: dict[str, list[str]] = {}
         for key, val in agent_interactions.items():
             if isinstance(key, (tuple, list)) and len(key) == 2:
                 caller, callee = str(key[0]), str(key[1])
@@ -329,9 +329,9 @@ def eval_deadlock(
         # DFS cycle 탐지
         visited: set = set()
         rec_stack: set = set()
-        found_cycle: List[str] = []
+        found_cycle: list[str] = []
 
-        def _dfs(node: str, path: List[str]) -> bool:
+        def _dfs(node: str, path: list[str]) -> bool:
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
@@ -368,9 +368,9 @@ def eval_deadlock(
     # starvation 탐지: 에이전트가 N회 이상 호출됐으나 완료 없음
     # success 정보가 있는 항목만 starvation 판별에 사용 (tuple/int 포맷은 호출 수만 알고 성공 여부 불명)
     if check_starvation and agent_interactions:
-        call_counts: Dict[str, int] = {}
-        success_counts: Dict[str, int] = {}
-        has_success_info: Dict[str, bool] = {}  # 에이전트별 success 정보 보유 여부
+        call_counts: dict[str, int] = {}
+        success_counts: dict[str, int] = {}
+        has_success_info: dict[str, bool] = {}  # 에이전트별 success 정보 보유 여부
         for key, val in agent_interactions.items():
             if isinstance(key, (tuple, list)) and len(key) == 2:
                 callee = str(key[1])
@@ -444,7 +444,7 @@ def eval_deadlock(
     }
 
 
-def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
+def eval_scope(tool_calls: list[Any], config: Any) -> dict[str, Any]:
     """도구 사용 범위 경계 위반 여부를 평가한다.
 
     Args:
@@ -454,7 +454,7 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
     Returns:
         {in_scope, violations, violation_tools, excess_calls, unique_tools, scope_score}
     """
-    tool_names: List[str] = []
+    tool_names: list[str] = []
     for tc in (tool_calls or []):
         if isinstance(tc, dict):
             name = tc.get("name") or tc.get("tool") or tc.get("function", {}).get("name", "")
@@ -477,7 +477,7 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
             "scope_score": None,  # 측정 데이터 없음 — 집계에서 제외
         }
 
-    violations: List[str] = []
+    violations: list[str] = []
     forbidden_tools = getattr(config, "forbidden_tools", []) or []
     allowed_tools = getattr(config, "allowed_tools", []) or []
     max_tool_calls = getattr(config, "max_tool_calls", None)
@@ -529,7 +529,7 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
         scope_score = max(0.0, 1.0 - _tool_viol_count * _vp - _excess_call_pen - _excess_unique_pen)
 
     # violation_tools: forbidden/out_of_scope 타입만 tool name 추출 (excess_calls:5 같은 숫자 제외)
-    _vt: List[str] = []
+    _vt: list[str] = []
     for _v in violations:
         if _v.startswith("forbidden:") or _v.startswith("out_of_scope:"):
             _tool = _v.split(":", 1)[-1]
@@ -550,7 +550,7 @@ _BASE64_CANDIDATE_RE = re.compile(r"[A-Za-z0-9+/]{8,}={0,2}")
 _HEX_CANDIDATE_RE = re.compile(r"(?:[0-9a-fA-F]{2}){6,}")
 
 
-def _extract_decoded_candidates(text: str, max_depth: int = 2) -> List[str]:
+def _extract_decoded_candidates(text: str, max_depth: int = 2) -> list[str]:
     """``text``에서 base64/hex로 보이는 하위 문자열을 디코드해 후보 목록으로 반환한다
     (SPEC-033 REQ-2) — ``eval_tool_parameter_safety()``가 ``dangerous_patterns``를
     평문뿐 아니라 흔한 인코딩으로 우회한 내용에도 재매치할 수 있게 하기 위함이다.
@@ -576,7 +576,7 @@ def _extract_decoded_candidates(text: str, max_depth: int = 2) -> List[str]:
     if max_depth <= 0:
         return []
 
-    candidates: List[str] = []
+    candidates: list[str] = []
 
     def _is_mostly_printable(s: str) -> bool:
         if not s:
@@ -601,7 +601,7 @@ def _extract_decoded_candidates(text: str, max_depth: int = 2) -> List[str]:
             candidates.append(decoded)
 
     # 재귀 — 채택된 후보 안에 또 다른 인코딩 레이어가 있을 수 있다(이중 인코딩).
-    nested: List[str] = []
+    nested: list[str] = []
     for candidate in candidates:
         nested.extend(_extract_decoded_candidates(candidate, max_depth=max_depth - 1))
     candidates.extend(nested)
@@ -609,7 +609,7 @@ def _extract_decoded_candidates(text: str, max_depth: int = 2) -> List[str]:
     return candidates
 
 
-def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> Dict[str, Any]:
+def eval_tool_parameter_safety(tool_calls: list[Any] | None, config: Any) -> dict[str, Any]:
     """도구 호출 파라미터 안전성 검사 (Harness B — Behavioral Integrity).
 
     Args:
@@ -622,8 +622,8 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
     """
     import json as _json
 
-    dangerous_calls: List[str] = []
-    violations: List[str] = []
+    dangerous_calls: list[str] = []
+    violations: list[str] = []
     checked_calls = 0
 
     for tc in (tool_calls or []):
@@ -759,9 +759,9 @@ def eval_tool_parameter_safety(tool_calls: Optional[List[Any]], config: Any) -> 
     _vp = getattr(config, "violation_penalty", 0.25)
     penalty = len(set(dangerous_calls)) * _vp
     # checked_calls=0이면 None 반환 — 도구 없는 태스크가 Gate B를 1.0으로 인플레이션하는 것을 방지
-    safety_score: Optional[float] = max(0.0, 1.0 - penalty) if checked_calls > 0 else None
+    safety_score: float | None = max(0.0, 1.0 - penalty) if checked_calls > 0 else None
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "safety_score": round(safety_score, 4) if safety_score is not None else None,
         "dangerous_calls": dangerous_calls,
         "violations": violations,
@@ -778,7 +778,7 @@ def eval_context_window(
     response: str,
     tokens_used: int,
     config: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Evaluate context window utilization and information density.
 
     Args:
@@ -809,7 +809,7 @@ def eval_context_window(
     words = (response or "").lower().split()
     repetition_score = 1.0
     if len(words) >= 4:
-        ngrams: Dict[str, int] = {}
+        ngrams: dict[str, int] = {}
         for i in range(len(words) - 3):
             gram = " ".join(words[i:i + 4])
             ngrams[gram] = ngrams.get(gram, 0) + 1

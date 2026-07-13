@@ -17,7 +17,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class AnomalyEvent:
     detected_at: str = field(default_factory=lambda: datetime.now().isoformat())
     algorithm: str = ""   # z-score, iqr, linear_regression, ratio
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "type": self.type,
             "severity": self.severity,
@@ -57,11 +57,11 @@ class AnomalyEvent:
         }
 
 
-def _mean(values: List[float]) -> float:
+def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def _std(values: List[float]) -> float:
+def _std(values: list[float]) -> float:
     if len(values) < 2:
         return 0.0
     m = _mean(values)
@@ -69,7 +69,7 @@ def _std(values: List[float]) -> float:
     return math.sqrt(variance)
 
 
-def _iqr(values: List[float]) -> tuple:
+def _iqr(values: list[float]) -> tuple:
     """Q1, Q3, IQR 반환."""
     if not values:
         return 0.0, 0.0, 0.0
@@ -80,7 +80,7 @@ def _iqr(values: List[float]) -> tuple:
     return q1, q3, q3 - q1
 
 
-def _linear_regression_slope(values: List[float]) -> float:
+def _linear_regression_slope(values: list[float]) -> float:
     """단순 선형 회귀 기울기 반환 (y=ax+b 에서 a)."""
     n = len(values)
     if n < 2:
@@ -114,7 +114,7 @@ class AnomalyDetector:
         self.baseline_window = baseline_window
         self.detection_window = detection_window
 
-    def scan(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def scan(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         """모든 이상 탐지 규칙을 실행하고 탐지된 이상 목록을 반환한다.
 
         Args:
@@ -123,7 +123,7 @@ class AnomalyDetector:
         Returns:
             탐지된 AnomalyEvent 목록. 이상 없으면 빈 리스트.
         """
-        events: List[AnomalyEvent] = []
+        events: list[AnomalyEvent] = []
         events.extend(self._check_latency_trend(monitor))
         events.extend(self._check_accuracy_drift(monitor))
         events.extend(self._check_token_spike(monitor))
@@ -132,7 +132,7 @@ class AnomalyDetector:
         events.extend(self._check_feedback_negativity(monitor))
         return events
 
-    def _get_latencies(self, monitor: PerformanceMonitor) -> List[float]:
+    def _get_latencies(self, monitor: PerformanceMonitor) -> list[float]:
         try:
             latency_data = monitor.latency_tracker.latencies
             # LatencyTracker stores "total_time"; "execution_time" is a legacy fallback
@@ -144,14 +144,14 @@ class AnomalyDetector:
         except Exception:
             return []
 
-    def _get_accuracies(self, monitor: PerformanceMonitor) -> List[float]:
+    def _get_accuracies(self, monitor: PerformanceMonitor) -> list[float]:
         try:
             evals = monitor.accuracy_evaluator.evaluations
             return [e["accuracy"] for e in evals if isinstance(e, dict) and e.get("accuracy") is not None]
         except Exception:
             return []
 
-    def _get_tokens(self, monitor: PerformanceMonitor) -> List[float]:
+    def _get_tokens(self, monitor: PerformanceMonitor) -> list[float]:
         try:
             usage_log = monitor.token_tracker.usage_log
             return [entry.get("total_tokens", 0) for entry in usage_log if isinstance(entry, dict)]
@@ -183,7 +183,7 @@ class AnomalyDetector:
         except Exception:
             return 0.0, 0.0
 
-    def _check_latency_trend(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_latency_trend(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         latencies = self._get_latencies(monitor)
         if len(latencies) < _TREND_MIN_POINTS:
             return []
@@ -202,7 +202,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_accuracy_drift(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_accuracy_drift(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         accuracies = self._get_accuracies(monitor)
         if len(accuracies) < _TREND_MIN_POINTS:
             return []
@@ -229,7 +229,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_token_spike(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_token_spike(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         tokens = self._get_tokens(monitor)
         if len(tokens) < _TREND_MIN_POINTS:
             return []
@@ -252,7 +252,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_error_surge(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_error_surge(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         recent_rate, base_rate = self._get_error_rate(monitor)
         if recent_rate > _ERROR_SURGE_THRESHOLD and recent_rate > base_rate * 2:
             severity = "critical" if recent_rate > 0.3 else "warning"
@@ -296,7 +296,7 @@ class AnomalyDetector:
         except Exception:
             return 0.0, 0.0
 
-    def _check_feedback_negativity(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_feedback_negativity(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         """SPEC-026 REQ-5: 부정적 암묵 피드백 급증 — ``_check_error_surge``와 동일한
         비율 기반 판정(기준선 대비 2배 이상 + 절대 임계값 초과)을 그대로 적용한다."""
         recent_rate, base_rate = self._get_feedback_negativity_rate(monitor)
@@ -315,7 +315,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_security_pattern(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
+    def _check_security_pattern(self, monitor: PerformanceMonitor) -> list[AnomalyEvent]:
         try:
             if monitor.input_sanitizer is None:
                 return []
@@ -339,7 +339,7 @@ class AnomalyDetector:
             logger.debug("Security anomaly detection failed (ignored): %s", _e)
         return []
 
-    def explain_event(self, event: AnomalyEvent) -> Dict[str, Any]:
+    def explain_event(self, event: AnomalyEvent) -> dict[str, Any]:
         """이상 이벤트의 원인과 권고사항을 반환한다 (F1).
 
         Args:
@@ -376,7 +376,7 @@ class AnomalyDetector:
             "detected_at": event.detected_at,
         }
 
-    def scan_with_explain(self, monitor: PerformanceMonitor) -> List[Dict[str, Any]]:
+    def scan_with_explain(self, monitor: PerformanceMonitor) -> list[dict[str, Any]]:
         """scan()을 실행하고 각 이벤트에 explain()을 자동 적용한다 (F1).
 
         Returns:

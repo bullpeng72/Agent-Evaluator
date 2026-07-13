@@ -18,7 +18,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/golden", tags=["golden"])
 
 class GoldenCreateBody(BaseModel):
     name: str = "golden_dataset"
-    items: List[Any] = []
+    items: list[Any] = []
 
 # ---------------------------------------------------------------------------
 # PDF helpers (used by both /pdf and /pdf-advanced)
@@ -84,17 +84,17 @@ def _clean_text(raw: str) -> str:
     return text.strip()
 
 
-def _split_passages(text: str, target_len: int = 400) -> List[str]:
+def _split_passages(text: str, target_len: int = 400) -> list[str]:
     """Split cleaned text into word-based fixed-size passages of ~target_len chars.
 
     Uses word-boundary splitting instead of sentence-boundary regex, which is
     more robust for Korean ebooks where sentence-ending patterns may vary.
     """
     words = text.split()
-    passages: List[str] = []
+    passages: list[str] = []
     i = 0
     while i < len(words):
-        chunk_words: List[str] = []
+        chunk_words: list[str] = []
         chunk_len = 0
         while i < len(words) and chunk_len < target_len:
             chunk_words.append(words[i])
@@ -346,7 +346,7 @@ def _golden_dir(request: Request) -> Path:
 
 
 @router.get("", summary="Golden dataset list")
-def list_golden(request: Request) -> List[Dict[str, Any]]:
+def list_golden(request: Request) -> list[dict[str, Any]]:
     """Return the list of .json files in the golden dataset directory.
 
     Each entry includes ``name``, ``stem``, ``size_bytes``, and ``count`` (number of QA cases).
@@ -371,7 +371,7 @@ def list_golden(request: Request) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 @router.get("/candidates", summary="Golden set candidate list")
-def list_candidates(request: Request) -> List[Dict[str, Any]]:
+def list_candidates(request: Request) -> list[dict[str, Any]]:
     """Return the list of *candidates*.json files (searched regardless of prefix)."""
     gdir = _golden_dir(request)
     result = []
@@ -398,7 +398,7 @@ def list_candidates(request: Request) -> List[Dict[str, Any]]:
 
 
 @router.get("/candidates/{name}", summary="Candidate file detail")
-def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
+def get_candidate_file(name: str, request: Request) -> list[dict[str, Any]]:
     """Return the case list from a candidate file (with index)."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -413,7 +413,7 @@ def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
 
 
 @router.post("/candidates/{name}/approve/{idx}", summary="Approve individual case")
-def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
+def approve_case(name: str, idx: int, request: Request) -> dict[str, Any]:
     """Approve a single case — sets _approved=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -435,7 +435,7 @@ def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
 
 
 @router.post("/candidates/{name}/reject/{idx}", summary="Reject individual case")
-def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
+def reject_case(name: str, idx: int, request: Request) -> dict[str, Any]:
     """Reject a single case — sets _rejected=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -461,8 +461,8 @@ def bulk_approve_cases(
     name: str,
     request: Request,
     min_accuracy: float = Query(default=0.0, ge=0.0, le=1.0),
-    indices: Optional[List[int]] = Query(default=None),
-) -> Dict[str, Any]:
+    indices: list[int] | None = Query(default=None),
+) -> dict[str, Any]:
     """Condition-based bulk approval.
 
     - If min_accuracy > 0, only approve cases with that score or higher.
@@ -478,7 +478,7 @@ def bulk_approve_cases(
             try:
                 data = _read_json(p)
                 cases = data if isinstance(data, list) else []
-                approved_indices: List[int] = []
+                approved_indices: list[int] = []
 
                 for i, case in enumerate(cases):
                     # 인덱스 필터
@@ -508,7 +508,7 @@ def bulk_approve_cases(
 
 
 @router.post("/candidates/{name}/merge", summary="Merge approved cases")
-def merge_approved(name: str, request: Request) -> Dict[str, Any]:
+def merge_approved(name: str, request: Request) -> dict[str, Any]:
     """Merge approved cases into the golden set — creates a new golden_*.json file."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -539,7 +539,7 @@ def merge_approved(name: str, request: Request) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/versions", summary="Golden set version list")
-def list_versions(request: Request) -> List[Dict[str, Any]]:
+def list_versions(request: Request) -> list[dict[str, Any]]:
     """Golden set version list of golden_*.json files (excludes candidates)."""
     gdir = _golden_dir(request)
     result = []
@@ -560,7 +560,7 @@ def list_versions(request: Request) -> List[Dict[str, Any]]:
 
 
 @router.post("", summary="Create golden dataset")
-async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:
+async def create_golden(request: Request, body: GoldenCreateBody) -> dict[str, Any]:
     """Create a new golden dataset file.
 
     Specify the filename via ``body.name`` and pass QA cases in the ``body.items`` array.
@@ -598,7 +598,7 @@ async def save_golden(
     name: str,
     request: Request,
     body: Any = Body(..., description="Full golden dataset content (list or dict)"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Overwrite and save a golden dataset file.
 
     Used when saving the full contents after editing cases in the dashboard.
@@ -617,7 +617,7 @@ async def save_golden(
 
 
 @router.delete("/{name}", summary="Delete golden dataset")
-def delete_golden(name: str, request: Request) -> Dict[str, Any]:
+def delete_golden(name: str, request: Request) -> dict[str, Any]:
     """Delete a golden dataset file.
 
     Returns 400 if ``..`` is found in name to prevent path traversal attacks.
@@ -641,7 +641,7 @@ def delete_golden(name: str, request: Request) -> Dict[str, Any]:
 async def extract_pdf(
     file: UploadFile = File(...),
     num_items: int = Form(default=10),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract text from a PDF and return evenly-sampled QA pairs.
 
     Improvements over the naive paragraph split:
@@ -736,7 +736,7 @@ async def extract_pdf(
         step = len(all_passages) / n
         selected = [all_passages[int(i * step)] for i in range(n)]
 
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for i, passage in enumerate(selected, 1):
         answer = _extract_answer(passage)
         items.append({
@@ -764,7 +764,7 @@ async def generate_pdf_qa_advanced(
     num_questions: int = Form(default=3),
     max_chunks: int = Form(default=10),
     question_types: str = Form(default="factual,reasoning,summary"),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate high-quality Korean QA pairs from a PDF using OpenAI LLM.
 
     Uses KoreanRAGDatasetGenerator: PDF → text chunking → GPT QA generation.
@@ -794,7 +794,7 @@ async def generate_pdf_qa_advanced(
 
     content = await file.read()
     original_name = file.filename
-    qtypes: Optional[List[str]] = [q.strip() for q in question_types.split(",") if q.strip()] or None
+    qtypes: list[str] | None = [q.strip() for q in question_types.split(",") if q.strip()] or None
 
     def _generate():
         try:

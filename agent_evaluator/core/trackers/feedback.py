@@ -6,11 +6,13 @@ ImplicitFeedbackTracker — Phase 2-C 운영 피드백 수집
 부정: regenerate, thumbs_down, abandon, correction
 """
 from __future__ import annotations
+
 import threading
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from .base import BaseTracker
+from typing import Any
+
 from ...exceptions import ValidationError
+from .base import BaseTracker
 
 POSITIVE_TYPES = frozenset({"copy", "thumbs_up", "share", "save", "follow_up_depth"})
 NEGATIVE_TYPES = frozenset({"regenerate", "thumbs_down", "abandon", "correction"})
@@ -20,15 +22,15 @@ class ImplicitFeedbackTracker(BaseTracker):
     """사용자 암묵적 행동 신호 기반 피드백 수집 트래커."""
 
     def __init__(self) -> None:
-        self._feedbacks: List[Dict[str, Any]] = []
+        self._feedbacks: list[dict[str, Any]] = []
         self._lock = threading.Lock()
 
     @property
-    def feedbacks(self) -> List[Dict[str, Any]]:
+    def feedbacks(self) -> list[dict[str, Any]]:
         with self._lock:
             return list(self._feedbacks)
 
-    def record(self, task_id: str, feedback_type: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def record(self, task_id: str, feedback_type: str, metadata: dict[str, Any] | None = None) -> None:
         """피드백 기록.
 
         Args:
@@ -56,7 +58,7 @@ class ImplicitFeedbackTracker(BaseTracker):
         with self._lock:
             self._feedbacks.append(entry)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """피드백 통계 반환.
 
         Returns:
@@ -82,7 +84,7 @@ class ImplicitFeedbackTracker(BaseTracker):
 
         positive = sum(1 for f in fb if f["is_positive"])
         negative = total - positive
-        type_dist: Dict[str, int] = {}
+        type_dist: dict[str, int] = {}
         for f in fb:
             t = f["feedback_type"]
             type_dist[t] = type_dist.get(t, 0) + 1
@@ -98,7 +100,7 @@ class ImplicitFeedbackTracker(BaseTracker):
             "type_distribution": type_dist,
         }
 
-    def get_task_feedbacks(self, task_id: str) -> List[Dict[str, Any]]:
+    def get_task_feedbacks(self, task_id: str) -> list[dict[str, Any]]:
         """특정 태스크의 피드백 목록 반환."""
         with self._lock:
             return [f for f in self._feedbacks if f["task_id"] == task_id]

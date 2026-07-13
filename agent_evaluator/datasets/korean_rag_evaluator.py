@@ -9,30 +9,29 @@ Golden Dataset을 활용한 한국어 RAG 시스템 평가
 - 배치 평가 및 상세 리포트 생성
 - RAG 시스템 통합 인터페이스
 """
+from __future__ import annotations
 
 import json
 import os
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
 import pandas as pd
 
 # Agent Evaluator 통합
 from agent_evaluator import TaskResult, TaskType
 from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
-from .korean_rag_dataset_generator import (
-    GoldenDataset,
-    QAPair,
-    GoldenDatasetManager
-)
+
+from .korean_rag_dataset_generator import GoldenDataset, GoldenDatasetManager, QAPair
 
 # Ragas (선택적) — ragas 0.4.x API (EvaluationDataset / SingleTurnSample)
 try:
-    from ragas import evaluate, EvaluationDataset
+    from ragas import EvaluationDataset, evaluate
     from ragas.dataset_schema import SingleTurnSample
-    from ragas.metrics import Faithfulness, AnswerRelevancy, ContextRecall, ContextPrecision
     from ragas.llms import LangchainLLMWrapper
+    from ragas.metrics import AnswerRelevancy, ContextPrecision, ContextRecall, Faithfulness
     RAGAS_AVAILABLE = True
 except ImportError:
     RAGAS_AVAILABLE = False
@@ -47,8 +46,8 @@ class RAGResponse:
     """RAG 시스템 응답"""
     question: str
     answer: str
-    retrieved_contexts: List[str]
-    metadata: Dict[str, Any]
+    retrieved_contexts: list[str]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -58,20 +57,20 @@ class EvaluationResult:
     question: str
     expected_answer: str
     generated_answer: str
-    contexts: List[str]
+    contexts: list[str]
 
     # Ragas 메트릭
-    faithfulness: Optional[float] = None
-    answer_relevancy: Optional[float] = None
-    context_recall: Optional[float] = None
-    context_precision: Optional[float] = None
-    answer_similarity: Optional[float] = None
+    faithfulness: float | None = None
+    answer_relevancy: float | None = None
+    context_recall: float | None = None
+    context_precision: float | None = None
+    answer_similarity: float | None = None
 
     # 추가 정보
     evaluation_time: float = 0.0
-    error: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    tokens_used: Optional[Dict[str, int]] = None
+    error: str | None = None
+    metadata: dict[str, Any] | None = None
+    tokens_used: dict[str, int] | None = None
 
 
 @dataclass
@@ -92,11 +91,11 @@ class RAGEvaluationReport:
     avg_answer_similarity: float
 
     # 상세 결과
-    detailed_results: List[EvaluationResult]
+    detailed_results: list[EvaluationResult]
 
     # 통계
-    statistics: Dict[str, Any]
-    metadata: Dict[str, Any]
+    statistics: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 # ============================================================================
@@ -155,11 +154,11 @@ class KoreanRAGEvaluator:
 
     def __init__(
         self,
-        rag_system: Optional[RAGSystemInterface] = None,
+        rag_system: RAGSystemInterface | None = None,
         use_ragas: bool = True,
         ragas_model: str = "gpt-5-nano",
-        output_dir: Optional[str] = None,
-        golden_datasets_dir: Optional[str] = None
+        output_dir: str | None = None,
+        golden_datasets_dir: str | None = None
     ):
         """
         Args:
@@ -200,7 +199,7 @@ class KoreanRAGEvaluator:
         self,
         dataset: GoldenDataset,
         use_hybrid_monitor: bool = False,
-        max_samples: Optional[int] = None
+        max_samples: int | None = None
     ) -> RAGEvaluationReport:
         """
         Golden Dataset으로 RAG 시스템 평가
@@ -217,7 +216,7 @@ class KoreanRAGEvaluator:
             raise ValueError("RAG 시스템이 설정되지 않았습니다. set_rag_system()을 호출하세요")
 
         print(f"\n{'='*80}")
-        print(f"한국어 RAG 시스템 평가 시작")
+        print("한국어 RAG 시스템 평가 시작")
         print(f"{'='*80}\n")
 
         print(f"📊 Dataset: {dataset.dataset_id}")
@@ -295,7 +294,7 @@ class KoreanRAGEvaluator:
         self,
         question: str,
         expected_answer: str,
-        ground_truth_context: Optional[str] = None
+        ground_truth_context: str | None = None
     ) -> EvaluationResult:
         """
         단일 질문 평가
@@ -378,9 +377,9 @@ class KoreanRAGEvaluator:
         self,
         question: str,
         answer: str,
-        contexts: List[str],
+        contexts: list[str],
         ground_truth: str
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Ragas 메트릭 계산 (ragas 0.4.x API)"""
         if not self.use_ragas:
             return {}
@@ -417,7 +416,7 @@ class KoreanRAGEvaluator:
             result = evaluate(dataset, metrics=metrics_list)
 
             # 결과 추출 — EvaluationResult[metric.name] returns list (one value per sample)
-            output: Dict[str, float] = {}
+            output: dict[str, float] = {}
             for metric_obj in metrics_list:
                 name = metric_obj.name
                 val = result[name]
@@ -432,7 +431,7 @@ class KoreanRAGEvaluator:
     def _generate_report(
         self,
         dataset: GoldenDataset,
-        results: List[EvaluationResult]
+        results: list[EvaluationResult]
     ) -> RAGEvaluationReport:
         """평가 리포트 생성"""
         # 성공/실패 카운트
@@ -510,7 +509,7 @@ class KoreanRAGEvaluator:
     def _print_report(self, report: RAGEvaluationReport):
         """리포트 출력"""
         print(f"{'='*80}")
-        print(f"📊 RAG 평가 리포트")
+        print("📊 RAG 평가 리포트")
         print(f"{'='*80}\n")
 
         print(f"리포트 ID: {report.report_id}")
@@ -519,7 +518,7 @@ class KoreanRAGEvaluator:
         print(f"소스 문서: {report.metadata.get('source_document', 'N/A')}\n")
 
         print(f"{'='*80}")
-        print(f"평가 결과 요약")
+        print("평가 결과 요약")
         print(f"{'='*80}\n")
 
         print(f"총 QA 쌍: {report.total_qa_pairs}개")
@@ -530,7 +529,7 @@ class KoreanRAGEvaluator:
 
         if report.successful_evaluations > 0:
             print(f"{'='*80}")
-            print(f"Ragas 메트릭 (평균)")
+            print("Ragas 메트릭 (평균)")
             print(f"{'='*80}\n")
 
             metrics = [
@@ -549,7 +548,7 @@ class KoreanRAGEvaluator:
                     print(f"? {name:20s}: N/A (목표: {threshold:.1f})")
 
             print(f"\n{'='*80}")
-            print(f"통계")
+            print("통계")
             print(f"{'='*80}\n")
 
             total_time = report.statistics.get('total_evaluation_time', 0)
@@ -634,7 +633,7 @@ class KoreanRAGEvaluator:
         return str(filepath)
 
     @staticmethod
-    def _extract_tokens(response_obj: Any) -> Optional[Dict[str, int]]:
+    def _extract_tokens(response_obj: Any) -> dict[str, int] | None:
         """다양한 LLM SDK 응답 객체에서 토큰 수를 추출한다.
 
         지원 포맷:
@@ -713,7 +712,7 @@ class SimpleRAGSystem(RAGSystemInterface):
     실제 사용 시 OpenAI, LangChain 등을 활용하여 구현
     """
 
-    def __init__(self, knowledge_base: List[str]):
+    def __init__(self, knowledge_base: list[str]):
         """
         Args:
             knowledge_base: 검색할 문서 리스트
@@ -738,7 +737,7 @@ class SimpleRAGSystem(RAGSystemInterface):
             metadata={"num_retrieved": len(retrieved_contexts)}
         )
 
-    def _retrieve(self, query: str, top_k: int = 3) -> List[str]:
+    def _retrieve(self, query: str, top_k: int = 3) -> list[str]:
         """간단한 키워드 매칭 검색"""
         query_words = set(query.lower().split())
 

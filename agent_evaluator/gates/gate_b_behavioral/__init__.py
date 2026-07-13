@@ -12,3 +12,5 @@ Gate B는 Gate A(Goal Achievement)의 avg_goal_alignment/avg_plan_coherence를 �
 재참조한다(스코어링에는 미포함) — monitor.py가 `_a_group["details"]`에서 값을 전달한다.
 원래 위치에는 하위호환을 위한 re-export만 남는다.
 """
+from __future__ import annotations
+

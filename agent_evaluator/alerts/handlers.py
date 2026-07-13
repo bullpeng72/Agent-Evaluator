@@ -7,7 +7,7 @@ import json
 import smtplib
 import urllib.request
 from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .engine import AlertEvent
@@ -32,9 +32,9 @@ class SlackHandler:
         self.channel = channel
         self.username = username
 
-    def send(self, event: "AlertEvent") -> None:
+    def send(self, event: AlertEvent) -> None:
         severity_emoji = "\U0001f6a8" if event.severity == "critical" else "\u26a0\ufe0f"
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "username": self.username,
             "text": f"{severity_emoji} *[{event.severity.upper()}]* {event.rule_name}",
             "attachments": [
@@ -69,14 +69,14 @@ class WebhookHandler:
         method: HTTP 메서드. Default "POST".
     """
 
-    def __init__(self, url: str, headers: Optional[Dict[str, str]] = None, method: str = "POST") -> None:
+    def __init__(self, url: str, headers: dict[str, str] | None = None, method: str = "POST") -> None:
         if not url:
             raise ValueError("url must not be empty")
         self.url = url
         self.headers = headers or {}
         self.method = method
 
-    def send(self, event: "AlertEvent") -> None:
+    def send(self, event: AlertEvent) -> None:
         payload = event.to_dict()
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         all_headers = {"Content-Type": "application/json"}
@@ -105,7 +105,7 @@ class EmailHandler:
 
     def __init__(self, smtp_host: str, smtp_port: int = 587,
                  username: str = "", password: str = "",
-                 from_addr: str = "", to_addrs: Optional[List[str]] = None) -> None:
+                 from_addr: str = "", to_addrs: list[str] | None = None) -> None:
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
         self.username = username
@@ -113,7 +113,7 @@ class EmailHandler:
         self.from_addr = from_addr
         self.to_addrs = to_addrs or []
 
-    def send(self, event: "AlertEvent") -> None:
+    def send(self, event: AlertEvent) -> None:
         severity_emoji = "\U0001f6a8" if event.severity == "critical" else "\u26a0\ufe0f"
         subject = f"{severity_emoji} [{event.severity.upper()}] Agent Evaluator: {event.rule_name}"
         msg = MIMEText(event.message, "plain", "utf-8")

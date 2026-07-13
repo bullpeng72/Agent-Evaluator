@@ -6,14 +6,14 @@ Helper functions for integrating with Dashboard storage settings.
 Allows examples and external code to save results directly to Dashboard's
 configured storage location.
 """
+from __future__ import annotations
 
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Optional
 
 
-def get_dashboard_storage_path(data_type: str = "results") -> Optional[Path]:
+def get_dashboard_storage_path(data_type: str = "results") -> Path | None:
     """
     Get storage path from Dashboard configuration
 
@@ -128,13 +128,13 @@ def print_save_location_info(filepath: Path):
 
     # Check if it's in Dashboard storage
     if "Dashboard" in str(abs_path) and "data" in str(abs_path):
-        print(f"📁 Saved to Dashboard storage")
+        print("📁 Saved to Dashboard storage")
         print(f"   Path: {abs_path}")
-        print(f"   💡 Viewable directly in the Dashboard!")
+        print("   💡 Viewable directly in the Dashboard!")
     else:
-        print(f"📁 Saved to local directory")
+        print("📁 Saved to local directory")
         print(f"   Path: {abs_path}")
-        print(f"   💡 Accessible from Dashboard via registry")
+        print("   💡 Accessible from Dashboard via registry")
 
 
 # Convenience function for examples

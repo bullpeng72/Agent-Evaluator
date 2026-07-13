@@ -66,7 +66,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Union
 
 if TYPE_CHECKING:
     from agent_evaluator import PerformanceMonitor
@@ -147,8 +147,8 @@ class RetryConfig:
     backoff: float = 1.0
     jitter_type: str = "full"
     max_delay: float = 60.0
-    should_retry: Optional[Callable] = None
-    on_retry: Optional[Callable] = None
+    should_retry: Callable | None = None
+    on_retry: Callable | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -164,15 +164,15 @@ class LLMJudgeConfig:
         @agent_eval(monitor, llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001", criteria=["accuracy"]))
         def agent(question, ground_truth=""): ...
     """
-    model: Optional[str] = None
-    criteria: Optional[List[str]] = None
+    model: str | None = None
+    criteria: list[str] | None = None
     sample_rate: float = 0.1
-    escalation_model: Optional[str] = None
+    escalation_model: str | None = None
     escalation_threshold: float = 2.5
-    budget_per_day: Optional[float] = None
-    budget_storage_path: Optional[str] = None
+    budget_per_day: float | None = None
+    budget_storage_path: str | None = None
     max_context_chars: int = 4000
-    seed: Optional[int] = None
+    seed: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -190,8 +190,8 @@ class SecurityConfig:
                                             sample_rate=0.2))
         def agent(question, ground_truth=""): ...
     """
-    allowed_tools: Optional[List[str]] = None
-    restricted_tools: Optional[List[str]] = None
+    allowed_tools: list[str] | None = None
+    restricted_tools: list[str] | None = None
     sample_rate: float = 1.0  # InputSanitizationTracker·OutputLeakageDetector 샘플링 비율 (0.0–1.0)
 
 
@@ -298,33 +298,33 @@ class EvalMetadata:
             )
     """
 
-    attempts: Optional[int] = None                             # None = 자동 계산 유지 (기본 1)
-    framework: Optional[str] = None                            # None = decorator 파라미터 유지
-    expected_tools: Optional[List[str]] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None         # None = 자동 추출 유지
-    agent_interactions: Optional[List[Dict[str, Any]]] = None # CrewAI 멀티에이전트
-    chain_steps: Optional[List[Dict[str, Any]]] = None        # LangChain 체인 단계
-    graph_traversal: Optional[Dict[str, Any]] = None          # LangGraph 그래프 경로
-    state_transitions: Optional[List[Dict[str, Any]]] = None  # LangGraph 상태 전이
-    completion_score: Optional[float] = None                   # None = 자동 계산 유지
-    accuracy_score: Optional[float] = None                     # None = 자동 계산 유지
-    partial_reason: Optional[str] = None
+    attempts: int | None = None                             # None = 자동 계산 유지 (기본 1)
+    framework: str | None = None                            # None = decorator 파라미터 유지
+    expected_tools: list[str] | None = None
+    tool_calls: list[dict[str, Any]] | None = None         # None = 자동 추출 유지
+    agent_interactions: list[dict[str, Any]] | None = None # CrewAI 멀티에이전트
+    chain_steps: list[dict[str, Any]] | None = None        # LangChain 체인 단계
+    graph_traversal: dict[str, Any] | None = None          # LangGraph 그래프 경로
+    state_transitions: list[dict[str, Any]] | None = None  # LangGraph 상태 전이
+    completion_score: float | None = None                   # None = 자동 계산 유지
+    accuracy_score: float | None = None                     # None = 자동 계산 유지
+    partial_reason: str | None = None
     # Gap J: 비표준 LLM (Mistral 이외) 토큰 수 직접 주입 + 동적 모델명
-    tokens_used: Optional[Dict[str, int]] = None               # {"input": n, "output": n, "total": n}
-    model_name: Optional[str] = None                           # None = decorator 파라미터 유지
+    tokens_used: dict[str, int] | None = None               # {"input": n, "output": n, "total": n}
+    model_name: str | None = None                           # None = decorator 파라미터 유지
     # Gap P: 평가 시점에 context / ground_truth 를 동적으로 재정의
-    context: Optional[str] = None                              # None = _resolve_args 값 유지
-    ground_truth: Optional[str] = None                         # None = _resolve_args 값 유지
+    context: str | None = None                              # None = _resolve_args 값 유지
+    ground_truth: str | None = None                         # None = _resolve_args 값 유지
     # Gap AB: AutoGen conversation_turns 주입
-    conversation_turns: Optional[List[Dict[str, Any]]] = None
+    conversation_turns: list[dict[str, Any]] | None = None
     # Gap AC: 사전 계산된 LLM Judge 결과 주입
-    llm_judge: Optional[Dict[str, Any]] = None
+    llm_judge: dict[str, Any] | None = None
     # Gap AE: 사용자 정의 자유 형식 메타데이터 — TaskResult.extra 에 저장
-    extra: Optional[Dict[str, Any]] = None                     # {"intent": "search", "source": "api", ...}
+    extra: dict[str, Any] | None = None                     # {"intent": "search", "source": "api", ...}
     # Gap AN: 오류 목록 직접 주입
-    errors: Optional[List[str]] = None
+    errors: list[str] | None = None
     # Gap AO: 실행 시간 직접 주입 (자동 측정값 재정의)
-    execution_time: Optional[float] = None
+    execution_time: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -353,16 +353,16 @@ class TurnMetadata:
             )
     """
 
-    model: Optional[str] = None
-    tokens: Optional[Dict[str, int]] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    latency: Optional[float] = None      # None = perf_counter 자동 측정값 사용
-    ground_truth: Optional[str] = None   # Gap AP: turn별 ground_truth 직접 주입
-    extra: Optional[Dict[str, Any]] = None
-    participant_id: Optional[str] = None  # A3: 참여자 ID 직접 주입
+    model: str | None = None
+    tokens: dict[str, int] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    latency: float | None = None      # None = perf_counter 자동 측정값 사용
+    ground_truth: str | None = None   # Gap AP: turn별 ground_truth 직접 주입
+    extra: dict[str, Any] | None = None
+    participant_id: str | None = None  # A3: 참여자 ID 직접 주입
 
 
-def _split_turn_raw(raw: Any) -> Tuple[Any, Optional[TurnMetadata]]:
+def _split_turn_raw(raw: Any) -> tuple[Any, TurnMetadata | None]:
     """(raw_response, TurnMetadata | None) 으로 분리."""
     if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[1], TurnMetadata):
         return raw[0], raw[1]
@@ -392,32 +392,32 @@ class _EvalContext:
             return result["output"]   # 반환값 타입 변경 없음
     """
 
-    attempts: Optional[int] = None                             # None = 자동 계산 유지
-    framework: Optional[str] = None                            # None = decorator 파라미터 유지
-    expected_tools: Optional[List[str]] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    agent_interactions: Optional[List[Dict[str, Any]]] = None
-    chain_steps: Optional[List[Dict[str, Any]]] = None
-    graph_traversal: Optional[Dict[str, Any]] = None
-    state_transitions: Optional[List[Dict[str, Any]]] = None
-    completion_score: Optional[float] = None
-    accuracy_score: Optional[float] = None
-    partial_reason: Optional[str] = None
-    tokens_used: Optional[Dict[str, int]] = None               # Gap J: 비표준 LLM 토큰 주입
-    model_name: Optional[str] = None                           # Gap J: 동적 모델명 주입
-    context: Optional[str] = None                              # Gap P: RAG context 동적 재정의
-    ground_truth: Optional[str] = None                         # Gap P: 정답 동적 재정의
-    conversation_turns: Optional[List[Dict[str, Any]]] = None  # Gap AB: AutoGen turns 주입
-    llm_judge: Optional[Dict[str, Any]] = None                 # Gap AC: LLM Judge 결과 주입
-    extra: Optional[Dict[str, Any]] = None                     # Gap AE: 사용자 정의 메타데이터
-    errors: Optional[List[str]] = None                         # Gap AN: 오류 목록 직접 주입
-    execution_time: Optional[float] = None                     # Gap AO: 실행 시간 직접 주입
+    attempts: int | None = None                             # None = 자동 계산 유지
+    framework: str | None = None                            # None = decorator 파라미터 유지
+    expected_tools: list[str] | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    agent_interactions: list[dict[str, Any]] | None = None
+    chain_steps: list[dict[str, Any]] | None = None
+    graph_traversal: dict[str, Any] | None = None
+    state_transitions: list[dict[str, Any]] | None = None
+    completion_score: float | None = None
+    accuracy_score: float | None = None
+    partial_reason: str | None = None
+    tokens_used: dict[str, int] | None = None               # Gap J: 비표준 LLM 토큰 주입
+    model_name: str | None = None                           # Gap J: 동적 모델명 주입
+    context: str | None = None                              # Gap P: RAG context 동적 재정의
+    ground_truth: str | None = None                         # Gap P: 정답 동적 재정의
+    conversation_turns: list[dict[str, Any]] | None = None  # Gap AB: AutoGen turns 주입
+    llm_judge: dict[str, Any] | None = None                 # Gap AC: LLM Judge 결과 주입
+    extra: dict[str, Any] | None = None                     # Gap AE: 사용자 정의 메타데이터
+    errors: list[str] | None = None                         # Gap AN: 오류 목록 직접 주입
+    execution_time: float | None = None                     # Gap AO: 실행 시간 직접 주입
     _active: bool = field(default=False, repr=False)
 
 
 # Python 3.7+ contextvars.ContextVar — asyncio.create_task() 등 동시 코루틴에서
 # 각 태스크가 독립된 컨텍스트 복사본을 가지므로 threading.local 의 ctx 충돌이 없다.
-_eval_ctx_var: contextvars.ContextVar[Optional[_EvalContext]] = contextvars.ContextVar(
+_eval_ctx_var: contextvars.ContextVar[_EvalContext | None] = contextvars.ContextVar(
     "_eval_ctx", default=None
 )
 
@@ -433,7 +433,7 @@ _eval_active: contextvars.ContextVar[bool] = contextvars.ContextVar("_eval_activ
 _SKIP_PARAMS: frozenset = frozenset({"self", "cls"})
 
 
-def get_eval_ctx() -> Optional[_EvalContext]:
+def get_eval_ctx() -> _EvalContext | None:
     """현재 실행 컨텍스트의 평가 컨텍스트를 반환.
 
     ``@agent_eval`` 데코레이터로 감싼 함수 본문 내에서만 non-None 값을 반환한다.
@@ -458,7 +458,7 @@ def get_eval_ctx() -> Optional[_EvalContext]:
     return ctx if (ctx is not None and ctx._active) else None
 
 
-def _push_ctx() -> Tuple[_EvalContext, contextvars.Token[Optional[_EvalContext]]]:
+def _push_ctx() -> tuple[_EvalContext, contextvars.Token[_EvalContext | None]]:
     """새 컨텍스트를 현재 실행 컨텍스트에 설치하고 (ctx, token) 을 반환.
 
     반환된 token 을 ``_pop_ctx(token)`` 에 전달해야 컨텍스트가 정확히 복원된다.
@@ -570,7 +570,7 @@ def _is_anthropic_response(raw: Any) -> bool:
     )
 
 
-def _extract_anthropic_tokens(raw: Any) -> Optional[Dict[str, int]]:
+def _extract_anthropic_tokens(raw: Any) -> dict[str, int] | None:
     """Anthropic SDK 응답에서 토큰 수를 ``{"input": n, "output": n, "total": n}`` 형식으로 추출.
 
     추출 실패 시 ``None`` 을 반환한다.
@@ -598,7 +598,7 @@ def _is_gemini_response(raw: Any) -> bool:
     )
 
 
-def _extract_gemini_tokens(raw: Any) -> Optional[Dict[str, int]]:
+def _extract_gemini_tokens(raw: Any) -> dict[str, int] | None:
     """Gemini SDK 응답에서 토큰 수를 ``{"input": n, "output": n, "total": n}`` 형식으로 추출.
 
     ``usage_metadata.prompt_token_count`` / ``candidates_token_count`` 를 사용한다.
@@ -637,7 +637,7 @@ def _is_cohere_response(raw: Any) -> bool:
     return False
 
 
-def _extract_cohere_tokens(raw: Any) -> Optional[Dict[str, int]]:
+def _extract_cohere_tokens(raw: Any) -> dict[str, int] | None:
     """Cohere SDK v5+ 응답에서 토큰 수를 ``{"input": n, "output": n, "total": n}`` 형식으로 추출.
 
     ``meta.tokens.input_tokens`` / ``output_tokens`` 를 사용한다.
@@ -659,7 +659,7 @@ def _is_langchain_response(raw: Any) -> bool:
     return isinstance(raw, dict) and "intermediate_steps" in raw
 
 
-def _split_raw(raw: Any) -> Tuple[Any, Optional[EvalMetadata]]:
+def _split_raw(raw: Any) -> tuple[Any, EvalMetadata | None]:
     """(raw_result, EvalMetadata | None) 으로 분리."""
     if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[1], EvalMetadata):
         return raw[0], raw[1]
@@ -685,7 +685,7 @@ def _normalize_task_type(task_type: Any) -> str:
 # Task 1: 프레임워크 어댑터 — 반환값에서 메타데이터 자동 추출
 # ---------------------------------------------------------------------------
 
-def _extract_langchain_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_langchain_metadata(raw: Any) -> EvalMetadata | None:
     """LangChain 결과에서 메타데이터 자동 추출 — 두 가지 반환 형태를 지원한다.
 
     1. ``AgentExecutor.invoke()`` 결과 dict — ``intermediate_steps`` → ``tool_calls`` + ``chain_steps``.
@@ -704,11 +704,11 @@ def _extract_langchain_metadata(raw: Any) -> Optional[EvalMetadata]:
     return None
 
 
-def _extract_langchain_agent_executor_metadata(raw: Dict[str, Any]) -> Optional[EvalMetadata]:
+def _extract_langchain_agent_executor_metadata(raw: dict[str, Any]) -> EvalMetadata | None:
     """``AgentExecutor.invoke()`` 결과 dict (``intermediate_steps`` 포함) 전용 추출 경로."""
     steps = raw.get("intermediate_steps") or []
-    tool_calls: List[Dict[str, Any]] = []
-    chain_steps: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
     for step in steps:
         if not isinstance(step, (list, tuple)) or len(step) < 2:
             continue
@@ -738,7 +738,7 @@ def _extract_langchain_agent_executor_metadata(raw: Dict[str, Any]) -> Optional[
         return None
 
     # LangChain 0.2+: usage_metadata 또는 response_metadata.token_usage 에서 토큰 추출
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         usage_meta = raw.get("usage_metadata")
         if usage_meta is None:
@@ -759,7 +759,7 @@ def _extract_langchain_agent_executor_metadata(raw: Dict[str, Any]) -> Optional[
     )
 
 
-def _extract_langchain_ai_message_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_langchain_ai_message_metadata(raw: Any) -> EvalMetadata | None:
     """LCEL 툴콜링(``model.bind_tools(...).invoke(...)``)이 직접 반환하는 ``AIMessage``
     전용 추출 경로 — ``AgentExecutor``도 ``LangGraph``의 메시지 리스트 dict도 아닌,
     도구 바인딩 모델을 직접 호출해서 나오는 가장 흔한 최신 패턴이다.
@@ -771,7 +771,7 @@ def _extract_langchain_ai_message_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not raw_tool_calls:
         return None
 
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     for tc in raw_tool_calls:
         if isinstance(tc, dict):
             name = tc.get("name", "unknown")
@@ -792,7 +792,7 @@ def _extract_langchain_ai_message_metadata(raw: Any) -> Optional[EvalMetadata]:
 
     # LangChain 0.2+: AIMessage.usage_metadata 속성(dict) 우선, 없으면
     # response_metadata.token_usage 로 폴백 (AgentExecutor 경로와 동일한 필드명 규칙)
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         usage_meta = getattr(raw, "usage_metadata", None)
         if usage_meta is None:
@@ -812,7 +812,7 @@ def _extract_langchain_ai_message_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _step_time(msg: Any, idx: int, messages: List[Any]) -> float:
+def _step_time(msg: Any, idx: int, messages: list[Any]) -> float:
     """메시지 타임스탬프에서 인접 메시지 간 경과 시간(초)을 추정한다 (F1).
 
     LangGraph 메시지 객체에 ``response_metadata["created_at"]`` 또는
@@ -822,7 +822,7 @@ def _step_time(msg: Any, idx: int, messages: List[Any]) -> float:
     import re as _re
     _ISO_RE = _re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}")
 
-    def _extract_ts(m: Any) -> Optional[float]:
+    def _extract_ts(m: Any) -> float | None:
         for attr in ("response_metadata", "additional_kwargs"):
             meta = getattr(m, attr, None) or {}
             if isinstance(meta, dict):
@@ -844,7 +844,7 @@ def _step_time(msg: Any, idx: int, messages: List[Any]) -> float:
     return 0.0
 
 
-def _extract_langgraph_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_langgraph_metadata(raw: Any) -> EvalMetadata | None:
     """LangGraph invoke 결과 dict에서 메타데이터 자동 추출.
 
     C2: ToolMessage/AIMessage → chain_steps, ``__metadata__`` → state_transitions 지원.
@@ -860,15 +860,15 @@ def _extract_langgraph_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not messages and not raw_metadata:
         return None
 
-    state_transitions: List[Dict[str, Any]] = []
-    tool_calls: List[Dict[str, Any]] = []
-    chain_steps: List[Dict[str, Any]] = []
-    nodes_visited: List[str] = []
+    state_transitions: list[dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
+    nodes_visited: list[str] = []
 
     # C2: __metadata__ 처리 (LangGraph checkpoint metadata)
     if isinstance(raw_metadata, dict):
         for key, val in raw_metadata.items():
-            entry: Dict[str, Any] = {"node": key, "source": "__metadata__"}
+            entry: dict[str, Any] = {"node": key, "source": "__metadata__"}
             if isinstance(val, dict):
                 entry["metadata"] = {k: str(v)[:200] for k, v in val.items()}
             else:
@@ -921,7 +921,7 @@ def _extract_langgraph_metadata(raw: Any) -> Optional[EvalMetadata]:
     }
 
     # F1: 토큰 추출 — AIMessage의 usage_metadata(LangChain 0.2+) 또는 response_metadata
-    _tokens_used: Optional[Dict[str, Any]] = None
+    _tokens_used: dict[str, Any] | None = None
     _total_input = 0
     _total_output = 0
     for _msg in messages:
@@ -953,7 +953,7 @@ def _extract_langgraph_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_crewai_metadata(raw: Any) -> EvalMetadata | None:
     """CrewAI kickoff 결과에서 메타데이터 자동 추출.
 
     ``CrewOutput.tasks_output`` → ``agent_interactions`` 변환.
@@ -965,7 +965,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
 
     # C3/E1: CrewAI 2.0+ — output_pydantic / pydantic (Pydantic 모델) 또는 output_format 필드 지원
     output_pydantic = getattr(raw, "output_pydantic", None) or getattr(raw, "pydantic", None)
-    pydantic_result: Optional[str] = None
+    pydantic_result: str | None = None
     if output_pydantic is not None:
         try:
             pydantic_result = output_pydantic.model_dump_json() if hasattr(output_pydantic, "model_dump_json") else str(output_pydantic)
@@ -974,7 +974,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
 
     # C3: output_format 필드 (CrewAI v2.x 구조화 출력)
     output_format = getattr(raw, "output_format", None)
-    output_format_str: Optional[str] = None
+    output_format_str: str | None = None
     if output_format is not None:
         try:
             output_format_str = str(output_format)
@@ -982,7 +982,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
             pass
 
     if not tasks_output:
-        fallback_interactions: List[Dict[str, Any]] = []
+        fallback_interactions: list[dict[str, Any]] = []
         if pydantic_result is not None:
             fallback_interactions.append({
                 "from_agent": "crew",
@@ -1005,14 +1005,14 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
             return EvalMetadata(agent_interactions=fallback_interactions, framework="crewai")
         return None
 
-    agent_interactions: List[Dict[str, Any]] = []
+    agent_interactions: list[dict[str, Any]] = []
     for task_out in tasks_output:
         agent_name = getattr(task_out, "agent", "unknown")
         description = getattr(task_out, "description", "")
         result_raw = getattr(task_out, "raw", None) or str(task_out)
         # C3: output_format per-task (CrewAI v2.x)
         task_format = getattr(task_out, "output_format", None)
-        interaction: Dict[str, Any] = {
+        interaction: dict[str, Any] = {
             "from_agent": str(agent_name),
             "to_agent": "coordinator",
             "type": "task_completion",
@@ -1045,7 +1045,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
         return None
 
     # C1: CrewAI 토큰 사용량 추출 (token_usage / usage_metrics 속성)
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         _token_src = (
             getattr(raw, "token_usage", None)
@@ -1067,7 +1067,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
         pass
 
     # CrewAI tool_calls — tasks_output 의 used_tools / tool_usage 필드에서 추출
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     for _task_out in tasks_output:
         # CrewAI TaskOutput.used_tools (list of tool names or dicts)
         _used = getattr(_task_out, "used_tools", None) or []
@@ -1095,7 +1095,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
                     })
 
     # CrewAI state_transitions — 태스크 실행 순서를 상태 전이 시퀀스로 변환
-    state_transitions: List[Dict[str, Any]] = []
+    state_transitions: list[dict[str, Any]] = []
     for i, _task_out in enumerate(tasks_output):
         _agent = str(getattr(_task_out, "agent", "unknown"))
         _desc = str(getattr(_task_out, "description", ""))[:200]
@@ -1118,7 +1118,7 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_autogen_metadata(raw: Any) -> EvalMetadata | None:
     """AutoGen 결과에서 메타데이터 자동 추출.
 
     ``messages`` / ``chat_history`` → ``conversation_turns`` 변환.
@@ -1136,8 +1136,8 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
         messages = getattr(cr, "chat_history", None)
     if not messages:
         return None
-    conversation_turns: List[Dict[str, Any]] = []
-    _prev_ts: Optional[float] = None
+    conversation_turns: list[dict[str, Any]] = []
+    _prev_ts: float | None = None
     for msg in messages:
         if isinstance(msg, dict):
             _ts_raw = msg.get("timestamp") or msg.get("created_at")
@@ -1187,7 +1187,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
         return None
 
     # AutoGen 토큰 사용량 추출 — cost 또는 usage_summary
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         # autogen ConversableAgent: chat_result.cost["usage_including_cached_inference"]
         cost_src = getattr(raw, "cost", None) or (
@@ -1196,7 +1196,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
         if isinstance(cost_src, dict):
             usage_block = cost_src.get("usage_including_cached_inference") or {}
             # usage_block: {"gpt-5-nano": {"prompt_tokens": N, "completion_tokens": M, ...}, "total_cost": ...}
-            for key, val in usage_block.items():
+            for _key, val in usage_block.items():
                 if isinstance(val, dict) and "prompt_tokens" in val:
                     inp = int(val.get("prompt_tokens", 0))
                     out = int(val.get("completion_tokens", 0))
@@ -1215,7 +1215,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
         pass
 
     # Multi-agent: 서로 다른 에이전트 간 메시지 교환을 agent_interactions 로 변환
-    agent_interactions: List[Dict[str, Any]] = []
+    agent_interactions: list[dict[str, Any]] = []
     for i, turn in enumerate(conversation_turns):
         _agent_name = turn.get("name", "").strip()
         _agent_role = turn.get("role", "")
@@ -1235,7 +1235,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
                     })
 
     # AutoGen state_transitions — 메시지 순서를 상태 전이 시퀀스로 변환
-    state_transitions: List[Dict[str, Any]] = []
+    state_transitions: list[dict[str, Any]] = []
     for i, turn in enumerate(conversation_turns):
         _role = turn.get("role", "unknown")
         _name = turn.get("name", "") or _role
@@ -1256,7 +1256,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_dspy_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_dspy_metadata(raw: Any) -> EvalMetadata | None:
     """DSPy Prediction 결과에서 메타데이터 자동 추출.
 
     C1: LM `.history` 전체를 순회해 multi-step chain_steps 추출 지원.
@@ -1267,7 +1267,7 @@ def _extract_dspy_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not (has_completions or has_dspy_fields):
         return None
 
-    chain_steps: List[Dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
     completions = getattr(raw, "_completions", None) or getattr(raw, "completions", None)
     if completions:
         for i, comp in enumerate(completions if isinstance(completions, list) else [completions]):
@@ -1279,7 +1279,7 @@ def _extract_dspy_metadata(raw: Any) -> Optional[EvalMetadata]:
             })
 
     # C1: Try to extract token usage and chain steps from DSPy LM history
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         import dspy
         lm = getattr(dspy.settings, "lm", None)
@@ -1316,7 +1316,7 @@ def _extract_dspy_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
     # F3: DSPy tool_calls — Prediction의 tool_calls 또는 actions 필드에서 추출
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         _dspy_tc = getattr(raw, "tool_calls", None) or getattr(raw, "actions", None)
         if _dspy_tc and isinstance(_dspy_tc, (list, tuple)):
@@ -1364,7 +1364,7 @@ def _extract_dspy_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_pydanticai_metadata(raw: Any) -> EvalMetadata | None:
     """PydanticAI RunResult에서 메타데이터 자동 추출.
 
     C1: `.all_messages()` 기반 전체 메시지 히스토리 추출 지원.
@@ -1374,7 +1374,7 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
     # .messages, .all_messages()
     if not hasattr(raw, "usage") or not (hasattr(raw, "output") or hasattr(raw, "data")):
         return None
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         usage = getattr(raw, "usage", None)
         is_legacy_method = (
@@ -1391,7 +1391,7 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
                 tokens_used = {"input": inp, "output": out, "total": inp + out}
     except Exception:
         pass
-    chain_steps: List[Dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
     try:
         # C1: .all_messages() 우선 시도 — 전체 요청/응답 히스토리 포함
         msgs = None
@@ -1445,7 +1445,7 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
     # PydanticAI tool_calls — ToolCallPart chain_steps 에서 tool_calls 재구성
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     for _cs in chain_steps:
         if _cs.get("type") == "tool_call":
             _tc_name = _cs.get("name", "unknown")
@@ -1464,7 +1464,7 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_anthropic_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_anthropic_metadata(raw: Any) -> EvalMetadata | None:
     """Anthropic Claude Messages API 결과에서 메타데이터 자동 추출.
 
     ``client.messages.create(tools=[...])`` 결과의 ``content`` 블록에서
@@ -1473,7 +1473,7 @@ def _extract_anthropic_metadata(raw: Any) -> Optional[EvalMetadata]:
     # Anthropic Message 객체: .content (list[Block]), .usage, .model
     if not hasattr(raw, "content") or not hasattr(raw, "usage"):
         return None
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         for block in (raw.content or []):
             btype = getattr(block, "type", None)
@@ -1486,7 +1486,7 @@ def _extract_anthropic_metadata(raw: Any) -> Optional[EvalMetadata]:
                 })
     except Exception:
         pass
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         usage = raw.usage
         inp = getattr(usage, "input_tokens", 0) or 0
@@ -1516,7 +1516,7 @@ def _extract_anthropic_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_openai_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_openai_metadata(raw: Any) -> EvalMetadata | None:
     """OpenAI Chat Completions / Responses API 결과에서 메타데이터 자동 추출.
 
     ``client.chat.completions.create(tools=[...])`` 결과의
@@ -1534,8 +1534,8 @@ def _extract_openai_metadata(raw: Any) -> Optional[EvalMetadata]:
         and not hasattr(raw, "output")
     ):
         return None
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
 
     try:
         # Chat Completions + C3: Streaming ChatCompletionChunk (choice.delta 지원)
@@ -1617,7 +1617,7 @@ def _extract_openai_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_gemini_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_gemini_metadata(raw: Any) -> EvalMetadata | None:
     """Google Gemini API 결과에서 메타데이터 자동 추출.
 
     ``model.generate_content(tools=[...])`` 결과의 ``candidates[0].content.parts``
@@ -1626,7 +1626,7 @@ def _extract_gemini_metadata(raw: Any) -> Optional[EvalMetadata]:
     # Gemini GenerateContentResponse: .candidates, .usage_metadata
     if not hasattr(raw, "candidates") and not hasattr(raw, "usage_metadata"):
         return None
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         for cand in (getattr(raw, "candidates", None) or []):
             content = getattr(cand, "content", None)
@@ -1641,7 +1641,7 @@ def _extract_gemini_metadata(raw: Any) -> Optional[EvalMetadata]:
                     })
     except Exception:
         pass
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         um = getattr(raw, "usage_metadata", None)
         if um:
@@ -1660,7 +1660,7 @@ def _extract_gemini_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_llamaindex_metadata(raw: Any) -> EvalMetadata | None:
     """Llama Index QueryEngine / Response 결과에서 메타데이터 자동 추출.
 
     ``query_engine.query()`` 결과의 ``source_nodes`` 에서 검색 소스를
@@ -1669,7 +1669,7 @@ def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
     # LlamaIndex Response: .response, .source_nodes, .metadata
     if not hasattr(raw, "source_nodes") and not hasattr(raw, "response"):
         return None
-    chain_steps: List[Dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
     try:
         for i, node in enumerate(getattr(raw, "source_nodes", None) or []):
             score = getattr(node, "score", None)
@@ -1684,7 +1684,7 @@ def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
     # metadata에서 토큰 사용량 추출 시도
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         meta = getattr(raw, "metadata", {}) or {}
         token_meta = meta.get("token_usage") or meta.get("usage")
@@ -1696,7 +1696,7 @@ def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
     # LlamaIndex tool_calls — AgentChatResponse.sources 또는 step tool_calls에서 추출
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         # AgentChatResponse: .sources 는 ToolOutput 리스트
         sources = getattr(raw, "sources", None) or []
@@ -1721,7 +1721,7 @@ def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_haystack_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_haystack_metadata(raw: Any) -> EvalMetadata | None:
     """Haystack Pipeline 결과에서 메타데이터 자동 추출 (P3-A 강화).
 
     ``pipeline.run(...)`` 결과 dict의 컴포넌트 출력을 ``chain_steps`` 로 변환한다.
@@ -1755,8 +1755,8 @@ def _extract_haystack_metadata(raw: Any) -> Optional[EvalMetadata]:
             return "generator"
         return "component"
 
-    chain_steps: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    chain_steps: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
 
     for component_name, outputs in raw.items():
         if not isinstance(outputs, dict):
@@ -1798,7 +1798,7 @@ def _extract_haystack_metadata(raw: Any) -> Optional[EvalMetadata]:
             "execution_time": 0.0,
         })
     # Haystack tool_calls — retriever/generator/reader 컴포넌트를 tool_calls 로 변환
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     _TOOL_COMPONENT_TYPES = {"retriever", "generator", "reader", "embedder", "ranker"}
     for _step in chain_steps:
         if _step.get("type") in _TOOL_COMPONENT_TYPES:
@@ -1821,7 +1821,7 @@ def _extract_haystack_metadata(raw: Any) -> Optional[EvalMetadata]:
 # 프레임워크 식별자 → 자동 메타데이터 추출 어댑터 레지스트리
 # framework= 파라미터에 지정된 값에 따라 자동으로 호출된다.
 # EvalMetadata 튜플 반환이나 get_eval_ctx()가 이미 있으면 어댑터는 건너뛴다.
-def _extract_vertexai_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_vertexai_metadata(raw: Any) -> EvalMetadata | None:
     """Google Vertex AI SDK 응답에서 메타데이터 자동 추출 (E2).
 
     ``GenerateContentResponse`` 의 ``candidates[0].content.parts`` 에서
@@ -1829,8 +1829,8 @@ def _extract_vertexai_metadata(raw: Any) -> Optional[EvalMetadata]:
     ``google.cloud.aiplatform`` / ``vertexai.generative_models`` 응답 구조와 호환된다.
     """
     # VertexAI GenerateContentResponse — Gemini API 응답과 동일 구조
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         candidates = getattr(raw, "candidates", None)
         if candidates:
@@ -1860,14 +1860,14 @@ def _extract_vertexai_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_ollama_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_ollama_metadata(raw: Any) -> EvalMetadata | None:
     """Ollama API 응답에서 메타데이터 자동 추출 (E3).
 
     ``ollama.chat()`` / ``ollama.generate()`` 응답 객체 및 ``{"message": ..., "prompt_eval_count": ...}``
     형태의 dict 응답을 지원한다.
     """
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         # ollama-python ChatResponse / GenerateResponse
         if hasattr(raw, "message"):
@@ -1914,15 +1914,15 @@ def _extract_ollama_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_cohere_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_cohere_metadata(raw: Any) -> EvalMetadata | None:
     """C1: Cohere SDK ``NonStreamedChatResponse`` / ``StreamedChatResponse`` / ``ChatResponse`` 메타데이터 추출.
 
     cohere-python v5+ 응답에서 tool_calls 와 token 사용량을 추출한다.
     C1: ``StreamedChatResponse`` 감지 시 최선 파싱 시도.
     ``pip install cohere`` 필요.
     """
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
 
     # C1: 스트리밍 응답 감지
     cls_name = type(raw).__name__
@@ -1967,7 +1967,7 @@ def _extract_cohere_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not tool_calls and tokens_used is None and not _raw_text:
         return None
     # B2: tool_calls를 chain_steps로도 시각화
-    chain_steps: List[Dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
     for tc in tool_calls:
         chain_steps.append({
             "name": tc.get("name", "unknown"),
@@ -1992,7 +1992,7 @@ def _extract_cohere_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_groq_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_groq_metadata(raw: Any) -> EvalMetadata | None:
     """C2: Groq SDK 응답 메타데이터 추출 — OpenAI 호환 형식 재사용.
 
     Groq v0.9+ 의 ``usage.cache_creation_tokens`` / ``usage.cache_read_tokens`` 필드 추가 지원.
@@ -2033,7 +2033,7 @@ def _extract_groq_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_mistral_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_mistral_metadata(raw: Any) -> EvalMetadata | None:
     """C3: Mistral AI SDK 응답 메타데이터 추출.
 
     Mistral ``ChatCompletionResponse`` 에서 tool_calls 와 usage 를 추출한다.
@@ -2041,8 +2041,8 @@ def _extract_mistral_metadata(raw: Any) -> Optional[EvalMetadata]:
     """
     import json as _json
 
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         choices = getattr(raw, "choices", None)
         msg = getattr(choices[0], "message", None) if choices else None
@@ -2098,8 +2098,8 @@ def _extract_mistral_metadata(raw: Any) -> Optional[EvalMetadata]:
 
 def _parse_titan_response(
     raw: Any,
-    tool_calls_list: List[Dict[str, Any]],
-    tokens_used_ref: List[Optional[Dict[str, int]]],
+    tool_calls_list: list[dict[str, Any]],
+    tokens_used_ref: list[dict[str, int] | None],
 ) -> None:
     """C4: Amazon Titan Bedrock 응답 파싱 (InvokeModel API 형식).
 
@@ -2120,8 +2120,8 @@ def _parse_titan_response(
 
 def _parse_bedrock_mistral(
     raw: Any,
-    tool_calls_list: List[Dict[str, Any]],
-    tokens_used_ref: List[Optional[Dict[str, int]]],
+    tool_calls_list: list[dict[str, Any]],
+    tokens_used_ref: list[dict[str, int] | None],
 ) -> None:
     """C4: Mistral on Bedrock 응답 파싱 (InvokeModel API 형식).
 
@@ -2135,14 +2135,14 @@ def _parse_bedrock_mistral(
     pass  # 구조 탐지만, 토큰은 없음
 
 
-def _extract_bedrock_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_bedrock_metadata(raw: Any) -> EvalMetadata | None:
     """C4: AWS Bedrock Converse API / InvokeModel API 응답 메타데이터 추출.
 
     ``bedrock_runtime.converse()`` 응답 dict 에서 toolUse 와 usage 를 추출한다.
     C4: ``model_id`` 기반 자동 파서 선택 — Amazon Titan, Mistral on Bedrock 지원.
     """
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         if isinstance(raw, dict):
             # C4: model_id 기반 자동 파서 선택
@@ -2150,12 +2150,12 @@ def _extract_bedrock_metadata(raw: Any) -> Optional[EvalMetadata]:
 
             if "titan" in model_id.lower():
                 # Amazon Titan InvokeModel API 형식
-                _ref: List[Optional[Dict[str, int]]] = [None]
+                _ref: list[dict[str, int] | None] = [None]
                 _parse_titan_response(raw, tool_calls, _ref)
                 tokens_used = _ref[0]
             elif "mistral" in model_id.lower() and "outputs" in raw:
                 # Mistral on Bedrock InvokeModel API 형식
-                _ref2: List[Optional[Dict[str, int]]] = [None]
+                _ref2: list[dict[str, int] | None] = [None]
                 _parse_bedrock_mistral(raw, tool_calls, _ref2)
                 tokens_used = _ref2[0]
             else:
@@ -2188,14 +2188,14 @@ def _extract_bedrock_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_smolagents_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_smolagents_metadata(raw: Any) -> EvalMetadata | None:
     """C5: HuggingFace smolagents 응답 메타데이터 추출.
 
     ``agent.run()`` 결과에서 tool_calls 와 chain_steps 를 추출한다.
     C5: step에서 tool 성공/실패 여부와 입력값 추출 강화.
     """
-    chain_steps: List[Dict[str, Any]] = []
-    tool_calls: List[Dict[str, Any]] = []
+    chain_steps: list[dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         # smolagents AgentOutput or dict
         steps = getattr(raw, "steps", None) or (raw.get("steps") if isinstance(raw, dict) else None)
@@ -2239,7 +2239,7 @@ def _extract_smolagents_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not chain_steps and not tool_calls:
         return None
     # B1: chain_steps의 output 텍스트 합산으로 토큰 추정
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     if chain_steps:
         total_chars = sum(len(str(s.get("output", ""))) for s in chain_steps)
         if total_chars > 0:
@@ -2254,14 +2254,14 @@ def _extract_smolagents_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_semantic_kernel_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_semantic_kernel_metadata(raw: Any) -> EvalMetadata | None:
     """C6: Microsoft Semantic Kernel 응답 메타데이터 추출.
 
     ``kernel.invoke()`` 결과에서 function_result 및 사용 정보를 추출한다.
     C6: ``inner_content`` 의 추가 정보 추출 — OpenAI/Azure 백엔드 및 Anthropic 백엔드 지원.
     """
-    chain_steps: Optional[List[Dict[str, Any]]] = None
-    tokens_used: Optional[Dict[str, int]] = None
+    chain_steps: list[dict[str, Any]] | None = None
+    tokens_used: dict[str, int] | None = None
     try:
         # FunctionResult or KernelContent
         inner = getattr(raw, "value", None) or getattr(raw, "inner_content", None)
@@ -2308,7 +2308,7 @@ def _extract_semantic_kernel_metadata(raw: Any) -> Optional[EvalMetadata]:
     if chain_steps is None and tokens_used is None:
         return None
     # Semantic Kernel tool_calls — plugin/function 호출을 tool_calls 로 추출
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         # FunctionResult: function_name + plugin_name
         _fn_name = getattr(raw, "function_name", None)
@@ -2343,7 +2343,7 @@ def _extract_semantic_kernel_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _auto_detect_framework(raw: Any) -> Optional[str]:
+def _auto_detect_framework(raw: Any) -> str | None:
     """C7: 응답 객체의 타입/속성으로 프레임워크 자동 감지.
 
     모듈명 기반 감지(높은 신뢰도)를 우선 시도하고, 속성 기반 감지(fallback)를 후순위로 적용한다.
@@ -2457,7 +2457,7 @@ def _safe_adapter_call(
     adapter_fn: Callable,
     raw: Any,
     framework_name: str,
-) -> Tuple[Optional[EvalMetadata], Optional[str]]:
+) -> tuple[EvalMetadata | None, str | None]:
     """C8: 어댑터 함수를 안전하게 호출하고 ``(result, error_msg)`` 반환.
 
     Args:
@@ -2478,14 +2478,14 @@ def _safe_adapter_call(
         return None, err_msg
 
 
-def _extract_vllm_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_vllm_metadata(raw: Any) -> EvalMetadata | None:
     """F4: vLLM OpenAI-호환 API 응답에서 메타데이터 추출.
 
     vLLM은 OpenAI 호환 API를 제공하므로 choices[0].message.tool_calls + usage.total_tokens 패턴 사용.
     RequestOutput (native vLLM) 응답도 지원.
     """
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         # OpenAI-compatible (vllm.entrypoints.openai.api_server)
         choices = getattr(raw, "choices", None)
@@ -2522,15 +2522,15 @@ def _extract_vllm_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_huggingface_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_huggingface_metadata(raw: Any) -> EvalMetadata | None:
     """F4: HuggingFace transformers/trl pipeline 응답에서 메타데이터 추출.
 
     pipeline() 응답 (list of dicts), Agent (transformers.agents) 응답,
     또는 generate() dict 응답을 지원한다.
     """
-    chain_steps: List[Dict[str, Any]] = []
-    tool_calls: List[Dict[str, Any]] = []
-    tokens_used: Optional[Dict[str, int]] = None
+    chain_steps: list[dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
+    tokens_used: dict[str, int] | None = None
     try:
         # P3-A: 토큰 수 추정 헬퍼 (HuggingFace는 token count API 없는 경우 많음)
         def _estimate_tokens_from_text(text: str) -> int:
@@ -2617,7 +2617,7 @@ def _extract_huggingface_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_openai_agents_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_openai_agents_metadata(raw: Any) -> EvalMetadata | None:
     """OpenAI Agents SDK(``openai-agents`` 패키지, Swarm 후속 공식 SDK) 결과에서
     메타데이터 자동 추출.
 
@@ -2631,7 +2631,7 @@ def _extract_openai_agents_metadata(raw: Any) -> Optional[EvalMetadata]:
     """
     if not hasattr(raw, "new_items") and not hasattr(raw, "raw_responses"):
         return None
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         for item in (getattr(raw, "new_items", None) or []):
             if type(item).__name__ != "ToolCallItem":
@@ -2649,7 +2649,7 @@ def _extract_openai_agents_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
 
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         total_inp = 0
         total_out = 0
@@ -2673,7 +2673,7 @@ def _extract_openai_agents_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_google_adk_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_google_adk_metadata(raw: Any) -> EvalMetadata | None:
     """Google ADK(Agent Development Kit) 결과에서 메타데이터 자동 추출.
 
     ``runner.run()``/``run_async()``는 세션 중 여러 ``Event``를 순차 yield하는
@@ -2688,7 +2688,7 @@ def _extract_google_adk_metadata(raw: Any) -> Optional[EvalMetadata]:
     """
     if not hasattr(raw, "get_function_calls") and not hasattr(raw, "usage_metadata"):
         return None
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     try:
         get_fc = getattr(raw, "get_function_calls", None)
         for fc in (get_fc() if callable(get_fc) else []):
@@ -2701,7 +2701,7 @@ def _extract_google_adk_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
 
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         um = getattr(raw, "usage_metadata", None)
         if um:
@@ -2721,7 +2721,7 @@ def _extract_google_adk_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
+def _extract_claude_agent_sdk_metadata(raw: Any) -> EvalMetadata | None:
     """Claude Agent SDK(``claude-agent-sdk`` 패키지, 구 Claude Code SDK) 결과에서
     메타데이터 자동 추출.
 
@@ -2742,7 +2742,7 @@ def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
     if not is_assistant_msg and not is_result_msg:
         return None
 
-    tool_calls: List[Dict[str, Any]] = []
+    tool_calls: list[dict[str, Any]] = []
     if is_assistant_msg:
         try:
             for block in (getattr(raw, "content", None) or []):
@@ -2757,7 +2757,7 @@ def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
         except Exception:
             pass
 
-    tokens_used: Optional[Dict[str, int]] = None
+    tokens_used: dict[str, int] | None = None
     try:
         usage = getattr(raw, "usage", None)
         if isinstance(usage, dict):
@@ -2774,7 +2774,7 @@ def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
 
-    extra: Optional[Dict[str, Any]] = None
+    extra: dict[str, Any] | None = None
     try:
         if is_result_msg:
             cost = getattr(raw, "total_cost_usd", None)
@@ -2798,7 +2798,7 @@ def _extract_claude_agent_sdk_metadata(raw: Any) -> Optional[EvalMetadata]:
     )
 
 
-_FRAMEWORK_ADAPTERS: Dict[str, Optional[Callable[[Any], Optional[EvalMetadata]]]] = {
+_FRAMEWORK_ADAPTERS: dict[str, Callable[[Any], EvalMetadata | None] | None] = {
     "native": None,  # H: sentinel — 어댑터 없음 (네이티브 Python 반환값)
     "langchain": _extract_langchain_metadata,
     "langgraph": _extract_langgraph_metadata,
@@ -2830,7 +2830,7 @@ _FRAMEWORK_ADAPTERS: Dict[str, Optional[Callable[[Any], Optional[EvalMetadata]]]
 
 
 # C6: 프레임워크 어댑터 메타데이터 레지스트리
-_FRAMEWORK_ADAPTER_META: Dict[str, Dict[str, Any]] = {
+_FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
     "native": {  # H: sentinel — 어댑터 없음, 네이티브 Python 반환값
         "name": "Native",
         "extras": None,
@@ -3021,7 +3021,7 @@ _CHAIN_STEPS_SUPPORTED: frozenset = frozenset({
 # ---------------------------------------------------------------------------
 # Item Z: 서브모듈까지 검증하는 설치 여부 확인 헬퍼
 # ---------------------------------------------------------------------------
-_FRAMEWORK_SUBMODULE_MAP: Dict[str, tuple] = {
+_FRAMEWORK_SUBMODULE_MAP: dict[str, tuple] = {
     "langchain": ("langchain", "langchain.agents"),
     "crewai": ("crewai",),
     "autogen": ("autogen",),
@@ -3031,7 +3031,7 @@ _FRAMEWORK_SUBMODULE_MAP: Dict[str, tuple] = {
     "haystack": ("haystack",),
 }
 
-_FRAMEWORK_PACKAGE_MAP_GLOBAL: Dict[str, str] = {
+_FRAMEWORK_PACKAGE_MAP_GLOBAL: dict[str, str] = {
     "langchain": "langchain",
     "langgraph": "langgraph",
     "crewai": "crewai",
@@ -3089,7 +3089,7 @@ def _check_framework_installed(framework: str) -> bool:
     return True
 
 
-def get_framework_info(framework: str) -> Optional[Dict[str, Any]]:
+def get_framework_info(framework: str) -> dict[str, Any] | None:
     """지원 프레임워크 어댑터 메타데이터를 반환한다.
 
     C6: ``_FRAMEWORK_ADAPTER_META`` 레지스트리 조회 함수.
@@ -3183,10 +3183,10 @@ class SimpleTaskAlertRule:
     def __post_init__(self) -> None:
         # D3: 클래스 수준 공유 쿨다운 dict 는 클래스 변수로 관리
         if not hasattr(SimpleTaskAlertRule, "_SHARED_COOLDOWN"):
-            SimpleTaskAlertRule._SHARED_COOLDOWN: Dict[str, float] = {}
+            SimpleTaskAlertRule._SHARED_COOLDOWN: dict[str, float] = {}
             SimpleTaskAlertRule._SHARED_COOLDOWN_LOCK: threading.Lock = threading.Lock()
         # E2: alert history 초기화
-        self._history: List[Dict[str, Any]] = []
+        self._history: list[dict[str, Any]] = []
         self._history_lock = threading.Lock()
 
     def evaluate(self, task_result: Any) -> None:
@@ -3238,7 +3238,7 @@ class SimpleTaskAlertRule:
             if len(self._history) > 100:
                 self._history = self._history[-100:]
 
-    def get_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_history(self, limit: int = 50) -> list[dict[str, Any]]:
         """최근 발동 이력 반환 (최신순)."""
         with self._history_lock:
             return list(reversed(self._history[-limit:]))
@@ -3248,7 +3248,7 @@ class SimpleTaskAlertRule:
         with self._history_lock:
             self._history.clear()
 
-    def dry_run(self, task_result: Any) -> Dict[str, Any]:
+    def dry_run(self, task_result: Any) -> dict[str, Any]:
         """핸들러를 실제로 실행하지 않고 알림 발화 여부를 확인한다 (F2).
 
         Args:
@@ -3269,7 +3269,7 @@ class SimpleTaskAlertRule:
         except Exception as e:
             return {"name": self.name, "would_fire": False, "message": None, "error": str(e)}
 
-        msg: Optional[str] = None
+        msg: str | None = None
         if would_fire:
             msg = (
                 f"[{self.severity.upper()}] {self.name} | "
@@ -3295,10 +3295,10 @@ class AlertRuleBuilder:
     @staticmethod
     def when_accuracy_below(
         threshold: float,
-        handler: Optional[Callable] = None,
+        handler: Callable | None = None,
         severity: str = "warning",
         cooldown: float = 0.0,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> SimpleTaskAlertRule:
         """accuracy_score < threshold 일 때 발화하는 규칙."""
         _name = name or f"accuracy_below_{threshold}"
@@ -3314,10 +3314,10 @@ class AlertRuleBuilder:
     @staticmethod
     def when_latency_above(
         threshold_seconds: float,
-        handler: Optional[Callable] = None,
+        handler: Callable | None = None,
         severity: str = "warning",
         cooldown: float = 0.0,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> SimpleTaskAlertRule:
         """execution_time > threshold_seconds 일 때 발화하는 규칙."""
         _name = name or f"latency_above_{threshold_seconds}s"
@@ -3333,10 +3333,10 @@ class AlertRuleBuilder:
     @staticmethod
     def when_completion_below(
         threshold: float,
-        handler: Optional[Callable] = None,
+        handler: Callable | None = None,
         severity: str = "warning",
         cooldown: float = 0.0,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> SimpleTaskAlertRule:
         """completion_score < threshold 일 때 발화하는 규칙."""
         _name = name or f"completion_below_{threshold}"
@@ -3351,7 +3351,7 @@ class AlertRuleBuilder:
 
     @staticmethod
     def when_error(
-        handler: Optional[Callable] = None,
+        handler: Callable | None = None,
         severity: str = "error",
         cooldown: float = 0.0,
         name: str = "task_error",
@@ -3369,10 +3369,10 @@ class AlertRuleBuilder:
     @staticmethod
     def when_tool_calls_exceed(
         max_calls: int,
-        handler: Optional[Callable] = None,
+        handler: Callable | None = None,
         severity: str = "warning",
         cooldown: float = 0.0,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> SimpleTaskAlertRule:
         """tool_calls 수 > max_calls 일 때 발화하는 규칙."""
         _name = name or f"tool_calls_exceed_{max_calls}"
@@ -3387,8 +3387,8 @@ class AlertRuleBuilder:
 
 
 def _make_alert_on_record(
-    alert_rules: List[SimpleTaskAlertRule],
-    existing_on_record: Optional[Callable],
+    alert_rules: list[SimpleTaskAlertRule],
+    existing_on_record: Callable | None,
     alert_error_mode: str = "log",
 ) -> Callable:
     """alert_rules 를 평가하는 on_record 콜백을 생성.
@@ -3438,10 +3438,10 @@ def _resolve_args(
     kwargs: dict,
     question_arg: str,
     ground_truth_arg: str,
-    context_arg: Optional[str],
-    expected_tools_arg: Optional[str],
-    fallback_expected_tools: Optional[List[str]] = None,
-) -> Tuple[str, str, Optional[str], Optional[List[str]]]:
+    context_arg: str | None,
+    expected_tools_arg: str | None,
+    fallback_expected_tools: list[str] | None = None,
+) -> tuple[str, str, str | None, list[str] | None]:
     """bound arguments 에서 question / ground_truth / context / expected_tools 를 꺼낸다.
 
     fallback_expected_tools: 함수 인자에서 expected_tools 를 찾지 못했을 때 사용하는
@@ -3450,7 +3450,7 @@ def _resolve_args(
     try:
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
-        all_args: Dict[str, Any] = dict(bound.arguments)
+        all_args: dict[str, Any] = dict(bound.arguments)
     except TypeError:
         all_args = {}
 
@@ -3486,10 +3486,10 @@ def _apply_overrides(
     task_result: Any,  # TaskResult (avoid circular import at runtime)
     *,
     decorator_framework: str,
-    eval_ctx: Optional[_EvalContext],
-    eval_meta: Optional[EvalMetadata],
-    score_fn: Optional[Callable],
-    completion_fn: Optional[Callable],
+    eval_ctx: _EvalContext | None,
+    eval_meta: EvalMetadata | None,
+    score_fn: Callable | None,
+    completion_fn: Callable | None,
     response: str,
     ground_truth: str,
 ) -> Any:
@@ -3498,7 +3498,7 @@ def _apply_overrides(
     우선순위 (높은 순):
       EvalMetadata (tuple return)  >  _EvalContext (thread-local)  >  데코레이터 파라미터  >  자동 계산
     """
-    overrides: Dict[str, Any] = {}
+    overrides: dict[str, Any] = {}
 
     # --- 1단계: 데코레이터 파라미터 (가장 낮은 우선순위) ---
     if decorator_framework and decorator_framework != "native":
@@ -3567,7 +3567,7 @@ def _apply_overrides(
 
 
 def _record_to_monitors(
-    monitor_or_list: Union[PerformanceMonitor, List[PerformanceMonitor]],
+    monitor_or_list: Union[PerformanceMonitor, list[PerformanceMonitor]],
     task_result: Any,
 ) -> None:
     """단일 monitor 또는 monitor 리스트 모두에 task_result 를 기록한다 (Gap U)."""
@@ -3581,7 +3581,7 @@ def _record_to_monitors(
         monitor_or_list.record_task(task_result)
 
 
-async def _process_async_judge_targets(targets: List[tuple]) -> None:
+async def _process_async_judge_targets(targets: list[tuple]) -> None:
     """(SPEC-006 REQ-3/REQ-4) 지연된 judge 대상들을 ``ajudge()``로 처리하고 tracker에 반영한다.
 
     ``targets`` 의 각 항목은 ``_build_and_record(..., use_async_judge=True, ...)`` 가
@@ -3598,7 +3598,7 @@ async def _process_async_judge_targets(targets: List[tuple]) -> None:
     if not targets:
         return
 
-    async def _one(_m: Any, _lj: Any, _tid: str, _q: str, _r: str, _ctx: Optional[str]) -> None:
+    async def _one(_m: Any, _lj: Any, _tid: str, _q: str, _r: str, _ctx: str | None) -> None:
         try:
             _judge_result = await _lj.ajudge(task_id=_tid, question=_q, response=_r, context=_ctx)
         except Exception as exc:
@@ -3628,96 +3628,96 @@ async def _process_async_judge_targets(targets: List[tuple]) -> None:
 
 
 def _build_and_record(
-    monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
+    monitor: Union[PerformanceMonitor, list[PerformanceMonitor]],
     *,
     task_type: str,
     task_id: str,
     question: str,
     ground_truth: str,
-    context: Optional[str],
-    expected_tools_from_arg: Optional[List[str]],
+    context: str | None,
+    expected_tools_from_arg: list[str] | None,
     elapsed: float,
     raw: Any,
     has_error: bool,
-    error_msg: Optional[str],
+    error_msg: str | None,
     model_name: str,
     framework: str,
-    score_fn: Optional[Callable],
-    completion_fn: Optional[Callable],
-    eval_ctx: Optional[_EvalContext],
-    on_record: Optional[Callable] = None,
-    on_error: Optional[Callable] = None,   # Gap AK
-    custom_parser: Optional[Callable[[Any], Optional[EvalMetadata]]] = None,  # A9
+    score_fn: Callable | None,
+    completion_fn: Callable | None,
+    eval_ctx: _EvalContext | None,
+    on_record: Callable | None = None,
+    on_error: Callable | None = None,   # Gap AK
+    custom_parser: Callable[[Any], EvalMetadata | None] | None = None,  # A9
     auto_detect_framework: bool = False,  # C7
-    extra_override: Optional[Dict[str, Any]] = None,  # A2: chunk-level extras를 TaskResult.extra에 병합
+    extra_override: dict[str, Any] | None = None,  # A2: chunk-level extras를 TaskResult.extra에 병합
     allow_duplicate_task_ids: bool = True,  # A5: False이면 중복 task_id 감지 시 UserWarning
     enable_hallucination: bool = False,  # G4: 이 호출에서만 hallucination detection 강제 활성화
     enable_llm_judge: bool = False,        # E1: 이 호출에서만 LLM Judge 강제 활성화
-    judge_model: Optional[str] = None,     # E1: LLM Judge 모델 임시 지정
-    judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 기준 임시 지정 (DeepEval 대체)
-    judge_sample_rate: Optional[float] = None,  # J2: sample_rate 임시 지정
-    judge_escalation_model: Optional[str] = None,  # E4: 저점수 재채점용 상위 모델
+    judge_model: str | None = None,     # E1: LLM Judge 모델 임시 지정
+    judge_criteria: list[str] | None = None,  # J1: G-Eval 기준 임시 지정 (DeepEval 대체)
+    judge_sample_rate: float | None = None,  # J2: sample_rate 임시 지정
+    judge_escalation_model: str | None = None,  # E4: 저점수 재채점용 상위 모델
     judge_escalation_threshold: float = 2.5,       # E4: 재채점 트리거 점수 임계값 (0–5)
-    judge_budget_per_day: Optional[float] = None,  # E5: 일일 비용 상한 (USD)
-    judge_budget_storage_path: Optional[str] = None,  # E5: 예산 누적 파일 경로
+    judge_budget_per_day: float | None = None,  # E5: 일일 비용 상한 (USD)
+    judge_budget_storage_path: str | None = None,  # E5: 예산 누적 파일 경로
     judge_max_context_chars: int = 4000,           # E5: RAG context 잘림 한도
-    judge_seed: Optional[int] = None,              # E5: 샘플링 재현성 시드
+    judge_seed: int | None = None,              # E5: 샘플링 재현성 시드
     security_mode: bool = False,              # E3: 이 호출에서만 security metrics 강제 활성화
-    allowed_tools: Optional[List[str]] = None,    # E3: 허용된 도구 목록 임시 주입
-    restricted_tools: Optional[List[str]] = None,   # E3: 금지된 도구 목록 임시 주입
-    security_sample_rate: Optional[float] = None,   # E3: 보안 트래커 샘플링 비율 임시 주입
+    allowed_tools: list[str] | None = None,    # E3: 허용된 도구 목록 임시 주입
+    restricted_tools: list[str] | None = None,   # E3: 금지된 도구 목록 임시 주입
+    security_sample_rate: float | None = None,   # E3: 보안 트래커 샘플링 비율 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
     enable_quality_evaluation: bool = False,  # P2-B: 이 호출에서만 품질 평가 강제 활성화
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional[InstructionConfig] = None,
-    loop_detection: Optional[LoopDetectionConfig] = None,
-    goal_alignment: Optional[GoalAlignmentConfig] = None,
-    reproducibility: Optional[ReproducibilityConfig] = None,
-    reproducibility_responses: Optional[List[str]] = None,
-    fault_tolerance: Optional[FaultToleranceConfig] = None,
-    plan_tracking: Optional[PlanConfig] = None,
+    instructions: InstructionConfig | None = None,
+    loop_detection: LoopDetectionConfig | None = None,
+    goal_alignment: GoalAlignmentConfig | None = None,
+    reproducibility: ReproducibilityConfig | None = None,
+    reproducibility_responses: list[str] | None = None,
+    fault_tolerance: FaultToleranceConfig | None = None,
+    plan_tracking: PlanConfig | None = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional[SLAConfig] = None,
-    threat_severity: Optional[ThreatSeverityConfig] = None,
-    efficiency: Optional[EfficiencyConfig] = None,
-    state_consistency_before: Optional[Dict[str, Any]] = None,
-    state_consistency_after: Optional[Dict[str, Any]] = None,
-    state_consistency: Optional[StateConsistencyConfig] = None,
-    deadlock: Optional[DeadlockConfig] = None,
-    observability: Optional[ObservabilityConfig] = None,
-    consensus: Optional[ConsensusConfig] = None,
-    consensus_responses: Optional[List[str]] = None,
+    sla: SLAConfig | None = None,
+    threat_severity: ThreatSeverityConfig | None = None,
+    efficiency: EfficiencyConfig | None = None,
+    state_consistency_before: dict[str, Any] | None = None,
+    state_consistency_after: dict[str, Any] | None = None,
+    state_consistency: StateConsistencyConfig | None = None,
+    deadlock: DeadlockConfig | None = None,
+    observability: ObservabilityConfig | None = None,
+    consensus: ConsensusConfig | None = None,
+    consensus_responses: list[str] | None = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional[ScopeConfig] = None,
-    context_retention: Optional[ContextRetentionConfig] = None,
-    explainability: Optional[ExplainabilityConfig] = None,
-    subtask_tracking: Optional[SubtaskConfig] = None,
-    propagation: Optional[PropagationConfig] = None,
-    context_retention_text: Optional[str] = None,  # 추출된 context 인자 값
+    scope: ScopeConfig | None = None,
+    context_retention: ContextRetentionConfig | None = None,
+    explainability: ExplainabilityConfig | None = None,
+    subtask_tracking: SubtaskConfig | None = None,
+    propagation: PropagationConfig | None = None,
+    context_retention_text: str | None = None,  # 추출된 context 인자 값
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional[AgentRoleConfig] = None,
-    graceful_degradation: Optional[GracefulDegradationConfig] = None,
-    compliance: Optional[ComplianceConfig] = None,
-    resource_budget: Optional[ResourceBudgetConfig] = None,
-    conflict_resolution: Optional[ConflictResolutionConfig] = None,
+    agent_role: AgentRoleConfig | None = None,
+    graceful_degradation: GracefulDegradationConfig | None = None,
+    compliance: ComplianceConfig | None = None,
+    resource_budget: ResourceBudgetConfig | None = None,
+    conflict_resolution: ConflictResolutionConfig | None = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
-    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
-    retry_consistency: Optional[RetryConsistencyConfig] = None,
-    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
+    tool_parameter_safety: ToolParameterSafetyConfig | None = None,
+    knowledge_retention: KnowledgeRetentionConfig | None = None,
+    retry_consistency: RetryConsistencyConfig | None = None,
+    error_diagnosis: ErrorDiagnosisConfig | None = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional[IdempotencyConfig] = None,
-    threat_response: Optional[ThreatResponseConfig] = None,
-    context_window: Optional[ContextWindowConfig] = None,
-    latency_attribution: Optional[LatencyAttributionConfig] = None,
+    idempotency: IdempotencyConfig | None = None,
+    threat_response: ThreatResponseConfig | None = None,
+    context_window: ContextWindowConfig | None = None,
+    latency_attribution: LatencyAttributionConfig | None = None,
     # SPEC-006 REQ-3/REQ-4: 비동기 경로에서 동기 judge() 대신 ajudge()를 사용하기 위한 배선.
     # True이면 이 호출 동안 monitor(s)의 enable_llm_judge를 일시 억제해 record_task() 내부의
     # 동기 judge() 호출을 막고, 대신 (monitor, task_id, question, response, context) 튜플을
     # async_judge_targets 리스트(호출자가 전달한 mutable 리스트)에 적재한다. 호출자는 이후
     # await _process_async_judge_targets(async_judge_targets) 로 ajudge() 기반 처리를 수행한다.
     use_async_judge: bool = False,
-    async_judge_targets: Optional[List[Any]] = None,
-) -> Optional[Any]:
+    async_judge_targets: list[Any] | None = None,
+) -> Any | None:
     """TaskResult 를 생성·병합·기록하는 공통 로직. sync/async/streaming/Gemini wrapper 양쪽에서 호출."""
     try:
         from agent_evaluator.helpers.taskresult_helpers import (
@@ -3840,7 +3840,7 @@ def _build_and_record(
                 effective_ground_truth = eval_meta.ground_truth
 
         # G5: partial_reason 자동 생성
-        _partial_reason: Optional[str] = None
+        _partial_reason: str | None = None
         if has_error:
             _partial_reason = "execution_error"
         elif not raw_result and not isinstance(raw_result, (int, float, bool)):
@@ -3919,7 +3919,7 @@ def _build_and_record(
                 for tc in task_result.tool_calls
             ]
         # Item J: chain_steps 유효성 검증 — dict가 아니거나 'name' 필드 없는 항목 제거
-        _valid_cs: List[Dict[str, Any]] = []
+        _valid_cs: list[dict[str, Any]] = []
         for _step in _cs:
             if not isinstance(_step, dict):
                 logger.warning("chain_steps item is not a dict (ignored): %s", type(_step).__name__)
@@ -3934,12 +3934,12 @@ def _build_and_record(
 
         # A2: extra_override — chunk-level streaming metrics 등 caller-side extras를 TaskResult.extra에 병합
         if extra_override:
-            _existing_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
+            _existing_extra: dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
             _existing_extra.update(extra_override)
             task_result = dataclasses.replace(task_result, extra=_existing_extra)
 
         # v0.9.0+: Phase 1 Harness Config 평가
-        _p1_extra: Dict[str, Any] = {}
+        _p1_extra: dict[str, Any] = {}
 
         if instructions is not None:
             try:
@@ -4038,7 +4038,7 @@ def _build_and_record(
             task_result = dataclasses.replace(task_result, extra=_existing)
 
         # v0.9.1+: 신규 Harness Config 평가
-        _harness_extra: Dict[str, Any] = {}
+        _harness_extra: dict[str, Any] = {}
 
         if sla is not None:
             try:
@@ -4159,12 +4159,12 @@ def _build_and_record(
                 logger.debug("ConsensusConfig evaluation failed (ignored): %s", _e)
 
         if _harness_extra:
-            _merged_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
+            _merged_extra: dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
             _merged_extra.update(_harness_extra)
             task_result = dataclasses.replace(task_result, extra=_merged_extra)
 
         # v0.9.2+: Phase 3 Harness Config 평가
-        _p3_extra: Dict[str, Any] = {}
+        _p3_extra: dict[str, Any] = {}
 
         if scope is not None:
             try:
@@ -4238,12 +4238,12 @@ def _build_and_record(
                 logger.debug("PropagationConfig evaluation failed (ignored): %s", _e)
 
         if _p3_extra:
-            _merged_p3: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p3: dict[str, Any] = dict(task_result.extra or {})
             _merged_p3.update(_p3_extra)
             task_result = dataclasses.replace(task_result, extra=_merged_p3)
 
         # v0.9.3+: Phase 4 Harness Config 평가
-        _p4_extra: Dict[str, Any] = {}
+        _p4_extra: dict[str, Any] = {}
 
         if agent_role is not None:
             try:
@@ -4314,12 +4314,12 @@ def _build_and_record(
                 logger.debug("ConflictResolutionConfig evaluation failed (ignored): %s", _e)
 
         if _p4_extra:
-            _merged_p4: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p4: dict[str, Any] = dict(task_result.extra or {})
             _merged_p4.update(_p4_extra)
             task_result = dataclasses.replace(task_result, extra=_merged_p4)
 
         # v0.9.4+: Phase 5 Harness Config 평가
-        _p5_extra: Dict[str, Any] = {}
+        _p5_extra: dict[str, Any] = {}
 
         if tool_parameter_safety is not None:
             try:
@@ -4373,12 +4373,12 @@ def _build_and_record(
                 logger.debug("ErrorDiagnosisConfig evaluation failed (ignored): %s", _e)
 
         if _p5_extra:
-            _merged_p5: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p5: dict[str, Any] = dict(task_result.extra or {})
             _merged_p5.update(_p5_extra)
             task_result = dataclasses.replace(task_result, extra=_merged_p5)
 
         # ── Phase 6 Harness ──────────────────────────────────────────────────────────
-        _p6_extra: Dict[str, Any] = {}
+        _p6_extra: dict[str, Any] = {}
 
         if idempotency is not None:
             try:
@@ -4454,7 +4454,7 @@ def _build_and_record(
                 logger.debug("LatencyAttributionConfig evaluation failed (ignored): %s", _e)
 
         if _p6_extra:
-            _merged_p6: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p6: dict[str, Any] = dict(task_result.extra or {})
             _merged_p6.update(_p6_extra)
             task_result = dataclasses.replace(task_result, extra=_merged_p6)
 
@@ -4472,7 +4472,7 @@ def _build_and_record(
                     extra=dict(task_result.extra) if task_result.extra else {},
                 )
                 if _plugin_scores:
-                    _pm_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
+                    _pm_extra: dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
                     _pm_extra["plugin_metrics"] = _plugin_scores
                     task_result = dataclasses.replace(task_result, extra=_pm_extra)
                     logger.debug("MetricPlugin result applied: %s", list(_plugin_scores.keys()))
@@ -4518,7 +4518,7 @@ def _build_and_record(
                     if getattr(_m, "llm_judge", None) is None:
                         try:
                             from agent_evaluator.integrations.llm_judge import LLMJudge as _LJCls
-                            _lj_kwargs: Dict[str, Any] = {}
+                            _lj_kwargs: dict[str, Any] = {}
                             if judge_model:
                                 _lj_kwargs["model"] = judge_model
                             if judge_criteria is not None:
@@ -4827,7 +4827,7 @@ _UNSET: Any = object()
 
 
 def _resolve_preset_field(
-    explicit: Any, unset: bool, preset_vals: Dict[str, Any], key: str, default: Any
+    explicit: Any, unset: bool, preset_vals: dict[str, Any], key: str, default: Any
 ) -> Any:
     """SPEC-039 REQ-1: `explicit`이 실제로 호출자가 전달한 값이면(``unset=False``) 그 값을
     preset보다 항상 우선한다. `unset=True`(호출자가 아예 전달하지 않음)일 때만 preset 값을
@@ -4837,7 +4837,7 @@ def _resolve_preset_field(
     return preset_vals.get(key, default)
 
 
-AGENT_EVAL_PRESETS: Dict[str, Dict[str, Any]] = {
+AGENT_EVAL_PRESETS: dict[str, dict[str, Any]] = {
     "production": {
         # E5: 프로덕션 환경 — 샘플링 10%, 타임아웃 30s, 50건마다 flush, 중복 task_id 차단
         "sample_rate": 0.1,
@@ -4896,7 +4896,7 @@ Example::
 """
 
 
-def register_preset(name: str, config: Dict[str, Any]) -> None:
+def register_preset(name: str, config: dict[str, Any]) -> None:
     """사용자 정의 preset을 AGENT_EVAL_PRESETS에 등록합니다 (항목 W).
 
     Args:
@@ -4963,7 +4963,7 @@ class _AgentEvalHandle:
         self._decorator_fn = _decorator_fn
         self._ctx_factory = _ctx_factory
         # context manager 모드에서 활성화되는 eval_context 인스턴스
-        self._ctx_instance: Optional[eval_context] = None
+        self._ctx_instance: eval_context | None = None
 
     # ── 데코레이터 모드 ──────────────────────────────────────────────────
 
@@ -4999,77 +4999,77 @@ def agent_eval(
     question_arg: str = "question",
     ground_truth_arg: str = "ground_truth",
     task_id_prefix: str = "task",
-    context_arg: Optional[str] = None,
-    expected_tools_arg: Optional[str] = None,
-    expected_tools: Optional[List[str]] = None,
+    context_arg: str | None = None,
+    expected_tools_arg: str | None = None,
+    expected_tools: list[str] | None = None,
     framework: Union[FrameworkLiteral, str] = "native",
     model_name: str = "",
-    score_fn: Optional[Callable[[str, str], float]] = None,
-    completion_fn: Optional[Callable[[str, str], float]] = None,
-    task_id_fn: Optional[Callable] = None,
+    score_fn: Callable[[str, str], float] | None = None,
+    completion_fn: Callable[[str, str], float] | None = None,
+    task_id_fn: Callable | None = None,
     # SPEC-039 REQ-1: 기본값은 아래 docstring/Args에 문서화된 그대로다 — `_UNSET`은
     # "호출자가 이 인자를 아예 전달하지 않았다"를 preset/eval_config 자동 로드와
     # 구분하기 위한 내부 sentinel일 뿐, 함수 진입 직후 바로 실제 기본값으로 치환된다.
     sample_rate: float = _UNSET,  # 실제 기본값: 1.0
-    on_record: Optional[Callable] = None,
-    on_error: Optional[Callable] = None,
-    timeout: Optional[float] = _UNSET,  # 실제 기본값: None (무제한)
+    on_record: Callable | None = None,
+    on_error: Callable | None = None,
+    timeout: float | None = _UNSET,  # 실제 기본값: None (무제한)
     enabled: bool = _UNSET,  # 실제 기본값: True
-    alert_rules: Optional[List[SimpleTaskAlertRule]] = None,
-    flush_every: Optional[int] = _UNSET,  # 실제 기본값: None
+    alert_rules: list[SimpleTaskAlertRule] | None = None,
+    flush_every: int | None = _UNSET,  # 실제 기본값: None
     # v0.8.1+: retry/llm_judge/security パラメータ묶음
-    retry: Optional[RetryConfig] = None,
-    llm_judge: Optional[LLMJudgeConfig] = None,
-    security: Optional[SecurityConfig] = None,
+    retry: RetryConfig | None = None,
+    llm_judge: LLMJudgeConfig | None = None,
+    security: SecurityConfig | None = None,
     # A9: custom_parser — framework adapter보다 낮은 우선순위로 EvalMetadata 생성
-    custom_parser: Optional[Callable[[Any], Optional[EvalMetadata]]] = None,
+    custom_parser: Callable[[Any], EvalMetadata | None] | None = None,
     # H1: preset — 사전 정의된 파라미터 묶음 ("production" | "development" | "testing" | "canary")
-    preset: Optional[str] = None,
+    preset: str | None = None,
     # G4: 이 데코레이터에서만 hallucination detection 활성화 (monitor 전역 설정 우선)
     enable_hallucination_detection: bool = _UNSET,  # 실제 기본값: False
     # E2: RAG 단축 — context_arg + hallucination + task_type 자동 설정
     rag_mode: bool = False,
     enable_anomaly_detection: bool = _UNSET,  # 실제 기본값: False
-    ttft_seconds: Optional[float] = None,
+    ttft_seconds: float | None = None,
     # S: alert 핸들러 예외 처리 모드 ("log" | "strict", 기본: "log")
     alert_error_mode: str = "log",
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional[InstructionConfig] = None,
-    loop_detection: Optional[LoopDetectionConfig] = None,
-    goal_alignment: Optional[GoalAlignmentConfig] = None,
-    reproducibility: Optional[ReproducibilityConfig] = None,
-    fault_tolerance: Optional[FaultToleranceConfig] = None,
-    plan_tracking: Optional[PlanConfig] = None,
+    instructions: InstructionConfig | None = None,
+    loop_detection: LoopDetectionConfig | None = None,
+    goal_alignment: GoalAlignmentConfig | None = None,
+    reproducibility: ReproducibilityConfig | None = None,
+    fault_tolerance: FaultToleranceConfig | None = None,
+    plan_tracking: PlanConfig | None = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional[SLAConfig] = None,
-    threat_severity: Optional[ThreatSeverityConfig] = None,
-    efficiency: Optional[EfficiencyConfig] = None,
-    state_consistency: Optional[StateConsistencyConfig] = None,
-    deadlock: Optional[DeadlockConfig] = None,
-    observability: Optional[ObservabilityConfig] = None,
-    consensus: Optional[ConsensusConfig] = None,
+    sla: SLAConfig | None = None,
+    threat_severity: ThreatSeverityConfig | None = None,
+    efficiency: EfficiencyConfig | None = None,
+    state_consistency: StateConsistencyConfig | None = None,
+    deadlock: DeadlockConfig | None = None,
+    observability: ObservabilityConfig | None = None,
+    consensus: ConsensusConfig | None = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional[ScopeConfig] = None,
-    context_retention: Optional[ContextRetentionConfig] = None,
-    explainability: Optional[ExplainabilityConfig] = None,
-    subtask_tracking: Optional[SubtaskConfig] = None,
-    propagation: Optional[PropagationConfig] = None,
+    scope: ScopeConfig | None = None,
+    context_retention: ContextRetentionConfig | None = None,
+    explainability: ExplainabilityConfig | None = None,
+    subtask_tracking: SubtaskConfig | None = None,
+    propagation: PropagationConfig | None = None,
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional[AgentRoleConfig] = None,
-    graceful_degradation: Optional[GracefulDegradationConfig] = None,
-    compliance: Optional[ComplianceConfig] = None,
-    resource_budget: Optional[ResourceBudgetConfig] = None,
-    conflict_resolution: Optional[ConflictResolutionConfig] = None,
+    agent_role: AgentRoleConfig | None = None,
+    graceful_degradation: GracefulDegradationConfig | None = None,
+    compliance: ComplianceConfig | None = None,
+    resource_budget: ResourceBudgetConfig | None = None,
+    conflict_resolution: ConflictResolutionConfig | None = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
-    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
-    retry_consistency: Optional[RetryConsistencyConfig] = None,
-    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
+    tool_parameter_safety: ToolParameterSafetyConfig | None = None,
+    knowledge_retention: KnowledgeRetentionConfig | None = None,
+    retry_consistency: RetryConsistencyConfig | None = None,
+    error_diagnosis: ErrorDiagnosisConfig | None = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional[IdempotencyConfig] = None,
-    threat_response: Optional[ThreatResponseConfig] = None,
-    context_window: Optional[ContextWindowConfig] = None,
-    latency_attribution: Optional[LatencyAttributionConfig] = None,
+    idempotency: IdempotencyConfig | None = None,
+    threat_response: ThreatResponseConfig | None = None,
+    context_window: ContextWindowConfig | None = None,
+    latency_attribution: LatencyAttributionConfig | None = None,
 ) -> Any:
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
@@ -5256,7 +5256,7 @@ def agent_eval(
             task_type = "information_retrieval"
 
     # H1: preset — 사전 정의된 파라미터 묶음 적용 (명시적 파라미터가 preset보다 우선)
-    _preset_vals: Dict[str, Any] = {}
+    _preset_vals: dict[str, Any] = {}
     if preset is not None:
         if preset in AGENT_EVAL_PRESETS:
             _preset_vals = AGENT_EVAL_PRESETS[preset]
@@ -5324,7 +5324,7 @@ def agent_eval(
         _effective_security_mode = True
         _effective_allowed_tools = security.allowed_tools
         _effective_restricted_tools = security.restricted_tools
-        _effective_security_sample_rate: Optional[float] = getattr(security, "sample_rate", None)
+        _effective_security_sample_rate: float | None = getattr(security, "sample_rate", None)
         if _effective_security_sample_rate == 1.0:
             _effective_security_sample_rate = None  # 기본값이면 주입 불필요
     else:
@@ -5362,7 +5362,7 @@ def agent_eval(
         _retry_on_retry = None
 
     # 데코레이터 수준의 static expected_tools 를 closure 변수로 캡처한다.
-    _static_expected_tools: Optional[List[str]] = expected_tools
+    _static_expected_tools: list[str] | None = expected_tools
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -5380,7 +5380,7 @@ def agent_eval(
             _effective_on_record = _make_alert_on_record(alert_rules, on_record, alert_error_mode)
 
         # Task 2: flush_every 카운터 (thread-safe)
-        _flush_counter: List[int] = [0]
+        _flush_counter: list[int] = [0]
         _flush_lock = threading.Lock()
 
         def _maybe_flush(task_result: Any) -> None:
@@ -5443,7 +5443,7 @@ def agent_eval(
                 fallback_expected_tools=_static_expected_tools,
             )
             # task_id_fn > auto
-            task_id: Optional[str] = (
+            task_id: str | None = (
                 task_id_fn(args, kwargs)
                 if task_id_fn is not None
                 else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
@@ -5451,17 +5451,17 @@ def agent_eval(
 
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
+            error_msg: str | None = None
             raw: Any = None          # 함수 반환값 전체 (EvalMetadata 포함 가능)
             caller_result: Any = None  # 호출자에게 반환할 값 (EvalMetadata 제거)
             eval_ctx, _ctx_token = _push_ctx()
             _attempt = 0
-            _errors: List[str] = []
+            _errors: list[str] = []
             _wait = _retry_delay
 
             # StateConsistencyConfig: 실행 전 상태 스냅샷
-            _state_before: Optional[Dict[str, Any]] = None
-            _state_after: Optional[Dict[str, Any]] = None
+            _state_before: dict[str, Any] | None = None
+            _state_after: dict[str, Any] | None = None
             _state_fn = getattr(state_consistency, "state_fn", None) if state_consistency is not None else None
             if _state_fn is not None:
                 try:
@@ -5469,7 +5469,7 @@ def agent_eval(
                 except Exception as _se:
                     logger.debug("StateConsistencyConfig state_fn (before) 실패 (무시): %s", _se)
             # ReproducibilityConfig: 응답 목록 (추가 실행 후 채움)
-            _repro_responses: Optional[List[str]] = None
+            _repro_responses: list[str] | None = None
 
             try:
                 while _attempt < _n_tries:
@@ -5668,7 +5668,7 @@ def agent_eval(
                 fallback_expected_tools=_static_expected_tools,
             )
             # task_id_fn > auto
-            task_id: Optional[str] = (
+            task_id: str | None = (
                 task_id_fn(args, kwargs)
                 if task_id_fn is not None
                 else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
@@ -5676,21 +5676,21 @@ def agent_eval(
 
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
+            error_msg: str | None = None
             raw: Any = None
             eval_ctx, _ctx_token = _push_ctx()
             # H1: track _eval_active and _NEST_DEPTH for async wrapper (same as gen/agen wrappers)
             _async_eval_active_token = _eval_active.set(True)
             _async_nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
             _attempt = 0
-            _errors: List[str] = []
+            _errors: list[str] = []
             _wait = _retry_delay
             # SPEC-006 REQ-3: 이 호출에서 억제된 judge 대상을 _build_and_record가 적재하는 리스트
-            _async_judge_targets: List[Any] = []
+            _async_judge_targets: list[Any] = []
 
             # StateConsistencyConfig: 실행 전 상태 스냅샷 (async)
-            _async_state_before: Optional[Dict[str, Any]] = None
-            _async_state_after: Optional[Dict[str, Any]] = None
+            _async_state_before: dict[str, Any] | None = None
+            _async_state_after: dict[str, Any] | None = None
             _async_state_fn = getattr(state_consistency, "state_fn", None) if state_consistency is not None else None
             if _async_state_fn is not None:
                 try:
@@ -5701,7 +5701,7 @@ def agent_eval(
             # wrapper와 동일한 필드. 이전에는 async에 이 로직이 아예 없어
             # reproducibility_responses=None이 하드코딩돼 있었고 async 에이전트에서
             # Gate C avg_reproducibility가 항상 조용히 None이었다.
-            _repro_responses: Optional[List[str]] = None
+            _repro_responses: list[str] | None = None
 
             try:
                 while _attempt < _n_tries:
@@ -5894,17 +5894,17 @@ def agent_eval(
                 fallback_expected_tools=_static_expected_tools,
             )
             # task_id_fn > auto
-            task_id: Optional[str] = (
+            task_id: str | None = (
                 task_id_fn(args, kwargs)
                 if task_id_fn is not None
                 else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
             )
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
-            chunks: List[str] = []
-            eval_meta_from_gen: Optional[EvalMetadata] = None  # Gap AV
-            _first_yield_time: Optional[float] = None           # D6: 첫 청크 시간
+            error_msg: str | None = None
+            chunks: list[str] = []
+            eval_meta_from_gen: EvalMetadata | None = None  # Gap AV
+            _first_yield_time: float | None = None           # D6: 첫 청크 시간
             eval_ctx, _ctx_token = _push_ctx()
             # H6/M3: track _eval_active and _NEST_DEPTH for generators (same as regular wrapper)
             _gen_eval_active_token = _eval_active.set(True)
@@ -6018,17 +6018,17 @@ def agent_eval(
                 fallback_expected_tools=_static_expected_tools,
             )
             # task_id_fn > auto
-            task_id: Optional[str] = (
+            task_id: str | None = (
                 task_id_fn(args, kwargs)
                 if task_id_fn is not None
                 else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
             )
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
-            chunks: List[str] = []
-            eval_meta_from_gen: Optional[EvalMetadata] = None  # Gap AV
-            _first_yield_time: Optional[float] = None           # D6: 첫 청크 시간
+            error_msg: str | None = None
+            chunks: list[str] = []
+            eval_meta_from_gen: EvalMetadata | None = None  # Gap AV
+            _first_yield_time: float | None = None           # D6: 첫 청크 시간
             eval_ctx, _ctx_token = _push_ctx()
             # H6/M3: track _eval_active and _NEST_DEPTH for async generators
             _agen_eval_active_token = _eval_active.set(True)
@@ -6197,7 +6197,7 @@ def agent_eval(
 # ---------------------------------------------------------------------------
 
 # 세션 저장소: session_id → {"session": ConversationSession, "monitor": monitor}
-_CONV_SESSIONS: Dict[str, Dict[str, Any]] = {}
+_CONV_SESSIONS: dict[str, dict[str, Any]] = {}
 _conv_sessions_lock = threading.Lock()
 
 
@@ -6256,7 +6256,7 @@ def flush_conversation(session_id: str) -> bool:
     return True
 
 
-def _do_flush(entry: Dict[str, Any]) -> None:
+def _do_flush(entry: dict[str, Any]) -> None:
     """실제 flush 로직 — with monitor.conversation() 컨텍스트 매니저 활용."""
     # Gap AY: 타이머 취소
     timer = entry.get("_timer")
@@ -6264,16 +6264,16 @@ def _do_flush(entry: Dict[str, Any]) -> None:
         timer.cancel()
 
     session_id: str = entry["session_id"]
-    turns: List[Dict[str, Any]] = entry["turns"]   # [{user, agent, metadata}]
+    turns: list[dict[str, Any]] = entry["turns"]   # [{user, agent, metadata}]
     stored_monitor = entry["monitor"]
 
     if not turns:
         logger.debug("flush_conversation: 세션 '%s' 턴 없음 — skip", session_id)
         return
 
-    on_flush_cb: Optional[Callable] = entry.get("on_flush")
-    session_score_fn_cb: Optional[Callable] = entry.get("session_score_fn")  # Gap T
-    on_record_cb: Optional[Callable] = entry.get("on_record")  # C: on_record 콜백
+    on_flush_cb: Callable | None = entry.get("on_flush")
+    session_score_fn_cb: Callable | None = entry.get("session_score_fn")  # Gap T
+    on_record_cb: Callable | None = entry.get("on_record")  # C: on_record 콜백
 
     # H2: conversation_eval LLM Judge lazy-init — agent_eval과 동일한 패턴
     _conv_judge_was_lazy = False
@@ -6388,72 +6388,72 @@ def conversation_eval(
     session_id_arg: str = "session_id",
     user_arg: str = "question",
     ground_truth_arg: str = "ground_truth",
-    max_turns: Optional[int] = None,
+    max_turns: int | None = None,
     flush_on_error: bool = True,
     sample_rate: float = _UNSET,  # SPEC-039 REQ-1: 실제 기본값 1.0 (sentinel, preset 충돌 판정용)
-    on_flush: Optional[Callable] = None,              # Gap M: (metrics, session_id: str) → None
-    on_turn: Optional[Callable] = None,               # Gap Z: (session_id, user, response, metadata) → None
-    on_record: Optional[Callable[[TaskResult], Optional[TaskResult]]] = None,  # C: (TaskResult) → Optional[TaskResult]
-    session_score_fn: Optional[Callable] = None,      # Gap T: (ConversationMetrics) → float
-    turn_score_fn: Optional[Callable] = None,         # Gap AX: (user, response, metadata) → float
-    max_session_seconds: Optional[float] = None,      # Gap AY: 비활성 세션 자동 flush 타이머
-    on_session_timeout: Optional[Callable] = None,    # Gap J: (session_id: str) → None — 타임아웃 시 호출
-    alert_rules: Optional[List[Any]] = None,          # SimpleTaskAlertRule 리스트 — 세션 flush 후 발동
-    flush_every: Optional[int] = _UNSET,  # A3: 실제 기본값 None, N 세션마다 자동 저장
+    on_flush: Callable | None = None,              # Gap M: (metrics, session_id: str) → None
+    on_turn: Callable | None = None,               # Gap Z: (session_id, user, response, metadata) → None
+    on_record: Callable[[TaskResult], TaskResult | None] | None = None,  # C: (TaskResult) → Optional[TaskResult]
+    session_score_fn: Callable | None = None,      # Gap T: (ConversationMetrics) → float
+    turn_score_fn: Callable | None = None,         # Gap AX: (user, response, metadata) → float
+    max_session_seconds: float | None = None,      # Gap AY: 비활성 세션 자동 flush 타이머
+    on_session_timeout: Callable | None = None,    # Gap J: (session_id: str) → None — 타임아웃 시 호출
+    alert_rules: list[Any] | None = None,          # SimpleTaskAlertRule 리스트 — 세션 flush 후 발동
+    flush_every: int | None = _UNSET,  # A3: 실제 기본값 None, N 세션마다 자동 저장
     enabled: bool = _UNSET,                           # 실제 기본값 True
     # A1: preset — AGENT_EVAL_PRESETS 키로 공통 파라미터 적용
-    preset: Optional[str] = None,
+    preset: str | None = None,
     # LLM Judge 통합
-    llm_judge: Optional[LLMJudgeConfig] = None,
+    llm_judge: LLMJudgeConfig | None = None,
     framework: str = "native",
     model_name: str = "",
-    on_error: Optional[Callable] = None,
-    context_arg: Optional[str] = None,
-    expected_tools_arg: Optional[str] = None,
-    custom_parser: Optional[Callable] = None,
+    on_error: Callable | None = None,
+    context_arg: str | None = None,
+    expected_tools_arg: str | None = None,
+    custom_parser: Callable | None = None,
     task_id_prefix: str = "conv",
     # A10: max_turns 초과 시 동작 ("flush" | "warn" | "error", 기본: "flush")
     max_turns_exceeded_action: str = "flush",
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional[InstructionConfig] = None,
-    loop_detection: Optional[LoopDetectionConfig] = None,
-    goal_alignment: Optional[GoalAlignmentConfig] = None,
+    instructions: InstructionConfig | None = None,
+    loop_detection: LoopDetectionConfig | None = None,
+    goal_alignment: GoalAlignmentConfig | None = None,
     # SPEC-039 REQ-4: agent_eval에는 있었지만 conversation_eval 시그니처에 아예 빠져있던
     # 4개 Harness Config를 추가(드리프트 감지 테스트로 발견). 다른 26개와 마찬가지로
     # 현재는 평가에 반영되지 않는다(REQ-5 경고 대상).
-    reproducibility: Optional[ReproducibilityConfig] = None,
-    fault_tolerance: Optional[FaultToleranceConfig] = None,
-    plan_tracking: Optional[PlanConfig] = None,
+    reproducibility: ReproducibilityConfig | None = None,
+    fault_tolerance: FaultToleranceConfig | None = None,
+    plan_tracking: PlanConfig | None = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional[SLAConfig] = None,
-    threat_severity: Optional[ThreatSeverityConfig] = None,
-    efficiency: Optional[EfficiencyConfig] = None,
-    state_consistency: Optional[StateConsistencyConfig] = None,  # SPEC-039 REQ-4
-    deadlock: Optional[DeadlockConfig] = None,
-    observability: Optional[ObservabilityConfig] = None,
-    consensus: Optional[ConsensusConfig] = None,  # SPEC-039 REQ-4
+    sla: SLAConfig | None = None,
+    threat_severity: ThreatSeverityConfig | None = None,
+    efficiency: EfficiencyConfig | None = None,
+    state_consistency: StateConsistencyConfig | None = None,  # SPEC-039 REQ-4
+    deadlock: DeadlockConfig | None = None,
+    observability: ObservabilityConfig | None = None,
+    consensus: ConsensusConfig | None = None,  # SPEC-039 REQ-4
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional[ScopeConfig] = None,
-    context_retention: Optional[ContextRetentionConfig] = None,
-    explainability: Optional[ExplainabilityConfig] = None,
-    subtask_tracking: Optional[SubtaskConfig] = None,
-    propagation: Optional[PropagationConfig] = None,  # SPEC-039 REQ-4
+    scope: ScopeConfig | None = None,
+    context_retention: ContextRetentionConfig | None = None,
+    explainability: ExplainabilityConfig | None = None,
+    subtask_tracking: SubtaskConfig | None = None,
+    propagation: PropagationConfig | None = None,  # SPEC-039 REQ-4
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional[AgentRoleConfig] = None,
-    graceful_degradation: Optional[GracefulDegradationConfig] = None,
-    compliance: Optional[ComplianceConfig] = None,
-    resource_budget: Optional[ResourceBudgetConfig] = None,
-    conflict_resolution: Optional[ConflictResolutionConfig] = None,
+    agent_role: AgentRoleConfig | None = None,
+    graceful_degradation: GracefulDegradationConfig | None = None,
+    compliance: ComplianceConfig | None = None,
+    resource_budget: ResourceBudgetConfig | None = None,
+    conflict_resolution: ConflictResolutionConfig | None = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
-    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
-    retry_consistency: Optional[RetryConsistencyConfig] = None,
-    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
+    tool_parameter_safety: ToolParameterSafetyConfig | None = None,
+    knowledge_retention: KnowledgeRetentionConfig | None = None,
+    retry_consistency: RetryConsistencyConfig | None = None,
+    error_diagnosis: ErrorDiagnosisConfig | None = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional[IdempotencyConfig] = None,
-    threat_response: Optional[ThreatResponseConfig] = None,
-    context_window: Optional[ContextWindowConfig] = None,
-    latency_attribution: Optional[LatencyAttributionConfig] = None,
+    idempotency: IdempotencyConfig | None = None,
+    threat_response: ThreatResponseConfig | None = None,
+    context_window: ContextWindowConfig | None = None,
+    latency_attribution: LatencyAttributionConfig | None = None,
 ) -> Callable:
     """멀티턴 대화 함수에 ``ConversationSession`` 기반 세션 평가를 자동 적용.
 
@@ -6556,7 +6556,7 @@ def conversation_eval(
     _judge_model = llm_judge.model if llm_judge else None
     _judge_criteria = llm_judge.criteria if llm_judge else None
     # A3: participant_id_arg — 내부 기본값 (파라미터로 노출하지 않음)
-    participant_id_arg: Optional[str] = None
+    participant_id_arg: str | None = None
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -6566,7 +6566,7 @@ def conversation_eval(
         sig = inspect.signature(func)
 
         # A3: flush_every 카운터 (session flush 단위)
-        _conv_flush_counter: List[int] = [0]
+        _conv_flush_counter: list[int] = [0]
         _conv_flush_lock = threading.Lock()
 
         def _maybe_flush_conv() -> None:
@@ -6582,11 +6582,11 @@ def conversation_eval(
                 except Exception as _fe:
                     logger.debug("conversation_eval flush_every 저장 실패 (무시): %s", _fe)
 
-        def _load_previous_session_turns(session_id: str) -> List[Dict[str, Any]]:
+        def _load_previous_session_turns(session_id: str) -> list[dict[str, Any]]:
             """이전 세션 턴 로드 (미지원 — 항상 빈 리스트 반환)."""
             return []
 
-        def _get_or_create_session(session_id: str) -> Dict[str, Any]:
+        def _get_or_create_session(session_id: str) -> dict[str, Any]:
             with _conv_sessions_lock:
                 if session_id not in _CONV_SESSIONS:
                     sampled = sample_rate >= 1.0 or random.random() < sample_rate
@@ -6613,7 +6613,7 @@ def conversation_eval(
             session_id: str,
             user: str,
             agent_resp: str,
-            metadata: Dict[str, Any],
+            metadata: dict[str, Any],
         ) -> int:
             with _conv_sessions_lock:
                 entry = _CONV_SESSIONS.get(session_id)
@@ -6642,7 +6642,7 @@ def conversation_eval(
             # Gap AD: ground_truth 실제 추출
             ground_truth_val = str(all_args.get(ground_truth_arg) or "")
             # A3: participant_id_arg 에서 발화자 ID 추출
-            participant_id_val: Optional[str] = None
+            participant_id_val: str | None = None
             if participant_id_arg:
                 _pid = all_args.get(participant_id_arg)
                 if _pid is not None:
@@ -6651,14 +6651,14 @@ def conversation_eval(
 
         def _build_turn_metadata(
             elapsed: float,
-            turn_meta: Optional[TurnMetadata],
-            participant_id: Optional[str] = None,
-        ) -> Dict[str, Any]:
+            turn_meta: TurnMetadata | None,
+            participant_id: str | None = None,
+        ) -> dict[str, Any]:
             """elapsed(자동 측정)과 TurnMetadata 를 합쳐 metadata dict 를 생성."""
             latency = (
                 turn_meta.latency if (turn_meta and turn_meta.latency is not None) else elapsed
             )
-            meta: Dict[str, Any] = {"latency": latency}
+            meta: dict[str, Any] = {"latency": latency}
             if turn_meta:
                 if turn_meta.model is not None:
                     meta["model"] = turn_meta.model
@@ -6679,7 +6679,7 @@ def conversation_eval(
                 meta["participant_id"] = participant_id
             return meta
 
-        def _reset_timer(session_id: str, entry: Dict[str, Any]) -> None:
+        def _reset_timer(session_id: str, entry: dict[str, Any]) -> None:
             """Gap AY: max_session_seconds 타이머를 재설정한다."""
             if max_session_seconds is None:
                 return
@@ -6831,7 +6831,7 @@ def conversation_eval(
                 return
 
             start = time.perf_counter()
-            chunks: List[str] = []
+            chunks: list[str] = []
             has_error = False
 
             try:
@@ -6848,7 +6848,7 @@ def conversation_eval(
                     elapsed = time.perf_counter() - start
                     agent_resp = "".join(chunks)
                     # A3: participant_id 주입
-                    metadata: Dict[str, Any] = {"latency": elapsed}
+                    metadata: dict[str, Any] = {"latency": elapsed}
                     if participant_id is not None:
                         metadata["participant_id"] = participant_id
                     if ground_truth and "ground_truth" not in metadata:
@@ -6885,78 +6885,78 @@ def conversation_eval(
 # ---------------------------------------------------------------------------
 
 def batch_eval(
-    monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
+    monitor: Union[PerformanceMonitor, list[PerformanceMonitor]],
     task_type: str = "qa",
     *,
     questions_arg: str = "questions",
     ground_truths_arg: str = "ground_truths",
-    contexts_arg: Optional[str] = None,
-    expected_tools_arg: Optional[str] = None,
+    contexts_arg: str | None = None,
+    expected_tools_arg: str | None = None,
     task_id_prefix: str = "batch",
-    task_id_fn: Optional[Callable] = None,
+    task_id_fn: Callable | None = None,
     framework: str = "native",
     model_name: str = "",
-    score_fn: Optional[Callable] = None,
-    completion_fn: Optional[Callable] = None,
-    on_record: Optional[Callable] = None,
-    on_error: Optional[Callable] = None,
-    on_batch_complete: Optional[Callable] = None,
-    on_batch_progress: Optional[Callable] = None,
-    alert_rules: Optional[List[Any]] = None,
+    score_fn: Callable | None = None,
+    completion_fn: Callable | None = None,
+    on_record: Callable | None = None,
+    on_error: Callable | None = None,
+    on_batch_complete: Callable | None = None,
+    on_batch_progress: Callable | None = None,
+    alert_rules: list[Any] | None = None,
     # SPEC-039 REQ-1: `_UNSET` sentinel — 실제 기본값은 주석대로, preset과의 충돌 판정용.
-    flush_every: Optional[int] = _UNSET,          # 실제 기본값: None (N 배치 호출마다 자동 저장)
+    flush_every: int | None = _UNSET,          # 실제 기본값: None (N 배치 호출마다 자동 저장)
     sample_rate: float = _UNSET,                  # 실제 기본값: 1.0
-    timeout: Optional[float] = _UNSET,            # 실제 기본값: None
+    timeout: float | None = _UNSET,            # 실제 기본값: None
     enabled: bool = _UNSET,                       # 실제 기본값: True
     concurrency: int = 0,                       # >0이면 항목별로 병렬 실행 (asyncio.gather), 상한 설정
     # SPEC-006 REQ-4: LLM Judge 호출을 asyncio.gather로 동시 처리(옵트인). 기본 False=기존 순차 처리.
     concurrent_judge: bool = False,
-    on_item_error: Optional[Callable] = None,
-    item_timeout: Optional[float] = None,
+    on_item_error: Callable | None = None,
+    item_timeout: float | None = None,
     return_format: str = "list",
-    preset: Optional[str] = None,
+    preset: str | None = None,
     enable_hallucination_detection: bool = False,
-    custom_parser: Optional[Callable] = None,
+    custom_parser: Callable | None = None,
     enable_anomaly_detection: bool = False,
-    security: Optional[SecurityConfig] = None,
-    llm_judge: Optional[LLMJudgeConfig] = None,
+    security: SecurityConfig | None = None,
+    llm_judge: LLMJudgeConfig | None = None,
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional[InstructionConfig] = None,
-    loop_detection: Optional[LoopDetectionConfig] = None,
-    goal_alignment: Optional[GoalAlignmentConfig] = None,
-    reproducibility: Optional[ReproducibilityConfig] = None,
-    fault_tolerance: Optional[FaultToleranceConfig] = None,
-    plan_tracking: Optional[PlanConfig] = None,
+    instructions: InstructionConfig | None = None,
+    loop_detection: LoopDetectionConfig | None = None,
+    goal_alignment: GoalAlignmentConfig | None = None,
+    reproducibility: ReproducibilityConfig | None = None,
+    fault_tolerance: FaultToleranceConfig | None = None,
+    plan_tracking: PlanConfig | None = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional[SLAConfig] = None,
-    threat_severity: Optional[ThreatSeverityConfig] = None,
-    efficiency: Optional[EfficiencyConfig] = None,
-    state_consistency: Optional[StateConsistencyConfig] = None,
-    deadlock: Optional[DeadlockConfig] = None,
-    observability: Optional[ObservabilityConfig] = None,
-    consensus: Optional[ConsensusConfig] = None,
+    sla: SLAConfig | None = None,
+    threat_severity: ThreatSeverityConfig | None = None,
+    efficiency: EfficiencyConfig | None = None,
+    state_consistency: StateConsistencyConfig | None = None,
+    deadlock: DeadlockConfig | None = None,
+    observability: ObservabilityConfig | None = None,
+    consensus: ConsensusConfig | None = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional[ScopeConfig] = None,
-    context_retention: Optional[ContextRetentionConfig] = None,
-    explainability: Optional[ExplainabilityConfig] = None,
-    subtask_tracking: Optional[SubtaskConfig] = None,
-    propagation: Optional[PropagationConfig] = None,
+    scope: ScopeConfig | None = None,
+    context_retention: ContextRetentionConfig | None = None,
+    explainability: ExplainabilityConfig | None = None,
+    subtask_tracking: SubtaskConfig | None = None,
+    propagation: PropagationConfig | None = None,
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional[AgentRoleConfig] = None,
-    graceful_degradation: Optional[GracefulDegradationConfig] = None,
-    compliance: Optional[ComplianceConfig] = None,
-    resource_budget: Optional[ResourceBudgetConfig] = None,
-    conflict_resolution: Optional[ConflictResolutionConfig] = None,
+    agent_role: AgentRoleConfig | None = None,
+    graceful_degradation: GracefulDegradationConfig | None = None,
+    compliance: ComplianceConfig | None = None,
+    resource_budget: ResourceBudgetConfig | None = None,
+    conflict_resolution: ConflictResolutionConfig | None = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
-    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
-    retry_consistency: Optional[RetryConsistencyConfig] = None,
-    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
+    tool_parameter_safety: ToolParameterSafetyConfig | None = None,
+    knowledge_retention: KnowledgeRetentionConfig | None = None,
+    retry_consistency: RetryConsistencyConfig | None = None,
+    error_diagnosis: ErrorDiagnosisConfig | None = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional[IdempotencyConfig] = None,
-    threat_response: Optional[ThreatResponseConfig] = None,
-    context_window: Optional[ContextWindowConfig] = None,
-    latency_attribution: Optional[LatencyAttributionConfig] = None,
+    idempotency: IdempotencyConfig | None = None,
+    threat_response: ThreatResponseConfig | None = None,
+    context_window: ContextWindowConfig | None = None,
+    latency_attribution: LatencyAttributionConfig | None = None,
 ) -> Callable:
     """배치 에이전트 함수(``List[str]`` → ``List[str]``)에 평가를 자동 적용하는 데코레이터.
 
@@ -7051,7 +7051,7 @@ def batch_eval(
     _effective_allowed_tools = security.allowed_tools if security else None
     _effective_restricted_tools = security.restricted_tools if security else None
     _sr = getattr(security, "sample_rate", 1.0) if security else 1.0
-    _effective_security_sample_rate: Optional[float] = None if _sr == 1.0 else _sr
+    _effective_security_sample_rate: float | None = None if _sr == 1.0 else _sr
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -7091,10 +7091,10 @@ def batch_eval(
             _effective_on_record = _make_alert_on_record(alert_rules, on_record)
 
         # A8: return_format — mutable holder shared between wrapper and wrapper_with_format
-        _last_batch_results_holder: List[List[Any]] = [[]]
+        _last_batch_results_holder: list[list[Any]] = [[]]
 
         # flush_every 카운터 (thread-safe)
-        _flush_counter: List[int] = [0]
+        _flush_counter: list[int] = [0]
         _flush_lock = threading.Lock()
 
         def _maybe_flush_batch() -> None:
@@ -7119,19 +7119,19 @@ def batch_eval(
             except TypeError:
                 all_args = {}
 
-            questions: List[str] = all_args.get(questions_arg)
+            questions: list[str] = all_args.get(questions_arg)
             if questions is None:
                 param_names = list(sig.parameters.keys())
                 questions = all_args.get(param_names[0], []) if param_names else []
             if not isinstance(questions, list):
                 questions = list(questions)
 
-            ground_truths: List[str] = all_args.get(ground_truths_arg) or []
+            ground_truths: list[str] = all_args.get(ground_truths_arg) or []
             if not isinstance(ground_truths, list):
                 ground_truths = list(ground_truths)
 
             # Gap Q: contexts 리스트 추출 (List[str])
-            contexts: Optional[List[str]] = None
+            contexts: list[str] | None = None
             if contexts_arg:
                 raw_ctx = all_args.get(contexts_arg)
                 if raw_ctx is not None:
@@ -7144,7 +7144,7 @@ def batch_eval(
                         contexts = [str(c) for c in raw_ctx]
 
             # Gap W: expected_tools_list 추출 (List[List[str]])
-            expected_tools_list: Optional[List[Optional[List[str]]]] = None
+            expected_tools_list: list[list[str] | None] | None = None
             if expected_tools_arg:
                 raw_et = all_args.get(expected_tools_arg)
                 if raw_et is not None and isinstance(raw_et, list):
@@ -7161,19 +7161,19 @@ def batch_eval(
             )
 
         def _record_batch(
-            questions: List[str],
-            ground_truths: List[str],
+            questions: list[str],
+            ground_truths: list[str],
             responses: Any,
             elapsed: float,
             has_error: bool,
-            error_msg: Optional[str],
+            error_msg: str | None,
             batch_uuid: str,
-            eval_ctx: Optional[_EvalContext] = None,                           # Gap L
-            contexts: Optional[List[str]] = None,                              # Gap Q
-            expected_tools_list: Optional[List[Optional[List[str]]]] = None,  # Gap W
+            eval_ctx: _EvalContext | None = None,                           # Gap L
+            contexts: list[str] | None = None,                              # Gap Q
+            expected_tools_list: list[list[str] | None] | None = None,  # Gap W
             use_async_judge: bool = False,                # SPEC-006 REQ-4
-            async_judge_targets: Optional[List[Any]] = None,  # SPEC-006 REQ-4
-        ) -> List[Any]:  # A8: returns list of TaskResult objects
+            async_judge_targets: list[Any] | None = None,  # SPEC-006 REQ-4
+        ) -> list[Any]:  # A8: returns list of TaskResult objects
             if not isinstance(responses, list):
                 responses = [responses] if responses is not None else []
 
@@ -7189,7 +7189,7 @@ def batch_eval(
                 )
 
             # Gap AM: collect results for on_batch_complete
-            batch_results: List[Any] = []
+            batch_results: list[Any] = []
 
             for i, question in enumerate(questions):
                 ground_truth = ground_truths[i] if i < len(ground_truths) else ""
@@ -7310,12 +7310,12 @@ def batch_eval(
             batch_uuid = uuid.uuid4().hex[:8]
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
+            error_msg: str | None = None
             responses: Any = None
             eval_ctx, _ctx_token = _push_ctx()  # Gap L
 
             # A1: _item_failures 리스트 초기화 (concurrent 실행 시 개별 실패 추적)
-            _item_failures: List[Dict[str, Any]] = []
+            _item_failures: list[dict[str, Any]] = []
 
             try:
                 # concurrency>0: 항목별 병렬 실행 (asyncio.gather for async, ThreadPoolExecutor for sync)
@@ -7387,7 +7387,7 @@ def batch_eval(
                     # SPEC-006 REQ-4: concurrent_judge=True (옵트인)면 judge 대상을 적재해뒀다가
                     # asyncio.gather 기반으로 동시 처리한다. 기본값(False)은 기존과 동일하게
                     # _record_batch() 내부에서 항목별 순차 judge 처리(record_task 동기 호출).
-                    _sync_async_judge_targets: List[Any] = []
+                    _sync_async_judge_targets: list[Any] = []
                     _batch_task_results = _record_batch(
                         questions, ground_truths, responses,
                         elapsed, has_error, error_msg, batch_uuid,
@@ -7471,14 +7471,14 @@ def batch_eval(
             batch_uuid = uuid.uuid4().hex[:8]
             start = time.perf_counter()
             has_error = False
-            error_msg: Optional[str] = None
+            error_msg: str | None = None
             responses: Any = None
             eval_ctx, _ctx_token = _push_ctx()  # Gap L
 
             try:
                 if concurrency > 0 and questions_arg in kwargs and len(questions) > 0:
                     # concurrency>0: 항목별 병렬 실행 — asyncio.gather
-                    _sem: Optional[asyncio.Semaphore] = (
+                    _sem: asyncio.Semaphore | None = (
                         asyncio.Semaphore(concurrency) if concurrency > 0 else None
                     )
 
@@ -7542,7 +7542,7 @@ def batch_eval(
                     # SPEC-006 REQ-4: concurrent_judge=True (옵트인)면 judge 대상을 적재해뒀다가
                     # asyncio.gather 기반으로 동시 처리한다. 기본값(False)은 기존과 동일하게
                     # _record_batch() 내부에서 항목별 순차 judge 처리(record_task 동기 호출).
-                    _async_judge_targets_batch: List[Any] = []
+                    _async_judge_targets_batch: list[Any] = []
                     # H2: store return value so _last_task_results is populated for async too
                     _async_batch_task_results = _record_batch(
                         questions, ground_truths, responses,
@@ -7669,23 +7669,23 @@ class eval_context:
         *,
         question: str = "",
         ground_truth: str = "",
-        context: Optional[str] = None,
-        expected_tools: Optional[List[str]] = None,
+        context: str | None = None,
+        expected_tools: list[str] | None = None,
         framework: str = "native",
         model_name: str = "",
-        task_id: Optional[str] = None,
+        task_id: str | None = None,
         task_id_prefix: str = "eval",
-        task_id_fn: Optional[Callable] = None,  # Gap AS
-        score_fn: Optional[Callable] = None,
-        completion_fn: Optional[Callable] = None,
-        on_record: Optional[Callable] = None,
-        on_error: Optional[Callable] = None,      # (task_result) → None — 오류 시 호출
-        alert_rules: Optional[List[Any]] = None,  # SimpleTaskAlertRule 리스트
+        task_id_fn: Callable | None = None,  # Gap AS
+        score_fn: Callable | None = None,
+        completion_fn: Callable | None = None,
+        on_record: Callable | None = None,
+        on_error: Callable | None = None,      # (task_result) → None — 오류 시 호출
+        alert_rules: list[Any] | None = None,  # SimpleTaskAlertRule 리스트
         sample_rate: float = 1.0,  # Gap R: 컨텍스트 매니저 수준 샘플링
         enabled: bool = True,       # Gap R: 컨텍스트 매니저 수준 활성화
-        timeout: Optional[float] = None,  # with 블록 최대 허용 시간(초); 초과 시 has_error=True 기록
+        timeout: float | None = None,  # with 블록 최대 허용 시간(초); 초과 시 has_error=True 기록
         auto_task_id: bool = False,       # A8: True이면 UUID prefix를 "auto"로 변경 (명시적 자동 생성)
-        ttft_seconds: Optional[float] = None,  # E4: 외부에서 측정한 TTFT 값 직접 주입 (chunk_step 없이 사용)
+        ttft_seconds: float | None = None,  # E4: 외부에서 측정한 TTFT 값 직접 주입 (chunk_step 없이 사용)
     ) -> None:
         self._monitor = monitor
         self._task_type = task_type
@@ -7712,10 +7712,10 @@ class eval_context:
                     task_id,
                 )
             self._task_id = task_id
-            self._task_id_fn: Optional[Callable] = None
+            self._task_id_fn: Callable | None = None
         elif task_id_fn is not None:
             self._task_id_fn = task_id_fn
-            self._task_id: Optional[str] = None  # will be set in __enter__
+            self._task_id: str | None = None  # will be set in __enter__
         else:
             # A8: auto_task_id=True이면 "auto_{uuid8}", False이면 기존 "{prefix}_{uuid8}"
             if auto_task_id:
@@ -7732,18 +7732,18 @@ class eval_context:
 
         self._timeout = timeout
         self._start: float = 0.0
-        self._eval_ctx: Optional[_EvalContext] = None
+        self._eval_ctx: _EvalContext | None = None
         self._ctx_token: Any = None
         self._skip: bool = False  # Gap R: True 이면 __exit__ 에서 기록 생략
         # A4: nested depth 추적
         self._depth_val: int = 1
         self._prev_depth_token: Any = None
         # A2: chunk-level streaming metrics
-        self._chunk_steps: List[Dict[str, Any]] = []
+        self._chunk_steps: list[dict[str, Any]] = []
         # G1: 첫 청크 TTFT (None = 미기록); E4: 외부 주입값 있으면 사전 설정
-        self._ttft_seconds: Optional[float] = ttft_seconds
+        self._ttft_seconds: float | None = ttft_seconds
 
-    def chunk_step(self, content: str = "", metadata: Optional[Dict[str, Any]] = None) -> eval_context:
+    def chunk_step(self, content: str = "", metadata: dict[str, Any] | None = None) -> eval_context:
         """스트리밍 응답의 청크 단위 메트릭을 기록한다 (A2).
 
         ``with eval_context(...)`` 블록 내에서 스트리밍 청크마다 호출한다.
@@ -7768,7 +7768,7 @@ class eval_context:
         # G1: 첫 청크 → TTFT 자동 기록
         if not self._chunk_steps and self._ttft_seconds is None:
             self._ttft_seconds = _elapsed
-        step: Dict[str, Any] = {
+        step: dict[str, Any] = {
             "index": len(self._chunk_steps),
             "content_length": len(content),
             "timestamp": _elapsed,
@@ -7781,10 +7781,10 @@ class eval_context:
     def add_step(
         self,
         step_name: str,
-        duration_s: Optional[float] = None,
+        duration_s: float | None = None,
         step_type: str = "step",
         success: bool = True,
-        output: Optional[str] = None,
+        output: str | None = None,
     ) -> eval_context:
         """현재 스텝을 chain_steps에 추가한다 (Item X).
 
@@ -7812,8 +7812,8 @@ class eval_context:
                 ctx.response = llm.generate(q)
         """
         if not hasattr(self, "_named_steps"):
-            self._named_steps: List[Dict[str, Any]] = []
-        step: Dict[str, Any] = {
+            self._named_steps: list[dict[str, Any]] = []
+        step: dict[str, Any] = {
             "name": step_name,
             "type": step_type,
             "success": success,
@@ -7900,7 +7900,7 @@ class eval_context:
         # Safety fallback for task_id (should not happen normally)
         task_id = self._task_id or f"{self._task_id_prefix}_{uuid.uuid4().hex[:8]}"
         # A2: chunk-level streaming metrics → extra 필드에 저장
-        _extra_override: Optional[Dict[str, Any]] = None
+        _extra_override: dict[str, Any] | None = None
         if self._chunk_steps:
             _extra_override = {
                 "streaming_steps": self._chunk_steps,
@@ -7988,9 +7988,9 @@ class _ContextShortcut:
 
     def __init__(self, eval_dec: EvalDecorator) -> None:
         self._eval_dec = eval_dec
-        self._ctx: Optional[eval_context] = None
+        self._ctx: eval_context | None = None
 
-    def __call__(self, task_type: Optional[str] = None, **kwargs) -> eval_context:
+    def __call__(self, task_type: str | None = None, **kwargs) -> eval_context:
         """``with eval.context(task_type="qa", ...) as ctx:`` 형태 지원."""
         ctx_defaults = {
             "framework": self._eval_dec._defaults.get("framework", "native"),
@@ -8204,44 +8204,44 @@ class EvalDecorator:
 
     def __init__(
         self,
-        monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
+        monitor: Union[PerformanceMonitor, list[PerformanceMonitor]],
         *,
         framework: Union[FrameworkLiteral, str] = "native",
         model_name: str = "",
         sample_rate: float = 1.0,
         enabled: bool = True,
-        score_fn: Optional[Callable] = None,
-        completion_fn: Optional[Callable] = None,
-        on_record: Optional[Callable] = None,
-        on_error: Optional[Callable] = None,      # Gap AK
+        score_fn: Callable | None = None,
+        completion_fn: Callable | None = None,
+        on_record: Callable | None = None,
+        on_error: Callable | None = None,      # Gap AK
         task_id_prefix: str = "task",
         # Gap AI: agent_eval 파라미터 기본값 — 반복 지정 불필요
         question_arg: str = "question",
         ground_truth_arg: str = "ground_truth",
-        context_arg: Optional[str] = None,
-        expected_tools_arg: Optional[str] = None,
-        task_id_fn: Optional[Callable] = None,
-        timeout: Optional[float] = None,
-        alert_rules: Optional[List[Any]] = None,  # SimpleTaskAlertRule 리스트 기본값
-        flush_every: Optional[int] = None,         # N 태스크마다 자동 save_to_file
-        custom_parser: Optional[Callable] = None,     # A9: framework adapter 전 EvalMetadata 생성
+        context_arg: str | None = None,
+        expected_tools_arg: str | None = None,
+        task_id_fn: Callable | None = None,
+        timeout: float | None = None,
+        alert_rules: list[Any] | None = None,  # SimpleTaskAlertRule 리스트 기본값
+        flush_every: int | None = None,         # N 태스크마다 자동 save_to_file
+        custom_parser: Callable | None = None,     # A9: framework adapter 전 EvalMetadata 생성
         # H4: 단축 속성에서 자동 전파되는 eval 모드 플래그
         enable_llm_judge: bool = False,
-        judge_model: Optional[str] = None,
-        judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 스타일 커스텀 평가 기준
+        judge_model: str | None = None,
+        judge_criteria: list[str] | None = None,  # J1: G-Eval 스타일 커스텀 평가 기준
         enable_anomaly_detection: bool = False,
         enable_hallucination_detection: bool = False,  # per-call hallucination detection
         enable_hallucination: bool = False,            # legacy alias for enable_hallucination_detection
-        security: Optional[SecurityConfig] = None,  # SecurityConfig 통합
-        llm_judge: Optional[LLMJudgeConfig] = None,  # LLMJudgeConfig 통합
+        security: SecurityConfig | None = None,  # SecurityConfig 통합
+        llm_judge: LLMJudgeConfig | None = None,  # LLMJudgeConfig 통합
         # A9: sample_condition — 조건부 샘플링 (args, kwargs) → bool
-        sample_condition: Optional[Callable] = None,
+        sample_condition: Callable | None = None,
     ) -> None:
         self._monitor = monitor
         # Legacy alias: enable_hallucination → enable_hallucination_detection
         if enable_hallucination and not enable_hallucination_detection:
             enable_hallucination_detection = True
-        self._defaults: Dict[str, Any] = {
+        self._defaults: dict[str, Any] = {
             "framework": framework,
             "model_name": model_name,
             "sample_rate": sample_rate,
@@ -8270,7 +8270,7 @@ class EvalDecorator:
         }
 
     @property
-    def monitor(self) -> Union[PerformanceMonitor, List[PerformanceMonitor]]:
+    def monitor(self) -> Union[PerformanceMonitor, list[PerformanceMonitor]]:
         """기저 :class:`~agent_evaluator.PerformanceMonitor` 인스턴스 반환 (Gap AA).
 
         ``for_rag()`` / ``for_security()`` 로 생성한 경우에도 동일하게 접근한다.
@@ -8282,7 +8282,7 @@ class EvalDecorator:
         """
         return self._monitor
 
-    def inspect(self) -> Dict[str, Any]:
+    def inspect(self) -> dict[str, Any]:
         """현재 EvalDecorator에 적용된 기본값(defaults)을 반환한다 (Item U).
 
         Returns:

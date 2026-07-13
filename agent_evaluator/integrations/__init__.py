@@ -18,31 +18,30 @@ AutoGenEvaluator, create_evaluated_*, LLMHelper, ClaudeHelper) 제거.
 3. ``agent_evaluator/integrations/__init__.py`` 에 ``{framework}_eval`` 추가 및 ``__all__`` 포함
 4. 테스트: ``tests/`` 에 어댑터 단위 테스트 추가
 """
+from __future__ import annotations
 
 # ============================================================================
 # Lightweight utility functions — 즉시 로드 (외부 의존성 없음)
 # ============================================================================
-
 from .framework_integrations import (
+    EvaluatorProtocol,
     check_framework_availability,
-    get_installation_instructions,
-    print_framework_status,
     ensure_security_trackers,
     extract_tools_from_framework_object,
-    EvaluatorProtocol,
-    to_graph_state,
-    to_crew_inputs,
-    to_task_string,
+    get_installation_instructions,
     infer_privilege_level,
+    print_framework_status,
+    to_crew_inputs,
+    to_graph_state,
+    to_task_string,
 )
 
 # Metric adapters — LLM API 클라이언트 미사용, 즉시 로드 허용
 from .metric_adapters import (
     DeepEvalAdapter,
-    RagasAdapter,
     MetricAdapter,
+    RagasAdapter,
 )
-
 
 # ============================================================================
 # Heavy framework integrations — lazy loading
@@ -83,8 +82,9 @@ def __getattr__(name: str):
 
 def _make_framework_eval(framework_name: str):
     """Return a partial of agent_eval with framework pre-set."""
-    from agent_evaluator.decorators import agent_eval as _agent_eval
     import functools
+
+    from agent_evaluator.decorators import agent_eval as _agent_eval
 
     @functools.wraps(_agent_eval)
     def _eval(monitor, task_type="qa", **kwargs):

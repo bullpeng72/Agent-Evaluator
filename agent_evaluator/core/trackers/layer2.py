@@ -14,17 +14,17 @@ import statistics
 import threading
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Union
 
 import pandas as pd
 
-from .base import BaseTracker
 from ...exceptions import ValidationError
+from .base import BaseTracker
 
 logger = logging.getLogger(__name__)
 
 
-def _safe_mean(series: "pd.Series") -> float:
+def _safe_mean(series: pd.Series) -> float:
     """Return the mean of a pandas Series, or 0.0 if empty / all-NaN."""
     if len(series) == 0:
         return 0.0
@@ -100,18 +100,18 @@ class ToolCallAnalyzer(BaseTracker):
     """
 
     def __init__(self):
-        self._executions: List[Dict[str, Any]] = []
+        self._executions: list[dict[str, Any]] = []
         self._all_tool_names: set = set()  # 전체 누적 고유 도구명 집합
         self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
-    def executions(self) -> List[Dict[str, Any]]:
+    def executions(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated execution records."""
         with self._lock:
             return list(self._executions)
 
     @executions.setter
-    def executions(self, value: List[Dict[str, Any]]) -> None:
+    def executions(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._executions = list(value)
@@ -129,8 +129,8 @@ class ToolCallAnalyzer(BaseTracker):
     def analyze_execution(
         self,
         task_id: str,
-        tool_calls: List[Union[str, Dict[str, Any]]],
-    ) -> Dict[str, Any]:
+        tool_calls: list[Union[str, dict[str, Any]]],
+    ) -> dict[str, Any]:
         """Analyze tool call efficiency for a single task.
 
         Args:
@@ -209,7 +209,7 @@ class ToolCallAnalyzer(BaseTracker):
             self._all_tool_names.update(tool_names)
         return metrics
 
-    def _count_redundant_calls(self, tool_calls: List) -> int:
+    def _count_redundant_calls(self, tool_calls: list) -> int:
         """Count redundant tool calls (supports both dict and string formats)"""
         seen = set()
         redundant = 0
@@ -231,7 +231,7 @@ class ToolCallAnalyzer(BaseTracker):
 
         return redundant
 
-    def get_efficiency_stats(self) -> Dict[str, Any]:
+    def get_efficiency_stats(self) -> dict[str, Any]:
         """Get tool call efficiency statistics"""
         if not self._executions:
             return {
@@ -265,7 +265,7 @@ class ToolCallAnalyzer(BaseTracker):
             ) if total_calls > 0 else 0
         }
 
-    def get_tool_usage_patterns(self) -> Dict[str, Any]:
+    def get_tool_usage_patterns(self) -> dict[str, Any]:
         """Get detailed tool usage patterns and statistics"""
         if not self._executions:
             return {
@@ -369,18 +369,18 @@ class RetryCorrectionTracker(BaseTracker):
     """Track retry and correction attempts"""
 
     def __init__(self):
-        self._attempts: List[Dict[str, Any]] = []
-        self._task_ids: Set[str] = set()
+        self._attempts: list[dict[str, Any]] = []
+        self._task_ids: set[str] = set()
         self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
-    def attempts(self) -> List[Dict[str, Any]]:
+    def attempts(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated retry attempt records."""
         with self._lock:
             return list(self._attempts)
 
     @attempts.setter
-    def attempts(self, value: List[Dict[str, Any]]) -> None:
+    def attempts(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._attempts = list(value)
@@ -399,7 +399,7 @@ class RetryCorrectionTracker(BaseTracker):
     def track_attempts(
         self,
         task_id: str,
-        attempts_log: List[Dict[str, Any]],
+        attempts_log: list[dict[str, Any]],
         task_type: str = "unknown",
     ) -> None:
         """태스크의 재시도 이력을 기록한다.
@@ -441,7 +441,7 @@ class RetryCorrectionTracker(BaseTracker):
             self._attempts.append(analysis)
             self._task_ids.add(task_id)
 
-    def get_retry_metrics(self) -> Dict[str, Any]:
+    def get_retry_metrics(self) -> dict[str, Any]:
         """Get retry statistics"""
         if not self._attempts:
             return {
@@ -497,7 +497,7 @@ class RetryCorrectionTracker(BaseTracker):
             "avg_retries_per_task": round(df["total_attempts"].mean() - 1, 2)
         }
 
-    def analyze_failure_patterns(self) -> Dict[str, Any]:
+    def analyze_failure_patterns(self) -> dict[str, Any]:
         """Analyze common failure patterns"""
         all_reasons = []
         for attempt in self._attempts:
@@ -526,7 +526,7 @@ class RetryCorrectionTracker(BaseTracker):
 
 # 도구명 정규화 별칭 맵 — 프레임워크별 명명 차이로 인한 F1 왜곡 방지
 # 형식: canonical_name → [alias_list]
-_TOOL_ALIASES: Dict[str, List[str]] = {
+_TOOL_ALIASES: dict[str, list[str]] = {
     "web_search": ["search_web", "internet_search", "google_search", "search", "web_search_tool"],
     "python_repl": ["python_executor", "code_runner", "execute_python", "python_tool", "repl"],
     "calculator": ["compute", "math_tool", "calculate", "arithmetic", "math"],
@@ -538,7 +538,7 @@ _TOOL_ALIASES: Dict[str, List[str]] = {
 }
 
 # 역방향 맵: alias → canonical
-_TOOL_ALIAS_REVERSE: Dict[str, str] = {
+_TOOL_ALIAS_REVERSE: dict[str, str] = {
     alias: canonical
     for canonical, aliases in _TOOL_ALIASES.items()
     for alias in aliases
@@ -555,18 +555,18 @@ class ToolSelectionTracker(BaseTracker):
     """Track tool selection accuracy for Agentic AI"""
 
     def __init__(self):
-        self._selections: List[Dict[str, Any]] = []
-        self._task_ids: Set[str] = set()
+        self._selections: list[dict[str, Any]] = []
+        self._task_ids: set[str] = set()
         self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
-    def selections(self) -> List[Dict[str, Any]]:
+    def selections(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated tool selection records."""
         with self._lock:
             return list(self._selections)
 
     @selections.setter
-    def selections(self, value: List[Dict[str, Any]]) -> None:
+    def selections(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._selections = list(value)
@@ -585,9 +585,9 @@ class ToolSelectionTracker(BaseTracker):
     def evaluate_selection(
         self,
         task_id: str,
-        expected_tools: List[str],
-        actual_tools: List[str]
-    ) -> Dict[str, Any]:
+        expected_tools: list[str],
+        actual_tools: list[str]
+    ) -> dict[str, Any]:
         """에이전트가 올바른 도구를 선택했는지 평가한다 (Precision/Recall/F1 기반).
 
         도구 이름은 시맨틱 별칭 정규화(`_normalize_tool_name`)를 거쳐 비교하므로
@@ -665,7 +665,7 @@ class ToolSelectionTracker(BaseTracker):
             self._task_ids.add(task_id)
         return result
 
-    def get_accuracy_stats(self) -> Dict[str, Any]:
+    def get_accuracy_stats(self) -> dict[str, Any]:
         """Get tool selection accuracy statistics"""
         if not self._selections:
             return {
@@ -698,7 +698,7 @@ class ToolSelectionTracker(BaseTracker):
             "total_false_negatives": int(df["false_negatives"].sum())
         }
 
-    def get_f1_by_tool(self) -> Dict[str, Dict[str, float]]:
+    def get_f1_by_tool(self) -> dict[str, dict[str, float]]:
         """도구별 F1/Precision/Recall 세부 분류를 반환한다 (C3).
 
         각 expected_tool에 대해 실제 선택 여부를 기준으로 per-tool 지표를 계산한다.
@@ -715,7 +715,7 @@ class ToolSelectionTracker(BaseTracker):
         if not self._selections:
             return {}
 
-        tool_stats: Dict[str, Dict[str, int]] = {}
+        tool_stats: dict[str, dict[str, int]] = {}
         for sel in self._selections:
             expected = set(_normalize_tool_name(t) for t in sel.get("expected_tools", []))
             actual = set(_normalize_tool_name(t) for t in sel.get("actual_tools", []))
@@ -731,7 +731,7 @@ class ToolSelectionTracker(BaseTracker):
                 elif tool in expected and tool not in actual:
                     tool_stats[tool]["fn"] += 1
 
-        result: Dict[str, Dict[str, float]] = {}
+        result: dict[str, dict[str, float]] = {}
         for tool, s in tool_stats.items():
             tp, fp, fn = s["tp"], s["fp"], s["fn"]
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -771,27 +771,27 @@ class AgentCoordinationTracker(BaseTracker):
 
     def __init__(
         self,
-        hub_threshold: Optional[float] = None,
+        hub_threshold: float | None = None,
         chain_ratio: float = _COORD_CHAIN_RATIO,
         mesh_density_threshold: float = _COORD_MESH_DENSITY_THRESHOLD,
         ideal_agent_count: int = _COORD_IDEAL_AGENT_COUNT,
     ):
-        self._interactions: List[Dict[str, Any]] = []
+        self._interactions: list[dict[str, Any]] = []
         self._lock = threading.Lock()  # M4: thread-safe append
         # None → compute dynamically from interaction data (mean + 1·std)
-        self._hub_threshold_override: Optional[float] = hub_threshold
+        self._hub_threshold_override: float | None = hub_threshold
         self._chain_ratio = chain_ratio
         self._mesh_density_threshold = mesh_density_threshold
         self._ideal_agent_count = ideal_agent_count
 
     @property
-    def interactions(self) -> List[Dict[str, Any]]:
+    def interactions(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated agent interaction records."""
         with self._lock:
             return list(self._interactions)
 
     @interactions.setter
-    def interactions(self, value: List[Dict[str, Any]]) -> None:
+    def interactions(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._interactions = list(value)
@@ -812,8 +812,8 @@ class AgentCoordinationTracker(BaseTracker):
         to_agent: str,
         interaction_type: str,  # delegation, communication, collaboration
         success: bool,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """에이전트 간 인터랙션(위임·통신·협업)을 기록한다.
 
         Args:
@@ -868,7 +868,7 @@ class AgentCoordinationTracker(BaseTracker):
             self._interactions.append(interaction)
         return interaction
 
-    def calculate_coordination_score(self, task_id: Optional[str] = None) -> Dict[str, Any]:
+    def calculate_coordination_score(self, task_id: str | None = None) -> dict[str, Any]:
         """Calculate agent coordination quality score"""
         interactions = self._interactions
         if task_id:
@@ -924,7 +924,7 @@ class AgentCoordinationTracker(BaseTracker):
             return 0.0
         return sum(1 for d in delegations if d.get("success", False)) / len(delegations) * 100
 
-    def get_interaction_patterns(self) -> Dict[str, Any]:
+    def get_interaction_patterns(self) -> dict[str, Any]:
         """Analyze agent interaction patterns (Hub, Chain, Mesh)"""
         if not self._interactions:
             return {
@@ -1067,7 +1067,7 @@ class AgentCoordinationTracker(BaseTracker):
             "pattern_characteristics": self._describe_pattern(pattern_type, total_agents, agent_roles)
         }
 
-    def _describe_pattern(self, pattern_type: str, total_agents: int, agent_roles: Dict) -> Dict[str, Any]:
+    def _describe_pattern(self, pattern_type: str, total_agents: int, agent_roles: dict) -> dict[str, Any]:
         """Generate pattern characteristics description"""
         if pattern_type == "hub":
             return {
@@ -1098,7 +1098,7 @@ class AgentCoordinationTracker(BaseTracker):
                 "recommendation": "Analyze agent interactions to establish clearer patterns"
             }
 
-    def get_network_topology(self) -> Dict[str, Any]:
+    def get_network_topology(self) -> dict[str, Any]:
         """에이전트 네트워크 토폴로지 요약을 반환한다 (C4).
 
         ``analyze_interaction_patterns()`` 를 호출해 패턴을 감지하고
@@ -1161,17 +1161,17 @@ class WorkflowExecutionTracker(BaseTracker):
     """Track workflow/chain execution for LangChain and LangGraph"""
 
     def __init__(self):
-        self._executions: List[Dict[str, Any]] = []
+        self._executions: list[dict[str, Any]] = []
         self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
-    def executions(self) -> List[Dict[str, Any]]:
+    def executions(self) -> list[dict[str, Any]]:
         """Shallow copy of accumulated workflow execution records."""
         with self._lock:
             return list(self._executions)
 
     @executions.setter
-    def executions(self, value: List[Dict[str, Any]]) -> None:
+    def executions(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._executions = list(value)
@@ -1193,8 +1193,8 @@ class WorkflowExecutionTracker(BaseTracker):
         success: bool,
         execution_time: float,
         framework: str = "langchain",  # langchain or langgraph
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """워크플로우의 개별 단계(체인 스텝·노드·엣지·분기) 실행을 기록한다.
 
         Args:
@@ -1242,9 +1242,9 @@ class WorkflowExecutionTracker(BaseTracker):
 
     def calculate_execution_success_rate(
         self,
-        task_id: Optional[str] = None,
-        framework: Optional[str] = None
-    ) -> Dict[str, Any]:
+        task_id: str | None = None,
+        framework: str | None = None
+    ) -> dict[str, Any]:
         """워크플로우 단계별·태스크별 실행 성공률을 계산한다.
 
         Args:
@@ -1308,7 +1308,7 @@ class WorkflowExecutionTracker(BaseTracker):
             "avg_steps_per_task": round(len(executions) / len(task_groups), 2) if task_groups else 0
         }
 
-    def get_graph_traversal_efficiency(self, task_id: str) -> Dict[str, Any]:
+    def get_graph_traversal_efficiency(self, task_id: str) -> dict[str, Any]:
         """Calculate graph traversal efficiency (LangGraph specific)"""
         steps = [e for e in self._executions if e["task_id"] == task_id and e["framework"] == "langgraph"]
 
@@ -1335,7 +1335,7 @@ class WorkflowExecutionTracker(BaseTracker):
             ), 3) if any(n["execution_time"] > 0 for n in nodes) else 0
         }
 
-    def get_critical_path_analysis(self) -> Dict[str, Any]:
+    def get_critical_path_analysis(self) -> dict[str, Any]:
         """Analyze critical path and bottlenecks in workflow execution"""
         if not self._executions:
             return {
@@ -1357,7 +1357,7 @@ class WorkflowExecutionTracker(BaseTracker):
             "total_count": 0
         })
 
-        for task_id, steps in task_groups.items():
+        for _task_id, steps in task_groups.items():
             for step in steps:
                 step_name = step["step_name"]
                 # DQ-164: exclude 0.0 durations (unmeasured) from critical path analysis
@@ -1393,7 +1393,7 @@ class WorkflowExecutionTracker(BaseTracker):
         # Calculate total workflow statistics
         total_execution_times = []
         workflow_success_rates = []
-        for task_id, steps in task_groups.items():
+        for _task_id, steps in task_groups.items():
             total_time = sum(s["execution_time"] for s in steps)
             total_execution_times.append(total_time)
             success_rate = (sum(1 for s in steps if s["success"]) / len(steps)) * 100
@@ -1429,7 +1429,7 @@ class WorkflowExecutionTracker(BaseTracker):
             "optimization_recommendations": self._generate_optimization_recommendations(step_analysis, bottlenecks)
         }
 
-    def _generate_optimization_recommendations(self, step_analysis: List[Dict], bottlenecks: List[Dict]) -> List[str]:
+    def _generate_optimization_recommendations(self, step_analysis: list[dict], bottlenecks: list[dict]) -> list[str]:
         """Generate optimization recommendations based on critical path analysis"""
         recommendations = []
 

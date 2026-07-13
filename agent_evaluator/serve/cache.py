@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 
 class ResponseCache:
@@ -28,11 +28,11 @@ class ResponseCache:
     def __init__(self, maxsize: int = 128, ttl: float = 30.0) -> None:
         self.maxsize = maxsize
         self.ttl = ttl
-        self._cache: OrderedDict[str, Tuple[Any, float]] = OrderedDict()
+        self._cache: OrderedDict[str, tuple[Any, float]] = OrderedDict()
         self._hits: int = 0
         self._misses: int = 0
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """캐시에서 값을 읽는다. TTL 만료 시 None 반환."""
         entry = self._cache.get(key)
         if entry is None:
@@ -66,7 +66,7 @@ class ResponseCache:
         self._hits = 0
         self._misses = 0
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """캐시 통계를 반환한다."""
         total = self._hits + self._misses
         return {

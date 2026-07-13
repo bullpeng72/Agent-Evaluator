@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
-from typing import Any, Dict, Set
+from typing import Any
 
 from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 router = APIRouter(prefix="/api", tags=["streaming"])
 
 # WebSocket 연결 관리
-_WS_CONNECTIONS: Set[WebSocket] = set()
+_WS_CONNECTIONS: set[WebSocket] = set()
 _ws_lock = asyncio.Lock()
 
 
@@ -84,7 +84,7 @@ async def live_stats(request: Request, window: str = "5m") -> JSONResponse:
         window = "5m"
 
     try:
-        stats: Dict[str, Any] = evaluator.get_stats(window)
+        stats: dict[str, Any] = evaluator.get_stats(window)
         stats["window"] = window
         stats["available"] = True
         return JSONResponse(stats)
@@ -179,7 +179,7 @@ async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0
         ]
 
     async def _generator():
-        seen_ids: Set[str] = set()
+        seen_ids: set[str] = set()
 
         # Initial snapshot
         if rs is not None:
@@ -305,7 +305,7 @@ async def stream_filtered_tasks(
             pass
         return False
 
-    def _task_to_dict(t) -> Dict[str, Any]:
+    def _task_to_dict(t) -> dict[str, Any]:
         return {
             "task_id":        t.task_id,
             "task_type":      t.task_type,
@@ -319,7 +319,7 @@ async def stream_filtered_tasks(
     rs = getattr(request.app.state, "result_set", None)
 
     async def _generator():
-        seen_ids: Set[str] = set()
+        seen_ids: set[str] = set()
 
         # Initial snapshot
         if rs is not None:
@@ -404,7 +404,7 @@ async def websocket_events(websocket: WebSocket):
         rs = getattr(websocket.app.state, "result_set", None)
         # Initial snapshot
         files_meta = []
-        seen_tasks: Dict[str, Set[str]] = {}
+        seen_tasks: dict[str, set[str]] = {}
         if rs is not None:
             for f in rs.files:
                 files_meta.append({"file_id": f.file_id, "name": f.name,

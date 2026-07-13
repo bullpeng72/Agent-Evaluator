@@ -13,7 +13,7 @@ import urllib.request
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class GoldenSetBuilder:
         self.source_dir = Path(source_dir)
         self.output_dir = Path(output_dir)
 
-    def _load_tasks(self) -> List[Dict[str, Any]]:
+    def _load_tasks(self) -> list[dict[str, Any]]:
         """source_dir의 모든 JSON 파일에서 태스크 목록 로드."""
         tasks = []
         for p in sorted(self.source_dir.glob("*.json")):
@@ -59,7 +59,7 @@ class GoldenSetBuilder:
                 continue
         return tasks
 
-    def _load_existing_golden(self) -> List[Dict[str, Any]]:
+    def _load_existing_golden(self) -> list[dict[str, Any]]:
         """기존 골든셋의 task_id 목록 수집 (중복 방지)."""
         existing = []
         for p in self.output_dir.glob("*.json"):
@@ -76,11 +76,11 @@ class GoldenSetBuilder:
 
     def extract(
         self,
-        strategies: List[str],
+        strategies: list[str],
         max_cases: int = 50,
         require_human_review: bool = True,
         min_question_length: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """전략에 따라 골든셋 후보 케이스를 추출한다.
 
         Args:
@@ -105,7 +105,7 @@ class GoldenSetBuilder:
         # 기존 골든셋에 없는 태스크만 필터
         tasks = [t for t in tasks if t.get("task_id") not in existing_ids]
 
-        candidates: List[Dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
 
         for strategy in strategies:
             extracted = self._apply_strategy(strategy, tasks, min_question_length)
@@ -117,7 +117,7 @@ class GoldenSetBuilder:
 
         # 중복 task_id 제거
         seen: set = set()
-        unique: List[Dict[str, Any]] = []
+        unique: list[dict[str, Any]] = []
         for c in candidates:
             tid = c.get("task_id")
             if tid not in seen:
@@ -127,7 +127,7 @@ class GoldenSetBuilder:
         # max_cases 제한
         return unique[:max_cases]
 
-    def _apply_strategy(self, strategy: str, tasks: List[Dict[str, Any]], min_q_len: int) -> List[Dict[str, Any]]:
+    def _apply_strategy(self, strategy: str, tasks: list[dict[str, Any]], min_q_len: int) -> list[dict[str, Any]]:
         if strategy == "failure_cases":
             return [t for t in tasks if not t.get("success", True)
                     and len(str(t.get("question", t.get("task_id", "")))) >= min_q_len]
@@ -155,7 +155,7 @@ class GoldenSetBuilder:
 
         return []
 
-    def save_candidates(self, candidates: List[Dict[str, Any]], filename: str = "candidates.json") -> Path:
+    def save_candidates(self, candidates: list[dict[str, Any]], filename: str = "candidates.json") -> Path:
         """후보 케이스를 파일에 저장."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
         path = self.output_dir / filename
@@ -166,9 +166,9 @@ class GoldenSetBuilder:
     def upload_to_phoenix(
         self,
         dataset_path: str,
-        dataset_name: Optional[str] = None,
+        dataset_name: str | None = None,
         phoenix_endpoint: str = "http://localhost:6006",
-    ) -> Optional[str]:
+    ) -> str | None:
         """골든셋 JSON 파일을 Phoenix Datasets API로 업로드한다.
 
         Phoenix UI → Datasets & Experiments 탭에서 확인 가능.
@@ -256,7 +256,7 @@ class GoldenSetBuilder:
             )
             if r_create.get("errors"):
                 raise RuntimeError(f"createDataset 오류: {r_create['errors']}")
-            dataset_id: Optional[str] = (
+            dataset_id: str | None = (
                 r_create.get("data", {})
                 .get("createDataset", {})
                 .get("dataset", {})
@@ -295,9 +295,9 @@ class GoldenSetBuilder:
 
     def merge_to_golden(
         self,
-        cases: List[Dict[str, Any]],
+        cases: list[dict[str, Any]],
         version: str = "latest",
-        output_name: Optional[str] = None,
+        output_name: str | None = None,
     ) -> Path:
         """후보 케이스를 골든셋으로 병합 저장.
 
@@ -327,11 +327,11 @@ class GoldenSetBuilder:
 
     def push_to_phoenix(
         self,
-        cases: List[Dict[str, Any]],
+        cases: list[dict[str, Any]],
         dataset_name: str,
         phoenix_endpoint: str = "http://localhost:6006",
         version: str = "latest",
-    ) -> Optional[str]:
+    ) -> str | None:
         """골든셋 케이스를 저장한 뒤 Phoenix Datasets API로 한 번에 업로드한다.
 
         ``merge_to_golden()`` + ``upload_to_phoenix()`` 를 순서대로 실행하는

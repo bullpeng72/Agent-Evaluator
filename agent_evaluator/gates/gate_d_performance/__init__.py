@@ -11,3 +11,5 @@ eval_sla/eval_efficiency/eval_resource_budget, monitor.py의 Gate D 집계 로�
 migration되지 않은 Gate C 섹션에서 계속 계산되어 aggregate.compute()에 파라미터로 전달된다.
 원래 위치에는 하위호환을 위한 re-export만 남는다.
 """
+from __future__ import annotations
+

@@ -19,13 +19,13 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent_evaluator.cli._utils import _supports_color
+
 # SPEC-010 REQ-2: Harness Gate A-G 회귀 판정 로직을 quick_eval.py와 공유한다(HarnessEvaluationGate
 # Python API와 동일한 판정 공식 — 중복 구현 방지).
 from agent_evaluator.quick_eval import _compute_gate_regressions
-
 
 # ---------------------------------------------------------------------------
 # ANSI 색상
@@ -46,7 +46,7 @@ C  = "\033[36m" if _COLOR else ""   # cyan
 # 메트릭 파싱
 # ---------------------------------------------------------------------------
 
-def _load_metrics(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
+def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
     """결과 JSON dict에서 게이팅에 필요한 지표값을 추출한다.
 
     Args:
@@ -62,7 +62,7 @@ def _load_metrics(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
             "total_cost":       float | None,   # USD
         }
     """
-    metrics: Dict[str, Optional[float]] = {
+    metrics: dict[str, float | None] = {
         "tcr": None,
         "accuracy": None,
         "p95_latency": None,
@@ -121,7 +121,7 @@ def _load_metrics(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
 
     # -- LLM Judge 종합 점수 (tasks 배열 평균) --
     tasks = data.get("tasks", [])
-    scores: List[float] = []
+    scores: list[float] = []
     for task in tasks:
         if not isinstance(task, dict):
             continue
@@ -154,7 +154,7 @@ def _load_metrics(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
 # Harness Gate 그룹 점수 추출 및 가중치 계산
 # ---------------------------------------------------------------------------
 
-def _load_harness_groups(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
+def _load_harness_groups(data: dict[str, Any]) -> dict[str, float | None]:
     """결과 JSON에서 Harness Gate A–G 그룹 점수를 추출한다.
 
     Args:
@@ -163,7 +163,7 @@ def _load_harness_groups(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
     Returns:
         {"A": score_or_None, ..., "G": score_or_None}
     """
-    groups: Dict[str, Optional[float]] = {g: None for g in "ABCDEFG"}
+    groups: dict[str, float | None] = {g: None for g in "ABCDEFG"}
     harness = (data.get("extra_metrics") or {}).get("harness_groups", {})
     for key in "ABCDEFG":
         group_data = harness.get(key)
@@ -177,7 +177,7 @@ def _load_harness_groups(data: Dict[str, Any]) -> Dict[str, Optional[float]]:
     return groups
 
 
-def _parse_group_weights(weights_str: Optional[str]) -> Dict[str, float]:
+def _parse_group_weights(weights_str: str | None) -> dict[str, float]:
     """'A:2.0,B:1.5,E:3.0' 형식 문자열을 가중치 dict로 파싱한다.
 
     Args:
@@ -191,7 +191,7 @@ def _parse_group_weights(weights_str: Optional[str]) -> Dict[str, float]:
     """
     if not weights_str:
         return {}
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     for token in weights_str.split(","):
         token = token.strip()
         if not token:
@@ -209,7 +209,7 @@ def _parse_group_weights(weights_str: Optional[str]) -> Dict[str, float]:
     return result
 
 
-def _parse_gate_thresholds(thresholds_str: Optional[str]) -> Dict[str, float]:
+def _parse_gate_thresholds(thresholds_str: str | None) -> dict[str, float]:
     """'A:0.8,D:0.9,E:0.95' 형식 문자열을 Gate별 임계값 dict로 파싱한다.
 
     Args:
@@ -223,7 +223,7 @@ def _parse_gate_thresholds(thresholds_str: Optional[str]) -> Dict[str, float]:
     """
     if not thresholds_str:
         return {}
-    result: Dict[str, float] = {}
+    result: dict[str, float] = {}
     for token in thresholds_str.split(","):
         token = token.strip()
         if not token:
@@ -245,9 +245,9 @@ def _parse_gate_thresholds(thresholds_str: Optional[str]) -> Dict[str, float]:
 
 
 def _compute_composite_gate(
-    groups: Dict[str, Optional[float]],
-    weights: Dict[str, float],
-) -> Optional[float]:
+    groups: dict[str, float | None],
+    weights: dict[str, float],
+) -> float | None:
     """Harness Gate A–G 그룹 점수의 가중 평균을 계산한다.
 
     Args:
@@ -288,7 +288,7 @@ def _baseline_version_path(result_file: Path, tag: str) -> Path:
     return result_file.parent / "baselines" / f"{tag}.json"
 
 
-def _load_baseline(path: Path) -> Optional[Dict[str, Any]]:
+def _load_baseline(path: Path) -> dict[str, Any] | None:
     """기준선 파일을 로드한다. 없으면 None 반환."""
     if not path.is_file():
         return None
@@ -301,8 +301,8 @@ def _load_baseline(path: Path) -> Optional[Dict[str, Any]]:
 
 def _save_baseline(
     path: Path,
-    metrics: Dict[str, Optional[float]],
-    harness_scores: Optional[Dict[str, Optional[float]]] = None,
+    metrics: dict[str, float | None],
+    harness_scores: dict[str, float | None] | None = None,
 ) -> None:
     """현재 메트릭을 기준선 파일로 저장한다.
 
@@ -314,7 +314,7 @@ def _save_baseline(
             회귀 비교 대상으로 삼을 수 있다. 기존 5개 평면 지표 필드는 그대로 유지한다
             (하위호환 — 이 필드가 없는 구버전 baseline.json도 계속 읽을 수 있어야 한다).
     """
-    payload: Dict[str, Any] = {k: v for k, v in metrics.items()}
+    payload: dict[str, Any] = {k: v for k, v in metrics.items()}
     # _load_harness_groups()는 harness_groups 자체가 없어도 {"A": None, ..., "G": None}처럼
     # 항상 7개 키의 dict를 반환하므로(단순 truthy 체크로는 항상 True), 실제로 값이 하나라도
     # 있는지(any non-None)로 판단해 harness_groups 데이터가 전혀 없는 결과 파일에서는
@@ -333,7 +333,7 @@ def _save_baseline(
 
 # (name, label, threshold_attr, direction, unit, format_str)
 # direction: "min" → 현재값 ≥ 임계값, "max" → 현재값 ≤ 임계값
-_GATE_DEFS: List[Tuple[str, str, str, str, str]] = [
+_GATE_DEFS: list[tuple[str, str, str, str, str]] = [
     ("tcr",             "TCR",                  "tcr",           "min",  "%"),
     ("accuracy",        "Accuracy",             "accuracy",       "min",  "%"),
     ("p95_latency",     "P95 Latency",          "p95_latency",    "max",  "s"),
@@ -343,9 +343,9 @@ _GATE_DEFS: List[Tuple[str, str, str, str, str]] = [
 
 
 def _check_gates(
-    metrics: Dict[str, Optional[float]],
+    metrics: dict[str, float | None],
     args: argparse.Namespace,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """각 지표별 게이팅 결과를 반환한다.
 
     Returns:
@@ -353,7 +353,7 @@ def _check_gates(
             name, label, current, threshold, direction, unit,
             active (임계값 지정 여부), passed (bool)
     """
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     for metric_key, label, arg_attr, direction, unit in _GATE_DEFS:
         threshold = getattr(args, arg_attr, None)
@@ -407,10 +407,10 @@ def _check_gates(
 
 
 def _check_regression(
-    metrics: Dict[str, Optional[float]],
-    baseline: Dict[str, Any],
+    metrics: dict[str, float | None],
+    baseline: dict[str, Any],
     tolerance_pct: float,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """기준선 대비 회귀를 감지한다.
 
     Args:
@@ -421,7 +421,7 @@ def _check_regression(
     Returns:
         회귀가 감지된 항목 목록 (각 dict: name, label, current, baseline_val, pct_change).
     """
-    regressions: List[Dict[str, Any]] = []
+    regressions: list[dict[str, Any]] = []
     tol = tolerance_pct / 100.0
 
     for metric_key, label, _, direction, unit in _GATE_DEFS:
@@ -553,7 +553,7 @@ def _pad_left(s: str, width: int) -> str:
     return " " * max(0, width - _vlen(s)) + s
 
 
-def _fmt_value(val: Optional[float], unit: str) -> str:
+def _fmt_value(val: float | None, unit: str) -> str:
     """지표값을 사람이 읽기 좋은 형태로 포맷한다."""
     if val is None:
         return f"{D}N/A{R}"
@@ -566,7 +566,7 @@ def _fmt_value(val: Optional[float], unit: str) -> str:
     return f"{val:.2f}"
 
 
-def _fmt_threshold(threshold: Optional[float], direction: str, unit: str) -> str:
+def _fmt_threshold(threshold: float | None, direction: str, unit: str) -> str:
     """임계값 문자열 포맷."""
     if threshold is None:
         return f"{D}—{R}"
@@ -597,10 +597,10 @@ def _fmt_delta(current: float, threshold: float, direction: str, unit: str) -> s
 
 
 def _print_composite_gate(
-    groups: Dict[str, Optional[float]],
-    weights: Dict[str, float],
+    groups: dict[str, float | None],
+    weights: dict[str, float],
     min_score: float,
-    composite: Optional[float],
+    composite: float | None,
 ) -> bool:
     """Harness Gate A–G 복합 점수 섹션을 출력하고 통과 여부를 반환한다."""
     _GATE_NAMES = {
@@ -651,10 +651,10 @@ def _print_composite_gate(
 
 
 def _print_table(
-    gate_results: List[Dict[str, Any]],
+    gate_results: list[dict[str, Any]],
     result_path: str,
-    regressions: Optional[List[Dict[str, Any]]] = None,
-    composite_result: Optional[Dict[str, Any]] = None,
+    regressions: list[dict[str, Any]] | None = None,
+    composite_result: dict[str, Any] | None = None,
 ) -> None:
     """게이팅 결과 테이블을 터미널에 출력한다."""
     active = [g for g in gate_results if g["active"]]
@@ -750,8 +750,8 @@ def _print_table(
 # ---------------------------------------------------------------------------
 
 def _write_junit_xml(
-    gate_results: List[Dict[str, Any]],
-    regressions: Optional[List[Dict[str, Any]]],
+    gate_results: list[dict[str, Any]],
+    regressions: list[dict[str, Any]] | None,
     output_path: Path,
 ) -> None:
     """JUnit XML 형식으로 결과를 저장한다.
@@ -765,7 +765,7 @@ def _write_junit_xml(
     failures = [g for g in active if not g["passed"]]
     regression_list = regressions or []
 
-    lines: List[str] = ['<?xml version="1.0" encoding="utf-8"?>']
+    lines: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
     lines.append('<testsuites name="agent-eval-gate">')
     lines.append(
         f'  <testsuite name="quality-gate" '
@@ -840,7 +840,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     try:
         with open(result_file, encoding="utf-8") as f:
-            data: Dict[str, Any] = json.load(f)
+            data: dict[str, Any] = json.load(f)
     except (json.JSONDecodeError, OSError) as exc:
         print(f"{RD}❌ Failed to parse JSON: {exc}{R}", file=sys.stderr)
         return 1
@@ -879,7 +879,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     gate_results = _check_gates(metrics, args)
 
     # ── Harness Gate 복합 점수 ───────────────────────────────────────────────
-    composite_result: Optional[Dict[str, Any]] = None
+    composite_result: dict[str, Any] | None = None
     min_gate_score = getattr(args, "min_gate_score", None)
     if min_gate_score is not None:
         group_weights_str = getattr(args, "group_weights", None)
@@ -897,7 +897,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
         }
 
     # ── Gate별 개별 임계값 검증 (--gate-thresholds) ──────────────────────────
-    gate_threshold_violations: List[str] = []
+    gate_threshold_violations: list[str] = []
     gate_threshold_str = getattr(args, "gate_thresholds", None)
     if gate_threshold_str:
         try:
@@ -940,7 +940,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 print(f"  {RD}✗ {v}{R}", file=sys.stderr)
 
     # ── 회귀 감지 ───────────────────────────────────────────────────────────
-    regressions: List[Dict[str, Any]] = []
+    regressions: list[dict[str, Any]] = []
     fail_on_regression = getattr(args, "fail_on_regression", None)
     if fail_on_regression is not None:
         baseline_data = _load_baseline(baseline_path)

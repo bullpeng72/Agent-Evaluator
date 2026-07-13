@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class AlertEvent:
     value: Any
     triggered_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "rule_name": self.rule_name,
             "severity": self.severity,
@@ -90,7 +90,7 @@ class AlertRule:
     handler: Any
     cooldown: int = 300
     severity: str = "warning"
-    message_fn: Optional[Callable[[StreamingEvaluator], str]] = None
+    message_fn: Callable[[StreamingEvaluator], str] | None = None
     _last_fired: float = field(default=0.0, init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -104,7 +104,7 @@ class AlertRule:
         with self._lock:
             self._last_fired = time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "severity": self.severity,
@@ -117,7 +117,7 @@ class AlertRule:
 class AlertHistory:
     """알림 히스토리 — results/alerts/YYYY-MM-DD.jsonl 파일에 저장."""
 
-    def __init__(self, history_dir: Optional[str] = None) -> None:
+    def __init__(self, history_dir: str | None = None) -> None:
         if history_dir is None:
             from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
             results_dir = get_evaluation_results_dir(create=False)
@@ -133,18 +133,18 @@ class AlertHistory:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
 
-    def get_today(self) -> List[Dict[str, Any]]:
+    def get_today(self) -> list[dict[str, Any]]:
         today = date.today().isoformat()
         return self._read_file(self.history_dir / f"{today}.jsonl")
 
-    def get_recent(self, days: int = 7) -> List[Dict[str, Any]]:
+    def get_recent(self, days: int = 7) -> list[dict[str, Any]]:
         results = []
         for i in range(days):
             d = (datetime.now() - timedelta(days=i)).date().isoformat()
             results.extend(self._read_file(self.history_dir / f"{d}.jsonl"))
         return results
 
-    def _read_file(self, path: Path) -> List[Dict[str, Any]]:
+    def _read_file(self, path: Path) -> list[dict[str, Any]]:
         if not path.exists():
             return []
         records = []
@@ -192,27 +192,27 @@ class AlertEngine:
 
     def __init__(
         self,
-        history_dir: Optional[str] = None,
+        history_dir: str | None = None,
         async_dispatch: bool = False,
-        max_alerts_per_window: Optional[int] = None,
+        max_alerts_per_window: int | None = None,
         window_seconds: int = 60,
     ) -> None:
         self.history = AlertHistory(history_dir)
-        self._rules: List[AlertRule] = []
+        self._rules: list[AlertRule] = []
         self._lock = threading.Lock()
         self.async_dispatch = async_dispatch
         self.max_alerts_per_window = max_alerts_per_window
         self.window_seconds = window_seconds
         self._failed_send_count = 0
         self._suppressed_count = 0
-        self._dispatch_timestamps: List[float] = []
+        self._dispatch_timestamps: list[float] = []
         self._counter_lock = threading.Lock()
 
         # SPEC-026 REQ-3: AnomalyEvent.type별 AlertRule 캐시 — evaluate()가 순회하는
         # self._rules와 의도적으로 분리한다. 이 캐시의 rule.condition은 항상 True를
         # 반환하는 더미라, self._rules에 섞이면 evaluate() 폴링마다 매번 재발화되는
         # 버그가 생긴다(이 캐시는 dispatch_anomaly_events()가 직접 조회할 때만 쓰인다).
-        self._anomaly_rules: Dict[str, AlertRule] = {}
+        self._anomaly_rules: dict[str, AlertRule] = {}
 
     def add_rule(self, rule: AlertRule) -> AlertEngine:
         with self._lock:
@@ -223,7 +223,7 @@ class AlertEngine:
         with self._lock:
             self._rules = [r for r in self._rules if r.name != name]
 
-    def get_rules(self) -> List[Dict[str, Any]]:
+    def get_rules(self) -> list[dict[str, Any]]:
         with self._lock:
             return [r.to_dict() for r in self._rules]
 
@@ -258,7 +258,7 @@ class AlertEngine:
             with self._counter_lock:
                 self._failed_send_count += 1
 
-    def evaluate(self, evaluator: Any) -> List[AlertEvent]:
+    def evaluate(self, evaluator: Any) -> list[AlertEvent]:
         """모든 규칙을 평가하고 트리거된 알림을 반환.
 
         Args:
@@ -268,7 +268,7 @@ class AlertEngine:
         """
         if evaluator is None:
             return []
-        fired: List[AlertEvent] = []
+        fired: list[AlertEvent] = []
         with self._lock:
             rules = list(self._rules)
 
@@ -338,10 +338,10 @@ class AlertEngine:
 
     def dispatch_anomaly_events(
         self,
-        events: List[AnomalyEvent],
+        events: list[AnomalyEvent],
         handler: Any,
         cooldown: int = 300,
-    ) -> List[AlertEvent]:
+    ) -> list[AlertEvent]:
         """SPEC-026 REQ-3: ``AnomalyDetector.scan()``이 반환한 ``AnomalyEvent`` 목록을
         기존 쿨다운/재시도-백오프/알림폭풍 방지 인프라를 통해 발송한다.
 
@@ -363,7 +363,7 @@ class AlertEngine:
             실제로 발송된(쿨다운을 통과한) ``AlertEvent`` 목록 — :meth:`evaluate`와
             동일한 반환 형태.
         """
-        fired: List[AlertEvent] = []
+        fired: list[AlertEvent] = []
         for anomaly in events:
             rule = self._get_or_create_anomaly_rule(anomaly.type, handler, cooldown)
             if rule.is_on_cooldown():

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import random
 import time
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from agent_evaluator.streaming.evaluator import StreamingEvaluator
@@ -39,8 +39,8 @@ class AgentEvalMiddleware(BaseHTTPMiddleware if _STARLETTE_AVAILABLE else object
         app.add_middleware(AgentEvalMiddleware, evaluator=evaluator, sample_rate=1.0)
     """
 
-    def __init__(self, app: object, evaluator: "StreamingEvaluator", sample_rate: float = 1.0,
-                 skip_paths: Optional[List[str]] = None) -> None:
+    def __init__(self, app: object, evaluator: StreamingEvaluator, sample_rate: float = 1.0,
+                 skip_paths: list[str] | None = None) -> None:
         if not _STARLETTE_AVAILABLE:
             raise ImportError(
                 "starlette is required for AgentEvalMiddleware. "
@@ -51,7 +51,7 @@ class AgentEvalMiddleware(BaseHTTPMiddleware if _STARLETTE_AVAILABLE else object
         self.sample_rate = sample_rate
         self.skip_paths = set(skip_paths or ["/health", "/docs", "/redoc", "/openapi.json", "/static"])
 
-    async def dispatch(self, request: "Request", call_next: Callable) -> "Response":
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
         if path in self.skip_paths or random.random() > self.sample_rate:
             return await call_next(request)
