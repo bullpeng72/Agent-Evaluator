@@ -5,7 +5,10 @@ Book Chapter 30 — LiveGuardrail 메커니즘
 
 OpenCode/Ollama 없이 순수 Python만으로 LiveGuardrail의 핵심 API를 시연한다.
 
-섹션 1: check_before_tool_call() / record_tool_call() — 조회 vs 확정 분리
+섹션 1: §30.2 tool_guard — 실제 에이전트 루프의 기본 패턴(정상 시퀀스는 자동으로
+        check → 실행 → record). check_before_tool_call()/record_tool_call()을 직접
+        쓰는 저수준 패턴은 섹션 2·5·6에서 "실행 여부를 아직 결정하지 않은 검증"
+        용도로만 남긴다(§30.2 "수동 API가 여전히 필요한 경우" 참고)
 섹션 2: §30.4에서 다루는 "rm 우회" 재현(2026-07-03 rm -f, 07-05 플래그
         없는 rm 두 차례 실제 라이브 테스트에서 발견) — 기본 위험 패턴 7개로는 둘 다 통과하고,
         \\brm\\s+\\S 패턴 추가 후에야 차단됨을 대조. 이어서 그 반대 방향(과탐지) —
@@ -51,7 +54,12 @@ from agent_evaluator.gates.gate_b_behavioral.configs import (
     ScopeConfig,
     ToolParameterSafetyConfig,
 )
-from agent_evaluator.gates.live_guardrail import LiveGuardrail
+from agent_evaluator.gates.live_guardrail import (
+    GuardrailBlockedError,
+    LiveGuardrail,
+    live_guardrail_session,
+    tool_guard,
+)
 from agent_evaluator.storage.sqlite_backend import (
     load_tasks_from_db,
     save_tasks_to_db,
@@ -121,26 +129,21 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
     return "\n".join(lines)
 
 
-def run_agent_step(guardrail: LiveGuardrail, task_id: str, tool_name: str, params: dict) -> str:
-    """§30.2 실전 예제와 같은 check-then-record 순서를 따르는 최소 패턴.
+@tool_guard(tool_name="bash", audit_blocked=True)
+def bash_call(command: str) -> str:
+    """§30.2 tool_guard 예제와 같은 패턴 — 이 함수 자신은 guardrail의 존재를 전혀 모른다.
 
-    책의 예제는 단일 전역 guardrail을 닫힘(closure)으로 참조하는 더 짧은 형태를 쓴다 —
-    이 파일은 여러 섹션에서 서로 다른 LiveGuardrail 인스턴스를 재사용하기 위해
-    guardrail을 인자로 받는다. 로직(check 먼저, block이면 record하지 않음)은 동일하다.
+    tool_name="bash"를 명시해 세 호출 모두 loop_detection이 같은 도구로 인식하게 한다
+    (함수 이름 bash_call이 아니라 실제 도구 이름 bash로 기록되어야 threshold 판정이 맞다).
     """
-    verdict = guardrail.check_before_tool_call(task_id, tool_name, params)
-    if verdict.block:
-        return f"차단됨 (Gate {verdict.gate}): {verdict.reason}"
     # TODO(현업 적용): 아래 Mock 실행을 실제 도구 실행 함수로 교체하세요.
-    _result = f"실행됨: {tool_name}({params})"
-    guardrail.record_tool_call(task_id, tool_name, params)
-    return _result
+    return f"실행됨: bash({command!r})"
 
 
 # ===========================================================================
-# 섹션 1: LiveGuardrail 기본 사용 — 정상 시퀀스는 그대로 통과한다
+# 섹션 1: LiveGuardrail 기본 사용 — 정상 시퀀스는 그대로 통과한다 (tool_guard)
 # ===========================================================================
-print("\n=== 섹션 1: LiveGuardrail 기본 사용 ===")
+print("\n=== 섹션 1: LiveGuardrail 기본 사용 (tool_guard) ===")
 
 guardrail = LiveGuardrail(
     loop_detection=LoopDetectionConfig(
@@ -156,9 +159,13 @@ guardrail = LiveGuardrail(
     ),
 )
 
-for cmd in ["ls -la", "cat victim2.txt", "ls -la"]:
-    out = run_agent_step(guardrail, "session-1", "bash", {"command": cmd})
-    print(f"  [{cmd:<20s}] {out}")
+with live_guardrail_session(guardrail, "session-1"):
+    for cmd in ["ls -la", "cat victim2.txt", "ls -la"]:
+        try:
+            out = bash_call(cmd)
+        except GuardrailBlockedError as e:
+            out = f"차단됨 (Gate {e.verdict.gate}): {e.verdict.reason}"
+        print(f"  [{cmd:<20s}] {out}")
 
 # ===========================================================================
 # 섹션 2: rm 우회 시나리오 — §30.4 라이브 검증 재현 (2026-07-03, 07-05 두 차례 발견)

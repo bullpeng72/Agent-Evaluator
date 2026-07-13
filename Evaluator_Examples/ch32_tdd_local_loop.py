@@ -50,10 +50,16 @@ Ollama/OpenCode는 별도로 설치해야 하는 외부 CLI이므로, 이 예제
 import json
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
-from agent_evaluator.gates.live_guardrail import LiveGuardrail
+from agent_evaluator.gates.live_guardrail import (
+    GuardrailBlockedError,
+    LiveGuardrail,
+    live_guardrail_session,
+    tool_guard,
+)
 from agent_evaluator.integrations.live_guardrail_report import record_and_save
 from agent_evaluator.storage.sqlite_backend import save_tasks_to_db, search_violations
 
@@ -92,9 +98,53 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
 
 
 # ===========================================================================
+# tool_guard 공용 도구 함수 — Ch30 §30.2가 소개한 실제 에이전트 루프의 기본 패턴.
+# 이 파일의 섹션 1·2·4·5는 각자 다른 LiveGuardrail 인스턴스로 live_guardrail_session()에
+# 진입하지만, 도구 함수 자신(edit/bash/grep/read)은 guardrail의 존재를 전혀 모르는 채로
+# 공용으로 재사용된다 — 세션이 바뀔 때마다 새로 정의할 필요가 없다는 게 tool_guard의 요점이다.
+# 순수 verdict 검증(실행 여부를 아직 결정하지 않은 확인)만 필요한 곳은 여전히
+# check_before_tool_call()을 직접 쓴다(Ch30 §30.2 "수동 API가 여전히 필요한 경우").
+# ===========================================================================
+
+
+@tool_guard(audit_blocked=True)
+def edit(file: str, content: str = None) -> str:
+    # TODO(현업 적용): 실제 파일 편집 함수로 교체하세요.
+    return f"편집됨: {file}"
+
+
+@tool_guard(audit_blocked=True)
+def bash(command: str) -> str:
+    # TODO(현업 적용): 실제 셸 실행 함수로 교체하세요.
+    return f"실행됨: {command}"
+
+
+@tool_guard(audit_blocked=True)
+def grep(pattern: str, path: str) -> str:
+    # TODO(현업 적용): 실제 검색 함수로 교체하세요.
+    return f"검색됨: {pattern} in {path}"
+
+
+@tool_guard(audit_blocked=True)
+def read(file: str) -> str:
+    # TODO(현업 적용): 실제 파일 읽기 함수로 교체하세요.
+    return f"읽음: {file}"
+
+
+@tool_guard(tool_name="bash", audit_blocked=True, capture_output=lambda r: r)
+def bash_with_result(command: str) -> Optional[dict]:
+    """섹션 5 전용 — pytest 호출의 실패 결과를 capture_output으로 Gate G에 반영한다(SPEC-031).
+    나머지 명령은 None을 반환해 output 생략과 동일한 낙관적 기본값을 유지한다(회귀 없음).
+    """
+    if "pytest" in command:
+        return {"success": False, "exit_code": 1, "stdout": "2 failed, 8 passed"}
+    return None
+
+
+# ===========================================================================
 # 섹션 1: §32.5(네 가지 워크플로우) — 저장소 자체 개선 세션 전용 GUARDRAIL_CONFIG
 # ===========================================================================
-print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG ===")
+print("\n=== 섹션 1: 저장소 전용 확장 GUARDRAIL_CONFIG (tool_guard) ===")
 
 
 _REPO_DANGEROUS_PATTERNS = [
@@ -128,6 +178,7 @@ def make_repo_guardrail() -> LiveGuardrail:
 
 repo_guardrail = make_repo_guardrail()
 
+_TOOLS = {"edit": edit, "bash": bash}
 _REPO_ATTEMPTS = [
     ("edit", {"file": "agent_evaluator/gates/gate_d_performance/aggregate.py"}),
     ("bash", {"command": "ruff check agent_evaluator/gates/gate_d_performance/"}),
@@ -136,13 +187,13 @@ _REPO_ATTEMPTS = [
     ("bash", {"command": "git push origin main --force"}),
 ]
 
-for tool_name, params in _REPO_ATTEMPTS:
-    verdict = repo_guardrail.check_before_tool_call("repo-session-1", tool_name, params)
-    if verdict.block:
-        print(f"  [{tool_name:<5s}] 차단됨 (Gate {verdict.gate}): {verdict.reason}")
-    else:
-        print(f"  [{tool_name:<5s}] 통과 — {params}")
-        repo_guardrail.record_tool_call("repo-session-1", tool_name, params)
+with live_guardrail_session(repo_guardrail, "repo-session-1"):
+    for tool_name, kwargs in _REPO_ATTEMPTS:
+        try:
+            _TOOLS[tool_name](**kwargs)
+            print(f"  [{tool_name:<5s}] 통과 — {kwargs}")
+        except GuardrailBlockedError as e:
+            print(f"  [{tool_name:<5s}] 차단됨 (Gate {e.verdict.gate}): {e.verdict.reason}")
 
 # ⚠️ 위 3번째 시도("x = 1  # noqa: E501" 담은 edit 호출)는 실측상 항상 "통과"로 찍힌다 —
 # scope_tool_names=["bash"]가 dangerous_patterns 검사를 bash 호출로만 한정하기 때문에,
@@ -228,11 +279,10 @@ monitor_guardrail = LiveGuardrail(
         fail_on_dangerous=False,  # 감지만 하고 차단은 하지 않음
     ),
 )
-_v = monitor_guardrail.check_before_tool_call(
-    "repo-session-3", "bash", {"command": "rm -rf build/"},
-)
-print(f"\n  [관찰 모드] rm -rf 차단 여부: {_v.block}  (실행은 허용, 위반은 감지)")
-monitor_guardrail.record_tool_call("repo-session-3", "bash", {"command": "rm -rf build/"})
+# fail_on_dangerous=False라 절대 차단되지 않는다 — tool_guard가 예외 없이 실행·record까지 자동 처리한다.
+with live_guardrail_session(monitor_guardrail, "repo-session-3"):
+    _monitor_out = bash(command="rm -rf build/")
+print(f"\n  [관찰 모드] rm -rf 실행됨: {_monitor_out}  (차단 안 됨, 위반만 감지)")
 
 _monitor_extra = monitor_guardrail.snapshot()
 monitor_task = create_taskresult(
@@ -293,19 +343,20 @@ def make_review_guardrail() -> LiveGuardrail:
 
 review_guardrail = make_review_guardrail()
 
+_REVIEW_TOOLS = {"grep": grep, "read": read, "edit": edit}
 _REVIEW_ATTEMPTS = [
     ("grep", {"pattern": "fail_on_violation", "path": "agent_evaluator/gates/"}),
     ("read", {"file": "agent_evaluator/gates/gate_b_behavioral/configs.py"}),
     ("edit", {"file": "agent_evaluator/gates/gate_b_behavioral/configs.py"}),  # 점검 중 실수로 고치려는 시도
 ]
 
-for tool_name, params in _REVIEW_ATTEMPTS:
-    verdict = review_guardrail.check_before_tool_call("review-session-1", tool_name, params)
-    if verdict.block:
-        print(f"  [{tool_name:<5s}] 차단됨 (Gate {verdict.gate}): {verdict.reason}")
-    else:
-        print(f"  [{tool_name:<5s}] 통과 — {params}")
-        review_guardrail.record_tool_call("review-session-1", tool_name, params)
+with live_guardrail_session(review_guardrail, "review-session-1"):
+    for tool_name, kwargs in _REVIEW_ATTEMPTS:
+        try:
+            _REVIEW_TOOLS[tool_name](**kwargs)
+            print(f"  [{tool_name:<5s}] 통과 — {kwargs}")
+        except GuardrailBlockedError as e:
+            print(f"  [{tool_name:<5s}] 차단됨 (Gate {e.verdict.gate}): {e.verdict.reason}")
 # → read/grep은 통과하고 edit만 차단된다. 자가 점검 세션이 실제로
 #   "읽기 전용"으로 강제됨을 보여준다 (§32.5 참고).
 
@@ -329,21 +380,14 @@ print("\n=== 섹션 5: SPEC-028 배치 Gate A–G 통합 ===")
 # repo_guardrail(섹션 1의 make_repo_guardrail())을 재사용 — 정상적인 리팩토링
 # 세션을 시뮬레이션한다(위험한 호출 없음, 전부 통과되어 확정 기록됨).
 batch_guardrail = make_repo_guardrail()
-# SPEC-031: 마지막 호출(pytest)에는 실제 실행 결과(output=)를 함께 넘긴다 — exit_code=1은
-# "2 failed, 8 passed" 같은 실패 결과의 시뮬레이션이다. 앞 두 호출은 output을 생략해
-# 이전과 동일한 기본 동작(success 신호 없음 → 낙관적 기본값)과 대조해 보여준다.
-_BATCH_SESSION_CALLS = [
-    ("bash", {"command": "ruff check agent_evaluator/gates/gate_d_performance/"}, None),
-    ("edit", {"file": "agent_evaluator/gates/gate_d_performance/aggregate.py"}, None),
-    (
-        "bash", {"command": "pytest tests/test_gate_d_performance.py"},
-        {"success": False, "exit_code": 1, "stdout": "2 failed, 8 passed"},
-    ),
-]
-for tool_name, params, output in _BATCH_SESSION_CALLS:
-    verdict = batch_guardrail.check_before_tool_call("batch-session-1", tool_name, params)
-    if not verdict.block:
-        batch_guardrail.record_tool_call("batch-session-1", tool_name, params, output)
+# SPEC-031: bash_with_result()의 capture_output이 pytest 호출에만 실제 실행 결과를
+# 자동으로 채운다 — exit_code=1은 "2 failed, 8 passed" 같은 실패 결과의 시뮬레이션이다.
+# 나머지 호출은 capture_output이 None을 돌려받아 이전과 동일한 기본 동작(success 신호
+# 없음 → 낙관적 기본값)과 대조해 보여준다. edit()는 capture_output 없는 공용 도구를 재사용한다.
+with live_guardrail_session(batch_guardrail, "batch-session-1"):
+    bash_with_result(command="ruff check agent_evaluator/gates/gate_d_performance/")
+    edit(file="agent_evaluator/gates/gate_d_performance/aggregate.py")
+    bash_with_result(command="pytest tests/test_gate_d_performance.py")
 
 # REQ-1: to_task_extra()가 이제 확정 도구 호출 원본("tool_calls")도 함께 담는다 —
 # 이전에는 Gate B/E 파생 지표만 담겨 Gate G(ToolCallAnalyzer)가 항상 "not tested"였다.

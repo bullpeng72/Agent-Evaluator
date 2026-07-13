@@ -41,7 +41,12 @@ from pathlib import Path
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.gates.branch_guard import BranchGuardConfig
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
-from agent_evaluator.gates.live_guardrail import LiveGuardrail
+from agent_evaluator.gates.live_guardrail import (
+    GuardrailBlockedError,
+    LiveGuardrail,
+    live_guardrail_session,
+    tool_guard,
+)
 from agent_evaluator.gates.team_concurrency import (
     TeamConcurrencyConfig,
     append_claim,
@@ -122,27 +127,36 @@ guardrail = LiveGuardrail(
     branch_guard=BranchGuardConfig(require_branch_prefix="feature/"),
 )
 
-# 자기 스코프(configs.py) 편집 — owner="수아"가 자기 자신의 클레임을 예외 처리하므로 통과
-v1 = guardrail.check_before_tool_call(
-    "suah-session", "edit", {"file": "agent_evaluator/gates/gate_f_multiagent/configs.py"},
-)
-print(f"  [자기 스코프 편집] 차단 여부: {v1.block}")
-# check_before_tool_call()은 순수 조회다 — 통과한 호출도 record_tool_call()을 명시적으로
-# 호출해야 확정 이력(tool_calls)에 남는다(Chapter 30 §30.2). 이 호출을 빠뜨리면 Phase 4의
-# Gate B가 "n/a"로 나온다 — 이 캡스톤을 검증하며 실제로 확인된 문제다.
-guardrail.record_tool_call("suah-session", "edit", {"file": "agent_evaluator/gates/gate_f_multiagent/configs.py"})
+@tool_guard(audit_blocked=True)
+def edit(file: str) -> str:
+    return f"편집됨: {file}"
 
-# 실수 1) 태호의 스코프(evaluators.py)를 착각해서 건드리려는 시도
-v2 = guardrail.check_before_tool_call(
-    "suah-session", "edit", {"file": "agent_evaluator/gates/gate_f_multiagent/evaluators.py"},
-)
-print(f"  [태호 스코프 오침범] 차단 여부: {v2.block}  이유: {v2.reason}")
-guardrail.record_blocked_attempt("suah-session", "edit", v2)
 
-# 실수 2) 전용 브랜치가 아닌 곳에서 바로 커밋하려는 시도
-v3 = guardrail.check_before_tool_call("suah-session", "bash", {"command": "git commit -m 'wip'"})
-print(f"  [전용 브랜치 밖 커밋] 차단 여부: {v3.block}  이유: {v3.reason}")
-guardrail.record_blocked_attempt("suah-session", "bash", v3)
+@tool_guard(audit_blocked=True)
+def bash(command: str) -> str:
+    return f"실행됨: {command}"
+
+
+# tool_guard가 check → 실행 → record를 자동으로 묶는다(Ch30 §30.2) — 이전에는
+# check_before_tool_call()이 순수 조회라 통과한 호출도 record_tool_call()을 손으로
+# 호출해야 했고, 이걸 빠뜨리면 Phase 4의 Gate B가 "n/a"로 나오는 문제가 있었다(이
+# 캡스톤을 검증하며 실제로 발견됐다) — tool_guard는 이 실수 자체를 구조적으로 없앤다.
+with live_guardrail_session(guardrail, "suah-session"):
+    # 자기 스코프(configs.py) 편집 — owner="수아"가 자기 자신의 클레임을 예외 처리하므로 통과
+    edit(file="agent_evaluator/gates/gate_f_multiagent/configs.py")
+    print("  [자기 스코프 편집] 차단 여부: False")
+
+    # 실수 1) 태호의 스코프(evaluators.py)를 착각해서 건드리려는 시도
+    try:
+        edit(file="agent_evaluator/gates/gate_f_multiagent/evaluators.py")
+    except GuardrailBlockedError as e:
+        print(f"  [태호 스코프 오침범] 차단 여부: True  이유: {e.verdict.reason}")
+
+    # 실수 2) 전용 브랜치가 아닌 곳에서 바로 커밋하려는 시도
+    try:
+        bash(command="git commit -m 'wip'")
+    except GuardrailBlockedError as e:
+        print(f"  [전용 브랜치 밖 커밋] 차단 여부: True  이유: {e.verdict.reason}")
 
 snapshot = guardrail.snapshot()
 print(f"  세션 요약: tool_calls={len(snapshot.get('tool_calls', []))}건  blocked_attempts={len(snapshot.get('blocked_attempts', []))}건")
