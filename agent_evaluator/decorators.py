@@ -201,11 +201,6 @@ class SecurityConfig:
 
 
 # SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
 from .gates.gate_a_goal.configs import (
     ContextRetentionConfig,  # noqa: F401,E402
     GoalAlignmentConfig,  # noqa: F401,E402
@@ -215,14 +210,9 @@ from .gates.gate_a_goal.configs import (
     SubtaskConfig,  # noqa: F401,E402
 )
 
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
 # ---------------------------------------------------------------------------
 # v0.9.2+: Phase 3 Harness Config 데이터클래스
 # ---------------------------------------------------------------------------
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
 # SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
 from .gates.gate_b_behavioral.configs import (
     ContextWindowConfig,  # noqa: F401,E402
@@ -233,10 +223,6 @@ from .gates.gate_b_behavioral.configs import (
     ToolParameterSafetyConfig,  # noqa: F401,E402
 )
 
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
 # v0.9.3+: Phase 6 Harness Config 데이터클래스
 # SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
 from .gates.gate_c_reliability.configs import (
@@ -251,10 +237,6 @@ from .gates.gate_c_reliability.configs import (
 # v0.9.1+: 신규 Harness Config 데이터클래스 7개
 # ---------------------------------------------------------------------------
 # SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
 from .gates.gate_d_performance.configs import (
     CostPredictabilityConfig,  # noqa: F401,E402
     EfficiencyConfig,  # noqa: F401,E402
@@ -264,18 +246,13 @@ from .gates.gate_d_performance.configs import (
 )
 
 # SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
 from .gates.gate_e_security.configs import (
     ComplianceConfig,  # noqa: F401,E402
     ThreatResponseConfig,  # noqa: F401,E402
     ThreatSeverityConfig,  # noqa: F401,E402
 )
 
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
 # v0.9.3+: Phase 4 Harness Config 데이터클래스
-# SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
 from .gates.gate_f_multiagent.configs import (
     AgentRoleConfig,  # noqa: F401,E402
@@ -284,9 +261,6 @@ from .gates.gate_f_multiagent.configs import (
     PropagationConfig,  # noqa: F401,E402
 )
 
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
 # SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
 from .gates.gate_g_observability.configs import (
     ErrorDiagnosisConfig,  # noqa: F401,E402
