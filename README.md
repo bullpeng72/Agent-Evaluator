@@ -55,7 +55,7 @@ monitor.save_to_file("eval")   # eval.json + eval.html — includes Gate A–G j
 | **F** 🟣 | **Multi-Agent Coordination** | Inter-agent consensus · information propagation accuracy · role compliance · conflict resolution | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
 | **G** 🩵 | **Observability** | Reasoning explainability · internal state tracking · error diagnosis · latency attribution | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
 
-Each Gate receives raw measurements from **25 Native Trackers** (6 Layer 1 foundation metrics + 10 Layer 2 agentic metrics + 5 security metrics + LLMJudge) and aggregates them.
+Each Gate receives raw measurements from **25 Native Trackers** (7 Layer 1 foundation + 5 Layer 2 agentic + 5 Layer 2 security + 8 operational-support trackers) and aggregates them. `LLMJudge` is a separate Layer 3 (Hybrid) component and is not counted among the 25.
 
 > Full practical examples: `Evaluator_Examples/ch03_harness_basics.py` | Dashboard: `agent-eval dashboard`
 

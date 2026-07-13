@@ -189,7 +189,10 @@ for q, gt in BEHAVIORAL_CASES:
 print(f"  섹션 2 완료: {len(BEHAVIORAL_CASES) * 5}건 기록")
 
 # ── 역케이스: Gate B FAIL 유도 (Loop + StateConsistency + Scope) ──────────────
-# Gate B = [1-loop_rate, avg_sc, avg_scope] 평균 → 셋 다 0이면 Gate B = 0.0 FAIL
+# Gate B = [1-loop_rate, avg_sc, avg_scope] 평균.
+# 실측: loop=0.0(완전 루프) + state=0.0(불변 필드 변경) + scope=0.6(금지 도구 2종 × 0.2 감점)
+#      → 평균 0.2 = 20.0% FAIL. scope는 위반 건수(고유 도구 수)에 violation_penalty(기본 0.2)를
+#      곱해 감점하는 방식이라 0.0까지 떨어지려면 위반 도구 5종 이상이 필요하다.
 _monitor_b_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 _b_state = {"user_role": "admin", "locked_tables": ["users", "payments"]}
 # _b_state_good은 매 호출 전 상태 복원에 사용하는 원본 스냅샷

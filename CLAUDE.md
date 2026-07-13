@@ -75,6 +75,20 @@ Layer 3 — Hybrid (optional deps: DeepEval / Ragas)
   LLMJudge (native — faithfulness, G-Eval replacement, 5-dim scoring)
 ```
 
+**25 Native Tracker inventory** (Layer 1/2 above = 17 Gate-relevant trackers + 8 operational-support trackers below):
+
+```
+Operational support (8, no direct Gate score contribution — report/ops only)
+  ImplicitFeedbackTracker · ConversationSession · ConversationMetrics · AnomalyDetector
+  CostTracker · AdaptivePolicy · SamplingStage · StreamingEvaluator
+```
+
+> 7 (Layer 1) + 5 (Layer 2 agentic) + 5 (Layer 2 security) + 8 (operational support) = **25**.
+> `LLMJudge` (Layer 3/Hybrid) and `AlertEngine` (`alerts/` — alerting infra, not a tracker) are **not** among
+> the 25 — a recurring miscount found and fixed across `Media/Book` in 2026-07 (Ch02 first, then swept
+> book-wide). `Appendix A_58개지표_레퍼런스.md` is the reader-facing enumeration of all 25 — keep it in sync
+> with this list.
+
 ### Key Files
 
 ```
