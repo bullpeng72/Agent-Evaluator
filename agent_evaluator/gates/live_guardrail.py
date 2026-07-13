@@ -535,7 +535,7 @@ class LiveGuardrail:
 #         bash("rm -rf /")     # GuardrailBlockedError 발생
 # ---------------------------------------------------------------------------
 
-_guardrail_ctx_var: "contextvars.ContextVar[Optional[Tuple[LiveGuardrail, str]]]" = (
+_guardrail_ctx_var: contextvars.ContextVar[Optional[Tuple[LiveGuardrail, str]]] = (
     contextvars.ContextVar("_live_guardrail_ctx", default=None)
 )
 
@@ -547,13 +547,13 @@ class GuardrailBlockedError(Exception):
         verdict: 차단을 유발한 :class:`LiveVerdict` (``.gate``/``.reason``/``.detail`` 포함).
     """
 
-    def __init__(self, verdict: "LiveVerdict") -> None:
+    def __init__(self, verdict: LiveVerdict) -> None:
         self.verdict = verdict
         super().__init__(verdict.reason or "blocked by LiveGuardrail")
 
 
 @contextlib.contextmanager
-def live_guardrail_session(guardrail: "LiveGuardrail", task_id: str):
+def live_guardrail_session(guardrail: LiveGuardrail, task_id: str):
     """이 ``with`` 블록 안에서 실행되는 :func:`tool_guard` 함수 호출이 자동으로 이
     ``guardrail``/``task_id``를 쓰게 한다 (SPEC-039 REQ-6).
 
@@ -648,7 +648,7 @@ def tool_guard(
         _name = tool_name or func.__name__
         _is_async = asyncio.iscoroutinefunction(func)
 
-        def _resolve_ctx() -> Optional[Tuple["LiveGuardrail", str]]:
+        def _resolve_ctx() -> Optional[Tuple[LiveGuardrail, str]]:
             ctx = _guardrail_ctx_var.get()
             if ctx is not None:
                 return ctx
@@ -663,8 +663,8 @@ def tool_guard(
             return None
 
         def _check(
-            guardrail: "LiveGuardrail", task_id: str, params: Dict[str, Any]
-        ) -> "LiveVerdict":
+            guardrail: LiveGuardrail, task_id: str, params: Dict[str, Any]
+        ) -> LiveVerdict:
             verdict = guardrail.check_before_tool_call(task_id, _name, params)
             if verdict.block:
                 if audit_blocked:
@@ -673,7 +673,7 @@ def tool_guard(
             return verdict
 
         def _record(
-            guardrail: "LiveGuardrail", task_id: str, params: Dict[str, Any], result: Any
+            guardrail: LiveGuardrail, task_id: str, params: Dict[str, Any], result: Any
         ) -> None:
             output = capture_output(result) if capture_output is not None else None
             guardrail.record_tool_call(task_id, _name, params, output)

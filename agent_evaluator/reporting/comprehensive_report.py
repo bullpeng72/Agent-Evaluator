@@ -8,7 +8,6 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-
 # ---------------------------------------------------------------------------
 # Utility: markdown → html
 # ---------------------------------------------------------------------------
@@ -778,7 +777,7 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
     quality_html = ""
     if not quality_metrics or quality_metrics.get("total_evaluated", 0) == 0:
         quality_html = (
-            f'<h3>Response Quality (5 Dimensions)</h3>'
+            '<h3>Response Quality (5 Dimensions)</h3>'
             + _not_tested("No response quality evaluation data collected.")
         )
     else:
@@ -843,13 +842,13 @@ def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
     tool_html = ""
     if not has_agentic:
         tool_html = (
-            f'<h3>Tool Usage Analysis</h3>'
+            '<h3>Tool Usage Analysis</h3>'
             + _not_tested("No agentic tool usage data — "
                           "run tasks with <code>task_type=\"tool_use\"</code> to measure.")
         )
     elif not tool_selection_stats:
         tool_html = (
-            f'<h3>Tool Usage Analysis</h3>'
+            '<h3>Tool Usage Analysis</h3>'
             + _not_tested("No tool selection data collected.")
         )
     if has_agentic and tool_selection_stats:
@@ -935,7 +934,7 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
     )
     if not _retry_measured:
         retry_html = (
-            f'<h3>Retry / Recovery</h3>'
+            '<h3>Retry / Recovery</h3>'
             + _not_tested("No retry data collected — "
                           "no retries occurred or <code>RetryConfig</code> is not set.")
         )
@@ -1026,7 +1025,7 @@ def _build_gate_c(retry_metrics: Dict, harness_c: Dict, hallucination_data: Dict
     _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
     if not _hall_measured:
         hall_html = (
-            f'<h3>Hallucination Detection</h3>'
+            '<h3>Hallucination Detection</h3>'
             + _not_tested("Hallucination detection is not enabled — "
                           "measure it with <code>enable_hallucination_detection=True</code>.")
         )
@@ -1083,7 +1082,7 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
 
     lat_html = ""
     if not latency_stats:
-        lat_html = f'<h3>Latency Analysis</h3>' + _not_tested("No latency data collected.")
+        lat_html = '<h3>Latency Analysis</h3>' + _not_tested("No latency data collected.")
     if latency_stats:
         lat_kpis = (
             f'<div class="kpi"><div class="kpi-lbl">Mean</div><div class="kpi-val">{_sec(latency_stats.get("mean"))}</div></div>'
@@ -1098,7 +1097,7 @@ def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> st
     tok_html = ""
     if not token_stats:
         tok_html = (
-            f'<h3>Tokens &amp; Cost</h3>'
+            '<h3>Tokens &amp; Cost</h3>'
             + _not_tested("No token/cost data collected — "
                           "record token counts in <code>TaskResult</code> to measure.")
         )
@@ -1349,7 +1348,7 @@ def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
 
     if not kpi_parts:
         return (
-            f'<h3>Security Metrics</h3>'
+            '<h3>Security Metrics</h3>'
             + _not_tested("Security metrics are not enabled — "
                           "measure them with <code>enable_security_metrics=True</code>.")
         )
@@ -1369,7 +1368,7 @@ def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
     coord_html = ""
     if not has_agentic:
         coord_html = (
-            f'<h3>Coordination / Workflow</h3>'
+            '<h3>Coordination / Workflow</h3>'
             + _not_tested("No multi-agent execution data — "
                           "agent collaboration tasks have not run.")
         )
@@ -1448,7 +1447,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
     judge_html = ""
     if not llm_judge_data:
         judge_html = (
-            f'<h3>LLM Judge</h3>'
+            '<h3>LLM Judge</h3>'
             + _not_tested("LLM Judge is not enabled — "
                           "measure with <code>enable_llm_judge=True</code> or <code>LLMJudgeConfig</code>.")
         )
@@ -1480,7 +1479,7 @@ def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
                 model_name = llm_judge_data.get("model", "—") or "—"
             if judged_count == 0:
                 judge_html = (
-                    f'<h3>LLM Judge</h3>'
+                    '<h3>LLM Judge</h3>'
                     + _not_tested("No LLM Judge results — check the sample rate (<code>judge_sample_rate</code>).")
                 )
             if judged_count > 0:

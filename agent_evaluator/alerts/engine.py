@@ -11,9 +11,9 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
 
-def _send_with_retry(handler: Any, event: "AlertEvent", max_retries: int = 3) -> bool:
+def _send_with_retry(handler: Any, event: AlertEvent, max_retries: int = 3) -> bool:
     """(SPEC-015 REQ-1) 핸들러 전송 실패 시 지수 백오프로 재시도한다.
 
     ``LLMJudge._call_with_retry()``(SPEC-006, ``integrations/llm_judge.py``)와 동일한
@@ -86,11 +86,11 @@ class AlertRule:
         message_fn: 커스텀 메시지 생성 함수 (선택).
     """
     name: str
-    condition: Callable[["StreamingEvaluator"], bool]
+    condition: Callable[[StreamingEvaluator], bool]
     handler: Any
     cooldown: int = 300
     severity: str = "warning"
-    message_fn: Optional[Callable[["StreamingEvaluator"], str]] = None
+    message_fn: Optional[Callable[[StreamingEvaluator], str]] = None
     _last_fired: float = field(default=0.0, init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -214,7 +214,7 @@ class AlertEngine:
         # 버그가 생긴다(이 캐시는 dispatch_anomaly_events()가 직접 조회할 때만 쓰인다).
         self._anomaly_rules: Dict[str, AlertRule] = {}
 
-    def add_rule(self, rule: AlertRule) -> "AlertEngine":
+    def add_rule(self, rule: AlertRule) -> AlertEngine:
         with self._lock:
             self._rules.append(rule)
         return self
@@ -251,7 +251,7 @@ class AlertEngine:
             self._dispatch_timestamps.append(now)
             return False
 
-    def _dispatch(self, rule: "AlertRule", event: AlertEvent) -> None:
+    def _dispatch(self, rule: AlertRule, event: AlertEvent) -> None:
         """(SPEC-015 REQ-1/2) 재시도-백오프로 발송하고 최종 실패 시 카운터를 증가시킨다."""
         succeeded = _send_with_retry(rule.handler, event)
         if not succeeded:
@@ -338,7 +338,7 @@ class AlertEngine:
 
     def dispatch_anomaly_events(
         self,
-        events: List["AnomalyEvent"],
+        events: List[AnomalyEvent],
         handler: Any,
         cooldown: int = 300,
     ) -> List[AlertEvent]:

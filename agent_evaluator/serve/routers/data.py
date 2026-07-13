@@ -3,14 +3,13 @@ Data API routes — full rich data exposure.
 """
 from __future__ import annotations
 
+import json as _json_mod
 import os
 import time as _time_module
 from collections import defaultdict
 from datetime import datetime as _datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-import json as _json_mod
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse

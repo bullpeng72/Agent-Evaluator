@@ -19,54 +19,56 @@ import threading
 import urllib.error
 import urllib.request
 import uuid
-from enum import Enum
 import warnings
 from collections import defaultdict, deque
 from dataclasses import asdict
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal, Optional
 
 import numpy as np
 import pandas as pd
 
-from .base import TaskResult, EvaluationReport, TaskType, _TaskContext, BaseTracker
+from ...exceptions import MetricComputationError, StorageError, ValidationError
+
 # SPEC-000 Commit 0: 전 Gate 공유 인프라(gates/base.py)에서 가져옴 — 동작 변경 없음
 from ...gates.base import _status
-# SPEC-000 Commit 1: Gate F 집계 로직 이관
-from ...gates.gate_f_multiagent import aggregate as gate_f_aggregate
-from ...gates.gate_e_security import aggregate as gate_e_aggregate
-from ...gates.gate_d_performance import aggregate as gate_d_aggregate
 from ...gates.gate_a_goal import aggregate as gate_a_aggregate
 from ...gates.gate_b_behavioral import aggregate as gate_b_aggregate
 from ...gates.gate_c_reliability import aggregate as gate_c_aggregate
+from ...gates.gate_d_performance import aggregate as gate_d_aggregate
+from ...gates.gate_e_security import aggregate as gate_e_aggregate
+
+# SPEC-000 Commit 1: Gate F 집계 로직 이관
+from ...gates.gate_f_multiagent import aggregate as gate_f_aggregate
 from ...gates.gate_g_observability import aggregate as gate_g_aggregate
-from ...exceptions import ValidationError, StorageError, MetricComputationError
+from .base import BaseTracker, EvaluationReport, TaskResult, TaskType, _TaskContext
+from .conversation import ConversationSession
 from .layer1 import (
-    TaskCompletionTracker,
+    _TCR_PARTIAL_THRESHOLD,
     AccuracyEvaluator,
     HallucinationDetector,
-    ResponseQualityEvaluator,
     LatencyTracker,
-    TokenEconomyTracker,
     MultimodalMetricsTracker,
-    _TCR_PARTIAL_THRESHOLD,
+    ResponseQualityEvaluator,
+    TaskCompletionTracker,
+    TokenEconomyTracker,
 )
 from .layer2 import (
-    ToolCallAnalyzer,
-    RetryCorrectionTracker,
-    ToolSelectionTracker,
     AgentCoordinationTracker,
+    RetryCorrectionTracker,
+    ToolCallAnalyzer,
+    ToolSelectionTracker,
     WorkflowExecutionTracker,
 )
 from .security import (
     InputSanitizationTracker,
     OutputLeakageDetector,
-    ToolAuthorizationTracker,
     PrivilegeEscalationDetector,
+    ToolAuthorizationTracker,
     ToolChainAttackDetector,
 )
-from .conversation import ConversationSession
 
 try:
     from .feedback import ImplicitFeedbackTracker as _ImplicitFeedbackTracker
@@ -388,8 +390,14 @@ class PerformanceMonitor:
         # SPEC-018 Phase 1-7: Gate E/F/G/B/A/C/D 러닝 집계 — "full" 모드에서는 인스턴스화조차 되지 않는다.
         if self._retention_mode == "windowed":
             from ...gates.shared_metrics import (
-                GateASharedAgg, GateBSharedAgg, GateCRetryConsistencyAgg, GateCSharedAgg,
-                GateDSharedAgg, GateESharedAgg, GateFSharedAgg, GateGSharedAgg,
+                GateASharedAgg,
+                GateBSharedAgg,
+                GateCRetryConsistencyAgg,
+                GateCSharedAgg,
+                GateDSharedAgg,
+                GateESharedAgg,
+                GateFSharedAgg,
+                GateGSharedAgg,
             )
             self._running_gate_e_agg = GateESharedAgg()
             self._running_gate_f_agg = GateFSharedAgg()
@@ -693,7 +701,7 @@ class PerformanceMonitor:
         # dirty-flag 읽기/쓰기는 self._lock으로 보호(REQ-5) — record_task()가 dirty=True로
         # 설정하고, invalidate_report_cache()가 post-record in-place 수정 지점(BUG-E6,
         # SPEC-006 비동기 judge 패치)에서 동일하게 호출된다.
-        self._report_cache: Optional["EvaluationReport"] = None
+        self._report_cache: Optional[EvaluationReport] = None
         self._report_cache_dirty: bool = True
 
         # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
@@ -721,7 +729,7 @@ class PerformanceMonitor:
         # record_task() 에서 (timestamp_float, TaskResult) 튜플로 추가
         from collections import deque as _deque
         # M8: maxlen=10000 prevents unbounded memory growth in long-running monitors.
-        self._recent_tasks_cache: "deque" = _deque(maxlen=10000)
+        self._recent_tasks_cache: deque = _deque(maxlen=10000)
         self._cache_window_seconds: float = 300.0  # 최대 5분 보관
 
     @property
@@ -777,7 +785,7 @@ class PerformanceMonitor:
         self._thresholds = dict(value)
 
     @property
-    def tasks(self) -> List["TaskResult"]:
+    def tasks(self) -> List[TaskResult]:
         """기록된 모든 TaskResult 리스트.
 
         Example::
@@ -832,7 +840,7 @@ class PerformanceMonitor:
         """
         return {k: list(v) for k, v in self._rag_metrics.items()}
 
-    def conversation(self, session_id: str, task_type: str = "qa") -> "ConversationSession":
+    def conversation(self, session_id: str, task_type: str = "qa") -> ConversationSession:
         """멀티턴 대화 평가 세션 시작.
 
         Usage::
@@ -1363,7 +1371,7 @@ class PerformanceMonitor:
 
         return comparison
 
-    def reset(self, keep_config: bool = True) -> "PerformanceMonitor":
+    def reset(self, keep_config: bool = True) -> PerformanceMonitor:
         """Clear all accumulated data across every tracker (thread-safe).
 
         Use this when reusing a ``PerformanceMonitor`` instance across
@@ -1437,7 +1445,7 @@ class PerformanceMonitor:
         task_type: str = "qa",
         question: Optional[str] = None,
         **kwargs: Any,
-    ) -> "_TaskContext":
+    ) -> _TaskContext:
         """
         Context manager that measures a single task execution.
 
@@ -1599,7 +1607,7 @@ class PerformanceMonitor:
         output_dir: Optional[str] = None,
         enable_hallucination_detection: bool = True,
         **kwargs: Any,
-    ) -> "PerformanceMonitor":
+    ) -> PerformanceMonitor:
         """Create a monitor pre-configured for RAG pipeline evaluation.
 
         Enables hallucination detection by default, which compares generated
@@ -1631,7 +1639,7 @@ class PerformanceMonitor:
         security_config: Optional[Dict[str, Any]] = None,
         output_dir: Optional[str] = None,
         **kwargs: Any,
-    ) -> "PerformanceMonitor":
+    ) -> PerformanceMonitor:
         """Create a monitor pre-configured for security-sensitive agent evaluation.
 
         Enables all Layer-1 and Layer-2 security trackers:
@@ -1670,7 +1678,7 @@ class PerformanceMonitor:
                    context: Optional[str] = None,
                    request: Optional[str] = None,       # deprecated: use task_result.question
                    response: Optional[str] = None,      # deprecated: use task_result.response
-                   expected_elements: Optional[List[str]] = None) -> "PerformanceMonitor":
+                   expected_elements: Optional[List[str]] = None) -> PerformanceMonitor:
         """Record a complete task execution.
 
         Args:
@@ -2179,7 +2187,7 @@ class PerformanceMonitor:
 
         return self
 
-    def _emit_otel_span(self, result: "TaskResult") -> None:
+    def _emit_otel_span(self, result: TaskResult) -> None:
         """OTEL 스팬 발행. OTELProvider 미활성화 시 즉시 반환.
 
         기존 JSON 저장 경로에 영향을 주지 않는다.
@@ -2805,7 +2813,7 @@ class PerformanceMonitor:
         task_id: str,
         feedback_type: str,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> "PerformanceMonitor":
+    ) -> PerformanceMonitor:
         """사용자 암묵적 피드백 기록.
 
         Args:
@@ -3023,7 +3031,7 @@ class PerformanceMonitor:
             "judge_same_as_execution_model": self._judge_same_as_execution_model,
         }
 
-    def generate_report(self, force_recompute: bool = False) -> "EvaluationReport":
+    def generate_report(self, force_recompute: bool = False) -> EvaluationReport:
         """Generate comprehensive evaluation report.
 
         SPEC-014: 직전 호출 이후 ``record_task()``(또는 post-record 수정 지점의
@@ -3068,7 +3076,7 @@ class PerformanceMonitor:
         with self._lock:
             self._report_cache_dirty = True
 
-    def _generate_report_uncached(self) -> "EvaluationReport":
+    def _generate_report_uncached(self) -> EvaluationReport:
         """Generate comprehensive evaluation report (캐시 없이 항상 재계산)."""
         if len(self.tcr_tracker.tasks) == 0:
             logger.warning(
@@ -5107,8 +5115,8 @@ class PerformanceMonitor:
         _comp_alg = getattr(self, "_compression_algorithm", None)
         if _comp_alg:
             try:
-                import gzip as _gzip
                 import bz2 as _bz2
+                import gzip as _gzip
                 _json_path = Path(filename)
                 _comp_path = Path(str(_json_path) + (".gz" if _comp_alg == "gzip" else ".bz2"))
                 with open(_json_path, "rb") as _fin:
@@ -5502,7 +5510,7 @@ class PerformanceMonitor:
         self._compression_algorithm: str = algorithm
         logger.debug("Compression enabled: algorithm=%s", algorithm)
 
-    def compare(self, other: "PerformanceMonitor") -> Dict[str, Any]:
+    def compare(self, other: PerformanceMonitor) -> Dict[str, Any]:
         """두 PerformanceMonitor 인스턴스의 주요 지표를 비교한다 (D1).
 
         Args:
@@ -5521,7 +5529,7 @@ class PerformanceMonitor:
             diff = baseline.compare(candidate)
             print(f"TCR delta: {diff['delta']['tcr']:+.2f}%")
         """
-        def _extract(m: "PerformanceMonitor") -> Dict[str, Any]:
+        def _extract(m: PerformanceMonitor) -> Dict[str, Any]:
             try:
                 r = m.generate_report()
                 acc = r.accuracy_metrics or {}
@@ -5566,7 +5574,7 @@ class PerformanceMonitor:
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         min_completion: Optional[float] = None,
-    ) -> List["TaskResult"]:
+    ) -> List[TaskResult]:
         """조건에 맞는 태스크 결과를 필터링해 반환 (D1).
 
         모든 조건은 AND로 결합된다.  조건이 ``None`` 이면 해당 조건은 스킵한다.
@@ -5595,7 +5603,7 @@ class PerformanceMonitor:
                 min_latency=5.0,
             )
         """
-        result: List["TaskResult"] = []
+        result: List[TaskResult] = []
         for task in self.tasks:
             # task_type 필터
             if task_type is not None:
@@ -5722,7 +5730,7 @@ class PerformanceMonitor:
         # 시간 필터 적용
         tasks = self.filter_tasks(since=since, until=until)
 
-        def _calc(task_list: List["TaskResult"]) -> Dict[str, Any]:
+        def _calc(task_list: List[TaskResult]) -> Dict[str, Any]:
             n = len(task_list)
             if n == 0:
                 return {
@@ -5756,7 +5764,7 @@ class PerformanceMonitor:
         if by is None:
             return _calc(tasks)
 
-        groups: Dict[str, List["TaskResult"]] = {}
+        groups: Dict[str, List[TaskResult]] = {}
 
         for task in tasks:
             if by == "task_type":
@@ -5865,7 +5873,7 @@ class PerformanceMonitor:
         """
         all_tasks = self.tasks
 
-        def _task_info(t: "TaskResult") -> Dict[str, Any]:
+        def _task_info(t: TaskResult) -> Dict[str, Any]:
             tt = t.task_type
             return {
                 "task_id": t.task_id,
@@ -6088,7 +6096,7 @@ class PerformanceMonitor:
             "task_count_delta": self.task_count - snapshot.get("task_count", 0),
         }
 
-    def restore_from_snapshot(self, snapshot: Dict[str, Any]) -> "PerformanceMonitor":
+    def restore_from_snapshot(self, snapshot: Dict[str, Any]) -> PerformanceMonitor:
         """스냅샷에서 모니터 상태를 복원한다 (E1).
 
         :meth:`snapshot` 이 반환한 dict를 받아 기록 시점의 집계 상태를 로그에 남긴다.
@@ -6280,7 +6288,7 @@ class PerformanceMonitor:
             _rows.append(_row)
         return _pd.DataFrame(_rows)
 
-    def clone(self) -> "PerformanceMonitor":
+    def clone(self) -> PerformanceMonitor:
         """동일한 설정을 가진 새 PerformanceMonitor 인스턴스를 생성한다 (D5).
 
         태스크 데이터 없이 설정만 복사한다. 독립된 평가 세션이나
@@ -6309,7 +6317,7 @@ class PerformanceMonitor:
         self,
         name: str,
         fn: Any,  # Callable[[List[TaskResult]], Any]
-    ) -> "PerformanceMonitor":
+    ) -> PerformanceMonitor:
         """사용자 정의 집계 함수를 등록한다 (D7).
 
         Args:
@@ -6359,7 +6367,7 @@ class PerformanceMonitor:
             return []
         return list(self._custom_aggregators.keys())
 
-    def merge(self, other: "PerformanceMonitor") -> "PerformanceMonitor":
+    def merge(self, other: PerformanceMonitor) -> PerformanceMonitor:
         """두 PerformanceMonitor의 태스크를 병합한 새 인스턴스를 반환한다 (D8).
 
         ``self``의 설정을 기준으로 새 인스턴스를 생성하고, ``self``와 ``other``의
@@ -6709,7 +6717,7 @@ class PerformanceMonitor:
         }
 
     @classmethod
-    def load_from_file(cls, filename: str = "performance_data.json") -> "PerformanceMonitor":
+    def load_from_file(cls, filename: str = "performance_data.json") -> PerformanceMonitor:
         """Load performance data from a JSON file including evaluator data"""
         # Dashboard/data/evaluation_results 디렉토리에서 찾기 (절대 경로가 아닌 경우)
         if not os.path.isabs(filename) and not os.path.exists(filename):

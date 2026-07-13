@@ -13,12 +13,12 @@ from collections import deque
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
-from typing import Any, Deque, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from agent_evaluator.core.trackers.monitor import PerformanceMonitor
     from agent_evaluator.alerts.engine import AlertEngine
     from agent_evaluator.anomaly.detector import AnomalyDetector, AnomalyEvent
+    from agent_evaluator.core.trackers.monitor import PerformanceMonitor
 
 
 @dataclass
@@ -109,10 +109,10 @@ class StreamingEvaluator:
 
     def __init__(
         self,
-        monitor: "PerformanceMonitor",
+        monitor: PerformanceMonitor,
         flush_interval: int = 60,
-        alert_handler: Optional["AlertEngine"] = None,
-        anomaly_detector: Optional["AnomalyDetector"] = None,
+        alert_handler: Optional[AlertEngine] = None,
+        anomaly_detector: Optional[AnomalyDetector] = None,
         anomaly_scan_interval: int = 300,
         anomaly_alert_handler: Optional[Any] = None,
     ) -> None:
@@ -135,7 +135,7 @@ class StreamingEvaluator:
 
         # SPEC-026 REQ-2: 가장 최근 주기적 이상탐지 스캔 결과 — anomaly_detector
         # 미지정이면 항상 빈 리스트로 유지된다.
-        self._last_anomalies: List["AnomalyEvent"] = []
+        self._last_anomalies: List[AnomalyEvent] = []
         self._last_anomaly_scan_time: float = 0.0
 
     def start(self) -> None:

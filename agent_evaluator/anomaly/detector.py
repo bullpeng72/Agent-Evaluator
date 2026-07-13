@@ -12,11 +12,12 @@ AnomalyDetector — Phase 3-B 이상 탐지
   feedback_negativity 부정적 암묵 피드백(regenerate/thumbs_down 등) 급증 (SPEC-026 REQ-5)
 """
 from __future__ import annotations
+
 import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class AnomalyDetector:
         self.baseline_window = baseline_window
         self.detection_window = detection_window
 
-    def scan(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def scan(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         """모든 이상 탐지 규칙을 실행하고 탐지된 이상 목록을 반환한다.
 
         Args:
@@ -131,7 +132,7 @@ class AnomalyDetector:
         events.extend(self._check_feedback_negativity(monitor))
         return events
 
-    def _get_latencies(self, monitor: "PerformanceMonitor") -> List[float]:
+    def _get_latencies(self, monitor: PerformanceMonitor) -> List[float]:
         try:
             latency_data = monitor.latency_tracker.latencies
             # LatencyTracker stores "total_time"; "execution_time" is a legacy fallback
@@ -143,21 +144,21 @@ class AnomalyDetector:
         except Exception:
             return []
 
-    def _get_accuracies(self, monitor: "PerformanceMonitor") -> List[float]:
+    def _get_accuracies(self, monitor: PerformanceMonitor) -> List[float]:
         try:
             evals = monitor.accuracy_evaluator.evaluations
             return [e["accuracy"] for e in evals if isinstance(e, dict) and e.get("accuracy") is not None]
         except Exception:
             return []
 
-    def _get_tokens(self, monitor: "PerformanceMonitor") -> List[float]:
+    def _get_tokens(self, monitor: PerformanceMonitor) -> List[float]:
         try:
             usage_log = monitor.token_tracker.usage_log
             return [entry.get("total_tokens", 0) for entry in usage_log if isinstance(entry, dict)]
         except Exception:
             return []
 
-    def _get_error_rate(self, monitor: "PerformanceMonitor") -> tuple:
+    def _get_error_rate(self, monitor: PerformanceMonitor) -> tuple:
         try:
             tasks = monitor.tcr_tracker.tasks
             if not tasks:
@@ -182,7 +183,7 @@ class AnomalyDetector:
         except Exception:
             return 0.0, 0.0
 
-    def _check_latency_trend(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_latency_trend(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         latencies = self._get_latencies(monitor)
         if len(latencies) < _TREND_MIN_POINTS:
             return []
@@ -201,7 +202,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_accuracy_drift(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_accuracy_drift(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         accuracies = self._get_accuracies(monitor)
         if len(accuracies) < _TREND_MIN_POINTS:
             return []
@@ -228,7 +229,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_token_spike(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_token_spike(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         tokens = self._get_tokens(monitor)
         if len(tokens) < _TREND_MIN_POINTS:
             return []
@@ -251,7 +252,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_error_surge(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_error_surge(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         recent_rate, base_rate = self._get_error_rate(monitor)
         if recent_rate > _ERROR_SURGE_THRESHOLD and recent_rate > base_rate * 2:
             severity = "critical" if recent_rate > 0.3 else "warning"
@@ -265,7 +266,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _get_feedback_negativity_rate(self, monitor: "PerformanceMonitor") -> tuple:
+    def _get_feedback_negativity_rate(self, monitor: PerformanceMonitor) -> tuple:
         """SPEC-026 REQ-5: ``monitor.feedback_tracker.feedbacks``(이미 자동 수집됨,
         ``record_task()``가 ``extra`` 필드의 피드백 신호를 감지할 때마다 채움)에서
         ``_check_error_surge``/``_get_error_rate``와 동일한 윈도우 구조로 최근 구간
@@ -295,7 +296,7 @@ class AnomalyDetector:
         except Exception:
             return 0.0, 0.0
 
-    def _check_feedback_negativity(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_feedback_negativity(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         """SPEC-026 REQ-5: 부정적 암묵 피드백 급증 — ``_check_error_surge``와 동일한
         비율 기반 판정(기준선 대비 2배 이상 + 절대 임계값 초과)을 그대로 적용한다."""
         recent_rate, base_rate = self._get_feedback_negativity_rate(monitor)
@@ -314,7 +315,7 @@ class AnomalyDetector:
             )]
         return []
 
-    def _check_security_pattern(self, monitor: "PerformanceMonitor") -> List[AnomalyEvent]:
+    def _check_security_pattern(self, monitor: PerformanceMonitor) -> List[AnomalyEvent]:
         try:
             if monitor.input_sanitizer is None:
                 return []
@@ -338,7 +339,7 @@ class AnomalyDetector:
             logger.debug("Security anomaly detection failed (ignored): %s", _e)
         return []
 
-    def explain_event(self, event: "AnomalyEvent") -> Dict[str, Any]:
+    def explain_event(self, event: AnomalyEvent) -> Dict[str, Any]:
         """이상 이벤트의 원인과 권고사항을 반환한다 (F1).
 
         Args:
@@ -375,7 +376,7 @@ class AnomalyDetector:
             "detected_at": event.detected_at,
         }
 
-    def scan_with_explain(self, monitor: "PerformanceMonitor") -> List[Dict[str, Any]]:
+    def scan_with_explain(self, monitor: PerformanceMonitor) -> List[Dict[str, Any]]:
         """scan()을 실행하고 각 이벤트에 explain()을 자동 적용한다 (F1).
 
         Returns:

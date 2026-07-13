@@ -66,7 +66,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from agent_evaluator import PerformanceMonitor
@@ -201,150 +201,99 @@ class SecurityConfig:
 
 
 # SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import InstructionConfig  # noqa: F401,E402
-
+# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
+# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
+# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
+# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
+# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
+from .gates.gate_a_goal.configs import (
+    ContextRetentionConfig,  # noqa: F401,E402
+    GoalAlignmentConfig,  # noqa: F401,E402
+    InstructionConfig,  # noqa: F401,E402
+    KnowledgeRetentionConfig,  # noqa: F401,E402
+    PlanConfig,  # noqa: F401,E402
+    SubtaskConfig,  # noqa: F401,E402
+)
 
 # SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import LoopDetectionConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import GoalAlignmentConfig  # noqa: F401,E402
-
+# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
+# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
+# ---------------------------------------------------------------------------
+# v0.9.2+: Phase 3 Harness Config 데이터클래스
+# ---------------------------------------------------------------------------
+# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
+# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
+# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
+from .gates.gate_b_behavioral.configs import (
+    ContextWindowConfig,  # noqa: F401,E402
+    DeadlockConfig,  # noqa: F401,E402
+    LoopDetectionConfig,  # noqa: F401,E402
+    ScopeConfig,  # noqa: F401,E402
+    StateConsistencyConfig,  # noqa: F401,E402
+    ToolParameterSafetyConfig,  # noqa: F401,E402
+)
 
 # SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-from .gates.gate_c_reliability.configs import ReproducibilityConfig  # noqa: F401,E402
-
-
 # SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-from .gates.gate_c_reliability.configs import FaultToleranceConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import PlanConfig  # noqa: F401,E402
-
+# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
+# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
+# v0.9.3+: Phase 6 Harness Config 데이터클래스
+# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
+from .gates.gate_c_reliability.configs import (
+    FaultToleranceConfig,  # noqa: F401,E402
+    GracefulDegradationConfig,  # noqa: F401,E402
+    IdempotencyConfig,  # noqa: F401,E402
+    ReproducibilityConfig,  # noqa: F401,E402
+    RetryConsistencyConfig,  # noqa: F401,E402
+)
 
 # ---------------------------------------------------------------------------
 # v0.9.1+: 신규 Harness Config 데이터클래스 7개
 # ---------------------------------------------------------------------------
-
-
 # SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-from .gates.gate_d_performance.configs import SLAConfig  # noqa: F401,E402
-
+# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
+# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
+# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
+# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
+from .gates.gate_d_performance.configs import (
+    CostPredictabilityConfig,  # noqa: F401,E402
+    EfficiencyConfig,  # noqa: F401,E402
+    ResourceBudgetConfig,  # noqa: F401,E402
+    SLAConfig,  # noqa: F401,E402
+    TTFTVariabilityConfig,  # noqa: F401,E402
+)
 
 # SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
-from .gates.gate_e_security.configs import ThreatSeverityConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-from .gates.gate_d_performance.configs import EfficiencyConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import StateConsistencyConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import DeadlockConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-from .gates.gate_g_observability.configs import ObservabilityConfig  # noqa: F401,E402
-
+# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
+# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
+from .gates.gate_e_security.configs import (
+    ComplianceConfig,  # noqa: F401,E402
+    ThreatResponseConfig,  # noqa: F401,E402
+    ThreatSeverityConfig,  # noqa: F401,E402
+)
 
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
-from .gates.gate_f_multiagent.configs import ConsensusConfig  # noqa: F401,E402
-
-
-# ---------------------------------------------------------------------------
-# v0.9.2+: Phase 3 Harness Config 데이터클래스
-# ---------------------------------------------------------------------------
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import ScopeConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import ContextRetentionConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-from .gates.gate_g_observability.configs import ExplainabilityConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import SubtaskConfig  # noqa: F401,E402
-
-
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
-from .gates.gate_f_multiagent.configs import PropagationConfig  # noqa: F401,E402
-
-
 # v0.9.3+: Phase 4 Harness Config 데이터클래스
-
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
-from .gates.gate_f_multiagent.configs import AgentRoleConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-from .gates.gate_c_reliability.configs import GracefulDegradationConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
-from .gates.gate_e_security.configs import ComplianceConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-from .gates.gate_d_performance.configs import ResourceBudgetConfig  # noqa: F401,E402
-
-
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/configs.py 참조
-from .gates.gate_f_multiagent.configs import ConflictResolutionConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import ToolParameterSafetyConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/configs.py 참조
-from .gates.gate_a_goal.configs import KnowledgeRetentionConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-from .gates.gate_c_reliability.configs import RetryConsistencyConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-from .gates.gate_d_performance.configs import TTFTVariabilityConfig  # noqa: F401,E402
-
+from .gates.gate_f_multiagent.configs import (
+    AgentRoleConfig,  # noqa: F401,E402
+    ConflictResolutionConfig,  # noqa: F401,E402
+    ConsensusConfig,  # noqa: F401,E402
+    PropagationConfig,  # noqa: F401,E402
+)
 
 # SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-from .gates.gate_g_observability.configs import ErrorDiagnosisConfig  # noqa: F401,E402
-
-
-# v0.9.3+: Phase 6 Harness Config 데이터클래스
-
-# SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/configs.py 참조
-from .gates.gate_c_reliability.configs import IdempotencyConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/configs.py 참조
-from .gates.gate_d_performance.configs import CostPredictabilityConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate E 패키지로 이관됨 — 원본 구현은 gates/gate_e_security/configs.py 참조
-from .gates.gate_e_security.configs import ThreatResponseConfig  # noqa: F401,E402
-
-
-# SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/configs.py 참조
-from .gates.gate_b_behavioral.configs import ContextWindowConfig  # noqa: F401,E402
-
-
 # SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
-from .gates.gate_g_observability.configs import LatencyAttributionConfig  # noqa: F401,E402
-
+# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
+# SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/configs.py 참조
+from .gates.gate_g_observability.configs import (
+    ErrorDiagnosisConfig,  # noqa: F401,E402
+    ExplainabilityConfig,  # noqa: F401,E402
+    LatencyAttributionConfig,  # noqa: F401,E402
+    ObservabilityConfig,  # noqa: F401,E402
+)
 
 # ---------------------------------------------------------------------------
 # EvalMetadata — 튜플 반환 프로토콜
@@ -494,7 +443,7 @@ class _EvalContext:
 
 # Python 3.7+ contextvars.ContextVar — asyncio.create_task() 등 동시 코루틴에서
 # 각 태스크가 독립된 컨텍스트 복사본을 가지므로 threading.local 의 ctx 충돌이 없다.
-_eval_ctx_var: contextvars.ContextVar[Optional["_EvalContext"]] = contextvars.ContextVar(
+_eval_ctx_var: contextvars.ContextVar[Optional[_EvalContext]] = contextvars.ContextVar(
     "_eval_ctx", default=None
 )
 
@@ -535,7 +484,7 @@ def get_eval_ctx() -> Optional[_EvalContext]:
     return ctx if (ctx is not None and ctx._active) else None
 
 
-def _push_ctx() -> Tuple[_EvalContext, "contextvars.Token[Optional[_EvalContext]]"]:
+def _push_ctx() -> Tuple[_EvalContext, contextvars.Token[Optional[_EvalContext]]]:
     """새 컨텍스트를 현재 실행 컨텍스트에 설치하고 (ctx, token) 을 반환.
 
     반환된 token 을 ``_pop_ctx(token)`` 에 전달해야 컨텍스트가 정확히 복원된다.
@@ -545,7 +494,7 @@ def _push_ctx() -> Tuple[_EvalContext, "contextvars.Token[Optional[_EvalContext]
     return ctx, token
 
 
-def _pop_ctx(token: "contextvars.Token") -> None:
+def _pop_ctx(token: contextvars.Token) -> None:
     """``_push_ctx`` 가 반환한 token 으로 컨텍스트 변수를 이전 값으로 복원."""
     _eval_ctx_var.reset(token)
 
@@ -2534,7 +2483,7 @@ def _safe_adapter_call(
     adapter_fn: Callable,
     raw: Any,
     framework_name: str,
-) -> "Tuple[Optional[EvalMetadata], Optional[str]]":
+) -> Tuple[Optional[EvalMetadata], Optional[str]]:
     """C8: 어댑터 함수를 안전하게 호출하고 ``(result, error_msg)`` 반환.
 
     Args:
@@ -3255,13 +3204,13 @@ class SimpleTaskAlertRule:
     cooldown: float = 60.0
     class_level_cooldown: bool = False  # D3: True 이면 같은 이름의 모든 인스턴스 공유 쿨다운
     _last_fired: float = field(default=0.0, init=False, repr=False)
-    _lock: "threading.Lock" = field(default_factory=threading.Lock, init=False, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def __post_init__(self) -> None:
         # D3: 클래스 수준 공유 쿨다운 dict 는 클래스 변수로 관리
         if not hasattr(SimpleTaskAlertRule, "_SHARED_COOLDOWN"):
             SimpleTaskAlertRule._SHARED_COOLDOWN: Dict[str, float] = {}
-            SimpleTaskAlertRule._SHARED_COOLDOWN_LOCK: "threading.Lock" = threading.Lock()
+            SimpleTaskAlertRule._SHARED_COOLDOWN_LOCK: threading.Lock = threading.Lock()
         # E2: alert history 초기화
         self._history: List[Dict[str, Any]] = []
         self._history_lock = threading.Lock()
@@ -3376,7 +3325,7 @@ class AlertRuleBuilder:
         severity: str = "warning",
         cooldown: float = 0.0,
         name: Optional[str] = None,
-    ) -> "SimpleTaskAlertRule":
+    ) -> SimpleTaskAlertRule:
         """accuracy_score < threshold 일 때 발화하는 규칙."""
         _name = name or f"accuracy_below_{threshold}"
         _handler = handler or (lambda msg, tr: logger.warning(msg))
@@ -3395,7 +3344,7 @@ class AlertRuleBuilder:
         severity: str = "warning",
         cooldown: float = 0.0,
         name: Optional[str] = None,
-    ) -> "SimpleTaskAlertRule":
+    ) -> SimpleTaskAlertRule:
         """execution_time > threshold_seconds 일 때 발화하는 규칙."""
         _name = name or f"latency_above_{threshold_seconds}s"
         _handler = handler or (lambda msg, tr: logger.warning(msg))
@@ -3414,7 +3363,7 @@ class AlertRuleBuilder:
         severity: str = "warning",
         cooldown: float = 0.0,
         name: Optional[str] = None,
-    ) -> "SimpleTaskAlertRule":
+    ) -> SimpleTaskAlertRule:
         """completion_score < threshold 일 때 발화하는 규칙."""
         _name = name or f"completion_below_{threshold}"
         _handler = handler or (lambda msg, tr: logger.warning(msg))
@@ -3432,7 +3381,7 @@ class AlertRuleBuilder:
         severity: str = "error",
         cooldown: float = 0.0,
         name: str = "task_error",
-    ) -> "SimpleTaskAlertRule":
+    ) -> SimpleTaskAlertRule:
         """태스크 오류 발생 시 발화하는 규칙."""
         _handler = handler or (lambda msg, tr: logger.error(msg))
         return SimpleTaskAlertRule(
@@ -3450,7 +3399,7 @@ class AlertRuleBuilder:
         severity: str = "warning",
         cooldown: float = 0.0,
         name: Optional[str] = None,
-    ) -> "SimpleTaskAlertRule":
+    ) -> SimpleTaskAlertRule:
         """tool_calls 수 > max_calls 일 때 발화하는 규칙."""
         _name = name or f"tool_calls_exceed_{max_calls}"
         _handler = handler or (lambda msg, tr: logger.warning(msg))
@@ -3464,7 +3413,7 @@ class AlertRuleBuilder:
 
 
 def _make_alert_on_record(
-    alert_rules: List["SimpleTaskAlertRule"],
+    alert_rules: List[SimpleTaskAlertRule],
     existing_on_record: Optional[Callable],
     alert_error_mode: str = "log",
 ) -> Callable:
@@ -3644,7 +3593,7 @@ def _apply_overrides(
 
 
 def _record_to_monitors(
-    monitor_or_list: "Union[PerformanceMonitor, List[PerformanceMonitor]]",
+    monitor_or_list: Union[PerformanceMonitor, List[PerformanceMonitor]],
     task_result: Any,
 ) -> None:
     """단일 monitor 또는 monitor 리스트 모두에 task_result 를 기록한다 (Gap U)."""
@@ -3658,7 +3607,7 @@ def _record_to_monitors(
         monitor_or_list.record_task(task_result)
 
 
-async def _process_async_judge_targets(targets: "List[tuple]") -> None:
+async def _process_async_judge_targets(targets: List[tuple]) -> None:
     """(SPEC-006 REQ-3/REQ-4) 지연된 judge 대상들을 ``ajudge()``로 처리하고 tracker에 반영한다.
 
     ``targets`` 의 각 항목은 ``_build_and_record(..., use_async_judge=True, ...)`` 가
@@ -3705,7 +3654,7 @@ async def _process_async_judge_targets(targets: "List[tuple]") -> None:
 
 
 def _build_and_record(
-    monitor: "Union[PerformanceMonitor, List[PerformanceMonitor]]",
+    monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
     *,
     task_type: str,
     task_id: str,
@@ -3746,47 +3695,47 @@ def _build_and_record(
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
     enable_quality_evaluation: bool = False,  # P2-B: 이 호출에서만 품질 평가 강제 활성화
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional["InstructionConfig"] = None,
-    loop_detection: Optional["LoopDetectionConfig"] = None,
-    goal_alignment: Optional["GoalAlignmentConfig"] = None,
-    reproducibility: Optional["ReproducibilityConfig"] = None,
+    instructions: Optional[InstructionConfig] = None,
+    loop_detection: Optional[LoopDetectionConfig] = None,
+    goal_alignment: Optional[GoalAlignmentConfig] = None,
+    reproducibility: Optional[ReproducibilityConfig] = None,
     reproducibility_responses: Optional[List[str]] = None,
-    fault_tolerance: Optional["FaultToleranceConfig"] = None,
-    plan_tracking: Optional["PlanConfig"] = None,
+    fault_tolerance: Optional[FaultToleranceConfig] = None,
+    plan_tracking: Optional[PlanConfig] = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional["SLAConfig"] = None,
-    threat_severity: Optional["ThreatSeverityConfig"] = None,
-    efficiency: Optional["EfficiencyConfig"] = None,
+    sla: Optional[SLAConfig] = None,
+    threat_severity: Optional[ThreatSeverityConfig] = None,
+    efficiency: Optional[EfficiencyConfig] = None,
     state_consistency_before: Optional[Dict[str, Any]] = None,
     state_consistency_after: Optional[Dict[str, Any]] = None,
-    state_consistency: Optional["StateConsistencyConfig"] = None,
-    deadlock: Optional["DeadlockConfig"] = None,
-    observability: Optional["ObservabilityConfig"] = None,
-    consensus: Optional["ConsensusConfig"] = None,
+    state_consistency: Optional[StateConsistencyConfig] = None,
+    deadlock: Optional[DeadlockConfig] = None,
+    observability: Optional[ObservabilityConfig] = None,
+    consensus: Optional[ConsensusConfig] = None,
     consensus_responses: Optional[List[str]] = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional["ScopeConfig"] = None,
-    context_retention: Optional["ContextRetentionConfig"] = None,
-    explainability: Optional["ExplainabilityConfig"] = None,
-    subtask_tracking: Optional["SubtaskConfig"] = None,
-    propagation: Optional["PropagationConfig"] = None,
+    scope: Optional[ScopeConfig] = None,
+    context_retention: Optional[ContextRetentionConfig] = None,
+    explainability: Optional[ExplainabilityConfig] = None,
+    subtask_tracking: Optional[SubtaskConfig] = None,
+    propagation: Optional[PropagationConfig] = None,
     context_retention_text: Optional[str] = None,  # 추출된 context 인자 값
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional["AgentRoleConfig"] = None,
-    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
-    compliance: Optional["ComplianceConfig"] = None,
-    resource_budget: Optional["ResourceBudgetConfig"] = None,
-    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    agent_role: Optional[AgentRoleConfig] = None,
+    graceful_degradation: Optional[GracefulDegradationConfig] = None,
+    compliance: Optional[ComplianceConfig] = None,
+    resource_budget: Optional[ResourceBudgetConfig] = None,
+    conflict_resolution: Optional[ConflictResolutionConfig] = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
-    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
-    retry_consistency: Optional["RetryConsistencyConfig"] = None,
-    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
+    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
+    retry_consistency: Optional[RetryConsistencyConfig] = None,
+    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional["IdempotencyConfig"] = None,
-    threat_response: Optional["ThreatResponseConfig"] = None,
-    context_window: Optional["ContextWindowConfig"] = None,
-    latency_attribution: Optional["LatencyAttributionConfig"] = None,
+    idempotency: Optional[IdempotencyConfig] = None,
+    threat_response: Optional[ThreatResponseConfig] = None,
+    context_window: Optional[ContextWindowConfig] = None,
+    latency_attribution: Optional[LatencyAttributionConfig] = None,
     # SPEC-006 REQ-3/REQ-4: 비동기 경로에서 동기 judge() 대신 ajudge()를 사용하기 위한 배선.
     # True이면 이 호출 동안 monitor(s)의 enable_llm_judge를 일시 억제해 record_task() 내부의
     # 동기 judge() 호출을 막고, 대신 (monitor, task_id, question, response, context) 튜플을
@@ -5034,23 +4983,23 @@ class _AgentEvalHandle:
 
     def __init__(
         self,
-        _decorator_fn: "Callable",   # agent_eval 내부 decorator 함수
-        _ctx_factory: "Callable",    # eval_context 생성용 팩토리 (callable)
+        _decorator_fn: Callable,   # agent_eval 내부 decorator 함수
+        _ctx_factory: Callable,    # eval_context 생성용 팩토리 (callable)
     ) -> None:
         self._decorator_fn = _decorator_fn
         self._ctx_factory = _ctx_factory
         # context manager 모드에서 활성화되는 eval_context 인스턴스
-        self._ctx_instance: "Optional[eval_context]" = None
+        self._ctx_instance: Optional[eval_context] = None
 
     # ── 데코레이터 모드 ──────────────────────────────────────────────────
 
-    def __call__(self, func: "Callable") -> "Callable":
+    def __call__(self, func: Callable) -> Callable:
         """데코레이터로 사용: @agent_eval(monitor, ...)"""
         return self._decorator_fn(func)
 
     # ── 컨텍스트 매니저 모드 ─────────────────────────────────────────────
 
-    def __enter__(self) -> "eval_context":
+    def __enter__(self) -> eval_context:
         self._ctx_instance = self._ctx_factory()
         return self._ctx_instance.__enter__()
 
@@ -5059,7 +5008,7 @@ class _AgentEvalHandle:
             return self._ctx_instance.__exit__(exc_type, exc_val, exc_tb)
         return False
 
-    async def __aenter__(self) -> "eval_context":
+    async def __aenter__(self) -> eval_context:
         self._ctx_instance = self._ctx_factory()
         return self._ctx_instance.__enter__()
 
@@ -5070,8 +5019,8 @@ class _AgentEvalHandle:
 
 
 def agent_eval(
-    monitor_or_fn: "Any" = None,
-    task_type: "Union[str, Any]" = "qa",
+    monitor_or_fn: Any = None,
+    task_type: Union[str, Any] = "qa",
     *,
     question_arg: str = "question",
     ground_truth_arg: str = "ground_truth",
@@ -5079,7 +5028,7 @@ def agent_eval(
     context_arg: Optional[str] = None,
     expected_tools_arg: Optional[str] = None,
     expected_tools: Optional[List[str]] = None,
-    framework: "Union[FrameworkLiteral, str]" = "native",
+    framework: Union[FrameworkLiteral, str] = "native",
     model_name: str = "",
     score_fn: Optional[Callable[[str, str], float]] = None,
     completion_fn: Optional[Callable[[str, str], float]] = None,
@@ -5092,12 +5041,12 @@ def agent_eval(
     on_error: Optional[Callable] = None,
     timeout: Optional[float] = _UNSET,  # 실제 기본값: None (무제한)
     enabled: bool = _UNSET,  # 실제 기본값: True
-    alert_rules: Optional[List["SimpleTaskAlertRule"]] = None,
+    alert_rules: Optional[List[SimpleTaskAlertRule]] = None,
     flush_every: Optional[int] = _UNSET,  # 실제 기본값: None
     # v0.8.1+: retry/llm_judge/security パラメータ묶음
-    retry: Optional["RetryConfig"] = None,
-    llm_judge: Optional["LLMJudgeConfig"] = None,
-    security: Optional["SecurityConfig"] = None,
+    retry: Optional[RetryConfig] = None,
+    llm_judge: Optional[LLMJudgeConfig] = None,
+    security: Optional[SecurityConfig] = None,
     # A9: custom_parser — framework adapter보다 낮은 우선순위로 EvalMetadata 생성
     custom_parser: Optional[Callable[[Any], Optional[EvalMetadata]]] = None,
     # H1: preset — 사전 정의된 파라미터 묶음 ("production" | "development" | "testing" | "canary")
@@ -5111,43 +5060,43 @@ def agent_eval(
     # S: alert 핸들러 예외 처리 모드 ("log" | "strict", 기본: "log")
     alert_error_mode: str = "log",
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional["InstructionConfig"] = None,
-    loop_detection: Optional["LoopDetectionConfig"] = None,
-    goal_alignment: Optional["GoalAlignmentConfig"] = None,
-    reproducibility: Optional["ReproducibilityConfig"] = None,
-    fault_tolerance: Optional["FaultToleranceConfig"] = None,
-    plan_tracking: Optional["PlanConfig"] = None,
+    instructions: Optional[InstructionConfig] = None,
+    loop_detection: Optional[LoopDetectionConfig] = None,
+    goal_alignment: Optional[GoalAlignmentConfig] = None,
+    reproducibility: Optional[ReproducibilityConfig] = None,
+    fault_tolerance: Optional[FaultToleranceConfig] = None,
+    plan_tracking: Optional[PlanConfig] = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional["SLAConfig"] = None,
-    threat_severity: Optional["ThreatSeverityConfig"] = None,
-    efficiency: Optional["EfficiencyConfig"] = None,
-    state_consistency: Optional["StateConsistencyConfig"] = None,
-    deadlock: Optional["DeadlockConfig"] = None,
-    observability: Optional["ObservabilityConfig"] = None,
-    consensus: Optional["ConsensusConfig"] = None,
+    sla: Optional[SLAConfig] = None,
+    threat_severity: Optional[ThreatSeverityConfig] = None,
+    efficiency: Optional[EfficiencyConfig] = None,
+    state_consistency: Optional[StateConsistencyConfig] = None,
+    deadlock: Optional[DeadlockConfig] = None,
+    observability: Optional[ObservabilityConfig] = None,
+    consensus: Optional[ConsensusConfig] = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional["ScopeConfig"] = None,
-    context_retention: Optional["ContextRetentionConfig"] = None,
-    explainability: Optional["ExplainabilityConfig"] = None,
-    subtask_tracking: Optional["SubtaskConfig"] = None,
-    propagation: Optional["PropagationConfig"] = None,
+    scope: Optional[ScopeConfig] = None,
+    context_retention: Optional[ContextRetentionConfig] = None,
+    explainability: Optional[ExplainabilityConfig] = None,
+    subtask_tracking: Optional[SubtaskConfig] = None,
+    propagation: Optional[PropagationConfig] = None,
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional["AgentRoleConfig"] = None,
-    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
-    compliance: Optional["ComplianceConfig"] = None,
-    resource_budget: Optional["ResourceBudgetConfig"] = None,
-    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    agent_role: Optional[AgentRoleConfig] = None,
+    graceful_degradation: Optional[GracefulDegradationConfig] = None,
+    compliance: Optional[ComplianceConfig] = None,
+    resource_budget: Optional[ResourceBudgetConfig] = None,
+    conflict_resolution: Optional[ConflictResolutionConfig] = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
-    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
-    retry_consistency: Optional["RetryConsistencyConfig"] = None,
-    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
+    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
+    retry_consistency: Optional[RetryConsistencyConfig] = None,
+    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional["IdempotencyConfig"] = None,
-    threat_response: Optional["ThreatResponseConfig"] = None,
-    context_window: Optional["ContextWindowConfig"] = None,
-    latency_attribution: Optional["LatencyAttributionConfig"] = None,
-) -> "Any":
+    idempotency: Optional[IdempotencyConfig] = None,
+    threat_response: Optional[ThreatResponseConfig] = None,
+    context_window: Optional[ContextWindowConfig] = None,
+    latency_attribution: Optional[LatencyAttributionConfig] = None,
+) -> Any:
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
     **Quick Start — 90% 사용 사례를 커버하는 핵심 5개 파라미터**::
@@ -5286,7 +5235,8 @@ def agent_eval(
     if monitor_or_fn is None:
         # No explicit monitor: load from config file + monitor registry
         try:
-            from .eval_config import get_active_config as _get_cfg, get_or_create_monitor as _get_mon
+            from .eval_config import get_active_config as _get_cfg
+            from .eval_config import get_or_create_monitor as _get_mon
             _cfg = _get_cfg()
             monitor = _get_mon(config=_cfg)
             # Apply config values conservatively: only when param is still at its SDK default
@@ -6239,7 +6189,7 @@ def agent_eval(
             return gen_wrapper
         return wrapper
 
-    def _ctx_factory() -> "eval_context":
+    def _ctx_factory() -> eval_context:
         return eval_context(
             monitor,
             task_type,
@@ -6459,7 +6409,7 @@ _CONVERSATION_EVAL_UNUSED_HARNESS_PARAMS = (
 
 
 def conversation_eval(
-    monitor: "PerformanceMonitor",
+    monitor: PerformanceMonitor,
     *,
     session_id_arg: str = "session_id",
     user_arg: str = "question",
@@ -6469,7 +6419,7 @@ def conversation_eval(
     sample_rate: float = _UNSET,  # SPEC-039 REQ-1: 실제 기본값 1.0 (sentinel, preset 충돌 판정용)
     on_flush: Optional[Callable] = None,              # Gap M: (metrics, session_id: str) → None
     on_turn: Optional[Callable] = None,               # Gap Z: (session_id, user, response, metadata) → None
-    on_record: Optional[Callable[["TaskResult"], Optional["TaskResult"]]] = None,  # C: (TaskResult) → Optional[TaskResult]
+    on_record: Optional[Callable[[TaskResult], Optional[TaskResult]]] = None,  # C: (TaskResult) → Optional[TaskResult]
     session_score_fn: Optional[Callable] = None,      # Gap T: (ConversationMetrics) → float
     turn_score_fn: Optional[Callable] = None,         # Gap AX: (user, response, metadata) → float
     max_session_seconds: Optional[float] = None,      # Gap AY: 비활성 세션 자동 flush 타이머
@@ -6480,7 +6430,7 @@ def conversation_eval(
     # A1: preset — AGENT_EVAL_PRESETS 키로 공통 파라미터 적용
     preset: Optional[str] = None,
     # LLM Judge 통합
-    llm_judge: Optional["LLMJudgeConfig"] = None,
+    llm_judge: Optional[LLMJudgeConfig] = None,
     framework: str = "native",
     model_name: str = "",
     on_error: Optional[Callable] = None,
@@ -6491,45 +6441,45 @@ def conversation_eval(
     # A10: max_turns 초과 시 동작 ("flush" | "warn" | "error", 기본: "flush")
     max_turns_exceeded_action: str = "flush",
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional["InstructionConfig"] = None,
-    loop_detection: Optional["LoopDetectionConfig"] = None,
-    goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    instructions: Optional[InstructionConfig] = None,
+    loop_detection: Optional[LoopDetectionConfig] = None,
+    goal_alignment: Optional[GoalAlignmentConfig] = None,
     # SPEC-039 REQ-4: agent_eval에는 있었지만 conversation_eval 시그니처에 아예 빠져있던
     # 4개 Harness Config를 추가(드리프트 감지 테스트로 발견). 다른 26개와 마찬가지로
     # 현재는 평가에 반영되지 않는다(REQ-5 경고 대상).
-    reproducibility: Optional["ReproducibilityConfig"] = None,
-    fault_tolerance: Optional["FaultToleranceConfig"] = None,
-    plan_tracking: Optional["PlanConfig"] = None,
+    reproducibility: Optional[ReproducibilityConfig] = None,
+    fault_tolerance: Optional[FaultToleranceConfig] = None,
+    plan_tracking: Optional[PlanConfig] = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional["SLAConfig"] = None,
-    threat_severity: Optional["ThreatSeverityConfig"] = None,
-    efficiency: Optional["EfficiencyConfig"] = None,
-    state_consistency: Optional["StateConsistencyConfig"] = None,  # SPEC-039 REQ-4
-    deadlock: Optional["DeadlockConfig"] = None,
-    observability: Optional["ObservabilityConfig"] = None,
-    consensus: Optional["ConsensusConfig"] = None,  # SPEC-039 REQ-4
+    sla: Optional[SLAConfig] = None,
+    threat_severity: Optional[ThreatSeverityConfig] = None,
+    efficiency: Optional[EfficiencyConfig] = None,
+    state_consistency: Optional[StateConsistencyConfig] = None,  # SPEC-039 REQ-4
+    deadlock: Optional[DeadlockConfig] = None,
+    observability: Optional[ObservabilityConfig] = None,
+    consensus: Optional[ConsensusConfig] = None,  # SPEC-039 REQ-4
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional["ScopeConfig"] = None,
-    context_retention: Optional["ContextRetentionConfig"] = None,
-    explainability: Optional["ExplainabilityConfig"] = None,
-    subtask_tracking: Optional["SubtaskConfig"] = None,
-    propagation: Optional["PropagationConfig"] = None,  # SPEC-039 REQ-4
+    scope: Optional[ScopeConfig] = None,
+    context_retention: Optional[ContextRetentionConfig] = None,
+    explainability: Optional[ExplainabilityConfig] = None,
+    subtask_tracking: Optional[SubtaskConfig] = None,
+    propagation: Optional[PropagationConfig] = None,  # SPEC-039 REQ-4
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional["AgentRoleConfig"] = None,
-    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
-    compliance: Optional["ComplianceConfig"] = None,
-    resource_budget: Optional["ResourceBudgetConfig"] = None,
-    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    agent_role: Optional[AgentRoleConfig] = None,
+    graceful_degradation: Optional[GracefulDegradationConfig] = None,
+    compliance: Optional[ComplianceConfig] = None,
+    resource_budget: Optional[ResourceBudgetConfig] = None,
+    conflict_resolution: Optional[ConflictResolutionConfig] = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
-    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
-    retry_consistency: Optional["RetryConsistencyConfig"] = None,
-    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
+    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
+    retry_consistency: Optional[RetryConsistencyConfig] = None,
+    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional["IdempotencyConfig"] = None,
-    threat_response: Optional["ThreatResponseConfig"] = None,
-    context_window: Optional["ContextWindowConfig"] = None,
-    latency_attribution: Optional["LatencyAttributionConfig"] = None,
+    idempotency: Optional[IdempotencyConfig] = None,
+    threat_response: Optional[ThreatResponseConfig] = None,
+    context_window: Optional[ContextWindowConfig] = None,
+    latency_attribution: Optional[LatencyAttributionConfig] = None,
 ) -> Callable:
     """멀티턴 대화 함수에 ``ConversationSession`` 기반 세션 평가를 자동 적용.
 
@@ -6961,7 +6911,7 @@ def conversation_eval(
 # ---------------------------------------------------------------------------
 
 def batch_eval(
-    monitor: "Union[PerformanceMonitor, List[PerformanceMonitor]]",
+    monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
     task_type: str = "qa",
     *,
     questions_arg: str = "questions",
@@ -6994,45 +6944,45 @@ def batch_eval(
     enable_hallucination_detection: bool = False,
     custom_parser: Optional[Callable] = None,
     enable_anomaly_detection: bool = False,
-    security: Optional["SecurityConfig"] = None,
-    llm_judge: Optional["LLMJudgeConfig"] = None,
+    security: Optional[SecurityConfig] = None,
+    llm_judge: Optional[LLMJudgeConfig] = None,
     # v0.9.0+: Phase 1 Harness Config
-    instructions: Optional["InstructionConfig"] = None,
-    loop_detection: Optional["LoopDetectionConfig"] = None,
-    goal_alignment: Optional["GoalAlignmentConfig"] = None,
-    reproducibility: Optional["ReproducibilityConfig"] = None,
-    fault_tolerance: Optional["FaultToleranceConfig"] = None,
-    plan_tracking: Optional["PlanConfig"] = None,
+    instructions: Optional[InstructionConfig] = None,
+    loop_detection: Optional[LoopDetectionConfig] = None,
+    goal_alignment: Optional[GoalAlignmentConfig] = None,
+    reproducibility: Optional[ReproducibilityConfig] = None,
+    fault_tolerance: Optional[FaultToleranceConfig] = None,
+    plan_tracking: Optional[PlanConfig] = None,
     # v0.9.1+: 신규 Harness Config
-    sla: Optional["SLAConfig"] = None,
-    threat_severity: Optional["ThreatSeverityConfig"] = None,
-    efficiency: Optional["EfficiencyConfig"] = None,
-    state_consistency: Optional["StateConsistencyConfig"] = None,
-    deadlock: Optional["DeadlockConfig"] = None,
-    observability: Optional["ObservabilityConfig"] = None,
-    consensus: Optional["ConsensusConfig"] = None,
+    sla: Optional[SLAConfig] = None,
+    threat_severity: Optional[ThreatSeverityConfig] = None,
+    efficiency: Optional[EfficiencyConfig] = None,
+    state_consistency: Optional[StateConsistencyConfig] = None,
+    deadlock: Optional[DeadlockConfig] = None,
+    observability: Optional[ObservabilityConfig] = None,
+    consensus: Optional[ConsensusConfig] = None,
     # v0.9.2+: Phase 3 Harness Config
-    scope: Optional["ScopeConfig"] = None,
-    context_retention: Optional["ContextRetentionConfig"] = None,
-    explainability: Optional["ExplainabilityConfig"] = None,
-    subtask_tracking: Optional["SubtaskConfig"] = None,
-    propagation: Optional["PropagationConfig"] = None,
+    scope: Optional[ScopeConfig] = None,
+    context_retention: Optional[ContextRetentionConfig] = None,
+    explainability: Optional[ExplainabilityConfig] = None,
+    subtask_tracking: Optional[SubtaskConfig] = None,
+    propagation: Optional[PropagationConfig] = None,
     # v0.9.3+: Phase 4 Harness Config
-    agent_role: Optional["AgentRoleConfig"] = None,
-    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
-    compliance: Optional["ComplianceConfig"] = None,
-    resource_budget: Optional["ResourceBudgetConfig"] = None,
-    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    agent_role: Optional[AgentRoleConfig] = None,
+    graceful_degradation: Optional[GracefulDegradationConfig] = None,
+    compliance: Optional[ComplianceConfig] = None,
+    resource_budget: Optional[ResourceBudgetConfig] = None,
+    conflict_resolution: Optional[ConflictResolutionConfig] = None,
     # v0.9.4+: Phase 5 Harness Config
-    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
-    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
-    retry_consistency: Optional["RetryConsistencyConfig"] = None,
-    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    tool_parameter_safety: Optional[ToolParameterSafetyConfig] = None,
+    knowledge_retention: Optional[KnowledgeRetentionConfig] = None,
+    retry_consistency: Optional[RetryConsistencyConfig] = None,
+    error_diagnosis: Optional[ErrorDiagnosisConfig] = None,
     # v0.9.5+: Phase 6 Harness Config
-    idempotency: Optional["IdempotencyConfig"] = None,
-    threat_response: Optional["ThreatResponseConfig"] = None,
-    context_window: Optional["ContextWindowConfig"] = None,
-    latency_attribution: Optional["LatencyAttributionConfig"] = None,
+    idempotency: Optional[IdempotencyConfig] = None,
+    threat_response: Optional[ThreatResponseConfig] = None,
+    context_window: Optional[ContextWindowConfig] = None,
+    latency_attribution: Optional[LatencyAttributionConfig] = None,
 ) -> Callable:
     """배치 에이전트 함수(``List[str]`` → ``List[str]``)에 평가를 자동 적용하는 데코레이터.
 
@@ -7740,7 +7690,7 @@ class eval_context:
 
     def __init__(
         self,
-        monitor: "PerformanceMonitor",
+        monitor: PerformanceMonitor,
         task_type: str = "qa",
         *,
         question: str = "",
@@ -7819,7 +7769,7 @@ class eval_context:
         # G1: 첫 청크 TTFT (None = 미기록); E4: 외부 주입값 있으면 사전 설정
         self._ttft_seconds: Optional[float] = ttft_seconds
 
-    def chunk_step(self, content: str = "", metadata: Optional[Dict[str, Any]] = None) -> "eval_context":
+    def chunk_step(self, content: str = "", metadata: Optional[Dict[str, Any]] = None) -> eval_context:
         """스트리밍 응답의 청크 단위 메트릭을 기록한다 (A2).
 
         ``with eval_context(...)`` 블록 내에서 스트리밍 청크마다 호출한다.
@@ -7861,7 +7811,7 @@ class eval_context:
         step_type: str = "step",
         success: bool = True,
         output: Optional[str] = None,
-    ) -> "eval_context":
+    ) -> eval_context:
         """현재 스텝을 chain_steps에 추가한다 (Item X).
 
         스트리밍 청크 기록과 달리 이름 있는 파이프라인 스텝(retrieval, ranking,
@@ -7922,7 +7872,7 @@ class eval_context:
 
     # --- sync ---
 
-    def __enter__(self) -> "eval_context":
+    def __enter__(self) -> eval_context:
         # Gap R: enabled / sample_rate 체크 — skip 이면 ctx push 도 생략
         if not self._enabled or (self._sample_rate < 1.0 and random.random() > self._sample_rate):
             self._skip = True
@@ -8027,7 +7977,7 @@ class eval_context:
 
     # --- async ---
 
-    async def __aenter__(self) -> "eval_context":
+    async def __aenter__(self) -> eval_context:
         return self.__enter__()
 
     async def __aexit__(
@@ -8062,11 +8012,11 @@ class _ContextShortcut:
             ctx.response = agent(question)
     """
 
-    def __init__(self, eval_dec: "EvalDecorator") -> None:
+    def __init__(self, eval_dec: EvalDecorator) -> None:
         self._eval_dec = eval_dec
-        self._ctx: Optional["eval_context"] = None
+        self._ctx: Optional[eval_context] = None
 
-    def __call__(self, task_type: Optional[str] = None, **kwargs) -> "eval_context":
+    def __call__(self, task_type: Optional[str] = None, **kwargs) -> eval_context:
         """``with eval.context(task_type="qa", ...) as ctx:`` 형태 지원."""
         ctx_defaults = {
             "framework": self._eval_dec._defaults.get("framework", "native"),
@@ -8085,7 +8035,7 @@ class _ContextShortcut:
         _task_type = task_type if task_type is not None else self._eval_dec._defaults.get("task_type", "qa")
         return eval_context(self._eval_dec._monitor, _task_type, **merged)
 
-    def __enter__(self) -> "eval_context":
+    def __enter__(self) -> eval_context:
         """``with eval.context as ctx:`` 형태 (task_type은 defaults 사용)."""
         self._ctx = self.__call__()
         return self._ctx.__enter__()
@@ -8113,7 +8063,7 @@ class _ShortcutCallable:
         def agent(question, ground_truth=""): ...
     """
 
-    def __init__(self, eval_dec: "EvalDecorator", task_type: str, **base_kwargs: Any) -> None:
+    def __init__(self, eval_dec: EvalDecorator, task_type: str, **base_kwargs: Any) -> None:
         self._eval_dec = eval_dec
         self._task_type = task_type
         self._base_kwargs = base_kwargs
@@ -8280,9 +8230,9 @@ class EvalDecorator:
 
     def __init__(
         self,
-        monitor: "Union[PerformanceMonitor, List[PerformanceMonitor]]",
+        monitor: Union[PerformanceMonitor, List[PerformanceMonitor]],
         *,
-        framework: "Union[FrameworkLiteral, str]" = "native",
+        framework: Union[FrameworkLiteral, str] = "native",
         model_name: str = "",
         sample_rate: float = 1.0,
         enabled: bool = True,
@@ -8308,8 +8258,8 @@ class EvalDecorator:
         enable_anomaly_detection: bool = False,
         enable_hallucination_detection: bool = False,  # per-call hallucination detection
         enable_hallucination: bool = False,            # legacy alias for enable_hallucination_detection
-        security: Optional["SecurityConfig"] = None,  # SecurityConfig 통합
-        llm_judge: Optional["LLMJudgeConfig"] = None,  # LLMJudgeConfig 통합
+        security: Optional[SecurityConfig] = None,  # SecurityConfig 통합
+        llm_judge: Optional[LLMJudgeConfig] = None,  # LLMJudgeConfig 통합
         # A9: sample_condition — 조건부 샘플링 (args, kwargs) → bool
         sample_condition: Optional[Callable] = None,
     ) -> None:
@@ -8346,7 +8296,7 @@ class EvalDecorator:
         }
 
     @property
-    def monitor(self) -> "Union[PerformanceMonitor, List[PerformanceMonitor]]":
+    def monitor(self) -> Union[PerformanceMonitor, List[PerformanceMonitor]]:
         """기저 :class:`~agent_evaluator.PerformanceMonitor` 인스턴스 반환 (Gap AA).
 
         ``for_rag()`` / ``for_security()`` 로 생성한 경우에도 동일하게 접근한다.
@@ -8476,7 +8426,7 @@ class EvalDecorator:
         return conversation_eval(self._monitor, **merged)
 
     @property
-    def context(self) -> "_ContextShortcut":  # 항목 E: 양방향 호출 지원 — with eval.context(...) / with eval.context as ctx
+    def context(self) -> _ContextShortcut:  # 항목 E: 양방향 호출 지원 — with eval.context(...) / with eval.context as ctx
         """``eval_context`` 컨텍스트 매니저 단축 속성 (항목 E).
 
         두 가지 사용 패턴을 지원한다::
@@ -8493,7 +8443,7 @@ class EvalDecorator:
         return _ContextShortcut(self)
 
     @classmethod
-    def for_rag(cls, output_dir: str = "results/", **kwargs) -> "EvalDecorator":
+    def for_rag(cls, output_dir: str = "results/", **kwargs) -> EvalDecorator:
         """RAG 평가에 최적화된 ``EvalDecorator`` 팩토리 메서드 (Gap S).
 
         ``PerformanceMonitor.for_rag_evaluation()`` 로 monitor 를 생성하고
@@ -8518,7 +8468,7 @@ class EvalDecorator:
         return cls(monitor, **kwargs)
 
     @classmethod
-    def for_security(cls, output_dir: str = "results/", **kwargs) -> "EvalDecorator":
+    def for_security(cls, output_dir: str = "results/", **kwargs) -> EvalDecorator:
         """보안 평가에 최적화된 ``EvalDecorator`` 팩토리 메서드 (Gap S).
 
         ``PerformanceMonitor.for_secure_agents()`` 로 monitor 를 생성한다.
@@ -8541,7 +8491,7 @@ class EvalDecorator:
         monitor = _PM.for_secure_agents(output_dir=output_dir)
         return cls(monitor, **kwargs)
 
-    def update_defaults(self, **kwargs) -> "EvalDecorator":
+    def update_defaults(self, **kwargs) -> EvalDecorator:
         """기본값을 부분 업데이트한다. 변경사항은 이후 생성되는 데코레이터에 적용된다.
         체이닝을 지원한다: ``eval.update_defaults(model_name="gpt-4-turbo").update_defaults(timeout=30)``.
 
@@ -8563,17 +8513,17 @@ class EvalDecorator:
     # E1/D1: task_type 단축 속성 — QuickEval과 동일한 편의 문법 지원
     # @eval.qa 또는 @eval.qa(score_fn=...) 모두 지원 (_ShortcutCallable 사용)
     @property
-    def qa(self) -> "_ShortcutCallable":
+    def qa(self) -> _ShortcutCallable:
         """``@eval.qa`` 또는 ``@eval.qa(score_fn=...)`` 단축키 (D1)."""
         return _ShortcutCallable(self, "qa")
 
     @property
-    def tool_use(self) -> "_ShortcutCallable":
+    def tool_use(self) -> _ShortcutCallable:
         """``@eval.tool_use`` 또는 ``@eval.tool_use(timeout=5.0)`` 단축키 (D1)."""
         return _ShortcutCallable(self, "tool_use")
 
     @property
-    def rag(self) -> "_ShortcutCallable":
+    def rag(self) -> _ShortcutCallable:
         """``@eval.rag`` 또는 ``@eval.rag(score_fn=...)`` 단축키 (D1/H4).
 
         ``rag_mode=True`` + ``context_arg="context"`` 자동 설정.
@@ -8586,42 +8536,42 @@ class EvalDecorator:
         )
 
     @property
-    def code(self) -> "_ShortcutCallable":
+    def code(self) -> _ShortcutCallable:
         """``@eval.code`` 또는 ``@eval.code(score_fn=...)`` 단축키 (D1)."""
         return _ShortcutCallable(self, "code_generation")
 
     @property
-    def reasoning(self) -> "_ShortcutCallable":
+    def reasoning(self) -> _ShortcutCallable:
         """``@eval.reasoning`` 단축키 (D1)."""
         return _ShortcutCallable(self, "reasoning")
 
     @property
-    def planning(self) -> "_ShortcutCallable":
+    def planning(self) -> _ShortcutCallable:
         """``@eval.planning`` 단축키 (D1)."""
         return _ShortcutCallable(self, "planning")
 
     @property
-    def data_analysis(self) -> "_ShortcutCallable":
+    def data_analysis(self) -> _ShortcutCallable:
         """``@eval.data_analysis`` 단축키 (D1)."""
         return _ShortcutCallable(self, "data_analysis")
 
     @property
-    def creative(self) -> "_ShortcutCallable":
+    def creative(self) -> _ShortcutCallable:
         """``@eval.creative`` 단축키 (D1)."""
         return _ShortcutCallable(self, "creative")
 
     @property
-    def multi_agent(self) -> "_ShortcutCallable":
+    def multi_agent(self) -> _ShortcutCallable:
         """``@eval.multi_agent`` 단축키 (D1)."""
         return _ShortcutCallable(self, "tool_use")
 
     @property
-    def secure(self) -> "_ShortcutCallable":
+    def secure(self) -> _ShortcutCallable:
         """``@eval.secure`` 단축키 (D1/H4) — ``security=SecurityConfig()`` 자동 설정."""
         return _ShortcutCallable(self, "tool_use", security=SecurityConfig())
 
     @property
-    def streaming(self) -> "_ShortcutCallable":
+    def streaming(self) -> _ShortcutCallable:
         """``@eval.streaming`` 또는 ``@eval.streaming(score_fn=...)`` 단축키 (D1/D4).
 
         generator/async generator 함수 평가용. task_type은 agent_eval이 자동 처리.
@@ -8629,7 +8579,7 @@ class EvalDecorator:
         return _ShortcutCallable(self, "qa")
 
     @classmethod
-    def for_llm_judge(cls, output_dir: str = "results/", model: str = "gpt-5-nano", **kwargs) -> "EvalDecorator":
+    def for_llm_judge(cls, output_dir: str = "results/", model: str = "gpt-5-nano", **kwargs) -> EvalDecorator:
         """LLM Judge 평가에 최적화된 ``EvalDecorator`` 팩토리 메서드.
 
         ``LLMJudge`` 와 ``enable_llm_judge=True`` 를 자동 설정한다.
