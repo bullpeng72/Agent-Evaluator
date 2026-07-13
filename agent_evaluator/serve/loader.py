@@ -205,21 +205,25 @@ class ResultFile:
         """SPEC-025 REQ-1: ``PerformanceMonitor(prompt_version=...)``가 채운 값 —
         ``extra_metrics.lineage.prompt_version``(SPEC-007 ``_build_lineage()``)에서
         읽는다. 신규 파싱 로직 없이 이미 보존된 ``raw``에서 읽기만 한다. 이 필드가
-        없는 구버전 결과 파일에서는 ``None``(에러 아님)."""
-        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("prompt_version")
+        없는 구버전 결과 파일에서는 ``None``(에러 아님). ``raw``는 외부 JSON을 그대로
+        담은 ``Dict[str, Any]``라 값이 문자열이 아닐 수도 있으므로 방어적으로 검증한다."""
+        value = (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("prompt_version")
+        return value if isinstance(value, str) else None
 
     @property
     def agent_version(self) -> str | None:
         """SPEC-025 REQ-1: :attr:`prompt_version`과 동일한 근거
         (``extra_metrics.lineage.agent_version``)."""
-        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("agent_version")
+        value = (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("agent_version")
+        return value if isinstance(value, str) else None
 
     @property
     def iteration_note(self) -> str | None:
         """SPEC-029: ``PerformanceMonitor(iteration_note=...)``가 채운 값 —
         :attr:`agent_version`과 동일한 근거(``extra_metrics.lineage.iteration_note``).
         이 필드가 없는 구버전 결과 파일에서는 ``None``(에러 아님)."""
-        return (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("iteration_note")
+        value = (self.raw.get("extra_metrics") or {}).get("lineage", {}).get("iteration_note")
+        return value if isinstance(value, str) else None
 
     @property
     def has_security(self) -> bool:

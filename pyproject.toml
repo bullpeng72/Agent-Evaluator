@@ -294,11 +294,24 @@ select = ["E", "F", "I", "UP", "B"]
 ignore = ["B008", "UP007"]  # UP007: Union[X,Y] → X|Y (py38 compat)
 
 [tool.mypy]
-python_version = "3.8"
+# mypy 1.9+가 python_version=3.8 타입체킹 자체를 지원 중단해 3.9로 올렸다가,
+# opentelemetry·mcp·huggingface_hub 등 py.typed 배포 서드파티 패키지가 내부적으로
+# match문(3.10+ 문법)을 써서 3.9로도 파싱이 계속 실패해("Pattern matching is only
+# supported in Python 3.10 and greater" → 전체 검사 중단) 3.10으로 다시 올렸다.
+# 패키지 런타임 지원 대상(3.8+, ruff target-version=py38과 동일)을 바꾸는 게
+# 아니라 mypy 자체의 파서 제약에 맞추는 것뿐이다.
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 disallow_untyped_defs = false
+
+# opentelemetry·mcp는 위 이유로 이미 마주쳤던 서드파티라 소스를 따라 들어가지
+# 않도록 명시적으로 skip한다(3.10에서도 필요 없어졌지만, 향후 다른 버전에서
+# 다시 문제가 되어도 이 두 패키지만은 우리 검사 대상이 아님을 고정해둔다).
+[[tool.mypy.overrides]]
+module = ["opentelemetry.*", "mcp.*"]
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
