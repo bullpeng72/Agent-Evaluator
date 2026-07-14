@@ -9,7 +9,7 @@ import time as _time_module
 from collections import defaultdict
 from datetime import datetime as _datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -88,7 +88,7 @@ def _to_meta(f) -> dict[str, Any]:
 
 
 @router.get("/health", summary="Server health check")
-def health(request: Request) -> dict[str, Any]:
+def health(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return server status, version, file count, and total task count in detail."""
     try:
         _rs_obj = _rs(request)
@@ -137,7 +137,7 @@ def health(request: Request) -> dict[str, Any]:
 
 
 @router.get("/stats", summary="Overall statistics summary")
-def get_stats(request: Request) -> dict[str, Any]:
+def get_stats(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return system-wide statistics summary."""
     try:
         _rs_obj = _rs(request)
@@ -186,16 +186,16 @@ def list_results(
     ),
     sort_desc: bool = Query(default=True, description="Sort descending (default True)"),
     # K: 범위 필터
-    tcr_min: float | None = Query(None, description="TCR minimum value (0–100)"),
-    tcr_max: float | None = Query(None, description="TCR maximum value (0–100)"),
-    accuracy_min: float | None = Query(None, description="Accuracy minimum value (0–100)"),
-    age_hours: float | None = Query(None, description="Files from the last N hours only"),
+    tcr_min: Optional[float] = Query(None, description="TCR minimum value (0–100)"),  # noqa: UP045
+    tcr_max: Optional[float] = Query(None, description="TCR maximum value (0–100)"),  # noqa: UP045
+    accuracy_min: Optional[float] = Query(None, description="Accuracy minimum value (0–100)"),  # noqa: UP045
+    age_hours: Optional[float] = Query(None, description="Files from the last N hours only"),  # noqa: UP045
     # SPEC-025 REQ-1: 버전 필터 — 정확히 일치하는 파일만 반환(exact match)
-    prompt_version: str | None = Query(None, description="Filter by exact prompt_version match"),
-    agent_version: str | None = Query(None, description="Filter by exact agent_version match"),
+    prompt_version: Optional[str] = Query(None, description="Filter by exact prompt_version match"),  # noqa: UP045
+    agent_version: Optional[str] = Query(None, description="Filter by exact agent_version match"),  # noqa: UP045
     # N: 샘플 태스크 포함
     include_sample: bool = Query(False, description="Include latest 3 task samples per file"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Result file list — pagination + sorting support (B12, I2).
 
     **Sort keys (sort_by)**:
@@ -331,7 +331,7 @@ def list_results(
 @router.get("/live-stats", summary="Live statistics stream (SSE)")
 async def live_stats_sse(
     request: Request,
-    file_id: str | None = Query(None, description="Specific file ID (omit for global statistics)"),
+    file_id: Optional[str] = Query(None, description="Specific file ID (omit for global statistics)"),  # noqa: UP045
     interval_seconds: float = Query(2.0, ge=0.5, le=30.0, description="Push interval in seconds"),
 ) -> StreamingResponse:
     """Push live statistics via SSE (Server-Sent Events).
@@ -398,7 +398,7 @@ def get_hourly_stats(
         "tcr,avg_accuracy,avg_latency",
         description="Comma-separated metric list — tcr|avg_accuracy|avg_latency|task_count|error_rate",
     ),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return metric trend aggregated in hourly buckets."""
     import datetime as _dt_mod3
 
@@ -455,7 +455,7 @@ def get_hourly_stats(
 
 
 @router.get("/results/{file_id}", summary="Result file detail")
-def get_result(file_id: str, request: Request) -> dict[str, Any]:
+def get_result(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return the full content of a single evaluation result file.
 
     Includes ``summary`` (TCR, accuracy, latency aggregates), ``tasks`` (per-task detail),
@@ -664,7 +664,7 @@ def delete_result(
     file_id: str,
     request: Request,
     soft: bool = Query(default=True),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Delete a result file (B1 extension).
 
     soft=True: archive (sets in-memory _archived flag)
@@ -697,7 +697,7 @@ def delete_result(
 async def bulk_tag_tasks(
     file_id: str,
     request: Request,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Bulk add tags to multiple tasks.
 
     Body example::
@@ -740,7 +740,7 @@ def aggregate_tasks(
     file_id: str,
     request: Request,
     by: str = Query(default="task_type", description="Grouping key: task_type|framework|hour|day"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Metric aggregate — grouped by the specified key.
 
     Returns:
@@ -809,7 +809,7 @@ def aggregate_tasks(
 
 
 @router.get("/results/{file_id}/reliability", summary="Reliability metrics")
-def get_reliability(file_id: str, request: Request) -> dict[str, Any]:
+def get_reliability(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Reliability tab — reproducibility, loop, and tool fault-tolerance aggregate (Phase 2).
 
     Returns:
@@ -865,7 +865,7 @@ def get_reliability(file_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.post("/results/{file_id}/tasks/filter", summary="Advanced task filter")
-async def filter_tasks_advanced(file_id: str, request: Request) -> dict[str, Any]:
+async def filter_tasks_advanced(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Search tasks by compound filter conditions (B4, I3).
 
     **Request body format**::
@@ -992,14 +992,14 @@ async def filter_tasks_advanced(file_id: str, request: Request) -> dict[str, Any
 def search_tasks(
     file_id: str,
     request: Request,
-    task_type: str | None = Query(default=None),
-    framework: str | None = Query(default=None),
+    task_type: Optional[str] = Query(default=None),  # noqa: UP045
+    framework: Optional[str] = Query(default=None),  # noqa: UP045
     accuracy_min: float = Query(default=0.0, ge=0.0, le=1.0),
     accuracy_max: float = Query(default=1.0, ge=0.0, le=1.0),
-    has_error: bool | None = Query(default=None),
+    has_error: Optional[bool] = Query(default=None),  # noqa: UP045
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Task filter search — combine task_type / framework / accuracy / has_error.
 
     Returns:
@@ -1059,7 +1059,7 @@ def search_tasks(
 
 
 @router.get("/results/{file_id}/distributions", summary="Score distribution")
-def get_task_distributions(file_id: str, request: Request) -> dict[str, Any]:
+def get_task_distributions(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Distribution statistics by task_type / framework / accuracy range — for dashboard charts."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1120,16 +1120,16 @@ _SEARCH_ALLOWED_FIELDS = {"question", "response", "framework", "task_type", "tas
 @router.get("/tasks/search", summary="Cross-file task search")
 def search_task_across_files(
     request: Request,
-    task_id: str | None = Query(default=None, description="Search by specific task_id"),
-    framework: str | None = Query(default=None),
-    task_type: str | None = Query(default=None),
-    q: str | None = Query(default=None, description="Full-text search query (applied to search_fields)"),
+    task_id: Optional[str] = Query(default=None, description="Search by specific task_id"),  # noqa: UP045
+    framework: Optional[str] = Query(default=None),  # noqa: UP045
+    task_type: Optional[str] = Query(default=None),  # noqa: UP045
+    q: Optional[str] = Query(default=None, description="Full-text search query (applied to search_fields)"),  # noqa: UP045
     search_fields: str = Query(
         default="question,response",
         description="Comma-separated fields to search: question,response,framework,task_type,task_id",
     ),
     limit: int = Query(default=50, ge=1, le=500),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Cross-file search by task_id / framework / task_type / q (N: includes search_fields parameter)."""
     rs = _rs(request)
     results: list[dict[str, Any]] = []
@@ -1189,7 +1189,7 @@ def search_task_across_files(
 
 
 @router.get("/results/{file_id}/tasks/{task_id}", summary="Task detail")
-def get_task_detail(file_id: str, task_id: str, request: Request) -> dict[str, Any]:
+def get_task_detail(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Per-task detail API — includes chain_steps, state_transitions, agent_interactions."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -1240,7 +1240,7 @@ def get_task_detail(file_id: str, task_id: str, request: Request) -> dict[str, A
 
 
 @router.get("/results/{file_id}/metrics/{metric_name}", summary="Metric detail")
-def get_metric_detail(file_id: str, metric_name: str, request: Request) -> dict[str, Any]:
+def get_metric_detail(file_id: str, metric_name: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return detailed data for a single metric specified by name.
 
     Supported metric_name values:
@@ -1310,7 +1310,7 @@ def get_metric_detail(file_id: str, metric_name: str, request: Request) -> dict[
 
 
 @router.get("/results/{file_id}/heatmap/{metric}", summary="Metric heatmap")
-def get_metric_heatmap(file_id: str, metric: str, request: Request) -> dict[str, Any]:
+def get_metric_heatmap(file_id: str, metric: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return task × time heatmap data.
 
     metric: ``accuracy_score``, ``execution_time``, ``completion_score``
@@ -1369,7 +1369,7 @@ def get_metric_heatmap(file_id: str, metric: str, request: Request) -> dict[str,
 
 
 @router.get("/summary", summary="Overall result summary")
-def get_summary(request: Request) -> dict[str, Any]:
+def get_summary(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return summary statistics for all result files + transparency data availability.
 
     Unlike ``/api/stats``, also includes ``has_traces``, ``has_audit``, and ``has_annotations`` flags
@@ -1397,7 +1397,7 @@ def get_result_timeline(
     request: Request,
     metric: str = Query(default="accuracy_score", description="Aggregation metric"),
     bucket: str = Query(default="hour", description="Time bucket: minute|hour|day"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Task time-series aggregate — aggregates the specified metric into time buckets.
 
     Returns:
@@ -1477,12 +1477,12 @@ def _latest_file_ids_by_group(rs, group_by: str) -> list[str]:
 @router.get("/compare", summary="Result file comparison")
 def compare_results(
     request: Request,
-    ids: str | None = Query(
+    ids: Optional[str] = Query(  # noqa: UP045
         default=None, description="Comma-separated file_id list (e.g. id1,id2)",
     ),
     detailed: bool = Query(default=False, description="If True, compute detailed diff based on common task_ids"),
     # SPEC-025 REQ-2: ids 대신 버전 태그로 그룹핑 — 그룹별 최신 파일 1개씩 자동 선택
-    group_by: str | None = Query(
+    group_by: Optional[str] = Query(  # noqa: UP045
         default=None,
         description="Group by prompt_version|agent_version instead of ids — "
                     "picks the latest file per group value",
@@ -1493,7 +1493,7 @@ def compare_results(
         description="If True (requires detailed=True), run LLMJudge.judge_pairwise() "
                     "per common task_id and add a win_rate summary (real judge API calls)",
     ),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Compare key metrics across multiple result files side by side (B2/B5).
 
     When detailed=True, computes accuracy_delta/latency_delta for common task_ids
@@ -1666,7 +1666,7 @@ def get_leaderboard(
     sort_by: str = Query(default="tcr", description="Sort key: tcr|accuracy|avg_latency|total_cost"),
     limit: int = Query(default=20, ge=1, le=100),
     ascending: bool = Query(default=False),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Leaderboard of all evaluation files — ranked by the specified metric.
 
     Returns:
@@ -1729,7 +1729,7 @@ def get_sessions(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=500),
     include_turns: bool = Query(default=True, description="Include per-turn detail data"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Multi-turn conversation sessions list (B4/M3) — pagination + per-turn tool_calls/model_name/tokens_used.
 
     Returns:
@@ -1765,8 +1765,8 @@ _tag_store_lock = defaultdict(list)
 def add_tags(
     file_id: str,
     request: Request,
-    tags: list[str] = None,
-) -> dict[str, Any]:
+    tags: Optional[List[str]] = None,  # noqa: UP006,UP045
+) -> Dict[str, Any]:  # noqa: UP006
     """Add tags to a file.
 
     Body: JSON list of tag strings  (e.g. ``["production", "v2", "regression"]``)
@@ -1798,7 +1798,7 @@ def add_tags(
 
 
 @router.get("/results/{file_id}/tags", summary="Tag list")
-def get_tags(file_id: str, request: Request) -> dict[str, Any]:
+def get_tags(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Get file tags (B5 auxiliary)."""
     rs = _rs(request)
     if rs.by_id(file_id) is None:
@@ -1812,7 +1812,7 @@ def get_similar_tasks(
     task_id: str,
     request: Request,
     top_k: int = Query(default=5, ge=1, le=50),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Similar task search — approximate similarity based on accuracy_score + task_type.
 
     Returns:
@@ -1861,7 +1861,7 @@ def aggregate_extra_field(
     file_id: str,
     request: Request,
     field: str = Query(..., description="Key to aggregate from the extra dictionary"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return the value frequency distribution for a specific extra field."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
@@ -1893,7 +1893,7 @@ def explain_anomaly_event(
     file_id: str,
     event_id: str,
     request: Request,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return the cause and recommendations for a specific anomaly detection event."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
@@ -1933,7 +1933,7 @@ def explain_anomaly_event(
 # ---------------------------------------------------------------------------
 
 @router.get("/results/{file_id}/frameworks", summary="Framework analysis")
-def get_framework_breakdown(file_id: str, request: Request) -> dict[str, Any]:
+def get_framework_breakdown(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Framework-level metric aggregate — TCR / accuracy / latency / token analysis by framework.
 
     Returns:
@@ -1995,11 +1995,11 @@ def get_framework_breakdown(file_id: str, request: Request) -> dict[str, Any]:
 def get_llm_judge_details(
     file_id: str,
     request: Request,
-    min_score: float | None = Query(default=None, description="Minimum overall score filter"),
-    max_score: float | None = Query(default=None, description="Maximum overall score filter"),
+    min_score: Optional[float] = Query(default=None, description="Minimum overall score filter"),  # noqa: UP045
+    max_score: Optional[float] = Query(default=None, description="Maximum overall score filter"),  # noqa: UP045
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """LLM Judge result detail aggregate endpoint.
 
     Returns individual task judge scores (completeness/relevance/factual_consistency/overall).
@@ -2050,11 +2050,11 @@ class AnomalyEventSchema(BaseModel):
     event_id: str = ""
     event_type: str = ""
     detected_at: str = ""
-    metric_name: str | None = None
-    current_value: float | None = None
-    baseline_value: float | None = None
-    anomaly_score: float | None = None
-    description: str | None = None
+    metric_name: Optional[str] = None  # noqa: UP045
+    current_value: Optional[float] = None  # noqa: UP045
+    baseline_value: Optional[float] = None  # noqa: UP045
+    anomaly_score: Optional[float] = None  # noqa: UP045
+    description: Optional[str] = None  # noqa: UP045
 
 
 class AnomalyListResponse(BaseModel):
@@ -2068,7 +2068,7 @@ class AnomalyListResponse(BaseModel):
 # D7: Anomaly 이벤트 목록 API
 # ---------------------------------------------------------------------------
 @router.get("/results/{file_id}/anomaly", summary="Anomaly detection results (file)", response_model=AnomalyListResponse)
-def get_anomaly(file_id: str, request: Request) -> dict[str, Any]:
+def get_anomaly(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return anomaly detection event list and summary."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
@@ -2110,7 +2110,7 @@ def get_anomaly(file_id: str, request: Request) -> dict[str, Any]:
 # D9: Multimodal 집계 API
 # ---------------------------------------------------------------------------
 @router.get("/results/{file_id}/multimodal", summary="Multimodal data")
-def get_multimodal(file_id: str, request: Request) -> dict[str, Any]:
+def get_multimodal(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return multimodal metric aggregate based on task extra fields."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
@@ -2155,7 +2155,7 @@ def get_multimodal(file_id: str, request: Request) -> dict[str, Any]:
 # B4: Implicit feedback stats API
 # ---------------------------------------------------------------------------
 @router.get("/results/{file_id}/feedback/stats", summary="Feedback statistics")
-def feedback_stats(file_id: str, request: Request) -> dict[str, Any]:
+def feedback_stats(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return implicit feedback statistics."""
     rs = _rs(request)
     f = next((x for x in rs.files if x.file_id == file_id), None)
@@ -2191,7 +2191,7 @@ _WEBHOOK_HISTORY: dict[str, list] = {}
 
 
 @router.get("/webhooks/{webhook_id}/history", summary="Webhook history")
-def webhook_history(webhook_id: str) -> dict[str, Any]:
+def webhook_history(webhook_id: str) -> Dict[str, Any]:  # noqa: UP006
     """Return webhook trigger history."""
     history = _WEBHOOK_HISTORY.get(webhook_id, [])
     return {
@@ -2202,7 +2202,7 @@ def webhook_history(webhook_id: str) -> dict[str, Any]:
 
 
 @router.post("/webhooks/{webhook_id}/test", summary="Send webhook test")
-def webhook_test(webhook_id: str) -> dict[str, Any]:
+def webhook_test(webhook_id: str) -> Dict[str, Any]:  # noqa: UP006
     """Record a test entry in the webhook trigger history (in-memory).
 
     Does not send an actual HTTP request to an external URL. To send a real POST to an external URL,
@@ -2228,7 +2228,7 @@ def webhook_test(webhook_id: str) -> dict[str, Any]:
 async def import_results(
     request: Request,
     file: UploadFile = File(...),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Upload a JSON result file and save it to output_dir."""
     import json as _json
     content = await file.read()
@@ -2256,7 +2256,7 @@ async def import_results(
 # B7: API version info
 # ---------------------------------------------------------------------------
 @router.get("/version", summary="API version info")
-def api_version() -> dict[str, Any]:
+def api_version() -> Dict[str, Any]:  # noqa: UP006
     """Return API version information."""
     return {
         "current": "v1",
@@ -2272,7 +2272,7 @@ _REQUEST_COUNTS: dict[str, int] = defaultdict(int)
 
 
 @router.get("/rate-limit/status", summary="API rate limit status")
-def rate_limit_status() -> dict[str, Any]:
+def rate_limit_status() -> Dict[str, Any]:  # noqa: UP006
     """Get API rate limit configuration.
 
     In the current version, ``current_counts`` is not aggregated and always returns an empty object (``{}``).
@@ -2290,7 +2290,7 @@ def rate_limit_status() -> dict[str, Any]:
 # H3: API response cache stats endpoint
 # ---------------------------------------------------------------------------
 @router.get("/cache/stats", summary="Cache statistics")
-def cache_stats() -> dict[str, Any]:
+def cache_stats() -> Dict[str, Any]:  # noqa: UP006
     """Return response cache hit/miss statistics."""
     try:
         from agent_evaluator.serve.cache import _GLOBAL_CACHE
@@ -2309,7 +2309,7 @@ def get_quality_heatmap(
     request: Request,
     group_by: str = Query("task_type", description="Grouping key: task_type | framework | hour"),
     metric: str = Query("accuracy_score", description="Metric: accuracy_score | completion_score | execution_time"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Quality heatmap — group_by × metric cross-aggregate (P2-C).
 
     Used to visualize the distribution of quality metrics by task_type/framework/time period as a heatmap in the dashboard.
@@ -2400,7 +2400,7 @@ def get_quality_heatmap(
 # ---------------------------------------------------------------------------
 
 @router.get("/results/{file_id}/tasks/{task_id}/chain-steps", summary="Chain execution steps")
-def get_task_chain_steps(file_id: str, task_id: str, request: Request) -> dict[str, Any]:
+def get_task_chain_steps(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return chain_steps detail data for a specific task.
 
     Used to visualize the agent's execution flow in the dashboard.
@@ -2457,7 +2457,7 @@ def get_conversation_turns(
     file_id: str,
     session_id: str,
     request: Request,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return per-turn detail data for a specific conversation session."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -2523,7 +2523,7 @@ def get_conversation_turns(
 # ---------------------------------------------------------------------------
 
 @router.get("/results/{file_id}/tasks/{task_id}/anomaly", summary="Task-level anomaly detection")
-def get_task_anomaly(file_id: str, task_id: str, request: Request) -> dict[str, Any]:
+def get_task_anomaly(file_id: str, task_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Query anomaly events related to a specific task."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -2575,7 +2575,7 @@ def get_comparison(
     request: Request,
     file_id_a: str = Query(..., description="Baseline file ID for comparison"),
     file_id_b: str = Query(..., description="Target file ID for comparison"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return metric diff between two evaluation result files.
 
     Compares two versions of the same agent or results from two different time points.
@@ -2676,7 +2676,7 @@ def _percentile(sorted_vals: list[float], p: float) -> float | None:
 
 
 @router.get("/results/{file_id}/latency-percentiles", summary="Latency percentiles")
-def get_latency_percentiles(file_id: str, request: Request) -> dict[str, Any]:
+def get_latency_percentiles(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """P50/P75/P95/P99 latency percentiles and per-task-type analysis (L).
 
     Returns:
@@ -2735,7 +2735,7 @@ def get_latency_percentiles(file_id: str, request: Request) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/results/{file_id}/token-analytics", summary="Token usage analysis")
-def get_token_analytics(file_id: str, request: Request) -> dict[str, Any]:
+def get_token_analytics(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Task token usage analysis — aggregate by task_type / framework (M).
 
     If tokens_used is an int it is treated as total; if dict, input/output/total keys are extracted.
@@ -2813,12 +2813,12 @@ def get_token_analytics(file_id: str, request: Request) -> dict[str, Any]:
 @router.get("/security/events", summary="Security events list")
 def get_security_events(
     request: Request,
-    file_id: str | None = Query(default=None, description="Filter by specific result file ID"),
-    category: str | None = Query(default=None, description="input_sanitization|output_leakage|tool_authorization|privilege_escalation|chain_attack"),
+    file_id: Optional[str] = Query(default=None, description="Filter by specific result file ID"),  # noqa: UP045
+    category: Optional[str] = Query(default=None, description="input_sanitization|output_leakage|tool_authorization|privilege_escalation|chain_attack"),  # noqa: UP045
     threats_only: bool = Query(default=False, description="Return only items with threats detected"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=500),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Return detailed list of security events.
 
     Retrieves data recorded with ``enable_security_metrics=True`` or ``security_mode=True``,

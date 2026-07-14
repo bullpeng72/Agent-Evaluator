@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,21 +21,21 @@ router = APIRouter(prefix="/api", tags=["config"])
 
 
 class ThresholdBody(BaseModel):
-    tcr: float | None = None
-    acc: float | None = None
-    hall: float | None = None
-    p95: float | None = None
-    p99: float | None = None
-    cost: float | None = None
+    tcr: Optional[float] = None  # noqa: UP045
+    acc: Optional[float] = None  # noqa: UP045
+    hall: Optional[float] = None  # noqa: UP045
+    p95: Optional[float] = None  # noqa: UP045
+    p99: Optional[float] = None  # noqa: UP045
+    cost: Optional[float] = None  # noqa: UP045
     # Phase 2: Harness 그룹별 임계값 (0.0~1.0, 그룹 A~G + overall)
-    harness_A: float | None = None
-    harness_B: float | None = None
-    harness_C: float | None = None
-    harness_D: float | None = None
-    harness_E: float | None = None
-    harness_F: float | None = None
-    harness_G: float | None = None
-    harness_overall: float | None = None
+    harness_A: Optional[float] = None  # noqa: UP045
+    harness_B: Optional[float] = None  # noqa: UP045
+    harness_C: Optional[float] = None  # noqa: UP045
+    harness_D: Optional[float] = None  # noqa: UP045
+    harness_E: Optional[float] = None  # noqa: UP045
+    harness_F: Optional[float] = None  # noqa: UP045
+    harness_G: Optional[float] = None  # noqa: UP045
+    harness_overall: Optional[float] = None  # noqa: UP045
 
 _DEFAULTS: dict[str, float] = {
     "tcr": 90.0,
@@ -61,7 +61,7 @@ def _threshold_path(request: Request):
 
 
 @router.get("/thresholds", summary="Get threshold settings")
-def get_thresholds(request: Request) -> dict[str, Any]:
+def get_thresholds(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Load persisted thresholds; return defaults when no file exists."""
     p = _threshold_path(request)
     if p.exists():
@@ -76,7 +76,7 @@ def get_thresholds(request: Request) -> dict[str, Any]:
 
 
 @router.get("/config", summary="Get model configuration")
-def get_config() -> dict[str, Any]:
+def get_config() -> Dict[str, Any]:  # noqa: UP006
     """Return configured model names from environment (.env)."""
     return {
         "openai_model": os.getenv("OPENAI_MODEL", ""),
@@ -85,7 +85,7 @@ def get_config() -> dict[str, Any]:
 
 
 @router.post("/thresholds", summary="Save threshold settings")
-async def save_thresholds(request: Request, body: ThresholdBody) -> dict[str, Any]:
+async def save_thresholds(request: Request, body: ThresholdBody) -> Dict[str, Any]:  # noqa: UP006
     """Persist threshold settings; unset fields keep their default values."""
     merged = _DEFAULTS.copy()
     for k in _DEFAULTS:

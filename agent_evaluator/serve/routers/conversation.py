@@ -6,7 +6,7 @@ GET /api/conversation/{file_id}/{session_id} — Turn-by-turn detail for a speci
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -15,7 +15,7 @@ from agent_evaluator.serve.routers._utils import _rs
 router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 @router.get("", summary="Conversation sessions list")
-def list_conversations(request: Request) -> list[dict[str, Any]]:
+def list_conversations(request: Request) -> List[Dict[str, Any]]:  # noqa: UP006
     """Summary list of conversation sessions across all files."""
     rs = _rs(request)
     result = []
@@ -31,7 +31,7 @@ def list_conversations(request: Request) -> list[dict[str, Any]]:
     return result
 
 @router.get("/{file_id}", summary="Conversation sessions for a file")
-def get_conversations(file_id: str, request: Request) -> dict[str, Any]:
+def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Conversation session detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)
@@ -69,7 +69,7 @@ def get_conversations(file_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.get("/{file_id}/{session_id}", summary="Conversation session detail")
-def get_session_detail(file_id: str, session_id: str, request: Request) -> dict[str, Any]:
+def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Turn-by-turn detail + 6-metric analysis for a specific session.
 
     Returns:

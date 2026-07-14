@@ -17,7 +17,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class AnnotationCreate(BaseModel):
     author: str = "dashboard"
     target_type: str = "evaluation"
     target_id: str = ""
-    tags: list[str] = []
+    tags: List[str] = []  # noqa: UP006
     source_file_id: str = ""        # evaluation file ID this annotation belongs to ("" = global)
 
 

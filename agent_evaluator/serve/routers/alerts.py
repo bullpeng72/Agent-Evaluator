@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -21,8 +21,8 @@ class AlertRuleCreate(BaseModel):
     severity: str = "warning"
     cooldown: float = 60.0
     enabled: bool = True
-    description: str | None = None
-    compound_conditions: list[dict[str, Any]] | None = None  # B8: 복합 조건
+    description: Optional[str] = None  # noqa: UP045
+    compound_conditions: Optional[List[Dict[str, Any]]] = None  # noqa: UP006,UP045  # B8: 복합 조건
 
 # ---------------------------------------------------------------------------
 # B7: 알림 규칙 저장소 — 메모리 캐시 + 파일 동기화
@@ -79,7 +79,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 @router.get("", summary="Alert history list")
-def list_alerts(request: Request, days: int = 7) -> list[dict[str, Any]]:
+def list_alerts(request: Request, days: int = 7) -> List[Dict[str, Any]]:  # noqa: UP006
     """Recent N-day alert history."""
     alert_dir = _alert_dir(request)
     result = []
@@ -89,7 +89,7 @@ def list_alerts(request: Request, days: int = 7) -> list[dict[str, Any]]:
     return sorted(result, key=lambda x: x.get("triggered_at", ""), reverse=True)
 
 @router.get("/today", summary="Today's alerts")
-def today_alerts(request: Request) -> dict[str, Any]:
+def today_alerts(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Summary of alerts fired today."""
     alert_dir = _alert_dir(request)
     today = date.today().isoformat()
@@ -113,7 +113,7 @@ def today_alerts(request: Request) -> dict[str, Any]:
     }
 
 @router.get("/file/{file_id}", summary="Alerts for a result file")
-def file_alerts(file_id: str, request: Request) -> dict[str, Any]:
+def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Return alert history for the date corresponding to the selected result file.
 
     Extracts the date (YYYY-MM-DD) from the file's timestamp and reads the
@@ -158,7 +158,7 @@ def file_alerts(file_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.get("/patterns", summary="Alert pattern analysis")
-def alert_patterns(request: Request, days: int = 7) -> dict[str, Any]:
+def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:  # noqa: UP006
     """Detect recurring patterns in the last N days of alerts by hour, weekday, and rule."""
     alert_dir = _alert_dir(request)
     all_records: list[dict[str, Any]] = []
@@ -203,7 +203,7 @@ def alert_patterns(request: Request, days: int = 7) -> dict[str, Any]:
 
 
 @router.get("/rules", summary="Alert rules list")
-def list_alert_rules(request: Request) -> dict[str, Any]:
+def list_alert_rules(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """List alert rules (B7/B8) — file-based persistent storage."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
@@ -214,7 +214,7 @@ def list_alert_rules(request: Request) -> dict[str, Any]:
 
 
 @router.post("/rules", summary="Create alert rule")
-def create_alert_rule(body: AlertRuleCreate, request: Request) -> dict[str, Any]:
+def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Create alert rule (B7/B8) — file-based persistent storage + compound_conditions support.
 
     Example body::
@@ -257,7 +257,7 @@ def create_alert_rule(body: AlertRuleCreate, request: Request) -> dict[str, Any]
 
 
 @router.get("/rules/{rule_id}", summary="Alert rule detail")
-def get_alert_rule(rule_id: str, request: Request) -> dict[str, Any]:
+def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Get a single alert rule (B7/B8) — retrieved from file."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
@@ -268,7 +268,7 @@ def get_alert_rule(rule_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.delete("/rules/{rule_id}", summary="Delete alert rule")
-def delete_alert_rule(rule_id: str, request: Request) -> dict[str, Any]:
+def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Delete an alert rule (B7/B8) — removed from file as well."""
     rules_file = _get_rules_file(request)
     rules = _load_rules(rules_file)
@@ -284,7 +284,7 @@ def delete_alert_rule(rule_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.get("/summary", summary="Alert summary")
-def alert_summary(request: Request) -> dict[str, Any]:
+def alert_summary(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """7-day alert statistics summary."""
     alert_dir = _alert_dir(request)
     daily_counts: dict[str, int] = {}

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -11,7 +11,7 @@ from agent_evaluator.serve.routers._utils import _rs
 router = APIRouter(prefix="/api/cost", tags=["cost"])
 
 @router.get("/summary", summary="Cost summary")
-def cost_summary(request: Request) -> dict[str, Any]:
+def cost_summary(request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Overall evaluation cost summary."""
     rs = _rs(request)
     total_usd = 0.0
@@ -39,7 +39,7 @@ def cost_summary(request: Request) -> dict[str, Any]:
 def cost_trend(
     request: Request,
     days: int = Query(default=30, ge=1, le=365),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Cost trend by date — aggregates per-file costs into daily buckets over the last N days.
 
     Returns:
@@ -97,7 +97,7 @@ def cost_trend(
 def cost_breakdown(
     request: Request,
     by: str = Query(default="model", description="Grouping key: model|task_type|file"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Cost breakdown — grouped by the specified key.
 
     Returns:
@@ -168,7 +168,7 @@ def cost_breakdown(
 
 
 @router.get("/{file_id}", summary="Cost detail for a file")
-def get_file_cost(file_id: str, request: Request) -> dict[str, Any]:
+def get_file_cost(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Cost detail for a specific file."""
     rs = _rs(request)
     rf = rs.by_id(file_id)

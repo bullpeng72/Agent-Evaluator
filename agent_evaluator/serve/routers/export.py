@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
@@ -287,10 +288,10 @@ def export_excel(file_id: str, request: Request):
 @router.get("/html/compare", summary="Comparison HTML report export")
 def export_html_compare(
     request: Request,
-    ids: str | None = Query(
+    ids: Optional[str] = Query(  # noqa: UP045
         default=None, description="Comma-separated file_id list (e.g. id1,id2)",
     ),
-    group_by: str | None = Query(
+    group_by: Optional[str] = Query(  # noqa: UP045
         default=None, description="Group by prompt_version|agent_version instead of ids",
     ),
     pairwise: bool = Query(

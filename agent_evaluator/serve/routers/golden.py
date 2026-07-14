@@ -18,7 +18,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/golden", tags=["golden"])
 
 class GoldenCreateBody(BaseModel):
     name: str = "golden_dataset"
-    items: list[Any] = []
+    items: List[Any] = []  # noqa: UP006
 
 # ---------------------------------------------------------------------------
 # PDF helpers (used by both /pdf and /pdf-advanced)
@@ -346,7 +346,7 @@ def _golden_dir(request: Request) -> Path:
 
 
 @router.get("", summary="Golden dataset list")
-def list_golden(request: Request) -> list[dict[str, Any]]:
+def list_golden(request: Request) -> List[Dict[str, Any]]:  # noqa: UP006
     """Return the list of .json files in the golden dataset directory.
 
     Each entry includes ``name``, ``stem``, ``size_bytes``, and ``count`` (number of QA cases).
@@ -371,7 +371,7 @@ def list_golden(request: Request) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 @router.get("/candidates", summary="Golden set candidate list")
-def list_candidates(request: Request) -> list[dict[str, Any]]:
+def list_candidates(request: Request) -> List[Dict[str, Any]]:  # noqa: UP006
     """Return the list of *candidates*.json files (searched regardless of prefix)."""
     gdir = _golden_dir(request)
     result = []
@@ -398,7 +398,7 @@ def list_candidates(request: Request) -> list[dict[str, Any]]:
 
 
 @router.get("/candidates/{name}", summary="Candidate file detail")
-def get_candidate_file(name: str, request: Request) -> list[dict[str, Any]]:
+def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:  # noqa: UP006
     """Return the case list from a candidate file (with index)."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -413,7 +413,7 @@ def get_candidate_file(name: str, request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("/candidates/{name}/approve/{idx}", summary="Approve individual case")
-def approve_case(name: str, idx: int, request: Request) -> dict[str, Any]:
+def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Approve a single case — sets _approved=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -435,7 +435,7 @@ def approve_case(name: str, idx: int, request: Request) -> dict[str, Any]:
 
 
 @router.post("/candidates/{name}/reject/{idx}", summary="Reject individual case")
-def reject_case(name: str, idx: int, request: Request) -> dict[str, Any]:
+def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Reject a single case — sets _rejected=True flag."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -461,8 +461,8 @@ def bulk_approve_cases(
     name: str,
     request: Request,
     min_accuracy: float = Query(default=0.0, ge=0.0, le=1.0),
-    indices: list[int] | None = Query(default=None),
-) -> dict[str, Any]:
+    indices: Optional[List[int]] = Query(default=None),  # noqa: UP006,UP045
+) -> Dict[str, Any]:  # noqa: UP006
     """Condition-based bulk approval.
 
     - If min_accuracy > 0, only approve cases with that score or higher.
@@ -508,7 +508,7 @@ def bulk_approve_cases(
 
 
 @router.post("/candidates/{name}/merge", summary="Merge approved cases")
-def merge_approved(name: str, request: Request) -> dict[str, Any]:
+def merge_approved(name: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Merge approved cases into the golden set — creates a new golden_*.json file."""
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -539,7 +539,7 @@ def merge_approved(name: str, request: Request) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 @router.get("/versions", summary="Golden set version list")
-def list_versions(request: Request) -> list[dict[str, Any]]:
+def list_versions(request: Request) -> List[Dict[str, Any]]:  # noqa: UP006
     """Golden set version list of golden_*.json files (excludes candidates)."""
     gdir = _golden_dir(request)
     result = []
@@ -560,7 +560,7 @@ def list_versions(request: Request) -> list[dict[str, Any]]:
 
 
 @router.post("", summary="Create golden dataset")
-async def create_golden(request: Request, body: GoldenCreateBody) -> dict[str, Any]:
+async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:  # noqa: UP006
     """Create a new golden dataset file.
 
     Specify the filename via ``body.name`` and pass QA cases in the ``body.items`` array.
@@ -598,7 +598,7 @@ async def save_golden(
     name: str,
     request: Request,
     body: Any = Body(..., description="Full golden dataset content (list or dict)"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Overwrite and save a golden dataset file.
 
     Used when saving the full contents after editing cases in the dashboard.
@@ -617,7 +617,7 @@ async def save_golden(
 
 
 @router.delete("/{name}", summary="Delete golden dataset")
-def delete_golden(name: str, request: Request) -> dict[str, Any]:
+def delete_golden(name: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
     """Delete a golden dataset file.
 
     Returns 400 if ``..`` is found in name to prevent path traversal attacks.
@@ -641,7 +641,7 @@ def delete_golden(name: str, request: Request) -> dict[str, Any]:
 async def extract_pdf(
     file: UploadFile = File(...),
     num_items: int = Form(default=10),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Extract text from a PDF and return evenly-sampled QA pairs.
 
     Improvements over the naive paragraph split:
@@ -764,7 +764,7 @@ async def generate_pdf_qa_advanced(
     num_questions: int = Form(default=3),
     max_chunks: int = Form(default=10),
     question_types: str = Form(default="factual,reasoning,summary"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """Generate high-quality Korean QA pairs from a PDF using OpenAI LLM.
 
     Uses KoreanRAGDatasetGenerator: PDF → text chunking → GPT QA generation.
