@@ -23,6 +23,34 @@ logic in TypeScript, the plugin spawns one long-lived Python subprocess per sess
 (`python -m agent_evaluator.integrations.live_guardrail_stdio`) and exchanges JSON Lines over
 stdin/stdout. The plugin itself carries no judgment logic — it's a thin client.
 
+If your agent loop is already Python (i.e. you don't need the OpenCode plugin/subprocess bridge at
+all), skip the bridge and call `LiveGuardrail` in-process instead — the `tool_guard` decorator
+(`agent_evaluator.gates.live_guardrail`) wraps a tool function with the check → execute → record cycle
+automatically inside a `live_guardrail_session()` block:
+
+```python
+from agent_evaluator.gates.live_guardrail import (
+    LiveGuardrail, tool_guard, live_guardrail_session, GuardrailBlockedError,
+)
+
+guardrail = LiveGuardrail(scope=ScopeConfig(forbidden_tools=["webfetch"], fail_on_violation=True))
+
+@tool_guard(audit_blocked=True)
+def bash(command: str) -> str:
+    return run_shell(command)
+
+with live_guardrail_session(guardrail, task_id="session-1"):
+    try:
+        bash("rm -rf /")
+    except GuardrailBlockedError as e:
+        print(f"blocked (Gate {e.verdict.gate}): {e.verdict.reason}")
+```
+
+No new detection logic here either — same Gate B/E evaluators, just applied without the OpenCode
+plugin/stdio round-trip. `fail_closed=False` (default) means a call outside an active
+`live_guardrail_session()` just warns and runs unguarded; pass `fail_closed=True` for environments where
+a missed check must be a hard error.
+
 ## Setup
 
 ```bash
@@ -133,5 +161,6 @@ opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integra
   `SPEC-035-branch-guard.md`, `SPEC-036-team-concurrency-owner-exclusion.md`,
   `SPEC-037-team-concurrency-owner-auto.md`, `SPEC-038-claims-cli.md` — team-concurrency/branch-guard
   design history.
+- `Docs/specs/SPEC-039-decorator-architecture-fixes.md` — `tool_guard`/`live_guardrail_session()` design.
 - `Evaluator_Examples/ch30_live_guardrail.py`, `Evaluator_Examples/ch31_team_concurrency.py`,
   `Evaluator_Examples/ch32_tdd_local_loop.py` — runnable examples.

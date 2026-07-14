@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.8 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.9 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -112,6 +112,13 @@ agent_evaluator/
 │   │                       #  SPEC-035: branch_guard=BranchGuardConfig(...) — 생성자 시점 1회 조회한
 │   │                       #  현재 git 브랜치가 protected_branches(기본 main/master)이거나
 │   │                       #  require_branch_prefix와 불일치하면 git commit/push 자동 차단(fail-open)
+│   │                       #  SPEC-039: tool_guard() 데코레이터 + live_guardrail_session() 컨텍스트
+│   │                       #  매니저 — 도구 함수에 @tool_guard를 붙이면 세션 블록 안에서 호출될 때
+│   │                       #  check_before_tool_call() → 실행 → record_tool_call()이 자동으로
+│   │                       #  이어진다(새 탐지 로직 아님, 순수 적용 계층). 차단 시 GuardrailBlockedError
+│   │                       #  (.verdict에 판정 담김), audit_blocked=True로 record_blocked_attempt()
+│   │                       #  자동 연결, fail_closed=False(기본)면 세션 밖 호출을 RuntimeWarning만
+│   │                       #  내고 가드 없이 통과(다른 fail_on_*와 반대로 fail-open이 기본값)
 │   ├── team_concurrency.py # SPEC-032: TeamConcurrencyConfig · load_active_claims() · check_scope_claim()·
 │   │                       #  append_claim() — Evaluator_Examples/ch28_local_ade_loop.py 예제 전용
 │   │                       #  코드였던 클레임 로그 파싱 로직을 재해석 없이 SDK로 승격
@@ -467,7 +474,7 @@ auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
-prompt_version, agent_version
+prompt_version, agent_version, iteration_note
 retention_mode, window_size
 storage_backend
 enable_pii_redaction, pii_redaction_categories
@@ -547,7 +554,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**96 files, 3,543+ test functions** in `tests/`.
+**95 files, 3,567+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

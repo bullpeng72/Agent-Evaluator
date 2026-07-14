@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.8-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.9-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -648,6 +648,7 @@ def fixed_agent(question: str, ground_truth: str = "") -> str:
 | **Latency** | `LatencyTracker` | Auto measures function execution time | `mean` · `p50` · `p90` · `p95` · `p99` · `std` |
 | **Token Economy** | `TokenEconomyTracker` | Framework adapter auto-extraction | `total_tokens` · `total_cost` · `estimated_monthly_cost` |
 | **Hallucination** | `HallucinationDetector` | `rag_mode=True` or `enable_hallucination_detection=True` | `hallucination_rate` · `unsupported_claims_count` · `by_severity` |
+| **Multimodal Metrics** | `MultimodalMetricsTracker` | Always active — reads `extra["image_count"]`/`extra["audio_duration_seconds"]`/`extra["video_frames"]` when present (internal, not top-level importable) | `modality_mix` · `image_count` · `audio_seconds` · `video_frames` |
 
 Accuracy calculation: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) + Char Similarity(10%)
 
@@ -812,7 +813,7 @@ them automatically — no more manually picking `file_id`s to answer "did this p
 help?".
 
 ```python
-monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.8")
+monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.9")
 ```
 
 **Auto-tagging from git**: pass `agent_version="auto"` instead of a literal string to tag every
@@ -829,6 +830,17 @@ monitor.agent_version  # -> "a1b2c3d4" (clean working tree)
 `-dirty-<hash>` suffix when tracked files have uncommitted changes — so local iterations run without
 committing between them (common in the [AOO dev loop](Docs/AOO_STACK.md)) still get distinct,
 reproducible tags. Falls back to `None` on any git failure (not a repo, `git` missing, timeout).
+
+The `-dirty-<hash>` tag is opaque by design (it's a hash, not a description). Pass `iteration_note=` to
+attach a one-line human-readable memo to that tag — display-only, it never affects scoring:
+
+```python
+monitor = PerformanceMonitor(output_dir="results/", agent_version="auto",
+                              iteration_note="tightened loop_detection threshold to 3")
+```
+
+The dashboard's File Compare → Metric Comparison table shows `agent_version`/`iteration_note` as a
+metadata row above the metric deltas, so you don't have to guess what each dirty-hash iteration changed.
 
 ```bash
 # Filter the dashboard's file list by tag
@@ -874,6 +886,27 @@ Every Gate above scores a session *after* it finishes. `LiveGuardrail` is the re
 it checks a single tool call *before* it executes and can block it, reusing the same Gate B
 (Behavioral Integrity) and Gate E (Security Boundary) evaluators, called synchronously per tool call
 instead of per session. No new detection logic.
+
+```python
+from agent_evaluator.gates.live_guardrail import (
+    LiveGuardrail, tool_guard, live_guardrail_session, GuardrailBlockedError,
+)
+from agent_evaluator import ScopeConfig
+
+guardrail = LiveGuardrail(scope=ScopeConfig(forbidden_tools=["webfetch"], fail_on_violation=True))
+
+# @tool_guard wraps check → execute → record around a plain function —
+# no need to call check_before_tool_call()/record_tool_call() by hand at every call site.
+@tool_guard(audit_blocked=True)   # audit_blocked=True also logs fully-blocked attempts
+def bash(command: str) -> str:
+    return run_shell(command)
+
+with live_guardrail_session(guardrail, task_id="session-1"):
+    try:
+        bash("rm -rf /")           # checked before execution
+    except GuardrailBlockedError as e:
+        print(f"blocked (Gate {e.verdict.gate}): {e.verdict.reason}")
+```
 
 A reference integration ships for [OpenCode](https://opencode.ai) (a local coding-agent CLI):
 
@@ -1166,10 +1199,16 @@ agent-evaluator/
 │   ├── decorators.py            # agent_eval · batch_eval · conversation_eval
 │   │                            # EvalDecorator · eval_context · EvalMetadata · TurnMetadata
 │   ├── quick_eval.py            # QuickEval — one-stop facade
+│   ├── gates/                   # Gate A–G scoring packages (gate_a_goal/ … gate_g_observability/)
+│   │   │                        # + shared_metrics.py (running aggregates), base.py
+│   │   ├── live_guardrail.py    # LiveGuardrail (real-time Gate B/E) · tool_guard decorator ·
+│   │   │                        # live_guardrail_session() · GuardrailBlockedError
+│   │   ├── team_concurrency.py  # TeamConcurrencyConfig · claims.jsonl scope-conflict checks
+│   │   └── branch_guard.py      # BranchGuardConfig — protected-branch commit/push blocking
 │   ├── core/
 │   │   ├── trackers/
 │   │   │   ├── base.py          # TaskResult · EvaluationReport · TaskType
-│   │   │   ├── layer1.py        # 6 Foundation metrics
+│   │   │   ├── layer1.py        # 7 Foundation metrics (incl. MultimodalMetricsTracker)
 │   │   │   ├── layer2.py        # 5 Agentic metrics
 │   │   │   ├── security.py      # 5 Security metrics (Layer 2-B)
 │   │   │   ├── monitor.py       # PerformanceMonitor (orchestrator)
@@ -1179,17 +1218,25 @@ agent-evaluator/
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
-│   │   ├── llm_judge.py         # LLMJudge
+│   │   ├── llm_judge.py         # LLMJudge · judge_pairwise() A/B comparison
+│   │   ├── llm_judge_calibration.py  # LLMJudgeCalibration — judge-vs-human agreement
+│   │   ├── live_guardrail_stdio.py   # stdio bridge for non-Python callers (e.g. OpenCode)
+│   │   ├── live_guardrail_report.py  # record_and_save() — SQLite batch report bridge
+│   │   ├── violation_search_mcp.py   # search_violations MCP server ([mcp] extra)
 │   │   └── metric_adapters.py   # DeepEval · Ragas adapters
+│   ├── storage/                 # SQLite backend (storage_backend="sqlite") ·
+│   │   │                        # violation_search / blocked_violations FTS5 indexes
+│   ├── streaming/                # StreamingEvaluator · AgentEvalMiddleware
+│   ├── reporting/                # comprehensive_report.py — HTML report generation
 │   ├── serve/                   # FastAPI dashboard ([serve] extra)
-│   ├── cli/                     # agent-eval CLI
+│   ├── cli/                     # agent-eval CLI (incl. claims.py, opencode.py, trend.py, monitor.py)
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
 │   ├── anomaly/                 # AnomalyDetector
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 28 example files (ch01~ch28)
-├── tests/                       # 3,543+ test functions, 96 files
+├── Evaluator_Examples/          # 32 example files (ch01–ch34, see Example Guide above)
+├── tests/                       # 3,567+ test functions, 95 files
 └── pyproject.toml
 ```
 
@@ -1250,7 +1297,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (3,543+)
+pytest                          # run tests (3,567+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1259,6 +1306,13 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.9 (2026-07-14) — tool_guard Decorator · Decorator Architecture Fixes · Lint Debt Cleanup
+
+- ✨ **`tool_guard` decorator** (SPEC-039): wraps a tool function with `LiveGuardrail`'s check → execute → record cycle automatically inside a `live_guardrail_session()` block, plus a new `GuardrailBlockedError` exception — no more manual `check_before_tool_call()`/`record_tool_call()` calls at every call site.
+- 🐛 6 decorator-architecture defects fixed alongside `tool_guard` (SPEC-039) — see `agent_evaluator/decorators.py` / `gates/live_guardrail.py`.
+- 🧹 **Code quality**: ruff lint debt reduced from 4,015 to ~1,100 errors; mypy target raised to Python 3.10 (runtime support unchanged at 3.8+); fixed a Python 3.8 CI regression from unsupported type syntax in a FastAPI route signature.
+- 📝 **Docs/examples**: removed internal SPEC-number references from the public README; `Evaluator_Examples/` LiveGuardrail examples migrated to the `tool_guard` decorator pattern; Book Ch22–34 examples reorganized to match the current chapter structure; fixed a hardcoded-date time bomb in the claims-audit test suite.
 
 ### v0.9.8 (2026-07-06) — Version-Aware Comparison · Persistent Anomaly Baseline · AOO ADE Local Dev Loop
 
