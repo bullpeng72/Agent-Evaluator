@@ -123,7 +123,7 @@ class ErrorDiagnosisConfig:
 
 @dataclasses.dataclass
 class LatencyAttributionConfig:
-    """지연 원인 분석 평가 설정 (Group G — Observability).
+    """지연 원인 분석 평가 설정 (Gate G — Observability).
 
     전체 실행 시간 중 도구·모델·네트워크·미귀속 지연의 비율을 측정한다.
 

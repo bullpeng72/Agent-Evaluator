@@ -1529,13 +1529,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </template>
 
-  <!-- Phase 2: Harness Group A — 목표 달성 (IFR + 세부 지표) -->
+  <!-- Phase 2: Harness Gate A — 목표 달성 (IFR + 세부 지표) -->
   <template x-if="data.harness_groups && data.harness_groups['A']">
     <div x-data="{
   gA: data.harness_groups['A'],
   selK:null,
   meta:{
-    group_a:{label:'Group A Overall',desc:'Weighted average gate of 7 Goal Achievement metrics (TCR·Accuracy·IFR·Goal Alignment·Plan Coherence·Subtask·Context·Knowledge Retention).',hint:'score = weighted average | gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_a:{label:'Gate A Overall',desc:'Weighted average gate of 7 Goal Achievement metrics (TCR·Accuracy·IFR·Goal Alignment·Plan Coherence·Subtask·Context·Knowledge Retention).',hint:'score = weighted average | gate: pass≥0.75, warn≥0.6, fail<0.6'},
     tcr:{label:'Task Completion Rate',desc:'Ratio of tasks completed by the agent. Uses granular continuous score (0-1) rather than binary pass/fail.',hint:'avg(completion_score) × 100 | 🟢 ≥85% 🟡 ≥70% 🔴 <70%'},
     avg_accuracy:{label:'Avg Accuracy',desc:'How well responses match Ground Truth. Weighted sum of 4 methods: TokenF1·Jaccard·LCS·Char.',hint:'TokenF1×0.4 + Jaccard×0.3 + LCS×0.2 + CharSim×0.1 | 🟢 ≥70% 🟡 ≥50% 🔴 <50%'},
     avg_instruction_adherence:{label:'Instruction Follow Rate (IFR)',desc:'When InstructionConfig is set, ratio of responses following required format, keywords, and length.',hint:'total - format violation count / total | 🟢 ≥80% 🟡 ≥60% 🔴 <60%'},
@@ -1554,11 +1554,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\nTask count: ${dt.task_count||'—'}\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div id="s-instruction-adh" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📋 Harness Group A — Goal Achievement</span><div class="sdiv-line"></div></div>
+      <div id="s-instruction-adh" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📋 Harness Gate A — Goal Achievement</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <!-- A 종합 게이트 -->
         <div class="kpi kpi-act" :class="{sel:selK==='group_a'}" @click="selK=selK==='group_a'?null:'group_a'">
-          <div class="kpi-lbl">Group A Overall</div>
+          <div class="kpi-lbl">Gate A Overall</div>
           <div class="kpi-val"
                :style="`color:${gA.gate==='pass'?'var(--green)':gA.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gA.score!=null?(gA.score*100).toFixed(1)+'%':'—'"></div>
@@ -2359,13 +2359,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
-  <!-- Phase 2: Harness Group D — 성능 계약 / SLA Gate -->
+  <!-- Phase 2: Harness Gate D — 성능 계약 / SLA Gate -->
   <template x-if="data.harness_groups && data.harness_groups['D']">
     <div x-data="{
   gD: data.harness_groups['D'],
   selK:null,
   meta:{
-    group_d:{label:'Group D Overall',desc:'Weighted-average gate for performance contract metrics (P95 latency, token efficiency, resource budget, TTFT variability, cost predictability, efficiency ROI).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_d:{label:'Gate D Overall',desc:'Weighted-average gate for performance contract metrics (P95 latency, token efficiency, resource budget, TTFT variability, cost predictability, efficiency ROI).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
     p95_latency_s:{label:'P95 Latency',desc:'SLA compliance based on P95 latency threshold when SLAConfig is configured.',hint:'LatencyTracker P95 value (s) | 🟢 <5s 🟡 <10s 🔴 ≥10s'},
     token_efficiency:{label:'Token Efficiency',desc:'Actual usage efficiency relative to max token budget when ResourceBudgetConfig is set. Higher means more tasks completed within budget.',hint:'Tasks completed within budget | 🟢 ≥80% 🟡 ≥50% 🔴 <50%'},
     avg_budget_score:{label:'Resource Budget',desc:'Budget compliance score for tasks using ResourceBudgetConfig. Excellent when usage is below 80% of budget.',hint:'Inverse budget utilization score | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
@@ -2383,11 +2383,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     return `${this.meta[k]?.label} = ${isTime?v.toFixed(2)+'s':(v*100).toFixed(1)+'%'}\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 Harness Group D — Performance Contract (SLA Gate)</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 Harness Gate D — Performance Contract (SLA Gate)</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <!-- D 종합 게이트 -->
         <div class="kpi kpi-act" :class="{sel:selK==='group_d'}" @click="selK=selK==='group_d'?null:'group_d'">
-          <div class="kpi-lbl">Group D Overall</div>
+          <div class="kpi-lbl">Gate D Overall</div>
           <div class="kpi-val"
                :style="`color:${gD.gate==='pass'?'var(--green)':gD.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gD.score!=null?(gD.score*100).toFixed(1)+'%':'—'"></div>
@@ -2491,14 +2491,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <div x-show="data && sec==='reliability'" x-cloak
      x-init="if(sec==='reliability') loadReliability()">
 
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 Reproducibility &amp; Reliability (Group C)<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C Reliability</span></span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 Reproducibility &amp; Reliability (Gate C)<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C Reliability</span></span><div class="sdiv-line"></div></div>
 
   <div x-data="{
     selK:null,
     meta:{
       error_free_rate:{label:'Error-Free Tasks',desc:'Percentage of tasks completed without errors. Aggregated from tasks where the errors array is empty and attempts=1.',hint:'error_free = tasks_with_no_errors / total_tasks × 100 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
       retry_free_rate:{label:'Retry-Free Tasks',desc:'Percentage of tasks that succeeded on the first attempt without retries. Higher values indicate more stable agent behavior.',hint:'retry_free = tasks_with_attempts≤1 / total_tasks × 100 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
-      group_c_summary:{label:'Group C Overall',desc:'Weighted-average gate for reliability metrics (graceful degradation, retry consistency, idempotency, reproducibility, fault tolerance).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+      group_c_summary:{label:'Gate C Overall',desc:'Weighted-average gate for reliability metrics (graceful degradation, retry consistency, idempotency, reproducibility, fault tolerance).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
     },
     formula(k,d){
       if(k==='error_free_rate') return `error_free_rate = ${d.reliability?.error_free_rate?.toFixed(1)||'—'}%\n\nTasks with errors=[] AND attempts=1`;
@@ -2523,7 +2523,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
     <template x-if="data.harness_groups && data.harness_groups['C']">
       <div class="kpi kpi-act" :class="{sel:selK==='group_c_summary'}" @click="selK=selK==='group_c_summary'?null:'group_c_summary'">
-        <div class="kpi-lbl">Group C Overall</div>
+        <div class="kpi-lbl">Gate C Overall</div>
         <div class="kpi-val"
              :style="`color:${data.harness_groups.C.gate==='pass'?'var(--green)':data.harness_groups.C.gate==='fail'?'var(--red)':'var(--yellow)'}`"
              x-text="data.harness_groups.C.score!=null?(data.harness_groups.C.score*100).toFixed(1)+'%':'—'"></div>
@@ -2580,7 +2580,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </template>
   </div>
   </div>
-  <!-- Group C Phase 4-6 확장 지표 -->
+  <!-- Gate C Phase 4-6 확장 지표 -->
   <template x-if="data.harness_groups && data.harness_groups['C']">
     <div x-data="{
   gC: data.harness_groups['C'],
@@ -2767,8 +2767,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
   <div x-show="reliabilityLoading" style="padding:32px;text-align:center;color:var(--text2)">Loading…</div>
 
-  <!-- ── Retry / 보정 (Group C) ─────────────────────────────────────────── -->
-  <!-- 재시도·보정 지표는 Group C (신뢰성) 소속: RetryCorrectionTracker -->
+  <!-- ── Retry / 보정 (Gate C) ─────────────────────────────────────────── -->
+  <!-- 재시도·보정 지표는 Gate C (신뢰성) 소속: RetryCorrectionTracker -->
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 Retry / Correction<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C Reliability</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
@@ -3323,7 +3323,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
-  <!-- Retry 섹션은 Group C (신뢰성) 소속 → reliability 탭으로 이동됨 (Zero-Base 재설계) -->
+  <!-- Retry 섹션은 Gate C (신뢰성) 소속 → reliability 탭으로 이동됨 (Zero-Base 재설계) -->
 
   <!-- Multi-Agent Coordination subsection -->
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 Multi-Agent Collaboration<span class="grp-chip grp-F" style="margin-left:6px;font-size:9.5px">F Multi-Agent</span></span><div class="sdiv-line"></div></div>
@@ -3476,13 +3476,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
-  <!-- Harness Group F — 다중 에이전트 협업 -->
+  <!-- Harness Gate F — 다중 에이전트 협업 -->
   <template x-if="data.harness_groups && data.harness_groups['F'] && data.harness_groups['F'].score!=null">
     <div x-data="{
   gF: data.harness_groups['F'],
   selK:null,
   meta:{
-    group_f:{label:'Group F Overall',desc:'Weighted-average gate for multi-agent collaboration metrics (consensus rate, propagation fidelity, role compliance, conflict resolution).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_f:{label:'Gate F Overall',desc:'Weighted-average gate for multi-agent collaboration metrics (consensus rate, propagation fidelity, role compliance, conflict resolution).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
     avg_consensus:{label:'Consensus Rate',desc:'Consensus quality among multiple agents when ConsensusConfig is set. Supports majority, weighted, and unanimous methods.',hint:'tasks achieving consensus / total × 100 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
     avg_propagation:{label:'Propagation Fidelity',desc:'Rate at which source agent facts are preserved in downstream agents when PropagationConfig is set.',hint:'Key fact preservation rate | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
     avg_role_compliance:{label:'Role Compliance',desc:'Percentage of time agents operate within their role scope (allowed tools and actions) when AgentRoleConfig is set.',hint:'Penalized for role violations | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
@@ -3497,10 +3497,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 Harness Group F — Multi-Agent Collaboration</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 Harness Gate F — Multi-Agent Collaboration</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <div class="kpi kpi-act" :class="{sel:selK==='group_f'}" @click="selK=selK==='group_f'?null:'group_f'">
-          <div class="kpi-lbl">Group F Overall</div>
+          <div class="kpi-lbl">Gate F Overall</div>
           <div class="kpi-val"
                :style="`color:${gF.gate==='pass'?'var(--green)':gF.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gF.score!=null?(gF.score*100).toFixed(1)+'%':'—'"></div>
@@ -3699,13 +3699,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   </div><!-- /has_agentic -->
 
-  <!-- Harness Group B — 행동 무결성 -->
+  <!-- Harness Gate B — 행동 무결성 -->
   <template x-if="data.gate_active?.B && data.harness_groups?.["B"]">
     <div x-data="{
   gB: data.harness_groups['B'],
   selK:null,
   meta:{
-    group_b:{label:'Group B Overall',desc:'Weighted-average gate for 6 behavioral integrity metrics (loop detection, state consistency, scope compliance, tool parameter safety, context window, deadlock detection).',hint:'score = weighted average | gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_b:{label:'Gate B Overall',desc:'Weighted-average gate for 6 behavioral integrity metrics (loop detection, state consistency, scope compliance, tool parameter safety, context window, deadlock detection).',hint:'score = weighted average | gate: pass≥0.75, warn≥0.6, fail<0.6'},
     loop_detection_rate:{label:'Loop Detection Rate',desc:'Rate of consecutive duplicate tool call pattern detection when LoopDetectionConfig is set. Lower is better.',hint:'tasks with loops detected / total tasks × 100 | 🟢 ≤5% 🟡 ≤15% 🔴 >15%'},
     avg_state_consistency:{label:'State Consistency',desc:'Score for maintaining system state consistency before and after execution when StateConsistencyConfig is set.',hint:'Immutable key change detection / total state keys | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
     avg_scope_score:{label:'Scope Compliance',desc:'Measures violations of tool calls outside the allowed list when ScopeConfig is set.',hint:'(total - violations) / total | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
@@ -3722,10 +3722,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Group B — Behavioral Integrity</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Gate B — Behavioral Integrity</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <div class="kpi kpi-act" :class="{sel:selK==='group_b'}" @click="selK=selK==='group_b'?null:'group_b'">
-          <div class="kpi-lbl">Group B Overall</div>
+          <div class="kpi-lbl">Gate B Overall</div>
           <div class="kpi-val"
                :style="`color:${gB.gate==='pass'?'var(--green)':gB.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gB.score!=null?(gB.score*100).toFixed(1)+'%':'—'"></div>
@@ -3826,7 +3826,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- Phase 2: Loop Detection events from harness -->
   <template x-if="data.loop_events && data.loop_events.length > 0">
     <div>
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔄 Loop Detection Events (Harness Group B)</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔄 Loop Detection Events (Harness Gate B)</span><div class="sdiv-line"></div></div>
       <div style="background:color-mix(in srgb,var(--yellow) 10%,var(--bg2));border:1px solid color-mix(in srgb,var(--yellow) 30%,var(--border));border-radius:8px;padding:12px;margin-bottom:12px">
         <div style="font-weight:600;color:var(--yellow);margin-bottom:8px">⚠ <span x-text="data.loop_events.length"></span> loop(s) detected</div>
         <div class="dtx">
@@ -5229,13 +5229,13 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     </div>
   </div>
 
-  <!-- Harness Group E — 보안 경계 -->
+  <!-- Harness Gate E — 보안 경계 -->
   <template x-if="data.harness_groups && data.harness_groups['E']">
     <div x-data="{
   gE: data.harness_groups['E'],
   selK:null,
   meta:{
-    group_e:{label:'Group E Overall',desc:'Weighted-average gate for security boundary metrics (threat detection, compliance, privilege escalation, attack chain, threat response).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_e:{label:'Gate E Overall',desc:'Weighted-average gate for security boundary metrics (threat detection, compliance, privilege escalation, attack chain, threat response).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
     threat_count:{label:'Threats Detected',desc:'Number of security threats detected when ThreatSeverityConfig is configured. Target is 0.',hint:'Threat count (lower is better) | 🟢 0 🟡 ≤3 🔴 >3'},
     avg_compliance_score:{label:'Compliance',desc:'Compliance score for PII exposure, GDPR, HIPAA, etc. when ComplianceConfig is configured.',hint:'Deducted by violation count | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
     privilege_escalation_rate:{label:'Privilege Escalation Rate',desc:'Measured by PrivilegeEscalationDetector. Rate at which the agent attempts privilege escalation beyond its level.',hint:'Escalation attempts / total tasks × 100 | 🟢 0% 🟡 ≤5% 🔴 >5%'},
@@ -5252,10 +5252,10 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Group E — Security Boundary</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Gate E — Security Boundary</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <div class="kpi kpi-act" :class="{sel:selK==='group_e'}" @click="selK=selK==='group_e'?null:'group_e'">
-          <div class="kpi-lbl">Group E Overall</div>
+          <div class="kpi-lbl">Gate E Overall</div>
           <div class="kpi-val"
                :style="`color:${gE.gate==='pass'?'var(--green)':gE.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gE.score!=null?(gE.score*100).toFixed(1)+'%':'—'"></div>
@@ -6353,7 +6353,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
               <template x-for="dummy in [1]" :key="0">
                 <template>
                   <tr style="background:var(--bg2)">
-                    <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">🏁 Harness Group Gates (Phase 2)</td>
+                    <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">🏁 Harness Gates (Phase 2)</td>
                   </tr>
                   <template x-for="gk in Object.keys(compareData.find(d=>d.harness_groups&&Object.keys(d.harness_groups).length>1)?.harness_groups||{})" :key="gk">
                     <tr style="border-bottom:1px solid var(--border)">
@@ -7056,7 +7056,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div>
 
   <div x-data="{mf:'all'}">
-  <!-- Harness Group 필터 -->
+  <!-- Harness Gate 필터 -->
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
     <template x-for="(b,i) in [{v:'all',l:'All (58)'},{v:'gA',l:'A · Goal Achievement'},{v:'gB',l:'B · Behavioral Integrity'},{v:'gC',l:'C · Reliability'},{v:'gD',l:'D · Perf. Contract'},{v:'gE',l:'E · Security Boundary'},{v:'gF',l:'F · Multi-Agent'},{v:'gG',l:'G · Observability'}]" :key="i">
       <button @click="mf=b.v"
@@ -7242,7 +7242,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /l1 grid -->
   </div><!-- /l1 -->
 
-  <!-- ── Groups B·F — Agentic ── -->
+  <!-- ── Gates B·F — Agentic ── -->
   <div x-show="mf==='all'||mf==='gB'||mf==='gF'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Agentic Metrics (5)<span class="grp-chip grp-B">B Tool·Retry·Workflow</span><span class="grp-chip grp-F">F Coordination</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -7394,7 +7394,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div>
   </div><!-- /l2a -->
 
-  <!-- ── Group E — Security ── -->
+  <!-- ── Gate E — Security ── -->
   <div x-show="mf==='all'||mf==='gE'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Security Metrics (5)<span class="grp-chip grp-E">E Input Threat·Output Leakage·Privilege Abuse</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -7538,7 +7538,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div>
   </div><!-- /l2s -->
 
-  <!-- ── Groups A·C — Hybrid/External ── -->
+  <!-- ── Gates A·C — Hybrid/External ── -->
   <div x-show="mf==='all'||mf==='gA'||mf==='gB'||mf==='gC'||mf==='gD'||mf==='gE'||mf==='gF'||mf==='gG'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Hybrid / External Evaluation (4)<span class="grp-chip grp-A">A DeepEval·LLMJudge</span><span class="grp-chip grp-C">C Ragas·Hallucination</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
@@ -7665,7 +7665,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div>
   </div><!-- /l3 -->
 
-  <!-- ── Groups G·D — Operational / Extended ── -->
+  <!-- ── Gates G·D — Operational / Extended ── -->
   <div x-show="mf==='all'||mf==='gG'||mf==='gD'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Operational Features (5)<span class="grp-chip grp-G">G Anomaly·Alerts·Streaming·Conversation</span><span class="grp-chip grp-D">D Eval Cost</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -7827,7 +7827,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div>
   </div><!-- /ext -->
 
-  <!-- ── Harness Config 지표 — Group A ── -->
+  <!-- ── Harness Config 지표 — Gate A ── -->
   <div x-show="mf==='all'||mf==='gA'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (6)<span class="grp-chip grp-A">A Goal Achievement</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -7979,7 +7979,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gA config grid -->
   </div><!-- /harness gA -->
 
-  <!-- ── Harness Config 지표 — Group B ── -->
+  <!-- ── Harness Config 지표 — Gate B ── -->
   <div x-show="mf==='all'||mf==='gB'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (6)<span class="grp-chip grp-B">B Behavioral Integrity</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -8131,7 +8131,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gB config grid -->
   </div><!-- /harness gB -->
 
-  <!-- ── Harness Config 지표 — Group C ── -->
+  <!-- ── Harness Config 지표 — Gate C ── -->
   <div x-show="mf==='all'||mf==='gC'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (5)<span class="grp-chip grp-C">C Reliability</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -8260,7 +8260,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gC config grid -->
   </div><!-- /harness gC -->
 
-  <!-- ── Harness Config 지표 — Group D ── -->
+  <!-- ── Harness Config 지표 — Gate D ── -->
   <div x-show="mf==='all'||mf==='gD'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (5)<span class="grp-chip grp-D">D Performance Contract</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -8391,7 +8391,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gD config grid -->
   </div><!-- /harness gD -->
 
-  <!-- ── Harness Config 지표 — Group E ── -->
+  <!-- ── Harness Config 지표 — Gate E ── -->
   <div x-show="mf==='all'||mf==='gE'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (3)<span class="grp-chip grp-E">E Security Boundary</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -8471,7 +8471,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gE config grid -->
   </div><!-- /harness gE -->
 
-  <!-- ── Harness Config 지표 — Group F ── -->
+  <!-- ── Harness Config 지표 — Gate F ── -->
   <div x-show="mf==='all'||mf==='gF'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (4)<span class="grp-chip grp-F">F Multi-Agent</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -8575,7 +8575,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /gF config grid -->
   </div><!-- /harness gF -->
 
-  <!-- ── Harness Config 지표 — Group G ── -->
+  <!-- ── Harness Config 지표 — Gate G ── -->
   <div x-show="mf==='all'||mf==='gG'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — Additional Criteria (4)<span class="grp-chip grp-G">G Observability</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
@@ -9379,13 +9379,13 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     </div>
   </div>
 
-  <!-- Harness Group G — 관측성 (Observability) -->
+  <!-- Harness Gate G — 관측성 (Observability) -->
   <template x-if="data && data.harness_groups && data.harness_groups['G']">
     <div x-data="{
   gG: data.harness_groups['G'],
   selK:null,
   meta:{
-    group_g:{label:'Group G Overall',desc:'Weighted average gate of observability metrics (tool coverage·explainability·error diagnosis·latency attribution·observability score).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    group_g:{label:'Gate G Overall',desc:'Weighted average gate of observability metrics (tool coverage·explainability·error diagnosis·latency attribution·observability score).',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
     tool_coverage:{label:'Tool Coverage',desc:'Tool call tracing coverage when ObservabilityConfig is set. Detects uninstrumented spans.',hint:'Traced tool calls / total | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
     avg_explainability:{label:'Explainability',desc:'Score for presence of reasoning markers, uncertainty, and citations in responses when ExplainabilityConfig is set.',hint:'Reasoning+uncertainty+citation marker weighted sum | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
     avg_error_diagnosis:{label:'Error Diagnosis',desc:'Whether failed responses include the 3 elements (error acknowledgment, root cause, alternative suggestion) when ErrorDiagnosisConfig is set.',hint:'Acknowledgment×0.3 + RootCause×0.5 + Alternative×0.2 | 🟢 ≥0.8 🟡 ≥0.5 🔴 <0.5'},
@@ -9401,10 +9401,10 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\nRaw value: ${v.toFixed(4)}`;
   }
 }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 Harness Group G — Observability</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 Harness Gate G — Observability</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <div class="kpi kpi-act" :class="{sel:selK==='group_g'}" @click="selK=selK==='group_g'?null:'group_g'">
-          <div class="kpi-lbl">Group G Overall</div>
+          <div class="kpi-lbl">Gate G Overall</div>
           <div class="kpi-val"
                :style="`color:${gG.gate==='pass'?'var(--green)':gG.gate==='fail'?'var(--red)':'var(--yellow)'}`"
                x-text="gG.score!=null?(gG.score*100).toFixed(1)+'%':'—'"></div>
@@ -10204,7 +10204,7 @@ function app2() {
       { id:'overview',     label:'Overview',             icon:'📊', scope:'file',
         badge: d => { const n=d.total_tasks||0; return n?n+' tasks':'NA'; } },
 
-      /* ── Group A · 목표 달성 ──────────────────────────── */
+      /* ── Gate A · 목표 달성 ──────────────────────────── */
       { id:'_gA', group:true, label:'A · Goal Achievement', hkey:'A' },
       { id:'quality',      label:'Quality · Accuracy',    icon:'🎯', scope:'file',
         anchors:[
@@ -10232,21 +10232,21 @@ function app2() {
           return sessions?sessions+' sessions':'OK';
         } },
 
-      /* ── Group B+F · 행동 무결성 · 다중 에이전트 ────────── */
-      /* F(다중 에이전트) 지표는 agentic 탭 내 Group F 패널에 표시됨    */
+      /* ── Gate B+F · 행동 무결성 · 다중 에이전트 ────────── */
+      /* F(다중 에이전트) 지표는 agentic 탭 내 Gate F 패널에 표시됨    */
       { id:'_gB', group:true, label:'B+F · Agentic', hkey:'B' },
       { id:'agentic',      label:'Agentic · Loop · Multi',   icon:'🤖', scope:'file',
         badge: d => { if(!d.has_agentic) return 'NA'; const g=(d.harness_groups||{}).B; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'—'; },
         badgeColor: d => { if(!d.has_agentic) return ''; const g=(d.harness_groups||{}).B; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
-      /* ── Group C · 신뢰성 ─────────────────────────────── */
+      /* ── Gate C · 신뢰성 ─────────────────────────────── */
       { id:'_gC', group:true, label:'C · Reliability', hkey:'C' },
       { id:'reliability',  label:'Reproducibility · Stability · Retry',  icon:'🔁', scope:'file',
         anchors:[
           {id:'s-hallucination', label:'Hallucination Analysis'},
         ],
         badge: d => {
-          /* 실제 재시도/오류 데이터가 없으면 NA — Group C 점수는 vacuously 1.0이 될 수 있음 */
+          /* 실제 재시도/오류 데이터가 없으면 NA — Gate C 점수는 vacuously 1.0이 될 수 있음 */
           const hasRel = (d.tasks||[]).some(t=>t.attempts>1) ||
                          (d.tasks||[]).some(t=>t.errors&&t.errors.length>0) ||
                          ((d.harness_groups||{}).C?.details?.avg_reproducibility!=null);
@@ -10259,7 +10259,7 @@ function app2() {
           if(!hasRel) return '';
           const g=(d.harness_groups||{}).C; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
-      /* ── Group D · 성능 계약 ─────────────────────────── */
+      /* ── Gate D · 성능 계약 ─────────────────────────── */
       { id:'_gD', group:true, label:'D · Performance Contract', hkey:'D' },
       { id:'performance',  label:'Performance · SLA',       icon:'⚡', scope:'file',
         badge: d => {
@@ -10275,7 +10275,7 @@ function app2() {
           const g=(d.harness_groups||{}).D; if(!g||g.score==null||g.score===0.5)return '';
           return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
-      /* ── Group E · 보안 경계 ─────────────────────────── */
+      /* ── Gate E · 보안 경계 ─────────────────────────── */
       { id:'_gE', group:true, label:'E · Security Boundary', hkey:'E' },
       { id:'security',     label:'Security',             icon:'🔒', scope:'file',
         anchors:[
@@ -10288,7 +10288,7 @@ function app2() {
         badge: d => { if(!d.has_security) return 'NA'; const g=(d.harness_groups||{}).E; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'—'; },
         badgeColor: d => { if(!d.has_security) return ''; const g=(d.harness_groups||{}).E; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
-      /* ── Group G · 운영 관측성 ──────────────────────── */
+      /* ── Gate G · 운영 관측성 ──────────────────────── */
       /* F 지표는 agentic 탭에 포함 → 별도 G섹션으로 통합            */
       { id:'_gG', group:true, label:'G · Operational Observability', hkey:'G' },
       { id:'anomaly',      label:'Anomaly Detection · Observability', icon:'🚨', scope:'global',
@@ -11846,7 +11846,7 @@ function app2() {
         });
       }
 
-      /* --- Reliability: Retry (Group C) --- */
+      /* --- Reliability: Retry (Gate C) --- */
       // 재시도 횟수 분포 — retry_attempts 집계 (막대 차트, 가독성 향상)
       const retryAttemptsDist = this.data.agentic?.retry_attempts || [];
       if (retryAttemptsDist.length > 0) {
