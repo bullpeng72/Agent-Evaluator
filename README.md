@@ -563,6 +563,9 @@ info = get_framework_info("langchain")
 | `smolagents` | HuggingFace smolagents | `[llm]` | `tool_calls` · `chain_steps` | ❌ |
 | `vllm` | vLLM | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
 | `huggingface` | HuggingFace | `[llm]` | `chain_steps` · `tool_calls` | ❌ |
+| `openai_agents` | OpenAI Agents SDK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `google_adk` | Google ADK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `claude_agent_sdk` | Claude Agent SDK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
 
 ¹ **User framework extras** — agent-evaluator itself works without these packages. The `@agent_eval(framework="langchain")` decorator works via duck typing so installation is not required for agent-evaluator. Install only when your agent code directly imports the framework.
 
@@ -1135,7 +1138,7 @@ from agent_evaluator.decorators import (
 
 ## Example Guide
 
-Consists of 32 files based on book chapters (Ch28's AOO stack install walkthrough has no standalone script; Ch33 instead ships `scripts/generate_pr_summary.py`). Each file is independently runnable.
+Consists of 33 files based on book chapters (Ch28's AOO stack install walkthrough has no standalone script; Ch33 instead ships `scripts/generate_pr_summary.py`; Ch34 ships two files — the SDK-native capstone plus a LangGraph extension). Each file is independently runnable.
 
 ### Example Dependencies
 
@@ -1173,6 +1176,7 @@ Consists of 32 files based on book chapters (Ch28's AOO stack install walkthroug
 | `ch31_team_concurrency.py` | Ch31 | Team concurrency risk control — claims log, `TeamConcurrencyConfig`, `BranchGuardConfig` | — |
 | `ch32_tdd_local_loop.py` | Ch32 | TDD-AI local dev loop — self-correction, batch Gate A/D/G integration ([AOO stack](Docs/AOO_STACK.md)) | — |
 | `ch34_capstone.py` | Ch34 | 3-person team capstone — Spec split → claims → LiveGuardrail → batch Gate A/B → PR summary → CI claim audit | — |
+| `ch34_langgraph_capstone.py` | Ch34 (ext.) | External-framework capstone — applies the full Ch28–34 pipeline to a real LangGraph agent (`agent-evaluator[langchain]`) instead of the SDK-only scenario | `agent-evaluator[langchain]` |
 
 Ch33 (PR verification & governance) has no `Evaluator_Examples` file of its own — it ships `scripts/generate_pr_summary.py`, a standalone CLI reused by `ch34_capstone.py`'s Phase 5.
 
@@ -1235,8 +1239,8 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 32 example files (ch01–ch34, see Example Guide above)
-├── tests/                       # 3,567+ test functions, 95 files
+├── Evaluator_Examples/          # 33 example files (ch01–ch34, see Example Guide above)
+├── tests/                       # 3,593+ test functions, 95 files
 └── pyproject.toml
 ```
 
@@ -1264,7 +1268,7 @@ agent-evaluator/
 | `[serve]` | `python-multipart` | ≥0.0.9, <1.0.0 | `agent-eval dashboard` |
 | `[otel]` | `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
 | `[otel]` | `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | `agent-eval monitor` |
-| `[otel]` | `arize-phoenix` | ≥15.4.0 | Phoenix real-time monitoring² |
+| `[otel]` | `arize-phoenix` | ≥15.4.0, <18.0.0 | Phoenix real-time monitoring² |
 | `[pdf]` | `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
 | `[korean]` | `kiwipiepy` | ≥0.17.0 | Korean tokenizer (`use_korean_tokenizer=True`) |
 | **`[sdk]`** | serve + otel + pdf + korean | — | **All CLI features (recommended)** |
@@ -1297,7 +1301,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (3,567+)
+pytest                          # run tests (3,593+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1313,6 +1317,7 @@ mypy agent_evaluator/          # type check
 - 🐛 6 decorator-architecture defects fixed alongside `tool_guard` (SPEC-039) — see `agent_evaluator/decorators.py` / `gates/live_guardrail.py`.
 - 🧹 **Code quality**: ruff lint debt reduced from 4,015 to ~1,100 errors; mypy target raised to Python 3.10 (runtime support unchanged at 3.8+); fixed a Python 3.8 CI regression from unsupported type syntax in a FastAPI route signature.
 - 📝 **Docs/examples**: removed internal SPEC-number references from the public README; `Evaluator_Examples/` LiveGuardrail examples migrated to the `tool_guard` decorator pattern; Book Ch22–34 examples reorganized to match the current chapter structure; fixed a hardcoded-date time bomb in the claims-audit test suite.
+- 🐛 **Example fixes** (found during a full book/example doc review): `ch16_alerts.py`'s mock handlers used a `.handle(alert)` signature that didn't match `AlertEngine`'s real `.send(event: AlertEvent)` handler protocol, and called a nonexistent `AlertHistory.get_history()` instead of `.get_today()` — both fixed. `ch21_pipeline.py` concatenated its trend-output path as a raw string (`f"{_OUTPUT_DIR}ch21_trend.json"`, missing a path separator) instead of joining with `Path`, silently writing to the wrong location on some OSes — fixed. `ch22_tool_guard_realtime.py` reused a single `LiveGuardrail` instance across 3 demo sessions, contaminating later sessions' recorded `tool_calls` with earlier sessions' entries (the class's own docstring says instances aren't safe to share across sessions) — each session now gets a fresh instance via a small factory function.
 
 ### v0.9.8 (2026-07-06) — Version-Aware Comparison · Persistent Anomaly Baseline · AOO ADE Local Dev Loop
 
