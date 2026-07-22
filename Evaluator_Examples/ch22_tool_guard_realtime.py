@@ -56,17 +56,25 @@ _DB_PATH = _OUTPUT_DIR / "ch22_tool_guard_realtime.db"
 # ===========================================================================
 print("\n=== 섹션 1: @tool_guard 기본 사용 ===")
 
-guardrail = LiveGuardrail(
-    scope=ScopeConfig(forbidden_tools=["webfetch"], fail_on_violation=True),
-    tool_parameter_safety=ToolParameterSafetyConfig(
-        dangerous_patterns=[
-            r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
-            r"\brm\s+\S",
-        ],
-        scope_tool_names=["bash"],
-        fail_on_dangerous=True,
-    ),
-)
+# LiveGuardrail은 세션(에이전트 루프 1회 실행)마다 새 인스턴스를 만들어야 한다 —
+# 내부 상태(_tool_calls)에 락이 없어, 여러 세션이 하나의 인스턴스를 공유하면
+# 서로 다른 세션의 tool_calls 이력이 섞여 판정이 오염된다(소스 docstring 명시).
+# 아래 세 세션(session-1/2/3)이 각자 독립된 인스턴스를 쓰도록 팩토리 함수로 만든다.
+def _new_guardrail() -> LiveGuardrail:
+    return LiveGuardrail(
+        scope=ScopeConfig(forbidden_tools=["webfetch"], fail_on_violation=True),
+        tool_parameter_safety=ToolParameterSafetyConfig(
+            dangerous_patterns=[
+                r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+                r"\brm\s+\S",
+            ],
+            scope_tool_names=["bash"],
+            fail_on_dangerous=True,
+        ),
+    )
+
+
+guardrail = _new_guardrail()
 
 
 @tool_guard(audit_blocked=True, fail_closed=True)
@@ -127,11 +135,12 @@ def bash_captured(command: str) -> subprocess.CompletedProcess:
     return subprocess.run(command, shell=True, capture_output=True, text=True)
 
 
-with live_guardrail_session(guardrail, task_id="session-2"):
+guardrail_s2 = _new_guardrail()  # 세션마다 새 인스턴스 — session-1의 tool_calls와 섞이지 않는다
+with live_guardrail_session(guardrail_s2, task_id="session-2"):
     bash_captured(command="pytest --version")   # 성공 시뮬레이션
     bash_captured(command="exit 1")             # 실패 시뮬레이션
 
-session2_extra = guardrail.snapshot()
+session2_extra = guardrail_s2.snapshot()
 _tool_calls = session2_extra.get("tool_calls", [])
 print(f"  session-2 확정 tool_calls: {len(_tool_calls)}건")
 for tc in _tool_calls:
@@ -150,7 +159,8 @@ async def async_search(query: str) -> str:
 
 
 async def _run_async_demo() -> None:
-    with live_guardrail_session(guardrail, task_id="session-3"):
+    guardrail_s3 = _new_guardrail()  # 세션마다 새 인스턴스
+    with live_guardrail_session(guardrail_s3, task_id="session-3"):
         out = await async_search("최근 배포 이력")
         print(f"  [async_search] 통과 — {out!r}")
 
