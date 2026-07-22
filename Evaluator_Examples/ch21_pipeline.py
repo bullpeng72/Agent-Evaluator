@@ -331,7 +331,7 @@ json_files = sorted(Path(_OUTPUT_DIR).glob("ch21_pipeline_*.json"))
 if len(json_files) >= 2:
     trend_result = subprocess.run(
         ["agent-eval", "trend", _OUTPUT_DIR, "--window", "5", "--output-json",
-         f"{_OUTPUT_DIR}ch21_trend.json"],
+         str(Path(_OUTPUT_DIR) / "ch21_trend.json")],
         capture_output=True, text=True,
     )
     if trend_result.returncode == 0:

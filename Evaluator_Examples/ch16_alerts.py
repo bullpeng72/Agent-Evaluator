@@ -286,16 +286,18 @@ if _HAS_ALERTS:
         slack_handler = SlackHandler(webhook_url=SLACK_URL)
     else:
         class MockSlack:
-            def handle(self, alert):
-                print(f"  [Mock Slack] {alert.get('message', '')[:60]}")
+            # 실제 핸들러(SlackHandler/WebhookHandler)와 동일한 프로토콜:
+            # AlertEngine._dispatch()는 handler.send(event: AlertEvent)를 호출한다.
+            def send(self, event):
+                print(f"  [Mock Slack] {event.message[:60]}")
         slack_handler = MockSlack()
 
     if WEBHOOK_URL:
         webhook_handler = WebhookHandler(url=WEBHOOK_URL)
     else:
         class MockWebhook:
-            def handle(self, alert):
-                print(f"  [Mock Webhook] {alert.get('message', '')[:60]}")
+            def send(self, event):
+                print(f"  [Mock Webhook] {event.message[:60]}")
         webhook_handler = MockWebhook()
 
     try:
@@ -321,8 +323,8 @@ if _HAS_ALERTS:
 
         print(f"  AlertEngine 2개 규칙 평가 완료")
         try:
-            history = engine.history.get_history()
-            print(f"  AlertHistory: {len(history)}건")
+            history = engine.history.get_today()
+            print(f"  AlertHistory(오늘): {len(history)}건")
         except Exception:
             pass
 
