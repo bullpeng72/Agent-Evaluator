@@ -28,15 +28,15 @@ agent-eval check                                          # config status
 agent-eval --version                                      # version info
 agent-eval dashboard                                      # FastAPI dashboard (port 8765)
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
-agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline (SPEC-025)
-agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3 (SPEC-025)
+agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline
+agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3
 agent-eval dataset build --source results/ --max-cases 30 # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
-agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim (SPEC-038)
+agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim
 agent-eval claims list                                     # show active claims
 agent-eval claims release c-a1b2c3d4                       # release a claim
 agent-eval claims audit --ttl-hours 8                      # CI: flag TTL-exceeded/overlapping claims
@@ -85,54 +85,51 @@ Operational support (8, no direct Gate score contribution — report/ops only)
 
 > 7 (Layer 1) + 5 (Layer 2 agentic) + 5 (Layer 2 security) + 8 (operational support) = **25**.
 > `LLMJudge` (Layer 3/Hybrid) and `AlertEngine` (`alerts/` — alerting infra, not a tracker) are **not** among
-> the 25 — a recurring miscount found and fixed across `Media/Book` in 2026-07 (Ch02 first, then swept
-> book-wide). `Appendix A_58개지표_레퍼런스.md` is the reader-facing enumeration of all 25 — keep it in sync
-> with this list.
+> the 25 — a common miscount. `Media/Book/Appendix/A_58개지표_레퍼런스.md` is the reader-facing enumeration
+> of all 25 — keep it in sync with this list.
 
 ### Key Files
 
 ```
 agent_evaluator/
-├── decorators.py          # agent_eval · batch_eval · conversation_eval + Harness Config dataclasses
-│                          # (SPEC-000 완료(2026-07-02) — 33개 Config 전부 gates/gate_x/configs.py로
-│                          #  이관, decorators.py에는 re-export만 남음)
+├── decorators.py          # agent_eval · batch_eval · conversation_eval
+│                          # 33개 Harness Config는 gates/gate_x/configs.py에 정의되고 여기는 re-export만 함
 │                          # EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder
-├── gates/                 # SPEC-000: Gate 단위 패키지 (Strangler Fig 이관 완료 — A~G 전체 7개 Gate)
+├── gates/                 # Gate 단위 패키지 — A~G 전체 7개 Gate
 │   ├── base.py            # 전 Gate 공유 인프라 — _min_sample_warning · _status · _g
-│   ├── shared_metrics.py  # SPEC-018: RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
-│   ├── live_guardrail.py  # SPEC-019: LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
+│   ├── shared_metrics.py  # RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
+│   ├── live_guardrail.py  # LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
 │   │                       #  체크를 실행 전 단일 tool call 단위로 동기 호출
-│   │                       #  SPEC-030: record_blocked_attempt() — check_before_tool_call()이 block=True를
+│   │                       #  record_blocked_attempt() — check_before_tool_call()이 block=True를
 │   │                       #  반환한 시도를 호출자가 명시적으로 감사 이력(blocked_violations)에 기록
-│   │                       #  SPEC-031: record_tool_call(output=...) — success/exit_code/stdout/stderr
+│   │                       #  record_tool_call(output=...) — success/exit_code/stdout/stderr
 │   │                       #  옵트인 전달, max_tool_output_chars로 truncate. 미지정 시 회귀 없음
-│   │                       #  SPEC-032: team_concurrency=TeamConcurrencyConfig(...) — 생성자 시점 1회
+│   │                       #  team_concurrency=TeamConcurrencyConfig(...) — 생성자 시점 1회
 │   │                       #  로드한 .aoo/claims.jsonl로 read/edit/write 스코프 겹침 자동 차단
 │   │                       #  (bash 제외), refresh_team_claims()로 수동 재조회
-│   │                       #  SPEC-035: branch_guard=BranchGuardConfig(...) — 생성자 시점 1회 조회한
+│   │                       #  branch_guard=BranchGuardConfig(...) — 생성자 시점 1회 조회한
 │   │                       #  현재 git 브랜치가 protected_branches(기본 main/master)이거나
 │   │                       #  require_branch_prefix와 불일치하면 git commit/push 자동 차단(fail-open)
-│   │                       #  SPEC-039: tool_guard() 데코레이터 + live_guardrail_session() 컨텍스트
+│   │                       #  tool_guard() 데코레이터 + live_guardrail_session() 컨텍스트
 │   │                       #  매니저 — 도구 함수에 @tool_guard를 붙이면 세션 블록 안에서 호출될 때
 │   │                       #  check_before_tool_call() → 실행 → record_tool_call()이 자동으로
 │   │                       #  이어진다(새 탐지 로직 아님, 순수 적용 계층). 차단 시 GuardrailBlockedError
 │   │                       #  (.verdict에 판정 담김), audit_blocked=True로 record_blocked_attempt()
 │   │                       #  자동 연결, fail_closed=False(기본)면 세션 밖 호출을 RuntimeWarning만
 │   │                       #  내고 가드 없이 통과(다른 fail_on_*와 반대로 fail-open이 기본값)
-│   ├── team_concurrency.py # SPEC-032: TeamConcurrencyConfig · load_active_claims() · check_scope_claim()·
-│   │                       #  append_claim() — Evaluator_Examples/ch28_local_ade_loop.py 예제 전용
-│   │                       #  코드였던 클레임 로그 파싱 로직을 재해석 없이 SDK로 승격
-│   │                       #  SPEC-034: audit_claims() — load_active_claims()/_scopes_overlap() 재사용해
+│   ├── team_concurrency.py # TeamConcurrencyConfig · load_active_claims() · check_scope_claim() ·
+│   │                       #  append_claim() — .aoo/claims.jsonl 클레임 로그 파싱·기록
+│   │                       #  audit_claims() — load_active_claims()/_scopes_overlap() 재사용해
 │   │                       #  TTL 초과·겹치는 active 클레임을 CI가 소비할 위반 리스트로 반환(sys.exit 없음)
-│   │                       #  SPEC-036: TeamConcurrencyConfig.owner — 지정 시 developer==owner인
+│   │                       #  TeamConcurrencyConfig.owner — 지정 시 developer==owner인
 │   │                       #  자기 자신의 클레임을 충돌 후보에서 제외(미지정 시 옛 동작 그대로 보존)
-│   │                       #  SPEC-037: owner="auto" 예약 센티널 — resolve_owner()가 LiveGuardrail
+│   │                       #  owner="auto" 예약 센티널 — resolve_owner()가 LiveGuardrail
 │   │                       #  생성 시점에 git config user.name을 1회 조회해 치환(agent_version="auto"와
 │   │                       #  동일 패턴), 조회 실패 시 예외 없이 None으로 폴백(기존 동작 유지)
-│   ├── branch_guard.py     # SPEC-035: BranchGuardConfig · get_current_branch() · is_branch_protected() ·
-│   │                       #  matches_git_mutation() — Ch28 §28.2 "전용 브랜치" 그라운드 룰(지금까지
-│   │                       #  체크리스트로만 존재)을 LiveGuardrail이 실행 전 자동으로 강제
-│   ├── gate_a_goal/       # Gate A(Goal Achievement) — 완료
+│   ├── branch_guard.py     # BranchGuardConfig · get_current_branch() · is_branch_protected() ·
+│   │                       #  matches_git_mutation() — "보호된 브랜치에 직접 커밋 금지" 같은 팀
+│   │                       #  그라운드 룰을 LiveGuardrail이 실행 전 자동으로 강제
+│   ├── gate_a_goal/       # Gate A(Goal Achievement)
 │   │   ├── configs.py      # InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig ·
 │   │   │                   # ContextRetentionConfig · KnowledgeRetentionConfig
 │   │   ├── evaluators.py   # eval_instruction_adherence · eval_goal_alignment · eval_plan_coherence ·
@@ -140,18 +137,18 @@ agent_evaluator/
 │   │   │                   # (+ Gate A 전용 private 헬퍼: _is_fact_retained_in_text · _kr_strip_particle 등)
 │   │   └── aggregate.py    # Gate A 집계 로직 (TCR+AccuracyEvaluator 블렌딩+ResponseQualityEvaluator;
 │   │                       #  details에 avg_goal_alignment/avg_plan_coherence 노출 — Gate B가 진단용 재참조)
-│   ├── gate_b_behavioral/ # Gate B(Behavioral Integrity) — 완료
+│   ├── gate_b_behavioral/ # Gate B(Behavioral Integrity)
 │   │   ├── configs.py      # LoopDetectionConfig · StateConsistencyConfig · DeadlockConfig ·
 │   │   │                   # ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig
 │   │   ├── evaluators.py   # eval_loop_detection · eval_state_consistency · eval_deadlock · eval_scope ·
 │   │   │                   # eval_tool_parameter_safety · eval_context_window (+ _normalize_agent_interactions)
-│   │   │                   # SPEC-033: _extract_decoded_candidates() — ToolParameterSafetyConfig
+│   │   │                   # _extract_decoded_candidates() — ToolParameterSafetyConfig
 │   │   │                   #  (decode_encodings=True) 옵트인 시 base64/hex로 인코딩된 위험 명령을
 │   │   │                   #  디코드해 기존 dangerous_patterns로 재매치(새 탐지 규칙 아님, printable
 │   │   │                   #  90% 필터로 오탐 방지, max_depth=2까지 재귀)
 │   │   └── aggregate.py    # Gate B 집계 로직 (loop+state_consistency+deadlock+scope+tps+context_window;
 │   │                       #  avg_goal_alignment/avg_plan_coherence는 Gate A에서 파라미터로 전달받아 진단용 재참조)
-│   ├── gate_c_reliability/ # Gate C(Reliability) — 완료
+│   ├── gate_c_reliability/ # Gate C(Reliability)
 │   │   ├── configs.py      # ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig ·
 │   │   │                   # RetryConsistencyConfig · IdempotencyConfig
 │   │   ├── evaluators.py   # eval_fault_tolerance · compute_reproducibility_score · eval_graceful_degradation ·
@@ -161,7 +158,7 @@ agent_evaluator/
 │   │                       #  compute_sla_shared_data(tasks)가 SLA 공유 데이터(Gate D가 소비)의 원천;
 │   │                       #  compute()는 (group_dict, shared_raw) 튜플 반환 — shared_raw에 반올림 없는
 │   │                       #  hall_rate/avg_llm_faithfulness를 담아 Gate G가 재사용
-│   ├── gate_g_observability/ # Gate G(Observability) — 완료
+│   ├── gate_g_observability/ # Gate G(Observability)
 │   │   ├── configs.py      # ObservabilityConfig · ExplainabilityConfig · ErrorDiagnosisConfig ·
 │   │   │                   # LatencyAttributionConfig
 │   │   ├── evaluators.py   # eval_observability · eval_explainability · eval_error_diagnosis ·
@@ -169,18 +166,18 @@ agent_evaluator/
 │   │   └── aggregate.py    # Gate G 집계 로직 (tool_coverage+hallucination+observability+
 │   │                       #  explainability+error_diagnosis+latency_attribution). hall_rate/
 │   │                       #  avg_llm_faithfulness는 Gate C의 shared_raw를 파라미터로 전달받음.
-│   │                       #  monitor.py는 self.tool_analyzer(ToolCallAnalyzer)를 전달 — SPEC-011에서
-│   │                       #  이전의 존재하지 않는 속성명(self.tool_call_analyzer) 오탈자를 수정,
-│   │                       #  도구 호출이 있는 세션에서 tool_coverage가 처음으로 실제 값을 반환함
-│   ├── gate_f_multiagent/ # Gate F(Multi-Agent Coordination) — 완료
+│   │                       #  monitor.py는 self.tool_analyzer(ToolCallAnalyzer)를 전달한다 — 과거
+│   │                       #  존재하지 않는 속성명(self.tool_call_analyzer)으로 참조하던 오탈자가 있었으니
+│   │                       #  새 코드에서 이 이름을 다시 틀리지 않도록 주의
+│   ├── gate_f_multiagent/ # Gate F(Multi-Agent Coordination)
 │   │   ├── configs.py      # ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig
 │   │   ├── evaluators.py   # eval_consensus · eval_propagation · eval_role_adherence · eval_conflict_resolution
 │   │   └── aggregate.py    # Gate F 집계 로직 (monitor.py가 위임 호출)
-│   ├── gate_e_security/   # Gate E(Security Boundary) — 완료
+│   ├── gate_e_security/   # Gate E(Security Boundary)
 │   │   ├── configs.py      # ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig
 │   │   ├── evaluators.py   # eval_threat_severity · eval_compliance · eval_threat_response (+ _PII_PATTERNS)
 │   │   └── aggregate.py    # Gate E 집계 로직 (5개 보안 트래커 + CVSS + compliance + threat_response)
-│   └── gate_d_performance/ # Gate D(Performance Contract) — 완료
+│   └── gate_d_performance/ # Gate D(Performance Contract)
 │       ├── configs.py      # SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig
 │       ├── evaluators.py   # eval_sla · eval_efficiency · eval_resource_budget
 │       └── aggregate.py    # Gate D 집계 로직 (latency+efficiency+budget+TTFT+cost predictability;
@@ -194,12 +191,12 @@ agent_evaluator/
 │   │   ├── layer1.py      # Layer 1 trackers
 │   │   ├── layer2.py      # Layer 2 trackers
 │   │   ├── security.py    # Security trackers
-│   │   ├── monitor.py     # PerformanceMonitor (central orchestrator) · SPEC-026:
+│   │   ├── monitor.py     # PerformanceMonitor (central orchestrator)
 │   │   │                  #  rehydrate_from_storage() — SQLite 이력 재생으로 재시작 생존 이상탐지 기준선
-│   │   │                  #  SPEC-027: agent_version="auto" — 캐싱된 self._git_commit 앞 8자 +
+│   │   │                  #  agent_version="auto" — 캐싱된 self._git_commit 앞 8자 +
 │   │   │                  #  미커밋 변경(git diff HEAD) 해시 접미사로 자동 태깅, 읽기 전용
 │   │   │                  #  monitor.agent_version 프로퍼티로 최종 해석값 노출
-│   │   │                  #  SPEC-029: iteration_note — agent_version="auto"의 불투명한 dirty-hash
+│   │   │                  #  iteration_note — agent_version="auto"의 불투명한 dirty-hash
 │   │   │                  #  태그에 사람이 읽을 수 있는 한 줄 메모를 붙임. _build_lineage()가
 │   │   │                  #  extra_metrics.lineage.iteration_note로 그대로 실어 보냄(새 계산 없음)
 │   │   ├── conversation.py# ConversationSession, ConversationMetrics, ConversationTurn
@@ -207,68 +204,67 @@ agent_evaluator/
 │   ├── monitor_context.py # evaluation_session · hybrid_evaluation_session · async_evaluation_session
 │   └── hybrid_monitor.py  # HybridPerformanceMonitor (DeepEval/Ragas integration)
 ├── integrations/
-│   ├── llm_judge.py       # LLMJudge (native) · SPEC-025: judge_pairwise() — A/B 응답 맞대결
+│   ├── llm_judge.py       # LLMJudge (native) · judge_pairwise() — A/B 응답 맞대결
 │   │                       #  (swap-check로 포지션 편향 완화), self.pairwise_results에 별도 축적
-│   ├── llm_judge_calibration.py  # SPEC-022: LLMJudgeCalibration — judge-vs-human 골든셋 일치도
+│   ├── llm_judge_calibration.py  # LLMJudgeCalibration — judge-vs-human 골든셋 일치도
 │   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
-│   ├── live_guardrail_stdio.py   # SPEC-019: LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
-│   ├── live_guardrail_report.py  # SPEC-019: SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
-│   │                       #  SPEC-028: tool_calls를 TaskResult.tool_calls로 승격(Gate G) ·
+│   ├── live_guardrail_stdio.py   # LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
+│   ├── live_guardrail_report.py  # SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
+│   │                       #  tool_calls를 TaskResult.tool_calls로 승격(Gate G) ·
 │   │                       #  execution_time/success 옵트인 필드(Gate D/A, success 미지정 시
 │   │                       #  completion_score=0.5 중립값 — None은 TaskResult 검증에 막혀 불가) ·
-│   │                       #  agent_version 기본값 "auto"(SPEC-027 자동 태깅 연결)
-│   ├── violation_search_mcp.py   # SPEC-024: search_violations() 도구 1개를 노출하는 stdio MCP 서버
+│   │                       #  agent_version 기본값 "auto"(자동 태깅 연결)
+│   ├── violation_search_mcp.py   # search_violations() 도구 1개를 노출하는 stdio MCP 서버
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
-│   │                       #  SPEC-030: include_blocked=True로 호출 — 도구 docstring이 원래
-│   │                       #  약속한 "차단된 이력" 검색을 실제로 이행, [차단됨]/[관찰됨] 접두어
+│   │                       #  include_blocked=True로 호출하면 완전 차단된("관찰"이 아닌) 이력까지
+│   │                       #  함께 검색, [차단됨]/[관찰됨] 접두어로 구분
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
 │   └── pydanticai_integration.py
-├── anomaly/               # AnomalyDetector · AnomalyEvent — 6개 체크(SPEC-026: feedback_negativity
-│                          #  6번째로 추가, monitor.feedback_tracker의 is_positive 신호 재사용)
+├── anomaly/               # AnomalyDetector · AnomalyEvent — 6개 체크(feedback_negativity가
+│                          #  monitor.feedback_tracker의 is_positive 신호를 재사용)
 ├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
 ├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
-│                          # SPEC-026: dispatch_anomaly_events() — AnomalyEvent를 type별 캐시된
+│                          # dispatch_anomaly_events() — AnomalyEvent를 type별 캐시된
 │                          #  AlertRule(self._anomaly_rules, evaluate()의 self._rules와 분리)로 발송
-├── storage/               # SPEC-016: sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
+├── storage/               # sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
 │                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
-│                          # SPEC-024: violation_search(FTS5, additive) + search_violations() —
-│                          #  Gate B/E 위반 이력 전문 검색(ctx의 OpenCode 세션 미색인 한계 우회)
-│                          # SPEC-030: blocked_violations(FTS5, additive) — 완전 차단돼 tasks/
+│                          # violation_search(FTS5) + search_violations() —
+│                          #  Gate B/E 위반 이력 전문 검색
+│                          # blocked_violations(FTS5) — 완전 차단돼 tasks/
 │                          #  violation_search 어디에도 안 남는 시도의 감사 이력. search_violations
 │                          #  (..., include_blocked=True)로 관찰 모드 위반과 함께 조회(blocked 필드로 구분)
-├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — SPEC-026: anomaly_detector/
+├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — anomaly_detector/
 │                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
 │                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend·claims)
-│                          # opencode install --with-violation-search(SPEC-024): search_violations
+│                          # opencode install --with-violation-search: search_violations
 │                          #  MCP 서버 자동 등록(옵트인)
-│                          # gate --baseline-version/--golden-set/--fail-on-golden-regression(SPEC-025):
+│                          # gate --baseline-version/--golden-set/--fail-on-golden-regression:
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
-├── cli/claims.py          # SPEC-038: claims add/list/release/audit — append_claim()/load_active_claims()/
-│                          #  audit_claims()(SPEC-032/034/036/037)를 감싸는 얇은 터미널 래퍼, 새 판정
-│                          #  로직 없음
+├── cli/claims.py          # claims add/list/release/audit — append_claim()/load_active_claims()/
+│                          #  audit_claims()를 감싸는 얇은 터미널 래퍼, 새 판정 로직 없음
 ├── reporting/
 │   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
 │                          #  (agent-eval gate 저장/대시보드 export_html 공용).
-│                          #  SPEC-025: generate_comparison_html_report(compare_result) —
+│                          #  generate_comparison_html_report(compare_result) —
 │                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음)
 └── serve/
     ├── server.py          # FastAPI dashboard (109 routes)
     ├── templates/
     │   └── dashboard2.html.j2  # `/dashboard` 라우트(유지 대상 — dashboard.html.j2는 레거시,
-    │                      #  마이그레이션 후 삭제 예정). File Compare 탭: SPEC-025 group_by
+    │                      #  마이그레이션 후 삭제 예정). File Compare 탭: group_by
     │                      #  드롭다운·⚖️ Pairwise Judge 서브탭·📄 Export HTML 버튼
-    │                      #  SPEC-029: Metric Comparison 표 상단에 agent_version/iteration_note
+    │                      #  Metric Comparison 표 상단에 agent_version/iteration_note
     │                      #  메타데이터 행 — 새 API 호출 없이 이미 로드된 compareData에서 직접 렌더링
     └── routers/           # alerts · anomaly · config · conversation · cost · data · export
                            # feedback · golden · stream · transparency · webhook
                            # data.py: list_results(prompt_version=/agent_version=)·
-                           #  compare_results(group_by=/pairwise=)(SPEC-025)
-                           # export.py: GET /html/compare(SPEC-025) — ids 또는 group_by +
+                           #  compare_results(group_by=/pairwise=)
+                           # export.py: GET /html/compare — ids 또는 group_by +
                            #  선택적 pairwise → generate_comparison_html_report(). `/html/{file_id}`
                            #  보다 먼저 등록해야 정적 경로가 파라미터 경로에 삼켜지지 않는다
 ```
@@ -361,7 +357,7 @@ monitor.save_to_file("evaluation")  # JSON + HTML
 
 > Use `PerformanceMonitor` for new projects. Use `HybridPerformanceMonitor` only when integrating DeepEval/Ragas.
 
-> **`agent_version="auto"` (SPEC-027)**: reserved sentinel — resolves to the current git commit's short
+> **`agent_version="auto"`**: reserved sentinel — resolves to the current git commit's short
 > SHA (`git rev-parse HEAD`, cached once at `__init__`), with a `-dirty-<hash>` suffix appended when
 > tracked files have uncommitted changes (`git diff HEAD`, hashed — distinguishes iterations run without
 > committing between them). Falls back to `None` on any git failure. Read the resolved value back via the
@@ -420,7 +416,7 @@ judge = LLMJudge(model="claude-haiku-4-5-20251001", sample_rate=0.1)
 result = judge.judge("t1", question="...", response="...", context="...")
 # result["scores"]["overall"] · ["faithfulness"] · ["criteria_overall"]
 
-# SPEC-006: async path + concurrency/backoff (max_concurrent_judge_calls=5, max_retries=3 defaults)
+# async path + concurrency/backoff (max_concurrent_judge_calls=5, max_retries=3 defaults)
 judge = LLMJudge(model="claude-haiku-4-5-20251001", max_concurrent_judge_calls=5, max_retries=3)
 result = await judge.ajudge("t1", question="...", response="...", context="...")
 # ajudge() is bounded by an internal asyncio.Semaphore; provider 429s retry with 1s/2s/4s backoff.
@@ -533,7 +529,7 @@ threat_response, context_window, latency_attribution
 ## Architecture Principles
 
 1. **Layer independence** — Layer 1/2 must operate without external dependencies
-2. **Harness independence** — 33 Configs defined in `decorators.py`, aggregated in `monitor.py`
+2. **Harness independence** — 33 Configs defined in `gates/gate_x/configs.py`, aggregated in `monitor.py`
 3. **Tracker isolation** — each tracker must be independently testable
 4. **Minimal side effects** — no `sys.path`, `os.chdir()`, or global state modification
 5. **Security metric isolation** — security trackers are opt-in due to performance impact

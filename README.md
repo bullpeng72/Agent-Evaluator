@@ -152,6 +152,12 @@ pip install "agent-evaluator[autogen]"            # AutoGen ≥0.3 (heavy)
 # ── MCP servers ───────────────────────────────────────────────────────────────
 pip install "agent-evaluator[mcp]"                # search_violations MCP server (violation_search_mcp)
 
+# ── Optional integrations (each is independent, add only what you use) ──────
+pip install "agent-evaluator[semantic]"           # embedding-based hallucination detection (~500MB model)
+pip install "agent-evaluator[export]"             # dashboard Parquet/Excel export
+pip install "agent-evaluator[wandb]"              # export_to_wandb()
+pip install "agent-evaluator[mlflow]"             # export_to_mlflow()
+
 # ── Convenience bundles ──────────────────────────────────────────────────────
 pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/autogen, 10+ min)
 
@@ -538,36 +544,37 @@ info = get_framework_info("langchain")
 
 ### Full Adapter List
 
-> **Note**: `framework=` parameter and adapters work via **duck typing** — agent-evaluator itself works fully without the framework package installed. The "Required extras" column shows packages needed **when your agent code** imports the framework.
+> **Note**: `framework=` parameter and adapters work via **duck typing** — agent-evaluator itself works fully without the framework package installed. The "Provider Package Needed" column shows what **your agent code** needs to import the framework/provider — not agent-evaluator itself.
 
-| Identifier | Name | Required Extras | Auto-extracted Fields | Async |
-|------------|------|----------------|----------------------|-------|
+| Identifier | Name | Provider Package Needed | Auto-extracted Fields | Async |
+|------------|------|-------------------------|----------------------|-------|
 | `langchain` | LangChain | `[langchain]`¹ | `tool_calls` · `chain_steps` | ✅ |
 | `langgraph` | LangGraph | `[langchain]`¹ | `state_transitions` · `graph_traversal` · `tool_calls` · `chain_steps` | ✅ |
 | `crewai` | CrewAI | `[crewai]`¹ | `agent_interactions` | ❌ |
 | `autogen` | AutoGen | `[autogen]`¹ | `conversation_turns` · `tokens_used` | ✅ |
-| `dspy` | DSPy | `[dspy]` | `chain_steps` · `tokens_used` | ❌ |
-| `pydanticai` | PydanticAI | `[pydanticai]` | `chain_steps` · `tokens_used` | ✅ |
-| `anthropic` | Anthropic | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `openai` | OpenAI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `gemini` | Google Gemini | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `vertexai` | Vertex AI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `cohere` | Cohere | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `groq` | Groq | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `mistral` | Mistral AI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `bedrock` | AWS Bedrock | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `ollama` | Ollama | `[llm]` | `tool_calls` · `tokens_used` | ❌ |
-| `llamaindex` | LlamaIndex | `[llm]` | `chain_steps` | ✅ |
-| `haystack` | Haystack | `[llm]` | `chain_steps` | ✅ |
-| `semantic_kernel` | Semantic Kernel | `[llm]` | `chain_steps` · `tokens_used` | ✅ |
-| `smolagents` | HuggingFace smolagents | `[llm]` | `tool_calls` · `chain_steps` | ❌ |
-| `vllm` | vLLM | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `huggingface` | HuggingFace | `[llm]` | `chain_steps` · `tool_calls` | ❌ |
-| `openai_agents` | OpenAI Agents SDK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `google_adk` | Google ADK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
-| `claude_agent_sdk` | Claude Agent SDK | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `dspy` | DSPy | `[dspy]`¹ | `chain_steps` · `tokens_used` | ❌ |
+| `pydanticai` | PydanticAI | `[pydanticai]`¹ | `chain_steps` · `tokens_used` | ✅ |
+| `anthropic` | Anthropic | included in base install | `tool_calls` · `tokens_used` | ✅ |
+| `openai` | OpenAI | included in base install | `tool_calls` · `tokens_used` | ✅ |
+| `gemini` | Google Gemini | your own `google-generativeai`² | `tool_calls` · `tokens_used` | ✅ |
+| `vertexai` | Vertex AI | your own `google-cloud-aiplatform`² | `tool_calls` · `tokens_used` | ✅ |
+| `cohere` | Cohere | your own `cohere`² | `tool_calls` · `tokens_used` | ✅ |
+| `groq` | Groq | your own `groq`² | `tool_calls` · `tokens_used` | ✅ |
+| `mistral` | Mistral AI | your own `mistralai`² | `tool_calls` · `tokens_used` | ✅ |
+| `bedrock` | AWS Bedrock | your own `boto3`² | `tool_calls` · `tokens_used` | ✅ |
+| `ollama` | Ollama | your own `ollama`² | `tool_calls` · `tokens_used` | ❌ |
+| `llamaindex` | LlamaIndex | your own `llama-index`² | `chain_steps` | ✅ |
+| `haystack` | Haystack | your own `haystack-ai`² | `chain_steps` | ✅ |
+| `semantic_kernel` | Semantic Kernel | your own `semantic-kernel`² | `chain_steps` · `tokens_used` | ✅ |
+| `smolagents` | HuggingFace smolagents | your own `smolagents`² | `tool_calls` · `chain_steps` | ❌ |
+| `vllm` | vLLM | your own `vllm`² | `tool_calls` · `tokens_used` | ✅ |
+| `huggingface` | HuggingFace | your own `transformers`² | `chain_steps` · `tool_calls` | ❌ |
+| `openai_agents` | OpenAI Agents SDK | your own `openai-agents`² | `tool_calls` · `tokens_used` | ✅ |
+| `google_adk` | Google ADK | your own `google-adk`² | `tool_calls` · `tokens_used` | ✅ |
+| `claude_agent_sdk` | Claude Agent SDK | your own `claude-agent-sdk`² | `tool_calls` · `tokens_used` | ✅ |
 
-¹ **User framework extras** — agent-evaluator itself works without these packages. The `@agent_eval(framework="langchain")` decorator works via duck typing so installation is not required for agent-evaluator. Install only when your agent code directly imports the framework.
+¹ **agent-evaluator extras that install a real matching package** (`pip install "agent-evaluator[langchain]"`, etc.) — still optional; agent-evaluator itself works without them via duck typing, install only when your agent code directly imports the framework.
+² **Not an agent-evaluator extra at all** — these providers have no dedicated extra because agent-evaluator never imports their SDKs. The adapter reads whatever object your own client call already returned (duck typing on attribute names), so just install/use the provider's SDK the way you normally would.
 
 ---
 
@@ -711,41 +718,11 @@ def rag_agent(question, context="", ground_truth=""): ...
 | **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
 | **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | same + `context` field required |
 
-### Harness Engineering — 33 Configs, 7 Gate Groups (A–G)
+### Harness Engineering in the Dashboard
 
-Pass Harness Configs as `@agent_eval` decorator parameters and `PerformanceMonitor` auto-aggregates them. Visualize gate-level pass/warn/fail in the dashboard **Harness Gate** tab.
+The full Gate A–G / 33-Config breakdown is already shown in the [Harness Engineering](#harness-engineering--judging-ai-agent-deployment-readiness-through-7-gates) section near the top of this document — passing the same `@agent_eval` Config parameters auto-aggregates into gate-level pass/warn/fail, visualized in the dashboard's **Harness Gate** tab.
 
-```python
-from agent_evaluator import (
-    InstructionConfig, GoalAlignmentConfig, PlanConfig,   # Gate A
-    LoopDetectionConfig, StateConsistencyConfig,           # Gate B
-    FaultToleranceConfig, GracefulDegradationConfig,       # Gate C
-    SLAConfig, EfficiencyConfig,                           # Gate D
-    ThreatSeverityConfig, ComplianceConfig,                # Gate E
-    ConsensusConfig, AgentRoleConfig,                      # Gate F
-    ExplainabilityConfig, ObservabilityConfig,             # Gate G
-)
-
-@agent_eval(monitor, task_type="qa",
-    instructions=InstructionConfig(required_keywords=["Seoul"], fail_on_violation=True),
-    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
-    sla=SLAConfig(p95_ms=3000),
-    explainability=ExplainabilityConfig(min_reasoning_length=20),
-)
-def my_agent(question: str, ground_truth: str = "") -> str: ...
-```
-
-| Group | Area | Config (count) |
-|-------|------|---------------|
-| **A** | Goal Achievement | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
-| **B** | Behavioral Integrity | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
-| **C** | Reliability | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
-| **D** | Performance Contract | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
-| **E** | Security Boundary | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
-| **F** | Multi-Agent Coord. | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
-| **G** | Observability | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
-
-> **Note**: `TTFTVariabilityConfig` · `CostPredictabilityConfig` are auto-aggregated at monitor level (≥5 tasks with `ttft_ms` extra and token CV per task_type). No decorator parameter needed.
+One detail not covered above: `TTFTVariabilityConfig` and `CostPredictabilityConfig` (both Gate D) are auto-aggregated at the monitor level (≥5 tasks with a `ttft_ms` extra, and token coefficient-of-variation per `task_type`) — no decorator parameter needed for either.
 
 Full practical example: `Evaluator_Examples/ch03_harness_basics.py`
 
@@ -1287,8 +1264,14 @@ agent-evaluator/
 | `[crewai]` | crewai ≥1.0, <2.0 | heavy (isolated) | For user CrewAI agent code¹ |
 | `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | heavy (isolated) | For user AutoGen agent code¹ |
 | `[mcp]` | mcp ≥1.0.0 | fast | `search_violations` MCP server (`violation_search_mcp`) |
+| `[semantic]` | sentence-transformers ≥2.7, <6.0 | heavy (~500MB model) | `use_semantic_hallucination=True` on `PerformanceMonitor` — embedding-based hallucination detection instead of word-overlap; falls back automatically if not installed |
+| `[export]` | pyarrow ≥10.0 · openpyxl ≥3.1 | fast | Dashboard Parquet/Excel export endpoints (`serve/routers/export.py`) — without it, Parquet returns HTTP 409 and Excel returns HTTP 501 |
+| `[wandb]` | wandb ≥0.17 | fast | `monitor.export_to_wandb()` — send results to a Weights & Biases run |
+| `[mlflow]` | mlflow ≥2.0 | fast | `monitor.export_to_mlflow()` — send results to an MLflow run |
 | `[full]` | sdk + eval + langchain + dspy + pydanticai + crewai + autogen | very heavy | ⚠️ 10+ min, for full CI compatibility testing |
 | `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | fast | Development environment |
+
+> `openai`/`anthropic` (LLMJudge engine) ship in the **base** install already — there's no separate `[llm]` extra to add.
 
 ¹ agent-evaluator itself works fully without these packages (duck typing). Install only when your agent code directly imports the framework.
 
