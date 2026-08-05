@@ -339,7 +339,7 @@ _METRIC_UNIT = {
 }
 
 
-def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
+def _print_report(report: RunTrendReport, slope_threshold: float, fail_on_regression: bool = False) -> None:
     """추세 보고서를 터미널에 출력한다."""
     print()
     print(f"  {_SEP}")
@@ -420,8 +420,9 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
                 f"  {_fmt(t.first_val, unit)} → {_fmt(t.last_val, unit)}"
                 f"  (slope {t.slope:+.3f}{unit}/run)"
             )
-        print()
-        print(f"  {D}→ Use --fail-on-regression to fail the CI step on regression.{R}")
+        if not fail_on_regression:
+            print()
+            print(f"  {D}→ Use --fail-on-regression to fail the CI step on regression.{R}")
 
     print(f"  {_SEP}")
     print()
@@ -472,7 +473,7 @@ def cmd_trend(args: argparse.Namespace) -> int:
             json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
         print(f"{D}JSON saved: {args.output_json}{R}")
 
-    _print_report(report, args.slope_threshold)
+    _print_report(report, args.slope_threshold, fail_on_regression=args.fail_on_regression)
 
     if args.fail_on_regression and report.any_regression:
         return 1

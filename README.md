@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.9-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.10-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -793,7 +793,7 @@ them automatically — no more manually picking `file_id`s to answer "did this p
 help?".
 
 ```python
-monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.9")
+monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.10")
 ```
 
 **Auto-tagging from git**: pass `agent_version="auto"` instead of a literal string to tag every
@@ -1293,6 +1293,11 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.10 (2026-08-05) — README/CLAUDE.md Drift Fixes · trend Duplicate Hint Fix
+
+- 📝 **Docs**: fixed remaining README/CLAUDE.md drift from actual SDK state — stale test count, example file count, and framework adapter table entries corrected; Key Files tree cleaned of unreadable internal SPEC-NNN labels.
+- 🐛 **`agent-eval trend --fail-on-regression`**: stopped printing the "Use --fail-on-regression to fail the CI step on regression" hint when that flag was already passed.
 
 ### v0.9.9 (2026-07-14) — tool_guard Decorator · Decorator Architecture Fixes · Lint Debt Cleanup
 
