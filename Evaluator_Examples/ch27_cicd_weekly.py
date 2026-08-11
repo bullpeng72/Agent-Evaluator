@@ -280,27 +280,27 @@ print("""  weekly_review.py (cron: 매주 월요일 09:00)
   from agent_evaluator.cli.trend import RunTrendAnalyzer
 
   analyzer = RunTrendAnalyzer(results_dir="results/", window=8)
-  trend    = analyzer.analyze()
+  report   = analyzer.analyze()
 
-  if trend.any_regression:
+  if report.any_regression:
       send_slack_alert(
           channel="#ai-ops",
           message=f"⚠️ 품질 회귀 감지\\n"
-                  f"TCR: {trend.tcr_change:+.1f}%\\n"
-                  f"Accuracy: {trend.accuracy_change:+.1f}%",
+                  f"TCR slope: {report.tcr_trend.slope:+.2f}/run\\n"
+                  f"Accuracy slope: {report.accuracy_trend.slope:+.2f}/run",
       )
       create_github_issue(
           title=f"[자동] 품질 회귀 감지 — {datetime.now():%Y-%m-%d}",
-          body=trend.to_markdown(),
+          body=str(report.to_dict()),
       )
   else:
       print("✅ 품질 지표 정상 — 다음 주 리뷰 예정")
 
-  # 비용 드리프트 별도 확인 (any_regression과 분리)
-  if trend.cost_drift_pct > 5.0:
+  # 비용 드리프트 별도 확인 (report.any_regression과 분리 — cost_trend만 개별 체크)
+  if report.cost_trend and report.cost_trend.any_regression:
       send_slack_alert(
           channel="#ai-cost",
-          message=f"💰 비용 드리프트 감지: +{trend.cost_drift_pct:.1f}% (8주간)\\n"
+          message=f"💰 비용 드리프트 감지: slope {report.cost_trend.slope:+.4f}$/run (8주간)\\n"
                   f"RAG_MAX_CONTEXT_TOKENS 설정 확인 권장",
       )
 """)

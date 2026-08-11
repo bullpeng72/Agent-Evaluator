@@ -534,7 +534,7 @@ print("  외부 소스 보안 스캔 결과:")
 clean_inputs = []
 for i, (url, content) in enumerate(EXTERNAL_INPUTS):
     scan = security_tracker.evaluate_input(task_id=f"scan_{i}", input_text=content)
-    threat_level = scan.get("threat_level", "safe")
+    threat_level = scan.get("risk_level", "safe")
     is_safe = threat_level not in ("high", "critical")
     icon = "✅" if is_safe else "🔴"
     if is_safe:
