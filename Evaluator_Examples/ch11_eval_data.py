@@ -37,10 +37,6 @@ from agent_evaluator import (
     create_taskresult,
     evaluation_session,
     setup_otel,
-    AnomalyDetector,
-    CostTracker,
-    AdaptivePolicy,
-    SamplingStage,
 )
 from agent_evaluator import agent_eval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
@@ -95,7 +91,7 @@ r_code = create_taskresult(
 )
 print(f"  [Code]    accuracy={r_code.accuracy_score:.3f}  completion={r_code.completion_score:.3f}")
 
-# 도구 호출 — tool_calls 없으면 completion_score=0.6 (부분 완료)
+# 도구 호출 — tool_calls 없으면 completion_score=0.5 (부분 완료)
 r_tool_no_calls = create_taskresult(
     task_id="tool_demo_001",
     question="날씨 검색해줘",
