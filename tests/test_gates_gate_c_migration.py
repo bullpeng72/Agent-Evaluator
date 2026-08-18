@@ -106,6 +106,7 @@ class TestGateCMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["C"]
 
         tasks = list(m.tcr_tracker.tasks)
@@ -119,6 +120,7 @@ class TestGateCMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         c = report.extra_metrics["harness_groups"]["C"]
         details = c["details"]
 
@@ -138,6 +140,7 @@ class TestGateCMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["C"]["details"]
         assert set(details.keys()) == {
             "tcr_pct", "gate_c_tcr_weight", "sla_breach_rate", "sla_breach_count",
@@ -167,6 +170,7 @@ class TestGateCMigrationEquivalence:
         assert sla_shared["sla_budget_penalty"] == 0.0  # budget_usd 미설정
 
         report = m.generate_report()
+        assert report.extra_metrics is not None
         d_details = report.extra_metrics["harness_groups"]["D"]["details"]
         # Gate D의 latency_tracker 데이터가 없으므로 p95_latency_s=0이지만,
         # SLA penalty가 파이프라인을 타고 정상적으로 0.0(미발동)으로 도달했는지만 확인한다.
@@ -176,6 +180,7 @@ class TestGateCMigrationEquivalence:
         """hall_rate가 None인 기본 케이스에서 Gate C·G 양쪽의 hallucination_rate가 일치해야 한다."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         groups = report.extra_metrics["harness_groups"]
         # 이 픽스처는 hallucination_detector에 감지 데이터가 없으므로 양쪽 다 None이어야 한다.
         assert groups["C"]["details"]["hallucination_rate"] is None
@@ -190,5 +195,6 @@ class TestGateCMigrationEquivalence:
                 llm_judge={"scores": {"faithfulness": faith}, "skipped": False},
             ))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["C"]["details"]
         assert round(details["avg_llm_faithfulness"], 4) == round((5.0 + 4.0 + 3.0) / 3, 4)
