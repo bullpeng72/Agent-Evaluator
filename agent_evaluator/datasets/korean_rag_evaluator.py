@@ -16,7 +16,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -34,6 +34,8 @@ try:
     from ragas.metrics import AnswerRelevancy, ContextPrecision, ContextRecall, Faithfulness
     RAGAS_AVAILABLE = True
 except ImportError:
+    EvaluationDataset = evaluate = SingleTurnSample = LangchainLLMWrapper = None  # type: ignore[assignment,misc]
+    AnswerRelevancy = ContextPrecision = ContextRecall = Faithfulness = None  # type: ignore[assignment,misc]
     RAGAS_AVAILABLE = False
 
 
@@ -327,6 +329,9 @@ class KoreanRAGEvaluator:
 
     def _evaluate_single_qa(self, qa: QAPair) -> EvaluationResult:
         """개별 QA 쌍 평가"""
+        # 호출부(evaluate_dataset/evaluate_single 등)가 이미 self.rag_system is None을
+        # 검사해 ValueError로 막고 있으므로 여기 도달했다면 non-None이 보장된다.
+        assert self.rag_system is not None
         try:
             # 1. RAG 시스템에서 응답 생성
             rag_response = self.rag_system.query(qa.question)
@@ -383,6 +388,18 @@ class KoreanRAGEvaluator:
         """Ragas 메트릭 계산 (ragas 0.4.x API)"""
         if not self.use_ragas:
             return {}
+        # self.use_ragas = use_ragas and RAGAS_AVAILABLE 이므로 여기 도달했다면
+        # 위 ragas import들은 이미 성공한 상태다.
+        assert (
+            EvaluationDataset is not None
+            and evaluate is not None
+            and SingleTurnSample is not None
+            and LangchainLLMWrapper is not None
+            and AnswerRelevancy is not None
+            and ContextPrecision is not None
+            and ContextRecall is not None
+            and Faithfulness is not None
+        )
 
         try:
             # ragas 0.4.x: LangchainLLMWrapper + class-instance metrics
@@ -415,11 +432,13 @@ class KoreanRAGEvaluator:
 
             result = evaluate(dataset, metrics=metrics_list)
 
-            # 결과 추출 — EvaluationResult[metric.name] returns list (one value per sample)
+            # 결과 추출 — EvaluationResult[metric.name] returns list (one value per sample).
+            # ragas evaluate()의 스텁 반환 타입(Executor)에는 __getitem__이 없지만
+            # 실제 반환 객체(EvaluationResult)는 서브스크립트를 지원한다(ragas 문서 기준).
             output: dict[str, float] = {}
             for metric_obj in metrics_list:
                 name = metric_obj.name
-                val = result[name]
+                val = cast(Any, result)[name]
                 output[name] = float(val[0]) if isinstance(val, (list, tuple)) else float(val)
 
             return output
@@ -471,8 +490,8 @@ class KoreanRAGEvaluator:
             else:
                 return v
 
-        faithfulness_values = [extract_value(r.faithfulness) for r in successful if extract_value(r.faithfulness) is not None]
-        answer_relevancy_values = [extract_value(r.answer_relevancy) for r in successful if extract_value(r.answer_relevancy) is not None]
+        faithfulness_values = [v for r in successful if (v := extract_value(r.faithfulness)) is not None]
+        answer_relevancy_values = [v for r in successful if (v := extract_value(r.answer_relevancy)) is not None]
 
         statistics = {
             "total_evaluation_time": sum(r.evaluation_time for r in results),
