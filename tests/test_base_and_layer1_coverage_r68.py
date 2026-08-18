@@ -41,9 +41,9 @@ from agent_evaluator.core.trackers.layer1 import (
     TokenEconomyTracker,
     _assign_grade,
     _qa_char_similarity,
-    _lcs_ratio as _qa_lcs_ratio,
     _normalize_code,
 )
+from agent_evaluator.utils.text_similarity import lcs_ratio as _qa_lcs_ratio
 from agent_evaluator.exceptions import ValidationError
 
 
@@ -54,7 +54,7 @@ from agent_evaluator.exceptions import ValidationError
 def _make_task(task_id="t001", success=True, accuracy=0.9, execution_time=1.0):
     return TaskResult(
         task_id=task_id,
-        task_type=TaskType.QA,
+        task_type=TaskType.QA.value,
         success=success,
         completion_score=1.0 if success else 0.0,
         accuracy_score=accuracy,
@@ -85,12 +85,12 @@ class TestTaskResultHash:
         # hash(task_id) must be consistent
         ts = datetime(2025, 1, 1)
         t1 = TaskResult(
-            task_id="dup", task_type=TaskType.QA, success=True,
+            task_id="dup", task_type=TaskType.QA.value, success=True,
             completion_score=1.0, accuracy_score=0.9, execution_time=1.0,
             tokens_used={}, tool_calls=[], attempts=1, errors=[], timestamp=ts,
         )
         t2 = TaskResult(
-            task_id="dup", task_type=TaskType.QA, success=True,
+            task_id="dup", task_type=TaskType.QA.value, success=True,
             completion_score=1.0, accuracy_score=0.9, execution_time=1.0,
             tokens_used={}, tool_calls=[], attempts=1, errors=[], timestamp=ts,
         )
@@ -424,7 +424,7 @@ class TestTaskCompletionTrackerExtras:
         t.add_task(_make_task("qa1"))
         t.add_task(TaskResult(
             task_id="code1",
-            task_type=TaskType.CODE_GENERATION,
+            task_type=TaskType.CODE_GENERATION.value,
             success=True,
             completion_score=1.0,
             accuracy_score=0.8,
@@ -443,7 +443,7 @@ class TestTaskCompletionTrackerExtras:
         t = TaskCompletionTracker()
         t.add_task(TaskResult(
             task_id="coding1",
-            task_type=TaskType.CODING,  # alias for code_generation
+            task_type=TaskType.CODING.value,  # alias for code_generation
             success=True,
             completion_score=1.0,
             accuracy_score=0.8,
@@ -595,7 +595,7 @@ class TestTokenEconomyTrackerExtras:
     def test_update_pricing_invalid_raises(self):
         t = TokenEconomyTracker({"input": 0.001, "output": 0.005})
         with pytest.raises(ValidationError):
-            t.update_pricing({"input": "not_a_number", "output": 0.005})
+            t.update_pricing({"input": "not_a_number", "output": 0.005})  # type: ignore[arg-type] — intentionally invalid, testing the runtime guard
 
     def test_get_usage_by_type_empty(self):
         t = TokenEconomyTracker({"input": 0.001, "output": 0.005})
