@@ -141,7 +141,7 @@ class TestSaveToFile:
         monitor = PerformanceMonitor()
         task = TaskResult(
             task_id="dt_task",
-            task_type=TaskType.QA,
+            task_type=TaskType.QA.value,
             success=True,
             completion_score=1.0,
             accuracy_score=0.9,
