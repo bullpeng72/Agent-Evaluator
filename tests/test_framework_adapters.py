@@ -56,6 +56,7 @@ class TestLangChainAdapter:
         }
         result = _extract_langchain_metadata(raw)
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 2
         assert result.tool_calls[0]["tool_name"] == "search"
 
@@ -79,6 +80,8 @@ class TestLangChainAdapter:
 
         result = _extract_langchain_metadata(AIMessage())
         assert result is not None
+        assert result.tool_calls is not None
+        assert result.tokens_used is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "search"
         assert result.tool_calls[0]["input"] == {"query": "seoul"}
@@ -134,6 +137,7 @@ class TestLangGraphAdapter:
         raw = {"messages": [HumanMsg(), AIMsg()]}
         result = _extract_langgraph_metadata(raw)
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) >= 1
 
 
@@ -265,6 +269,8 @@ class TestAnthropicAdapter:
 
         result = _extract_anthropic_metadata(_Message())
         assert result is not None
+        assert result.tool_calls is not None
+        assert result.tokens_used is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "web_search"
         assert result.tokens_used["total"] == 150
@@ -333,6 +339,8 @@ class TestOpenAIAdapter:
 
         result = _extract_openai_metadata(_ChatCompletion())
         assert result is not None
+        assert result.tool_calls is not None
+        assert result.tokens_used is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "calculator"
         assert result.tokens_used["total"] == 100
@@ -390,6 +398,7 @@ class TestOpenAIAdapter:
 
         result = _extract_openai_metadata(_Response())
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "calculator"
         assert result.tool_calls[0]["tool_call_id"] == "call_001"
@@ -446,6 +455,7 @@ class TestGeminiAdapter:
 
         result = _extract_gemini_metadata(_Response())
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "web_search"
 
@@ -544,6 +554,7 @@ class TestOpenAIAgentsAdapter:
 
         result = _extract_openai_agents_metadata(_RunResult())
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "calculator"
         assert result.tool_calls[0]["tool_call_id"] == "call_001"
@@ -599,6 +610,7 @@ class TestGoogleADKAdapter:
 
         result = _extract_google_adk_metadata(_Event())
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "search"
         assert result.tool_calls[0]["input"] == {"query": "seoul"}
@@ -640,6 +652,8 @@ class TestClaudeAgentSDKAdapter:
 
         result = _extract_claude_agent_sdk_metadata(_AssistantMessage())
         assert result is not None
+        assert result.tool_calls is not None
+        assert result.tokens_used is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "search"
         assert result.tokens_used["total"] == 60
@@ -660,6 +674,8 @@ class TestClaudeAgentSDKAdapter:
         result = _extract_claude_agent_sdk_metadata(_ResultMessage())
         assert result is not None
         assert result.tool_calls is None  # ResultMessage에는 도구 호출 상세가 없음
+        assert result.tokens_used is not None
+        assert result.extra is not None
         assert result.tokens_used["input"] == 500
         assert result.tokens_used["cache_creation"] == 100
         assert result.tokens_used["cache_read"] == 50
