@@ -33,7 +33,7 @@ def _always_true(_ev: Any) -> bool:
     return True
 
 
-def _make_rule(name: str, handler: Any, cooldown: float = 0.0) -> AlertRule:
+def _make_rule(name: str, handler: Any, cooldown: int = 0) -> AlertRule:
     return AlertRule(name=name, condition=_always_true, handler=handler, cooldown=cooldown)
 
 
@@ -155,7 +155,7 @@ class TestAlertStormSuppression:
             history_dir=str(tmp_path), max_alerts_per_window=2, window_seconds=60,
         )
         for i, h in enumerate(handlers):
-            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0.0))
+            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0))
 
         fired = engine.evaluate(_mock_evaluator())
 
@@ -171,7 +171,7 @@ class TestAlertStormSuppression:
             history_dir=str(tmp_path), max_alerts_per_window=1, window_seconds=60,
         )
         for i, h in enumerate(handlers):
-            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0.0))
+            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0))
 
         engine.evaluate(_mock_evaluator())
 
@@ -183,7 +183,7 @@ class TestAlertStormSuppression:
         handlers = [MagicMock() for _ in range(5)]
         engine = AlertEngine(history_dir=str(tmp_path))
         for i, h in enumerate(handlers):
-            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0.0))
+            engine.add_rule(_make_rule(f"r{i}", h, cooldown=0))
 
         engine.evaluate(_mock_evaluator())
 
@@ -197,7 +197,7 @@ class TestAlertStormSuppression:
         engine = AlertEngine(
             history_dir=str(tmp_path), max_alerts_per_window=1, window_seconds=0.05,
         )
-        engine.add_rule(_make_rule("r1", handler1, cooldown=0.0))
+        engine.add_rule(_make_rule("r1", handler1, cooldown=0))
         engine.evaluate(_mock_evaluator())
         handler1.send.assert_called_once()
 
@@ -205,7 +205,7 @@ class TestAlertStormSuppression:
         engine.remove_rule("r1")
         time.sleep(0.1)  # 윈도우 만료 대기
 
-        engine.add_rule(_make_rule("r2", handler2, cooldown=0.0))
+        engine.add_rule(_make_rule("r2", handler2, cooldown=0))
         engine.evaluate(_mock_evaluator())
         handler2.send.assert_called_once()
         assert engine.get_suppressed_count() == 0

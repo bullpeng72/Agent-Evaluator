@@ -195,7 +195,7 @@ class AlertEngine:
         history_dir: str | None = None,
         async_dispatch: bool = False,
         max_alerts_per_window: int | None = None,
-        window_seconds: int = 60,
+        window_seconds: float = 60,
     ) -> None:
         self.history = AlertHistory(history_dir)
         self._rules: list[AlertRule] = []
