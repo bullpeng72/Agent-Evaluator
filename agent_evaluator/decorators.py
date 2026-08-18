@@ -3421,7 +3421,7 @@ class AlertRuleBuilder:
 
 
 def _make_alert_on_record(
-    alert_rules: list[SimpleTaskAlertRule],
+    alert_rules: list[Any],  # duck-typed: only .evaluate(task_result) is ever called
     existing_on_record: Callable | None,
     alert_error_mode: str = "log",
 ) -> Callable:

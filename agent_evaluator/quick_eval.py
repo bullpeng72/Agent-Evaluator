@@ -369,7 +369,8 @@ class QuickEval:
     """원스톱 평가 Facade — PerformanceMonitor + EvalDecorator 를 단순화한 인터페이스.
 
     Args:
-        output_dir: 결과 저장 디렉토리 (기본: ``"results/"``).
+        output_dir: 결과 저장 디렉토리 (기본: ``"results/"``). None이면 PerformanceMonitor가
+            자동으로 결과 디렉토리를 감지한다.
         auto_save: True 이면 ``auto_save_interval`` 건마다 자동 저장.
         auto_save_interval: auto_save 주기 (기본: 10).
         auto_save_filename: auto_save 파일명 (기본: ``"quickeval_auto"``).
@@ -433,7 +434,7 @@ class QuickEval:
 
     def __init__(
         self,
-        output_dir: str = "results/",
+        output_dir: str | None = "results/",
         *,
         auto_save: bool = False,
         auto_save_interval: int = 10,
@@ -779,7 +780,7 @@ class QuickEval:
     def from_preset(
         cls,
         preset_name: str,
-        output_dir: str = "results/",
+        output_dir: str | None = "results/",
         **kwargs: Any,
     ) -> QuickEval:
         """프리셋 이름으로 QuickEval 인스턴스를 생성합니다.

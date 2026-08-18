@@ -53,7 +53,7 @@ def _make_monitor() -> PerformanceMonitor:
 def _make_task_result(**kwargs):
     from agent_evaluator import TaskResult
 
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         task_id="t1",
         task_type="qa",
         success=True,
@@ -171,7 +171,7 @@ class TestConversationEvalQuestionArg:
         monitor = PerformanceMonitor(output_dir=None)
 
         with pytest.raises(TypeError):
-            conversation_eval(monitor, question_arg="query")
+            conversation_eval(monitor, question_arg="query")  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
 
 # ---------------------------------------------------------------------------
@@ -935,6 +935,7 @@ class TestAnthropicTokenExtraction:
         assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "search"
+        assert result.tokens_used is not None
         assert result.tokens_used["input"] == 10
         assert result.tokens_used["output"] == 20
         assert result.tokens_used["total"] == 30
@@ -997,7 +998,7 @@ class TestLatencyPercentilesEndpoint:
     def test_latency_percentiles_endpoint_exists(self):
         from agent_evaluator.serve.routers.data import router
 
-        paths = [route.path for route in router.routes]
+        paths = [getattr(route, "path", "") for route in router.routes]
         assert any("latency-percentiles" in p for p in paths)
 
 
@@ -1009,7 +1010,7 @@ class TestTokenAnalyticsEndpoint:
     def test_token_analytics_endpoint_exists(self):
         from agent_evaluator.serve.routers.data import router
 
-        paths = [route.path for route in router.routes]
+        paths = [getattr(route, "path", "") for route in router.routes]
         assert any("token-analytics" in p for p in paths)
 
 
@@ -1080,11 +1081,9 @@ class TestFilterTasks:
 
         filtered = monitor.filter_tasks(task_type="qa")
         assert len(filtered) == 1
-        assert all(
-            (str(t.task_type).lower() == "qa" or
-             (hasattr(t.task_type, "value") and t.task_type.value.lower() == "qa"))
-            for t in filtered
-        )
+        # TaskResult.__post_init__ always normalizes task_type to a lowercase str
+        # (even when constructed with a TaskType enum member), so no Enum branch is needed here.
+        assert all(str(t.task_type).lower() == "qa" for t in filtered)
 
     def test_filter_tasks_by_success_only(self):
         monitor = _make_monitor()
