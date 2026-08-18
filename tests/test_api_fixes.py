@@ -27,7 +27,7 @@ def _make_task(task_id: str = "t001", success: bool = True,
                accuracy: float = 0.9, execution_time: float = 1.0) -> TaskResult:
     return TaskResult(
         task_id=task_id,
-        task_type=TaskType.QA,
+        task_type=TaskType.QA.value,
         success=success,
         completion_score=1.0 if success else 0.0,
         accuracy_score=accuracy,
