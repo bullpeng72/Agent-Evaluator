@@ -9,10 +9,20 @@ REQ-4(record_and_save() passthrough)는 tests/test_live_guardrail_report.py에�
 """
 from __future__ import annotations
 
-from types import SimpleNamespace
+from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.serve.loader import ResultFile, load_results
+from agent_evaluator.serve.loader import (
+    AdvancedMetrics,
+    AgenticMetrics,
+    HallucinationDetail,
+    InsightsData,
+    QualityDetail,
+    ResultFile,
+    SecurityL1,
+    SecurityL2,
+    load_results,
+)
 
 
 def _save_run(tmp_path, filename: str, *, agent_version=None, iteration_note=None):
@@ -47,12 +57,12 @@ class TestResultFileIterationNote:
     def test_missing_extra_metrics_key_entirely(self):
         """extra_metrics 자체가 없는(더 오래된) raw dict에서도 에러 없이 None."""
         rf = ResultFile(
-            path=None, file_id="f1", name="f1", timestamp="", total_tasks=0, tasks=[],
+            path=Path("f1.json"), file_id="f1", name="f1", timestamp="", total_tasks=0, tasks=[],
             accuracy_metrics={}, efficiency_metrics={},
-            security_l1=SimpleNamespace(), security_l2=SimpleNamespace(),
-            agentic=SimpleNamespace(), quality_detail=SimpleNamespace(),
-            hallucination_detail=SimpleNamespace(), advanced=SimpleNamespace(),
-            insights=SimpleNamespace(),
+            security_l1=SecurityL1(), security_l2=SecurityL2(),
+            agentic=AgenticMetrics(), quality_detail=QualityDetail(),
+            hallucination_detail=HallucinationDetail(), advanced=AdvancedMetrics(),
+            insights=InsightsData(),
             rag_metrics={}, pricing={}, raw={},
         )
         assert rf.iteration_note is None
