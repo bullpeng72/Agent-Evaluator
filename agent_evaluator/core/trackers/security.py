@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import random
 import re
-from typing import Any, Union
+from typing import Any, Sequence, Union
 
 import pandas as pd
 
@@ -980,7 +980,7 @@ class PrivilegeEscalationDetector(BaseTracker):
         self._escalation_events.clear()
 
     def analyze_privilege_chain(
-        self, task_id: str, tool_calls: list[Union[str, dict[str, Any]]]
+        self, task_id: str, tool_calls: Sequence[Union[str, dict[str, Any]]]
     ) -> dict[str, Any]:
         """Analyze tool call chain for privilege escalation.
 
