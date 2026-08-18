@@ -114,6 +114,7 @@ def _make_retrieve_node(*, fixed: bool):
     def retrieve_node(state: MessagesState) -> dict:
         last_human = next(m for m in reversed(state["messages"]) if isinstance(m, HumanMessage))
         query = last_human.content
+        assert isinstance(query, str)  # 이 데모는 항상 순수 문자열 content만 사용
         tool_call_id = "call_search_docs_1"
         ai_with_call = AIMessage(
             content="",
