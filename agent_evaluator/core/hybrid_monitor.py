@@ -43,7 +43,8 @@ warnings.filterwarnings('ignore', message='.*coroutine.*was never awaited.*')
 @dataclass(frozen=True)
 class ExtendedTaskResult(TaskResult):
     """TaskResult with advanced metrics from external libraries"""
-    advanced_metrics: dict[str, Any] = field(default_factory=dict)
+    # M7: None = "메트릭 수집 안 함(비활성)", {} = "수집 시도했지만 결과 없음" — 의미 있는 구분
+    advanced_metrics: dict[str, Any] | None = field(default_factory=dict)
     evaluation_context: dict[str, Any] | None = None
     metric_providers_used: list[str] = field(default_factory=list)
 
@@ -145,7 +146,12 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         # Register cleanup handler
         atexit.register(self._cleanup)
 
-    def record_task(
+    def record_task(  # type: ignore[override]
+        # 의도적으로 base PerformanceMonitor.record_task()와 다른 파라미터 이름/구성을
+        # 쓴다 — Hybrid 전용 자동 hallucination 탐지·외부 라이브러리 채점 입력을 받기
+        # 위한 별도 API(README/CLAUDE.md에 이 시그니처로 문서화됨). PerformanceMonitor로
+        # 타입 힌트된 변수를 통해 다형적으로 호출하는 코드는 없으므로 실질적 LSP 위반은
+        # 아니지만, pyright 관점에선 base와 호환되지 않는 오버라이드로 보인다.
         self,
         task_result: TaskResult,
         enable_advanced_metrics: bool = True,
@@ -187,6 +193,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         # 2. Evaluate with external libraries (optional, slower)
         # M7: use None when disabled to distinguish "not collected" from "collected but empty"
+        # (테스트로 고정된 계약 — ExtendedTaskResult.advanced_metrics도 Optional로 선언돼 있음)
         advanced_metrics: dict[str, Any] | None = None
         providers_used = ["native"]
 
@@ -321,7 +328,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         advanced_summary = self._aggregate_advanced_metrics()
 
         # Combine native and advanced recommendations
-        combined_recommendations = list(native_report.recommendations)
+        combined_recommendations = list(native_report.recommendations or [])
         advanced_recommendations = self._generate_advanced_recommendations(advanced_summary)
         combined_recommendations.extend(advanced_recommendations)
 
@@ -445,7 +452,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             'rate': passed / total if total > 0 else 0
         }
 
-    def _summarize_detections(self, metric_name: str) -> dict[str, int]:
+    def _summarize_detections(self, metric_name: str) -> dict[str, int | float]:
         """Summarize boolean detection metrics"""
         detected = 0
         total = 0
@@ -462,7 +469,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             'rate': detected / total if total > 0 else 0
         }
 
-    def save_to_file(self, filename: str = "hybrid_evaluation_results.json"):
+    def save_to_file(self, filename: str = "hybrid_evaluation_results.json") -> str:
         """Save results with advanced metrics to JSON file in results/"""
         # results/ 디렉토리에 저장 (절대 경로가 아닌 경우)
         if not os.path.isabs(filename):
@@ -556,9 +563,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             raise
 
         logger.info("Hybrid evaluation results saved to: %s", filename)
+        return filename
 
     @classmethod
-    def load_from_file(cls, filename: str) -> HybridPerformanceMonitor:
+    def load_from_file(cls, filename: str = "hybrid_evaluation_results.json") -> HybridPerformanceMonitor:
         """Load results from JSON file"""
         # results/ 디렉토리에서 탐색 (현재 디렉토리에 없는 경우)
         if not os.path.exists(filename):
@@ -653,6 +661,14 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             # Security evaluators (Layer 1 & 2)
             if "security" in evaluators:
                 security_data = evaluators["security"]
+                # monitor는 위에서 enable_security_metrics=has_security_metrics로 생성됐고
+                # has_security_metrics는 바로 이 "security" in evaluators와 동일한 조건이므로
+                # 5개 보안 트래커 모두 이미 non-None임이 보장된다.
+                assert monitor.input_sanitizer is not None
+                assert monitor.output_leakage_detector is not None
+                assert monitor.tool_authorizer is not None
+                assert monitor.privilege_escalation_detector is not None
+                assert monitor.tool_chain_attack_detector is not None
 
                 # Input Sanitizer
                 if "input_sanitizer" in security_data:
@@ -702,7 +718,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         logger.info("Loaded %d tasks from %s", len(monitor.extended_tasks), filename)
         return monitor
 
-    def print_summary(self):
+    def print_summary(self):  # type: ignore[override]
+        # base PerformanceMonitor.print_summary(report=None)와 달리 항상 자체
+        # generate_hybrid_report()로 생성한 리포트만 출력한다(외부에서 만든
+        # EvaluationReport를 받아 찍는 용도가 아님 — 타입도 다름) — 의도적 축소.
         """Print comprehensive evaluation summary"""
         report = self.generate_hybrid_report()
 
