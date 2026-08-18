@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.11-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.12-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1208,8 +1208,8 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 33 example files (ch01–ch34, see Example Guide above)
-├── tests/                       # 3,593+ test functions, 95 files
+├── Evaluator_Examples/          # 27 example files (ch01–ch27, see Example Guide above)
+├── tests/                       # 3,609+ test functions, 95 files
 └── pyproject.toml
 ```
 
@@ -1276,7 +1276,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (3,593+)
+pytest                          # run tests (3,609+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1285,6 +1285,15 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.12 (2026-08-19) — OpenCode Plugin Hardening + Harness Method Alignment
+
+- ✨ **OpenCode plugin, HITL alerting** (Harness Method Ch13 §13.2): `AGENT_EVALUATOR_ALERT_WEBHOOK_URL` — when set, `live_guardrail_report.record_and_save()` sends one Slack notification per session that had any blocked tool calls, reusing the SDK's existing `SlackHandler`. Fires from the session-end batch bridge, not the live `tool.execute.before` hook, so it never adds latency to the agent loop, and it collapses repeated blocks in one session into a single alert. This closes the "a verdict nobody looks at" gap — not a full pre-execution approval gate (still HOTL, not HITL).
+- ✨ **OpenCode plugin, hook-registration self-check** (Harness Method Ch06 §6.2): `agent-eval opencode install` now verifies the installed copy actually registers all three plugin hooks (`tool.execute.before`, `tool.execute.after`, `event`) and warns if one is missing — closes a "half-working and hard to notice" failure mode the plugin could previously hit silently.
+- 🐛 **`EvalDecorator.conversation()`**: constructing with a list of monitors silently dropped conversation data for every monitor after the first (`.qa`/`.tool_use` already dual-write to the whole list) — now warns instead of failing silently.
+- 🐛 **`EvaluationReport.summary()`**: timestamp serialization used `is not None` instead of `isinstance(..., datetime)`, so a non-datetime, non-None value in this public mutable field (e.g. constructed outside `from_dict()`) crashed with `AttributeError` instead of degrading gracefully — aligned with the same `isinstance` pattern already used by `to_dict()`/`to_json()` in the same file.
+- 🐛 **`ch02_quickstart.py`**: `report.to_dict().get("summary", {})` always silently returned `{}` (no such top-level key exists), so the accuracy value it read was permanently pinned at `0.0` — fixed to read `accuracy_metrics.accuracy_scores.overall_accuracy` directly.
+- 📝 **Docs**: fixed a stale `test_observation_bus.py` reference in `tests/conftest.py` (file never existed in this repo — pointed at the actual two test files that need the fixture); `Docs/AOO_STACK.md` documents both new opencode features; `Media/Harness_Method` updated to reflect that Ch06 §6.2 and Ch13 §13.2's recommendations are now implemented (with the HOTL-vs-HITL distinction preserved, not overclaimed).
 
 ### v0.9.11 (2026-08-18) — Full-Codebase Pylance Type Audit + Several Real Bugs Fixed
 

@@ -39,7 +39,7 @@ Quick Start (Decorator):
 """
 from __future__ import annotations
 
-__version__ = "0.9.11"
+__version__ = "0.9.12"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
