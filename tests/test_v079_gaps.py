@@ -109,7 +109,7 @@ class TestAllowDuplicateTaskIds:
         from agent_evaluator import agent_eval
         m = PerformanceMonitor()
         with pytest.raises(TypeError):
-            agent_eval(m, task_type="qa", allow_duplicate_task_ids=False)
+            agent_eval(m, task_type="qa", allow_duplicate_task_ids=False)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_no_warning_when_allowed(self):
         """allow_duplicate_task_ids=True (default) → no warning."""

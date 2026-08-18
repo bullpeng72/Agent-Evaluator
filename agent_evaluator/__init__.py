@@ -39,7 +39,7 @@ Quick Start (Decorator):
 """
 from __future__ import annotations
 
-__version__ = "0.9.10"
+__version__ = "0.9.11"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -309,6 +309,7 @@ __all__ = [
     'RetryConfig',              # 재시도 파라미터 묶음 (agent_eval retry=)
     'get_eval_ctx',             # ContextVar context accessor (async-safe)
     'get_framework_info',       # C6: 어댑터 메타데이터 조회
+    '_FRAMEWORK_ADAPTERS',      # Task 1: 프레임워크 어댑터 레지스트리 (고급 사용자용)
     'AGENT_EVAL_PRESETS',       # H1: 사전 정의된 파라미터 묶음
     'register_preset',          # 항목 W: preset 런타임 등록
 

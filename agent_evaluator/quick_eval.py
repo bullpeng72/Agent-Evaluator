@@ -1571,7 +1571,7 @@ class QuickEval:
 
     def cached(
         self,
-        ttl: int = 3600,
+        ttl: float = 3600,
         cache_key_fn: Callable | None = None,
     ) -> Callable:
         """응답 캐싱 데코레이터를 반환한다 (E5).
