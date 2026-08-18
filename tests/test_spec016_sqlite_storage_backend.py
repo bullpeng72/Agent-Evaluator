@@ -163,7 +163,7 @@ class TestWalModeConcurrency:
 class TestPerformanceMonitorIntegration:
     def test_invalid_storage_backend_raises_value_error(self):
         with pytest.raises(ValueError, match="storage_backend"):
-            PerformanceMonitor(storage_backend="postgres")
+            PerformanceMonitor(storage_backend="postgres")  # type: ignore[arg-type] — intentionally invalid, testing the runtime guard
 
     def test_default_storage_backend_is_json_unchanged(self, tmp_path):
         """REQ-1: storage_backend 기본값(json)은 기존 save_to_file() 동작과 100% 동일."""
