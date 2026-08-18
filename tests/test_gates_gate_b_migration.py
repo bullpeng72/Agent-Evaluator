@@ -119,6 +119,7 @@ class TestGateBMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["B"]
 
         tasks = list(m.tcr_tracker.tasks)
@@ -135,6 +136,7 @@ class TestGateBMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         b = report.extra_metrics["harness_groups"]["B"]
         details = b["details"]
 
@@ -158,6 +160,7 @@ class TestGateBMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["B"]["details"]
         assert set(details.keys()) == {
             "loop_detection_rate", "loop_count", "gate_b_loop_weight",
@@ -177,6 +180,7 @@ class TestGateBMigrationEquivalence:
             m.record_task(_task(f"pc{i}", {"plan_coherence": {"score": score, "use_llm_scoring": False}}))
 
         report = m.generate_report()
+        assert report.extra_metrics is not None
         groups = report.extra_metrics["harness_groups"]
         a_details = groups["A"]["details"]
         b_details = groups["B"]["details"]
