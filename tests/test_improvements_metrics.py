@@ -152,7 +152,7 @@ class TestEnableQualityEvaluation:
 
         monitor = PerformanceMonitor(output_dir=None)
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
+            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_build_and_record_accepts_enable_quality_evaluation(self):
         import inspect
@@ -175,7 +175,7 @@ class TestEnableQualityEvaluation:
 
         monitor = PerformanceMonitor(output_dir=None)
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
+            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_eval_decorator_propagates_quality_flag(self):
         from agent_evaluator import PerformanceMonitor
@@ -183,7 +183,7 @@ class TestEnableQualityEvaluation:
 
         monitor = PerformanceMonitor(output_dir=None)
         with pytest.raises(TypeError):
-            EvalDecorator(monitor, enable_quality_evaluation=True)
+            EvalDecorator(monitor, enable_quality_evaluation=True)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +199,7 @@ class TestHaystackAdapterEnhanced:
         raw = {"retriever": {"documents": [{"content": "text"}]}}
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         assert result.chain_steps[0]["type"] == "retriever"
 
     def test_generator_component_type_detected(self):
@@ -206,6 +207,7 @@ class TestHaystackAdapterEnhanced:
         raw = {"llm_generator": {"replies": ["answer text"]}}
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         assert result.chain_steps[0]["type"] == "generator"
 
     def test_unknown_component_type_fallback(self):
@@ -213,6 +215,7 @@ class TestHaystackAdapterEnhanced:
         raw = {"mystery_component": {"data": "value"}}
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         assert result.chain_steps[0]["type"] == "component"
 
     def test_type_field_in_chain_step(self):
@@ -220,6 +223,7 @@ class TestHaystackAdapterEnhanced:
         raw = {"my_retriever": {"documents": []}, "my_generator": {"replies": ["hi"]}}
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         types = {step["name"]: step["type"] for step in result.chain_steps}
         assert types["my_retriever"] == "retriever"
         assert types["my_generator"] == "generator"
@@ -249,6 +253,7 @@ class TestHaystackAdapterEnhanced:
         raw = {"text_embedder": {"embedding": [0.1, 0.2]}}
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         assert result.chain_steps[0]["type"] == "embedder"
 
 
@@ -275,6 +280,7 @@ class TestHuggingFaceAdapterTokenEstimation:
         raw = [{"generated_text": "Hello world"}, {"generated_text": "Bye world"}]
         result = extractor(raw)
         assert result is not None
+        assert result.chain_steps is not None
         assert len(result.chain_steps) == 2
 
     def test_generate_dict_with_input_ids_token_count(self):
