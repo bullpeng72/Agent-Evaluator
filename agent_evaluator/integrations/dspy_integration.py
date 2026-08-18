@@ -249,16 +249,17 @@ class DSPyMetricAdapter:
     def score_fn(self, response: str, ground_truth: str) -> float:
         """agent-evaluator ``score_fn`` 호환 인터페이스."""
         try:
+            import dspy  # type: ignore[import-not-found]
+        except ImportError:
+            # DSPy 미설치 시 단순 exact_match
+            return 1.0 if response.strip() == ground_truth.strip() else 0.0
+
+        try:
             if self.example_factory:
                 example = self.example_factory(response, ground_truth)
             else:
-                try:
-                    import dspy
-                    example = dspy.Example(answer=ground_truth).with_inputs()
-                    prediction = dspy.Prediction(answer=response)
-                except ImportError:
-                    # DSPy 미설치 시 단순 exact_match
-                    return 1.0 if response.strip() == ground_truth.strip() else 0.0
+                example = dspy.Example(answer=ground_truth).with_inputs()
+            prediction = dspy.Prediction(answer=response)
 
             result = self.metric(example, prediction)
             return float(result) if isinstance(result, (int, float)) else (1.0 if result else 0.0)
