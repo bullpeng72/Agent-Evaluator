@@ -39,7 +39,9 @@ class TestAutoAgentVersionCleanState:
     def test_auto_reflected_in_lineage(self):
         with patch("subprocess.run", side_effect=_fake_run(clean_diff=True)):
             m = PerformanceMonitor(agent_version="auto")
-        lineage = m.generate_report().extra_metrics["lineage"]
+        extra_metrics = m.generate_report().extra_metrics
+        assert extra_metrics is not None
+        lineage = extra_metrics["lineage"]
         assert lineage["agent_version"] == "abc123de"
 
 
@@ -47,6 +49,7 @@ class TestAutoAgentVersionDirtyState:
     def test_dirty_diff_appends_hash_suffix(self):
         with patch("subprocess.run", side_effect=_fake_run(clean_diff=False)):
             m = PerformanceMonitor(agent_version="auto")
+        assert m._agent_version is not None
         assert m._agent_version.startswith("abc123de-dirty-")
         assert len(m._agent_version) == len("abc123de-dirty-") + 6  # sha256 앞 6자
 
@@ -77,6 +80,8 @@ class TestAutoAgentVersionDirtyState:
             m_b = PerformanceMonitor(agent_version="auto")
 
         assert m_a._agent_version != m_b._agent_version
+        assert m_a._agent_version is not None
+        assert m_b._agent_version is not None
         # 둘 다 같은 커밋에서 갈라져 나왔으므로 커밋 prefix는 동일해야 한다
         assert m_a._agent_version.split("-dirty-")[0] == m_b._agent_version.split("-dirty-")[0]
 
@@ -157,10 +162,11 @@ class TestAgentVersionReadOnlyProperty:
         with patch("subprocess.run", side_effect=_fake_run(clean_diff=False)):
             m = PerformanceMonitor(agent_version="auto")
         assert m.agent_version == m._agent_version
+        assert m.agent_version is not None
         assert m.agent_version.startswith("abc123de-dirty-")
 
     def test_property_has_no_setter(self):
         with patch("subprocess.run", side_effect=_fake_run(clean_diff=True)):
             m = PerformanceMonitor(agent_version="v2-cot")
         with pytest.raises(AttributeError):
-            m.agent_version = "v3-something"
+            m.agent_version = "v3-something"  # type: ignore[misc] — intentionally invalid, testing the read-only property guard
