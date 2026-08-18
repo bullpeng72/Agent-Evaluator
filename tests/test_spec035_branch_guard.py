@@ -95,6 +95,7 @@ class TestLiveGuardrailBranchGuardIntegration:
         verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "git commit -m wip"})
         assert verdict.block is True
         assert verdict.gate == "B"
+        assert verdict.reason is not None
         assert "main" in verdict.reason
 
     def test_non_protected_branch_allows_git_commit(self, monkeypatch):
