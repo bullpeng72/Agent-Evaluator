@@ -45,7 +45,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from agent_evaluator import load_env
+from agent_evaluator import PerformanceMonitor, load_env
+from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
 
 load_env()
 
@@ -89,7 +90,6 @@ else:
 # 모니터 초기화 — API 키 + eval 패키지 있으면 HybridPerformanceMonitor
 # ---------------------------------------------------------------------------
 if EVAL_AVAILABLE:
-    from agent_evaluator import HybridPerformanceMonitor
     monitor = HybridPerformanceMonitor(
         use_deepeval=True,
         use_ragas=True,
@@ -102,7 +102,6 @@ if EVAL_AVAILABLE:
     print("  HybridPerformanceMonitor 활성화 — DeepEval + Ragas 실평가")
     print("  대시보드 '외부평가' 탭에 실제 점수가 표시됩니다")
 else:
-    from agent_evaluator import PerformanceMonitor
     monitor = PerformanceMonitor(
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
@@ -144,7 +143,7 @@ for task_type, question, ground_truth, response, context in TRACING_CASES:
         use_korean_tokenizer=True,
     )
 
-    if EVAL_AVAILABLE:
+    if EVAL_AVAILABLE and isinstance(monitor, HybridPerformanceMonitor):
         # HybridPerformanceMonitor: input_text/output_text/retrieved_context 전달 → 자동 평가
         monitor.record_task(
             result,
@@ -213,7 +212,7 @@ try:
     )
 
     high_value = []
-    tasks_list = monitor.extended_tasks if hasattr(monitor, "extended_tasks") else getattr(monitor, "tasks", [])
+    tasks_list = monitor.extended_tasks if isinstance(monitor, HybridPerformanceMonitor) else getattr(monitor, "tasks", [])
     for t in tasks_list:
         score = getattr(t, "accuracy_score", 0)
         if score >= 0.6:
@@ -464,7 +463,7 @@ if not EVAL_AVAILABLE:
     except Exception as e:
         print(f"  데모 데이터 주입 실패: {e}")
 
-else:
+elif isinstance(monitor, HybridPerformanceMonitor):
     # HybridPerformanceMonitor 사용 시 — 실제 지표 요약 출력
     print("\n=== HybridPerformanceMonitor 외부평가 결과 ===")
     try:
