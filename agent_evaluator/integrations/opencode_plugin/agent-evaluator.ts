@@ -52,7 +52,8 @@
 
 import type { Event } from "@opencode-ai/sdk"
 import type { Plugin, PluginInput } from "@opencode-ai/plugin"
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
+import { spawn, type ChildProcessByStdio } from "node:child_process"
+import type { Writable, Readable } from "node:stream"
 import * as readline from "node:readline"
 
 // ── 프로젝트별 설정 ──────────────────────────────────────────────────────────
@@ -202,7 +203,9 @@ function recordSessionReport(
 /** 세션 하나당 Python 브리지 서브프로세스 하나 — LiveGuardrail의 "세션 스코프
  * 인스턴스, 락 없음" 설계(SPEC-019 REQ-7)와 1:1 대응시킨다. */
 class GuardrailSession {
-  private readonly proc: ChildProcessWithoutNullStreams
+  // stdio: ["pipe", "pipe", "inherit"] — stderr는 부모로 상속되어 파이프되지 않으므로
+  // stderr 스트림 타입은 null(ChildProcessWithoutNullStreams가 아님).
+  private readonly proc: ChildProcessByStdio<Writable, Readable, null>
   private readonly pending: Array<(msg: any) => void> = []
   private initPromise: Promise<void>
   // SPEC-028 REQ-2: 세션 생성 시각 — session.idle 시점에 경과 시간을 계산하는 데 쓴다.

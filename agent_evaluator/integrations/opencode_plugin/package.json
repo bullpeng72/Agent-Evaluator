@@ -5,6 +5,9 @@
   "description": "SPEC-019 prototype: OpenCode plugin wiring Agent-Evaluator's LiveGuardrail (Gate B/E) into tool.execute.before/after hooks.",
   "type": "module",
   "devDependencies": {
-    "@opencode-ai/plugin": "*"
+    "@opencode-ai/plugin": "*",
+    "@opencode-ai/sdk": "*",
+    "@types/node": "^22",
+    "typescript": "^5"
   }
 }
