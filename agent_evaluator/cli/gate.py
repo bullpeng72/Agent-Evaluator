@@ -17,6 +17,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -301,8 +302,8 @@ def _load_baseline(path: Path) -> dict[str, Any] | None:
 
 def _save_baseline(
     path: Path,
-    metrics: dict[str, float | None],
-    harness_scores: dict[str, float | None] | None = None,
+    metrics: Mapping[str, float | None],
+    harness_scores: Mapping[str, float | None] | None = None,
 ) -> None:
     """현재 메트릭을 기준선 파일로 저장한다.
 
@@ -343,7 +344,7 @@ _GATE_DEFS: list[tuple[str, str, str, str, str]] = [
 
 
 def _check_gates(
-    metrics: dict[str, float | None],
+    metrics: Mapping[str, float | None],
     args: argparse.Namespace,
 ) -> list[dict[str, Any]]:
     """각 지표별 게이팅 결과를 반환한다.
@@ -407,7 +408,7 @@ def _check_gates(
 
 
 def _check_regression(
-    metrics: dict[str, float | None],
+    metrics: Mapping[str, float | None],
     baseline: dict[str, Any],
     tolerance_pct: float,
 ) -> list[dict[str, Any]]:

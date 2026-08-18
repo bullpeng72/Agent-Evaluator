@@ -441,7 +441,7 @@ class TestFmtFunctions:
 # ===========================================================================
 
 class TestPrintTable:
-    def _make_gate_result(self, active, passed, current=90.0, threshold=80.0,
+    def _make_gate_result(self, active, passed, current: float | None = 90.0, threshold=80.0,
                           direction="min", unit="%"):
         return {
             "name": "tcr",
