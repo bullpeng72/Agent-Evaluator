@@ -39,6 +39,7 @@ try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
 except ImportError:
+    OpenAI = None  # type: ignore[assignment,misc]
     OPENAI_AVAILABLE = False
 
 # 기타 의존성
@@ -249,6 +250,7 @@ class KoreanQAGenerator:
         """
         if not OPENAI_AVAILABLE:
             raise ImportError("OpenAI library required: pip install openai")
+        assert OpenAI is not None  # OPENAI_AVAILABLE=True면 위 import가 이미 성공한 상태
 
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -290,7 +292,7 @@ class KoreanQAGenerator:
                 max_tokens=2000
             )
 
-            qa_pairs_text = response.choices[0].message.content
+            qa_pairs_text = response.choices[0].message.content or ""
             qa_pairs = self._parse_qa_pairs(qa_pairs_text, chunk)
 
             return qa_pairs
@@ -491,17 +493,17 @@ class GoldenDatasetManager:
 
     def load_dataset(self, filepath: str) -> GoldenDataset:
         """Dataset 로드"""
-        filepath = Path(filepath)
+        filepath_p = Path(filepath)
 
-        if not filepath.exists():
-            raise FileNotFoundError(f"File not found: {filepath}")
+        if not filepath_p.exists():
+            raise FileNotFoundError(f"File not found: {filepath_p}")
 
-        if filepath.suffix == ".json":
-            return self._load_from_json(filepath)
-        elif filepath.suffix == ".csv":
-            return self._load_from_csv(filepath)
+        if filepath_p.suffix == ".json":
+            return self._load_from_json(filepath_p)
+        elif filepath_p.suffix == ".csv":
+            return self._load_from_csv(filepath_p)
         else:
-            raise ValueError(f"Unsupported format: {filepath.suffix}")
+            raise ValueError(f"Unsupported format: {filepath_p.suffix}")
 
     def _load_from_json(self, filepath: Path) -> GoldenDataset:
         """JSON에서 로드"""
