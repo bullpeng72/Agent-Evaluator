@@ -12,6 +12,7 @@ class TestLineageAlwaysPresent:
     def test_lineage_present_even_with_no_tasks(self):
         m = PerformanceMonitor()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         lineage = report.extra_metrics["lineage"]
         assert lineage["sdk_version"] is not None
         assert "git_commit" in lineage
@@ -24,6 +25,7 @@ class TestLineageAlwaysPresent:
         m = PerformanceMonitor()
         m.record_task(create_taskresult(task_id="t1", question="q", response="r", execution_time=1.0))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert "harness_groups" in report.extra_metrics
         assert "lineage" in report.extra_metrics
 
@@ -32,6 +34,7 @@ class TestPromptAndAgentVersionPassthrough:
     def test_custom_tags_stored_verbatim(self):
         m = PerformanceMonitor(prompt_version="v3.2", agent_version="agent-2026-07")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         lineage = report.extra_metrics["lineage"]
         assert lineage["prompt_version"] == "v3.2"
         assert lineage["agent_version"] == "agent-2026-07"
@@ -43,11 +46,13 @@ class TestIterationNotePassthrough:
     def test_note_stored_verbatim(self):
         m = PerformanceMonitor(iteration_note="플랜 단계를 먼저 세우게 지시문 추가")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert report.extra_metrics["lineage"]["iteration_note"] == "플랜 단계를 먼저 세우게 지시문 추가"
 
     def test_note_alongside_agent_version(self):
         m = PerformanceMonitor(agent_version="v2-cot", iteration_note="루프 탐지 threshold 완화")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         lineage = report.extra_metrics["lineage"]
         assert lineage["agent_version"] == "v2-cot"
         assert lineage["iteration_note"] == "루프 탐지 threshold 완화"
@@ -55,6 +60,7 @@ class TestIterationNotePassthrough:
     def test_default_is_none(self):
         m = PerformanceMonitor()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert report.extra_metrics["lineage"]["iteration_note"] is None
 
 
@@ -95,6 +101,7 @@ class TestJudgeModelSnapshot:
             llm_judge={"model": "claude-haiku-4-5", "model_snapshot": "claude-haiku-4-5-20251001", "scores": {}},
         ))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert report.extra_metrics["lineage"]["judge_model_snapshot"] == "claude-haiku-4-5-20251001"
 
     def test_snapshot_falls_back_to_configured_model_when_missing(self):
@@ -102,12 +109,14 @@ class TestJudgeModelSnapshot:
         m.llm_judge = MagicMock(model="claude-haiku-4-5")
         m.record_task(create_taskresult(task_id="t1", question="q", response="r", execution_time=1.0))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert report.extra_metrics["lineage"]["judge_model_snapshot"] == "claude-haiku-4-5"
 
     def test_snapshot_none_when_judge_disabled(self):
         m = PerformanceMonitor()
         m.record_task(create_taskresult(task_id="t1", question="q", response="r", execution_time=1.0))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         assert report.extra_metrics["lineage"]["judge_model_snapshot"] is None
 
 
