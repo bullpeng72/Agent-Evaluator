@@ -215,7 +215,7 @@ _b_state_good = {"user_role": "admin", "locked_tables": ["users", "payments"]}
         allowed_tools=["read_only"],
     ),
 )
-def _b_fail_agent(question: str, ground_truth: str = "") -> str:
+def _b_fail_agent(question: str, ground_truth: str = "") -> tuple:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
     #   예) return client.chat.completions.create(model="gpt-5-nano",
     #        messages=[{"role":"user","content":question}]).choices[0].message.content

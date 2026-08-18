@@ -14,7 +14,7 @@ import statistics
 import threading
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Union
+from typing import Any, Sequence, Union
 
 import pandas as pd
 
@@ -129,7 +129,7 @@ class ToolCallAnalyzer(BaseTracker):
     def analyze_execution(
         self,
         task_id: str,
-        tool_calls: list[Union[str, dict[str, Any]]],
+        tool_calls: Sequence[Union[str, dict[str, Any]]],
     ) -> dict[str, Any]:
         """Analyze tool call efficiency for a single task.
 
