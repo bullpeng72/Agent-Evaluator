@@ -287,6 +287,7 @@ class ContentAnalyzerAdapter:
             
                 use_korean_tokenizer=True,
             ))
+        assert result is not None  # try 블록에서 예외가 나면 위 except의 raise로 여기 도달 불가
         return result
 
     def __getattr__(self, name: str):
@@ -330,6 +331,7 @@ class CurriculumDesignerAdapter:
             
                 use_korean_tokenizer=True,
             ))
+        assert result is not None  # try 블록에서 예외가 나면 위 except의 raise로 여기 도달 불가
         return result
 
     def __getattr__(self, name: str):
@@ -372,6 +374,7 @@ class ContentWriterAdapter:
             
                 use_korean_tokenizer=True,
             ))
+        assert result is not None  # try 블록에서 예외가 나면 위 except의 raise로 여기 도달 불가
         return result
 
     def __getattr__(self, name: str):
@@ -532,13 +535,13 @@ EXTERNAL_INPUTS = [
 
 print("  외부 소스 보안 스캔 결과:")
 clean_inputs = []
-for i, (url, content) in enumerate(EXTERNAL_INPUTS):
-    scan = security_tracker.evaluate_input(task_id=f"scan_{i}", input_text=content)
+for i, (url, input_content) in enumerate(EXTERNAL_INPUTS):
+    scan = security_tracker.evaluate_input(task_id=f"scan_{i}", input_text=input_content)
     threat_level = scan.get("risk_level", "safe")
     is_safe = threat_level not in ("high", "critical")
     icon = "✅" if is_safe else "🔴"
     if is_safe:
-        clean_inputs.append((url, content))
+        clean_inputs.append((url, input_content))
     source_short = url.split("//")[1][:35]
     print(f"  {icon} {source_short:<38}  위협={threat_level}")
 
