@@ -161,7 +161,7 @@ class TestCheckFeedbackNegativity:
         """feedback_tracker 자체가 없는(구버전 monitor 등) 경우에도 크래시하지 않는다."""
         detector = AnomalyDetector()
         monitor = SimpleNamespace(feedback_tracker=None)
-        assert detector._check_feedback_negativity(monitor) == []
+        assert detector._check_feedback_negativity(monitor) == []  # type: ignore[arg-type] — only monitor.feedback_tracker is read; SimpleNamespace simulates a monitor without one
 
     def test_scan_includes_feedback_negativity(self):
         """scan()의 6개 체크 중 하나로 정상 등록되어 있는지 확인."""
