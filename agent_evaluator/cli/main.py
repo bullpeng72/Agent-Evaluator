@@ -17,9 +17,10 @@ import re
 import sys
 from pathlib import Path
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 try:
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
     try:
@@ -136,7 +137,7 @@ KEY_DEFS: list[dict] = [
 # 헬퍼: 마스킹
 # ---------------------------------------------------------------------------
 
-def _mask(value: str) -> str:
+def _mask(value: str | None) -> str:
     """API 키를 앞 8자 + ... 형태로 마스킹한다."""
     if not value:
         return ""
