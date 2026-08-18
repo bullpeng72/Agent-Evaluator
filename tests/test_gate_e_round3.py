@@ -13,6 +13,8 @@ Fix 8  — Gate E details: unauthorized_calls_count / tool_authorization_rate �
 Fix 9  — eval_threat_response: Critical 위협에 severity-aware 점수
 Fix 10 — SecurityConfig.sample_rate: 기존 트래커 인스턴스에 직접 전파
 """
+from __future__ import annotations
+
 import pytest
 
 from agent_evaluator.core.trackers.security import (
@@ -295,6 +297,7 @@ class TestFix8GateEDetailsToolAuth:
         )
         m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         details = hg["E"]["details"]
         assert "unauthorized_calls_count" in details, \
@@ -329,6 +332,7 @@ class TestFix9SeverityAwareThreatResponse:
         """Critical 위협 + abort 응답 → 1.0 만점 유지"""
         security_extra = {"privilege_escalation": {"escalation_detected": True}}
         result = eval_threat_response("request blocked", [], security_extra, self._Cfg())
+        assert result is not None
         assert result["response_score"] == pytest.approx(1.0)
 
     def test_high_threat_escalation_penalized(self):
@@ -359,6 +363,7 @@ class TestFix10SampleRatePropagation:
         from agent_evaluator.decorators import SecurityConfig
 
         m = PerformanceMonitor(enable_security_metrics=True)
+        assert m.input_sanitizer is not None
         # 초기 sample_rate 확인 (기본 1.0)
         assert m.input_sanitizer._sample_rate == pytest.approx(1.0)
 
@@ -368,6 +373,7 @@ class TestFix10SampleRatePropagation:
         @agent_eval(m, task_type="qa", security=security_config)
         def agent(question, ground_truth=""):
             # 데코레이터 내부에서 sample_rate가 트래커에 적용되어 있어야 함
+            assert m.input_sanitizer is not None
             called.append(m.input_sanitizer._sample_rate)
             return "answer"
 
@@ -387,7 +393,7 @@ class TestGateEFormulaConsistency:
     """보고서에 표시된 수식 ( v1 + v2 + ... ) ÷ N 의 결과가
     _compute_harness_groups 가 반환하는 score와 일치해야 함."""
 
-    def _run_with_extra(self, extra_data: dict):
+    def _run_with_extra(self, extra_data: list[dict]):
         from agent_evaluator import PerformanceMonitor, create_taskresult
         m = PerformanceMonitor(enable_security_metrics=True)
         for i, ex in enumerate(extra_data):
@@ -401,6 +407,7 @@ class TestGateEFormulaConsistency:
     def test_threat_free_rate_always_in_details(self):
         """threat_free_rate 가 항상 Gate E details에 포함되어야 함"""
         report = self._run_with_extra([{}])
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["E"]["details"]
         assert "threat_free_rate" in details, \
             "threat_free_rate 가 Gate E details에 없음 — 수식 표시에 사용됨"
@@ -410,6 +417,7 @@ class TestGateEFormulaConsistency:
         report = self._run_with_extra([
             {"input_sanitization": {"threat_count": 0, "sanitization_needed": False}},
         ])
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["E"]["details"]
         assert details["threat_free_rate"] == pytest.approx(1.0), \
             "위협 없을 때 threat_free_rate=1.0 이어야 함"
@@ -419,6 +427,7 @@ class TestGateEFormulaConsistency:
         report = self._run_with_extra([
             {"output_leakage": {"leakage_count": 0, "contains_email": False}},
         ])
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["E"]["details"]
         assert "leakage_defense_rate" in details, \
             "output_leakage 데이터가 있으면 leakage_defense_rate 가 있어야 함"
@@ -428,6 +437,7 @@ class TestGateEFormulaConsistency:
         report = self._run_with_extra([
             {"input_sanitization": {"threat_count": 0, "sanitization_needed": False}},
         ])
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["E"]["details"]
         assert "injection_defense_rate" in details, \
             "input_sanitization 데이터가 있으면 injection_defense_rate 가 있어야 함"
@@ -440,6 +450,7 @@ class TestGateEFormulaConsistency:
             {"input_sanitization": {"threat_count": 0, "sanitization_needed": False}},
             {"output_leakage": {"leakage_count": 0}},
         ])
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         gate_e = hg["E"]
         actual_score = gate_e.get("score")
