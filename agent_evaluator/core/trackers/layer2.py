@@ -209,7 +209,7 @@ class ToolCallAnalyzer(BaseTracker):
             self._all_tool_names.update(tool_names)
         return metrics
 
-    def _count_redundant_calls(self, tool_calls: list) -> int:
+    def _count_redundant_calls(self, tool_calls: Sequence[Union[str, dict[str, Any]]]) -> int:
         """Count redundant tool calls (supports both dict and string formats)"""
         seen = set()
         redundant = 0
@@ -384,7 +384,7 @@ class RetryCorrectionTracker(BaseTracker):
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._attempts = list(value)
-            self._task_ids = {a.get("task_id") for a in value if a.get("task_id") is not None}
+            self._task_ids = {tid for a in value if (tid := a.get("task_id")) is not None}
 
     def __repr__(self) -> str:
         with self._lock:
@@ -516,7 +516,7 @@ class RetryCorrectionTracker(BaseTracker):
                 key=lambda x: x[1],
                 reverse=True
             )),
-            "most_common": max(reason_counts, key=reason_counts.get) if reason_counts else None
+            "most_common": max(reason_counts, key=lambda r: reason_counts[r]) if reason_counts else None
         }
 
 
@@ -570,7 +570,7 @@ class ToolSelectionTracker(BaseTracker):
         """Restore internal state (used by load_from_file)."""
         with self._lock:
             self._selections = list(value)
-            self._task_ids = {s.get("task_id") for s in value if s.get("task_id") is not None}
+            self._task_ids = {tid for s in value if (tid := s.get("task_id")) is not None}
 
     def __repr__(self) -> str:
         with self._lock:
