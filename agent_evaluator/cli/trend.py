@@ -16,6 +16,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Sequence
 
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.gate import _load_metrics
@@ -288,7 +289,7 @@ class RunTrendAnalyzer:
 # 선형 회귀 (slope 계산)
 # ---------------------------------------------------------------------------
 
-def _slope(xs: list[float], ys: list[float]) -> float:
+def _slope(xs: Sequence[float], ys: Sequence[float]) -> float:
     """단순 선형 회귀 기울기(a)를 반환한다 (y = ax + b)."""
     n = len(xs)
     if n < 2:
