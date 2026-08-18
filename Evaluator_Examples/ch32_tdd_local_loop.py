@@ -108,7 +108,7 @@ def summarize_guardrail_result(session_id: str, extra: dict) -> str:
 
 
 @tool_guard(audit_blocked=True)
-def edit(file: str, content: str = None) -> str:
+def edit(file: str, content: Optional[str] = None) -> str:
     # TODO(현업 적용): 실제 파일 편집 함수로 교체하세요.
     return f"편집됨: {file}"
 

@@ -44,6 +44,7 @@ import random
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from agent_evaluator import (
     PerformanceMonitor, create_taskresult, setup_otel,
@@ -263,7 +264,7 @@ try:
         return_format="list",
         alert_rules=builder_rules,
     )
-    def builder_batch(questions: list, ground_truths: list = None) -> list:
+    def builder_batch(questions: list, ground_truths: Optional[list] = None) -> list:
         return ["잘 모르겠습니다" for _ in questions]   # 의도적 낮은 정확도
 
     builder_batch(

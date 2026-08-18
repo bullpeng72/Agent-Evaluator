@@ -31,6 +31,7 @@ LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크의 응답에서
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Optional
 
 from agent_evaluator import PerformanceMonitor, setup_otel
 from agent_evaluator import agent_eval, batch_eval, EvalMetadata
@@ -349,11 +350,11 @@ BENCHMARK_QA = [
 ]
 
 @batch_eval(monitor, task_type="qa", task_id_prefix="bench_lc", return_format="list")
-def lc_batch(questions: list, ground_truths: list = None) -> list:
+def lc_batch(questions: list, ground_truths: Optional[list] = None) -> list:
     return [f"[LangChain] {q}에 대한 답변" for q in questions]
 
 @batch_eval(monitor, task_type="qa", task_id_prefix="bench_crew", return_format="list")
-def crew_batch(questions: list, ground_truths: list = None) -> list:
+def crew_batch(questions: list, ground_truths: Optional[list] = None) -> list:
     return [f"[CrewAI] {q}에 대한 답변" for q in questions]
 
 lc_results   = lc_batch(

@@ -43,6 +43,7 @@ import os
 import socket
 import time
 from pathlib import Path
+from typing import Optional
 
 from agent_evaluator import load_env
 
@@ -322,7 +323,7 @@ if PHOENIX_ONLINE:
     try:
         import requests
 
-        def gql(query: str, variables: dict = None) -> dict:
+        def gql(query: str, variables: Optional[dict] = None) -> dict:
             resp = requests.post(
                 f"{_PHOENIX_URL}/graphql",
                 json={"query": query, "variables": variables or {}},

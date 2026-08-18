@@ -47,6 +47,7 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
 
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 # 💡 import 간략화 팁: `import agent_evaluator as ae` 한 줄로
 #    PerformanceMonitor · QuickEval · agent_eval · batch_eval · RetryConfig 등
@@ -256,7 +257,7 @@ BATCH_DATA = [
     flush_every=5,
     on_batch_complete=lambda r: print(f"  on_batch_complete: {len(r)}건"),
 )
-def qa_batch(questions: list, ground_truths: list = None) -> list:
+def qa_batch(questions: list, ground_truths: Optional[list] = None) -> list:
     return [f"{q}에 대한 배치 응답" for q in questions]
 
 df = qa_batch(
@@ -274,7 +275,7 @@ if hasattr(df, "shape"):
     concurrency=3,
     on_item_error=lambda i, q, e: print(f"  항목 {i} 오류: {type(e).__name__}"),
 )
-def tool_batch(questions: list, ground_truths: list = None) -> list:
+def tool_batch(questions: list, ground_truths: Optional[list] = None) -> list:
     return [(f"도구 실행: {questions[0]}", EvalMetadata(
         tool_calls=[{"tool_name": "web_search", "success": True, "duration": 0.3}],
     ))]
