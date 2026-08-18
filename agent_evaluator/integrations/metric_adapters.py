@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 # DeepEval / Ragas 의 비동기 이벤트 루프 정리 관련
 # DeprecationWarning 만 타겟 억제 (전역 억제 금지 — CLAUDE.md 참조)
@@ -65,7 +65,7 @@ class MetricAdapter(ABC):
     """Abstract base class for metric provider adapters"""
 
     @abstractmethod
-    def evaluate(self, context: EvaluationContext) -> dict[str, Any]:
+    def evaluate(self, context: EvaluationContext) -> dict[str, Any] | None:
         """
         Evaluate using the provider's metrics
 
@@ -73,7 +73,7 @@ class MetricAdapter(ABC):
             context: Evaluation context with input/output/ground truth
 
         Returns:
-            Dictionary of metric name -> value pairs
+            Dictionary of metric name -> value pairs, or None if the adapter is unavailable
         """
         pass
 
@@ -130,7 +130,10 @@ class DeepEvalAdapter(MetricAdapter):
                 HallucinationMetric,
                 ToxicityMetric,
             )
-            from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+            # LLMTestCaseParams is a deprecated alias (module __getattr__ shim) for
+            # SingleTurnParams — import the real name directly so static analysis
+            # resolves its members (INPUT/ACTUAL_OUTPUT/EXPECTED_OUTPUT/CONTEXT).
+            from deepeval.test_case import LLMTestCase, SingleTurnParams as LLMTestCaseParams
 
             self._available = True
             self.GEval = GEval
@@ -165,7 +168,7 @@ class DeepEvalAdapter(MetricAdapter):
                 )
                 return {}
 
-    def evaluate(self, context: EvaluationContext) -> dict[str, Any]:
+    def evaluate(self, context: EvaluationContext) -> dict[str, Any] | None:
         """Evaluate using DeepEval metrics.
 
         Each individual metric call is bounded by ``self.timeout`` seconds.
@@ -250,6 +253,7 @@ class DeepEvalAdapter(MetricAdapter):
             timed_out = self._run_with_timeout(metric.measure, test_case)
             if timed_out == {}:
                 return {}
+            assert metric.score is not None  # measure() succeeded — score is always set
 
             return {
                 'g_eval_score': metric.score,
@@ -276,6 +280,7 @@ class DeepEvalAdapter(MetricAdapter):
             )
             if self._run_with_timeout(metric.measure, test_case) == {}:
                 return {}
+            assert metric.score is not None  # measure() succeeded — score is always set
 
             return {
                 'hallucination_score': metric.score,
@@ -301,6 +306,7 @@ class DeepEvalAdapter(MetricAdapter):
             )
             if self._run_with_timeout(metric.measure, test_case) == {}:
                 return {}
+            assert metric.score is not None  # measure() succeeded — score is always set
 
             return {
                 'toxicity_score': metric.score,
@@ -326,6 +332,7 @@ class DeepEvalAdapter(MetricAdapter):
             )
             if self._run_with_timeout(metric.measure, test_case) == {}:
                 return {}
+            assert metric.score is not None  # measure() succeeded — score is always set
 
             return {
                 'bias_score': metric.score,
@@ -351,6 +358,7 @@ class DeepEvalAdapter(MetricAdapter):
             )
             if self._run_with_timeout(metric.measure, test_case) == {}:
                 return {}
+            assert metric.score is not None  # measure() succeeded — score is always set
 
             return {
                 'answer_relevancy_score': metric.score,
@@ -426,7 +434,7 @@ class RagasAdapter(MetricAdapter):
                 llm_instance = ChatOpenAI(model=llm_model)
                 active_model = llm_model
             elif anthropic_key:
-                from langchain_anthropic import ChatAnthropic
+                from langchain_anthropic import ChatAnthropic  # type: ignore[import-not-found]
                 llm_instance = ChatAnthropic(
                     model="claude-3-haiku-20240307",
                     anthropic_api_key=anthropic_key,
@@ -508,7 +516,10 @@ class RagasAdapter(MetricAdapter):
                 context_recall = self.ContextRecall(llm=self.llm_wrapper)
                 metrics.append(context_recall)
 
-            eval_result = self.evaluate_fn(dataset, metrics=metrics)
+            # return_executor defaults to False and is never overridden here, so
+            # evaluate_fn() always returns EvaluationResult (supports __getitem__),
+            # never Executor — cast narrows the declared Union[EvaluationResult, Executor].
+            eval_result = cast(Any, self.evaluate_fn(dataset, metrics=metrics))
 
             # Extract scores — EvaluationResult[metric.name] returns a list (one value per sample)
             for metric_obj in metrics:
