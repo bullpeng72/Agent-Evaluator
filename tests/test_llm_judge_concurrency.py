@@ -379,6 +379,8 @@ class TestAsyncAgentEvalUsesAjudge(object):
 
         sync_task = sync_monitor.tasks[-1]
         async_task = async_monitor.tasks[-1]
+        assert sync_task.llm_judge is not None
+        assert async_task.llm_judge is not None
         assert sync_task.llm_judge["scores"] == async_task.llm_judge["scores"]
         assert sync_task.response == async_task.response == "Seoul"
 
@@ -456,6 +458,7 @@ class TestBatchEvalConcurrentJudge:
             judge_sample_rate=1.0,
             judge_model="claude-haiku-4-5-20251001",
         )
+        assert monitor.llm_judge is not None
         monitor.llm_judge.max_concurrent_judge_calls = 3
 
         @batch_eval(monitor, task_type="qa", concurrent_judge=True)
@@ -487,6 +490,7 @@ class TestBatchEvalConcurrentJudge:
             judge_sample_rate=1.0,
             judge_model="claude-haiku-4-5-20251001",
         )
+        assert monitor.llm_judge is not None
         monitor.llm_judge.max_concurrent_judge_calls = 3
 
         @batch_eval(monitor, task_type="qa", concurrent_judge=True)
