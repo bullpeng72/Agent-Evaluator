@@ -294,6 +294,7 @@ class ContentWriterAdapterDemo:
             
                 use_korean_tokenizer=True,
             ))
+        assert result is not None  # try 블록에서 예외가 나면 위 except의 raise로 여기 도달 불가
         return result   # 원본과 완전히 동일한 반환값
 
     def __getattr__(self, name: str):
