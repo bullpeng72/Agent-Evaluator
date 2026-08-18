@@ -1350,12 +1350,12 @@ class TestTransparencyManager:
             return None
 
         if output_path is None:
-            output_path = self.output_dir / f"{report_id}.xlsx"
+            output_file = self.output_dir / f"{report_id}.xlsx"
         else:
-            output_path = Path(output_path)
+            output_file = Path(output_path)
 
         # Create Excel writer
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             # Sheet 1: Summary
             summary_data = {
                 "Property": ["Report ID", "Task ID", "Task Type", "Success", "Generated At", "Data Quality Score"],
@@ -1439,7 +1439,7 @@ class TestTransparencyManager:
                     })
                 pd.DataFrame(comparison_data).to_excel(writer, sheet_name='Comparison', index=False)
 
-        return output_path
+        return output_file
 
     def export_report_to_markdown(self, report_id: str, output_path: str | None = None) -> Path | None:
         """
@@ -1457,9 +1457,9 @@ class TestTransparencyManager:
             return None
 
         if output_path is None:
-            output_path = self.output_dir / f"{report_id}.md"
+            output_file = self.output_dir / f"{report_id}.md"
         else:
-            output_path = Path(output_path)
+            output_file = Path(output_path)
 
         md_content = []
 
@@ -1527,10 +1527,10 @@ class TestTransparencyManager:
             md_content.append("")
 
         # Write to file
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(md_content))
 
-        return output_path
+        return output_file
 
     def clear_session(self):
         """
