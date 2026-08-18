@@ -18,6 +18,7 @@ Gate A Config 6종 전체 + FAIL 시나리오 2개를 실행해볼 수 있는 �
 """
 
 import json
+from pathlib import Path
 
 from agent_evaluator import (
     ContextRetentionConfig,
@@ -33,8 +34,11 @@ from agent_evaluator import (
 
 load_env()
 
+_PROJECT_ROOT = Path(__file__).parent.parent
+_OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
+
 # ── 공유 monitor ─────────────────────────────────────────────────────────────
-monitor = PerformanceMonitor(output_dir="results/", use_korean_tokenizer=True)
+monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 # =============================================================================
 # 섹션 1 — InstructionConfig: 응답 형식·필수 키워드·최소 길이 기준
@@ -188,7 +192,7 @@ def run_normal_scenarios() -> None:
 # 섹션 7 — FAIL 시나리오 6: InstructionConfig + GoalAlignmentConfig 동시 위반
 # =============================================================================
 
-monitor_fail = PerformanceMonitor(output_dir="results/", use_korean_tokenizer=True)
+monitor_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
 
 
 @agent_eval(
