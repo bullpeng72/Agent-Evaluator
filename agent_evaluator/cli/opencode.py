@@ -13,7 +13,7 @@ agent_evaluator.gates.live_guardrail.LiveGuardrail이며, 이 명령어는 그 �
 from __future__ import annotations
 
 import argparse
-import subprocess
+import subprocess as subprocess  # re-export: tests monkeypatch opencode.subprocess.run directly
 import sys
 from pathlib import Path
 
