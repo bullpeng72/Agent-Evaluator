@@ -218,6 +218,7 @@ class TestHarnessGroupsValues:
             )
             m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         group_a = report.extra_metrics["harness_groups"]["A"]
         assert group_a["score"] >= 0.5
 
@@ -233,6 +234,7 @@ class TestHarnessGroupsValues:
         )
         m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         group_e = report.extra_metrics["harness_groups"]["E"]
         # enable_security_metrics=False + 보안 Harness Config 미설정 → 측정값 없으므로 None
         assert group_e["score"] is None
@@ -253,6 +255,7 @@ class TestHarnessGroupsValues:
         # eval_ctx와 tool_calls 없으므로 loop_detection은 detected=False
         agent("question")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         group_b = report.extra_metrics["harness_groups"]["B"]
         assert "score" in group_b
         assert 0.0 <= group_b["score"] <= 1.0
@@ -271,6 +274,7 @@ class TestHarnessGroupsValues:
 
         agent("What is the capital?")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         assert "A" in hg
         details = hg["A"]["details"]
@@ -285,6 +289,7 @@ class TestHarnessGroupsValues:
         )
         m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         overall = hg["overall"]["score"]
         scored = [g["score"] for k, g in hg.items() if k != "overall" and g.get("score") is not None]
@@ -346,6 +351,7 @@ class TestComputeHarnessGroupsDirect:
         )
         m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics.get("harness_groups", {})
         # 최소한 일부 그룹이 있어야 함
         assert len(hg) > 0
@@ -387,6 +393,7 @@ class TestComputeHarnessGroupsDirect:
             )
             m.record_task(t)
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         if "D" in hg and hg["D"]["score"] is not None:
             assert hg["D"]["score"] < 0.8  # 높은 레이턴시 → 낮은 score
@@ -433,6 +440,7 @@ class TestHarnessGroupsRegression:
 
         agent("question")
         report = m.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         group_c_details = hg["C"]["details"]
         # avg_reproducibility가 None이 아니면 데이터 반영됨
