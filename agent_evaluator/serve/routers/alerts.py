@@ -186,7 +186,7 @@ def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:  # noqa: 
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
     # 피크 시간대
-    peak_hour = max(hourly, key=hourly.get) if hourly else 0
+    peak_hour = max(hourly, key=lambda h: hourly[h]) if hourly else 0
     top_rules = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
     return {
@@ -198,7 +198,7 @@ def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:  # noqa: 
         "rule_counts": rule_counts,
         "top_rules": [{"rule": r, "count": c} for r, c in top_rules],
         "peak_hour": peak_hour,
-        "peak_dow": max(dow, key=dow.get) if any(dow.values()) else None,
+        "peak_dow": max(dow, key=lambda k: dow[k]) if any(dow.values()) else None,
     }
 
 
