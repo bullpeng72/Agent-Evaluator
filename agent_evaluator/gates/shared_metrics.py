@@ -696,7 +696,7 @@ class GateDSharedAgg:
     애초부터 전체 이력을 반영해 왔다(수정 불필요, hall_rate와 동일한 사례).
     """
 
-    _RESERVOIR_SIZE = 2000
+    _RESERVOIR_SIZE: int = 2000
 
     def __init__(self) -> None:
         # efficiency (정확)
@@ -850,7 +850,7 @@ class GateCRetryConsistencyAgg:
     보너스/페널티를 적용한다).
     """
 
-    _MAX_PREFIXES = 5000
+    _MAX_PREFIXES: int = 5000
 
     def __init__(self) -> None:
         self._prefixes: OrderedDict[str, dict[str, Any]] = OrderedDict()

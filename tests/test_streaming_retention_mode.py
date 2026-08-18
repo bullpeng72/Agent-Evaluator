@@ -90,7 +90,7 @@ class TestWindowSizeValidation:
 
     def test_invalid_retention_mode_raises(self):
         with pytest.raises(ValueError):
-            PerformanceMonitor(retention_mode="bogus")
+            PerformanceMonitor(retention_mode="bogus")  # type: ignore[arg-type] — intentionally invalid, testing the runtime guard
 
     def test_positive_window_size_accepted(self):
         m = PerformanceMonitor(retention_mode="windowed", window_size=1)
