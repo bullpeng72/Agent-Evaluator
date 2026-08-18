@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from agent_evaluator.exceptions import ValidationError
 
@@ -44,7 +44,7 @@ class TaskResult:
     completion_score: float
     accuracy_score: float
     execution_time: float
-    tokens_used: dict[str, int]
+    tokens_used: dict[str, int | str]
     tool_calls: list[dict[str, Any]]
     attempts: int
     errors: list[str]
@@ -383,7 +383,7 @@ class EvaluationReport:
             "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
             "avg_latency_s": latency_data.get("mean", 0.0),
             "period": self.period,
-            "timestamp": self.timestamp.isoformat() if hasattr(self.timestamp, "isoformat") else str(self.timestamp),
+            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else str(self.timestamp),
         }
 
 
@@ -508,7 +508,7 @@ class _TaskContext:
             self.success = self.response is not None and bool(str(self.response).strip())
 
         completion = 1.0 if self.success else 0.0
-        tokens = self.tokens_used or {"input": 0, "output": 0, "total": 0, "model": "unknown"}
+        tokens = cast("dict[str, int | str]", self.tokens_used) or {"input": 0, "output": 0, "total": 0, "model": "unknown"}
 
         task_result = TaskResult(
             task_id=self._task_id,

@@ -16,7 +16,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -679,7 +679,7 @@ class KoreanRAGEvaluator:
             completion_score=1.0 if result.error is None else 0.0,
             accuracy_score=result.answer_similarity or 0.0,
             execution_time=result.evaluation_time,
-            tokens_used=result.tokens_used or {"input": 0, "output": 0, "total": 0},
+            tokens_used=cast("dict[str, int | str]", result.tokens_used) or {"input": 0, "output": 0, "total": 0},
             tool_calls=[],
             attempts=1,
             errors=[result.error] if result.error else [],
