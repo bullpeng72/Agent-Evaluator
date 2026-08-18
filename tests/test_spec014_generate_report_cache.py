@@ -158,6 +158,7 @@ class TestBugE6PostRecordInvalidation:
         agent("' OR '1'='1")
 
         report = monitor.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics["harness_groups"]
         # Gate E가 위협을 인지했다면 threat_count > 0 또는 cvss 관련 값이 채워져야 한다.
         assert hg["E"]["details"]["threat_count"] >= 1
@@ -165,6 +166,7 @@ class TestBugE6PostRecordInvalidation:
         # 캐시가 이 결과를 안정적으로 재사용하는지도 함께 확인(동일 객체 재반환).
         report2 = monitor.generate_report()
         assert report2 is report
+        assert report2.extra_metrics is not None
         assert report2.extra_metrics["harness_groups"]["E"]["details"]["threat_count"] >= 1
 
 
