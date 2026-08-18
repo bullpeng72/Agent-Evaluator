@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.10-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.11-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1115,7 +1115,7 @@ from agent_evaluator.decorators import (
 
 ## Example Guide
 
-Consists of 33 files based on book chapters (Ch28's AOO stack install walkthrough has no standalone script; Ch33 instead ships `scripts/generate_pr_summary.py`; Ch34 ships two files — the SDK-native capstone plus a LangGraph extension). Each file is independently runnable.
+Consists of 27 files based on book chapters. Each file is independently runnable.
 
 ### Example Dependencies
 
@@ -1148,14 +1148,6 @@ Consists of 33 files based on book chapters (Ch28's AOO stack install walkthroug
 | `ch25_quickeval_entry.py` | Ch25 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
 | `ch26_harness_full.py` | Ch26 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
 | `ch27_cicd_weekly.py` | Ch27 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
-| `ch29_spec_driven.py` | Ch29 | Spec-Driven development — failure mode catalog → Gate mapping → golden set → session goal template | — |
-| `ch30_live_guardrail.py` | Ch30 | LiveGuardrail core API — SQLite batch report + `search_violations()` + blocked-attempt audit | — |
-| `ch31_team_concurrency.py` | Ch31 | Team concurrency risk control — claims log, `TeamConcurrencyConfig`, `BranchGuardConfig` | — |
-| `ch32_tdd_local_loop.py` | Ch32 | TDD-AI local dev loop — self-correction, batch Gate A/D/G integration ([AOO stack](Docs/AOO_STACK.md)) | — |
-| `ch34_capstone.py` | Ch34 | 3-person team capstone — Spec split → claims → LiveGuardrail → batch Gate A/B → PR summary → CI claim audit | — |
-| `ch34_langgraph_capstone.py` | Ch34 (ext.) | External-framework capstone — applies the full Ch28–34 pipeline to a real LangGraph agent (`agent-evaluator[langchain]`) instead of the SDK-only scenario | `agent-evaluator[langchain]` |
-
-Ch33 (PR verification & governance) has no `Evaluator_Examples` file of its own — it ships `scripts/generate_pr_summary.py`, a standalone CLI reused by `ch34_capstone.py`'s Phase 5.
 
 ### Running Examples
 
@@ -1163,7 +1155,7 @@ Each file is standalone — see the table above for what each chapter covers.
 
 ```bash
 cd Evaluator_Examples
-python ch01_first_eval.py      # ... through ch34_capstone.py
+python ch01_first_eval.py      # ... through ch27_cicd_weekly.py
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 agent-eval monitor             # Start Phoenix server (http://localhost:6006)
@@ -1293,6 +1285,20 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v0.9.11 (2026-08-18) — Full-Codebase Pylance Type Audit + Several Real Bugs Fixed
+
+- 🧹 **Type audit**: swept nearly the entire codebase (trackers, gates, decorators, integrations, `serve/`, CLI, examples, and the OpenCode plugin's TypeScript) fixing dozens of Pylance false positives — `Optional` narrowing, `TaskResult.task_type` Enum-vs-raw-string mismatches, possibly-unbound imports, dict-key typing. No intended behavior changes from these.
+- 🐛 **Real bugs found and fixed along the way**:
+  - `PerformanceMonitor`: `session_tcr` was multiplied by 100 while still a `dict`, not the resolved numeric value.
+  - `@agent_eval`/`@batch_eval` decorators: two cases where the monitor list wasn't iterated correctly.
+  - `dspy_integration`'s `score_fn`: `prediction` referenced before assignment on the `example_factory` path.
+  - Gate F `eval_role_adherence`: the `tool_calls` parameter's declared type didn't match what the function actually accepted.
+  - `serve/loader`: a duplicate `has_llm_judge` declaration and a narrowing loss on `tokens_used`.
+  - `serve/webhook`: a missing explicit `urllib.error` import.
+  - `serve/data`: an OTEL-detection import error plus a filter crash.
+  - Several `agent_evaluator/__init__.py` `__all__` omissions restored — a handful of documented public symbols weren't actually importable via `from agent_evaluator import ...`.
+- 📝 **Examples**: fixes in `ch11_eval_data.py`, `ch26_harness_full.py`, `ch27_cicd_weekly.py`; a silently-unloaded `.env` key (masking a feature as skipped) and an infinite-wait risk in `ch19_phoenix.py` fixed.
 
 ### v0.9.10 (2026-08-05) — README/CLAUDE.md Drift Fixes · trend Duplicate Hint Fix
 
