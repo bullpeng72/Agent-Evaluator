@@ -92,6 +92,7 @@ class TestGateGMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["G"]
 
         tasks = list(m.tcr_tracker.tasks)
@@ -104,6 +105,7 @@ class TestGateGMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         g = report.extra_metrics["harness_groups"]["G"]
         details = g["details"]
 
@@ -120,6 +122,7 @@ class TestGateGMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["G"]["details"]
         assert set(details.keys()) == {
             "tool_coverage", "hallucination_rate", "avg_observability_score",
@@ -132,6 +135,7 @@ class TestGateGMigrationEquivalence:
         (ToolCallAnalyzer._executions가 비어 total_calls=0 → None, 회귀 없음)."""
         m = _build_monitor_with_fixtures()  # 이 픽스처들은 tool_calls를 포함하지 않음
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["G"]["details"]
         assert details["tool_coverage"] is None
 
@@ -178,6 +182,7 @@ class TestToolCoverageAttributeFix:
         m.record_task(_task("tc3", tool_calls=[{"name": "search", "success": False}]))
 
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["G"]["details"]
 
         expected = m.tool_analyzer.get_efficiency_stats()["success_rate"] / 100.0
@@ -194,6 +199,7 @@ class TestToolCoverageAttributeFix:
         m.record_task(_task("tc2", tool_calls=[{"name": "search", "success": False}]))
 
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["G"]
 
         tasks = list(m.tcr_tracker.tasks)
