@@ -265,7 +265,7 @@ df = qa_batch(
     ground_truths=[gt for _, gt in BATCH_DATA],
 )
 if hasattr(df, "shape"):
-    print(f"  DataFrame: {df.shape}  컬럼: {list(df.columns[:5])}")
+    print(f"  DataFrame: {getattr(df, 'shape')}  컬럼: {list(getattr(df, 'columns')[:5])}")
 
 # 병렬 배치 (concurrency=3)
 @batch_eval(
