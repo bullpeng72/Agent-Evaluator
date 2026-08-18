@@ -8,6 +8,7 @@ server-side proxy route receives the request and performs the outbound POST.
 from __future__ import annotations
 
 import json
+import urllib.error
 import urllib.request
 from typing import Any, Dict
 
