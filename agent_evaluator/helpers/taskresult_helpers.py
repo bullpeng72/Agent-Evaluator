@@ -23,7 +23,7 @@ import dataclasses
 import logging
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from agent_evaluator.utils.text_similarity import lcs_ratio as _lcs_ratio_util
 
@@ -616,9 +616,11 @@ def create_taskresult_from_execution(
             "output": _output_tokens,
             "total": _input_tokens + _output_tokens,
         }
-    # model_name 지정 시 tokens dict에 포함 — Phoenix Top models 차트에서 태스크별 모델 구분
+    # model_name 지정 시 tokens dict에 포함 — Phoenix Top models 차트에서 태스크별 모델 구분.
+    # tokens는 위 세 분기 모두 dict[str, int]를 반환하지만, TaskResult.tokens_used는
+    # "model" 문자열 키가 섞여도 되는 관례(base.py/monitor.py와 동일)라 여기서만 캐스팅.
     if model_name:
-        tokens["model"] = model_name
+        cast(dict, tokens)["model"] = model_name
 
     # 2. tool_calls 동적 추출 (completion_score 계산 전에 추출해야 task_type 인식 가능)
     tool_calls = []
