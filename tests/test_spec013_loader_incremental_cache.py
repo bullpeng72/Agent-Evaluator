@@ -130,7 +130,7 @@ class TestServerAndRouterIntegration:
         with mock.patch.object(
             server_module, "load_results", wraps=load_results
         ) as spy:
-            server_module.reload_results(app)
+            server_module.reload_results(app)  # type: ignore[arg-type] — reload_results only touches app.state.*; SimpleNamespace avoids constructing a real FastAPI app
             spy.assert_called_once()
             _, kwargs = spy.call_args
             assert kwargs.get("previous") is original_result_set
