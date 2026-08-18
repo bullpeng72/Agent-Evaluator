@@ -409,7 +409,7 @@ def eval_propagation(
 
 
 def eval_role_adherence(
-    tool_calls: list[Any], response: str, config: Any
+    tool_calls: list[Any] | None, response: str, config: Any
 ) -> dict[str, Any]:
     """에이전트 행동이 선언된 역할에 부합하는지 평가한다.
 
@@ -422,7 +422,7 @@ def eval_role_adherence(
     — 하위호환, tool_calls가 비어있으면 기존 동작과 100% 동일).
 
     Args:
-        tool_calls: 도구 호출 리스트.
+        tool_calls: 도구 호출 리스트. None이면 빈 리스트로 취급(text_fallback).
         response: 에이전트 응답 문자열.
         config: AgentRoleConfig 인스턴스.
 
