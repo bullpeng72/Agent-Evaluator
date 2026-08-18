@@ -65,8 +65,9 @@ def _make_monitor(output_dir=None, **kwargs):
 
 
 def _make_task_result(**kwargs):
+    from typing import Any
     from agent_evaluator import create_taskresult
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         task_id="t1",
         question="q",
         response="r",
@@ -95,7 +96,7 @@ class TestBatchEvalConcurrentFailure:
 
         agent(["q1", "q2"])
         assert hasattr(agent, "_last_failures")
-        assert isinstance(agent._last_failures, list)
+        assert isinstance(agent._last_failures, list)  # type: ignore[attr-defined] — dynamically attached by batch_eval, see decorators.py:7504
 
     def test_on_item_error_param_exists(self):
         """batch_eval에 on_item_error 파라미터가 있다."""
@@ -148,7 +149,7 @@ class TestBatchEvalStrictTypes:
         m = _make_monitor()
 
         with pytest.raises(TypeError):
-            batch_eval(m, task_type="qa", strict_types=True)
+            batch_eval(m, task_type="qa", strict_types=True)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_strict_types_non_list_raises(self):
         """strict_types=False 도 TypeError (파라미터 자체가 제거됨)."""
@@ -157,7 +158,7 @@ class TestBatchEvalStrictTypes:
         m = _make_monitor()
 
         with pytest.raises(TypeError):
-            batch_eval(m, task_type="qa", strict_types=False)
+            batch_eval(m, task_type="qa", strict_types=False)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_strict_types_param_exists(self):
         """batch_eval에서 strict_types 파라미터가 제거됨."""
@@ -547,11 +548,10 @@ class TestMonitorFilterTasks:
         m = self._setup_monitor()
         results = m.filter_tasks(task_type="qa")
         assert len(results) == 2
+        # TaskResult.__post_init__ always normalizes task_type to a lowercase str
+        # (even when constructed with a TaskType enum member), so no Enum branch is needed here.
         for t in results:
-            tt = t.task_type
-            if hasattr(tt, "value"):
-                tt = tt.value
-            assert str(tt).lower() == "qa"
+            assert str(t.task_type).lower() == "qa"
 
     def test_filter_by_min_accuracy(self):
         """min_accuracy 필터로 특정 점수 이상만 반환한다."""
@@ -571,10 +571,7 @@ class TestMonitorFilterTasks:
         m = self._setup_monitor()
         results = m.filter_tasks(task_type="qa", success_only=True)
         for t in results:
-            tt = t.task_type
-            if hasattr(tt, "value"):
-                tt = tt.value
-            assert str(tt).lower() == "qa"
+            assert str(t.task_type).lower() == "qa"
             assert t.success is True
 
     def test_filter_returns_list(self):
@@ -803,6 +800,7 @@ class TestCreateTaskresultMetadata:
             extra={"key": "extra_value"},
             metadata={"key": "meta_value"},
         )
+        assert result.extra is not None
         assert result.extra["key"] == "meta_value"
 
     def test_metadata_param_exists(self):
@@ -892,6 +890,7 @@ class TestGroqCacheTokens:
 
         result = _extract_groq_metadata(resp)
         assert result is not None
+        assert result.tokens_used is not None
         # cache 없으면 cache_creation 키 없음
         assert "cache_creation" not in result.tokens_used
 
@@ -954,6 +953,7 @@ class TestMistralFallback:
 
         result = _extract_mistral_metadata(resp)
         assert result is not None
+        assert result.tool_calls is not None
         assert result.tool_calls[0]["name"] == "new_tool"
 
     def test_none_for_unknown_input(self):
@@ -1366,7 +1366,7 @@ class TestStreamFiltered:
         """stream 라우터에 tasks 경로가 있다."""
         try:
             from agent_evaluator.serve.routers.stream import router as stream_router
-            routes = [r.path for r in stream_router.routes]
+            routes = [getattr(r, "path", "") for r in stream_router.routes]
             assert any("tasks" in r for r in routes)
         except ImportError:
             pytest.skip("stream router not available")
@@ -1497,7 +1497,7 @@ class TestExcelExport:
     def test_excel_endpoint_registered(self, test_app):
         """export/excel/{file_id} 엔드포인트가 등록되어 있다."""
         from agent_evaluator.serve.routers.export import router as export_router
-        routes = [r.path for r in export_router.routes]
+        routes = [getattr(r, "path", "") for r in export_router.routes]
         assert any("excel" in r for r in routes)
 
     def test_excel_without_openpyxl_returns_501(self, test_app):
