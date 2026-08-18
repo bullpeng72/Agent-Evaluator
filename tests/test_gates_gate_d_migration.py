@@ -92,6 +92,7 @@ class TestGateDMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["D"]
 
         direct = gate_d_aggregate.compute(
@@ -110,6 +111,7 @@ class TestGateDMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         d = report.extra_metrics["harness_groups"]["D"]
         details = d["details"]
 
@@ -126,6 +128,7 @@ class TestGateDMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["D"]["details"]
         assert set(details.keys()) == {
             "p95_latency_s", "avg_efficiency_calibrated_score", "avg_efficiency_ratio",
@@ -140,6 +143,7 @@ class TestGateDMigrationEquivalence:
         m.record_task(_task("t1", {"ttft_ms": 100}))
         m.record_task(_task("t2", {"ttft_ms": 110}))
         report = m.generate_report()
+        assert report.extra_metrics is not None
         warnings = report.extra_metrics["harness_groups"]["D"]["details"]["insufficient_data_warnings"]
         assert warnings is not None
         assert any("ttft_variability" in w for w in warnings)
