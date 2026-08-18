@@ -3,8 +3,8 @@ tests/test_spec032_team_concurrency.py
 ==========================================
 SPEC-032: TeamConcurrencyConfig — 축소 범위 다중 세션 스코프 충돌 감지.
 
-REQ-1: 승격된 check_scope_claim()/append_claim()/load_active_claims()가 기존
-Evaluator_Examples/ch28_local_ade_loop.py 데모 시나리오와 동일한 결과를 내는지.
+REQ-1: 승격된 check_scope_claim()/append_claim()/load_active_claims()가 초기 AOO 로컬
+개발 루프 데모 시나리오(클레임 없음 → 겹침 감지 → 통과)와 동일한 결과를 내는지.
 REQ-2/3/4: TeamConcurrencyConfig + LiveGuardrail 통합(1회 로드, read/edit/write만
 검사, 경로 후보 키, shared_files).
 REQ-5: record_blocked_attempt()와의 통합(신규 코드 없음, 재사용 확인).
@@ -23,7 +23,7 @@ from agent_evaluator.gates.team_concurrency import (
 
 
 class TestCheckScopeClaimPromotion:
-    """REQ-1: ch28 예제와 동일한 시나리오 재현."""
+    """REQ-1: 초기 AOO 로컬 개발 루프 데모와 동일한 시나리오 재현."""
 
     def test_no_claims_file_returns_empty(self, tmp_path):
         claims_path = tmp_path / "claims.jsonl"
@@ -107,6 +107,7 @@ class TestLiveGuardrailTeamConcurrencyIntegration:
         verdict = guardrail.check_before_tool_call("t1", "edit", {"file": "src/module_a/x.py"})
         assert verdict.block is True
         assert verdict.gate == "B"
+        assert verdict.reason is not None
         assert "alice" in verdict.reason
         assert "c1" in verdict.reason
 
@@ -170,6 +171,7 @@ class TestLiveGuardrailTeamConcurrencyIntegration:
         ))
         verdict = guardrail.check_before_tool_call("t1", "edit", {"file": "src/shared_config.yaml"})
         assert verdict.block is True
+        assert verdict.reason is not None
         assert "shared file" in verdict.reason
 
 
