@@ -354,6 +354,8 @@ class TestLangGraphTokenExtractionF1:
 
         raw = {"messages": [FakeMsg(5, 10), FakeMsg(3, 7)]}
         meta = _extract_langgraph_metadata(raw)
+        assert meta is not None
+        assert meta.tokens_used is not None
         assert meta.tokens_used["input"] == 8
         assert meta.tokens_used["output"] == 17
 
@@ -378,6 +380,7 @@ class TestAutogenPerTurnTimingF2:
 
         meta = _extract_autogen_metadata(FakeResult())
         assert meta is not None
+        assert meta.conversation_turns is not None
         # First turn has no previous, execution_time should be 0
         assert meta.conversation_turns[0]["execution_time"] == 0.0
         # Second turn should have elapsed time
@@ -396,6 +399,7 @@ class TestAutogenPerTurnTimingF2:
 
         meta = _extract_autogen_metadata(FakeResult())
         assert meta is not None
+        assert meta.conversation_turns is not None
         for turn in meta.conversation_turns:
             assert turn["execution_time"] == 0.0
 
@@ -409,6 +413,7 @@ class TestAutogenPerTurnTimingF2:
 
         meta = _extract_autogen_metadata(FakeResult())
         assert meta is not None
+        assert meta.conversation_turns is not None
         assert "execution_time" in meta.conversation_turns[0]
 
 
@@ -500,6 +505,7 @@ class TestVllmAdapterF4:
         assert meta.framework == "vllm"
         assert meta.tool_calls is not None
         assert meta.tool_calls[0]["tool_name"] == "search"
+        assert meta.tokens_used is not None
         assert meta.tokens_used["total"] == 30
 
     def test_vllm_no_data_returns_none(self):
