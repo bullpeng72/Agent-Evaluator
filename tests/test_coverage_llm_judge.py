@@ -592,7 +592,7 @@ class TestRegisterPromptToPhoenix:
 class TestJudgeIntegrationFlow:
     def _make_judge_with_mock(self, model: str = "gpt-4o-mini") -> LLMJudge:
         judge = LLMJudge(model=model, sample_rate=1.0, seed=0)
-        judge._call_judge = lambda task_id, q, r, ctx: {
+        judge._call_judge = lambda task_id, question, response, context, *, _model=None: {
             "task_id": task_id,
             "skipped": False,
             "scores": {
