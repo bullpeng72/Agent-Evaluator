@@ -240,6 +240,7 @@ class TestRecordImplicitFeedback:
         m.record_implicit_feedback("task_1", "thumbs_up", metadata={"source": "test"})
         # no exception = success; feedback_tracker should have data
         tracker = m.feedback_tracker
+        assert tracker is not None  # record_implicit_feedback() succeeded, so the tracker was initialized
         # Check via a method that exists on ImplicitFeedbackTracker
         # (get_positive_rate is a known method; fall back to checking internal state)
         if hasattr(tracker, "get_positive_rate"):
@@ -414,7 +415,7 @@ class TestCompareWithThresholds:
     def test_invalid_threshold_type_raises(self, tmp_path):
         m = _make_monitor(tmp_path)
         with pytest.raises(ValidationError):
-            m.thresholds = {"tcr": "eighty"}
+            m.thresholds = {"tcr": "eighty"}  # type: ignore
 
     def test_multiple_thresholds_all_present(self, tmp_path):
         m = _make_monitor(tmp_path)
