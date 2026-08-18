@@ -22,6 +22,7 @@ try:
 
     _HAS_OTEL = True
 except ImportError:
+    trace = OTLPSpanExporter = Resource = TracerProvider = BatchSpanProcessor = None  # type: ignore[assignment,misc]
     _HAS_OTEL = False
 
 
@@ -59,6 +60,15 @@ class OTELProvider:
                     "Install: pip install 'agent-evaluator[otel]'"
                 )
             return
+        # self._enabled은 _HAS_OTEL을 포함하므로 여기 도달했다면
+        # 위 opentelemetry import들은 이미 성공한 상태다.
+        assert (
+            trace is not None
+            and OTLPSpanExporter is not None
+            and Resource is not None
+            and TracerProvider is not None
+            and BatchSpanProcessor is not None
+        )
 
         try:
             resource = Resource(attributes={
@@ -156,7 +166,8 @@ class OTELProvider:
         try:
             from opentelemetry import trace as _trace
             provider = _trace.get_tracer_provider()
-            if hasattr(provider, "force_flush"):
-                provider.force_flush(timeout_millis=timeout_ms)
+            _flush = getattr(provider, "force_flush", None)
+            if _flush is not None:
+                _flush(timeout_millis=timeout_ms)
         except Exception as exc:
             logger.debug("OTELProvider.force_flush: %s", exc)
