@@ -11,6 +11,7 @@ SPEC-020 검증: agent_evaluator.utils.pii_redaction + PerformanceMonitor(enable
 - enable_pii_redaction 기본값(False)이 기존 동작과 동일한지(회귀)
 """
 import json
+from typing import Any
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.storage.sqlite_backend import load_tasks_from_db
@@ -37,6 +38,7 @@ class TestRedactPiiText:
     def test_multiple_categories_applied(self):
         text = "email a@b.com and ssn 123-45-6789"
         result = redact_pii_text(text, ["email", "ssn"])
+        assert result is not None
         assert "a@b.com" not in result
         assert "123-45-6789" not in result
         assert "[REDACTED:email]" in result
@@ -45,7 +47,7 @@ class TestRedactPiiText:
 
 class TestRedactTaskPii:
     def _task(self, **overrides):
-        defaults = dict(
+        defaults: dict[str, Any] = dict(
             task_id="t1", question="my email is a@b.com",
             response="ok, noted a@b.com", execution_time=1.0,
         )
@@ -55,6 +57,10 @@ class TestRedactTaskPii:
     def test_redacts_text_fields_only(self):
         task = self._task(ground_truth="a@b.com is correct", context="see a@b.com")
         redacted = redact_task_pii(task)
+        assert redacted.question is not None
+        assert redacted.response is not None
+        assert redacted.ground_truth is not None
+        assert redacted.context is not None
         assert "a@b.com" not in redacted.question
         assert "a@b.com" not in redacted.response
         assert "a@b.com" not in redacted.ground_truth
@@ -66,6 +72,7 @@ class TestRedactTaskPii:
     def test_original_task_unchanged(self):
         task = self._task()
         redact_task_pii(task)
+        assert task.question is not None
         assert "a@b.com" in task.question  # 원본은 절대 변경되지 않아야 함
 
     def test_default_categories_exclude_name_and_address(self):
@@ -80,6 +87,7 @@ class TestRedactTaskPii:
     def test_custom_categories_can_include_name(self):
         task = self._task(question="김철수입니다", response="ok")
         redacted = redact_task_pii(task, categories=["name"])
+        assert redacted.question is not None
         assert "[REDACTED:name]" in redacted.question
 
 
@@ -98,6 +106,7 @@ class TestSaveToFileRedactionJson:
         assert "[REDACTED:email]" in data["tasks"][0]["question"]
 
         # 인메모리는 원문 그대로 유지돼야 한다 (SPEC-020 REQ-7 핵심 불변식)
+        assert monitor.tasks[0].question is not None
         assert "a@b.com" in monitor.tasks[0].question
 
     def test_disabled_by_default(self, tmp_path):
@@ -125,8 +134,10 @@ class TestSaveToFileRedactionSqlite:
         saved_path = monitor.save_to_file("eval")
         tasks = load_tasks_from_db(saved_path)
         assert len(tasks) == 1
+        assert tasks[0].question is not None
         assert "a@b.com" not in tasks[0].question
         assert "[REDACTED:email]" in tasks[0].question
 
         # 인메모리는 원문 그대로 유지돼야 한다
+        assert monitor.tasks[0].question is not None
         assert "a@b.com" in monitor.tasks[0].question
