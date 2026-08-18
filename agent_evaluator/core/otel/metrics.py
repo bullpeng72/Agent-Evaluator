@@ -20,6 +20,7 @@ try:
 
     _HAS_OTEL_METRICS = True
 except ImportError:
+    metrics = OTLPMetricExporter = MeterProvider = PeriodicExportingMetricReader = None  # type: ignore[assignment,misc]
     _HAS_OTEL_METRICS = False
 
 
@@ -56,6 +57,14 @@ class OTELMetrics:
 
         if not self._enabled:
             return
+        # self._enabled은 _HAS_OTEL_METRICS를 포함하므로 여기 도달했다면
+        # 위 opentelemetry import들은 이미 성공한 상태다.
+        assert (
+            metrics is not None
+            and OTLPMetricExporter is not None
+            and MeterProvider is not None
+            and PeriodicExportingMetricReader is not None
+        )
 
         try:
             reader = PeriodicExportingMetricReader(
