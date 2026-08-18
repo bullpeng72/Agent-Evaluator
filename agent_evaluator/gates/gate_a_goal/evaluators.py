@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -833,7 +833,7 @@ def eval_knowledge_retention(
             try:
                 from kiwipiepy import Kiwi as _Kiwi
                 _kiwi = _Kiwi()
-                for token in _kiwi.tokenize(text):
+                for token in cast(Any, _kiwi.tokenize(text)):
                     if token.tag in ("NNG", "NNP") and len(token.form) >= 2:
                         facts.append(token.form)
             except ImportError:
