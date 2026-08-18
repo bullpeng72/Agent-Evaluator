@@ -42,6 +42,7 @@ class TestOwnerExcludesOwnClaim:
         )
         verdict = guardrail.check_before_tool_call("t1", "edit", {"file": "evaluators.py"})
         assert verdict.block is True
+        assert verdict.reason is not None
         assert "태호" in verdict.reason
 
     def test_mixed_claims_own_excluded_others_still_conflict(self, tmp_path):
@@ -60,6 +61,7 @@ class TestOwnerExcludesOwnClaim:
         verdict = guardrail.check_before_tool_call("t1", "edit", {"file": "shared/x.py"})
         # 태호의 겹치는 클레임이 남아 있으므로 여전히 차단돼야 함
         assert verdict.block is True
+        assert verdict.reason is not None
         assert "태호" in verdict.reason
 
 
