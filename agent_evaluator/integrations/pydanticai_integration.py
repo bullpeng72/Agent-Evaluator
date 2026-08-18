@@ -113,7 +113,7 @@ class PydanticAITokenExtractor:
                 and not hasattr(usage, "input_tokens")
                 and not hasattr(usage, "request_tokens")
             )
-            if is_legacy_method:
+            if is_legacy_method and usage is not None:
                 usage = usage()
             if usage is None:
                 return None
