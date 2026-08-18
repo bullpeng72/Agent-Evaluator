@@ -409,6 +409,7 @@ class TestExtractLangchainMetadata:
         data = {"intermediate_steps": [(action, "obs")]}
         meta = _extract_langchain_metadata(data)
         assert meta is not None
+        assert meta.tool_calls is not None
         assert isinstance(meta.tool_calls[0]["input"], dict)
 
 
@@ -578,6 +579,7 @@ class TestExtractSemanticKernelMetadata:
         raw.function_name = "my_function"
         meta = fn(raw)
         assert meta is not None
+        assert meta.chain_steps is not None
         assert meta.chain_steps[0].get("function") == "my_function"
 
 
@@ -689,6 +691,7 @@ class TestGetFrameworkInfo:
 
     def test_supports_chain_steps_field(self):
         info = get_framework_info("langchain")
+        assert info is not None
         assert isinstance(info["supports_chain_steps"], bool)
 
 
@@ -1023,6 +1026,7 @@ class TestMetadataClasses:
             tokens_used={"input": 10, "output": 20, "total": 30},
         )
         assert meta.framework == "langchain"
+        assert meta.tool_calls is not None
         assert len(meta.tool_calls) == 1
 
     def test_turn_metadata_defaults(self):
@@ -1046,7 +1050,7 @@ class TestBatchEvalBasic:
         from agent_evaluator import batch_eval
 
         @batch_eval(monitor, task_type="qa")
-        def batch_fn(questions: list, ground_truths: list = None):
+        def batch_fn(questions: list, ground_truths: list | None = None):
             return [f"answer_{i}" for i in range(len(questions))]
 
         results = batch_fn(
@@ -1061,7 +1065,7 @@ class TestBatchEvalBasic:
         from agent_evaluator import batch_eval
 
         @batch_eval(monitor, task_type="qa")
-        def batch_fn(questions: list, ground_truths: list = None):
+        def batch_fn(questions: list, ground_truths: list | None = None):
             return []
 
         results = batch_fn(questions=[], ground_truths=[])
