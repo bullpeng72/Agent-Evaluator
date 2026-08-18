@@ -177,6 +177,9 @@ def compute(
     # enable_security_metrics=False이면 sec_threats=0 → _sec_score_raw=1.0 고정(무의미) → 제외.
     _include_sec_raw = enable_security_metrics and not _native_e_scores
     if _cvss_count > 0:
+        # _cvss_count(= RunningAverage.count 또는 len(_cvss_scores))가 0보다 크면
+        # _cvss_avg(= RunningAverage.average() 또는 동일 로직)도 항상 non-None이다.
+        assert _cvss_avg is not None
         _cvss_normalized = max(0.0, 1.0 - _cvss_avg / 10.0)
         _e_base_scores: list[float] = (
             [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
