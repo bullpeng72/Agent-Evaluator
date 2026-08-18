@@ -181,13 +181,16 @@ print("  report.to_dict()의 키 경로 패턴을 익혀두면 CI 스크립트 �
 
 d = report_h.to_dict()
 
-# TCR 경로:     d["accuracy_metrics"]["tcr"]["tcr"]
-# p95 경로:     d["efficiency_metrics"]["latency"]["p95"]
-# Gate A–G:    d["extra_metrics"]["harness_groups"]["A"] ~ ["G"]
+# TCR 경로:      d["accuracy_metrics"]["tcr"]["tcr"]
+# 정확도 경로:    d["accuracy_metrics"]["accuracy_scores"]["overall_accuracy"]
+# p95 경로:      d["efficiency_metrics"]["latency"]["p95"]
+# Gate A–G:     d["extra_metrics"]["harness_groups"]["A"] ~ ["G"]
+# 주의: EvaluationReport.to_dict()에는 "summary" 최상위 키가 없다 —
+#       d.get("summary", {}) 패턴은 예외 없이 항상 빈 dict를 반환해 값이 조용히 0으로 고정된다.
 
 tcr_v  = d.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
 p95_v  = d.get("efficiency_metrics", {}).get("latency", {}).get("p95", 0.0)
-acc_v  = d.get("summary", {}).get("accuracy", 0.0)
+acc_v  = d.get("accuracy_metrics", {}).get("accuracy_scores", {}).get("overall_accuracy", 0.0)
 
 print(f"\n  accuracy_metrics.tcr.tcr         = {tcr_v:.1f}%")
 print(f"  efficiency_metrics.latency.p95   = {p95_v:.3f}s")
@@ -229,11 +232,15 @@ monitor_t.record_task(result_t)
 
 # 시나리오 ① 터미널 출력 — 개발 중 빠른 확인
 report_t = monitor_t.generate_report()
-summary_t = report_t.to_dict().get("summary", {})
-print("\n  시나리오 ① 터미널 출력 — generate_report().to_dict()[\"summary\"]")
-print(f"    task_completion_rate : {summary_t.get('task_completion_rate', 0):.3f}")
-print(f"    accuracy             : {summary_t.get('accuracy', 0):.3f}")
-print(f"    latency_p95          : {summary_t.get('latency_p95', 0):.3f}s")
+# EvaluationReport.to_dict()에는 "summary" 최상위 키가 없다 — 실제 키 경로를 직접 사용한다.
+d_t = report_t.to_dict()
+tcr_t = d_t.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0) / 100
+acc_t = d_t.get("accuracy_metrics", {}).get("accuracy_scores", {}).get("overall_accuracy", 0.0) / 100
+p95_t = d_t.get("efficiency_metrics", {}).get("latency", {}).get("p95", 0.0)
+print("\n  시나리오 ① 터미널 출력 — generate_report().to_dict()의 실제 키 경로")
+print(f"    accuracy_metrics.tcr.tcr                     : {tcr_t:.3f}")
+print(f"    accuracy_metrics.accuracy_scores.overall_accuracy : {acc_t:.3f}")
+print(f"    efficiency_metrics.latency.p95                : {p95_t:.3f}s")
 
 # 시나리오 ② 파일 저장 (JSON + HTML 동시 생성)
 monitor_t.save_to_file("ch02_s4")
