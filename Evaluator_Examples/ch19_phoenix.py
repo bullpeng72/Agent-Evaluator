@@ -44,6 +44,10 @@ import socket
 import time
 from pathlib import Path
 
+from agent_evaluator import load_env
+
+load_env()
+
 _PROJECT_ROOT  = Path(__file__).parent.parent
 _OUTPUT_DIR    = str(_PROJECT_ROOT / "results")
 _PHOENIX_URL   = os.getenv("PHOENIX_URL", "http://localhost:6006")
@@ -496,10 +500,17 @@ try:
         DeepEvalAdapter, RagasAdapter, EvaluationContext,
     )
 
+    if not _OPENAI_KEY:
+        print("  OPENAI_API_KEY 미설정 — 실제 LLM 채점 대신 안내만 출력합니다")
+        print("    (evaluate() 를 키 없이 호출하면 provider 재시도로 수 분간 멈출 수 있습니다)")
+        print("    .env 에 OPENAI_API_KEY 설정 후 재실행하세요")
+
     # ── DeepEvalAdapter ───────────────────────────────────────────────────
     print("  [1] DeepEvalAdapter")
     deepeval_adapter = DeepEvalAdapter(model="gpt-5-nano", threshold=0.5)
-    if not deepeval_adapter.is_available():
+    if not _OPENAI_KEY:
+        pass
+    elif not deepeval_adapter.is_available():
         print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
     else:
         ctx_de = EvaluationContext(
@@ -520,7 +531,9 @@ try:
     # ── RagasAdapter ─────────────────────────────────────────────────────
     print("  [2] RagasAdapter")
     ragas_adapter = RagasAdapter(llm_model="gpt-5-nano")
-    if not ragas_adapter.is_available():
+    if not _OPENAI_KEY:
+        pass
+    elif not ragas_adapter.is_available():
         print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
     else:
         ctx_ra = EvaluationContext(

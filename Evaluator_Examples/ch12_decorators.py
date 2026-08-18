@@ -61,8 +61,10 @@ from agent_evaluator import (
     ConversationSession, ConversationMetrics,
     agent_eval, batch_eval, conversation_eval,
     flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig, LLMJudgeConfig,
-    create_taskresult,
+    create_taskresult, load_env,
 )
+
+load_env()
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")

@@ -47,10 +47,12 @@ from pathlib import Path
 
 from agent_evaluator import (
     PerformanceMonitor, create_taskresult, setup_otel,
-    SimpleTaskAlertRule, ImplicitFeedbackTracker,
+    SimpleTaskAlertRule, ImplicitFeedbackTracker, load_env,
 )
 from agent_evaluator import agent_eval, batch_eval, eval_context
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
+
+load_env()
 
 try:
     from agent_evaluator.alerts.engine import AlertEngine, AlertRule
