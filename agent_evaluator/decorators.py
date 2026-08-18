@@ -8430,6 +8430,15 @@ class EvalDecorator:
     def conversation(self, **kwargs) -> Callable:  # A7: 반환 타입 Callable 명시
         """``@conversation_eval`` 데코레이터 반환.
 
+        .. warning::
+            ``conversation_eval()``은 단일 ``PerformanceMonitor``만 지원한다
+            (``_do_flush()``가 ``stored_monitor.conversation(...)``을 리스트 분기 없이
+            직접 호출 — LLM Judge 호출 등 부수효과가 있는 세션 종료 로직이라 단순
+            반복 호출로 다중 모니터를 지원하면 Judge가 모니터 수만큼 중복 호출된다).
+            ``EvalDecorator(monitor_list)``처럼 ``self._monitor``가 리스트면 이
+            메서드는 **첫 번째 모니터에만** 기록한다 — ``.qa``/``.tool_use``/``.batch``와
+            달리 나머지 모니터에는 이 대화 데이터가 전혀 기록되지 않는다.
+
         Example::
 
             @eval.conversation(session_id_arg="sid", max_turns=5)
@@ -8438,10 +8447,20 @@ class EvalDecorator:
         conv_defaults = {k: v for k, v in self._defaults.items()
                          if k in self._CONV_PARAMS}
         merged = {**conv_defaults, **kwargs}
-        # conversation_eval()은 단일 PerformanceMonitor만 지원한다(_do_flush()가
-        # stored_monitor.conversation(...)을 리스트 분기 없이 직접 호출) — self._monitor가
-        # 리스트면 첫 번째 모니터로 폴백해 AttributeError를 방지한다.
-        _mon = self._monitor if not isinstance(self._monitor, list) else self._monitor[0]
+        if isinstance(self._monitor, list):
+            if len(self._monitor) > 1:
+                import warnings as _warnings_conv
+                _warnings_conv.warn(
+                    "EvalDecorator.conversation()은 다중 monitor 리스트를 지원하지 않습니다 "
+                    f"— {len(self._monitor)}개 중 첫 번째 monitor에만 대화 데이터가 기록되고 "
+                    "나머지는 누락됩니다. 단일 monitor로 별도 EvalDecorator를 구성하거나 "
+                    "conversation_eval()을 각 monitor에 대해 개별 호출하세요.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            _mon = self._monitor[0]
+        else:
+            _mon = self._monitor
         return conversation_eval(_mon, **merged)
 
     @property

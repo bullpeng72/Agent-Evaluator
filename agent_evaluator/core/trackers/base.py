@@ -383,7 +383,7 @@ class EvaluationReport:
             "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
             "avg_latency_s": latency_data.get("mean", 0.0),
             "period": self.period,
-            "timestamp": self.timestamp.isoformat() if self.timestamp is not None else str(self.timestamp),
+            "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp),
         }
 
 

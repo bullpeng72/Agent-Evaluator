@@ -256,6 +256,23 @@ class TestEvaluationReportAPI:
         r = _make_report(7)
         assert r.summary()["total_tasks"] == 7
 
+    def test_summary_timestamp_isoformat_for_datetime(self):
+        r = _make_report()
+        assert r.timestamp is not None
+        assert r.summary()["timestamp"] == r.timestamp.isoformat()
+
+    def test_summary_timestamp_falls_back_for_non_datetime(self):
+        """timestamp가 datetime/None이 아닌 값(예: from_dict()를 거치지 않은 외부
+        구성)이면 .isoformat()으로 크래시하지 않고 str()로 안전하게 폴백해야 한다."""
+        r = _make_report()
+        r.timestamp = "not-a-datetime"  # type: ignore[assignment]
+        assert r.summary()["timestamp"] == "not-a-datetime"
+
+    def test_summary_timestamp_none(self):
+        r = _make_report()
+        r.timestamp = None
+        assert r.summary()["timestamp"] == "None"
+
 
 # ---------------------------------------------------------------------------
 # _TaskContext (base.py)

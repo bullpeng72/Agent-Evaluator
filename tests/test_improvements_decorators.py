@@ -2088,3 +2088,46 @@ class TestForRegressionEval:
         result = qe.check_regression()
         assert "regression_threshold_pct" in result
         assert result["regression_threshold_pct"] == pytest.approx(10.0)
+
+
+# ---------------------------------------------------------------------------
+# EvalDecorator.conversation() with a monitor list — only monitor[0] records
+# (conversation_eval()/_do_flush() has no multi-monitor support: dual-writing
+# would call LLM Judge once per monitor). Must warn instead of silently
+# dropping data for the remaining monitors.
+# ---------------------------------------------------------------------------
+class TestEvalDecoratorConversationMonitorList:
+    def test_single_monitor_no_warning(self):
+        from agent_evaluator.decorators import EvalDecorator
+
+        monitor = PerformanceMonitor(output_dir=None)
+        dec = EvalDecorator(monitor)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            dec.conversation()
+            assert not any(issubclass(x.category, UserWarning) for x in w)
+
+    def test_two_monitors_warns_and_uses_first(self):
+        from agent_evaluator.decorators import EvalDecorator
+
+        m1 = PerformanceMonitor(output_dir=None)
+        m2 = PerformanceMonitor(output_dir=None)
+        dec = EvalDecorator([m1, m2])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            dec.conversation()
+            user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
+            assert len(user_warnings) == 1
+            assert "첫 번째 monitor" in str(user_warnings[0].message)
+            assert "2개" in str(user_warnings[0].message)
+
+    def test_single_element_list_no_warning(self):
+        """길이 1인 리스트는 다른 monitor가 없으니 경고 대상이 아니다."""
+        from agent_evaluator.decorators import EvalDecorator
+
+        m1 = PerformanceMonitor(output_dir=None)
+        dec = EvalDecorator([m1])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            dec.conversation()
+            assert not any(issubclass(x.category, UserWarning) for x in w)
