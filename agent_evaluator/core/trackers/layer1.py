@@ -14,7 +14,7 @@ import re
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -275,7 +275,7 @@ class AccuracyEvaluator(BaseTracker):
         """형태소 분석(kiwipiepy) 또는 공백 분리 폴백으로 단어 토큰 집합 반환."""
         normalized = re.sub(r"[^\w\s]", "", text.lower()).strip()
         if self._kiwi is not None:
-            tokens = [t.form for t in self._kiwi.tokenize(normalized)
+            tokens = [t.form for t in cast(Any, self._kiwi.tokenize(normalized))
                       if t.tag in ("NNG", "NNP", "VV", "VA", "SL", "SN", "XR")]
             return set(tokens) if tokens else set(normalized.split())
         return set(normalized.split())
@@ -295,7 +295,7 @@ class AccuracyEvaluator(BaseTracker):
         """Restore internal state (used by load_from_file).  Invalidates repr cache."""
         self._cached_avg = None
         self._evaluations = list(value)
-        self._task_ids = {e.get("task_id") for e in value if e.get("task_id") is not None}
+        self._task_ids = {tid for e in value if (tid := e.get("task_id")) is not None}
 
     def reset(self) -> None:
         """Clear all evaluations and invalidate the repr cache."""
@@ -547,13 +547,13 @@ class AccuracyEvaluator(BaseTracker):
             return {}
 
         df = pd.DataFrame(self._evaluations)
-        return (
+        return cast("dict[str, float]", (
             df.groupby("task_type")["accuracy"]
             .apply(lambda s: s.dropna().mean())
             .mul(100)
             .round(2)
             .to_dict()
-        )
+        ))
 
     def get_accuracy_metrics(self) -> dict[str, Any]:
         """Get aggregated accuracy metrics — consistent superset of get_accuracy_scores().
@@ -589,7 +589,7 @@ class AccuracyEvaluator(BaseTracker):
         # at least one accuracy measurement exists; otherwise leave it None so that
         # callers see "<no-data>" instead of a misleading "0.0%".
         if self._cached_avg is None:
-            measured = [e.get("accuracy") for e in self._evaluations if e.get("accuracy") is not None]
+            measured = [acc for e in self._evaluations if (acc := e.get("accuracy")) is not None]
             if measured:
                 self._cached_avg = round(sum(measured) / len(measured) * 100, 1)
         n = len(self._evaluations)
@@ -644,7 +644,7 @@ class HallucinationDetector(BaseTracker):
         """형태소 분석(kiwipiepy) 또는 공백 분리 폴백으로 단어 토큰 집합 반환."""
         normalized = re.sub(r"[^\w\s]", "", text.lower()).strip()
         if self._kiwi is not None:
-            tokens = [t.form for t in self._kiwi.tokenize(normalized)
+            tokens = [t.form for t in cast(Any, self._kiwi.tokenize(normalized))
                       if t.tag in ("NNG", "NNP", "VV", "VA", "SL", "SN", "XR")]
             return set(tokens) if tokens else set(normalized.split())
         return set(normalized.split())
@@ -1086,7 +1086,7 @@ class ResponseQualityEvaluator(BaseTracker):
     def evaluations(self, value: list[dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
         self._evaluations = list(value)
-        self._task_ids = {e.get("task_id") for e in value if e.get("task_id") is not None}
+        self._task_ids = {tid for e in value if (tid := e.get("task_id")) is not None}
 
     def reset(self) -> None:
         """Clear all quality evaluations."""
@@ -1496,7 +1496,7 @@ class LatencyTracker(BaseTracker):
             for component in breakdown_totals
         }
 
-        bottleneck = max(breakdown_avgs, key=breakdown_avgs.get)
+        bottleneck = max(breakdown_avgs, key=lambda component: breakdown_avgs[component])
 
         return {
             "breakdown_averages": {k: round(v, 3) for k, v in breakdown_avgs.items()},
@@ -1798,7 +1798,7 @@ class TokenEconomyTracker(BaseTracker):
         # Flatten multi-level columns to strings (e.g. ("total_tokens", "sum") → "total_tokens_sum")
         # then return {task_type: {stat_name: value}} via orient='index'.
         grouped.columns = ["_".join(col) for col in grouped.columns]
-        return grouped.to_dict("index")
+        return cast("dict[str, dict[str, float]]", grouped.to_dict("index"))  # type: ignore[call-overload]
 
     def get_cost_breakdown_by_model(self) -> dict[str, dict[str, Any]]:
         """Get detailed cost breakdown by model"""
