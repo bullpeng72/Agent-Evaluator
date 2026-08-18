@@ -24,7 +24,7 @@ def _make_task(
     """Helper to create a minimal TaskResult."""
     return TaskResult(
         task_id=task_id,
-        task_type=task_type,
+        task_type=task_type.value,
         success=success,
         completion_score=completion_score,
         accuracy_score=accuracy_score,
