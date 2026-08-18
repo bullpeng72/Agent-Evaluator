@@ -111,6 +111,7 @@ class TestGateAMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["A"]
 
         direct = gate_a_aggregate.compute(
@@ -126,6 +127,7 @@ class TestGateAMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         a = report.extra_metrics["harness_groups"]["A"]
         details = a["details"]
 
@@ -147,6 +149,7 @@ class TestGateAMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["A"]["details"]
         assert set(details.keys()) == {
             "tcr_pct", "avg_accuracy", "avg_quality_relevance_completeness",
@@ -160,6 +163,7 @@ class TestGateAMigrationEquivalence:
         """Gate B의 gate_a_ref__* 필드가 Gate A의 값과 정확히 일치해야 한다(재계산 아님, 재참조)."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         groups = report.extra_metrics["harness_groups"]
         a_details = groups["A"]["details"]
         b_details = groups["B"]["details"]
