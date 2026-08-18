@@ -14,6 +14,7 @@ import time
 import warnings
 from datetime import date
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -59,9 +60,9 @@ def _call_compare(tmp_path, **query):
     app_state = SimpleNamespace(result_set=result_set)
     app = SimpleNamespace(state=app_state)
     request = SimpleNamespace(app=app)
-    defaults = dict(ids=None, detailed=False, group_by=None, pairwise=False)
+    defaults: dict[str, Any] = dict(ids=None, detailed=False, group_by=None, pairwise=False)
     defaults.update(query)
-    return compare_results(request, **defaults)
+    return compare_results(request, **defaults)  # type: ignore[arg-type] — compare_results only touches request.app.state.*; SimpleNamespace avoids constructing a real FastAPI Request
 
 
 class TestResultFileVersionProperties:
@@ -83,15 +84,26 @@ class TestResultFileVersionProperties:
 
     def test_missing_extra_metrics_key_entirely(self):
         """extra_metrics 자체가 없는(더 오래된) raw dict에서도 에러 없이 None."""
-        from agent_evaluator.serve.loader import ResultFile
+        from pathlib import Path
+
+        from agent_evaluator.serve.loader import (
+            AdvancedMetrics,
+            AgenticMetrics,
+            HallucinationDetail,
+            InsightsData,
+            QualityDetail,
+            ResultFile,
+            SecurityL1,
+            SecurityL2,
+        )
 
         rf = ResultFile(
-            path=None, file_id="f1", name="f1", timestamp="", total_tasks=0, tasks=[],
+            path=Path("f1.json"), file_id="f1", name="f1", timestamp="", total_tasks=0, tasks=[],
             accuracy_metrics={}, efficiency_metrics={},
-            security_l1=SimpleNamespace(), security_l2=SimpleNamespace(),
-            agentic=SimpleNamespace(), quality_detail=SimpleNamespace(),
-            hallucination_detail=SimpleNamespace(), advanced=SimpleNamespace(),
-            insights=SimpleNamespace(),
+            security_l1=SecurityL1(), security_l2=SecurityL2(),
+            agentic=AgenticMetrics(), quality_detail=QualityDetail(),
+            hallucination_detail=HallucinationDetail(), advanced=AdvancedMetrics(),
+            insights=InsightsData(),
             rag_metrics={}, pricing={}, raw={},
         )
         assert rf.prompt_version is None
@@ -106,13 +118,13 @@ class TestListResultsVersionFilter:
         app_state = SimpleNamespace(result_set=result_set)
         app = SimpleNamespace(state=app_state)
         request = SimpleNamespace(app=app)
-        defaults = dict(
+        defaults: dict[str, Any] = dict(
             page=1, limit=50, sort_by="timestamp", sort_desc=True,
             tcr_min=None, tcr_max=None, accuracy_min=None, age_hours=None,
             prompt_version=None, agent_version=None, include_sample=False,
         )
         defaults.update(query)
-        return list_results(request, **defaults)
+        return list_results(request, **defaults)  # type: ignore[arg-type] — list_results only touches request.app.state.*; SimpleNamespace avoids constructing a real FastAPI Request
 
     def test_filters_by_exact_prompt_version(self, tmp_path):
         _save_run(tmp_path, "run_v1", prompt_version="v1-few-shot")
@@ -169,9 +181,9 @@ class TestCompareResultsGroupBy:
         app_state = SimpleNamespace(result_set=result_set)
         app = SimpleNamespace(state=app_state)
         request = SimpleNamespace(app=app)
-        defaults = dict(ids=None, detailed=False, group_by=None, pairwise=False)
+        defaults: dict[str, Any] = dict(ids=None, detailed=False, group_by=None, pairwise=False)
         defaults.update(query)
-        return compare_results(request, **defaults)
+        return compare_results(request, **defaults)  # type: ignore[arg-type] — compare_results only touches request.app.state.*; SimpleNamespace avoids constructing a real FastAPI Request
 
     def test_group_by_picks_latest_per_version(self, tmp_path):
         _save_run(tmp_path, "v1_old", prompt_version="v1-few-shot")
@@ -350,6 +362,7 @@ class TestGateBaselineVersion:
         assert (tmp_path / "baselines" / "v2-cot.json").is_file()
         assert not (tmp_path / "baseline.json").exists()
         baseline = _load_baseline(tmp_path / "baselines" / "v2-cot.json")
+        assert baseline is not None
         assert baseline["tcr"] == pytest.approx(90.0)
 
     def test_two_versions_stay_independent(self, tmp_path):
@@ -366,6 +379,8 @@ class TestGateBaselineVersion:
 
         baseline_v1 = _load_baseline(tmp_path / "baselines" / "v1.json")
         baseline_v2 = _load_baseline(tmp_path / "baselines" / "v2.json")
+        assert baseline_v1 is not None
+        assert baseline_v2 is not None
         assert baseline_v1["tcr"] == pytest.approx(80.0)
         assert baseline_v2["tcr"] == pytest.approx(95.0)
 
@@ -708,8 +723,8 @@ class TestJudgePairwise:
         judge = LLMJudge(model="gpt-4o-mini")
         calls = []
 
-        def fake_call(question, resp_x, resp_y, context, **kw):
-            calls.append((resp_x, resp_y))
+        def fake_call(question, response_a, response_b, context, *, _model=None):
+            calls.append((response_a, response_b))
             # 1차: (A, B) 순서 그대로 → "a" 승리
             # 2차: (B, A)로 뒤집힘 → 원래 A 내용이 이제 슬롯 b에 있으므로 "b" 응답이면 합의
             winner = "a" if len(calls) == 1 else "b"
@@ -737,8 +752,8 @@ class TestJudgePairwise:
         judge = LLMJudge(model="gpt-4o-mini")
         calls = []
 
-        def fake_call(question, resp_x, resp_y, context, **kw):
-            calls.append((resp_x, resp_y))
+        def fake_call(question, response_a, response_b, context, *, _model=None):
+            calls.append((response_a, response_b))
             return {"skipped": False, "winner": "a", "reasoning": "r", "cost_usd": 0.001, "model": "gpt-4o-mini"}
 
         judge._call_pairwise_judge = fake_call
@@ -751,8 +766,8 @@ class TestJudgePairwise:
         judge = LLMJudge(model="gpt-4o-mini")
         calls = []
 
-        def fake_call(question, resp_x, resp_y, context, **kw):
-            calls.append((resp_x, resp_y))
+        def fake_call(question, response_a, response_b, context, *, _model=None):
+            calls.append((response_a, response_b))
             if len(calls) == 1:
                 return {"skipped": False, "winner": "a", "reasoning": "r", "cost_usd": 0.001, "model": "gpt-4o-mini"}
             return {"skipped": False, "error": "network blip", "winner": None, "cost_usd": 0.0, "model": "gpt-4o-mini"}
@@ -769,8 +784,8 @@ class TestJudgePairwise:
         judge = LLMJudge(model="gpt-4o-mini")
         calls = []
 
-        def fake_call(question, resp_x, resp_y, context, **kw):
-            calls.append((resp_x, resp_y))
+        def fake_call(question, response_a, response_b, context, *, _model=None):
+            calls.append((response_a, response_b))
             return {"skipped": False, "error": "boom", "winner": None, "cost_usd": 0.0, "model": "gpt-4o-mini"}
 
         judge._call_pairwise_judge = fake_call
