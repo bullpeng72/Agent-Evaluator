@@ -124,7 +124,7 @@ def to_task_string(user_input: Any) -> str:
 # Utility Functions
 # ==============================================================================
 
-def check_framework_availability(framework: str = None) -> dict[str, bool]:
+def check_framework_availability(framework: str | None = None) -> dict[str, bool]:
     """
     Check availability of AI frameworks
 
@@ -168,18 +168,18 @@ def check_framework_availability(framework: str = None) -> dict[str, bool]:
 
     # Check CrewAI
     try:
-        import crewai
+        import crewai  # type: ignore[import-not-found]
         frameworks['crewai'] = True
     except ImportError:
         pass
 
     # Check AutoGen — autogen-agentchat (0.4+) 우선, 레거시 pyautogen fallback
     try:
-        import autogen_agentchat  # noqa: F401
+        import autogen_agentchat  # type: ignore[import-not-found] # noqa: F401
         frameworks['autogen'] = True
     except ImportError:
         try:
-            import autogen  # noqa: F401 — legacy pyautogen
+            import autogen  # type: ignore[import-not-found] # noqa: F401 — legacy pyautogen
             frameworks['autogen'] = True
         except ImportError:
             pass
