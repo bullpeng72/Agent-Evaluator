@@ -54,6 +54,7 @@ class TestLoopDetectionBlocks:
         v3 = guardrail.check_before_tool_call("t1", "search", {})
         assert v3.block is True
         assert v3.gate == "B"
+        assert v3.reason is not None
         assert "loop_detection" in v3.reason
 
     def test_on_loop_detected_record_does_not_block(self):
@@ -76,6 +77,7 @@ class TestScopeBlocks:
         verdict = guardrail.check_before_tool_call("t1", "shell_exec", {"cmd": "ls"})
         assert verdict.block is True
         assert verdict.gate == "B"
+        assert verdict.reason is not None
         assert "scope violation" in verdict.reason
 
     def test_fail_on_violation_false_does_not_block(self):
@@ -303,6 +305,7 @@ class TestDeadlockBlocks:
         verdict = guardrail.check_before_tool_call("t1", "delegate_agent", {"depth": 5})
         assert verdict.block is True
         assert verdict.gate == "B"
+        assert verdict.reason is not None
         assert "deadlock" in verdict.reason
 
 
@@ -540,6 +543,7 @@ class TestToolAuthorizationBlocks:
         assert verdict.block is True
         assert verdict.gate == "E"
         # peek이므로 실제 tracker 로그에는 남지 않아야 한다 (순수 조회).
+        assert guardrail._tool_authorization is not None
         assert guardrail._tool_authorization.tool_calls == []
 
     def test_unauthorized_tool_blocks(self):
@@ -560,6 +564,7 @@ class TestToolAuthorizationBlocks:
         guardrail = LiveGuardrail(tool_authorization=ToolAuthorizationTracker())
         verdict = guardrail.check_before_tool_call("t1", "search", {"q": "hi"})
         assert verdict.block is False
+        assert guardrail._tool_authorization is not None
         assert guardrail._tool_authorization.tool_calls == []
 
 
@@ -571,6 +576,7 @@ class TestPrivilegeEscalationBlocks:
         assert verdict.block is True
         assert verdict.gate == "E"
         # peek이므로 분석기 내부 이력에는 남지 않아야 한다.
+        assert guardrail._privilege_escalation is not None
         assert guardrail._privilege_escalation.escalation_events == []
 
     def test_no_escalation_does_not_block(self):
@@ -587,6 +593,7 @@ class TestToolChainAttackBlocks:
         verdict = guardrail.check_before_tool_call("t1", "post_request", {})
         assert verdict.block is True
         assert verdict.gate == "E"
+        assert guardrail._tool_chain_attack is not None
         assert guardrail._tool_chain_attack.detections == []
 
     def test_clean_sequence_does_not_block(self):
@@ -633,6 +640,9 @@ class TestGateESnapshotIdempotency:
         snap1 = guardrail.snapshot()
         snap2 = guardrail.snapshot()
         assert snap1 == snap2
+        assert guardrail._privilege_escalation is not None
+        assert guardrail._tool_chain_attack is not None
+        assert guardrail._tool_authorization is not None
         assert len(guardrail._privilege_escalation.escalation_events) == 0
         assert len(guardrail._tool_chain_attack.detections) == 0
         # tool_authorization은 record_tool_call() 시점에 이미 확정 반영되므로 누적되어야 한다.
