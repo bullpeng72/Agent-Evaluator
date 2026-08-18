@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import warnings
 from datetime import datetime
+from typing import Any
 
 import pytest
 
@@ -27,7 +28,7 @@ from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_ex
 
 def _make_valid_task(**overrides) -> TaskResult:
     """최소 유효한 TaskResult 생성 헬퍼."""
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         task_id="t1",
         task_type=TaskType.QA,
         success=True,
