@@ -58,6 +58,7 @@ class TestBugG1HallucinationRateRounding:
             "g1_t1", "The answer is 4.", "Math context", "4"
         )
         report = monitor.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics.get("harness_groups", {})
         if "G" in hg and hg["G"]["details"].get("hallucination_rate") is not None:
             rate = hg["G"]["details"]["hallucination_rate"]
@@ -361,6 +362,7 @@ class TestBugG6OnlyOnFailureFalseSuccessTask:
             agent(f"What is {i}?", ground_truth=str(i))
 
         report = monitor.generate_report()
+        assert report.extra_metrics is not None
         hg = report.extra_metrics.get("harness_groups", {})
         g_details = hg.get("G", {}).get("details", {})
         # error_diagnosis가 None만 반환했다면 avg_error_diagnosis도 None
