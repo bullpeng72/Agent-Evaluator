@@ -4,9 +4,9 @@ ch22_tool_guard_realtime.py — Chapter 22: tool_guard 데코레이터로 비침
 Book Chapter 22 — 보안 관련 실시간 제어: 실행 전에 막는 마지막 방어선
 
 SPEC-039로 추가된 `tool_guard` 데코레이터(`agent_evaluator.gates.live_guardrail`)를
-시연한다. `check_before_tool_call()`/`record_tool_call()`을 직접 호출하는
-저수준 패턴(Chapter 30 `ch30_live_guardrail.py`)과 달리, 기존 도구 함수를 전혀
-고치지 않고 데코레이터 한 줄로 실행 전 차단·실행 후 기록을 자동화한다.
+시연한다. `check_before_tool_call()`/`record_tool_call()`을 직접 호출하는 저수준
+패턴과 달리, 기존 도구 함수를 전혀 고치지 않고 데코레이터 한 줄로 실행 전
+차단·실행 후 기록을 자동화한다.
 
 섹션 1: §22.3 — @tool_guard + live_guardrail_session() 기본 사용. 정상 호출은
         통과·기록되고, 위험한 호출은 GuardrailBlockedError 예외로 드러난다
