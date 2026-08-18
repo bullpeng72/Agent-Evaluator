@@ -306,14 +306,18 @@ __all__ = [
     'EvalDecorator',            # Factory for shared monitor/defaults (Gap N)
     'EvalMetadata',             # Metadata injection via tuple return
     'TurnMetadata',             # Turn-level metadata for conversation_eval
+    'RetryConfig',              # 재시도 파라미터 묶음 (agent_eval retry=)
     'get_eval_ctx',             # ContextVar context accessor (async-safe)
     'get_framework_info',       # C6: 어댑터 메타데이터 조회
+    'AGENT_EVAL_PRESETS',       # H1: 사전 정의된 파라미터 묶음
+    'register_preset',          # 항목 W: preset 런타임 등록
 
     # Framework-agnostic protocol & input adapters
     'EvaluatorProtocol',
     'to_graph_state',   # str → LangGraph state dict
     'to_crew_inputs',   # str → CrewAI inputs dict
     'to_task_string',   # Any → str (LangChain/AutoGen용)
+    'FrameworkLiteral',  # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
 
     # Config & setup
     'load_env',       # Smart .env loader (priority: system > CWD .env > global)
@@ -409,6 +413,8 @@ __all__ = [
     'SlackHandler',
     'WebhookHandler',
     'EmailHandler',
+    'SimpleTaskAlertRule',  # Task 5: 경량 TaskResult 기반 즉시 알림
+    'AlertRuleBuilder',     # E6: when_accuracy_below() 등 빌더 API
 
     # Anomaly Detection (Phase 3-B)
     'AnomalyDetector',
