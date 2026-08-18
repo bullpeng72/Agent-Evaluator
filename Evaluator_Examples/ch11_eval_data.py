@@ -31,6 +31,7 @@ evaluation_session context manager로 자동 저장을 시연한다.
 import socket
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from agent_evaluator import (
     PerformanceMonitor,
@@ -295,7 +296,7 @@ for q, used, expected, lat in TOOL_DEFINITIONS:
 # ---------------------------------------------------------------------------
 # GoldenSet 형식 변환 헬퍼 — _requires_review=True 포함 (대시보드 케이스 검토용)
 # ---------------------------------------------------------------------------
-def _to_golden_dict(r, strategy: str = "high_value", extra: dict = None) -> dict:
+def _to_golden_dict(r, strategy: str = "high_value", extra: Optional[dict] = None) -> dict:
     d = {
         "task_id":        r.task_id,
         "question":       getattr(r, "question", r.task_id) or r.task_id,
