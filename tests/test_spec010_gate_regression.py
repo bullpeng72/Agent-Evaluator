@@ -163,6 +163,7 @@ class TestHarnessEvaluationGateBaseline:
         gate = HarnessEvaluationGate(report)
         # 예외 없이 정상 반환되어야 함
         result_gate = gate.enforce(exit_on_fail=False)
+        assert result_gate.result is not None
         assert result_gate.result["passed"] is True
 
 
@@ -193,6 +194,7 @@ class TestCliSaveBaselineIncludesGateScores:
         args = _make_args(result_file=str(f), save_baseline=True)
         cmd_gate(args)
         baseline = _load_baseline(tmp_path / "baseline.json")
+        assert baseline is not None
         assert "gate_scores" not in baseline
 
 

@@ -30,6 +30,7 @@ from __future__ import annotations
 import functools
 import logging
 import re
+from collections.abc import Mapping
 from typing import Any, Callable, Iterator, Union
 
 logger = logging.getLogger(__name__)
@@ -1840,8 +1841,8 @@ class QuickEval:
 # ---------------------------------------------------------------------------
 
 def _compute_gate_regressions(
-    current_scores: dict[str, float | None],
-    baseline_scores: dict[str, float | None],
+    current_scores: Mapping[str, float | None],
+    baseline_scores: Mapping[str, float | None],
     regression_threshold: float,
 ) -> list[dict[str, Any]]:
     """Harness Gate A-G 점수가 베이스라인 대비 회귀했는지 판정한다.
