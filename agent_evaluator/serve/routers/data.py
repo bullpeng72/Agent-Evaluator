@@ -112,8 +112,9 @@ def health(request: Request) -> Dict[str, Any]:  # noqa: UP006
 
     # I1: OTEL 활성화 여부를 동적으로 감지
     try:
-        from agent_evaluator.integrations.otel_provider import OTELProvider as _OTELProvider
-        _otel_enabled = _OTELProvider.is_active() if hasattr(_OTELProvider, "is_active") else False
+        from agent_evaluator.core.otel import get_provider as _get_otel_provider
+        _otel_provider = _get_otel_provider()
+        _otel_enabled = _otel_provider is not None and _otel_provider.enabled
     except Exception:
         try:
             import opentelemetry  # noqa: F401
@@ -513,16 +514,14 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
             t.advanced_metrics.get("quality_dimensions")
             if isinstance(t.advanced_metrics, dict) else None
         ),
-        "streaming_metadata": {
-            "ttft_ms": (
-                round(_task_extra_field(t, "ttft_seconds") * 1000, 2)
-                if _task_extra_field(t, "ttft_seconds") is not None else None
-            ),
-            "chunk_count": _task_extra_field(t, "chunk_count"),
-        } if (
-            _task_extra_field(t, "ttft_seconds") is not None
-            or _task_extra_field(t, "chunk_count") is not None
-        ) else None,
+        "streaming_metadata": (
+            lambda _ttft, _chunk: (
+                {
+                    "ttft_ms": round(_ttft * 1000, 2) if _ttft is not None else None,
+                    "chunk_count": _chunk,
+                } if (_ttft is not None or _chunk is not None) else None
+            )
+        )(_task_extra_field(t, "ttft_seconds"), _task_extra_field(t, "chunk_count")),
     } for t in rf.tasks]
 
     # Security L1
@@ -940,14 +939,20 @@ async def filter_tasks_advanced(file_id: str, request: Request) -> Dict[str, Any
             return str(tv).lower() == str(value).lower() if isinstance(value, str) else tv == value
         elif op == "ne":
             return str(tv).lower() != str(value).lower() if isinstance(value, str) else tv != value
-        elif op == "gt":
-            return float(tv or 0) > float(value)
-        elif op == "gte":
-            return float(tv or 0) >= float(value)
-        elif op == "lt":
-            return float(tv or 0) < float(value)
-        elif op == "lte":
-            return float(tv or 0) <= float(value)
+        elif op in ("gt", "gte", "lt", "lte"):
+            try:
+                tv_f = float(tv or 0)
+                value_f = float(value or 0)
+            except (TypeError, ValueError):
+                return False
+            if op == "gt":
+                return tv_f > value_f
+            elif op == "gte":
+                return tv_f >= value_f
+            elif op == "lt":
+                return tv_f < value_f
+            else:
+                return tv_f <= value_f
         elif op == "contains":
             return str(value).lower() in str(tv or "").lower()
         elif op == "in":
