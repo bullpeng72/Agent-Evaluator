@@ -11,8 +11,9 @@ import pytest
 def _restore_event_loop():
     """asyncio.run() 호출 후 event loop가 닫혀 후속 테스트가 실패하는 문제를 방지한다.
 
-    test_observation_bus.py 등이 asyncio.run()으로 event loop를 닫으면
-    이후 asyncio.get_event_loop()를 사용하는 테스트에서 RuntimeError가 발생한다.
+    test_spec014_generate_report_cache.py/test_spec039_decorator_architecture.py 등이
+    asyncio.run()으로 event loop를 닫으면 이후 asyncio.get_event_loop()를 사용하는
+    테스트에서 RuntimeError가 발생한다.
     각 테스트 실행 전에 usable event loop가 있는지 보장한다.
     """
     try:
