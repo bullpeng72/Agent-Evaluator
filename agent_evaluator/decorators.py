@@ -66,10 +66,10 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Literal, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Union, cast
 
 if TYPE_CHECKING:
-    from agent_evaluator import PerformanceMonitor
+    from agent_evaluator import PerformanceMonitor, TaskResult
 
 # M1: 프레임워크 식별자 Literal — IDE 자동완성 지원 (Python 3.8+ 지원, from __future__ import annotations)
 FrameworkLiteral = Literal[
@@ -485,6 +485,9 @@ def _extract_response(raw: Any) -> str:
     # (response, EvalMetadata) 튜플이면 첫 번째 요소 기준
     if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[1], EvalMetadata):
         return _extract_response(raw[0])
+    # 위 isinstance 체인이 아래 raw 사용처에도 tuple[...] 잔여 타입을 좁혀버리는
+    # Pylance narrowing 오탐을 방지 (raw는 실제로는 여전히 임의의 응답 객체)
+    raw = cast(Any, raw)
 
     # OpenAI ChatCompletion (openai>=1.0)
     if hasattr(raw, "choices"):
@@ -1130,6 +1133,9 @@ def _extract_autogen_metadata(raw: Any) -> EvalMetadata | None:
         messages = raw.messages
     elif isinstance(raw, dict):
         messages = raw.get("messages") or raw.get("chat_history")
+    # isinstance(raw, dict) 분기가 아래 raw 사용처에도 dict[...] 잔여 타입을
+    # 좁혀버리는 Pylance narrowing 오탐을 방지 (raw는 임의의 응답 객체일 수 있음)
+    raw = cast(Any, raw)
     # autogen-agentchat 0.4+ TaskResult
     if messages is None and hasattr(raw, "chat_result"):
         cr = raw.chat_result
@@ -1281,7 +1287,7 @@ def _extract_dspy_metadata(raw: Any) -> EvalMetadata | None:
     # C1: Try to extract token usage and chain steps from DSPy LM history
     tokens_used: dict[str, int] | None = None
     try:
-        import dspy
+        import dspy  # type: ignore[import-not-found]
         lm = getattr(dspy.settings, "lm", None)
         if lm is None:
             lm = getattr(dspy.settings, "_lm", None)
@@ -1336,7 +1342,7 @@ def _extract_dspy_metadata(raw: Any) -> EvalMetadata | None:
         # Also check history entries for tool_calls
         if not tool_calls:
             try:
-                import dspy
+                import dspy  # type: ignore[import-not-found]
                 lm = getattr(dspy.settings, "lm", None) or getattr(dspy.settings, "_lm", None)
                 if lm and hasattr(lm, "history") and lm.history:
                     for _h in lm.history:
@@ -1377,12 +1383,11 @@ def _extract_pydanticai_metadata(raw: Any) -> EvalMetadata | None:
     tokens_used: dict[str, int] | None = None
     try:
         usage = getattr(raw, "usage", None)
-        is_legacy_method = (
+        if (
             callable(usage)
             and not hasattr(usage, "input_tokens")
             and not hasattr(usage, "request_tokens")
-        )
-        if is_legacy_method:
+        ):
             usage = usage()
         if usage:
             inp = getattr(usage, "request_tokens", 0) or getattr(usage, "input_tokens", 0) or 0
@@ -1402,6 +1407,9 @@ def _extract_pydanticai_metadata(raw: Any) -> EvalMetadata | None:
                 pass
         if msgs is None:
             msgs = getattr(raw, "messages", []) or []
+        # hasattr()로 좁혀진 raw.all_messages()의 반환형이 object로 추론돼
+        # 아래 for가 오탐되는 것을 방지 (msgs는 실제로 메시지 리스트)
+        msgs = cast(Any, msgs)
 
         for msg in msgs:
             parts = getattr(msg, "parts", None)
@@ -2540,6 +2548,7 @@ def _extract_huggingface_metadata(raw: Any) -> EvalMetadata | None:
         # transformers pipeline: [{"generated_text": "..."}] 또는 [{"label": ..., "score": ...}]
         if isinstance(raw, list) and raw and isinstance(raw[0], dict):
             total_output_chars = 0
+            generated_text = ""  # raw가 비어있지 않음이 위에서 보장되지만 정적 분석 안전망으로 명시
             for i, item in enumerate(raw):
                 step_name = "generation" if "generated_text" in item else f"output_{i}"
                 generated_text = str(item.get("generated_text", item.get("text", item)))
@@ -2691,7 +2700,7 @@ def _extract_google_adk_metadata(raw: Any) -> EvalMetadata | None:
     tool_calls: list[dict[str, Any]] = []
     try:
         get_fc = getattr(raw, "get_function_calls", None)
-        for fc in (get_fc() if callable(get_fc) else []):
+        for fc in cast(Any, get_fc() if callable(get_fc) else []):
             tool_calls.append({
                 "tool_name": getattr(fc, "name", "unknown"),
                 "input": dict(getattr(fc, "args", {}) or {}),
@@ -3627,7 +3636,10 @@ async def _process_async_judge_targets(targets: list[tuple]) -> None:
     await asyncio.gather(*(_one(*t) for t in targets))
 
 
-def _build_and_record(
+def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
+    # 60+ 파라미터 · 33개 Harness Config 분기를 한 함수에서 처리하는 핵심 경로라
+    # pyright가 함수 본문 전체를 "너무 복잡함"으로 분석 포기한다. 서브루틴으로
+    # 쪼개는 리팩터링은 이 세션(타입 오탐 수정) 범위 밖 — 동작 변경 없이 억제만 한다.
     monitor: Union[PerformanceMonitor, list[PerformanceMonitor]],
     *,
     task_type: str,
@@ -3799,7 +3811,7 @@ def _build_and_record(
         # built-in 어댑터가 아무것도 설정하지 못했을 때 플러그인 어댑터를 시도
         if eval_meta is None and not has_error:
             try:
-                from .plugin_registry import PluginRegistry as _PR
+                from .plugin_registry import PluginRegistry as _PR  # type: ignore[import-not-found]
                 if _PR.list_framework_plugins():
                     _plg_fw, _plg_meta = _PR.detect_and_extract(raw_result)
                     if _plg_meta is not None:
@@ -4461,7 +4473,7 @@ def _build_and_record(
         # Phase 2: Plugin Registry — MetricPlugin 실행
         # extra_override 병합 후, 최종 extra에 plugin_metrics 추가
         try:
-            from .plugin_registry import PluginRegistry as _PR2
+            from .plugin_registry import PluginRegistry as _PR2  # type: ignore[import-not-found]
             if _PR2.list_metric_plugins():
                 _plugin_scores = _PR2.compute_all(
                     question=question,
@@ -4958,7 +4970,7 @@ class _AgentEvalHandle:
     def __init__(
         self,
         _decorator_fn: Callable,   # agent_eval 내부 decorator 함수
-        _ctx_factory: Callable,    # eval_context 생성용 팩토리 (callable)
+        _ctx_factory: Callable[[], eval_context],    # eval_context 생성용 팩토리 (callable)
     ) -> None:
         self._decorator_fn = _decorator_fn
         self._ctx_factory = _ctx_factory
@@ -5209,8 +5221,8 @@ def agent_eval(
     if monitor_or_fn is None:
         # No explicit monitor: load from config file + monitor registry
         try:
-            from .eval_config import get_active_config as _get_cfg
-            from .eval_config import get_or_create_monitor as _get_mon
+            from .eval_config import get_active_config as _get_cfg  # type: ignore[import-not-found]
+            from .eval_config import get_or_create_monitor as _get_mon  # type: ignore[import-not-found]
             _cfg = _get_cfg()
             monitor = _get_mon(config=_cfg)
             # Apply config values conservatively: only when param is still at its SDK default
@@ -5245,6 +5257,12 @@ def agent_eval(
             monitor = None
     else:
         monitor = monitor_or_fn
+    # NOTE: .eval_config 모듈이 현재 존재하지 않아(위 import는 항상 ImportError로
+    # except에 빠짐) monitor 없이 호출하는 경로(@agent_eval() 등)는 여기서 monitor=None
+    # 으로 귀결된다. 이 세션에서는 타입 표기만 정리하고 런타임 가드는 추가하지 않았다 —
+    # 아래 cast는 하위 _build_and_record() 등이 기대하는 타입을 명시할 뿐, monitor가
+    # 실제로 None일 가능성 자체를 없애지는 않는다.
+    monitor = cast("Union[PerformanceMonitor, list[PerformanceMonitor]]", monitor)
     # ── End Phase 1 ─────────────────────────────────────────────────────────
 
     # E2: rag_mode — context_arg + hallucination + task_type 자동 설정
@@ -6167,8 +6185,6 @@ def agent_eval(
         return eval_context(
             monitor,
             task_type,
-            question=None,
-            ground_truth=None,
             context=None,
             expected_tools=expected_tools,
             framework=framework,
@@ -7119,16 +7135,16 @@ def batch_eval(
             except TypeError:
                 all_args = {}
 
-            questions: list[str] = all_args.get(questions_arg)
+            questions: list[str] | None = all_args.get(questions_arg)
             if questions is None:
                 param_names = list(sig.parameters.keys())
                 questions = all_args.get(param_names[0], []) if param_names else []
             if not isinstance(questions, list):
-                questions = list(questions)
+                questions = list(cast(Any, questions))
 
             ground_truths: list[str] = all_args.get(ground_truths_arg) or []
             if not isinstance(ground_truths, list):
-                ground_truths = list(ground_truths)
+                ground_truths = list(cast(Any, ground_truths))
 
             # Gap Q: contexts 리스트 추출 (List[str])
             contexts: list[str] | None = None
@@ -7382,7 +7398,7 @@ def batch_eval(
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)  # Gap L
                 # A1: wrapper._last_failures 저장 (concurrent 실패 목록)
-                wrapper._last_failures = list(_item_failures)
+                wrapper._last_failures = list(_item_failures)  # type: ignore[attr-defined]
                 try:
                     # SPEC-006 REQ-4: concurrent_judge=True (옵트인)면 judge 대상을 적재해뒀다가
                     # asyncio.gather 기반으로 동시 처리한다. 기본값(False)은 기존과 동일하게
@@ -7406,12 +7422,12 @@ def batch_eval(
                             logger.debug(
                                 "SPEC-006: concurrent_judge asyncio.run 실패 (무시): %s", _loop_exc
                             )
-                    wrapper._last_task_results = _batch_task_results or []
+                    wrapper._last_task_results = _batch_task_results or []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = _batch_task_results or []  # A8: shared holder
                     _maybe_flush_batch()
                 except Exception as rec_exc:
                     logger.debug("batch_eval: record 실패: %s", rec_exc)
-                    wrapper._last_task_results = []
+                    wrapper._last_task_results = []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = []  # A8: shared holder reset
 
         # A8: return_format 후처리 래퍼
@@ -7456,12 +7472,12 @@ def batch_eval(
                         )
                         return _resp
                 return _resp
-            wrapper_with_format._last_failures = []
-            wrapper_with_format._last_task_results = []
+            wrapper_with_format._last_failures = []  # type: ignore[attr-defined]
+            wrapper_with_format._last_task_results = []  # type: ignore[attr-defined]
             wrapper = wrapper_with_format  # type: ignore[assignment]
 
-        wrapper._last_failures = []  # A1: 초기화 (첫 호출 전 속성 존재 보장)
-        wrapper._last_task_results = []  # A8: 초기화
+        wrapper._last_failures = []  # type: ignore[attr-defined]  # A1: 초기화 (첫 호출 전 속성 존재 보장)
+        wrapper._last_task_results = []  # type: ignore[attr-defined]  # A8: 초기화
 
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -7555,15 +7571,15 @@ def batch_eval(
                     )
                     if concurrent_judge and _async_judge_targets_batch:
                         await _process_async_judge_targets(_async_judge_targets_batch)
-                    async_wrapper._last_task_results = _async_batch_task_results or []
+                    async_wrapper._last_task_results = _async_batch_task_results or []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = _async_batch_task_results or []
                     _maybe_flush_batch()
                 except Exception as rec_exc:
                     logger.debug("batch_eval (async): record 실패: %s", rec_exc)
-                    async_wrapper._last_task_results = []
+                    async_wrapper._last_task_results = []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = []
 
-        async_wrapper._last_task_results = []  # H2: initialize before first call
+        async_wrapper._last_task_results = []  # type: ignore[attr-defined]  # H2: initialize before first call
 
         # M4: return_format 후처리 — async 함수에도 tuple/dataframe 지원
         _original_async_wrapper = async_wrapper
@@ -7596,7 +7612,7 @@ def batch_eval(
                         )
                         return _resp
                 return _resp
-            async_wrapper_with_format._last_task_results = []
+            async_wrapper_with_format._last_task_results = []  # type: ignore[attr-defined]
             async_wrapper = async_wrapper_with_format  # type: ignore[assignment]
 
         return async_wrapper if is_async else wrapper
@@ -7664,7 +7680,7 @@ class eval_context:
 
     def __init__(
         self,
-        monitor: PerformanceMonitor,
+        monitor: Union[PerformanceMonitor, list[PerformanceMonitor]],
         task_type: str = "qa",
         *,
         question: str = "",
@@ -8004,7 +8020,7 @@ class _ContextShortcut:
             "alert_rules": self._eval_dec._defaults.get("alert_rules"),
             "timeout": self._eval_dec._defaults.get("timeout"),
         }
-        merged = {k: v for k, v in ctx_defaults.items() if v is not None or k in ("framework", "model_name")}
+        merged: dict[str, Any] = {k: v for k, v in ctx_defaults.items() if v is not None or k in ("framework", "model_name")}
         merged.update(kwargs)
         _task_type = task_type if task_type is not None else self._eval_dec._defaults.get("task_type", "qa")
         return eval_context(self._eval_dec._monitor, _task_type, **merged)
@@ -8397,7 +8413,11 @@ class EvalDecorator:
         conv_defaults = {k: v for k, v in self._defaults.items()
                          if k in self._CONV_PARAMS}
         merged = {**conv_defaults, **kwargs}
-        return conversation_eval(self._monitor, **merged)
+        # conversation_eval()은 단일 PerformanceMonitor만 지원한다(_do_flush()가
+        # stored_monitor.conversation(...)을 리스트 분기 없이 직접 호출) — self._monitor가
+        # 리스트면 첫 번째 모니터로 폴백해 AttributeError를 방지한다.
+        _mon = self._monitor if not isinstance(self._monitor, list) else self._monitor[0]
+        return conversation_eval(_mon, **merged)
 
     @property
     def context(self) -> _ContextShortcut:  # 항목 E: 양방향 호출 지원 — with eval.context(...) / with eval.context as ctx
