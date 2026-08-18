@@ -364,3 +364,73 @@ class TestIterationNotePassthrough:
         with open(result["saved_to"]) as f:
             data = json.load(f)
         assert data["extra_metrics"]["lineage"]["iteration_note"] is None
+
+
+class TestBlockedAttemptAlert:
+    """Harness Method Ch13 §13.2 HITL 대응 — AGENT_EVALUATOR_ALERT_WEBHOOK_URL이
+    설정돼 있고 blocked_attempts가 있으면 세션당 Slack 알림 1건을 보낸다."""
+
+    _BLOCKED = [{"tool_name": "bash", "gate": "B", "reason": "dangerous tool parameters"}]
+
+    def test_no_webhook_env_no_dispatch_attempted(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("AGENT_EVALUATOR_ALERT_WEBHOOK_URL", raising=False)
+        with patch("agent_evaluator.alerts.handlers.SlackHandler.send") as mock_send:
+            result = record_and_save({
+                "task_id": "t1", "extra": {"blocked_attempts": self._BLOCKED},
+                "output_dir": str(tmp_path / "out"), "storage_backend": "json",
+                "save_filename": "n3",
+            })
+        assert result["ok"] is True
+        mock_send.assert_not_called()
+
+    def test_webhook_env_but_no_blocked_attempts_no_dispatch(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENT_EVALUATOR_ALERT_WEBHOOK_URL", "https://hooks.slack.test/x")
+        with patch("agent_evaluator.alerts.handlers.SlackHandler.send") as mock_send:
+            result = record_and_save({
+                "task_id": "t1", "extra": {},
+                "output_dir": str(tmp_path / "out"), "storage_backend": "json",
+                "save_filename": "n4",
+            })
+        assert result["ok"] is True
+        mock_send.assert_not_called()
+
+    def test_webhook_env_and_blocked_attempts_dispatches_one_alert(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENT_EVALUATOR_ALERT_WEBHOOK_URL", "https://hooks.slack.test/x")
+        with patch("agent_evaluator.alerts.handlers.SlackHandler.send") as mock_send:
+            result = record_and_save({
+                "task_id": "sess-42", "extra": {"blocked_attempts": self._BLOCKED},
+                "output_dir": str(tmp_path / "out"), "storage_backend": "json",
+                "save_filename": "n5",
+            })
+        assert result["ok"] is True
+        mock_send.assert_called_once()
+        event = mock_send.call_args[0][0]
+        assert event.severity == "critical"
+        assert "sess-42" in event.message
+        assert "bash" in event.message
+        assert event.value == 1
+
+    def test_dispatch_failure_does_not_break_record_and_save(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AGENT_EVALUATOR_ALERT_WEBHOOK_URL", "https://hooks.slack.test/x")
+        with patch(
+            "agent_evaluator.alerts.handlers.SlackHandler.send",
+            side_effect=OSError("network unreachable"),
+        ):
+            result = record_and_save({
+                "task_id": "t1", "extra": {"blocked_attempts": self._BLOCKED},
+                "output_dir": str(tmp_path / "out"), "storage_backend": "json",
+                "save_filename": "n6",
+            })
+        assert result["ok"] is True  # 알림 발송 실패가 세션 리포트 저장을 막지 않는다
+
+    def test_blocked_attempts_stays_in_extra_metrics(self, tmp_path, monkeypatch):
+        """blocked_attempts는 pop되지 않고 tool_calls처럼 그대로 extra에 남아야 한다
+        (sqlite_backend.save_tasks_to_db()가 blocked_violations 테이블에 반영, SPEC-030)."""
+        monkeypatch.delenv("AGENT_EVALUATOR_ALERT_WEBHOOK_URL", raising=False)
+        result = record_and_save({
+            "task_id": "t1", "extra": {"blocked_attempts": self._BLOCKED},
+            "output_dir": str(tmp_path / "out"), "storage_backend": "json", "save_filename": "n7",
+        })
+        with open(result["saved_to"]) as f:
+            data = json.load(f)
+        assert data["tasks"][0]["extra"]["blocked_attempts"] == self._BLOCKED

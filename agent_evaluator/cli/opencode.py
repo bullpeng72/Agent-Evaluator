@@ -30,6 +30,20 @@ _R  = "\033[0m"  if _USE_COLOR else ""
 
 _PYTHON_PLACEHOLDER = "__AGENT_EVALUATOR_PYTHON_DEFAULT__"
 
+# Harness Method Ch06 §6.2 — 훅이 하나라도 빠지면 실시간 차단은 되는데 배치 채점
+# 데이터는 하나도 안 쌓이는 "절반만 작동하는 상태"를 알아채기 어렵다. 온보딩
+# 체크리스트에만 맡기는 대신 설치 시점에 자동으로 확인한다.
+_REQUIRED_HOOKS: tuple[tuple[str, str], ...] = (
+    ('"tool.execute.before":', "tool.execute.before"),
+    ('"tool.execute.after":', "tool.execute.after"),
+    ("event:", "event"),
+)
+
+
+def _missing_hooks(content: str) -> list[str]:
+    """설치될 내용에 세 훅이 전부 등록돼 있는지 확인해 빠진 것의 이름을 반환한다."""
+    return [label for marker, label in _REQUIRED_HOOKS if marker not in content]
+
 _BUNDLED_PLUGIN = (
     Path(__file__).resolve().parent.parent
     / "integrations" / "opencode_plugin" / "agent-evaluator.ts"
@@ -128,6 +142,17 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     print(f"{_G}✅ Installed: {target}{_R}")
     print(f"{_D}   python interpreter (baked in as default): {sys.executable}{_R}")
+
+    missing = _missing_hooks(content)
+    if missing:
+        print(
+            f"{_RD}⚠️  Warning: the installed plugin is missing hook(s): "
+            f"{', '.join(missing)}{_R}\n"
+            f"{_D}   Real-time blocking and/or batch reporting may silently not work — "
+            f"this should never happen with the bundled plugin (agent_evaluator/"
+            f"integrations/opencode_plugin/agent-evaluator.ts); please file an issue.{_R}",
+            file=sys.stderr,
+        )
 
     if getattr(args, "with_violation_search", False):
         print()

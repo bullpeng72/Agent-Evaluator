@@ -57,6 +57,19 @@ SPEC-019 REQ-6 배치 편입 — ``LiveGuardrail.to_task_extra()``가 만든 ``e
                                              # 그룹핑 시 함께 렌더링된다.
     }
 
+Harness Method Ch13 §13.2 HITL 알림 (옵트인, 환경변수 — payload 필드 아님):
+    AGENT_EVALUATOR_ALERT_WEBHOOK_URL 환경변수가 설정돼 있고 이 세션의
+    ``extra["blocked_attempts"]``(LiveGuardrail.snapshot()이 항상 채워 보내는 감사
+    이력, SPEC-030 REQ-2)가 비어있지 않으면, 세션당 정확히 1건의 Slack 알림을
+    보낸다 — "차단은 SQLite 감사 이력에만 남고 아무도 확인하지 않으면 '판정과
+    차단은 별개'라는 함정이 반복된다"는 지적(Ch13 §13.2 개발자 TIP)에 대응한다.
+    실시간 tool.execute.before 훅(에이전트 응답 지연에 민감)이 아니라 세션 종료 시
+    1회 실행되는 이 배치 브리지에서 보내므로 에이전트 루프에 지연을 더하지 않고,
+    같은 세션의 차단 시도 여러 건을 알림 1건으로 묶어(스팸 방지) 보낸다. 시크릿
+    (webhook URL)이 Node 플러그인 프로세스나 GUARDRAIL_CONFIG 파일에 전혀 닿지
+    않는다 — 이 Python 프로세스만 환경에서 직접 읽는다. 발송 실패는 세션 리포트
+    저장을 절대 막지 않는다(다른 최선노력 실패 처리와 동일 원칙).
+
 출력(stdout, JSON 한 줄)::
 
     {"ok": true, "saved_to": "...", "gate_b_score": float|null, "gate_e_score": float|null}
@@ -65,10 +78,44 @@ SPEC-019 REQ-6 배치 편입 — ``LiveGuardrail.to_task_extra()``가 만든 ``e
 from __future__ import annotations
 
 import json
+import os
 import sys
 from typing import Any, TextIO
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
+
+
+def _dispatch_blocked_attempt_alert(task_id: str, blocked_attempts: list[dict[str, Any]]) -> None:
+    """차단된 시도를 사람에게 실제로 알린다 (Harness Method Ch13 §13.2 HITL 대응).
+
+    ``AGENT_EVALUATOR_ALERT_WEBHOOK_URL``이 설정돼 있지 않거나 이번 세션에 차단된
+    시도가 없으면 아무 일도 하지 않는다(옵트인, 기존 동작 회귀 없음). 발송 자체가
+    실패해도(네트워크 오류, webhook URL 오타 등) 예외를 올리지 않는다 — 이 알림은
+    최선노력(best-effort)이며, 이미 완료된 세션 리포트 저장을 막을 이유가 없다
+    (``run()``의 ``BrokenPipeError`` 무시와 동일 원칙).
+    """
+    webhook_url = os.environ.get("AGENT_EVALUATOR_ALERT_WEBHOOK_URL")
+    if not webhook_url or not blocked_attempts:
+        return
+    try:
+        from agent_evaluator.alerts.engine import AlertEvent
+        from agent_evaluator.alerts.handlers import SlackHandler
+
+        lines = "\n".join(
+            f"• `{a.get('tool_name')}` blocked by Gate {a.get('gate')}: {a.get('reason')}"
+            for a in blocked_attempts
+        )
+        event = AlertEvent(
+            rule_name="opencode_blocked_attempts",
+            severity="critical",
+            message=(
+                f"Session `{task_id}` had {len(blocked_attempts)} blocked tool call(s):\n{lines}"
+            ),
+            value=len(blocked_attempts),
+        )
+        SlackHandler(webhook_url=webhook_url).send(event)
+    except Exception:
+        pass
 
 
 def record_and_save(payload: dict[str, Any]) -> dict[str, Any]:
@@ -136,6 +183,8 @@ def record_and_save(payload: dict[str, Any]) -> dict[str, Any]:
     )
     monitor.record_task(task)
     saved_to = monitor.save_to_file(payload.get("save_filename", "opencode_sessions"))
+
+    _dispatch_blocked_attempt_alert(task_id, extra.get("blocked_attempts") or [])
 
     report = monitor.generate_report()
     harness_groups = report.to_dict().get("extra_metrics", {}).get("harness_groups", {}) or {}

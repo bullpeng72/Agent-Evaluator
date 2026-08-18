@@ -86,6 +86,12 @@ agent-eval opencode install                       # .opencode/plugin/ (project-l
 # or: agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
 ```
 
+`agent-eval opencode install` verifies the installed copy actually registers all three plugin hooks
+(`tool.execute.before`, `tool.execute.after`, `event`) and warns if one is missing — a plugin missing
+just `tool.execute.after`, say, would still block dangerous calls in real time while silently never
+feeding data into the batch report, exactly the kind of half-working state that's hard to notice on your
+own (Harness Method Ch06 §6.2).
+
 `agent-eval opencode install` bakes the interpreter that ran the command in as the plugin's default
 `PYTHON_BIN`. Override it or the SQLite report location via env vars:
 
@@ -158,6 +164,26 @@ The result is a normal result file — point `agent-eval gate`/`agent-eval dashb
 > result (exit code, etc.), so Gate G's success rate can read more optimistically than reality. Tracking
 > per-tool execution results would need the `tool.execute.after` hook signature extended — left as
 > future work.
+
+## Blocked-attempt Slack alerts (opt-in)
+
+A block that only lands in the SQLite audit trail is easy for nobody to ever look at — the same "a
+verdict and an enforced consequence are two different things" trap the whole stack is built to close,
+just aimed at humans instead of the model this time (Harness Method Ch13 §13.2). Set
+`AGENT_EVALUATOR_ALERT_WEBHOOK_URL` and `live_guardrail_report.record_and_save()` sends **one** Slack
+message per session that had any blocked attempts, listing each blocked tool/gate/reason:
+
+```bash
+export AGENT_EVALUATOR_ALERT_WEBHOOK_URL="https://hooks.slack.com/services/..."
+```
+
+This fires from the one-shot, session-end batch bridge — not from `tool.execute.before` — so it never
+adds latency to the agent's live loop, and repeated blocked attempts within one session collapse into a
+single notification instead of spamming one per attempt. It reuses the SDK's existing
+`agent_evaluator.alerts.handlers.SlackHandler` (the same one `StreamingEvaluator`'s anomaly alerts use —
+no new notification logic), and the webhook URL is read directly by this Python process — it's never
+passed through the Node plugin or written into `GUARDRAIL_CONFIG`. A failed send (bad URL, network error)
+never blocks the session report from saving.
 
 ## Team scope claims — `.aoo/claims.jsonl` (SPEC-032/034/036/037/038)
 

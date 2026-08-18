@@ -212,3 +212,46 @@ class TestWithViolationSearchMcpRegistration:
 
         assert code == 0
         assert "시간 초과" in capsys.readouterr().err
+
+
+class TestMissingHooksCheck:
+    """Harness Method Ch06 §6.2 — 훅 3개(tool.execute.before/after, event)가 전부
+    등록됐는지 설치 시점에 자동 확인한다."""
+
+    def test_no_missing_hooks_for_complete_content(self):
+        content = (
+            '"tool.execute.before": async (input, output) => {},\n'
+            '"tool.execute.after": async (input, output) => {},\n'
+            "event: async ({ event }) => {},\n"
+        )
+        assert opencode_cli._missing_hooks(content) == []
+
+    def test_reports_each_missing_hook_by_name(self):
+        content = '"tool.execute.before": async (input, output) => {},\n'
+        missing = opencode_cli._missing_hooks(content)
+        assert missing == ["tool.execute.after", "event"]
+
+    def test_real_bundled_plugin_has_no_missing_hooks(self):
+        """번들 원본 자체가 회귀로 훅을 잃지 않았는지 실제 파일로 확인."""
+        content = opencode_cli._BUNDLED_PLUGIN.read_text(encoding="utf-8")
+        assert opencode_cli._missing_hooks(content) == []
+
+    def test_install_with_complete_bundled_plugin_prints_no_warning(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        code = opencode_cli.cmd_opencode(_ns())
+        assert code == 0
+        assert "missing hook" not in capsys.readouterr().err
+
+    def test_install_warns_when_bundled_content_missing_a_hook(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        original = opencode_cli._BUNDLED_PLUGIN.read_text(encoding="utf-8")
+        broken = original.replace('"tool.execute.after":', "// removed for test")
+        broken_bundled = tmp_path / "broken-bundled.ts"
+        broken_bundled.write_text(broken, encoding="utf-8")
+        monkeypatch.setattr(opencode_cli, "_BUNDLED_PLUGIN", broken_bundled)
+
+        code = opencode_cli.cmd_opencode(_ns())
+        assert code == 0  # 훅 누락 경고는 설치 자체를 실패시키지 않는다
+        err = capsys.readouterr().err
+        assert "missing hook" in err
+        assert "tool.execute.after" in err
