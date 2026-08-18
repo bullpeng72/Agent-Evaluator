@@ -38,7 +38,7 @@ import warnings
 from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,8 +52,12 @@ from agent_evaluator.decorators import (
     get_framework_info,
 )
 
-# Optional decorators imports (gracefully handled if not present)
-try:
+# Optional decorators imports (gracefully handled if not present). The TYPE_CHECKING
+# branch lets pyright see these as their real (non-Optional) signatures — the try/except
+# fallback to None only guards against the module being reorganized, not a genuinely
+# missing optional dependency, so a `Callable | None` inference at every one of the
+# ~35 call sites below would be noise rather than a real narrowing requirement.
+if TYPE_CHECKING:
     from agent_evaluator.decorators import (
         _FRAMEWORK_ADAPTER_META,
         _auto_detect_framework,
@@ -63,14 +67,25 @@ try:
         _extract_dspy_metadata,
         _extract_pydanticai_metadata,
     )
-except ImportError:
-    _FRAMEWORK_ADAPTER_META = {}
-    _auto_detect_framework = None
-    _extract_crewai_metadata = None
-    _extract_openai_metadata = None
-    _extract_langgraph_metadata = None
-    _extract_dspy_metadata = None
-    _extract_pydanticai_metadata = None
+else:
+    try:
+        from agent_evaluator.decorators import (
+            _FRAMEWORK_ADAPTER_META,
+            _auto_detect_framework,
+            _extract_crewai_metadata,
+            _extract_openai_metadata,
+            _extract_langgraph_metadata,
+            _extract_dspy_metadata,
+            _extract_pydanticai_metadata,
+        )
+    except ImportError:
+        _FRAMEWORK_ADAPTER_META = {}
+        _auto_detect_framework = None
+        _extract_crewai_metadata = None
+        _extract_openai_metadata = None
+        _extract_langgraph_metadata = None
+        _extract_dspy_metadata = None
+        _extract_pydanticai_metadata = None
 
 
 # ===========================================================================
@@ -231,6 +246,7 @@ class TestLangChainAdapterTokens:
         }
         result = _extract_langchain_metadata(raw)
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tokens_used is None
 
@@ -293,6 +309,7 @@ class TestAutoGenAdapterTokens:
         }
         result = _extract_autogen_metadata(raw)
         assert result is not None
+        assert result.conversation_turns is not None
         assert len(result.conversation_turns) == 2
         assert result.tokens_used is None
 
@@ -313,7 +330,7 @@ class TestQuickEvalStreaming:
         qe = QuickEval(str(tmp_path) + "/")
 
         @qe.streaming
-        def stream_agent(question: str, ground_truth: str = "") -> str:
+        def stream_agent(question: str, ground_truth: str = ""):
             for chunk in ["hello ", "world"]:
                 yield chunk
 
@@ -328,7 +345,7 @@ class TestQuickEvalStreaming:
         called = []
 
         @qe.streaming
-        def agent(question: str, ground_truth: str = "") -> str:
+        def agent(question: str, ground_truth: str = ""):
             called.append(True)
             yield "answer"
 
@@ -369,12 +386,12 @@ class TestScoreFnCallable:
 class TestRouterRegistration:
     def test_stream_tasks_route_registered(self):
         from agent_evaluator.serve.routers.stream import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("stream/tasks" in p for p in paths), f"stream/tasks not found in {paths}"
 
     def test_conversation_session_detail_route_registered(self):
         from agent_evaluator.serve.routers.conversation import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         # /api/conversation/{file_id}/{session_id} 또는 /{file_id}/{session_id}
         assert any("{session_id}" in p for p in paths), f"session_id route not found in {paths}"
 
@@ -453,6 +470,7 @@ class TestEvalContextTimeout:
             ctx.response = "slow"
 
         tcr = getattr(monitor, "tcr_tracker", None)
+        assert tcr is not None
         tasks = list(tcr.tasks)
         errors = tasks[0].errors or []
         assert any("timeout" in str(e).lower() or "exceeded" in str(e).lower() for e in errors)
@@ -568,6 +586,7 @@ class TestEvalDecoratorBatchParams:
         batch_agent(questions=["q1"], ground_truths=["a1"])
 
         tcr = getattr(monitor, "tcr_tracker", None)
+        assert tcr is not None
         tasks = list(tcr.tasks)
         assert tasks[0].framework == "openai"
 
@@ -602,6 +621,7 @@ class TestEvalDecoratorContextTimeout:
             ctx.response = "slow"
 
         tcr = getattr(monitor, "tcr_tracker", None)
+        assert tcr is not None
         tasks = list(tcr.tasks)
         assert len(tasks) == 1
         assert tasks[0].success is False  # timeout 초과 → has_error=True
@@ -619,6 +639,7 @@ class TestEvalDecoratorContextTimeout:
             ctx.response = "fast"
 
         tcr = getattr(monitor, "tcr_tracker", None)
+        assert tcr is not None
         tasks = list(tcr.tasks)
         # 60초 timeout이 적용되어 정상 처리
         assert tasks[0].success is True
@@ -633,19 +654,19 @@ class TestSearchTasksEndpoint:
     def test_search_route_registered(self):
         """search 라우터가 data 라우터에 등록되어야 한다."""
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("tasks/search" in p for p in paths), f"tasks/search not found in {paths}"
 
     def test_distributions_route_registered(self):
         """distributions 라우터가 data 라우터에 등록되어야 한다."""
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("distributions" in p for p in paths), f"distributions not found in {paths}"
 
     def test_cross_file_search_route_registered(self):
         """전체 파일 task 검색 라우터가 등록되어야 한다."""
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         # /tasks/search or /api/tasks/search
         assert any("tasks/search" in p for p in paths), f"global tasks/search not found in {paths}"
 
@@ -755,7 +776,7 @@ class TestDistributionsEndpoint:
     def test_distributions_in_data_router(self):
         """distributions 엔드포인트가 등록되어야 한다."""
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("distributions" in p for p in paths)
 
 
@@ -772,7 +793,7 @@ class TestSampleCondition:
 
         monitor = PerformanceMonitor(output_dir=str(tmp_path) + "/")
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", sample_condition=lambda args, kwargs: False)
+            agent_eval(monitor, task_type="qa", sample_condition=lambda args, kwargs: False)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
 
     def test_agent_eval_condition_true_evaluates(self, tmp_path):
         """sample_condition was removed; verify agent_eval works normally without it."""
@@ -803,7 +824,7 @@ class TestSampleCondition:
 
         monitor = PerformanceMonitor(output_dir=str(tmp_path) + "/")
         with pytest.raises(TypeError):
-            @batch_eval(monitor, task_type="qa", sample_condition=lambda args, kwargs: False)
+            @batch_eval(monitor, task_type="qa", sample_condition=lambda args, kwargs: False)  # type: ignore[call-arg] — intentionally removed kwarg, testing the runtime guard
             def agent(questions, ground_truths=None):
                 return [f"ans" for _ in questions]
 
@@ -1066,9 +1087,9 @@ def _make_result(
     success: bool = True,
     accuracy_score: float = 0.9,
     execution_time: float = 1.0,
-    tokens_used: Dict = None,
+    tokens_used: Dict | None = None,
     framework: str = "native",
-    errors: List = None,
+    errors: List | None = None,
 ):
     from agent_evaluator.core.trackers.base import TaskResult
     return TaskResult(
@@ -1099,7 +1120,7 @@ def _make_monitor():
 class TestMetricDetailEndpoint:
     def test_route_registered(self):
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("/results/{file_id}/metrics/{metric_name}" in p for p in paths)
 
     def test_invalid_metric_raises_404(self):
@@ -1132,7 +1153,7 @@ class TestMetricDetailEndpoint:
             app = FakeApp()
 
         with pytest.raises(HTTPException) as exc_info:
-            data_mod.get_metric_detail("f1", "nonexistent_metric", FakeRequest())
+            data_mod.get_metric_detail("f1", "nonexistent_metric", FakeRequest())  # type: ignore[arg-type] — only request.app.state.result_set is read; FakeRequest avoids constructing a real FastAPI Request
         assert exc_info.value.status_code == 404
 
 
@@ -1143,7 +1164,7 @@ class TestMetricDetailEndpoint:
 class TestHeatmapEndpoint:
     def test_route_registered(self):
         from agent_evaluator.serve.routers.data import router
-        paths = [r.path for r in router.routes]
+        paths = [getattr(r, "path", "") for r in router.routes]
         assert any("/results/{file_id}/heatmap/{metric}" in p for p in paths)
 
     def test_invalid_metric_raises_404(self):
@@ -1166,7 +1187,7 @@ class TestHeatmapEndpoint:
             app = FakeApp()
 
         with pytest.raises(HTTPException):
-            data_mod.get_metric_heatmap("f1", "invalid_metric", FakeRequest())
+            data_mod.get_metric_heatmap("f1", "invalid_metric", FakeRequest())  # type: ignore[arg-type] — only request.app.state.result_set is read; FakeRequest avoids constructing a real FastAPI Request
 
     def test_valid_metric_returns_structure(self):
         from agent_evaluator.serve.routers import data as data_mod
@@ -1194,7 +1215,7 @@ class TestHeatmapEndpoint:
         class FakeRequest:
             app = FakeApp()
 
-        result = data_mod.get_metric_heatmap("f1", "accuracy_score", FakeRequest())
+        result = data_mod.get_metric_heatmap("f1", "accuracy_score", FakeRequest())  # type: ignore[arg-type] — only request.app.state.result_set is read; FakeRequest avoids constructing a real FastAPI Request
         assert "x_labels" in result
         assert "y_labels" in result
         assert "matrix" in result
@@ -1269,7 +1290,7 @@ class TestBatchEvalShuffle:
         from agent_evaluator.decorators import batch_eval
         m = _make_monitor()
         with pytest.raises(TypeError):
-            batch_eval(m, shuffle=True)
+            batch_eval(m, shuffle=True)  # type: ignore[call-arg] — intentionally invalid, testing the runtime guard for the removed shuffle param
 
     def test_order_preserved_by_default(self):
         """shuffle 제거 후 항목 순서는 항상 입력 순서와 동일."""
@@ -1361,7 +1382,7 @@ class TestExportToExternalServices:
         import importlib, sys
         m = _make_monitor()
         orig = sys.modules.get("wandb")
-        sys.modules["wandb"] = None  # simulate missing package
+        sys.modules["wandb"] = None  # type: ignore[assignment] — intentional: forces ImportError on subsequent `import wandb`, simulating a missing package
         try:
             with pytest.raises((ImportError, TypeError)):
                 m.export_to_wandb("test-project")
@@ -1375,7 +1396,7 @@ class TestExportToExternalServices:
         import sys
         m = _make_monitor()
         orig = sys.modules.get("mlflow")
-        sys.modules["mlflow"] = None
+        sys.modules["mlflow"] = None  # type: ignore[assignment] — intentional: forces ImportError on subsequent `import mlflow`, simulating a missing package
         try:
             with pytest.raises((ImportError, TypeError)):
                 m.export_to_mlflow("test-experiment")
@@ -1446,6 +1467,7 @@ class TestCrewAIOutputPydantic:
 
         meta = _extract_crewai_metadata(FakeCrewOutput())
         assert meta is not None
+        assert meta.agent_interactions is not None
         assert len(meta.agent_interactions) == 1
         assert meta.agent_interactions[0]["type"] == "task_completion"
         assert "output_pydantic" in meta.agent_interactions[0]["context"]
@@ -1468,6 +1490,7 @@ class TestCrewAIOutputPydantic:
 
         meta = _extract_crewai_metadata(FakeCrewOutput())
         assert meta is not None
+        assert meta.agent_interactions is not None
         # tasks_output + output_pydantic = 2 interactions
         assert len(meta.agent_interactions) == 2
 
@@ -1485,6 +1508,7 @@ class TestCrewAIOutputPydantic:
 
         meta = _extract_crewai_metadata(FakeCrewOutput())
         assert meta is not None
+        assert meta.agent_interactions is not None
         assert len(meta.agent_interactions) == 1
 
 
@@ -1524,6 +1548,8 @@ class TestVertexAIAdapter:
 
         meta = _extract_vertexai_metadata(FakeResponse())
         assert meta is not None
+        assert meta.tool_calls is not None
+        assert meta.tokens_used is not None
         assert len(meta.tool_calls) == 1
         assert meta.tool_calls[0]["name"] == "get_weather"
         assert meta.tokens_used["input"] == 100
@@ -1561,6 +1587,7 @@ class TestOllamaAdapter:
         }
         meta = _extract_ollama_metadata(resp)
         assert meta is not None
+        assert meta.tokens_used is not None
         assert meta.tokens_used["input"] == 80
         assert meta.tokens_used["output"] == 40
         assert meta.framework == "ollama"
@@ -1581,6 +1608,7 @@ class TestOllamaAdapter:
         }
         meta = _extract_ollama_metadata(resp)
         assert meta is not None
+        assert meta.tool_calls is not None
         assert len(meta.tool_calls) == 1
         assert meta.tool_calls[0]["name"] == "get_time"
 
@@ -1667,7 +1695,7 @@ class TestSimpleTaskAlertRuleDryRun:
     def test_dry_run_error_in_condition(self):
         from agent_evaluator.decorators import SimpleTaskAlertRule
         rule = SimpleTaskAlertRule(
-            name="broken", condition=lambda r: 1 / 0,
+            name="broken", condition=lambda r: 1 / 0,  # type: ignore[return-value] — intentionally invalid: exercises the dry_run error-capture path
             handler=lambda m, r: None
         )
         result = rule.dry_run(self._task())
@@ -1846,6 +1874,7 @@ class TestC2LangGraphEnhancements:
         state = _make_langgraph_state([], metadata=meta)
         result = _extract_langgraph_metadata(state)
         assert result is not None
+        assert result.state_transitions is not None
         meta_transitions = [t for t in result.state_transitions if t.get("source") == "__metadata__"]
         assert len(meta_transitions) == 1
         assert meta_transitions[0]["node"] == "node1"
@@ -1862,6 +1891,7 @@ class TestC2LangGraphEnhancements:
         ])
         result = _extract_langgraph_metadata(state)
         assert result is not None
+        assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0]["tool_name"] == "search"
         # chain_steps: 1 AIMessage + 1 ToolMessage
@@ -1904,6 +1934,7 @@ class TestC3CrewAIV2xFields:
         raw = _make_crewai_output(output_format="json")
         result = _extract_crewai_metadata(raw)
         assert result is not None
+        assert result.agent_interactions is not None
         fmt_interactions = [i for i in result.agent_interactions if i["type"] == "output_format"]
         assert len(fmt_interactions) == 1
         assert "json" in fmt_interactions[0]["result"]
@@ -1915,6 +1946,7 @@ class TestC3CrewAIV2xFields:
         raw = _make_crewai_output(pydantic=pydantic_obj)
         result = _extract_crewai_metadata(raw)
         assert result is not None
+        assert result.agent_interactions is not None
         pydantic_interactions = [i for i in result.agent_interactions
                                   if "pydantic" in i.get("context", "") or "pydantic" in i.get("type", "")]
         assert len(pydantic_interactions) >= 1
@@ -1930,6 +1962,7 @@ class TestC3CrewAIV2xFields:
         raw = _make_crewai_output(tasks_output=[task_out])
         result = _extract_crewai_metadata(raw)
         assert result is not None
+        assert result.agent_interactions is not None
         task_interactions = [i for i in result.agent_interactions
                               if i["type"] == "task_completion"]
         assert len(task_interactions) == 1
@@ -1939,10 +1972,11 @@ class TestC3CrewAIV2xFields:
         """output_pydantic + output_format 둘 다 있을 때 두 interaction 모두 추출"""
         pydantic_obj = MagicMock()
         pydantic_obj.model_dump_json.side_effect = Exception("no json")
-        pydantic_obj.__str__ = lambda self: '{"data": 1}'
+        pydantic_obj.__str__ = lambda self: '{"data": 1}'  # type: ignore[method-assign] — MagicMock supports dunder overrides at runtime; pyright checks against the real `object.__str__` signature
         raw = _make_crewai_output(output_pydantic=pydantic_obj, output_format="json_object")
         result = _extract_crewai_metadata(raw)
         assert result is not None
+        assert result.agent_interactions is not None
         types = {i["type"] for i in result.agent_interactions}
         assert "output_format" in types
 
@@ -1953,6 +1987,7 @@ class TestC3CrewAIV2xFields:
         raw = _make_crewai_output(tasks_output=[task_out])
         result = _extract_crewai_metadata(raw)
         assert result is not None
+        assert result.agent_interactions is not None
         assert len(result.agent_interactions) == 1
         # output_format 키 없어야 함
         assert "output_format" not in result.agent_interactions[0]
@@ -2141,6 +2176,7 @@ class TestC1PydanticAIAllMessages:
 
         result = _extract_pydanticai_metadata(obj)
         assert result is not None
+        assert result.chain_steps is not None
         tool_returns = [s for s in result.chain_steps if s.get("type") == "tool_return"]
         assert len(tool_returns) == 1
         assert "Search results" in tool_returns[0]["content"]
@@ -2163,6 +2199,7 @@ class TestC1PydanticAIAllMessages:
 
         result = _extract_pydanticai_metadata(obj)
         assert result is not None
+        assert result.chain_steps is not None
         text_steps = [s for s in result.chain_steps if s.get("type") == "text"]
         assert len(text_steps) == 1
         assert "42" in text_steps[0]["content"]
@@ -2340,6 +2377,7 @@ class TestC5IntegrationHelpers:
         adapters_to_test = ["langchain", "langgraph", "crewai", "autogen", "dspy", "pydanticai"]
         for fw in adapters_to_test:
             fn = _FRAMEWORK_ADAPTERS[fw]
+            assert fn is not None, f"{fw} is not the 'native' sentinel-None adapter"
             for inp in dummy_inputs:
                 try:
                     result = fn(inp)
@@ -2513,7 +2551,7 @@ class TestConversationMetricsTurnScores:
 
     def _make_metrics(self, **kwargs):
         from agent_evaluator.core.trackers.conversation import ConversationMetrics
-        defaults = dict(
+        defaults: dict[str, Any] = dict(
             session_id="s1",
             turn_count=2,
             overall_score=0.8,
@@ -3514,6 +3552,7 @@ class TestC3OpenAIStreamingDelta:
 
         meta = _extract_openai_metadata(FakeStreamingChunk())
         assert meta is not None
+        assert meta.tool_calls is not None
         assert len(meta.tool_calls) == 1
         assert meta.tool_calls[0]["tool_name"] == "search"
 
