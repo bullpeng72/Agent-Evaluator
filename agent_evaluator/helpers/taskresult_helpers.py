@@ -109,10 +109,10 @@ logger = logging.getLogger(__name__)
 # Gate A의 6개 eval 함수 전용으로만 사용됨을 확인(다른 Gate와 비공유).
 # 기존 테스트(tests/test_decorators_harness.py)가 일부를 직접 import하므로 재노출한다.
 from agent_evaluator.gates.gate_a_goal.evaluators import (  # noqa: F401,E402
-    _KOREAN_PARTICLES_1,
-    _KOREAN_UNITS,
-    _is_fact_retained_in_text,
-    _kr_strip_particle,
+    _KOREAN_PARTICLES_1 as _KOREAN_PARTICLES_1,
+    _KOREAN_UNITS as _KOREAN_UNITS,
+    _is_fact_retained_in_text as _is_fact_retained_in_text,
+    _kr_strip_particle as _kr_strip_particle,
 )
 
 # ============================================================================
@@ -1120,12 +1120,12 @@ def validate_tool_authorization(
 
 # SPEC-000: Gate A 패키지로 이관됨 — 원본 구현은 gates/gate_a_goal/evaluators.py 참조
 from agent_evaluator.gates.gate_a_goal.evaluators import (  # noqa: F401,E402
-    eval_context_retention,
-    eval_goal_alignment,
-    eval_instruction_adherence,
-    eval_knowledge_retention,
-    eval_plan_coherence,
-    eval_subtask_completion,
+    eval_context_retention as eval_context_retention,
+    eval_goal_alignment as eval_goal_alignment,
+    eval_instruction_adherence as eval_instruction_adherence,
+    eval_knowledge_retention as eval_knowledge_retention,
+    eval_plan_coherence as eval_plan_coherence,
+    eval_subtask_completion as eval_subtask_completion,
 )
 
 # ---------------------------------------------------------------------------
@@ -1135,23 +1135,23 @@ from agent_evaluator.gates.gate_a_goal.evaluators import (  # noqa: F401,E402
 # ---------------------------------------------------------------------------
 # SPEC-000: Gate B 패키지로 이관됨 — 원본 구현은 gates/gate_b_behavioral/evaluators.py 참조
 from agent_evaluator.gates.gate_b_behavioral.evaluators import (  # noqa: F401,E402
-    _normalize_agent_interactions,
-    eval_context_window,
-    eval_deadlock,
-    eval_loop_detection,
-    eval_scope,
-    eval_state_consistency,
-    eval_tool_parameter_safety,
+    _normalize_agent_interactions as _normalize_agent_interactions,
+    eval_context_window as eval_context_window,
+    eval_deadlock as eval_deadlock,
+    eval_loop_detection as eval_loop_detection,
+    eval_scope as eval_scope,
+    eval_state_consistency as eval_state_consistency,
+    eval_tool_parameter_safety as eval_tool_parameter_safety,
 )
 
 # ── Phase 6 Harness helpers ──────────────────────────────────────────────────
 # SPEC-000: Gate C 패키지로 이관됨 — 원본 구현은 gates/gate_c_reliability/evaluators.py 참조
 from agent_evaluator.gates.gate_c_reliability.evaluators import (  # noqa: F401,E402
-    compute_reproducibility_score,
-    eval_fault_tolerance,
-    eval_graceful_degradation,
-    eval_idempotency,
-    eval_retry_consistency,
+    compute_reproducibility_score as compute_reproducibility_score,
+    eval_fault_tolerance as eval_fault_tolerance,
+    eval_graceful_degradation as eval_graceful_degradation,
+    eval_idempotency as eval_idempotency,
+    eval_retry_consistency as eval_retry_consistency,
 )
 
 # ---------------------------------------------------------------------------
@@ -1159,31 +1159,31 @@ from agent_evaluator.gates.gate_c_reliability.evaluators import (  # noqa: F401,
 # ---------------------------------------------------------------------------
 # SPEC-000: Gate D 패키지로 이관됨 — 원본 구현은 gates/gate_d_performance/evaluators.py 참조
 from agent_evaluator.gates.gate_d_performance.evaluators import (  # noqa: F401,E402
-    eval_efficiency,
-    eval_resource_budget,
-    eval_sla,
+    eval_efficiency as eval_efficiency,
+    eval_resource_budget as eval_resource_budget,
+    eval_sla as eval_sla,
 )
 
 # SPEC-000: Gate E 패키지로 이관됨 — 원본 구현(및 _PII_PATTERNS)은 gates/gate_e_security/evaluators.py 참조
 from agent_evaluator.gates.gate_e_security.evaluators import (  # noqa: F401,E402
-    eval_compliance,
-    eval_threat_response,
-    eval_threat_severity,
+    eval_compliance as eval_compliance,
+    eval_threat_response as eval_threat_response,
+    eval_threat_severity as eval_threat_severity,
 )
 
 # ── Phase 4 Harness helpers ──────────────────────────────────────────────────
 # SPEC-000 Commit 1: Gate F 패키지로 이관됨 — 원본 구현은 gates/gate_f_multiagent/evaluators.py 참조
 from agent_evaluator.gates.gate_f_multiagent.evaluators import (  # noqa: F401,E402
-    eval_conflict_resolution,
-    eval_consensus,
-    eval_propagation,
-    eval_role_adherence,
+    eval_conflict_resolution as eval_conflict_resolution,
+    eval_consensus as eval_consensus,
+    eval_propagation as eval_propagation,
+    eval_role_adherence as eval_role_adherence,
 )
 
 # SPEC-000: Gate G 패키지로 이관됨 — 원본 구현은 gates/gate_g_observability/evaluators.py 참조
 from agent_evaluator.gates.gate_g_observability.evaluators import (  # noqa: F401,E402
-    eval_error_diagnosis,
-    eval_explainability,
-    eval_latency_attribution,
-    eval_observability,
+    eval_error_diagnosis as eval_error_diagnosis,
+    eval_explainability as eval_explainability,
+    eval_latency_attribution as eval_latency_attribution,
+    eval_observability as eval_observability,
 )

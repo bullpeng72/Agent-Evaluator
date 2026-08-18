@@ -2141,7 +2141,7 @@ from agent_evaluator.helpers.taskresult_helpers import (
 class TestFaultToleranceWrongFallbackProportional:
     """BUG-C5 회귀: wrong_fallback 비율 비례 점수 (이분법 제거)."""
 
-    def _make_cfg(self, expected: dict = None):
+    def _make_cfg(self, expected: dict | None = None):
         return FaultToleranceConfig(
             expected_fallback_tools=expected or {},
             score_recovery_quality=True,

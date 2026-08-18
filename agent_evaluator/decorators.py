@@ -269,6 +269,31 @@ from .gates.gate_g_observability.configs import (
     ObservabilityConfig,  # noqa: F401,E402
 )
 
+# PEP 484 명시적 재노출 — 위 33개 Harness Config는 gates/gate_x/configs.py가 원본 정의처이고
+# 여기서는 재노출만 하지만(__all__ 정의 시점엔 아직 import되지 않아 위 목록에 못 실림),
+# `from agent_evaluator.decorators import InstructionConfig, ...`가 문서화된 공개 API이므로
+# __all__에 추가해 정적 분석기가 "private import"로 오판하지 않도록 한다.
+__all__.extend([
+    # Gate A
+    "ContextRetentionConfig", "GoalAlignmentConfig", "InstructionConfig",
+    "KnowledgeRetentionConfig", "PlanConfig", "SubtaskConfig",
+    # Gate B
+    "ContextWindowConfig", "DeadlockConfig", "LoopDetectionConfig",
+    "ScopeConfig", "StateConsistencyConfig", "ToolParameterSafetyConfig",
+    # Gate C
+    "FaultToleranceConfig", "GracefulDegradationConfig", "IdempotencyConfig",
+    "ReproducibilityConfig", "RetryConsistencyConfig",
+    # Gate D
+    "CostPredictabilityConfig", "EfficiencyConfig", "ResourceBudgetConfig",
+    "SLAConfig", "TTFTVariabilityConfig",
+    # Gate E
+    "ComplianceConfig", "ThreatResponseConfig", "ThreatSeverityConfig",
+    # Gate F
+    "AgentRoleConfig", "ConflictResolutionConfig", "ConsensusConfig", "PropagationConfig",
+    # Gate G
+    "ErrorDiagnosisConfig", "ExplainabilityConfig", "LatencyAttributionConfig", "ObservabilityConfig",
+])
+
 # ---------------------------------------------------------------------------
 # EvalMetadata — 튜플 반환 프로토콜
 # ---------------------------------------------------------------------------
