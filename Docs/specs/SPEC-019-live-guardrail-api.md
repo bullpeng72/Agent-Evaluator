@@ -14,7 +14,7 @@
 > 원인에서 배제한 뒤, `< /dev/null`(또는 파이프로 닫힌 stdin)을 붙이자 즉시(수 초 내)
 > 정상 진행되는 것으로 원인을 특정했다 — 이 저장소 코드가 아니라 **호출 스크립트/CI
 > 쪽에서 headless로 `opencode run`을 부를 때 stdin을 반드시 닫아야 한다**는 운영
-> 지식이며, `opencode-plugin/README.md`에 남겼다.
+> 지식이며, `Docs/AOO_STACK.md`("Known gotchas from live OpenCode validation")에 남겼다.
 > **B. `LoopDetectionConfig.consecutive_repeat_threshold=3` + `on_loop_detected="fail"`
 > 조합이 실제로 오탐했다** — OpenCode는 셸 관련 동작을 전부 하나의 `"bash"` 도구로
 > 처리하므로(`ls`/`cat`/`rm`이 전부 `tool="bash"`), `eval_loop_detection`(도구 *이름*만

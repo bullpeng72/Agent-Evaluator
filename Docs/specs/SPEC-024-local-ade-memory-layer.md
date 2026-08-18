@@ -66,8 +66,8 @@
 > 핸드셰이크 자체를 1회 수동 확인**했다(SPEC-019의 stdio 브리지 검증 관례와 동일) —
 > `mcp.client.stdio.stdio_client()`로 이 모듈을 실제 서브프로세스로 띄워
 > `list_tools()`/`call_tool()`을 실행, 실제 도구 목록과 검색 결과가 정확히 반환되는 것을
-> 확인했다. `opencode-plugin/README.md`에 "SPEC-024: ctx 없이 자체 SQLite 백엔드로 위반
-> 이력 검색하기" 절을 추가해 `opencode mcp add agent-evaluator-violations -- python -m
+> 확인했다. `Docs/AOO_STACK.md`에 "Why the SQLite backend exists alongside ctx" 절을
+> 추가해 `opencode mcp add agent-evaluator-violations -- python -m
 > agent_evaluator.integrations.violation_search_mcp` 등록 방법과, ctx의 OpenCode 세션
 > 미색인 한계를 우회하는 이유를 설명했다(자동 등록은 REQ-6 범위, 여기서는 수동 등록
 > 안내만). 전체 스위트 **3,276 passed, 1 skipped, 회귀 0건**(기존 3,268 + 신규 8).
