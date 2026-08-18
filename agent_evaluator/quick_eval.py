@@ -515,6 +515,11 @@ class QuickEval:
             flush_every=flush_every,
         )
 
+        # for_regression_eval()이 채우는 회귀 비교 상태 (기본 인스턴스는 미사용)
+        self._baseline_file: str | None = None
+        self._regression_threshold: float = 0.05
+        self._baseline_summary: dict[str, Any] | None = None
+
     @classmethod
     def for_rag(cls, output_dir: str = "results/", **kwargs: Any) -> QuickEval:
         """RAG 파이프라인 평가에 최적화된 QuickEval 인스턴스.
@@ -1545,8 +1550,8 @@ class QuickEval:
             from scipy import stats as _stats  # type: ignore
             if len(self_scores) >= 2 and len(other_scores) >= 2:
                 _result = _stats.ttest_ind(self_scores, other_scores)
-                t_stat = float(_result.statistic)
-                p_val = float(_result.pvalue)
+                t_stat = float(_result.statistic)  # type: ignore[attr-defined]
+                p_val = float(_result.pvalue)  # type: ignore[attr-defined]
                 significant = p_val < 0.05
         except ImportError:
             pass  # scipy 없으면 t-검정 생략
@@ -1659,12 +1664,14 @@ class QuickEval:
         _seen = set(_os.listdir(_dir)) if _os.path.isdir(_dir) else set()
 
         class _WatchHandle:
-            def __init__(self_h) -> None:
+            # self_h (self가 아닌): 중첩 클래스 안에서 바깥 watch()의 self를
+            # 그대로 참조(self.replay(...))해야 하므로 이름 충돌을 피한다.
+            def __init__(self_h) -> None:  # pyright: ignore[reportSelfClsParameterName]
                 self_h._stopped = False
                 self_h._thread = _th.Thread(target=self_h._run, daemon=True)
                 self_h._thread.start()
 
-            def _run(self_h) -> None:
+            def _run(self_h) -> None:  # pyright: ignore[reportSelfClsParameterName]
                 import time as _t
                 nonlocal _seen
                 while not self_h._stopped:
@@ -1689,7 +1696,7 @@ class QuickEval:
                         logger.debug("watch: polling failed (ignored): %s", _e)
                     _t.sleep(5)
 
-            def stop(self_h) -> None:
+            def stop(self_h) -> None:  # pyright: ignore[reportSelfClsParameterName]
                 self_h._stopped = True
 
         return _WatchHandle()
