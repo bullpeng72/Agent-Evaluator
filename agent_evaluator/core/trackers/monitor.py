@@ -25,7 +25,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator, Literal
+from typing import Any, Iterator, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -226,14 +226,14 @@ class PerformanceMonitor:
 
     def __init__(
         self,
-        pricing: dict[str, float] = None,
+        pricing: dict[str, float] | None = None,
         model_name: str = "",
         session_label: str = "",
         enable_transparency: bool = False,
         enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
         security_config: dict[str, Any] | None = None,
-        output_dir: str | None = None,
+        output_dir: str | Path | None = None,
         # LLM Judge (Phase 1-A)
         enable_llm_judge: bool = False,
         judge_model: str | None = None,
@@ -443,8 +443,9 @@ class PerformanceMonitor:
         from pathlib import Path
         if output_dir is None:
             from ...utils.path_helpers import get_evaluation_results_dir
-            output_dir = get_evaluation_results_dir(create=False)
-        self.output_dir = Path(output_dir) if isinstance(output_dir, str) else output_dir
+            self.output_dir = get_evaluation_results_dir(create=False)
+        else:
+            self.output_dir = Path(output_dir)
         # ⚡ Lazy initialization: 디렉토리는 실제 저장 시점에 생성
         # self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -457,7 +458,7 @@ class PerformanceMonitor:
             # deque(maxlen=window_size)처럼 동작하도록 내부 저장소를 교체한다.
             # TaskCompletionTracker.add_task()/calculate_tcr()는 append/len/iterate만
             # 사용하므로 list ↔ deque 교체가 안전하다(REQ-1: "full" 모드는 영향 없음).
-            self.tcr_tracker._tasks = deque(maxlen=self._window_size)
+            self.tcr_tracker._tasks = deque(maxlen=self._window_size)  # type: ignore[assignment]
         self.accuracy_evaluator = AccuracyEvaluator(
             use_korean_tokenizer=use_korean_tokenizer
         )
@@ -547,13 +548,12 @@ class PerformanceMonitor:
         self.tool_authorizer = None
 
         if enable_security_metrics:
-            _all = _sec_set is None
             _sec_sample_rate: float = float(self.security_config.get('sample_rate', 1.0) or 1.0)
-            if _all or "InputSanitization" in _sec_set:
+            if _sec_set is None or "InputSanitization" in _sec_set:
                 self.input_sanitizer = InputSanitizationTracker(sample_rate=_sec_sample_rate)
-            if _all or "OutputLeakage" in _sec_set:
+            if _sec_set is None or "OutputLeakage" in _sec_set:
                 self.output_leakage_detector = OutputLeakageDetector(sample_rate=_sec_sample_rate)
-            if _all or "ToolAuthorization" in _sec_set:
+            if _sec_set is None or "ToolAuthorization" in _sec_set:
                 self.tool_authorizer = ToolAuthorizationTracker(
                     allowed_tools=self.security_config.get('allowed_tools'),
                     restricted_tools=self.security_config.get('restricted_tools')
@@ -574,10 +574,9 @@ class PerformanceMonitor:
         self.tool_chain_attack_detector = None
 
         if enable_security_metrics:
-            _all = _sec_set is None
-            if _all or "PrivilegeEscalation" in _sec_set:
+            if _sec_set is None or "PrivilegeEscalation" in _sec_set:
                 self.privilege_escalation_detector = PrivilegeEscalationDetector()
-            if _all or "ToolChainAttack" in _sec_set:
+            if _sec_set is None or "ToolChainAttack" in _sec_set:
                 self.tool_chain_attack_detector = ToolChainAttackDetector()
             logger.info(
                 "Security metrics (Layer 2) 활성화됨 (trackers=%s)",
@@ -591,6 +590,11 @@ class PerformanceMonitor:
             'context_recall': [],
             'context_precision': []
         }
+
+        # load_from_file()이 저장된 파일에서 복원하는 선택적 상태(D4/Dashboard 호환).
+        # 새로 생성된 모니터에서는 비어 있으며, generate_report()가 getattr()로 방어적으로 읽는다.
+        self._advanced_metrics_summary: dict[str, Any] = {}
+        self.evaluators: dict[str, Any] = {}
 
         # Test 투명성 추적 (선택적)
         self.enable_transparency = enable_transparency
@@ -655,6 +659,7 @@ class PerformanceMonitor:
             and self.model_name == self.llm_judge.model
         )
         if self._judge_same_as_execution_model:
+            assert self.llm_judge is not None  # _judge_same_as_execution_model 계산 조건에 이미 포함됨
             warnings.warn(
                 f"PerformanceMonitor: judge_model({self.llm_judge.model!r})이 실행 model_name과 "
                 "동일합니다. 같은 모델이 자신의 출력을 채점하면 독립적인 검증이 아니라 자기평가"
@@ -1416,7 +1421,8 @@ class PerformanceMonitor:
             self._golden_datasets.clear()
             for key in self._rag_metrics:
                 self._rag_metrics[key].clear()
-            self.feedback_tracker.reset()
+            if self.feedback_tracker is not None:
+                self.feedback_tracker.reset()
             # D1: custom aggregators 초기화 (태스크 데이터이므로 항상 초기화)
             if hasattr(self, "_custom_aggregators"):
                 self._custom_aggregators.clear()
@@ -1860,7 +1866,7 @@ class PerformanceMonitor:
                     task_result.tokens_used.get("input", 0),
                     task_result.tokens_used.get("output", 0),
                     task_result.task_type,
-                    model=task_result.tokens_used.get("model", "default"),  # DQ-150
+                    model=str(task_result.tokens_used.get("model", "default")),  # DQ-150
                     framework=task_result.framework or "native",  # G2: 프레임워크별 비용 집계
                 )
             
@@ -2225,7 +2231,7 @@ class PerformanceMonitor:
             # llm.model_name: Phoenix Cost/Top-models 차트 그룹핑 키
             # tokens_used dict의 "model" 키 → PerformanceMonitor.model_name → "ae/unspecified" 순으로 fallback
             # 신규 모델은 _PHOENIX_MODEL_ALIAS 로 Phoenix 가격 테이블 등록명으로 변환
-            raw_model = tokens.get("model", "") or self.model_name or "ae/unspecified"
+            raw_model = str(tokens.get("model", "") or self.model_name or "ae/unspecified")
             model_name = _PHOENIX_MODEL_ALIAS.get(raw_model, raw_model)
 
             # metadata: 스팬 상세 탭 커스텀 정보 (JSON 문자열)
@@ -2382,8 +2388,8 @@ class PerformanceMonitor:
             # (result.timestamp가 시뮬레이션 과거 시간이어도 Phoenix UI에 정상 노출)
             # start_time = now - execution_time (나노초 단위)
             start_time_ns: int | None = None
+            import time as _time_mod  # 아래 도구 자식 스팬 계산(_tool_base_ns 등)에서도 재사용
             try:
-                import time as _time_mod
                 exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
                 end_ns = int(_time_mod.time() * 1_000_000_000)  # 현재 시각 기준
                 start_time_ns = max(0, end_ns - exec_ns)
@@ -2828,7 +2834,8 @@ class PerformanceMonitor:
             monitor.record_implicit_feedback("t_001", "thumbs_up")
             monitor.record_implicit_feedback("t_002", "regenerate")
         """
-        self.feedback_tracker.record(task_id=task_id, feedback_type=feedback_type, metadata=metadata)
+        if self.feedback_tracker is not None:
+            self.feedback_tracker.record(task_id=task_id, feedback_type=feedback_type, metadata=metadata)
         return self
 
     def get_rag_metrics_summary(self) -> dict[str, Any]:
@@ -2984,6 +2991,12 @@ class PerformanceMonitor:
                 f"enable_security_metrics=True but trackers not initialised: {missing}. "
                 "This is an internal SDK bug — please report it."
             )
+        # 위 missing 체크가 이미 5개 트래커 모두 None이 아님을 보장한다.
+        assert self.input_sanitizer is not None
+        assert self.output_leakage_detector is not None
+        assert self.tool_authorizer is not None
+        assert self.privilege_escalation_detector is not None
+        assert self.tool_chain_attack_detector is not None
         return {
             "layer1_security": {
                 "input_security": self.input_sanitizer.get_security_stats(),
@@ -3357,12 +3370,14 @@ class PerformanceMonitor:
                 try:
                     ts = t.timestamp
                     if isinstance(ts, str):
-                        dt = _dt.fromisoformat(ts.replace("Z", "+00:00"))
+                        # TaskResult.timestamp는 정적으로는 datetime이지만, 디스크에서
+                        # 로드된 데이터는 아직 ISO 문자열일 수 있어 방어적으로 처리한다.
+                        dt = _dt.fromisoformat(cast(str, ts).replace("Z", "+00:00"))
                         ts_epoch = dt.timestamp()
                     elif hasattr(ts, "timestamp"):
                         ts_epoch = ts.timestamp()
                     else:
-                        ts_epoch = float(ts)
+                        ts_epoch = float(cast(Any, ts))
                     if ts_epoch >= cutoff:
                         recent_tasks.append(t)
                 except Exception as _e:
@@ -3534,7 +3549,7 @@ class PerformanceMonitor:
         alerts = []
 
         # 임계값 설정 (로드된 임계값 또는 기본값)
-        thresholds = self.thresholds if self._thresholds else {
+        thresholds = self._thresholds if self._thresholds else {
             'tcr': 80.0,
             'accuracy': 70.0,
             'hallucination': 10.0,
@@ -4015,14 +4030,15 @@ class PerformanceMonitor:
 
         return recommendations
     
-    def print_report(self, report: EvaluationReport = None) -> None:
+    def print_report(self, report: EvaluationReport | None = None) -> None:
         """Print formatted report"""
         if report is None:
             report = self.generate_report()
         
         print("\n" + "="*80)
         print("AI AGENT PERFORMANCE EVALUATION REPORT")
-        print(f"Generated: {report.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        _ts_str = report.timestamp.strftime('%Y-%m-%d %H:%M:%S') if report.timestamp is not None else "N/A"
+        print(f"Generated: {_ts_str}")
         print(f"Total Tasks Evaluated: {report.total_tasks}")
         print("="*80 + "\n")
         
@@ -4106,7 +4122,7 @@ class PerformanceMonitor:
 
         print("="*80 + "\n")
 
-    def print_summary(self, report: EvaluationReport = None) -> None:
+    def print_summary(self, report: EvaluationReport | None = None) -> None:
         """
         Print quick summary report (documented in user guides)
 
@@ -4173,7 +4189,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def print_detailed_report(self, report: EvaluationReport = None) -> None:
+    def print_detailed_report(self, report: EvaluationReport | None = None) -> None:
         """
         Print comprehensive detailed report (documented in user guides)
 
@@ -5083,7 +5099,7 @@ class PerformanceMonitor:
 
                 # Task types 수집 (JSON 직렬화를 위해 문자열로 변환)
                 task_types = set(task.task_type for task in self.tcr_tracker.tasks)
-                metadata["task_types"] = [str(tt.value) if hasattr(tt, 'value') else str(tt) for tt in task_types]
+                metadata["task_types"] = [str(getattr(tt, 'value', tt)) for tt in task_types]
 
             # 레지스트리 등록
             success = DataRegistry.register_data_file(
@@ -5106,7 +5122,10 @@ class PerformanceMonitor:
             from agent_evaluator.core.otel import get_metrics
             m = get_metrics()
             if m and m.enabled:
-                session_tcr = float(self.tcr_tracker.calculate_tcr() * 100)
+                # calculate_tcr()는 dict를 반환하고 "tcr" 값은 이미 0-100 스케일이다
+                # (곱하는 게 아니라 꺼내 써야 함 — 이전엔 dict * 100으로 매 호출 TypeError가
+                # 나서 바깥 try/except에 조용히 삼켜져 ae.tcr이 한 번도 전송된 적이 없었다).
+                session_tcr = float(self.tcr_tracker.calculate_tcr().get("tcr", 0.0))
                 m.record("ae.tcr", session_tcr, {})
         except Exception as _e:
             logger.debug("OTEL metrics ae.tcr send failed (ignored): %s", _e)
@@ -5608,8 +5627,7 @@ class PerformanceMonitor:
             # task_type 필터
             if task_type is not None:
                 tt = task.task_type
-                if hasattr(tt, "value"):
-                    tt = tt.value
+                tt = getattr(tt, "value", tt)
                 if str(tt).lower() != task_type.lower():
                     continue
             # accuracy 필터
@@ -5769,7 +5787,7 @@ class PerformanceMonitor:
         for task in tasks:
             if by == "task_type":
                 tt = task.task_type
-                key = tt.value if hasattr(tt, "value") else str(tt)
+                key = getattr(tt, "value", str(tt))
                 key = key or "unknown"
             elif by == "framework":
                 extra = task.extra if hasattr(task, "extra") and task.extra else {}
@@ -5810,7 +5828,7 @@ class PerformanceMonitor:
         if tcr is None:
             return {}
         fn = getattr(tcr, "calculate_tcr", None)
-        return fn() if callable(fn) else {}
+        return cast(dict, fn()) if callable(fn) else {}
 
     def get_accuracy_metrics(self) -> dict[str, Any]:
         """정확도 지표 반환 (D4 — AccuracyEvaluator.get_accuracy_metrics() 별칭).
@@ -5822,7 +5840,7 @@ class PerformanceMonitor:
         if ev is None:
             return {}
         fn = getattr(ev, "get_accuracy_metrics", None)
-        return fn() if callable(fn) else {}
+        return cast(dict, fn()) if callable(fn) else {}
 
     def get_latency_metrics(self) -> dict[str, Any]:
         """레이턴시 지표 반환 (D4 — LatencyTracker.get_latency_stats() 별칭).
@@ -5834,7 +5852,7 @@ class PerformanceMonitor:
         if lt is None:
             return {}
         fn = getattr(lt, "get_latency_stats", None)
-        return fn() if callable(fn) else {}
+        return cast(dict, fn()) if callable(fn) else {}
 
     def get_token_metrics(self) -> dict[str, Any]:
         """토큰 사용량 지표 반환 (D4 — TokenEconomyTracker.get_usage_stats() 별칭).
@@ -5846,7 +5864,7 @@ class PerformanceMonitor:
         if tt is None:
             return {}
         fn = getattr(tt, "get_usage_stats", None)
-        return fn() if callable(fn) else {}
+        return cast(dict, fn()) if callable(fn) else {}
 
     # ------------------------------------------------------------------
     # D5: get_bottleneck_tasks / get_optimization_recommendations / analyze
@@ -5877,7 +5895,7 @@ class PerformanceMonitor:
             tt = t.task_type
             return {
                 "task_id": t.task_id,
-                "task_type": tt.value if hasattr(tt, "value") else str(tt),
+                "task_type": getattr(tt, "value", str(tt)),
                 "accuracy_score": t.accuracy_score,
                 "execution_time": t.execution_time,
                 "errors": list(t.errors) if t.errors else [],
@@ -6467,6 +6485,7 @@ class PerformanceMonitor:
         from ...utils.transparency_manager import TestStepStatus
 
         tm = self.transparency_manager
+        assert tm is not None  # 호출부(save_to_file)가 self.transparency_manager 존재를 이미 확인함
         tasks = self.tcr_tracker.tasks
         n = len(tasks)
         if n == 0:
@@ -6830,7 +6849,12 @@ class PerformanceMonitor:
                 len(monitor.agent_coordination_tracker._interactions),
                 len(monitor.workflow_tracker._executions),
             )
-            if "security" in evaluators:
+            if (
+                "security" in evaluators
+                and monitor.input_sanitizer is not None
+                and monitor.output_leakage_detector is not None
+                and monitor.tool_authorizer is not None
+            ):
                 logger.debug(
                     "Restored security data: InputEvals=%d, OutputDetections=%d, ToolCalls=%d",
                     len(monitor.input_sanitizer._evaluations),
@@ -6916,7 +6940,7 @@ def create_demo_data():
 
     # Generate 100 diverse tasks
     for i in range(100):
-        task_type = np.random.choice(all_task_types)
+        task_type = np.random.choice(cast(Any, all_task_types))
 
         # Realistic success rate: 88% overall, varies by task type
         base_success_rate = {

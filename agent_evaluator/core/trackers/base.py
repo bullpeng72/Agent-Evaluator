@@ -44,7 +44,7 @@ class TaskResult:
     completion_score: float
     accuracy_score: float
     execution_time: float
-    tokens_used: dict[str, int | str]
+    tokens_used: dict[str, int]
     tool_calls: list[dict[str, Any]]
     attempts: int
     errors: list[str]
@@ -508,7 +508,13 @@ class _TaskContext:
             self.success = self.response is not None and bool(str(self.response).strip())
 
         completion = 1.0 if self.success else 0.0
-        tokens = cast("dict[str, int | str]", self.tokens_used) or {"input": 0, "output": 0, "total": 0, "model": "unknown"}
+        # "model"은 관례상 문자열이 섞여 들어가지만(TaskResult.tokens_used 자체는
+        # 정수 카운트 위주라 dict[str, int]로 선언돼 있음) 값 접근은 항상 .get()을
+        # 통해 이뤄지므로 여기서만 지역적으로 캐스팅한다.
+        tokens = cast(
+            "dict[str, int]",
+            self.tokens_used or {"input": 0, "output": 0, "total": 0, "model": "unknown"},
+        )
 
         task_result = TaskResult(
             task_id=self._task_id,
