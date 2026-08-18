@@ -223,6 +223,7 @@ def export_excel(file_id: str, request: Request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
+    assert ws is not None  # freshly created Workbook() always has an active sheet
     ws.title = "Tasks"
 
     # Detect advanced metric keys
