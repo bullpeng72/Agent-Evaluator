@@ -60,8 +60,9 @@ def _make_monitor(output_dir=None):
 
 
 def _make_task_result(**kwargs):
+    from typing import Any
     from agent_evaluator import create_taskresult
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         task_id="t1",
         question="q",
         response="r",
@@ -423,6 +424,7 @@ class TestNewFrameworkAdapters:
         mock.meta.billed_units = billed
         result = _extract_cohere_metadata(mock)
         assert result is not None
+        assert result.tokens_used is not None
         assert result.tokens_used["input"] == 10
 
     def test_groq_extractor(self):
@@ -447,6 +449,8 @@ class TestNewFrameworkAdapters:
         }
         result = _extract_bedrock_metadata(resp)
         assert result is not None
+        assert result.tool_calls is not None
+        assert result.tokens_used is not None
         assert result.tool_calls[0]["name"] == "search"
         assert result.tokens_used["input"] == 100
 
