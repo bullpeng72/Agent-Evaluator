@@ -58,9 +58,8 @@ load_env()
 try:
     from agent_evaluator.alerts.engine import AlertEngine, AlertRule
     from agent_evaluator.alerts.handlers import SlackHandler, WebhookHandler
-    _HAS_ALERTS = True
 except ImportError:
-    _HAS_ALERTS = False
+    AlertEngine = AlertRule = SlackHandler = WebhookHandler = None
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -156,6 +155,8 @@ for task_id, feedback_type, metadata in FEEDBACK_EVENTS:
     print(f"  [{feedback_type:<8s}] task={task_id}")
 
 try:
+    if monitor.feedback_tracker is None:
+        raise RuntimeError("feedback_tracker not initialized")
     fb_stats = monitor.feedback_tracker.get_stats()
     print(f"  피드백 통계: total={fb_stats.get('total',0)}  positive={fb_stats.get('positive_count',0)}  negative={fb_stats.get('negative_count',0)}")
 except Exception:
@@ -183,24 +184,26 @@ def _write_alert_jsonl(rule_name: str, severity: str, msg: str, task_id: str = "
     with open(_TODAY_JSONL, "a", encoding="utf-8") as _f:
         _f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
+def _handle_low_accuracy(msg: str, tr) -> None:
+    alert_log.append(f"ACCURACY: {tr.task_id}={tr.accuracy_score:.2f}")
+    _write_alert_jsonl("low_accuracy", "warning", msg, tr.task_id)
+
 low_accuracy_rule = SimpleTaskAlertRule(
     name="low_accuracy",
     condition=lambda tr: tr.accuracy_score < 0.5,
-    handler=lambda msg, tr: (
-        alert_log.append(f"ACCURACY: {tr.task_id}={tr.accuracy_score:.2f}"),
-        _write_alert_jsonl("low_accuracy", "warning", msg, tr.task_id),
-    ),
+    handler=_handle_low_accuracy,
     severity="warning",
     cooldown=0,
 )
 
+def _handle_slow_response(msg: str, tr) -> None:
+    alert_log.append(f"SLOW: {tr.task_id}={tr.execution_time:.1f}s")
+    _write_alert_jsonl("slow_response", "critical", msg, tr.task_id)
+
 slow_response_rule = SimpleTaskAlertRule(
     name="slow_response",
     condition=lambda tr: tr.execution_time > 5.0,
-    handler=lambda msg, tr: (
-        alert_log.append(f"SLOW: {tr.task_id}={tr.execution_time:.1f}s"),
-        _write_alert_jsonl("slow_response", "critical", msg, tr.task_id),
-    ),
+    handler=_handle_slow_response,
     severity="critical",
     cooldown=0,
 )
@@ -280,7 +283,8 @@ except (ImportError, AttributeError):
 # ===========================================================================
 print("\n=== 섹션 5: AlertEngine + AlertRule (고급) ===")
 
-if _HAS_ALERTS:
+if AlertEngine is not None:
+    assert AlertRule is not None and SlackHandler is not None and WebhookHandler is not None
     # 핸들러: URL 없으면 Mock 출력
     SLACK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
     WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
