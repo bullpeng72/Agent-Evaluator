@@ -100,6 +100,7 @@ class TestGateEMigrationEquivalence:
 
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         via_monitor = report.extra_metrics["harness_groups"]["E"]
 
         direct = gate_e_aggregate.compute(
@@ -112,6 +113,7 @@ class TestGateEMigrationEquivalence:
     def test_expected_values(self):
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         e = report.extra_metrics["harness_groups"]["E"]
         details = e["details"]
 
@@ -134,6 +136,7 @@ class TestGateEMigrationEquivalence:
         """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
+        assert report.extra_metrics is not None
         details = report.extra_metrics["harness_groups"]["E"]["details"]
         assert set(details.keys()) == {
             "threat_count", "threat_free_rate", "avg_cvss_weighted_score",
