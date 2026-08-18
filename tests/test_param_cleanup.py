@@ -51,7 +51,7 @@ class TestProfileRemoved:
     def test_profile_raises_typeerror(self, monitor):
         """profile= 파라미터가 완전히 제거되어 TypeError 발생"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", profile="production")
+            agent_eval(monitor, task_type="qa", profile="production")  # type: ignore[call-arg]
 
     def test_profile_not_in_signature(self):
         """profile= 이 agent_eval 서명에서 제거됨"""
@@ -92,12 +92,12 @@ class TestJitterRemoved:
     def test_jitter_true_raises_typeerror(self, monitor):
         """jitter= 파라미터가 완전히 제거되어 TypeError 발생"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", jitter=True)
+            agent_eval(monitor, task_type="qa", jitter=True)  # type: ignore[call-arg]
 
     def test_jitter_false_raises_typeerror(self, monitor):
         """jitter=False 도 TypeError (파라미터 자체가 제거됨)"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", jitter=False)
+            agent_eval(monitor, task_type="qa", jitter=False)  # type: ignore[call-arg]
 
     def test_jitter_not_in_signature(self):
         """jitter= 이 agent_eval 서명에서 제거됨"""
@@ -126,7 +126,7 @@ class TestTaskIdArgRemoved:
     def test_task_id_arg_raises_typeerror(self, monitor):
         """task_id_arg= 파라미터가 완전히 제거되어 TypeError 발생"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", task_id_arg="my_id")
+            agent_eval(monitor, task_type="qa", task_id_arg="my_id")  # type: ignore[call-arg]
 
     def test_task_id_arg_not_in_signature(self):
         """task_id_arg= 이 agent_eval 서명에서 제거됨"""
@@ -196,14 +196,14 @@ class TestRemovedParameters:
     def test_passing_removed_param_raises_typeerror(self, monitor):
         """제거된 파라미터 전달 시 TypeError 발생"""
         with pytest.raises(TypeError):
-            @agent_eval(monitor, task_type="qa", auto_detect_framework=True)
+            @agent_eval(monitor, task_type="qa", auto_detect_framework=True)  # type: ignore[call-arg]
             def fn(question, ground_truth=""):
                 return "answer"
 
     def test_allow_dup_removed_raises_typeerror(self, monitor):
         """제거된 allow_duplicate_task_ids 전달 시 TypeError"""
         with pytest.raises(TypeError):
-            @agent_eval(monitor, task_type="qa", allow_duplicate_task_ids=False)
+            @agent_eval(monitor, task_type="qa", allow_duplicate_task_ids=False)  # type: ignore[call-arg]
             def fn(question, ground_truth=""):
                 return "answer"
 
@@ -271,12 +271,12 @@ class TestStrictTypesRemoved:
     def test_strict_types_raises_typeerror(self, monitor):
         """strict_types= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            batch_eval(monitor, task_type="qa", strict_types=True)
+            batch_eval(monitor, task_type="qa", strict_types=True)  # type: ignore[call-arg]
 
     def test_strict_types_false_raises_typeerror(self, monitor):
         """strict_types=False 도 TypeError (파라미터 자체가 제거됨)."""
         with pytest.raises(TypeError):
-            batch_eval(monitor, task_type="qa", strict_types=False)
+            batch_eval(monitor, task_type="qa", strict_types=False)  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -314,7 +314,7 @@ class TestQuestionArgRemoved:
     def test_question_arg_raises_typeerror(self, monitor):
         """question_arg= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, question_arg="query")
+            conversation_eval(monitor, question_arg="query")  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -330,7 +330,7 @@ class TestParticipantIdArgRemoved:
     def test_participant_id_arg_raises_typeerror(self, monitor):
         """participant_id_arg= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, participant_id_arg="pid")
+            conversation_eval(monitor, participant_id_arg="pid")  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -346,7 +346,7 @@ class TestEnableLlmJudgeRemoved:
     def test_enable_llm_judge_raises_typeerror(self, monitor):
         """enable_llm_judge= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, enable_llm_judge=True)
+            conversation_eval(monitor, enable_llm_judge=True)  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -362,7 +362,7 @@ class TestJudgeModelRemoved:
     def test_judge_model_raises_typeerror(self, monitor):
         """judge_model= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, judge_model="claude-haiku-4-5-20251001")
+            conversation_eval(monitor, judge_model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -378,7 +378,7 @@ class TestJudgeCriteriaRemoved:
     def test_judge_criteria_raises_typeerror(self, monitor):
         """judge_criteria= 전달 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, judge_criteria=["accuracy"])
+            conversation_eval(monitor, judge_criteria=["accuracy"])  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -534,7 +534,7 @@ class TestRemovedCMParams:
     def test_passing_removed_param_raises_typeerror(self, monitor, param):
         """제거된 파라미터를 전달하면 TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", **{param: "dummy"})
+            agent_eval(monitor, task_type="qa", **{param: "dummy"})  # type: ignore — param is a dynamic removed-kwarg name under test; pyright checks "dummy" against every named parameter
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -804,7 +804,7 @@ class TestRetryParam:
     def test_individual_retry_params_raise_typeerror(self, monitor):
         """max_retries/delay 등 개별 파라미터는 완전 제거 → TypeError."""
         with pytest.raises(TypeError):
-            @agent_eval(monitor, task_type="qa", max_retries=2, delay=0.0)
+            @agent_eval(monitor, task_type="qa", max_retries=2, delay=0.0)  # type: ignore[call-arg]
             def fn(question, ground_truth=""):
                 return "ok"
 
@@ -849,7 +849,7 @@ class TestFlushFilenameRemoved:
 
     def test_passing_flush_filename_raises_typeerror(self, monitor):
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", flush_filename="custom")
+            agent_eval(monitor, task_type="qa", flush_filename="custom")  # type: ignore[call-arg]
 
     def test_flush_still_works_with_flush_every(self, monitor, tmp_path):
         """flush_every=1 이면 auto_save 파일이 자동 생성되어야 함."""
@@ -884,7 +884,7 @@ class TestEnableQualityEvaluationRemoved:
 
     def test_passing_raises_typeerror(self, monitor):
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
+            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)  # type: ignore[call-arg]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -904,7 +904,7 @@ class TestEnableHallucinationRename:
     def test_old_name_raises_typeerror(self, monitor):
         """구 이름(enable_hallucination=True) 사용 시 TypeError 발생."""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_type="qa", enable_hallucination=True)
+            agent_eval(monitor, task_type="qa", enable_hallucination=True)  # type: ignore[call-arg]
 
     def test_new_name_default_false(self):
         # SPEC-039 REQ-1: 시그니처 기본값은 이제 preset 충돌 판정용 내부 sentinel(`_UNSET`)이다.
@@ -992,7 +992,7 @@ class TestFlushFilenameRemovedConvEval:
     def test_passing_flush_filename_to_conv_eval_raises_typeerror(self, monitor):
         """conversation_eval에 flush_filename 전달 시 TypeError."""
         with pytest.raises(TypeError):
-            conversation_eval(monitor, flush_filename="custom")
+            conversation_eval(monitor, flush_filename="custom")  # type: ignore[call-arg]
 
 
 # ===========================================================================
@@ -1007,22 +1007,22 @@ class TestGroupARemovedParamsTypeError:
     def test_profile_raises_typeerror(self, monitor):
         """profile= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, profile="rag")
+            agent_eval(monitor, profile="rag")  # type: ignore[call-arg]
 
     def test_task_id_arg_raises_typeerror(self, monitor):
         """task_id_arg= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, task_id_arg="id")
+            agent_eval(monitor, task_id_arg="id")  # type: ignore[call-arg]
 
     def test_jitter_raises_typeerror(self, monitor):
         """jitter= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, jitter=True)
+            agent_eval(monitor, jitter=True)  # type: ignore[call-arg]
 
     def test_enable_hallucination_raises_typeerror(self, monitor):
         """enable_hallucination= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, enable_hallucination=True)
+            agent_eval(monitor, enable_hallucination=True)  # type: ignore[call-arg]
 
     def test_profile_not_in_signature(self):
         """profile= 이 agent_eval 서명에서 제거됨"""
@@ -1053,17 +1053,17 @@ class TestGroupBRetryDeprecationWarning:
     def test_max_retries_raises_typeerror(self, monitor):
         """max_retries= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, max_retries=2)
+            agent_eval(monitor, max_retries=2)  # type: ignore[call-arg]
 
     def test_delay_raises_typeerror(self, monitor):
         """delay= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, delay=0.1)
+            agent_eval(monitor, delay=0.1)  # type: ignore[call-arg]
 
     def test_multiple_individual_params_raise_typeerror(self, monitor):
         """여러 개별 파라미터 동시 사용 시 TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, max_retries=2, delay=0.1, backoff=2.0)
+            agent_eval(monitor, max_retries=2, delay=0.1, backoff=2.0)  # type: ignore[call-arg]
 
     def test_retry_config_no_deprecation_warning(self, monitor):
         """retry=RetryConfig(...) 사용 시 DeprecationWarning 미발행"""
@@ -1170,17 +1170,17 @@ class TestGroupCLLMJudgeDeprecationWarning:
     def test_enable_llm_judge_raises_typeerror(self, monitor):
         """enable_llm_judge= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, enable_llm_judge=True)
+            agent_eval(monitor, enable_llm_judge=True)  # type: ignore[call-arg]
 
     def test_judge_model_raises_typeerror(self, monitor):
         """judge_model= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, judge_model="claude-haiku-4-5-20251001")
+            agent_eval(monitor, judge_model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
 
     def test_judge_criteria_raises_typeerror(self, monitor):
         """judge_criteria= 파라미터 완전 제거 → TypeError"""
         with pytest.raises(TypeError):
-            agent_eval(monitor, judge_criteria=["safety"])
+            agent_eval(monitor, judge_criteria=["safety"])  # type: ignore[call-arg]
 
     def test_llm_judge_config_no_deprecation(self, monitor):
         """llm_judge=LLMJudgeConfig(...) 사용 시 DeprecationWarning 미발행"""
@@ -1219,7 +1219,7 @@ class TestGroupCLLMJudgeDeprecationWarning:
     def test_llm_judge_config_agent_with_no_deprecation(self, monitor):
         """deprecated enable_llm_judge=False 가 제거되어 TypeError"""
         with pytest.raises(TypeError):
-            @agent_eval(monitor, task_type="qa", enable_llm_judge=False)
+            @agent_eval(monitor, task_type="qa", enable_llm_judge=False)  # type: ignore[call-arg]
             def fn(question, ground_truth=""):
                 return "answer"
 
