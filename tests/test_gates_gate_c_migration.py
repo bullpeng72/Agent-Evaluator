@@ -176,6 +176,62 @@ class TestGateCMigrationEquivalence:
         # SLA penalty가 파이프라인을 타고 정상적으로 0.0(미발동)으로 도달했는지만 확인한다.
         assert d_details is not None
 
+
+class TestRetryConsistencyPrefixOrderingByTimestamp:
+    """retry_consistency의 group_by_task_prefix=True 집계가 task_id(무작위 uuid8 접미사)가
+    아니라 timestamp(실제 호출 순서)로 "첫 시도 → 마지막 시도" delta를 계산하는지 검증한다.
+
+    회귀 배경: task_id는 `{prefix}_{uuid8}` 형식이라 접미사가 매 호출마다 무작위 hex이므로,
+    task_id 문자열로 정렬하면 실제 실행 순서와 무관한 임의 순서가 된다. 동일한 결정론적
+    시나리오(Evaluator_Examples/ch06_group_c.py의 retry_consistent_agent, attempts=2 고정)를
+    반복 실행해도 avg_retry_consistency가 0.75~0.95 사이에서 매 실행 달라지는 것으로 발견됐다.
+    이 테스트는 task_id 알파벳 순서와 timestamp 순서를 의도적으로 반대로 배치해, 집계가
+    timestamp 순서를 따르는지 확인한다.
+    """
+
+    def test_delta_follows_call_order_not_task_id_lexical_order(self):
+        from datetime import datetime, timedelta
+
+        base = datetime(2026, 1, 1, 12, 0, 0)
+        m = PerformanceMonitor()
+        # task_id는 알파벳 역순(zzz가 먼저, aaa가 나중)이지만, 실제 호출 순서(timestamp)는
+        # zzz(낮은 accuracy) → aaa(높은 accuracy) 순으로 개선되는 시나리오.
+        m.record_task(_task(
+            "rc_zzz",
+            {"retry_consistency": {
+                "consistency_score": 0.85,
+                "_config": {
+                    "group_by_task_prefix": True,
+                    "improvement_threshold": 0.1,
+                    "penalize_degradation": True,
+                },
+            }},
+            accuracy_score=0.1,
+            timestamp=base,
+        ))
+        m.record_task(_task(
+            "rc_aaa",
+            {"retry_consistency": {
+                "consistency_score": 0.85,
+                "_config": {
+                    "group_by_task_prefix": True,
+                    "improvement_threshold": 0.1,
+                    "penalize_degradation": True,
+                },
+            }},
+            accuracy_score=0.9,
+            timestamp=base + timedelta(seconds=5),
+        ))
+
+        report = m.generate_report()
+        assert report.extra_metrics is not None
+        details = report.extra_metrics["harness_groups"]["C"]["details"]
+
+        # timestamp 순서(zzz→aaa)로는 accuracy가 0.1→0.9로 개선(delta=+0.8 ≥ threshold)
+        # → +0.1 보너스 → (0.85+0.85)/2 + 0.1 = 0.95.
+        # task_id 알파벳 순서(aaa→zzz)로 잘못 정렬했다면 delta=-0.8 → 페널티 → 0.75가 나왔을 것.
+        assert round(details["avg_retry_consistency"], 4) == 0.95
+
     def test_gate_g_reuses_unrounded_hall_rate(self):
         """hall_rate가 None인 기본 케이스에서 Gate C·G 양쪽의 hallucination_rate가 일치해야 한다."""
         m = _build_monitor_with_fixtures()

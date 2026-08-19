@@ -18,6 +18,7 @@ windowed 모드의 스냅숏이 "전체 이력을 tasks로 재계산했을 때"�
 from __future__ import annotations
 
 from collections import OrderedDict, deque
+from datetime import datetime
 from typing import Any
 
 
@@ -843,11 +844,14 @@ class GateCRetryConsistencyAgg:
     빠진다(승인된 의도적 근사, SPEC-018 Phase 7 REQ-C1). `evicted_count`로 이
     근사가 실제로 발동했는지 진단할 수 있다.
 
-    프리픽스별 상태: 점수 합/개수(전체 평균용) + task_id 문자열 기준 최소/최대
-    엔트리의 accuracy·config(원본이 `entries.sort(key=task_id)` 후 `[0]`/`[-1]`을
-    쓰는 것과 동일 — 최소 task_id 엔트리의 `_config`로 improvement_threshold/
-    penalize_degradation을 결정하고, 최소/최대 엔트리의 accuracy 차이로 델타
-    보너스/페널티를 적용한다).
+    프리픽스별 상태: 점수 합/개수(전체 평균용) + timestamp(동시각이면 task_id로
+    tie-break) 기준 최소/최대 엔트리의 accuracy·config(원본이
+    `entries.sort(key=(timestamp, task_id))` 후 `[0]`/`[-1]`을 쓰는 것과 동일 —
+    최소 엔트리의 `_config`로 improvement_threshold/penalize_degradation을 결정하고,
+    최소/최대 엔트리의 accuracy 차이로 델타 보너스/페널티를 적용한다). task_id는
+    `{prefix}_{uuid8}` 형식이라 접미사가 무작위 hex이므로 task_id만으로 정렬하면
+    실제 호출 순서와 무관해진다 — timestamp를 1차 키로 써야 "첫 시도 → 마지막 시도"
+    비교가 의미를 가진다.
     """
 
     _MAX_PREFIXES: int = 5000
@@ -878,10 +882,12 @@ class GateCRetryConsistencyAgg:
         _parts = _tid.rsplit("_", 1)
         _prefix = _parts[0] if len(_parts) > 1 else _tid
         _acc = float(getattr(t, "accuracy_score", 0.0) or 0.0)
-        self._touch_prefix(_prefix, _tid, _sc_f, _acc, _cfg)
+        _ts = getattr(t, "timestamp", None) or datetime.min
+        self._touch_prefix(_prefix, _tid, _sc_f, _acc, _cfg, _ts)
 
     def _touch_prefix(
-        self, prefix: str, tid: str, score: float, acc: float, cfg: dict[str, Any]
+        self, prefix: str, tid: str, score: float, acc: float, cfg: dict[str, Any],
+        ts: Any,
     ) -> None:
         if prefix not in self._prefixes:
             if len(self._prefixes) >= self._MAX_PREFIXES:
@@ -889,20 +895,23 @@ class GateCRetryConsistencyAgg:
                 self.evicted_count += 1
             self._prefixes[prefix] = {
                 "score_sum": 0.0, "score_count": 0,
-                "min_tid": None, "min_acc": 0.0, "min_cfg": {},
-                "max_tid": None, "max_acc": 0.0,
+                "min_tid": None, "min_ts": None, "min_acc": 0.0, "min_cfg": {},
+                "max_tid": None, "max_ts": None, "max_acc": 0.0,
             }
         else:
             self._prefixes.move_to_end(prefix)
         entry = self._prefixes[prefix]
         entry["score_sum"] += score
         entry["score_count"] += 1
-        if entry["min_tid"] is None or tid < entry["min_tid"]:
+        _key = (ts, tid)
+        if entry["min_tid"] is None or _key < (entry["min_ts"], entry["min_tid"]):
             entry["min_tid"] = tid
+            entry["min_ts"] = ts
             entry["min_acc"] = acc
             entry["min_cfg"] = cfg
-        if entry["max_tid"] is None or tid > entry["max_tid"]:
+        if entry["max_tid"] is None or _key > (entry["max_ts"], entry["max_tid"]):
             entry["max_tid"] = tid
+            entry["max_ts"] = ts
             entry["max_acc"] = acc
 
     def snapshot(self) -> dict[str, Any]:

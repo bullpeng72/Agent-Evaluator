@@ -22,6 +22,7 @@ Gate C 블록에서 그대로 이관(로직 변경 없음). monitor.py는 이 �
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from agent_evaluator.gates.base import _g, _min_sample_warning
@@ -270,6 +271,11 @@ def compute(
                     _rc_by_prefix.setdefault(_prefix, []).append({
                         "score": float(_sc),
                         "task_id": _tid,
+                        # C-XX: task_id는 `{prefix}_{uuid8}` 형식이라 접미사가 무작위 hex이므로
+                        # task_id로 정렬하면 실제 호출 순서와 무관한 임의 순서가 된다. "첫 시도 →
+                        # 마지막 시도" accuracy delta 비교는 시간순이어야 의미가 있으므로 timestamp
+                        # 기준으로 정렬한다(동시각이면 task_id로 안정적 tie-break).
+                        "timestamp": getattr(_t, "timestamp", None),
                         "accuracy": float(getattr(_t, "accuracy_score", 0.0) or 0.0),
                         "config": (_t.extra["retry_consistency"].get("_config") or {}),
                     })
@@ -277,7 +283,7 @@ def compute(
             for _rc_entries in _rc_by_prefix.values():
                 if not _rc_entries:
                     continue
-                _rc_entries.sort(key=lambda e: e["task_id"])
+                _rc_entries.sort(key=lambda e: (e["timestamp"] or datetime.min, e["task_id"]))
                 _rc_avg = sum(e["score"] for e in _rc_entries) / len(_rc_entries)
                 if len(_rc_entries) >= 2:
                     _rc_cfg = _rc_entries[0]["config"]
