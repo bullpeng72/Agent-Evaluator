@@ -2,14 +2,14 @@
 
 임계값 설정 · 품질 게이팅 · CI/CD 통합
 
-**v0.9.12 | Python 3.8+**
+**v0.9.13 | Python 3.8+**
 
 ---
 
 ## 목차
 
 1. [개요](#1-개요)
-2. [게이팅 방법 3가지](#2-게이팅-방법-3가지)
+2. [게이팅 방법 4가지](#2-게이팅-방법-4가지)
 3. [지원 Threshold 메트릭 전체 목록](#3-지원-threshold-메트릭-전체-목록)
 4. [환경별 권장값](#4-환경별-권장값)
 5. [CI/CD 통합](#5-cicd-통합)
@@ -30,7 +30,7 @@
 
 ---
 
-## 2. 게이팅 방법 3가지
+## 2. 게이팅 방법 4가지
 
 ### 방법 1 — CLI gate (가장 간단)
 
@@ -48,6 +48,9 @@ agent-eval gate results/eval.json --min-gate-score 0.75
 
 # Gate별 가중치 지정 — 보안(E)·목표달성(A)을 3배 강조
 agent-eval gate results/eval.json --min-gate-score 0.75 --group-weights "A:2.0,E:3.0,B:1.0"
+
+# Gate별 개별 최소 점수 지정 — 가중 복합 점수가 아니라 Gate 각각을 독립적으로 판정
+agent-eval gate results/eval.json --gate-thresholds "A:0.8,E:0.95" --required-gates "A,E" --fail-on-gate-warn
 ```
 
 임계값을 하나라도 미달하면 비제로(non-zero) 종료 코드를 반환합니다.
@@ -67,6 +70,20 @@ agent-eval gate results/eval.json \
 ```
 
 복합 점수는 `extra_metrics.harness_groups.{A-G}.score` 필드에서 추출합니다. 해당 데이터가 없는 Gate는 계산에서 제외됩니다.
+
+#### `--gate-thresholds` / `--required-gates` / `--fail-on-gate-warn` 상세
+
+`--min-gate-score`/`--group-weights`가 **하나의 가중 복합 점수**로 판정하는 것과 달리, 이 3개 옵션은 **Gate A–G 각각을 독립적으로** 임계값과 비교합니다 — Gate별로 다른 위험 수준을 적용하고 싶을 때(예: 보안은 0.95, 나머지는 0.7) 사용합니다.
+
+| 옵션 | 형식 | 설명 |
+|------|------|------|
+| `--gate-thresholds` | `"A:0.8,E:0.95"` | Gate별 개별 최소 점수. 목록에 없는 Gate는 `--min-gate-score`를 폴백으로 사용 |
+| `--required-gates` | `"A,E"` | `--gate-thresholds` 검사 대상 Gate를 제한 (미지정 시 점수가 있는 Gate 전체 검사) |
+| `--fail-on-gate-warn` | flag | Gate 상태가 `warn`이면 실패로 처리 (기본: warn도 통과) |
+
+> `--required-gates`와 `--fail-on-gate-warn`은 `--gate-thresholds`가 함께 지정돼야만 동작합니다 — 단독으로 주면 아무 효과가 없습니다. `--required-gates`에 없는 Gate는 "경고"가 아니라 검사 자체에서 조용히 제외됩니다.
+
+Python 코드에서 동등한 판정을 원하면 아래 [방법 4 — HarnessEvaluationGate](#방법-4--harnessevaluationgate-config-as-code-종합-판정)를 사용하세요 — `agent-eval gate` CLI와 `HarnessEvaluationGate`는 서로 호출하지 않는 독립 구현이므로 완전히 동일하지는 않습니다.
 
 #### `--baseline-version` — 버전별 독립 기준선 (v0.9.8+)
 
@@ -171,6 +188,51 @@ for metric, data in results.items():
     },
 }
 ```
+
+---
+
+### 방법 4 — HarnessEvaluationGate (Config-as-Code 종합 판정)
+
+`agent-eval gate`/`QuickEval.gate()`가 숫자 임계값 중심이라면, `HarnessEvaluationGate`는 **Harness Config 선언 자체를 판정 근거로 삼는** Python API입니다. `@agent_eval`에 선언한 33개 Harness Config(`InstructionConfig`, `SLAConfig`, `ThreatSeverityConfig` 등)의 결과가 Gate A–G 점수로 집계된 뒤, 이 클래스가 그 점수를 검사합니다. Config 선언이 코드(Git 추적)로 남으므로 "왜 이 기준이 정해졌는가"를 리뷰 이력으로 추적할 수 있습니다.
+
+```python
+from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
+
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report)
+result = gate.evaluate()   # 인수 없음
+# {"passed": bool, "groups": {"A": {"score": float|None, "status": str, "passed": bool,
+#      "threshold": float, "not_measured": bool (score=None일 때만),
+#      "insufficient_data_warnings": list[str] (있을 때만)}},
+#  "violations": [...], "summary": {"total_groups": int, "passed_groups": int, "overall_score": float|None}}
+
+# CI/CD — 실패 시 sys.exit(1)
+gate.enforce()
+```
+
+**Gate별 개별 임계값 + 미측정 Gate 강제 실패** — CLI의 `--gate-thresholds`/`--required-gates`에 대응합니다.
+
+```python
+gate = HarnessEvaluationGate(
+    report,
+    required_groups=["A", "E"],
+    group_thresholds={"E": 0.95},   # Security는 더 엄격하게, 나머지는 min_group_score
+    strict_required=True,            # required_groups에 명시한 Gate가 score=None(Config 자체를
+                                      # 설정 안 함)이면 실패 처리. 기본값(False)은 "측정 안 된 Gate는
+                                      # 조용히 통과"인 CLI/QuickEval.gate()와 동일한 기존 동작 유지
+)
+result = gate.evaluate()
+```
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| `min_group_score` | `0.7` | 각 Gate 최소 허용 점수. `group_thresholds`에 없는 Gate에 적용 |
+| `required_groups` | `None`(점수 있는 모든 Gate) | 검사할 Gate 목록 |
+| `fail_on_warn` | `False` | `True`면 `warn` 상태도 실패로 처리 |
+| `group_thresholds` | `None` | Gate별 개별 최소 점수 dict. CLI `--gate-thresholds`와 동일 개념 |
+| `strict_required` | `False` | `required_groups`에 명시한 Gate가 미측정(`score=None`)이면 실패 처리 |
+
+> ⚠️ `agent-eval gate` CLI(`--gate-thresholds`)·`QuickEval.gate(gate_thresholds=...)`·`HarnessEvaluationGate`는 Gate A–G 임계값 판정을 각각 독립적으로 구현한 3개의 코드 경로입니다 — 공유하는 건 베이스라인 회귀 판정 공식뿐입니다. 세 경로 모두 `score=None`(해당 Gate의 Config를 아예 설정하지 않은 경우)인 Gate는 기본적으로 통과 처리합니다(`HarnessEvaluationGate`만 `strict_required=True`로 이 동작을 끌 수 있습니다). 팀의 게이팅 정책을 바꿀 때는 실제 CI에서 어느 경로를 쓰는지 먼저 확인하세요.
 
 ---
 

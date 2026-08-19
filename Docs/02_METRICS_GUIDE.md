@@ -2,7 +2,7 @@
 
 Agent Evaluator **58개 지표**의 공식·출력키·임계값 참조 문서
 
-**v0.9.12 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
+**v0.9.13 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
 
 > 개별 트래커 API 시그니처는 [08_API_REFERENCE.md](08_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md)를 참조하세요.
@@ -452,6 +452,8 @@ reproducibility=ReproducibilityConfig(
 | `token_limit` | `Optional[int]` | `None` | 태스크당 최대 허용 토큰 수 |
 
 > 데코레이터 파라미터명: `sla=SLAConfig(...)`
+>
+> `breach_window`/`fail_threshold` 초과, `budget_usd` 초과는 각각 Gate D 점수에서 최대 0.3(30%) 상한이 걸린 감점만 적용합니다 — **자동으로 Gate D를 fail 처리하지는 않습니다.** 다른 지표(지연·효율성 등)가 우수하면 감점 후에도 pass/warn을 유지할 수 있습니다. 감점 근거는 `report.extra_metrics["harness_groups"]["D"]["details"]`의 `sla_window_penalty`/`sla_budget_penalty`/`perf_score_pre_sla_penalty`로 확인하세요.
 
 ```python
 sla=SLAConfig(
@@ -473,8 +475,11 @@ sla=SLAConfig(
 | `penalize_failed_tokens` | `bool` | `True` | 실패 태스크의 토큰도 비용에 포함 |
 | `warn_ratio` | `float` | `2.0` | 목표 대비 경고 배율 |
 | `fail_ratio` | `float` | `4.0` | 목표 대비 실패 배율 |
+| `fallback_reference_cost_per_completion` | `Optional[float]` | `None` | `target_cost_per_completion` 미설정 시 `efficiency_ratio` 정규화 기준. `None`이면 `cost_unit`별 기본값(tokens/time_ms=1000, usd=0.01) 사용 |
 
 > 데코레이터 파라미터명: `efficiency=EfficiencyConfig(...)`
+>
+> `target_cost_per_completion`을 설정하지 않아도 `EfficiencyConfig`는 Gate D 집계에서 제외되지 않습니다 — 구간별 정밀 판정(`calibrated_score`)만 없을 뿐, `efficiency_ratio`가 위 폴백 기준으로 0–1 정규화되어 Gate D 점수에 계속 반영됩니다. 실제 적용된 기준값은 `report.extra_metrics["harness_groups"]["D"]["details"]["efficiency_ratio_reference_cost"]`로 확인할 수 있습니다.
 
 #### `ResourceBudgetConfig` — 토큰 예산 · 비용 상한
 

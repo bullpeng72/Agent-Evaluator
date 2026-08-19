@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.12-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.9.13-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -1209,7 +1209,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 27 example files (ch01–ch27, see Example Guide above)
-├── tests/                       # 3,609+ test functions, 95 files
+├── tests/                       # 3,628+ test functions, 95 files
 └── pyproject.toml
 ```
 
@@ -1276,7 +1276,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (3,609+)
+pytest                          # run tests (3,628+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1286,49 +1286,47 @@ mypy agent_evaluator/          # type check
 
 ## Changelog
 
+### v0.9.13 (2026-08-19) — Per-Gate CI Thresholds + Gate D Score Auditability
+
+- ✨ `HarnessEvaluationGate` gained `group_thresholds`/`strict_required` for per-Gate CI thresholds, matching `QuickEval.gate()`/CLI parity; `evaluate()` now returns `threshold`/`not_measured`/`insufficient_data_warnings` per group.
+- ✨ `EfficiencyConfig.fallback_reference_cost_per_completion` — configurable Gate D score normalization when `target_cost_per_completion` isn't set.
+- ✨ Gate D `details` now exposes `sla_window_penalty`/`sla_budget_penalty`/`perf_score_pre_sla_penalty` for score auditability.
+- 🐛 Gate C `retry_consistency` group aggregation now sorts by call time instead of random `task_id`, fixing non-deterministic scoring.
+- 📝 `Docs/05_QUALITY_GATE.md` gained a `HarnessEvaluationGate` section; Book Ch07 SLA-penalty and `EfficiencyConfig` fallback misconceptions corrected.
+
 ### v0.9.12 (2026-08-19) — OpenCode Plugin Hardening + Harness Method Alignment
 
-- ✨ **OpenCode plugin, HITL alerting** (Harness Method Ch13 §13.2): `AGENT_EVALUATOR_ALERT_WEBHOOK_URL` — when set, `live_guardrail_report.record_and_save()` sends one Slack notification per session that had any blocked tool calls, reusing the SDK's existing `SlackHandler`. Fires from the session-end batch bridge, not the live `tool.execute.before` hook, so it never adds latency to the agent loop, and it collapses repeated blocks in one session into a single alert. This closes the "a verdict nobody looks at" gap — not a full pre-execution approval gate (still HOTL, not HITL).
-- ✨ **OpenCode plugin, hook-registration self-check** (Harness Method Ch06 §6.2): `agent-eval opencode install` now verifies the installed copy actually registers all three plugin hooks (`tool.execute.before`, `tool.execute.after`, `event`) and warns if one is missing — closes a "half-working and hard to notice" failure mode the plugin could previously hit silently.
-- 🐛 **`EvalDecorator.conversation()`**: constructing with a list of monitors silently dropped conversation data for every monitor after the first (`.qa`/`.tool_use` already dual-write to the whole list) — now warns instead of failing silently.
-- 🐛 **`EvaluationReport.summary()`**: timestamp serialization used `is not None` instead of `isinstance(..., datetime)`, so a non-datetime, non-None value in this public mutable field (e.g. constructed outside `from_dict()`) crashed with `AttributeError` instead of degrading gracefully — aligned with the same `isinstance` pattern already used by `to_dict()`/`to_json()` in the same file.
-- 🐛 **`ch02_quickstart.py`**: `report.to_dict().get("summary", {})` always silently returned `{}` (no such top-level key exists), so the accuracy value it read was permanently pinned at `0.0` — fixed to read `accuracy_metrics.accuracy_scores.overall_accuracy` directly.
-- 📝 **Docs**: fixed a stale `test_observation_bus.py` reference in `tests/conftest.py` (file never existed in this repo — pointed at the actual two test files that need the fixture); `Docs/AOO_STACK.md` documents both new opencode features; `Media/Harness_Method` updated to reflect that Ch06 §6.2 and Ch13 §13.2's recommendations are now implemented (with the HOTL-vs-HITL distinction preserved, not overclaimed).
+- ✨ OpenCode plugin: Slack alerting on blocked tool calls (`AGENT_EVALUATOR_ALERT_WEBHOOK_URL`) and install-time hook-registration self-check.
+- 🐛 `EvalDecorator.conversation()` multi-monitor data loss now warns instead of failing silently.
+- 🐛 `EvaluationReport.summary()` timestamp serialization crash fixed.
+- 🐛 `ch02_quickstart.py` accuracy value permanently pinned at 0.0 — fixed.
+- 📝 Docs / `Media/Harness_Method` updated to match.
 
 ### v0.9.11 (2026-08-18) — Full-Codebase Pylance Type Audit + Several Real Bugs Fixed
 
-- 🧹 **Type audit**: swept nearly the entire codebase (trackers, gates, decorators, integrations, `serve/`, CLI, examples, and the OpenCode plugin's TypeScript) fixing dozens of Pylance false positives — `Optional` narrowing, `TaskResult.task_type` Enum-vs-raw-string mismatches, possibly-unbound imports, dict-key typing. No intended behavior changes from these.
-- 🐛 **Real bugs found and fixed along the way**:
-  - `PerformanceMonitor`: `session_tcr` was multiplied by 100 while still a `dict`, not the resolved numeric value.
-  - `@agent_eval`/`@batch_eval` decorators: two cases where the monitor list wasn't iterated correctly.
-  - `dspy_integration`'s `score_fn`: `prediction` referenced before assignment on the `example_factory` path.
-  - Gate F `eval_role_adherence`: the `tool_calls` parameter's declared type didn't match what the function actually accepted.
-  - `serve/loader`: a duplicate `has_llm_judge` declaration and a narrowing loss on `tokens_used`.
-  - `serve/webhook`: a missing explicit `urllib.error` import.
-  - `serve/data`: an OTEL-detection import error plus a filter crash.
-  - Several `agent_evaluator/__init__.py` `__all__` omissions restored — a handful of documented public symbols weren't actually importable via `from agent_evaluator import ...`.
-- 📝 **Examples**: fixes in `ch11_eval_data.py`, `ch26_harness_full.py`, `ch27_cicd_weekly.py`; a silently-unloaded `.env` key (masking a feature as skipped) and an infinite-wait risk in `ch19_phoenix.py` fixed.
+- 🧹 Full-codebase Pylance type audit (trackers, gates, decorators, integrations, `serve/`, CLI, examples, OpenCode plugin) — no intended behavior changes.
+- 🐛 Several real bugs found along the way: `PerformanceMonitor.session_tcr`, decorator monitor-list iteration, `dspy_integration`, Gate F type mismatch, `serve/` imports, missing `__all__` exports.
+- 📝 Example fixes in `ch11`/`ch19`/`ch26`/`ch27`.
 
 ### v0.9.10 (2026-08-05) — README/CLAUDE.md Drift Fixes · trend Duplicate Hint Fix
 
-- 📝 **Docs**: fixed remaining README/CLAUDE.md drift from actual SDK state — stale test count, example file count, and framework adapter table entries corrected; Key Files tree cleaned of unreadable internal SPEC-NNN labels.
-- 🐛 **`agent-eval trend --fail-on-regression`**: stopped printing the "Use --fail-on-regression to fail the CI step on regression" hint when that flag was already passed.
+- 📝 README/CLAUDE.md drift fixed (test count, example count, framework adapter table).
+- 🐛 `agent-eval trend --fail-on-regression` duplicate hint message fixed.
 
 ### v0.9.9 (2026-07-14) — tool_guard Decorator · Decorator Architecture Fixes · Lint Debt Cleanup
 
-- ✨ **`tool_guard` decorator** (SPEC-039): wraps a tool function with `LiveGuardrail`'s check → execute → record cycle automatically inside a `live_guardrail_session()` block, plus a new `GuardrailBlockedError` exception — no more manual `check_before_tool_call()`/`record_tool_call()` calls at every call site.
-- 🐛 6 decorator-architecture defects fixed alongside `tool_guard` (SPEC-039) — see `agent_evaluator/decorators.py` / `gates/live_guardrail.py`.
-- 🧹 **Code quality**: ruff lint debt reduced from 4,015 to ~1,100 errors; mypy target raised to Python 3.10 (runtime support unchanged at 3.8+); fixed a Python 3.8 CI regression from unsupported type syntax in a FastAPI route signature.
-- 📝 **Docs/examples**: removed internal SPEC-number references from the public README; `Evaluator_Examples/` LiveGuardrail examples migrated to the `tool_guard` decorator pattern; Book Ch22–34 examples reorganized to match the current chapter structure; fixed a hardcoded-date time bomb in the claims-audit test suite.
-- 🐛 **Example fixes** (found during a full book/example doc review): `ch16_alerts.py`'s mock handlers used a `.handle(alert)` signature that didn't match `AlertEngine`'s real `.send(event: AlertEvent)` handler protocol, and called a nonexistent `AlertHistory.get_history()` instead of `.get_today()` — both fixed. `ch21_pipeline.py` concatenated its trend-output path as a raw string (`f"{_OUTPUT_DIR}ch21_trend.json"`, missing a path separator) instead of joining with `Path`, silently writing to the wrong location on some OSes — fixed. `ch22_tool_guard_realtime.py` reused a single `LiveGuardrail` instance across 3 demo sessions, contaminating later sessions' recorded `tool_calls` with earlier sessions' entries (the class's own docstring says instances aren't safe to share across sessions) — each session now gets a fresh instance via a small factory function.
+- ✨ `tool_guard` decorator (SPEC-039) automates the `LiveGuardrail` check → execute → record cycle.
+- 🐛 6 decorator-architecture defects fixed alongside `tool_guard`; example bugs fixed in `ch16`/`ch21`/`ch22`.
+- 🧹 Lint debt reduced (4,015 → ~1,100 errors); mypy target raised to Python 3.10.
+- 📝 Book Ch22–34 examples reorganized to match the current chapter structure.
 
 ### v0.9.8 (2026-07-06) — Version-Aware Comparison · Persistent Anomaly Baseline · AOO ADE Local Dev Loop
 
-- 📊 **Version-aware comparison**: `prompt_version`/`agent_version` dashboard filters + `compare_results(group_by=...)`, plus a swap-checked pairwise `LLMJudge.judge_pairwise()` A/B comparison (`win_rate`) — lower-variance than absolute scores for "did this prompt change help?".
-- 🧪 **CI gating**: per-version baselines (`--baseline-version`) and a golden-set regression gate (`--golden-set --fail-on-golden-regression`, exit `3`).
-- 🔁 **Persistent anomaly baseline**: `rehydrate_from_storage()` replays SQLite history so `AnomalyDetector` survives restarts; streaming auto-alerting and a 6th check (negative-feedback surge) added.
-- 🔗 **AOO stack**: batch Gate A/D/G integration for OpenCode sessions + `agent_version="auto"` git tagging — see [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md).
-- 🔒 **Team-concurrency & branch-guard hardening**: `.aoo/claims.jsonl` scope-conflict checks gain an `owner`/`owner="auto"` self-claim exclusion and a CI `audit_claims()` gate, plus a new `agent-eval claims add/list/release/audit` CLI; `BranchGuardConfig` blocks commits/pushes on protected branches; `ToolParameterSafetyConfig` now decodes base64/hex-encoded dangerous commands before matching.
+- 📊 Version-aware comparison: `prompt_version`/`agent_version` filters, pairwise `LLMJudge.judge_pairwise()` A/B testing (`win_rate`).
+- 🧪 CI gating: per-version baselines (`--baseline-version`), golden-set regression gate (`--fail-on-golden-regression`).
+- 🔁 Persistent anomaly baseline via `rehydrate_from_storage()`.
+- 🔗 AOO stack: batch Gate A/D/G integration for OpenCode, `agent_version="auto"` git tagging — see [`Docs/AOO_STACK.md`](Docs/AOO_STACK.md).
+- 🔒 Team-concurrency & branch-guard hardening; new `agent-eval claims add/list/release/audit` CLI.
 
 ### v0.9.7 (2026-07-05) — Local ADE Self-Correction Memory Layer
 

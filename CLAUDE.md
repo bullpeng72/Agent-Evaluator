@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.12 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 0.9.13 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -157,7 +157,11 @@ agent_evaluator/
 │   │                       #  graceful_degradation+retry_consistency+idempotency+LLM faithfulness/hallucination).
 │   │                       #  compute_sla_shared_data(tasks)가 SLA 공유 데이터(Gate D가 소비)의 원천;
 │   │                       #  compute()는 (group_dict, shared_raw) 튜플 반환 — shared_raw에 반올림 없는
-│   │                       #  hall_rate/avg_llm_faithfulness를 담아 Gate G가 재사용
+│   │                       #  hall_rate/avg_llm_faithfulness를 담아 Gate G가 재사용. sla_window_penalty/
+│   │                       #  sla_budget_penalty도 이 함수가 계산해 Gate D로 전달하지만 Gate C 자신의
+│   │                       #  details에는 sla_breach_rate/sla_breach_count만 노출되고 두 penalty 값
+│   │                       #  자체는 노출되지 않는다 — 역추적하려면 harness_groups.D.details의
+│   │                       #  sla_window_penalty/sla_budget_penalty/perf_score_pre_sla_penalty를 볼 것
 │   ├── gate_g_observability/ # Gate G(Observability)
 │   │   ├── configs.py      # ObservabilityConfig · ExplainabilityConfig · ErrorDiagnosisConfig ·
 │   │   │                   # LatencyAttributionConfig
@@ -168,7 +172,10 @@ agent_evaluator/
 │   │                       #  avg_llm_faithfulness는 Gate C의 shared_raw를 파라미터로 전달받음.
 │   │                       #  monitor.py는 self.tool_analyzer(ToolCallAnalyzer)를 전달한다 — 과거
 │   │                       #  존재하지 않는 속성명(self.tool_call_analyzer)으로 참조하던 오탈자가 있었으니
-│   │                       #  새 코드에서 이 이름을 다시 틀리지 않도록 주의
+│   │                       #  새 코드에서 이 이름을 다시 틀리지 않도록 주의. details의 "tool_coverage"는
+│   │                       #  실제로는 ToolCallAnalyzer.get_efficiency_stats()["success_rate"](도구 호출
+│   │                       #  성공률)다 — trace_continuity 등 "관측 커버리지"와는 다른 개념이므로
+│   │                       #  ObservabilityConfig(check_trace_continuity=...)와 혼동하지 말 것
 │   ├── gate_f_multiagent/ # Gate F(Multi-Agent Coordination)
 │   │   ├── configs.py      # ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig
 │   │   ├── evaluators.py   # eval_consensus · eval_propagation · eval_role_adherence · eval_conflict_resolution
@@ -178,10 +185,18 @@ agent_evaluator/
 │   │   ├── evaluators.py   # eval_threat_severity · eval_compliance · eval_threat_response (+ _PII_PATTERNS)
 │   │   └── aggregate.py    # Gate E 집계 로직 (5개 보안 트래커 + CVSS + compliance + threat_response)
 │   └── gate_d_performance/ # Gate D(Performance Contract)
-│       ├── configs.py      # SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig
-│       ├── evaluators.py   # eval_sla · eval_efficiency · eval_resource_budget
+│       ├── configs.py      # SLAConfig · EfficiencyConfig(fallback_reference_cost_per_completion —
+│       │                   #  target_cost_per_completion 미설정 시 efficiency_ratio 폴백 정규화 기준
+│       │                   #  비용. None(기본값)이면 cost_unit별 레거시 하드코딩값 tokens/time_ms=1000.0,
+│       │                   #  usd=0.01 유지) · ResourceBudgetConfig · TTFTVariabilityConfig ·
+│       │                   #  CostPredictabilityConfig
+│       ├── evaluators.py   # eval_sla · eval_efficiency(fallback_reference_cost_per_completion을
+│       │                   #  결과의 "_config" 서브딕셔너리에 실어 aggregate.py로 전달) · eval_resource_budget
 │       └── aggregate.py    # Gate D 집계 로직 (latency+efficiency+budget+TTFT+cost predictability;
-│                           #  SLA 공유 데이터는 gate_c_reliability.aggregate.compute_sla_shared_data()에서 전달받음)
+│                           #  SLA 공유 데이터는 gate_c_reliability.aggregate.compute_sla_shared_data()에서
+│                           #  전달받음). details에 perf_score_pre_sla_penalty/sla_window_penalty/
+│                           #  sla_budget_penalty(SLA 감점 역추적용)·efficiency_ratio_reference_cost
+│                           #  (폴백 정규화 경로에서 실제 사용된 기준 비용) 노출
 ├── quick_eval.py          # QuickEval facade + HarnessEvaluationGate
 ├── config.py              # get_settings · init_from_app · load_env
 ├── exceptions.py          # AgentEvaluatorError hierarchy
@@ -310,7 +325,8 @@ Gate A–G results stored under `extra_metrics.harness_groups` in JSON result fi
 > Gate B details에 `avg_goal_alignment` / `avg_plan_coherence`가 표시되지만, 이는 Gate A 계산값을 재참조하는 진단용이며 Gate B **점수에는 포함되지 않는다**.  
 > **`AgentCoordinationTracker` 스케일**: `calculate_coordination_score().overall_score`는 0–10 스케일 → Gate F에서 `/10`으로 정규화.  
 > **`ConsensusConfig.consensus_method`**: `"majority"` = 동의 쌍 비율; `"unanimity"` = 모든 쌍 동의 시만 1.0, 아니면 0.0; `"weighted"` = `agent_weights` 기반 가중 비율.  
-> **`eval_conflict_resolution` 충돌 카운팅**: `agent_interactions`가 있으면 interaction 기반으로만 집계, 없으면 response 텍스트 폴백 (이중 카운팅 방지).
+> **`eval_conflict_resolution` 충돌 카운팅**: `agent_interactions`가 있으면 interaction 기반으로만 집계, 없으면 response 텍스트 폴백 (이중 카운팅 방지).  
+> **RCA 상호참조(Gate F ↔ Gate B)**: Gate F(`gate_f_multiagent`)와 Gate B(`gate_b_behavioral`)는 서로를 참조하지 않는 완전 독립 슬라이스지만, 멀티에이전트 배포에서 둘 다 동시에 낮다면 조율 실패라는 같은 근본원인일 확률이 높다. Gate F 점수가 낮을 때는 `harness_groups.B.details.deadlock_by_type`/`deadlock_count`도 함께 확인할 것 — Gate B의 데드락이 Gate F의 낮은 `avg_conflict_resolution`/`coordination_score`를 설명하는 경우가 흔하다. 반대로 Gate C(신뢰성)와 Gate D(성능)가 동시에 하락했다고 해서 원인이 하나(예: SLA)라고 성급히 가정하지 말 것 — 같은 배포에 여러 변경이 우연히 겹친 경우가 더 흔하므로, `harness_groups.C.details.sla_breach_rate`와 `harness_groups.D.details.sla_window_penalty`/`sla_budget_penalty`를 먼저 대조해 실제로 SLA가 두 Gate 모두의 원인인지부터 확인한다.
 
 ---
 
@@ -447,9 +463,28 @@ from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
 report = monitor.generate_report()
 gate = HarnessEvaluationGate(report)
 result = gate.evaluate()   # no arguments
-# result: {"passed": bool, "groups": {"A": {"score": float|None, "status": str, "passed": bool}},
+# result: {"passed": bool, "groups": {"A": {"score": float|None, "status": str, "passed": bool,
+#              "threshold": float, "not_measured": bool (score=None일 때만),
+#              "insufficient_data_warnings": list[str] (있을 때만)}},
 #          "violations": [...], "summary": {"total_groups": int, "passed_groups": int, "overall_score": float|None}}
+
+# Gate별 개별 임계값 + 미측정 Gate 강제 실패(둘 다 기본 False/미지정 시 기존 동작과 100% 동일)
+gate = HarnessEvaluationGate(
+    report,
+    required_groups=["A", "E"],
+    group_thresholds={"E": 0.95},   # Security는 더 엄격하게 — QuickEval.gate(gate_thresholds=...)/
+                                     # CLI --gate-thresholds와 동일 개념을 이 클래스에도 대칭 추가
+    strict_required=True,            # required_groups에 명시한 Gate가 score=None(설정 자체를 안 함)이면
+                                      # 실패 처리 — 기본값(False)은 "꺼진 Gate는 조용히 통과"인 기존 동작 유지
+)
 ```
+
+> **주의**: `HarnessEvaluationGate.evaluate()`(Python API), `QuickEval.gate()`, `cli/gate.py`(`agent-eval gate`)는
+> Gate A-G 임계값 판정을 각각 독립적으로 재구현한 3개의 서로 다른 코드 경로다 — 공유하는 건
+> `_compute_gate_regressions()`(베이스라인 회귀 판정 공식)뿐이다. 세 경로 모두 `score is None`인
+> Gate는 기본적으로 통과 처리한다(`HarnessEvaluationGate`는 `strict_required=True`로만 opt-out 가능,
+> 나머지 둘은 항상 통과). 세 경로 중 하나를 고쳐도 나머지 둘은 저절로 바뀌지 않으니, Gate A-G
+> 임계값 판정 로직을 변경할 때는 세 곳 모두 확인할 것.
 
 ---
 
@@ -550,7 +585,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**95 files, 3,609+ test functions** in `tests/`.
+**95 files, 3,628+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
