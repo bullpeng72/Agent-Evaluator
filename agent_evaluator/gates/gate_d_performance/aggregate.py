@@ -77,6 +77,11 @@ def compute(
             avg_eff_calibrated: float | None = shared_running["eff_calibrated_avg"]
         else:
             avg_eff_calibrated = None
+        # fallback_reference_cost_per_completion: windowed 모드는 이 값을 러닝 집계로
+        # 전달받지 않는다(GateDSharedAgg 확장 범위 밖) — "full" 모드와 달리 항상 cost_unit별
+        # 기존 하드코딩 기본값(1000.0/0.01)을 쓴다. calibrated_score 없는 태스크의 fallback
+        # 정규화이므로 windowed에서만 근사가 하나 더 느는 것이지 회귀는 아니다.
+        _eff_fallback_ref: float | None = None
 
         # resource_budget — 정확 (SPEC-018 Phase 7): 누적합/최근 config 덮어쓰기로 항등 재현.
         _rb_n = shared_running["rb_n"]
@@ -108,6 +113,9 @@ def compute(
         # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
         _eff_calibrated_vals: list[float] = []
         _eff_ratios_by_unit: dict[str, list[float]] = {}  # unit → ratios (단위 혼재 방지)
+        # unit별 fallback_reference_cost_per_completion — 마지막으로 관측된 값을 사용
+        # (다른 Gate D Config 값들의 "마지막 태스크 설정 우선" 관례와 동일, resource_budget 참조)
+        _fallback_ref_by_unit: dict[str, float] = {}
         for _t in tasks:
             _eff = ((_t.extra or {}).get("efficiency") or {})
             if not _eff:
@@ -118,6 +126,9 @@ def compute(
             if _er is not None:  # cost_value=0(측정 불가) → None 제외
                 _unit = str(_eff.get("cost_unit") or "tokens")
                 _eff_ratios_by_unit.setdefault(_unit, []).append(float(_er))
+                _ref = (_eff.get("_config") or {}).get("fallback_reference_cost_per_completion")
+                if _ref is not None:
+                    _fallback_ref_by_unit[_unit] = float(_ref)
         # 가장 많이 사용된 단위의 ratio만 평균 (단위 혼재 시 배율 오류 방지)
         _eff_ratios: list[float] = max(
             _eff_ratios_by_unit.values(), key=len, default=[]
@@ -126,6 +137,7 @@ def compute(
             max(_eff_ratios_by_unit, key=lambda u: len(_eff_ratios_by_unit[u]))
             if _eff_ratios_by_unit else "tokens"
         )
+        _eff_fallback_ref: float | None = _fallback_ref_by_unit.get(_eff_cost_unit)
         # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
         if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
             avg_eff_calibrated = (
@@ -379,16 +391,20 @@ def compute(
             if _p95_ms_values:
                 _p95_threshold_s = sum(_p95_ms_values) / len(_p95_ms_values) / 1000.0
         _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / max(_p95_threshold_s, 1.0))))
+    _eff_ratio_reference_used: float | None = None
     if avg_eff_calibrated is not None:
         # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
         _perf_vals.append(avg_eff_calibrated)
     elif avg_eff_ratio is not None:
-        # Normalize: token/time_ms ratio ~0.001 maps to 1.0.
-        # USD ratio is ~100-1000; $0.01/completion = threshold (ratio=100 → 1.0).
-        if _eff_cost_unit == "usd":
-            _norm_eff = min(1.0, avg_eff_ratio * 0.01)
-        else:
-            _norm_eff = min(1.0, avg_eff_ratio * 1000.0)
+        # Normalize: efficiency_ratio(completion/cost) * reference_cost_per_completion == 1.0
+        # when actual cost == reference cost. EfficiencyConfig.fallback_reference_cost_per_completion가
+        # 설정돼 있으면 그 값을, 없으면 cost_unit별 기존 기본값(tokens/time_ms=1000.0, usd=0.01)을 쓴다
+        # — 팀마다 다른 비용 구조에서 이 하드코딩 기준이 무의미한 점수를 만드는 문제(검사 5-D)를 해소.
+        _eff_ratio_reference_used = (
+            _eff_fallback_ref if _eff_fallback_ref is not None
+            else (0.01 if _eff_cost_unit == "usd" else 1000.0)
+        )
+        _norm_eff = min(1.0, avg_eff_ratio * _eff_ratio_reference_used)
         _perf_vals.append(_norm_eff)
     if _avg_budget is not None:
         _perf_vals.append(_avg_budget)
@@ -396,8 +412,12 @@ def compute(
         _perf_vals.append(_avg_ttft_variability)
     if _avg_cost_predictability is not None:
         _perf_vals.append(_avg_cost_predictability)
-    _perf_score: float | None = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
-    # SLA breach_window/budget_usd 패널티 적용 (데이터 있을 때만)
+    _perf_score_pre_penalty: float | None = sum(_perf_vals) / len(_perf_vals) if _perf_vals else None
+    _perf_score = _perf_score_pre_penalty
+    # SLA breach_window/budget_usd 패널티 적용 (데이터 있을 때만) — 이 패널티는 Gate C
+    # (compute_sla_shared_data)가 계산한 값을 그대로 전달받은 것이므로, details에 노출하지
+    # 않으면 avg_efficiency/avg_budget/ttft/cost_predictability를 아무리 평균해도 최종 점수와
+    # 안 맞는 "역추적 불가" 상태가 된다. 두 값을 details에 그대로 기록해 역추적 가능하게 한다.
     if _perf_score is not None:
         _perf_score = max(0.0, _perf_score - sla_window_penalty - sla_budget_penalty)
 
@@ -408,11 +428,21 @@ def compute(
         # calibrated_score 우선 사용 시 두 값 모두 노출 (역추적 가능성 확보)
         "avg_efficiency_calibrated_score": round(avg_eff_calibrated, 4) if avg_eff_calibrated is not None else None,
         "avg_efficiency_ratio": round(avg_eff_ratio, 8) if avg_eff_ratio is not None else None,
+        # avg_efficiency_calibrated_score가 None일 때만(폴백 정규화 경로) 실제 사용된 기준 비용 노출.
+        # EfficiencyConfig(fallback_reference_cost_per_completion=...) 미설정 시 cost_unit별 레거시
+        # 기본값(tokens/time_ms=1000.0, usd=0.01)이 그대로 사용됐다는 뜻 — 역추적/감사용.
+        "efficiency_ratio_reference_cost": _eff_ratio_reference_used,
         "avg_budget_score": round(_avg_budget, 4) if _avg_budget is not None else None,
         "ttft_variability_score": round(_avg_ttft_variability, 4) if _avg_ttft_variability is not None else None,
         "ttft_stddev_ms": round(_ttft_stddev, 4) if _ttft_stddev is not None else None,
         "ttft_p50_ms": round(_ttft_p50, 4) if _ttft_p50 is not None else None,
         "ttft_p95_ms": round(_ttft_p95, 4) if _ttft_p95 is not None else None,
         "avg_cost_predictability": round(_avg_cost_predictability, 4) if _avg_cost_predictability is not None else None,
+        # Gate C(compute_sla_shared_data)가 계산해 이 함수로 전달한 SLA 패널티 —
+        # 최종 score = round(perf_score_pre_sla_penalty - sla_window_penalty - sla_budget_penalty, 4)
+        # 역추적용. 0.0이어도(패널티 미발동) 명시적으로 노출해 "SLA 데이터 자체가 없음"과 구분한다.
+        "perf_score_pre_sla_penalty": round(_perf_score_pre_penalty, 4) if _perf_score_pre_penalty is not None else None,
+        "sla_window_penalty": round(sla_window_penalty, 4),
+        "sla_budget_penalty": round(sla_budget_penalty, 4),
         "insufficient_data_warnings": _d_insufficient if _d_insufficient else None,
     })

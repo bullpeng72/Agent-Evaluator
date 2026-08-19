@@ -168,6 +168,101 @@ class TestHarnessEvaluationGateBaseline:
 
 
 # ---------------------------------------------------------------------------
+# Harness Method 검사 5-D 개선: group_thresholds / strict_required /
+# insufficient_data_warnings 노출 (QuickEval.gate()/CLI --gate-thresholds와 대칭)
+# ---------------------------------------------------------------------------
+
+class TestHarnessEvaluationGateGroupThresholds:
+    def test_default_behavior_unchanged_without_group_thresholds(self):
+        """group_thresholds 미지정 시 min_group_score만 쓰는 기존 동작과 100% 동일."""
+        report = _ReportProxy({"A": {"score": 0.75, "status": "pass"}})
+        gate = HarnessEvaluationGate(report, min_group_score=0.7)
+        result = gate.evaluate()
+        assert result["groups"]["A"]["passed"] is True
+        assert result["groups"]["A"]["threshold"] == 0.7
+
+    def test_per_group_threshold_overrides_min_group_score(self):
+        """E처럼 리스크가 큰 Gate만 더 엄격한 임계값을 줄 수 있어야 한다."""
+        report = _ReportProxy({
+            "A": {"score": 0.75, "status": "pass"},
+            "E": {"score": 0.90, "status": "pass"},
+        })
+        gate = HarnessEvaluationGate(
+            report, min_group_score=0.7, group_thresholds={"E": 0.95},
+        )
+        result = gate.evaluate()
+        assert result["groups"]["A"]["passed"] is True  # 0.75 >= 0.7 (기본값)
+        assert result["groups"]["E"]["passed"] is False  # 0.90 < 0.95 (개별 임계값)
+        assert result["groups"]["E"]["threshold"] == 0.95
+        assert result["passed"] is False
+
+    def test_unlisted_group_falls_back_to_min_group_score(self):
+        report = _ReportProxy({"A": {"score": 0.65, "status": "warn"}})
+        gate = HarnessEvaluationGate(
+            report, min_group_score=0.7, group_thresholds={"E": 0.95},
+        )
+        result = gate.evaluate()
+        assert result["groups"]["A"]["threshold"] == 0.7
+        assert result["groups"]["A"]["passed"] is False
+
+
+class TestHarnessEvaluationGateStrictRequired:
+    def test_none_score_passes_by_default(self):
+        """기존 동작(하위호환): 측정 안 된 Gate는 조용히 통과."""
+        report = _ReportProxy({"E": {"score": None}})
+        gate = HarnessEvaluationGate(report, required_groups=["E"])
+        result = gate.evaluate()
+        assert result["groups"]["E"]["passed"] is True
+        assert result["groups"]["E"]["not_measured"] is True
+        assert result["passed"] is True
+
+    def test_strict_required_fails_explicit_none_score_group(self):
+        """required_groups에 명시한 Gate가 score=None이면 strict_required=True일 때 실패해야 한다."""
+        report = _ReportProxy({"E": {"score": None}})
+        gate = HarnessEvaluationGate(
+            report, required_groups=["E"], strict_required=True,
+        )
+        result = gate.evaluate()
+        assert result["groups"]["E"]["passed"] is False
+        assert result["passed"] is False
+        assert result["violations"][0]["reason"] == "not_measured"
+
+    def test_strict_required_does_not_affect_auto_discovered_groups(self):
+        """required_groups를 생략(자동 탐지)한 경우 strict_required=True여도 None 점수 Gate는
+        여전히 통과해야 한다 — 명시적으로 요구하지 않은 Gate까지 강제하면 안 된다."""
+        report = _ReportProxy({
+            "A": {"score": 0.9, "status": "pass"},
+            "E": {"score": None},
+        })
+        gate = HarnessEvaluationGate(report, strict_required=True)
+        result = gate.evaluate()
+        assert result["groups"]["E"]["passed"] is True
+        assert result["passed"] is True
+
+
+class TestHarnessEvaluationGateInsufficientDataWarnings:
+    def test_warnings_exposed_in_result(self):
+        report = _ReportProxy({
+            "B": {
+                "score": 0.9, "status": "pass",
+                "details": {"insufficient_data_warnings": ["loop_detection: 1 samples < min_samples=3"]},
+            },
+        })
+        gate = HarnessEvaluationGate(report)
+        result = gate.evaluate()
+        assert result["groups"]["B"]["insufficient_data_warnings"] == [
+            "loop_detection: 1 samples < min_samples=3"
+        ]
+
+    def test_no_warnings_key_when_absent(self):
+        """details에 insufficient_data_warnings가 없거나 None이면 결과 dict에 그 키 자체가 없어야 한다."""
+        report = _ReportProxy({"A": {"score": 0.9, "status": "pass", "details": {}}})
+        gate = HarnessEvaluationGate(report)
+        result = gate.evaluate()
+        assert "insufficient_data_warnings" not in result["groups"]["A"]
+
+
+# ---------------------------------------------------------------------------
 # REQ-1/REQ-2: CLI cli/gate.py 통합
 # ---------------------------------------------------------------------------
 

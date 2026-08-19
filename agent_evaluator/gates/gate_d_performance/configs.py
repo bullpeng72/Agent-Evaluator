@@ -146,9 +146,25 @@ class EfficiencyConfig:
     penalize_failed_tokens: bool = True
     warn_ratio: float = 2.0
     fail_ratio: float = 4.0
+    # target_cost_per_completion을 설정하지 않아 calibrated_score가 계산되지 않을 때, Gate D가
+    # efficiency_ratio를 0-1로 정규화하는 데 쓰는 기준 비용(이 cost_value가 completion_score=1.0
+    # 달성에 필요한 비용이라고 가정하고 1.0점을 매긴다). None(기본값)이면 cost_unit별 기존
+    # 하드코딩 기준값(tokens/time_ms=1000.0, usd=0.01)을 그대로 쓴다 — 비용 구조가 다른 팀은
+    # target_cost_per_completion(calibrated_score, 권장) 대신 이 값만 조정해도 된다.
+    fallback_reference_cost_per_completion: float | None = None
 
     def __post_init__(self) -> None:
         import warnings as _w
+        if self.fallback_reference_cost_per_completion is not None and (
+            self.fallback_reference_cost_per_completion <= 0
+        ):
+            _w.warn(
+                f"EfficiencyConfig: fallback_reference_cost_per_completion="
+                f"{self.fallback_reference_cost_per_completion} <= 0 이므로 무시되고 "
+                f"cost_unit별 기존 기본값이 사용됩니다.",
+                UserWarning, stacklevel=2,
+            )
+            self.fallback_reference_cost_per_completion = None
         # D-1: cost_unit이 유효하지 않으면 efficiency_ratio 계산에서 "tokens" 폴백되지만
         # 사용자가 오타임을 알 수 없어 의도와 다른 지표가 Gate D에 기여됨
         _valid_units = ("tokens", "usd", "time_ms")

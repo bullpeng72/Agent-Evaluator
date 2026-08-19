@@ -11,6 +11,8 @@ aggregate.compute() 직접 호출의 동등성)를 검증한다.
 섹션에서 공유 계산되는 데이터이므로, sla_results=[]/penalties=0.0/warning=None을
 그대로 aggregate.compute()에 전달해 순수하게 Gate D 자체 로직만 검증한다.
 """
+import pytest
+
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 
@@ -125,7 +127,8 @@ class TestGateDMigrationEquivalence:
         assert d["gate"] == d["status"]
 
     def test_details_key_set_unchanged(self):
-        """details 딕셔너리의 키 이름이 이관 전과 동일한지 확인."""
+        """details 딕셔너리의 키 이름이 이관 전(SPEC-000) + SLA penalty/efficiency reference
+        cost 노출(Harness Method 검사 5-D 개선) 이후와 동일한지 확인."""
         m = _build_monitor_with_fixtures()
         report = m.generate_report()
         assert report.extra_metrics is not None
@@ -135,6 +138,8 @@ class TestGateDMigrationEquivalence:
             "avg_budget_score", "ttft_variability_score", "ttft_stddev_ms",
             "ttft_p50_ms", "ttft_p95_ms", "avg_cost_predictability",
             "insufficient_data_warnings",
+            "perf_score_pre_sla_penalty", "sla_window_penalty", "sla_budget_penalty",
+            "efficiency_ratio_reference_cost",
         }
 
     def test_ttft_insufficient_samples_warns(self):
@@ -147,3 +152,142 @@ class TestGateDMigrationEquivalence:
         warnings = report.extra_metrics["harness_groups"]["D"]["details"]["insufficient_data_warnings"]
         assert warnings is not None
         assert any("ttft_variability" in w for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# Harness Method 검사 5-D 개선: SLA penalty 역추적 가능성 + efficiency_ratio
+# 폴백 정규화 기준 비용 설정 가능화 (gates/gate_d_performance/aggregate.py)
+# ---------------------------------------------------------------------------
+
+class TestSlaPenaltyVisibility:
+    def test_sla_penalties_exposed_and_explain_score_gap(self):
+        """SLA window/budget penalty가 details에 그대로 노출되고, perf_score_pre_sla_penalty에서
+        (penalty 합) 만큼 뺀 값이 최종 score와 일치해야 한다(역추적 가능성)."""
+        from agent_evaluator.gates.gate_d_performance import aggregate as gate_d_aggregate
+        from agent_evaluator.core.trackers.layer1 import LatencyTracker
+
+        tasks = [
+            _task("d1", {"efficiency": {"calibrated_score": 1.0, "efficiency_ratio": 0.01, "cost_unit": "usd"}}),
+        ]
+        group = gate_d_aggregate.compute(
+            tasks,
+            LatencyTracker(),
+            None,
+            None,
+            3,
+            sla_results=[],
+            sla_window_penalty=0.3,
+            sla_budget_penalty=0.1,
+            sla_warning=None,
+        )
+        details = group["details"]
+        assert details["sla_window_penalty"] == 0.3
+        assert details["sla_budget_penalty"] == 0.1
+        assert details["perf_score_pre_sla_penalty"] == 1.0  # calibrated_score만 반영된 순수 성능값
+        assert group["score"] == pytest.approx(1.0 - 0.3 - 0.1)  # 0.6
+
+    def test_zero_penalty_explicitly_shown_not_omitted(self):
+        """패널티가 0이어도(미발동) 키 자체는 항상 노출되어 'SLA 데이터 없음'과 구분되어야 한다."""
+        from agent_evaluator.gates.gate_d_performance import aggregate as gate_d_aggregate
+        from agent_evaluator.core.trackers.layer1 import LatencyTracker
+
+        tasks = [
+            _task("d1", {"efficiency": {"calibrated_score": 0.9, "efficiency_ratio": 0.01, "cost_unit": "usd"}}),
+        ]
+        group = gate_d_aggregate.compute(
+            tasks, LatencyTracker(), None, None, 3,
+            sla_results=[], sla_window_penalty=0.0, sla_budget_penalty=0.0, sla_warning=None,
+        )
+        details = group["details"]
+        assert details["sla_window_penalty"] == 0.0
+        assert details["sla_budget_penalty"] == 0.0
+        assert details["perf_score_pre_sla_penalty"] == group["score"]
+
+
+class TestEfficiencyRatioReferenceCost:
+    def test_default_legacy_constant_used_when_config_absent(self):
+        """fallback_reference_cost_per_completion 미설정 태스크는 cost_unit별 레거시 기본값을 쓴다."""
+        from agent_evaluator.gates.gate_d_performance import aggregate as gate_d_aggregate
+        from agent_evaluator.core.trackers.layer1 import LatencyTracker
+
+        tasks = [
+            _task("d1", {"efficiency": {"efficiency_ratio": 0.0005, "cost_unit": "tokens"}}),
+        ]
+        group = gate_d_aggregate.compute(
+            tasks, LatencyTracker(), None, None, 3,
+            sla_results=[], sla_window_penalty=0.0, sla_budget_penalty=0.0, sla_warning=None,
+        )
+        assert group["details"]["efficiency_ratio_reference_cost"] == 1000.0
+        assert group["score"] == pytest.approx(min(1.0, 0.0005 * 1000.0))
+
+    def test_custom_reference_cost_overrides_legacy_constant(self):
+        """EfficiencyConfig(fallback_reference_cost_per_completion=...)가 태스크 _config에
+        실려 있으면 그 값이 정규화 기준으로 쓰여야 한다."""
+        from agent_evaluator.gates.gate_d_performance import aggregate as gate_d_aggregate
+        from agent_evaluator.core.trackers.layer1 import LatencyTracker
+
+        tasks = [
+            _task("d1", {
+                "efficiency": {
+                    "efficiency_ratio": 0.0625,
+                    "cost_unit": "tokens",
+                    "_config": {"fallback_reference_cost_per_completion": 8.0},
+                },
+            }),
+        ]
+        group = gate_d_aggregate.compute(
+            tasks, LatencyTracker(), None, None, 3,
+            sla_results=[], sla_window_penalty=0.0, sla_budget_penalty=0.0, sla_warning=None,
+        )
+        assert group["details"]["efficiency_ratio_reference_cost"] == 8.0
+        assert group["score"] == pytest.approx(0.5)  # 0.0625 * 8.0
+
+    def test_calibrated_score_path_leaves_reference_cost_none(self):
+        """calibrated_score가 사용되는 경로(target_cost_per_completion 설정)에서는
+        폴백 정규화 자체가 실행되지 않으므로 efficiency_ratio_reference_cost는 None이어야 한다."""
+        m = _build_monitor_with_fixtures()
+        report = m.generate_report()
+        assert report.extra_metrics is not None
+        details = report.extra_metrics["harness_groups"]["D"]["details"]
+        assert details["avg_efficiency_calibrated_score"] is not None
+        assert details["efficiency_ratio_reference_cost"] is None
+
+
+class TestEfficiencyConfigFallbackReferenceCostField:
+    def test_default_none(self):
+        from agent_evaluator import EfficiencyConfig
+        cfg = EfficiencyConfig()
+        assert cfg.fallback_reference_cost_per_completion is None
+
+    def test_valid_value_kept(self):
+        from agent_evaluator import EfficiencyConfig
+        cfg = EfficiencyConfig(fallback_reference_cost_per_completion=5.0)
+        assert cfg.fallback_reference_cost_per_completion == 5.0
+
+    def test_non_positive_value_warns_and_resets_to_none(self):
+        from agent_evaluator import EfficiencyConfig
+        with pytest.warns(UserWarning, match="fallback_reference_cost_per_completion"):
+            cfg = EfficiencyConfig(fallback_reference_cost_per_completion=0.0)
+        assert cfg.fallback_reference_cost_per_completion is None
+
+    def test_eval_efficiency_threads_config_into_result(self):
+        from agent_evaluator import EfficiencyConfig
+        from agent_evaluator.gates.gate_d_performance.evaluators import eval_efficiency
+
+        cfg = EfficiencyConfig(cost_unit="tokens", fallback_reference_cost_per_completion=8.0)
+        result = eval_efficiency(
+            completion_score=0.9, tokens_used=100, execution_time_s=1.0,
+            cost_usd=None, config=cfg,
+        )
+        assert result["_config"]["fallback_reference_cost_per_completion"] == 8.0
+
+    def test_eval_efficiency_omits_config_key_when_unset(self):
+        from agent_evaluator import EfficiencyConfig
+        from agent_evaluator.gates.gate_d_performance.evaluators import eval_efficiency
+
+        cfg = EfficiencyConfig(cost_unit="tokens")
+        result = eval_efficiency(
+            completion_score=0.9, tokens_used=100, execution_time_s=1.0,
+            cost_usd=None, config=cfg,
+        )
+        assert "_config" not in result

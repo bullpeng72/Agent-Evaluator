@@ -228,6 +228,11 @@ def eval_efficiency(
     if calibrated_score is not None:
         result["calibrated_score"] = round(calibrated_score, 4)
         result["efficiency_grade"] = efficiency_grade
+    _fallback_ref = getattr(config, "fallback_reference_cost_per_completion", None)
+    if _fallback_ref is not None:
+        # Gate D 집계(gate_d_performance/aggregate.py)가 calibrated_score 없는 태스크의
+        # efficiency_ratio 정규화 기준값으로 참조 — eval_sla의 "_config" 패턴과 동일.
+        result["_config"] = {"fallback_reference_cost_per_completion": float(_fallback_ref)}
     return result
 
 

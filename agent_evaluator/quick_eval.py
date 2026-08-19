@@ -1925,10 +1925,20 @@ class HarnessEvaluationGate:
 
     Args:
         report: ``PerformanceMonitor.generate_report()`` 반환값.
-        min_group_score: 각 그룹 최소 허용 점수 (기본 0.7 = 70%).
+        min_group_score: 각 그룹 최소 허용 점수 (기본 0.7 = 70%). ``group_thresholds``에
+            없는 그룹의 기본 임계값으로도 쓰인다.
         required_groups: 검사할 그룹 목록. ``None``이면 점수가 있는 모든 그룹.
             예: ``["A", "D", "E"]`` — Goal·Performance·Security만 검사.
         fail_on_warn: ``True``이면 ``warn`` 상태도 실패로 처리.
+        group_thresholds: Gate별 개별 최소 점수. 예: ``{"E": 0.95, "A": 0.6}`` —
+            보안처럼 리스크가 큰 Gate는 더 엄격하게, 나머지는 ``min_group_score``를 그대로
+            쓸 수 있다. ``QuickEval.gate(gate_thresholds=...)`` / CLI ``agent-eval gate
+            --gate-thresholds``와 동일한 개념이며 이 클래스에만 없던 기능을 대칭적으로 추가한 것이다.
+        strict_required: ``True``이면 ``required_groups``에 명시적으로 지정한 그룹의 점수가
+            ``None``(해당 Gate의 Harness Config를 아예 설정하지 않아 측정 자체가 안 된 경우)일 때
+            실패로 처리한다. 기본값 ``False``는 기존 동작과 100% 동일(측정 안 된 그룹은 통과) —
+            "꺼진 Gate가 조용히 통과되는" 것을 막고 싶을 때만 옵트인한다. ``required_groups``를
+            생략(자동 탐지)한 그룹에는 적용되지 않는다 — 명시적으로 요구한 Gate에만 강제한다.
 
     Example::
 
@@ -1956,6 +1966,14 @@ class HarnessEvaluationGate:
 
         # 특정 그룹만 검사
         HarnessEvaluationGate(report, required_groups=["A", "E"]).enforce()
+
+        # Gate별 개별 임계값 + 미측정 시 강제 실패
+        HarnessEvaluationGate(
+            report,
+            required_groups=["A", "E"],
+            group_thresholds={"E": 0.95},
+            strict_required=True,
+        ).enforce()
     """
 
     def __init__(
@@ -1965,11 +1983,15 @@ class HarnessEvaluationGate:
         min_group_score: float = 0.7,
         required_groups: list[str] | None = None,
         fail_on_warn: bool = False,
+        group_thresholds: dict[str, float] | None = None,
+        strict_required: bool = False,
     ) -> None:
         self._report = report
         self._min_group_score = min_group_score
         self._required_groups = required_groups
         self._fail_on_warn = fail_on_warn
+        self._group_thresholds = group_thresholds or {}
+        self._strict_required = strict_required
         self._result: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
@@ -2052,12 +2074,32 @@ class HarnessEvaluationGate:
                 continue
             score = group_data.get("score")
             status = group_data.get("status", "n/a")
+            details = group_data.get("details")
+            warnings = details.get("insufficient_data_warnings") if isinstance(details, dict) else None
 
             if score is None:
-                results[group_name] = {"score": None, "status": "n/a", "passed": True}
+                # strict_required: 이 그룹이 required_groups에 명시적으로 지정됐을 때만 강제한다
+                # (자동 탐지된 그룹까지 강제하면 "옵션 켰더니 안 켜둔 Gate 전부가 갑자기 실패"라는
+                # 놀람을 유발하므로, 명시적으로 요구한 Gate에만 적용한다).
+                _explicit = self._required_groups is not None and group_name in self._required_groups
+                _not_measured_passed = not (self._strict_required and _explicit)
+                results[group_name] = {
+                    "score": None,
+                    "status": "n/a",
+                    "passed": _not_measured_passed,
+                    "not_measured": True,
+                }
+                if not _not_measured_passed:
+                    violations.append({
+                        "group": group_name,
+                        "score": None,
+                        "status": "n/a",
+                        "reason": "not_measured",
+                    })
                 continue
 
-            passed = float(score) >= self._min_group_score
+            threshold = self._group_thresholds.get(group_name, self._min_group_score)
+            passed = float(score) >= threshold
             if self._fail_on_warn and status == "warn":
                 passed = False
 
@@ -2065,7 +2107,10 @@ class HarnessEvaluationGate:
                 "score": round(float(score), 3),
                 "status": status,
                 "passed": passed,
+                "threshold": threshold,
             }
+            if warnings:
+                results[group_name]["insufficient_data_warnings"] = warnings
 
             if not passed:
                 violations.append({
