@@ -132,7 +132,7 @@ class TestClaimsList:
         claims_path = tmp_path / "claims.jsonl"
         code = _cmd_claims_list(_ns(claims_path=str(claims_path)))
         assert code == 0
-        assert "활성 클레임 없음" in capsys.readouterr().out
+        assert "No active claims" in capsys.readouterr().out
 
     def test_list_shows_active_claims(self, tmp_path, capsys):
         claims_path = tmp_path / "claims.jsonl"
@@ -155,7 +155,7 @@ class TestClaimsList:
         )
         append_claim(claims_path, claim_id="c1", status="released")
         _cmd_claims_list(_ns(claims_path=str(claims_path)))
-        assert "활성 클레임 없음" in capsys.readouterr().out
+        assert "No active claims" in capsys.readouterr().out
 
     def test_list_handles_unparseable_started_at(self, tmp_path, capsys):
         claims_path = tmp_path / "claims.jsonl"
@@ -220,7 +220,7 @@ class TestClaimsAudit:
         )
         code = _cmd_claims_audit(_ns(claims_path=str(claims_path), ttl_hours=8.0))
         assert code == 1
-        assert "TTL 초과" in capsys.readouterr().out
+        assert "TTL exceeded" in capsys.readouterr().out
 
     def test_audit_overlap_violation_returns_1(self, tmp_path, capsys):
         claims_path = tmp_path / "claims.jsonl"
@@ -234,7 +234,7 @@ class TestClaimsAudit:
         )
         code = _cmd_claims_audit(_ns(claims_path=str(claims_path), ttl_hours=8760.0))
         assert code == 1
-        assert "스코프 겹침" in capsys.readouterr().out
+        assert "Overlapping scope" in capsys.readouterr().out
 
 
 class TestClaimsDispatcher:

@@ -182,7 +182,7 @@ def compute(
         if _w:
             _a_insufficient.append(_w)
 
-    _a_vals: list[float] = [tcr_pct_a / 100.0]
+    _a_vals: list[float] = [min(1.0, max(0.0, tcr_pct_a / 100.0))]
     if avg_ifr is not None:
         _a_vals.append(avg_ifr)
     if avg_goal_a is not None:
@@ -205,7 +205,8 @@ def compute(
         _acc_measured_a = [e for e in _acc_evals_a if e.get("accuracy") is not None]
         if _acc_measured_a:
             _acc_scores_a = accuracy_evaluator.get_accuracy_scores()
-            _avg_accuracy_a = float(_acc_scores_a.get("overall_accuracy", 0.0)) / 100.0
+            _acc_raw = float(_acc_scores_a.get("overall_accuracy", 0.0)) / 100.0
+            _avg_accuracy_a = min(1.0, max(0.0, _acc_raw))
             _a_vals[0] = 0.6 * _a_vals[0] + 0.4 * _avg_accuracy_a
     except Exception:
         pass
@@ -219,7 +220,8 @@ def compute(
             if _dim_avgs_q.get(k) is not None
         ]
         if _rqe_q_scores:
-            _rqe_a = sum(_rqe_q_scores) / len(_rqe_q_scores) / 5.0  # 0-5 → 0-1
+            _rqe_raw = sum(_rqe_q_scores) / len(_rqe_q_scores) / 5.0  # 0-5 → 0-1
+            _rqe_a = min(1.0, max(0.0, _rqe_raw))  # 범위 클램프
     except Exception:
         pass
 

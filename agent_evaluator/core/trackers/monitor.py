@@ -25,7 +25,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator, Literal, cast
+from typing import Any, Callable, Iterator, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ import pandas as pd
 from ...exceptions import MetricComputationError, StorageError, ValidationError
 
 # SPEC-000 Commit 0: 전 Gate 공유 인프라(gates/base.py)에서 가져옴 — 동작 변경 없음
-from ...gates.base import _status
+from ...gates.base import assemble_overall
 from ...gates.gate_a_goal import aggregate as gate_a_aggregate
 from ...gates.gate_b_behavioral import aggregate as gate_b_aggregate
 from ...gates.gate_c_reliability import aggregate as gate_c_aggregate
@@ -369,6 +369,10 @@ class PerformanceMonitor:
             )
         self._retention_mode: str = retention_mode
         self._window_size: int = window_size
+        # Phase 2(구조적 확장성) — register_gate()로 등록된 서드파티 Gate. A-G(내장 7개)는
+        # 서로 데이터 의존성이 있어(A→B, C→D, C→G) 이 레지스트리로 통합하지 않는다 —
+        # 여기 등록되는 건 그런 상호의존이 없는 "독립 Gate"만을 위한 것이다.
+        self._custom_gates: dict[str, Callable[[list, int], dict]] = {}
 
         # SPEC-016 REQ-1: storage_backend 검증 — "json"(기본값)/"sqlite" 외 값은 즉시 오류.
         if storage_backend not in ("json", "sqlite"):
@@ -1708,6 +1712,14 @@ class PerformanceMonitor:
             All metrics are accumulated in-place on the monitor's internal
             trackers.  Call :meth:`generate_report` or :meth:`save_to_file`
             after recording all tasks to retrieve aggregated results.
+
+        Thread safety (Phase 3 검증, 2026): 이 메서드는 여러 OS 스레드에서 동시에
+        호출해도 안전하다 — 모든 트래커·러닝 집계(``retention_mode="windowed"``의
+        ``_running_gate_x_agg`` 포함) 갱신이 ``self._lock``(``threading.RLock``)으로
+        보호된다(``tests/test_phase3_concurrency_safety.py``가 lost-update 없음을
+        멀티스레드 실행으로 검증). asyncio 기반 동시 실행(예: ``batch_eval``의
+        ``concurrency>0``)은 이 메서드 자체를 병렬 호출하지 않는다 — 사용자 에이전트
+        함수 호출만 병렬화되고, ``record_task()``는 그 이후 순차 호출된다.
 
         Migration guide for deprecated params::
 
@@ -3156,6 +3168,102 @@ class PerformanceMonitor:
 
         return report
 
+    def register_gate(self, gate_id: str, compute_fn: Callable[[list, int], dict]) -> None:
+        """내장 A-G 외에 독립적인 서드파티 Gate를 등록한다(Phase 2 — 구조적 확장성).
+
+        내장 7개 Gate(A-G)는 서로 실제 데이터 의존성이 있다(Gate A의 goal_alignment를
+        Gate B가 재참조, Gate C의 SLA breach를 Gate D가 재사용 등) — 그래서 이 레지스트리는
+        내장 Gate를 대체하지 않는다. 이건 그런 상호의존이 없는 **독립** Gate를 코어를
+        포크하지 않고 추가하기 위한 확장점이다.
+
+        Args:
+            gate_id: 한 글자를 넘는 식별자 권장(예: "H", "CUSTOM_COST"). "A"-"G"는
+                내장 Gate의 예약어라 사용할 수 없다.
+            compute_fn: ``(tasks, min_samples_default) -> dict`` 시그니처. 반환값은
+                ``gates/base.py::_g()``가 만드는 형태(``name``/``score``/``status``/
+                ``gate``/``details`` 키)를 따라야 한다 — 다른 6개 Gate와 동일한 소비
+                경로(대시보드·비교·회귀 판정)를 그대로 타려면 이 계약을 지켜야 한다.
+
+        Raises:
+            ValueError: gate_id가 "A"-"G"이거나 이미 등록된 경우.
+
+        Example::
+
+            def _compute_cost_gate(tasks, min_samples_default):
+                costs = [t.extra.get("custom_cost") for t in tasks if t.extra.get("custom_cost")]
+                score = 1.0 - min(1.0, sum(costs) / len(costs)) if costs else None
+                return _g(score, "Custom Cost Gate", {"avg_cost": score})
+
+            monitor.register_gate("COST", _compute_cost_gate)
+        """
+        if gate_id in "ABCDEFG" and len(gate_id) == 1:
+            raise ValueError(
+                f"register_gate: gate_id={gate_id!r}는 내장 Gate(A-G)의 예약어라 쓸 수 없습니다."
+            )
+        if gate_id in self._custom_gates:
+            raise ValueError(f"register_gate: gate_id={gate_id!r}는 이미 등록돼 있습니다.")
+        self._custom_gates[gate_id] = compute_fn
+
+    @staticmethod
+    def _build_full_mode_shared_snapshots(tasks: list) -> dict[str, Any]:
+        """"full" 모드(기본값)에서 Gate A-G 집계를 45개 개별 루프 대신 단일 패스로
+        재구성한다 (구조변경 축① — 45루프 → 2패스, retention_mode 기본값은 그대로 둔 채
+        달성. Phase 3에서 원안이 보류됐던 이유는 windowed 모드로 기본값을 바꾸면
+        ``self.tasks``가 ``deque(maxlen=window_size)``가 돼 오래된 태스크가 실제로
+        유실되는 메모리 보존 정책이었기 때문 — 이 함수는 그 문제를 피한다. `self.tasks`는
+        여전히 전체 이력을 보존하고(원안과 무관), 매 리포트 생성 시 임시 집계기로 딱 한 번만
+        순회한다는 점만 다르다).
+
+        ``windowed`` 모드가 이미 ``record_task()``마다 증분 갱신해 검증해 온
+        ``GateXSharedAgg``(``test_streaming_retention_mode.py`` 82개 테스트로 full-vs-windowed
+        교차검증됨)를 그대로 재사용한다 — 새 집계 로직이 아니라, 이미 정확성이 입증된
+        누적기를 "매 호출마다 새로 만들어 전체 이력을 한 번 흘려보낸다"는 사용 방식만
+        다르다. 반환값은 각 Gate의 ``compute(..., shared_running=...)``에 그대로 전달된다.
+
+        Note:
+            SLA 원본 리스트(``sla_results``)를 소비하는 부분(Gate D의 p95_ms 임계값 평균)은
+            이 스냅숏의 ``sla_p95_ms_avg``로 대체돼 별도 순회가 필요 없다 — 이제 진짜
+            단일 패스다. retry_consistency(``GateCRetryConsistencyAgg``)는 이미 승인된
+            근사(task_id 프리픽스 카디널리티 LRU 캡)라 windowed 모드와 동일하게 그 근사가
+            "full" 모드에도 적용된다 — 기존엔 "full" 모드만 정확한 값을 냈다는 차이가
+            사라진다(호환성보다 단일 패스를 우선한다는 이번 결정에 따른 의도적 변경).
+        """
+        from ...gates.shared_metrics import (
+            GateASharedAgg,
+            GateBSharedAgg,
+            GateCRetryConsistencyAgg,
+            GateCSharedAgg,
+            GateDSharedAgg,
+            GateESharedAgg,
+            GateFSharedAgg,
+            GateGSharedAgg,
+        )
+
+        _a = GateASharedAgg()
+        _b = GateBSharedAgg()
+        _c = GateCSharedAgg()
+        _c_retry = GateCRetryConsistencyAgg()
+        _d = GateDSharedAgg()
+        _e = GateESharedAgg()
+        _f = GateFSharedAgg()
+        _g = GateGSharedAgg()
+
+        for _t in tasks:
+            _a.update(_t)
+            _b.update(_t)
+            _c.update(_t)
+            _c_retry.update(_t)
+            _d.update(_t)
+            _e.update(_t)
+            _f.update(_t)
+            _g.update(_t)
+
+        return {
+            "a": _a.snapshot(), "b": _b.snapshot(), "c": _c.snapshot(),
+            "c_retry": _c_retry.snapshot(), "d": _d.snapshot(), "e": _e.snapshot(),
+            "f": _f.snapshot(), "g": _g.snapshot(),
+        }
+
     def _compute_harness_groups(
         self,
         tasks: list,
@@ -3172,11 +3280,41 @@ class PerformanceMonitor:
             security_metrics: _collect_security_metrics() 결과.
 
         Returns:
-            {A-G: {name, score, status, details}, overall: {score, status, scored_groups}}
+            {A-G: {name, score, status, details}, overall: {score, status, scored_groups, scored_group_ids}}
         """
         if not tasks:
             return {}
         # _status: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
+
+        # 구조변경 축① — "full" 모드(기본값)에서도 단일 패스로 재구성한다. windowed
+        # 모드는 record_task()마다 이미 증분 갱신해 온 self._running_gate_x_agg를 그대로
+        # 쓰고, "full" 모드는 이 호출에서 임시 집계기로 tasks를 한 번만 순회한다 —
+        # _build_full_mode_shared_snapshots() docstring 참고.
+        _full_mode_snapshots = (
+            self._build_full_mode_shared_snapshots(tasks)
+            if self._retention_mode != "windowed" else None
+        )
+
+        def _resolve_shared(key: str, running_agg_attr: str) -> dict[str, Any]:
+            """구조변경 축① — windowed 모드는 record_task()마다 이미 증분 갱신해 온
+            러닝 집계기의 스냅숏을, "full" 모드는 이번 호출에서 만든 단일 패스
+            스냅숏(_full_mode_snapshots)을 반환한다 — 두 모드 모두 shared_running을 받는다.
+
+            ``running_agg_attr``는 객체가 아니라 속성명(문자열)이다 — ``_running_gate_x_agg``는
+            ``retention_mode == "windowed"``일 때만 ``__init__``에서 생성되므로("full" 모드에는
+            아예 존재하지 않음), 호출부에서 미리 객체를 평가해 넘기면 "full" 모드에서
+            AttributeError가 난다. ``getattr``로 이 분기 안에서만 지연 평가한다.
+            """
+            if self._retention_mode == "windowed":
+                _snapshot: dict[str, Any] = getattr(self, running_agg_attr).snapshot()
+                return _snapshot
+            # _full_mode_snapshots는 retention_mode != "windowed"일 때만 계산되므로
+            # 이 분기에서는 항상 non-None이다(위 두 조건은 같은 self._retention_mode를
+            # 참조) — Pylance가 두 개의 별도 삼항식 사이의 이 관계를 추론하지 못해
+            # assert로 명시한다.
+            assert _full_mode_snapshots is not None
+            _result: dict[str, Any] = _full_mode_snapshots[key]
+            return _result
 
         # SPEC-004 REQ-2: windowed 모드에서는 TCR 컴포넌트만 전체 이력 기준 러닝 집계
         # (_RunningTCRView)로 대체 — 그 외 tcr_tracker 사용처는 변경하지 않는다.
@@ -3189,10 +3327,7 @@ class PerformanceMonitor:
 
         # ── A 그룹: 목표 달성 (TCR + instruction_adherence + goal_alignment + plan_coherence) ──
         # SPEC-000: gates/gate_a_goal/aggregate.py로 이관 — 로직 동일.
-        # SPEC-018 Phase 5: windowed 모드에서 6개 Config 지표 러닝 집계 스냅숏을 주입.
-        _a_shared = (
-            self._running_gate_a_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        _a_shared = _resolve_shared("a", "_running_gate_a_agg")
         _a_group = gate_a_aggregate.compute(
             tasks, _tcr_tracker_for_gates, self.accuracy_evaluator, self.quality_evaluator,
             self._gate_a_tcr_weight, self._min_samples_default, shared_running=_a_shared,
@@ -3201,10 +3336,7 @@ class PerformanceMonitor:
         # ── B 그룹: 행동 무결성 (loop, state_consistency, deadlock, scope, tool_parameter_safety, context_window) ──
         # SPEC-000: gates/gate_b_behavioral/aggregate.py로 이관 — 로직 동일.
         # avg_goal_alignment/avg_plan_coherence는 Gate A(_a_group["details"])에서 진단용으로 재참조.
-        # SPEC-018 Phase 4: windowed 모드에서 러닝 집계 스냅숏을 주입.
-        _b_shared = (
-            self._running_gate_b_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        _b_shared = _resolve_shared("b", "_running_gate_b_agg")
         _b_group = gate_b_aggregate.compute(
             tasks, self._gate_b_loop_weight, self._min_samples_default,
             _a_group["details"]["avg_goal_alignment"], _a_group["details"]["avg_plan_coherence"],
@@ -3214,18 +3346,14 @@ class PerformanceMonitor:
         # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
         # SPEC-000: gates/gate_c_reliability/aggregate.py로 이관 — 로직 동일.
         # SLA 공유 데이터는 compute_sla_shared_data()가 한 번 계산해 Gate C·D 양쪽에 전달한다.
-        # SPEC-018 Phase 6: windowed 모드에서 러닝 집계 스냅숏을 주입. sla_results(원본
-        # 리스트)는 Gate D도 소비하므로 shared_running 유무와 무관하게 항상 tasks(windowed
-        # 부분집합)에서 계산된다 — compute_sla_shared_data() 참조.
-        # SPEC-018 Phase 7: retry_consistency는 별도 파라미터(retry_consistency_shared)로
-        # 분리 — task_id 프리픽스 카디널리티 LRU 캡(GateCRetryConsistencyAgg)이 적용된
-        # 의도적으로 승인된 근사이기 때문이다(다른 4개 지표는 정확).
-        _c_shared = (
-            self._running_gate_c_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
-        _c_retry_shared = (
-            self._running_gate_c_retry_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        # sla_p95_ms_avg(러닝 평균)가 Gate D의 p95_ms 임계값 계산에 쓰여 sla_results 원본
+        # 리스트를 다시 순회하지 않는다(compute_sla_shared_data() 참조, 진짜 단일 패스).
+        # retry_consistency는 별도 파라미터(retry_consistency_shared)로 분리 — task_id
+        # 프리픽스 카디널리티 LRU 캡(GateCRetryConsistencyAgg)이 적용된 의도적으로 승인된
+        # 근사다. "full" 모드도 이제 이 근사를 쓴다(호환성보다 단일 패스를 우선하는 이번
+        # 결정에 따라 — 이전엔 "full" 모드만 이 근사 없이 정확했다).
+        _c_shared = _resolve_shared("c", "_running_gate_c_agg")
+        _c_retry_shared = _resolve_shared("c_retry", "_running_gate_c_retry_agg")
         _sla_shared = gate_c_aggregate.compute_sla_shared_data(tasks, shared_running=_c_shared)
         _c_group, _c_shared_raw = gate_c_aggregate.compute(
             tasks, self.hallucination_detector, _tcr_tracker_for_gates,
@@ -3240,25 +3368,22 @@ class PerformanceMonitor:
         # SPEC-000: gates/gate_d_performance/aggregate.py로 이관 — 로직 동일.
         # SLA 공유 데이터(sla_results/sla_window_penalty/sla_budget_penalty/sla_warning)는
         # Gate C(gate_c_aggregate.compute_sla_shared_data)가 계산한 값을 그대로 전달한다.
-        # SPEC-018 Phase 7: efficiency/resource_budget는 정확한 러닝 집계, ttft_variability/
-        # cost_predictability는 의도적으로 승인된 근사(GateDSharedAgg._RESERVOIR_SIZE=2,000
-        # 슬라이딩 샘플). p95 latency는 latency_tracker가 애초부터 무제한이라 미변경.
-        _d_shared = (
-            self._running_gate_d_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        # efficiency/resource_budget는 두 모드 모두 정확한 단일 패스 러닝 집계.
+        # ttft_variability/cost_predictability는 의도적으로 승인된 근사
+        # (GateDSharedAgg._RESERVOIR_SIZE=2,000 슬라이딩 샘플) — "full" 모드도 이제 이
+        # 근사를 쓴다(호환성보다 단일 패스 우선). p95 latency는 latency_tracker가 애초부터
+        # 무제한이라 미변경. sla_p95_ms_avg는 sla_results 재순회 없이 임계값 평균을 준다.
+        _d_shared = _resolve_shared("d", "_running_gate_d_agg")
         _d_group = gate_d_aggregate.compute(
             tasks, self.latency_tracker, ttft_variability_config, cost_predictability_config,
             self._min_samples_default, _sla_shared["sla_results"], _sla_shared["sla_window_penalty"],
             _sla_shared["sla_budget_penalty"], _sla_shared["sla_warning"],
-            shared_running=_d_shared,
+            shared_running=_d_shared, sla_p95_ms_avg=_sla_shared["sla_p95_ms_avg"],
         )
 
         # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
         # SPEC-000: gates/gate_e_security/aggregate.py로 이관 — 로직 동일.
-        # SPEC-018 Phase 1: windowed 모드에서 러닝 집계 스냅숏을 주입.
-        _e_shared = (
-            self._running_gate_e_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        _e_shared = _resolve_shared("e", "_running_gate_e_agg")
         _e_group = gate_e_aggregate.compute(
             tasks, self.enable_security_metrics, self._min_samples_default,
             shared_running=_e_shared,
@@ -3271,11 +3396,7 @@ class PerformanceMonitor:
         # SPEC-011: "tool_call_analyzer"는 PerformanceMonitor에 존재한 적 없는 속성명(오탈자)이었다
         # (실제는 self.tool_analyzer) — SPEC-000 이관 전에도 항상 AttributeError가 지역 try/except에
         # 삼켜져 tool_coverage가 한 번도 계산되지 않고 항상 None이었다. 여기서 실제 속성으로 수정한다.
-        # SPEC-018 Phase 3: windowed 모드에서 러닝 집계 스냅숏을 주입(task 기반 4개
-        # 지표만 — hall_rate/avg_llm_faithfulness는 Gate C Phase 6 전까지 windowed-only).
-        _g_shared = (
-            self._running_gate_g_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        _g_shared = _resolve_shared("g", "_running_gate_g_agg")
         _g_group = gate_g_aggregate.compute(
             tasks, self.tool_analyzer, self._min_samples_default,
             hall_rate, _avg_llm_faithfulness, shared_running=_g_shared,
@@ -3283,31 +3404,15 @@ class PerformanceMonitor:
 
         # ── F 그룹: 멀티에이전트 조율 ──
         # SPEC-000 Commit 1: gates/gate_f_multiagent/aggregate.py로 이관 — 로직 동일,
-        # 4개 task 기반 지표만 단일 패스로 병합(REQ-2 일부 흡수).
-        # SPEC-018 Phase 2: windowed 모드에서 러닝 집계 스냅숏을 주입(task 기반 4개
-        # 지표만 — 트래커 기반 coordination/tool_selection은 이 스펙 범위 밖).
-        _f_shared = (
-            self._running_gate_f_agg.snapshot() if self._retention_mode == "windowed" else None
-        )
+        # 4개 task 기반 지표만 단일 패스로 병합(REQ-2 일부 흡수, 트래커 기반
+        # coordination/tool_selection은 이 스코프 밖, 미변경).
+        _f_shared = _resolve_shared("f", "_running_gate_f_agg")
         _f_group = gate_f_aggregate.compute(
             tasks, self.agent_coordination_tracker, self.tool_selection_tracker,
             self._min_samples_default, shared_running=_f_shared,
         )
 
-        # ── 그룹별 결과 모음 ──
-        _a_s = _a_group["score"]  # SPEC-000: gates/gate_a_goal/aggregate.py가 이미 반올림
-        _b_s = _b_group["score"]  # SPEC-000: gates/gate_b_behavioral/aggregate.py가 이미 반올림
-        _c_s = _c_group["score"]  # SPEC-000: gates/gate_c_reliability/aggregate.py가 이미 반올림
-        _d_s = _d_group["score"]  # SPEC-000: gates/gate_d_performance/aggregate.py가 이미 반올림
-        _e_s = _e_group["score"]  # SPEC-000: gates/gate_e_security/aggregate.py가 이미 반올림
-        _f_s = _f_group["score"]  # SPEC-000: gates/gate_f_multiagent/aggregate.py가 이미 반올림
-        _g_s = _g_group["score"]  # SPEC-000: gates/gate_g_observability/aggregate.py가 이미 반올림
-
-        # overall: 유효 그룹 점수 평균
-        _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]
-        _overall_score = round(float(sum(_scored) / len(_scored)), 4) if _scored else 0.0
-        # _g: SPEC-000 Commit 0에서 gates/base.py로 승격(모듈 레벨 import, 동작 변경 없음)
-
+        # ── 그룹별 결과 모음 ── (각 group의 "score"는 해당 aggregate.py가 이미 반올림한 값)
         groups: dict[str, Any] = {
             "A": _a_group,  # SPEC-000: gates/gate_a_goal/aggregate.py가 완전한 그룹 dict를 반환
             "B": _b_group,  # SPEC-000: gates/gate_b_behavioral/aggregate.py가 완전한 그룹 dict를 반환
@@ -3316,13 +3421,31 @@ class PerformanceMonitor:
             "E": _e_group,  # SPEC-000: gates/gate_e_security/aggregate.py가 완전한 그룹 dict를 반환
             "F": _f_group,  # SPEC-000: gates/gate_f_multiagent/aggregate.py가 완전한 그룹 dict를 반환
             "G": _g_group,  # SPEC-000: gates/gate_g_observability/aggregate.py가 완전한 그룹 dict를 반환
-            "overall": {
-                "score": _overall_score,
-                "status": _status(_overall_score),
-                "gate": _status(_overall_score),
-                "scored_groups": len(_scored),
-            },
         }
+
+        # Phase 2 — register_gate()로 등록된 서드파티 Gate. 실패한 커스텀 Gate 하나 때문에
+        # generate_report() 전체가 죽지 않도록 개별적으로 격리한다 — 실패하면 경고만 내고
+        # 이번 리포트의 groups/overall에서는 조용히 제외한다(다른 Gate와 자기 자신의
+        # 다음 호출에는 영향 없음).
+        for _gate_id, _compute_fn in self._custom_gates.items():
+            try:
+                groups[_gate_id] = _compute_fn(tasks, self._min_samples_default)
+            except Exception as _exc:
+                import warnings as _cw
+                _cw.warn(
+                    f"register_gate({_gate_id!r}): compute_fn이 예외를 던져 이번 리포트에서 "
+                    f"제외됩니다: {_exc!r}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
+        # overall: 유효 그룹 점수 평균 — Gate 2개만 켠 실행과 7개 다 켠 실행(혹은 커스텀
+        # Gate가 추가된 실행)의 overall_score가 숫자만 보면 같은 범위(0-1)라 직접 비교
+        # 가능해 보이지만, 실제로는 서로 다른 개수·구성의 이질적 지표를 평균한 것이라
+        # 의미가 다르다(구조적 투자 검토 참고). assemble_overall()이 groups에 실제로
+        # 들어있는 Gate를 그대로 순회하므로, 새 Gate가 register_gate()로 추가돼도
+        # 이 계산을 따로 고칠 필요가 없다.
+        groups["overall"] = assemble_overall(groups)
         return groups
 
     def get_live_stats(
@@ -4865,7 +4988,10 @@ class PerformanceMonitor:
         
         print(f"Report exported to {filename}")
 
-    def save_to_file(self, filename: str = "performance_data.json") -> str:
+    def save_to_file(
+        self, filename: str = "performance_data.json",
+        baseline_path: str | Path | None = None,
+    ) -> str:
         """
         Save all performance data to a JSON file
 
@@ -4878,6 +5004,11 @@ class PerformanceMonitor:
 
         Args:
             filename: Output filename (relative paths are automatically resolved to Dashboard data directory)
+            baseline_path: (opt-in) 비교 기준 결과 JSON 파일 경로. 주어지면 저장되는
+                HTML 리포트의 Gate RCA 진단 섹션이 회귀 기반 감지로 동작한다
+                (``agent-eval diagnose --baseline``과 동일 규칙). 파일을 읽을 수
+                없으면 조용히 무시하고 baseline 없는 절대 임계값 감지로 폴백한다 —
+                이 인자를 생략하면 기존 동작과 100% 동일.
 
         Note:
             Always includes full report data for Dashboard compatibility.
@@ -5054,7 +5185,17 @@ class PerformanceMonitor:
             html_path = filename if filename.endswith(".html") else filename.rsplit(".json", 1)[0] + ".html"
             if not html_path.endswith(".html"):
                 html_path = filename + ".html"
-            html_content = generate_comprehensive_html_report(self)
+            _baseline_dict: dict[str, Any] | None = None
+            if baseline_path is not None:
+                try:
+                    with open(baseline_path, encoding="utf-8") as _bf:
+                        _baseline_dict = json.load(_bf)
+                except (OSError, ValueError) as _e:
+                    logger.warning(
+                        "save_to_file: baseline_path를 읽을 수 없어 무시합니다(%s): %s",
+                        baseline_path, _e,
+                    )
+            html_content = generate_comprehensive_html_report(self, baseline=_baseline_dict)
             _html_dir = os.path.dirname(os.path.abspath(html_path))
             _hfd, _h_tmp = tempfile.mkstemp(dir=_html_dir, suffix=".tmp")
             try:

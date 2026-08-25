@@ -94,6 +94,75 @@ def _connect(path: Union[str, Path]) -> sqlite3.Connection:
     return conn
 
 
+def _fmt_loop_detection(data: dict[str, Any]) -> str | None:
+    if not data.get("detected"):
+        return None
+    _loops = data.get("detected_loops") or []
+    _tools = ", ".join(
+        f"{d.get('loop_type')}:{d.get('loop_tool')}" for d in _loops if isinstance(d, dict)
+    )
+    return f"loop_detection: {_tools}" if _tools else "loop_detection: detected"
+
+
+def _fmt_deadlock(data: dict[str, Any]) -> str | None:
+    if not data.get("detected"):
+        return None
+    return f"deadlock: {data.get('deadlock_type') or 'unknown'}"
+
+
+def _fmt_scope(data: dict[str, Any]) -> str | None:
+    if not data.get("violations"):
+        return None
+    return f"scope: {', '.join(data['violations'])}"
+
+
+def _fmt_tool_parameter_safety(data: dict[str, Any]) -> str | None:
+    if not data.get("violations"):
+        return None
+    return f"tool_parameter_safety: {', '.join(data['violations'])}"
+
+
+def _fmt_tool_authorization(data: dict[str, Any]) -> str | None:
+    if not data.get("total_violations"):
+        return None
+    return (
+        f"tool_authorization: {data['total_violations']} violations "
+        f"(unauthorized={data.get('unauthorized_calls', 0)}, "
+        f"restricted={data.get('restricted_calls', 0)}, "
+        f"dangerous_params={data.get('dangerous_param_calls', 0)})"
+    )
+
+
+def _fmt_privilege_escalation(data: dict[str, Any]) -> str | None:
+    if not data.get("escalation_detected"):
+        return None
+    return f"privilege_escalation: {data.get('initial_privilege')} -> {data.get('max_privilege')}"
+
+
+def _fmt_tool_chain_attack(data: dict[str, Any]) -> str | None:
+    if not data.get("is_suspicious_chain"):
+        return None
+    _patterns = data.get("attack_patterns_detected") or []
+    if _patterns:
+        return f"tool_chain_attack: {'; '.join(_patterns)}"
+    return "tool_chain_attack: suspicious"
+
+
+# VIOLATION_TYPES(ontology/metric_registry.py)의 각 유형에 대응하는 포맷터. 두 목록의
+# 키 집합이 어긋나면(새 유형 추가를 한쪽에서만 하면) get_summary_for_type()에서 즉시
+# KeyError로 드러난다 — 이전에는 이 함수 안에 정적으로만 존재해 빠뜨려도 예외 없이
+# 조용히 색인이 누락됐다.
+_VIOLATION_FORMATTERS: dict[str, Any] = {
+    "loop_detection": _fmt_loop_detection,
+    "deadlock": _fmt_deadlock,
+    "scope": _fmt_scope,
+    "tool_parameter_safety": _fmt_tool_parameter_safety,
+    "tool_authorization": _fmt_tool_authorization,
+    "privilege_escalation": _fmt_privilege_escalation,
+    "tool_chain_attack": _fmt_tool_chain_attack,
+}
+
+
 def _summarize_violations(extra: dict[str, Any]) -> str | None:
     """(SPEC-024 REQ-2) Gate B/E 판정 상세를 검색 가능한 한 줄 요약으로 변환한다.
 
@@ -103,57 +172,25 @@ def _summarize_violations(extra: dict[str, Any]) -> str | None:
     ``violation_search``는 위반 이력 검색용이므로, "위반 없음" 태스크까지 색인하면
     검색 신호 대비 잡음만 늘어난다.
 
+    검사 대상 유형 목록은 ``ontology.metric_registry.VIOLATION_TYPES``(Phase 2)에서
+    가져온다 — 새 Gate B/E 체크가 추가되면 그 레지스트리를 갱신하는 게 첫 단계가 되도록,
+    이 함수가 직접 유형을 하드코딩하지 않는다.
+
     Args:
         extra: ``TaskResult.extra``(또는 ``LiveGuardrail.to_task_extra()`` 반환값).
 
     Returns:
         위반이 있으면 " | "로 구분된 한 줄 요약, 없으면 ``None``.
     """
+    from agent_evaluator.ontology.metric_registry import VIOLATION_TYPES
+
     parts: list[str] = []
-
-    _loop = extra.get("loop_detection")
-    if isinstance(_loop, dict) and _loop.get("detected"):
-        _loops = _loop.get("detected_loops") or []
-        _tools = ", ".join(
-            f"{d.get('loop_type')}:{d.get('loop_tool')}" for d in _loops if isinstance(d, dict)
-        )
-        parts.append(f"loop_detection: {_tools}" if _tools else "loop_detection: detected")
-
-    _deadlock = extra.get("deadlock")
-    if isinstance(_deadlock, dict) and _deadlock.get("detected"):
-        parts.append(f"deadlock: {_deadlock.get('deadlock_type') or 'unknown'}")
-
-    _scope = extra.get("scope")
-    if isinstance(_scope, dict) and _scope.get("violations"):
-        parts.append(f"scope: {', '.join(_scope['violations'])}")
-
-    _tps = extra.get("tool_parameter_safety")
-    if isinstance(_tps, dict) and _tps.get("violations"):
-        parts.append(f"tool_parameter_safety: {', '.join(_tps['violations'])}")
-
-    _ta = extra.get("tool_authorization")
-    if isinstance(_ta, dict) and _ta.get("total_violations"):
-        parts.append(
-            f"tool_authorization: {_ta['total_violations']} violations "
-            f"(unauthorized={_ta.get('unauthorized_calls', 0)}, "
-            f"restricted={_ta.get('restricted_calls', 0)}, "
-            f"dangerous_params={_ta.get('dangerous_param_calls', 0)})"
-        )
-
-    _pe = extra.get("privilege_escalation")
-    if isinstance(_pe, dict) and _pe.get("escalation_detected"):
-        parts.append(
-            f"privilege_escalation: {_pe.get('initial_privilege')} -> {_pe.get('max_privilege')}"
-        )
-
-    _tc = extra.get("tool_chain_attack")
-    if isinstance(_tc, dict) and _tc.get("is_suspicious_chain"):
-        _patterns = _tc.get("attack_patterns_detected") or []
-        parts.append(
-            f"tool_chain_attack: {'; '.join(_patterns)}"
-            if _patterns else "tool_chain_attack: suspicious"
-        )
-
+    for _vtype in VIOLATION_TYPES:
+        _data = extra.get(_vtype)
+        if isinstance(_data, dict):
+            _formatted = _VIOLATION_FORMATTERS[_vtype](_data)
+            if _formatted:
+                parts.append(_formatted)
     return " | ".join(parts) if parts else None
 
 

@@ -2,7 +2,7 @@
 
 Agent Evaluator **58개 지표**의 공식·출력키·임계값 참조 문서
 
-**v0.9.13 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
+**v1.0.0 | 25 Native Trackers + 33 Harness Config = 58개 지표 | 7개 Gate(A–G)로 배포 가능성 판정**
 
 > 개별 트래커 API 시그니처는 [08_API_REFERENCE.md](08_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md)를 참조하세요.
@@ -234,16 +234,16 @@ instructions=InstructionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `consecutive_repeat_threshold` | `int` | `3` | N회 연속 동일 도구 호출 시 루프 감지 |
+| `consecutive_repeat_threshold` | `int` | `6` | N회 연속 동일 도구 호출 시 루프 감지 — 도구 이름만 비교(파라미터 무관). OpenCode처럼 셸 동작 전체가 단일 "bash" 도구로 잡히는 등 도구 단위가 굵은 에이전트에서는 낮은 값이 정상 동작을 오탐하므로 6으로 상향(Docs/AOO_STACK.md 참고) |
 | `window_size` | `int` | `5` | 슬라이딩 윈도우 크기 |
-| `duplicate_in_window_threshold` | `int` | `2` | 윈도우 내 중복 도구 호출 허용 횟수 |
+| `duplicate_in_window_threshold` | `int` | `3` | 윈도우 내 중복 도구 호출 허용 횟수 (2는 정상 멀티스텝 에이전트에서 false positive 유발) |
 | `check_response_loop` | `bool` | `False` | 응답 텍스트 루프 여부 추가 검사 |
 | `response_similarity_threshold` | `float` | `0.95` | 응답 유사도 임계값 (`check_response_loop=True` 시) |
 | `on_loop_detected` | `str` | `"record"` | 루프 감지 시 동작: `"record"` / `"warn"` / `"fail"` |
 
 ```python
 loop_detection=LoopDetectionConfig(
-    consecutive_repeat_threshold=3,
+    consecutive_repeat_threshold=6,
     window_size=5,
 )
 ```

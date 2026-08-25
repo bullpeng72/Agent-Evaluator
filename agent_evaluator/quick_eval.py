@@ -29,13 +29,97 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
 import re
 from collections.abc import Mapping
-from typing import Any, Callable, Iterator, Union
+from typing import Any, Callable, Iterator, Sequence, Union
+
+from agent_evaluator.gates.base import evaluate_gate_scores
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["QuickEval", "HarnessEvaluationGate", "CompareResult"]
+
+
+def _benjamini_hochberg(p_values: Sequence[float | None]) -> list[float | None]:
+    """Benjamini-Hochberg FDR(위양성률) 보정 — N-way A/B의 pairwise 비교가 늘어날수록
+    "우연히 유의한" 쌍이 늘어나는 다중비교 문제를 보정한다. ``None``(scipy 없음/표본 부족으로
+    p-value 계산 불가) 항목은 원래 위치에 ``None``으로 그대로 남긴다 — 계산 가능한 값만
+    순위를 매겨 보정한다.
+
+    표준 BH 절차(단조성 보장 — 큰 순위에서 작은 순위로 누적 최솟값을 취함):
+    내림차순으로 정렬된 순위 r(=m..1)에 대해 adj[r] = min(adj[r+1], p[r] * m / r).
+    R의 ``p.adjust(method="BH")``와 동일한 결과를 낸다(알려진 참조값으로 테스트 검증).
+    """
+    indexed = [(i, p) for i, p in enumerate(p_values) if p is not None]
+    if not indexed:
+        return list(p_values)
+
+    m = len(indexed)
+    sorted_indexed = sorted(indexed, key=lambda pair: pair[1])
+    adjusted = [0.0] * m
+    adjusted[m - 1] = min(sorted_indexed[m - 1][1] * m / m, 1.0)
+    for rank in range(m - 2, -1, -1):
+        r = rank + 1  # 1-indexed 순위
+        candidate = sorted_indexed[rank][1] * m / r
+        adjusted[rank] = min(adjusted[rank + 1], candidate, 1.0)
+
+    result: list[float | None] = list(p_values)
+    for (original_idx, _), q in zip(sorted_indexed, adjusted):
+        result[original_idx] = round(q, 6)
+    return result
+
+
+def _msprt_log_likelihood_ratio(theta_hat: float, variance: float, tau: float) -> float:
+    """가우시안 혼합 SPRT(mixture Sequential Probability Ratio Test)의 log-우도비.
+
+    Johari, Koomen, Pekelis, Walsh, *"Always Valid Inference: Bringing Sequential
+    Analysis to A/B Testing"* (2015/2017)의 정규분포 조합(conjugate) 폐형해를 그대로
+    구현한다 — 새 통계 방법을 발명하지 않는다. ``theta_hat ~ N(theta, variance)``(중심극한
+    정리 근사 — 표본평균차 등 대부분의 A/B 지표 추정치에 통상 적용되는 가정)이고
+    혼합 사전분포 ``theta ~ N(0, tau^2)``일 때, 우도비의 폐형해는:
+
+    ``Λ = sqrt(variance / (variance+tau^2)) * exp(theta_hat^2 * tau^2 /
+    (2*variance*(variance+tau^2)))``
+
+    이 함수는 ``log(Λ)``를 반환한다 — ``Λ``는 효과가 클 때 매우 커질 수 있어(overflow),
+    로그 스케일로 다루고 최종 p-value 계산에서만 지수화한다.
+
+    ``variance``·``tau``가 정확하다는 전제 하에, ``Λ_n``은 ``H0: theta=0`` 하에서
+    기댓값 1인 음이 아닌 마팅게일이다 — Ville's inequality에 의해 "언제 봐도(반복
+    확인·peeking 포함) 유효한" p-value를 만드는 근거가 이 성질이다(아래
+    ``_always_valid_p_value()`` 참고).
+    """
+    if variance <= 0 or tau <= 0:
+        return 0.0  # Λ=1(중립) — 판정 불가 상태를 나타냄, 호출자가 별도로 감지해야 함
+    tau2 = tau * tau
+    posterior_var = variance + tau2
+    return 0.5 * math.log(variance / posterior_var) + (theta_hat ** 2) * tau2 / (
+        2.0 * variance * posterior_var
+    )
+
+
+def _always_valid_p_value(theta_hat: float, variance: float, tau: float) -> float | None:
+    """``_msprt_log_likelihood_ratio()``에서 "언제나 유효한"(always-valid) p-value를
+    만든다 — ``p = min(1, 1/Λ)``. ``variance``/``tau``가 유효하지 않으면 ``None``.
+
+    **왜 반복 확인(peeking)에도 유효한가**: 고정 표본 크기를 가정하는 일반 t-검정은
+    데이터가 쌓이는 도중 여러 번 유의성을 확인하면(peeking) 실제 위양성률이 명목
+    α보다 훨씬 커진다(멈출 때를 데이터가 유리해 보이는 시점으로 고르는 최적 정지
+    편향). mSPRT는 ``Λ_n``이 H0 하에서 마팅게일이라는 성질 덕에 Ville's maximal
+    inequality(``P(∃n: Λ_n ≥ 1/α) ≤ α``)가 성립해, 몇 번을 확인하든(언제 멈추든)
+    최종 판정의 위양성률이 α를 넘지 않는다 — 이게 "always valid"의 정확한 의미다.
+
+    ``tau``를 잘못 고르면 통계적 유효성(위양성률 통제)은 그대로 유지되지만 검정력만
+    떨어진다(참 효과 스케일과 ``tau``가 안 맞으면 감지가 늦어질 뿐) — 즉 ``tau`` 선택은
+    "틀렸을 때 결과가 틀리는" 파라미터가 아니라 "틀렸을 때 덜 민감해지는" 파라미터다.
+    """
+    if variance <= 0 or tau <= 0:
+        return None
+    log_lr = _msprt_log_likelihood_ratio(theta_hat, variance, tau)
+    if log_lr <= 0:
+        return 1.0
+    return math.exp(-log_lr)  # log_lr > 0 이므로 결과는 항상 (0, 1) — overflow 없음
 
 # ---------------------------------------------------------------------------
 # ANSI helpers (터미널 색상 — 미지원 환경에서는 공백 문자열)
@@ -961,11 +1045,14 @@ class QuickEval:
     # 결과 저장 / 보고
     # ------------------------------------------------------------------
 
-    def save(self, filename: str = "quickeval") -> str:
+    def save(self, filename: str = "quickeval", baseline_path: str | None = None) -> str:
         """평가 결과를 JSON + HTML 로 저장.
 
         Args:
             filename: 저장할 파일명 (확장자 없이). 기본 ``"quickeval"``.
+            baseline_path: (선택) 비교 기준 결과 JSON 경로 — 주어지면 저장되는
+                HTML의 Gate RCA 진단 섹션이 회귀 기반 감지로 동작한다
+                (``PerformanceMonitor.save_to_file(baseline_path=...)``와 동일).
 
         Returns:
             저장된 JSON 파일 경로.
@@ -974,8 +1061,9 @@ class QuickEval:
 
             eval.save()                  # quickeval.json, quickeval.html
             eval.save("my_results")      # my_results.json, my_results.html
+            eval.save("v2", baseline_path="results/v1.json")  # 회귀 기반 진단 포함
         """
-        return self._monitor.save_to_file(filename)
+        return self._monitor.save_to_file(filename, baseline_path=baseline_path)
 
     def report(self) -> Any:
         """EvaluationReport 객체를 반환.
@@ -1231,38 +1319,25 @@ class QuickEval:
                 )
 
         # Harness Gate A~G 점수 기반 판정
+        # 구조변경③(3경로 완전 통합): gates/base.py의 evaluate_gate_scores()가 이 루프의
+        # 단일 정본 — HarnessEvaluationGate.evaluate()/cli/gate.py와 동일 함수를 호출한다.
         gate_run_results: dict[str, Any] = {}
         if gate_min is not None or gate_thresholds:
             d = report.to_dict() if hasattr(report, "to_dict") else {}
             harness = (d.get("extra_metrics") or {}).get("harness_groups", {})
-            _gate_thresholds = gate_thresholds or {}
-            _required = set(g.upper() for g in required_gates) if required_gates else None
-            for gate_id in "ABCDEFG":
-                if _required is not None and gate_id not in _required:
-                    continue
-                gate_data = harness.get(gate_id)
-                if not isinstance(gate_data, dict):
-                    continue
-                score = gate_data.get("score")
-                if score is None:
-                    continue
-                threshold = _gate_thresholds.get(gate_id, gate_min)
-                if threshold is None:
-                    continue
-                score_f = float(score)
-                status = gate_data.get("status", "")
-                _gate_passed = score_f >= threshold
-                if fail_on_gate_warn and status == "warn":
-                    _gate_passed = False
-                gate_run_results[gate_id] = {
-                    "score": round(score_f, 4),
-                    "threshold": threshold,
-                    "status": status,
-                    "passed": _gate_passed,
-                }
-                if not _gate_passed:
+            _required_ids = [g.upper() for g in required_gates] if required_gates else list("ABCDEFG")
+            _all_results = evaluate_gate_scores(
+                harness, gate_ids=_required_ids, thresholds=gate_thresholds,
+                default_threshold=gate_min, fail_on_warn=fail_on_gate_warn,
+            )
+            for gate_id, _r in _all_results.items():
+                if _r.get("not_measured"):
+                    continue  # 기존 동작: score=None인 Gate는 조용히 건너뜀(실패 아님)
+                gate_run_results[gate_id] = _r
+                if not _r["passed"]:
+                    status = _r["status"]
                     failures.append(
-                        f"Gate {gate_id} score {score_f:.3f} < required {threshold:.3f}"
+                        f"Gate {gate_id} score {_r['score']:.3f} < required {_r['threshold']:.3f}"
                         + (f" (status={status})" if fail_on_gate_warn and status == "warn" else "")
                     )
 
@@ -1526,20 +1601,57 @@ class QuickEval:
         logger.info("replay: %d tasks loaded (%s)", len(tasks_data), results_file)
         return self
 
-    def ab_test(self, other: QuickEval) -> dict[str, Any]:
-        """두 QuickEval 인스턴스의 정확도 분포를 통계적으로 비교한다 (E4).
+    def _ab_metric_scores(self, tasks: list, metric: str) -> list[float]:
+        """A/B 비교용 지표 값 추출 — ``metric``이 ``TaskResult`` 속성이면 그걸,
+        아니면 ``task.extra[metric]``을 본다(있으면 float 변환, 없으면 스킵)."""
+        vals: list[float] = []
+        for t in tasks:
+            if hasattr(t, metric):
+                v = getattr(t, metric, None)
+            else:
+                v = (getattr(t, "extra", None) or {}).get(metric)
+            if v is None:
+                continue
+            try:
+                vals.append(float(v))
+            except (TypeError, ValueError):
+                continue
+        return vals
 
-        t-검정으로 두 에이전트의 성능 차이가 통계적으로 유의미한지 검증한다.
+    def ab_test(
+        self,
+        other: QuickEval,
+        *,
+        metric: str = "accuracy_score",
+        guardrails: list[dict[str, Any]] | None = None,
+        min_recommended_samples: int = 30,
+    ) -> dict[str, Any]:
+        """두 QuickEval 인스턴스를 지표 하나 기준으로 통계적으로 비교한다 (E4, Phase 4 확장).
+
+        t-검정(Welch's, 등분산 가정 없음)으로 두 에이전트의 지표 차이가 통계적으로
+        유의미한지 검증한다. 기본 지표는 이전 버전과 동일하게 ``accuracy_score``다
+        (하위호환 — ``metric`` 생략 시 반환 shape·값이 이전과 100% 동일).
 
         Args:
             other: 비교할 다른 QuickEval 인스턴스.
+            metric: 비교할 지표명. ``TaskResult``의 속성(예: ``"accuracy_score"``·
+                ``"execution_time"``)이거나 ``task.extra``의 키(예: 커스텀 비용 지표).
+            guardrails: Guardrail Metric 선언(OEC 개념, Kohavi et al. *Trustworthy
+                Online Controlled Experiments* Ch.21) — ``metric``(주 지표)이 유의하게
+                개선돼도, 여기 선언한 지표가 허용 범위를 넘으면 전체 판정이 실패한다.
+                각 항목: ``{"metric": str, "direction": "higher_is_better"|"lower_is_better",
+                "max_regression": float}``. ``direction``은 필수(암묵적 기본값을 두면
+                방향을 잘못 짐작해 판정이 반대로 나올 위험이 있어 명시를 강제한다).
+            min_recommended_samples: 이 미만이면 ``sample_size_warning`` 필드에
+                경고를 담는다(검정 자체는 그대로 진행 — 표본이 적다는 사실만 알린다).
 
         Returns:
-            ``{"self_mean", "other_mean", "delta", "better",
-               "t_statistic", "p_value", "significant", "sample_sizes"}``
+            ``{"self_mean", "other_mean", "delta", "better", "t_statistic", "p_value",
+            "significant", "effect_size_cohens_d", "sample_sizes", "sample_size_warning",
+            "guardrail_results", "guardrails_passed", "metric"}``.
         """
-        self_scores = [getattr(t, "accuracy_score", 0.0) or 0.0 for t in self._monitor.tasks]
-        other_scores = [getattr(t, "accuracy_score", 0.0) or 0.0 for t in other._monitor.tasks]
+        self_scores = self._ab_metric_scores(self._monitor.tasks, metric)
+        other_scores = self._ab_metric_scores(other._monitor.tasks, metric)
         self_mean = sum(self_scores) / len(self_scores) if self_scores else 0.0
         other_mean = sum(other_scores) / len(other_scores) if other_scores else 0.0
         delta = round(self_mean - other_mean, 6)
@@ -1548,17 +1660,42 @@ class QuickEval:
         t_stat: float | None = None
         p_val: float | None = None
         significant: bool | None = None
+        effect_size: float | None = None
         try:
             from scipy import stats as _stats  # type: ignore
             if len(self_scores) >= 2 and len(other_scores) >= 2:
-                _result = _stats.ttest_ind(self_scores, other_scores)
+                # equal_var=False: Welch's t-test — 두 버전(프롬프트/모델)의 응답 분산이
+                # 같다고 가정할 근거가 없으므로, 등분산을 전제하는 Student's t-test(기본값)보다
+                # 안전한 기본 선택이다.
+                _result = _stats.ttest_ind(self_scores, other_scores, equal_var=False)
                 t_stat = float(_result.statistic)  # type: ignore[attr-defined]
                 p_val = float(_result.pvalue)  # type: ignore[attr-defined]
                 significant = p_val < 0.05
+
+                # Cohen's d(Welch 호환형) — 표본 크기·분산이 다를 때 쓰는 비가중 평균분산 버전.
+                import statistics as _stat_mod
+                if len(self_scores) >= 2 and len(other_scores) >= 2:
+                    _s1 = _stat_mod.variance(self_scores)
+                    _s2 = _stat_mod.variance(other_scores)
+                    _pooled_sd = ((_s1 + _s2) / 2.0) ** 0.5
+                    if _pooled_sd > 1e-12:
+                        effect_size = round((self_mean - other_mean) / _pooled_sd, 4)
         except ImportError:
-            pass  # scipy 없으면 t-검정 생략
+            pass  # scipy 없으면 t-검정/효과크기 생략
+
+        sample_size_warning: str | None = None
+        _min_n = min(len(self_scores), len(other_scores))
+        if _min_n < min_recommended_samples:
+            sample_size_warning = (
+                f"Small sample size (self={len(self_scores)}, other={len(other_scores)}, "
+                f"recommended minimum {min_recommended_samples}) — significance results "
+                f"may be unreliable."
+            )
+
+        guardrail_results, guardrails_passed = self._check_ab_guardrails(other, guardrails)
 
         return {
+            "metric": metric,
             "self_mean": round(self_mean, 6),
             "other_mean": round(other_mean, 6),
             "delta": delta,
@@ -1566,7 +1703,265 @@ class QuickEval:
             "t_statistic": t_stat,
             "p_value": p_val,
             "significant": significant,
+            "effect_size_cohens_d": effect_size,
             "sample_sizes": {"self": len(self_scores), "other": len(other_scores)},
+            "sample_size_warning": sample_size_warning,
+            "guardrail_results": guardrail_results,
+            "guardrails_passed": guardrails_passed,
+        }
+
+    def _check_ab_guardrails(
+        self, other: QuickEval, guardrails: list[dict[str, Any]] | None,
+    ) -> tuple[list[dict[str, Any]], bool | None]:
+        """Guardrail Metric 판정 — ``ab_test()``의 주 지표가 유의하게 개선돼도, 여기
+        선언한 지표가 허용 범위를 넘으면 ``guardrails_passed=False``가 된다."""
+        if not guardrails:
+            return [], None
+
+        results: list[dict[str, Any]] = []
+        all_passed = True
+        for g in guardrails:
+            if "metric" not in g or "max_regression" not in g:
+                raise ValueError(
+                    f"guardrails: each entry needs 'metric' and 'max_regression', got {g!r}"
+                )
+            g_metric = g["metric"]
+            direction = g.get("direction")
+            max_regression = g["max_regression"]
+            if direction not in ("higher_is_better", "lower_is_better"):
+                raise ValueError(
+                    "guardrails: 'direction' is required and must be 'higher_is_better' or "
+                    f"'lower_is_better' (no implicit default — got {direction!r} for "
+                    f"metric {g_metric!r}). An implicit default risks silently judging the "
+                    "wrong direction."
+                )
+
+            self_vals = self._ab_metric_scores(self._monitor.tasks, g_metric)
+            other_vals = self._ab_metric_scores(other._monitor.tasks, g_metric)
+            self_g_mean = sum(self_vals) / len(self_vals) if self_vals else None
+            other_g_mean = sum(other_vals) / len(other_vals) if other_vals else None
+
+            passed = True
+            if self_g_mean is not None and other_g_mean is not None:
+                if direction == "higher_is_better":
+                    passed = self_g_mean >= other_g_mean - max_regression
+                else:
+                    passed = self_g_mean <= other_g_mean + max_regression
+            all_passed = all_passed and passed
+
+            results.append({
+                "metric": g_metric,
+                "direction": direction,
+                "max_regression": max_regression,
+                "self_mean": round(self_g_mean, 6) if self_g_mean is not None else None,
+                "other_mean": round(other_g_mean, 6) if other_g_mean is not None else None,
+                "passed": passed,
+            })
+
+        return results, all_passed
+
+    @staticmethod
+    def ab_test_nway(
+        variants: dict[str, QuickEval],
+        *,
+        metric: str = "accuracy_score",
+        fdr_alpha: float = 0.05,
+        min_recommended_samples: int = 30,
+    ) -> dict[str, Any]:
+        """3개 이상의 버전(variant)을 지표 하나로 동시에 비교한다 (E4 확장 — N-way A/B).
+
+        ``ab_test()``는 두 버전만 비교한다 — 프롬프트 v1/v2/v3처럼 셋 이상을 동시에
+        비교하려면 ``ab_test()``를 반복 호출해 pairwise p-value를 여러 개 만들게 되는데,
+        비교 쌍이 늘어날수록 우연히 유의해 보이는 쌍이 늘어나는 다중비교 문제가 생긴다
+        (5개 버전 = 10쌍, α=0.05 기준 최소 1쌍은 우연히 유의할 확률이 40%를 넘는다).
+        이 메서드는 모든 쌍을 비교한 뒤 Benjamini-Hochberg FDR 보정(``_benjamini_hochberg``)을
+        일괄 적용해 ``significant_fdr``로 노출한다 — ``significant``(원시 p-value 기준)와
+        ``significant_fdr``(보정 후) 둘 다 남겨 차이를 볼 수 있게 한다.
+
+        ``self``를 특정 버전으로 취급하지 않는다 — ``ab_test()``와 달리 이름 붙은
+        ``QuickEval`` 인스턴스 집합을 받는 정적 메서드다(3개 이상 버전 사이엔
+        "기준(self) vs 나머지"라는 비대칭이 자연스럽지 않기 때문).
+
+        Args:
+            variants: ``{버전 이름: QuickEval 인스턴스}`` — 최소 2개, 순서 무관.
+            metric: 비교할 지표명 — ``ab_test()``와 동일한 규칙(``TaskResult`` 속성 또는
+                ``task.extra`` 키).
+            fdr_alpha: FDR 보정 후 유의성 판정 기준(기본 0.05, ``ab_test()``의 고정
+                유의수준 0.05와 동일 기본값).
+            min_recommended_samples: 이 미만인 버전에는 ``sample_size_warnings``에 경고를
+                담는다(검정 자체는 그대로 진행).
+
+        Returns:
+            ``{"metric", "variant_stats": {name: {"mean", "n"}}, "pairwise": [{"a", "b",
+            "delta", "better", "t_statistic", "p_value", "p_value_fdr_adjusted",
+            "significant", "significant_fdr", "effect_size_cohens_d"}], "fdr_alpha",
+            "fdr_method", "sample_size_warnings"}``.
+
+        Note:
+            mSPRT(always-valid sequential inference)는 이 메서드에 포함하지 않았다 —
+            중간 확인(peeking)마다 반복적으로 유효한 p-value를 내려면 검정 통계량
+            선택·경계값 계산의 통계적 정합성을 별도로 전문 검토해야 하는데, 이번 세션에서
+            그 확신을 얻지 못했다. 잘못된 통계 도구를 SDK에 넣는 것보다 없는 편이 낫다는
+            원칙에 따라 의도적으로 보류한다.
+        """
+        if len(variants) < 2:
+            raise ValueError(
+                f"ab_test_nway: at least 2 variants required, got {len(variants)}"
+            )
+
+        variant_stats: dict[str, dict[str, Any]] = {}
+        scores_by_name: dict[str, list[float]] = {}
+        sample_size_warnings: list[str] = []
+        for name, qe in variants.items():
+            scores = qe._ab_metric_scores(qe._monitor.tasks, metric)
+            scores_by_name[name] = scores
+            mean = sum(scores) / len(scores) if scores else 0.0
+            variant_stats[name] = {"mean": round(mean, 6), "n": len(scores)}
+            if len(scores) < min_recommended_samples:
+                sample_size_warnings.append(
+                    f"'{name}' has a small sample size (n={len(scores)}, recommended "
+                    f"minimum {min_recommended_samples}) — significance results may be "
+                    f"unreliable."
+                )
+
+        names = list(variants.keys())
+        pairwise: list[dict[str, Any]] = []
+        raw_p_values: list[float | None] = []
+        # _stats(모듈 아니면 None)로 가용성을 표현한다 — 별도 bool 플래그(_scipy_available)
+        # 대신 이렇게 하면 아래 `if _stats is not None` 분기 안에서 타입 체커가 _stats를
+        # "바인딩됨"으로 좁힐 수 있다(플래그와 변수가 분리돼 있으면 체커가 둘의 관계를
+        # 추론하지 못해 possibly-unbound로 오탐한다).
+        _stats: Any = None
+        try:
+            from scipy import stats as _stats  # type: ignore
+        except ImportError:
+            pass
+
+        import itertools
+        import statistics as _stat_mod
+        for a_name, b_name in itertools.combinations(names, 2):
+            a_scores, b_scores = scores_by_name[a_name], scores_by_name[b_name]
+            a_mean, b_mean = variant_stats[a_name]["mean"], variant_stats[b_name]["mean"]
+            delta = round(a_mean - b_mean, 6)
+            better = a_name if delta > 0 else (b_name if delta < 0 else "equal")
+
+            t_stat: float | None = None
+            p_val: float | None = None
+            effect_size: float | None = None
+            if _stats is not None and len(a_scores) >= 2 and len(b_scores) >= 2:
+                _result = _stats.ttest_ind(a_scores, b_scores, equal_var=False)
+                t_stat = float(_result.statistic)  # type: ignore[attr-defined]
+                p_val = float(_result.pvalue)  # type: ignore[attr-defined]
+                _s1, _s2 = _stat_mod.variance(a_scores), _stat_mod.variance(b_scores)
+                _pooled_sd = ((_s1 + _s2) / 2.0) ** 0.5
+                if _pooled_sd > 1e-12:
+                    effect_size = round((a_mean - b_mean) / _pooled_sd, 4)
+
+            raw_p_values.append(p_val)
+            pairwise.append({
+                "a": a_name, "b": b_name, "delta": delta, "better": better,
+                "t_statistic": t_stat, "p_value": p_val,
+                "significant": (p_val < 0.05) if p_val is not None else None,
+                "effect_size_cohens_d": effect_size,
+            })
+
+        adjusted_p_values = _benjamini_hochberg(raw_p_values)
+        for entry, p_adj in zip(pairwise, adjusted_p_values):
+            entry["p_value_fdr_adjusted"] = p_adj
+            entry["significant_fdr"] = (p_adj < fdr_alpha) if p_adj is not None else None
+
+        return {
+            "metric": metric,
+            "variant_stats": variant_stats,
+            "pairwise": pairwise,
+            "fdr_alpha": fdr_alpha,
+            "fdr_method": "benjamini_hochberg",
+            "sample_size_warnings": sample_size_warnings,
+        }
+
+    def ab_test_sequential(
+        self,
+        other: QuickEval,
+        *,
+        metric: str = "accuracy_score",
+        tau: float,
+        alpha: float = 0.05,
+    ) -> dict[str, Any]:
+        """mSPRT(mixture Sequential Probability Ratio Test) 기반 always-valid A/B 비교.
+
+        ``ab_test()``(Welch's t-test)는 **고정 표본 크기**를 가정한다 — 데이터가 쌓이는
+        도중 결과를 여러 번 확인(peeking)하고 그때그때 유의성을 판단하면, 실제
+        위양성률이 명목 ``alpha``보다 커진다(최적 정지 편향 — "유리해 보일 때 멈추기").
+        AI 에이전트 평가는 태스크가 실시간으로 쌓이는 경우가 많아 "지금까지의 결과가
+        유의한가"를 반복해서 확인하고 싶은 상황이 자연스러운데, ``ab_test()``를 그
+        용도로 반복 호출하면 이 편향에 그대로 노출된다. 이 메서드는 Johari et al.(2015)
+        *"Always Valid Inference"* 의 가우시안 혼합 SPRT를 구현해, **몇 번을 호출하든
+        (언제 멈추든) 위양성률이 ``alpha``를 넘지 않는다는 보장**을 준다 — 정확한 통계적
+        근거는 ``_msprt_log_likelihood_ratio()``/``_always_valid_p_value()`` docstring
+        참고.
+
+        Args:
+            other: 비교할 다른 QuickEval 인스턴스.
+            metric: 비교할 지표명 — ``ab_test()``와 동일 규칙.
+            tau: 혼합 사전분포의 표준편차 — "감지하고 싶은 효과 크기의 스케일"을
+                나타낸다. **암묵적 기본값을 두지 않는다**(``ab_test``의
+                Guardrail Metric ``direction``과 같은 이유 — 잘못 짐작한 기본값이
+                조용히 검정력을 떨어뜨리는 위험을 피한다). 위양성률 통제(통계적
+                유효성)는 ``tau`` 값과 무관하게 항상 성립하지만, ``tau``가 실제 효과
+                크기와 동떨어지면 검정력만 낮아진다(판정이 늦어질 뿐, 틀리지 않는다).
+                시작점으로는 지표의 표준편차의 0.1~1배 정도(가장 작게 감지하고 싶은
+                차이의 스케일)를 고려할 것.
+            alpha: 유의수준(기본 0.05) — ``always_valid_p_value <= alpha``이면 유의.
+
+        Returns:
+            ``{"metric", "self_mean", "other_mean", "delta", "variance", "tau",
+            "always_valid_p_value", "significant", "alpha", "sample_sizes", "warning"}``.
+            ``warning``은 표본 부족(각 그룹 2개 미만)으로 분산을 추정할 수 없을 때만
+            채워지며, 그 경우 ``always_valid_p_value``/``significant``는 ``None``이다.
+        """
+        self_scores = self._ab_metric_scores(self._monitor.tasks, metric)
+        other_scores = self._ab_metric_scores(other._monitor.tasks, metric)
+        self_mean = sum(self_scores) / len(self_scores) if self_scores else 0.0
+        other_mean = sum(other_scores) / len(other_scores) if other_scores else 0.0
+        theta_hat = round(self_mean - other_mean, 6)
+
+        variance: float | None = None
+        warning: str | None = None
+        if len(self_scores) >= 2 and len(other_scores) >= 2:
+            import statistics as _stat_mod
+            variance = (
+                _stat_mod.variance(self_scores) / len(self_scores)
+                + _stat_mod.variance(other_scores) / len(other_scores)
+            )
+        else:
+            warning = (
+                f"Not enough samples to estimate variance (self={len(self_scores)}, "
+                f"other={len(other_scores)}, each group needs at least 2) — skipping "
+                "the always-valid verdict."
+            )
+
+        p_value: float | None = None
+        significant: bool | None = None
+        if variance is not None and variance > 0:
+            p_value = _always_valid_p_value(theta_hat, variance, tau)
+            if p_value is not None:
+                p_value = round(p_value, 6)
+                significant = p_value <= alpha
+        elif variance == 0.0:
+            warning = "Both groups have zero variance (all values identical) — skipping the verdict."
+
+        return {
+            "metric": metric,
+            "self_mean": round(self_mean, 6),
+            "other_mean": round(other_mean, 6),
+            "delta": theta_hat,
+            "variance": variance,
+            "tau": tau,
+            "always_valid_p_value": p_value,
+            "significant": significant,
+            "alpha": alpha,
+            "sample_sizes": {"self": len(self_scores), "other": len(other_scores)},
+            "warning": warning,
         }
 
     def cached(
@@ -2060,63 +2455,48 @@ class HarnessEvaluationGate:
                 self._result["regressions"] = []
             return self._result
 
-        groups_to_check: list[str] = self._required_groups or [
-            k for k in harness_groups
-            if k != "overall" and isinstance(harness_groups[k], dict)
-        ]
+        # 구조변경③(3경로 완전 통합): gates/base.py의 evaluate_gate_scores()가
+        # score/threshold/status → passed 루프의 단일 정본 — QuickEval.gate()·
+        # cli/gate.py와 동일 함수를 호출한다(이전엔 세 곳이 이 루프를 각자 재구현했다).
+        _gate_ids = list(self._required_groups) if self._required_groups is not None else None
+        results: dict[str, Any] = evaluate_gate_scores(
+            harness_groups,
+            gate_ids=_gate_ids,
+            thresholds=self._group_thresholds,
+            default_threshold=self._min_group_score,
+            strict_required=self._strict_required,
+            fail_on_warn=self._fail_on_warn,
+        )
 
-        results: dict[str, Any] = {}
-        violations: list[dict[str, Any]] = []
-
-        for group_name in groups_to_check:
+        # insufficient_data_warnings는 evaluate_gate_scores()가 details를 보지 않으므로
+        # (score/status만 다룬다) 여기서 별도로 덧붙인다 — 기존 출력 shape 그대로.
+        for group_name, group_result in results.items():
             group_data = harness_groups.get(group_name, {})
-            if not isinstance(group_data, dict):
-                continue
-            score = group_data.get("score")
-            status = group_data.get("status", "n/a")
-            details = group_data.get("details")
-            warnings = details.get("insufficient_data_warnings") if isinstance(details, dict) else None
-
-            if score is None:
-                # strict_required: 이 그룹이 required_groups에 명시적으로 지정됐을 때만 강제한다
-                # (자동 탐지된 그룹까지 강제하면 "옵션 켰더니 안 켜둔 Gate 전부가 갑자기 실패"라는
-                # 놀람을 유발하므로, 명시적으로 요구한 Gate에만 적용한다).
-                _explicit = self._required_groups is not None and group_name in self._required_groups
-                _not_measured_passed = not (self._strict_required and _explicit)
-                results[group_name] = {
-                    "score": None,
-                    "status": "n/a",
-                    "passed": _not_measured_passed,
-                    "not_measured": True,
-                }
-                if not _not_measured_passed:
-                    violations.append({
-                        "group": group_name,
-                        "score": None,
-                        "status": "n/a",
-                        "reason": "not_measured",
-                    })
-                continue
-
-            threshold = self._group_thresholds.get(group_name, self._min_group_score)
-            passed = float(score) >= threshold
-            if self._fail_on_warn and status == "warn":
-                passed = False
-
-            results[group_name] = {
-                "score": round(float(score), 3),
-                "status": status,
-                "passed": passed,
-                "threshold": threshold,
-            }
+            details = group_data.get("details") if isinstance(group_data, dict) else None
+            warnings = (
+                details.get("insufficient_data_warnings") if isinstance(details, dict) else None
+            )
             if warnings:
-                results[group_name]["insufficient_data_warnings"] = warnings
+                group_result["insufficient_data_warnings"] = warnings
+            # HarnessEvaluationGate 기존 계약: score는 소수점 3자리(다른 두 경로는 4자리) —
+            # 재반올림.
+            if group_result.get("score") is not None:
+                group_result["score"] = round(group_result["score"], 3)
 
-            if not passed:
+        violations: list[dict[str, Any]] = []
+        for group_name, group_result in results.items():
+            if group_result.get("passed"):
+                continue
+            if group_result.get("not_measured"):
+                violations.append({
+                    "group": group_name, "score": None, "status": "n/a",
+                    "reason": "not_measured",
+                })
+            else:
                 violations.append({
                     "group": group_name,
-                    "score": round(float(score), 3),
-                    "status": status,
+                    "score": group_result.get("score"),
+                    "status": group_result.get("status"),
                 })
 
         overall = harness_groups.get("overall", {})

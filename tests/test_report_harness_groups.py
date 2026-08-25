@@ -180,6 +180,22 @@ class TestGenerateReportHarnessGroups:
         assert "scored_groups" in overall
         assert 0.0 <= overall["score"] <= 1.0
 
+    def test_overall_scored_group_ids_matches_count_and_actual_scored_gates(self, monitor_with_tasks):
+        """scored_group_ids — overall_score가 실제로 어느 Gate들의 평균인지 노출.
+        Gate 2개만 켠 실행과 7개 다 켠 실행의 overall_score가 같은 범위(0-1)라 직접
+        비교 가능해 보이지만 실제로는 이질적 지표 평균이라는 걸(구조적 투자 검토)
+        비교 도구가 scored_groups(개수)보다 직접 확인할 수 있어야 한다."""
+        report = monitor_with_tasks.generate_report()
+        hg = report.extra_metrics["harness_groups"]
+        overall = hg["overall"]
+        assert "scored_group_ids" in overall
+        assert len(overall["scored_group_ids"]) == overall["scored_groups"]
+        assert set(overall["scored_group_ids"]) <= set("ABCDEFG")
+        # scored_group_ids에 있는 Gate는 실제로 score가 있어야 하고, 없는 Gate는 None이어야 함
+        for gate_id in "ABCDEFG":
+            has_score = hg[gate_id]["score"] is not None
+            assert (gate_id in overall["scored_group_ids"]) == has_score
+
     def test_harness_status_values(self, monitor_with_tasks):
         """status 값은 'pass', 'warn', 'fail', 'n/a' 중 하나."""
         valid_statuses = {"pass", "warn", "fail", "n/a"}

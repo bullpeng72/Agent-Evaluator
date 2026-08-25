@@ -642,7 +642,7 @@ print(f"  audience_level 전파율: 100% → Gate F 0.720 → 0.950 (1줄 수정
 
 monitor.save_to_file("ch26_harness_full")
 print("\n결과 저장 완료: results/ch26_harness_full.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
 
 print("""
 === Ch26 전체 통합 완료 요약 ===

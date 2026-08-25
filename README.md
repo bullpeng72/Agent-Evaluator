@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.9.13-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
@@ -894,6 +894,7 @@ A reference integration ships for [OpenCode](https://opencode.ai) (a local codin
 pip install agent-evaluator
 agent-eval opencode install                          # project-local (--global / --force also available)
 agent-eval opencode install --with-violation-search   # + search_violations MCP server (needs [mcp] extra)
+agent-eval opencode install --with-recommend-fix      # + recommend_fix MCP server — static Gate/metric guidance
 ```
 
 Unsafe tool calls are blocked mid-session with an error the model sees and can self-correct on; each
@@ -1115,7 +1116,7 @@ from agent_evaluator.decorators import (
 
 ## Example Guide
 
-Consists of 27 files based on book chapters. Each file is independently runnable.
+Consists of 31 files based on book chapters. Each file is independently runnable.
 
 ### Example Dependencies
 
@@ -1148,6 +1149,10 @@ Consists of 27 files based on book chapters. Each file is independently runnable
 | `ch25_quickeval_entry.py` | Ch25 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
 | `ch26_harness_full.py` | Ch26 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
 | `ch27_cicd_weekly.py` | Ch27 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
+| `ch28_rca_diagnosis.py` | Ch28 | Gate regression root-cause diagnosis — `rca.diagnose()`, detail-delta attribution, HOTL | — |
+| `ch29_sequential_ab_test.py` | Ch29 | Always-valid A/B testing — mSPRT (`ab_test_sequential()`), safe repeated peeking | — |
+| `ch30_custom_gate_nway.py` | Ch30 | Harness extension — `register_gate()` custom Gate plugin + `ab_test_nway()` N-way comparison | `scipy` (optional) |
+| `ch31_recommendation_tracking.py` | Ch31 | Closed-loop learning — `verify_recommendation_outcome()` + append-only outcome log + dashboard Improve tab | — |
 
 ### Running Examples
 
@@ -1155,7 +1160,7 @@ Each file is standalone — see the table above for what each chapter covers.
 
 ```bash
 cd Evaluator_Examples
-python ch01_first_eval.py      # ... through ch27_cicd_weekly.py
+python ch01_first_eval.py      # ... through ch31_recommendation_tracking.py
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 agent-eval monitor             # Start Phoenix server (http://localhost:6006)
@@ -1196,20 +1201,26 @@ agent-evaluator/
 │   │   ├── live_guardrail_stdio.py   # stdio bridge for non-Python callers (e.g. OpenCode)
 │   │   ├── live_guardrail_report.py  # record_and_save() — SQLite batch report bridge
 │   │   ├── violation_search_mcp.py   # search_violations MCP server ([mcp] extra)
+│   │   ├── recommend_fix_mcp.py      # recommend_fix MCP server — static Gate/metric remediation lookup
 │   │   └── metric_adapters.py   # DeepEval · Ragas adapters
+│   ├── rca/                     # diagnose() (Gate regression RCA) · verify_recommendation_outcome() ·
+│   │   │                        # experiment_metadata.py · recommendation_tracking.py (closed-loop log)
+│   ├── ontology/                 # metric_registry.py (GATE_GUIDANCE/NATIVE_METRIC_RULES) ·
+│   │   │                        # mast_taxonomy.py (MAST 14 failure modes, Gate F)
+│   ├── schemas/                  # harness_groups.schema.json — output contract for extra_metrics.harness_groups
 │   ├── storage/                 # SQLite backend (storage_backend="sqlite") ·
 │   │   │                        # violation_search / blocked_violations FTS5 indexes
 │   ├── streaming/                # StreamingEvaluator · AgentEvalMiddleware
 │   ├── reporting/                # comprehensive_report.py — HTML report generation
 │   ├── serve/                   # FastAPI dashboard ([serve] extra)
-│   ├── cli/                     # agent-eval CLI (incl. claims.py, opencode.py, trend.py, monitor.py)
+│   ├── cli/                     # agent-eval CLI (gate, diagnose, abtest, trend, claims, opencode, monitor, dataset)
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
 │   ├── anomaly/                 # AnomalyDetector
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 27 example files (ch01–ch27, see Example Guide above)
-├── tests/                       # 3,628+ test functions, 95 files
+├── Evaluator_Examples/          # 31 example files (ch01–ch31, see Example Guide above)
+├── tests/                       # 3,884+ test functions, 112 files
 └── pyproject.toml
 ```
 
@@ -1276,7 +1287,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # run tests (3,628+)
+pytest                          # run tests (3,884+)
 ruff check agent_evaluator/    # lint
 ruff format agent_evaluator/   # format
 mypy agent_evaluator/          # type check
@@ -1285,6 +1296,20 @@ mypy agent_evaluator/          # type check
 ---
 
 ## Changelog
+
+### v1.0.0 (2026-08-25) — Improvement Engine (RCA · Statistical A/B · Recommendations) + Structural Unification
+
+First stable release — `Development Status :: 5 - Production/Stable`. Adds a full diagnosis-and-prescription layer on top of the existing measurement SDK, plus several structural unifications that remove long-standing duplication across Gate judgment paths.
+
+- ✨ **RCA engine** (`agent_evaluator.rca`) — `diagnose()` automates the 3-stage root-cause procedure (detect → attribute → cross-reference) behind a Gate regression; shared-cause check for simultaneous Gate C/D drops; Gate F findings link MAST failure-mode candidates. `verify_recommendation_outcome()` + `record_/load_/summarize_recommendation_outcomes()` close the loop with an append-only JSONL history (`.aoo/claims.jsonl` pattern). New `agent-eval diagnose` CLI and dashboard 🔧 Improve tab expose the same diagnosis. HOTL throughout — candidates and evidence only, never a verdict.
+- ✨ **Ontology registry** (`agent_evaluator.ontology`) — `metric_registry.py` consolidates Gate/metric remediation guidance previously duplicated across 3 call sites (HTML report, anomaly explanation, and now `recommend_fix`); `mast_taxonomy.py` seeds Gate F with the MAST 14-failure-mode taxonomy (Cemri et al., NeurIPS 2025).
+- ✨ **Statistical A/B testing** — `ab_test()` gained an arbitrary `metric` parameter, Cohen's d effect size, sample-size warnings, and Guardrail Metric (OEC, no implicit `direction` default). New `ab_test_nway()` (N-way pairwise + Benjamini-Hochberg FDR correction) and `ab_test_sequential()` (mSPRT always-valid inference — Monte Carlo–validated at 0.0% empirical false-positive rate vs. 22.0% for naive repeated t-testing under peeking). New `agent-eval abtest` CLI auto-selects two-way / sequential / N-way by file count.
+- ✨ **MCP tools** — `recommend_fix` (static Gate/metric remediation lookup, no result file required) registers alongside the existing `search_violations` via `agent-eval opencode install --with-recommend-fix`.
+- ✨ `PerformanceMonitor.register_gate()` — plug in independent third-party Gates without forking core aggregation.
+- 🔧 **Structural unification** — `gates/base.py::evaluate_gate_scores()` is now the single Gate-threshold-judgment loop shared by `HarnessEvaluationGate.evaluate()`, `QuickEval.gate()`, and `cli/gate.py` (previously three independent implementations of the same loop). `"full"` retention mode (the default) is now genuinely single-pass (45 per-Gate loops → 1) via `_build_full_mode_shared_snapshots()`, with no precision loss.
+- 🔧 **Contract hardening** — `schemas/harness_groups.schema.json` formalizes the `extra_metrics.harness_groups` output shape with contract tests; `gates/base.py::_measured()` gives every Gate a consistent "not configured" vs. "configured but no data" vs. "measured" state (fixes a Gate E case that conflated the first two); Config `__post_init__` validation gap closed for the 7 configs that lacked it.
+- 🐛 Fixed a real scale bug in `get_comparison()`'s `regression_flags.accuracy_dropped` (0–1 threshold compared against a 0–100 value, so it always tripped); `ab_test()`'s t-test corrected from Student's (equal-variance) to Welch's; Gate B's `gate_b_loop_weight>0` with no loop data now surfaces in `insufficient_data_warnings` instead of silently falling back.
+- 📝 Removed internal-only references (`SPEC-NNN` ticket IDs, `CLAUDE.md` citations) from all reader-facing docs; new Part VII (Ch28–31) in Media/Book covers the full improvement-engine workflow.
 
 ### v0.9.13 (2026-08-19) — Per-Gate CI Thresholds + Gate D Score Auditability
 

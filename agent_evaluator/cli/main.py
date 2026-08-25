@@ -29,8 +29,10 @@ except PackageNotFoundError:
         __version__ = "unknown"
 
 from agent_evaluator.cli._utils import _supports_color
+from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli.dataset import cmd_dataset
+from agent_evaluator.cli.diagnose import cmd_diagnose
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
 from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
@@ -748,10 +750,13 @@ def main() -> None:
             f"  {Y}check{R}        Show API key and configuration status\n"
             f"  {Y}dashboard{R}    Run the FastAPI web dashboard for evaluation results\n"
             f"  {Y}gate{R}         CI/CD quality gating — pass/fail by threshold\n"
+            f"  {Y}diagnose{R}     Gate root-cause diagnosis (RCA) — informational only\n"
+            f"  {Y}abtest{R}       Statistical A/B comparison of 2+ result files\n"
             f"  {Y}trend{R}        Sequential evaluation trend analysis — TCR/accuracy regression\n"
             f"  {Y}dataset{R}      Auto-extract golden datasets from production results\n"
             f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
             f"  {Y}opencode{R}     Install the LiveGuardrail OpenCode plugin\n"
+            f"  {Y}claims{R}       Manage .aoo/claims.jsonl team scope claims\n"
             "\n"
             f"{B}Examples:{R}\n"
             f"  {G}agent-eval init{R}\n"
@@ -761,6 +766,8 @@ def main() -> None:
             f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
+            f"  {G}agent-eval diagnose results/ci_run.json --baseline results/baseline.json{R}\n"
+            f"  {G}agent-eval abtest results/v1.json results/v2.json{R}\n"
             f"  {G}agent-eval trend results/ --window 10{R}\n"
             f"  {G}agent-eval trend results/ --fail-on-regression{R}\n"
             f"  {G}agent-eval dataset build --source results/ --max-cases 30{R}\n"
@@ -770,6 +777,7 @@ def main() -> None:
             f"  {G}agent-eval monitor --reset{R}\n"
             f"  {G}agent-eval monitor --reset --yes{R}\n"
             f"  {G}agent-eval opencode install{R}\n"
+            f"  {G}agent-eval claims add src/ --developer auto{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}More help:{R}\n"
@@ -934,8 +942,8 @@ def main() -> None:
         "--baseline-version", metavar="TAG", dest="baseline_version",
         help=(
             "Use <result_dir>/baselines/<TAG>.json as the baseline instead of the single "
-            "baseline.json — lets multiple prompt/agent versions keep independent baselines "
-            "(SPEC-025). Ignored if --baseline is also given."
+            "baseline.json — lets multiple prompt/agent versions keep independent baselines. "
+            "Ignored if --baseline is also given."
         ),
     )
     gate_p.add_argument(
@@ -986,12 +994,63 @@ def main() -> None:
             "Golden dataset JSON (from 'agent-eval dataset build' / dashboard "
             "approval, e.g. data/golden_datasets/golden_*.json). Checks whether "
             "each case's task_id (or question, as a fallback) is present in "
-            "result_file's tasks and succeeded (SPEC-025)."
+            "result_file's tasks and succeeded."
         ),
     )
     gate_p.add_argument(
         "--fail-on-golden-regression", action="store_true", dest="fail_on_golden_regression",
         help="Return exit code 3 if any --golden-set case is missing or failed.",
+    )
+
+    # diagnose subcommand (Phase 4 — RCA)
+    diag_p = sub.add_parser(
+        "diagnose",
+        help="Gate root-cause diagnosis (RCA) — not a CI gate, informational only",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "Automates the 3-stage RCA procedure (detect -> attribute -> cross-reference) "
+            "behind a Gate score regression. Reports candidate causes and evidence only — "
+            "it never asserts a verdict (HOTL principle).\n"
+        ),
+        epilog=(
+            f"{B}Examples:{R}\n"
+            f"  {G}agent-eval diagnose results/ci_run.json{R}\n"
+            f"  {G}agent-eval diagnose results/ci_run.json --baseline results/baseline.json{R}\n"
+            f"  {G}agent-eval diagnose results/ci_run.json --baseline results/baseline.json "
+            f"--violation-db results/violations.db{R}\n"
+        ),
+    )
+    diag_p.add_argument("result_file", help="Evaluation result JSON file path")
+    diag_p.add_argument(
+        "--baseline", metavar="PATH",
+        help="Baseline result JSON — enables regression-based detection. "
+             "Without it, falls back to detecting Gates whose current status is fail/warn.",
+    )
+    diag_p.add_argument(
+        "--regression-threshold", type=float, default=10.0, metavar="PCT", dest="regression_threshold",
+        help="Allowed regression vs baseline (%%), same definition as 'agent-eval gate "
+             "--fail-on-regression'. Default: 10.",
+    )
+    diag_p.add_argument(
+        "--violation-db", metavar="PATH", dest="violation_db",
+        help="SQLite DB path (from storage_backend='sqlite') for stage-3 cross-referencing "
+             "via search_violations(). Skipped if omitted or missing.",
+    )
+    diag_p.add_argument(
+        "--json", action="store_true",
+        help="Print the raw diagnosis result as JSON instead of the formatted report.",
+    )
+    diag_p.add_argument(
+        "--show-diff", action="store_true", dest="show_diff",
+        help="With --baseline: also resolve the actual git commit range between the two "
+             "reports' lineage.git_commit (via plain 'git diff --stat'/'git log' — no 'gh' "
+             "CLI needed) and show which files/commits changed. Requires both reports to "
+             "carry lineage.git_commit and this to be a git repo containing those commits. "
+             "Silently omitted if unavailable.",
+    )
+    diag_p.add_argument(
+        "--repo-path", metavar="PATH", dest="repo_path", default=".",
+        help="Git repository path to resolve --show-diff against. Default: current directory.",
     )
 
     # dataset subcommand
@@ -1073,6 +1132,9 @@ def main() -> None:
     # claims subcommand
     build_claims_subparser(sub)
 
+    # abtest subcommand
+    build_abtest_subparser(sub)
+
     parser.add_argument(
         "--version", action="store_true",
         help="Show package version",
@@ -1090,9 +1152,11 @@ def main() -> None:
         "monitor":   cmd_monitor,
         "opencode":  cmd_opencode,
         "gate":      cmd_gate,
+        "diagnose":  cmd_diagnose,
         "dataset":   cmd_dataset,
         "trend":     cmd_trend,
         "claims":    cmd_claims,
+        "abtest":    cmd_abtest,
     }
 
     if args.command is None:

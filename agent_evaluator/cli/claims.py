@@ -65,8 +65,8 @@ def _cmd_claims_add(args: argparse.Namespace) -> int:
     developer = resolve_owner(args.developer or "auto")
     if not developer:
         print(_err(
-            "--developer가 지정되지 않았고 git config user.name도 조회할 수 "
-            "없습니다. --developer NAME을 명시하세요."
+            "--developer was not given and git config user.name could not be "
+            "resolved. Specify --developer NAME explicitly."
         ))
         return 1
 
@@ -77,10 +77,10 @@ def _cmd_claims_add(args: argparse.Namespace) -> int:
         claims_path, claim_id=claim_id, developer=developer,
         scope=args.scope, started_at=started_at, status="active",
     )
-    print(_ok(f"클레임 개설: claim_id={claim_id}  developer={developer}"))
+    print(_ok(f"Claim opened: claim_id={claim_id}  developer={developer}"))
     for s in args.scope:
         print(f"  {D}scope:{R} {s}")
-    print(f"{D}해제하려면: agent-eval claims release {claim_id}{R}")
+    print(f"{D}To release: agent-eval claims release {claim_id}{R}")
     return 0
 
 
@@ -89,11 +89,11 @@ def _cmd_claims_list(args: argparse.Namespace) -> int:
     claims = load_active_claims(claims_path)
 
     if not claims:
-        print(f"{D}활성 클레임 없음 ({claims_path}){R}")
+        print(f"{D}No active claims ({claims_path}){R}")
         return 0
 
     now = datetime.now(timezone.utc)
-    print(f"{B}활성 클레임 — {claims_path}{R}")
+    print(f"{B}Active claims — {claims_path}{R}")
     for c in claims:
         age_str = ""
         started_at = c.get("started_at")
@@ -103,9 +103,9 @@ def _cmd_claims_list(args: argparse.Namespace) -> int:
                 if started.tzinfo is None:
                     started = started.replace(tzinfo=timezone.utc)
                 age_hours = (now - started).total_seconds() / 3600
-                age_str = f"  {D}({age_hours:.1f}h 경과){R}"
+                age_str = f"  {D}({age_hours:.1f}h elapsed){R}"
             except ValueError:
-                age_str = f"  {D}(started_at 파싱 불가: {started_at}){R}"
+                age_str = f"  {D}(could not parse started_at: {started_at}){R}"
         scope = ", ".join(c.get("scope", []))
         print(
             f"  {G}{c.get('claim_id')}{R}  {c.get('developer')}  "
@@ -119,11 +119,11 @@ def _cmd_claims_release(args: argparse.Namespace) -> int:
     active = {c.get("claim_id") for c in load_active_claims(claims_path)}
     if args.claim_id not in active:
         print(_warn(
-            f"claim_id={args.claim_id}가 활성 클레임 목록에 없습니다 — "
-            f"이미 해제됐거나 존재하지 않는 ID일 수 있습니다."
+            f"claim_id={args.claim_id} is not in the active claims list — "
+            f"it may already be released, or the ID may not exist."
         ))
         if not args.force:
-            print(f"{D}그래도 해제 이벤트를 기록하려면 --force를 추가하세요.{R}")
+            print(f"{D}To record the release event anyway, add --force.{R}")
             return 1
 
     released_at = datetime.now(timezone.utc).isoformat()
@@ -131,27 +131,27 @@ def _cmd_claims_release(args: argparse.Namespace) -> int:
         claims_path, claim_id=args.claim_id, status="released",
         released_at=released_at,
     )
-    print(_ok(f"클레임 해제: claim_id={args.claim_id}"))
+    print(_ok(f"Claim released: claim_id={args.claim_id}"))
     return 0
 
 
 def _cmd_claims_audit(args: argparse.Namespace) -> int:
     violations = audit_claims(args.claims_path, ttl_hours=args.ttl_hours)
     if not violations:
-        print(_ok(f"클레임 로그 위반 없음 ({args.claims_path})"))
+        print(_ok(f"No claims log violations ({args.claims_path})"))
         return 0
 
-    print(_err(f"클레임 로그 위반 {len(violations)}건 발견 ({args.claims_path})"))
+    print(_err(f"Found {len(violations)} claims log violation(s) ({args.claims_path})"))
     for v in violations:
         if v["type"] == "ttl_exceeded":
             print(
-                f"  {RD}TTL 초과{R}  claim_id={v['claim_id']}  "
-                f"developer={v['developer']}  경과={v['age_hours']}h  "
-                f"(기준 {args.ttl_hours}h)"
+                f"  {RD}TTL exceeded{R}  claim_id={v['claim_id']}  "
+                f"developer={v['developer']}  elapsed={v['age_hours']}h  "
+                f"(threshold {args.ttl_hours}h)"
             )
         elif v["type"] == "overlapping_claims":
             print(
-                f"  {RD}스코프 겹침{R}  {v['claim_id_a']}({v['developer_a']}) "
+                f"  {RD}Overlapping scope{R}  {v['claim_id_a']}({v['developer_a']}) "
                 f"↔ {v['claim_id_b']}({v['developer_b']})  scope={v['scope']}"
             )
     return 1
@@ -176,7 +176,7 @@ def build_claims_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
         ),
         epilog=(
             "Examples:\n"
-            "  agent-eval claims add agent_evaluator/gates/configs.py --developer 수아\n"
+            "  agent-eval claims add agent_evaluator/gates/configs.py --developer alex\n"
             "  agent-eval claims add src/ --developer auto\n"
             "  agent-eval claims list\n"
             "  agent-eval claims release c-a1b2c3d4\n"
@@ -248,7 +248,7 @@ def cmd_claims(args: argparse.Namespace) -> int:
     claims_command = getattr(args, "claims_command", None)
     handler = handlers.get(claims_command) if claims_command is not None else None
     if handler is None:
-        print(_err("claims 서브커맨드를 지정하세요: add | list | release | audit"))
-        print(f"{D}자세한 정보: agent-eval claims --help{R}")
+        print(_err("Specify a claims subcommand: add | list | release | audit"))
+        print(f"{D}For details: agent-eval claims --help{R}")
         return 1
     return handler(args)

@@ -39,7 +39,9 @@ Quick Start (Decorator):
 """
 from __future__ import annotations
 
-__version__ = "0.9.13"
+from typing import TYPE_CHECKING
+
+__version__ = "1.0.0"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -250,6 +252,24 @@ _FRAMEWORK_EXTRA_MAP = {
     "setup_otel": "otel",
     "OTELProvider": "otel",
 }
+
+
+# __all__에 포함된 lazy-import 이름들을 정적 분석기(Pylance/pyright)가
+# reportUnsupportedDunderAll 없이 인식하도록 TYPE_CHECKING 시점에만 바인딩한다
+# — 런타임 지연 로딩(__getattr__)은 그대로 유지된다(TYPE_CHECKING은 항상 False).
+if TYPE_CHECKING:
+    from agent_evaluator.alerts.engine import AlertEngine, AlertEvent, AlertRule
+    from agent_evaluator.alerts.handlers import EmailHandler, SlackHandler, WebhookHandler
+    from agent_evaluator.core.hybrid_monitor import (
+        ExtendedTaskResult,
+        HybridEvaluationReport,
+        HybridPerformanceMonitor,
+    )
+    from agent_evaluator.core.trackers.feedback import ImplicitFeedbackTracker
+    from agent_evaluator.datasets.builder import GoldenSetBuilder
+    from agent_evaluator.integrations.llm_judge import LLMJudge
+    from agent_evaluator.streaming.evaluator import StreamingEvaluator
+    from agent_evaluator.streaming.middleware import AgentEvalMiddleware
 
 
 def __getattr__(name: str):  # noqa: N807

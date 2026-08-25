@@ -10,14 +10,9 @@
 #   pip install "agent-evaluator[all]"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 예제 01 — Layer 1 전체 지표 (Accuracy · Hallucination · Quality · Latency · Token · TCR)
-# 예제 02 — Layer 2 전체 지표 (ToolCall · Retry · Coordination · Workflow · Security · 대화)
-# 예제 03 — 프레임워크 어댑터 (LangChain · LangGraph · CrewAI · AutoGen + 크로스 파이프라인)
-# 예제 04 — 데코레이터 전체 API (@agent_eval · @batch_eval · @conversation_eval · QuickEval)
-# 예제 05 — 실시간 (StreamingEvaluator · ImplicitFeedback · AlertEngine · SimpleTaskAlertRule)
-# 예제 06 — 운영 인프라 (AnomalyDetector · CostTracker · GoldenSetBuilder · evaluation_session)
-#
-# 위 예제들은 외부 의존성 없음 — agent-evaluator 코어만 필요.
+# ch01–ch12, ch14–ch18, ch20–ch29, ch31 — Layer 1/2 · Harness Gate A–G · 데코레이터 ·
+# 실시간 알림 · 운영 인프라 · RCA · mSPRT 등 — 외부 의존성 없음, agent-evaluator 코어만 필요.
+# (자세한 챕터별 내용은 README.md의 "Example Guide" 표 참고)
 # ─────────────────────────────────────────────────────────────────────────────
 
 numpy>=1.20.0,<3.0.0
@@ -25,7 +20,12 @@ pandas>=1.3.0,<4.0.0
 python-dotenv>=0.19.0,<2.0.0
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 예제 07 — Phoenix OTEL + DeepEval/Ragas (Layer 3 외부 통합)
+# ch13 — 프레임워크 어댑터 (LangChain · LangGraph · CrewAI · AutoGen)
+# ─────────────────────────────────────────────────────────────────────────────
+#   pip install "agent-evaluator[langchain]"   # 필요한 프레임워크별 extra로 교체 가능
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ch19 — Phoenix OTEL + DeepEval/Ragas (Layer 3 외부 통합)
 # ─────────────────────────────────────────────────────────────────────────────
 # Phoenix 실시간 모니터링 (OTLP 스팬 송신):
 #   pip install "agent-evaluator[otel]"
@@ -37,6 +37,13 @@ python-dotenv>=0.19.0,<2.0.0
 #
 # LLM Judge 채점 (ground_truth 없이 5차원 자동 채점):
 #   pip install "agent-evaluator[llm]"   # OpenAI 또는 Anthropic 키 필요
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ch30 — 커스텀 Gate 플러그인 + ab_test_nway() N-way 비교
+# ─────────────────────────────────────────────────────────────────────────────
+# ab_test_nway()의 p-value/효과크기 계산에 scipy가 있으면 쓰고, 없으면 그 두
+# 필드만 생략한 채(mean/delta 등은 정상) 계속 동작한다 — 선택 설치:
+#   pip install scipy
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 대시보드 서버 (agent-eval dashboard)

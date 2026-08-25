@@ -33,6 +33,7 @@ def compute(
     sla_budget_penalty: float,
     sla_warning: str | None,
     shared_running: dict[str, Any] | None = None,
+    sla_p95_ms_avg: float | None = None,
 ) -> dict[str, Any]:
     """Gate D(Performance Contract) 그룹 딕셔너리를 계산한다.
 
@@ -56,6 +57,11 @@ def compute(
             증식하는 트래커)에서 온다 — 애초부터 전체 이력 반영, 수정 불필요.
             ``None``(기본값, "full" 모드)이면 기존과 100% 동일하게 `tasks`에서 매번
             재계산한다.
+        sla_p95_ms_avg: Gate C의 ``compute_sla_shared_data(..., shared_running=...)``가
+            이미 계산해둔 p95_ms 임계값 평균(러닝 평균, 단일 패스). 주어지면
+            ``sla_results``를 다시 순회하지 않고 이 값을 그대로 임계값 계산에 쓴다.
+            ``None``(기본값)이면 기존과 100% 동일하게 ``sla_results``에서 재계산한다 —
+            이 인자를 넘기지 않는 기존 호출부(단위 테스트 포함)는 동작이 전혀 바뀌지 않는다.
 
     Returns:
         {name, score, status, gate, details} — monitor.py의 groups["D"]와 동일한 형태.
@@ -382,7 +388,9 @@ def compute(
         # SLAConfig.p95_ms 전체 평균을 임계값으로 사용 (태스크별 설정 혼재 시 last-task-wins 방지)
         # 없으면 기본 10s 기준
         _p95_threshold_s = 10.0
-        if sla_results:
+        if sla_p95_ms_avg is not None:
+            _p95_threshold_s = sla_p95_ms_avg / 1000.0
+        elif sla_results:
             _p95_ms_values = [
                 float(s["_config"]["p95_ms"])
                 for s in sla_results
@@ -404,7 +412,7 @@ def compute(
             _eff_fallback_ref if _eff_fallback_ref is not None
             else (0.01 if _eff_cost_unit == "usd" else 1000.0)
         )
-        _norm_eff = min(1.0, avg_eff_ratio * _eff_ratio_reference_used)
+        _norm_eff = max(0.0, min(1.0, avg_eff_ratio * _eff_ratio_reference_used))
         _perf_vals.append(_norm_eff)
     if _avg_budget is not None:
         _perf_vals.append(_avg_budget)

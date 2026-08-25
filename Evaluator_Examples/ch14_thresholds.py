@@ -290,4 +290,4 @@ print(f"  Tool Use 에이전트는 P95 10,000ms 허용 — 도구 실행 지연 
 # ===========================================================================
 monitor_alert.save_to_file("ch14_thresholds")
 print("\n결과 저장 완료: results/ch14_thresholds.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

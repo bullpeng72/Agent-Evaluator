@@ -16,7 +16,7 @@ ContextWindowConfig, StateConsistencyConfig, DeadlockConfig — 6개 Config 전�
 
 결과:
     results/ch05_group_b.json  (+ .html)
-    → 전체 33개 Config 통합 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import copy

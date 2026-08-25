@@ -354,7 +354,7 @@ print(f"  총 태스크:   {report.total_tasks}건")
 
 monitor.save_to_file("ch24_gate_mapping")
 print("\n결과 저장 완료: results/ch24_gate_mapping.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
 
 print("""
 === Ch24 Gate 매핑 완료 요약 ===

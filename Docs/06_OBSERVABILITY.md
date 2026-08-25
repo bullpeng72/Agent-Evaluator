@@ -2,7 +2,7 @@
 
 대시보드 사용법 · Phoenix OTEL 실시간 모니터링
 
-**v0.9.13 | Python 3.8+**
+**v1.0.0 | Python 3.8+**
 
 ---
 
@@ -10,7 +10,7 @@
 
 1. [dashboard vs monitor — 역할 분리](#1-dashboard-vs-monitor--역할-분리)
 2. [대시보드 실행 및 데이터 생성](#2-대시보드-실행-및-데이터-생성)
-3. [22개 탭 활성화 분류](#3-22개-탭-활성화-분류)
+3. [23개 탭 활성화 분류](#3-23개-탭-활성화-분류)
 4. [탭별 상세 가이드](#4-탭별-상세-가이드)
 5. [운영 탭 설정 가이드](#5-운영-탭-설정-가이드)
 6. [Phoenix OTEL 모니터링 — 빠른 시작](#6-phoenix-otel-모니터링--빠른-시작)
@@ -115,7 +115,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 
 ---
 
-## 3. 22개 탭 활성화 분류
+## 3. 23개 탭 활성화 분류
 
 ### 🟢 데코레이터만으로 가능 (10개)
 
@@ -145,7 +145,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 | 🚨 **이상 감지** | `PerformanceMonitor(enable_anomaly_detection=True)` |
 | 💰 **평가 비용** | 토큰 비용 자동 / LLM Judge 비용: `llm_judge=LLMJudgeConfig()` |
 
-### 🔵 데코레이터 무관으로 가능 (6개)
+### 🔵 데코레이터 무관으로 가능 (7개)
 
 | 메뉴 | 작동 방식 |
 |------|----------|
@@ -156,6 +156,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 | 🔍 **투명성** | `TestTransparencyManager.add_annotation()` 감사 로그 |
 | 📖 **지표 설명** | (정적) 58개 지표 설명·계산식·해석 가이드 |
 | ⚙️ **설정** | 대시보드 UI에서 임계값 직접 입력 (서버 재시작 시 초기화) |
+| 🔧 **Improve** | Current/Baseline 결과 파일 선택 → `rca.diagnose()`를 그대로 호출(감지된 Gate·세부 지표 델타·MAST 후보) + 추천 이력(`recommendation_outcomes.jsonl`) 요약 |
 
 ---
 

@@ -35,7 +35,6 @@ StreamingEvaluator의 슬라이딩 윈도우 메트릭과 AlertEngine의
 
 결과:
     results/ch16_alerts.json
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/05_streaming_alerts.py
 """
 
 import json

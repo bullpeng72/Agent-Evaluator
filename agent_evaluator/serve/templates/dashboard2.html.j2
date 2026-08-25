@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" x-data="app2()" x-init="init()" :class="{'dark':dark}">
+<html lang="en" x-data="app2()" x-init="init()" :class="{'dark':dark}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -6456,6 +6456,179 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </template>
 </section>
 
+<!-- ═══════════════ IMPROVE (Gate RCA & Recommendations, Phase 8) ═══════════════ -->
+<section id="s-improve" class="sec" x-show="sec==='improve'" x-cloak
+         x-effect="if(sec==='improve') { loadImproveRecommendations() }">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <span style="font-weight:700;font-size:15px">🔧 Improve — Gate RCA &amp; Recommendations</span>
+  </div>
+
+  <div class="sdiv"><div class="sdiv-lbl">Diagnose a Result</div><div class="sdiv-line"></div></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <label style="font-size:12px;color:var(--text2)">Current:</label>
+    <select class="btn" style="padding:4px 8px;font-size:12px" x-model="improveCurrentId">
+      <option value="">Select a file…</option>
+      <template x-for="f in files" :key="f.id">
+        <option :value="f.id" x-text="f.name||f.id"></option>
+      </template>
+    </select>
+    <label style="font-size:12px;color:var(--text2)">Baseline (optional):</label>
+    <select class="btn" style="padding:4px 8px;font-size:12px" x-model="improveBaselineId">
+      <option value="">None — absolute threshold mode</option>
+      <template x-for="f in files" :key="f.id">
+        <option :value="f.id" x-text="f.name||f.id"></option>
+      </template>
+    </select>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer">
+      <input type="checkbox" x-model="improveShowDiff"> Show git diff
+    </label>
+    <button class="btn" @click="loadImproveDiagnosis()" :disabled="!improveCurrentId"
+            style="margin-left:auto">Diagnose</button>
+  </div>
+
+  <template x-if="improveError">
+    <div style="padding:10px 14px;background:var(--bg3);border:1px solid var(--red);border-radius:6px;margin-bottom:14px;font-size:12px;color:var(--red)"
+         x-text="improveError"></div>
+  </template>
+
+  <template x-if="improveLoading">
+    <div style="text-align:center;padding:32px;color:var(--text2)">⏳ Diagnosing…</div>
+  </template>
+
+  <template x-if="!improveLoading && improveResult">
+    <div>
+      <div style="padding:10px 14px;background:var(--bg2);border-radius:6px;margin-bottom:14px;font-size:12px;color:var(--text2)">
+        Detection mode: <strong x-text="improveResult.detection_mode"></strong>
+        <span x-show="improveResult.regression_threshold!=null">
+          &nbsp;·&nbsp;regression threshold: <strong x-text="(improveResult.regression_threshold*100).toFixed(0)+'%'"></strong>
+        </span>
+      </div>
+
+      <template x-if="!improveResult.detected_gates.length">
+        <div style="padding:16px;text-align:center;color:var(--green)">✅ No regressed / failing Gates detected.</div>
+      </template>
+
+      <template x-if="improveResult.multi_gate_note">
+        <div style="padding:10px 14px;background:var(--bg3);border:1px solid var(--yellow);border-radius:6px;margin-bottom:14px;font-size:12px">
+          ⚠️ <span x-text="improveResult.multi_gate_note"></span>
+        </div>
+      </template>
+
+      <template x-for="finding in improveResult.findings" :key="finding.gate">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;margin-bottom:8px">
+            Gate <span x-text="finding.gate"></span> —
+            score <span x-text="finding.current_score!=null?finding.current_score.toFixed(4):'—'"></span>
+            <template x-if="finding.baseline_score!=null">
+              <span style="color:var(--text2);font-weight:400"> (baseline <span x-text="finding.baseline_score.toFixed(4)"></span>)</span>
+            </template>
+          </div>
+
+          <template x-if="finding.top_detail_deltas && finding.top_detail_deltas.length">
+            <div style="overflow-x:auto;margin-bottom:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                <th style="text-align:left;padding:4px">Field</th><th style="text-align:right;padding:4px">Baseline</th>
+                <th style="text-align:right;padding:4px">Current</th><th style="text-align:right;padding:4px">Δ</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="d in finding.top_detail_deltas" :key="d.field">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:4px" x-text="d.field"></td>
+                    <td style="padding:4px;text-align:right" x-text="d.baseline!=null?d.baseline.toFixed(4):'—'"></td>
+                    <td style="padding:4px;text-align:right" x-text="d.current!=null?d.current.toFixed(4):'—'"></td>
+                    <td style="padding:4px;text-align:right"
+                        :style="d.delta<0?'color:var(--red)':(d.delta>0?'color:var(--green)':'')"
+                        x-text="d.delta!=null?(d.delta>0?'+':'')+d.delta.toFixed(4):'—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            </div>
+          </template>
+
+          <template x-if="finding.cross_references && finding.cross_references.length">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:6px">
+              <div style="font-weight:600;margin-bottom:4px">Related violation history:</div>
+              <template x-for="(ref, i) in finding.cross_references" :key="i">
+                <div>• <span x-text="(ref.summary||ref.text||JSON.stringify(ref)).slice(0,120)"></span></div>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="finding.mast_candidates && finding.mast_candidates.length">
+            <div style="font-size:12px;margin-top:8px">
+              <div style="font-weight:600;color:var(--text2);margin-bottom:4px">MAST candidate failure modes (Cemri et al., NeurIPS 2025 — not a verdict):</div>
+              <template x-for="m in finding.mast_candidates" :key="m.code">
+                <div style="padding:6px 10px;background:var(--bg2);border-radius:6px;margin-bottom:4px">
+                  <strong x-text="'['+m.code+'] '+m.name"></strong> — <span x-text="m.description"></span>
+                  <div style="color:var(--text2);margin-top:2px">→ <span x-text="m.remediation"></span></div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="improveResult.experiment_metadata">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;margin-bottom:6px">
+            Code changes (git <span x-text="improveResult.experiment_metadata.from_commit"></span>..<span x-text="improveResult.experiment_metadata.to_commit"></span>)
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px" x-text="improveResult.experiment_metadata.diff_stat_summary"></div>
+          <template x-for="c in improveResult.experiment_metadata.commits_between" :key="c.sha">
+            <div style="font-size:12px;font-family:monospace">
+              <span x-text="c.sha"></span> <span style="color:var(--text2)" x-text="c.date+' '+c.author"></span> — <span x-text="c.subject"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <div style="font-size:11px;color:var(--text2);padding:10px;background:var(--bg2);border-radius:6px">
+        This report shows candidate causes and evidence only — it does not assert a verdict. Final judgment is human (HOTL, Harness Method Ch.2).
+      </div>
+    </div>
+  </template>
+
+  <div class="sdiv" style="margin-top:24px"><div class="sdiv-lbl">Recommendation Outcome History</div><div class="sdiv-line"></div></div>
+  <template x-if="improveRecommendations && improveRecommendations.summary.total">
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span class="badge-info" x-text="'Total: '+improveRecommendations.summary.total"></span>
+      <span class="badge-ok" x-text="'Confirmed: '+improveRecommendations.summary.confirmed"></span>
+      <span class="badge-ng" x-text="'Refuted: '+improveRecommendations.summary.refuted"></span>
+      <span class="badge-gray" x-text="'Inconclusive: '+improveRecommendations.summary.inconclusive"></span>
+    </div>
+  </template>
+  <template x-if="improveRecommendations && !improveRecommendations.summary.total">
+    <div style="padding:16px;text-align:center;color:var(--text2);font-size:12px">No recommendation outcomes recorded yet — record one with <code>rca.record_recommendation_outcome()</code>.</div>
+  </template>
+  <template x-if="improveRecommendations && improveRecommendations.outcomes.length">
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+          <th style="text-align:left;padding:4px">Recorded</th><th style="text-align:left;padding:4px">Recommendation</th>
+          <th style="text-align:left;padding:4px">Gate</th><th style="text-align:left;padding:4px">Verdict</th>
+          <th style="text-align:right;padding:4px">Δ Score</th><th style="text-align:left;padding:4px">Note</th>
+        </tr></thead>
+        <tbody>
+          <template x-for="(o, i) in improveRecommendations.outcomes" :key="i">
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:4px" x-text="(o.recorded_at||'').slice(0,19).replace('T',' ')"></td>
+              <td style="padding:4px" x-text="o.recommendation_id"></td>
+              <td style="padding:4px" x-text="o.target_gate"></td>
+              <td style="padding:4px">
+                <span :style="o.verdict==='confirmed'?'color:var(--green)':(o.verdict==='refuted'?'color:var(--red)':'color:var(--text2)')" x-text="o.verdict"></span>
+              </td>
+              <td style="padding:4px;text-align:right" x-text="o.gate_delta!=null?(o.gate_delta>0?'+':'')+o.gate_delta.toFixed(4):'—'"></td>
+              <td style="padding:4px;color:var(--text2)" x-text="o.note||''"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </template>
+</section>
+
 <!-- ═══════════════ GOLDEN DATASET ═══════════════ -->
 <section id="s-golden" class="sec" x-show="sec==='golden'" x-cloak
          x-effect="if(sec==='golden' && !goldenFiles.length) { loadGolden() }">
@@ -7068,7 +7241,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
 
   <!-- ── Layer 1 ── -->
   <div x-show="mf==='all'||mf==='gA'||mf==='gC'||mf==='gD'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Foundation Metrics (6)<span class="grp-chip grp-A">A TCR·Accuracy·Quality</span><span class="grp-chip grp-C">C Hallucination</span><span class="grp-chip grp-D">D Latency·Tokens</span></span><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Foundation Metrics (7)<span class="grp-chip grp-A">A TCR·Accuracy·Quality</span><span class="grp-chip grp-C">C Hallucination</span><span class="grp-chip grp-G">G Hallucination</span><span class="grp-chip grp-D">D Latency</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
     <!-- L1 cards -->
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
@@ -7132,11 +7305,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
           <span class="grp-chip grp-C" style="margin-left:0;font-size:9.5px">C Reliability</span>
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
           <span class="badge-warn" style="font-size:10px">Reliability</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(245,158,11,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Detects how often the AI generates content inconsistent with facts</strong>.<br>
+        <strong>Detects how often the AI generates content inconsistent with facts</strong>. Feeds both Gate C (<code style="font-size:10px">_rel_vals</code>) and Gate G (<code style="font-size:10px">_obs_vals</code>) as a fallback when no per-task LLM Judge faithfulness score is recorded.<br>
         Early detection of RAG quality issues and prompt design flaws.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Activation · Detection Types</summary>
@@ -7218,12 +7392,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Cost Efficiency · L1 Cost</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-D" style="margin-left:0;font-size:9.5px">D Perf. Contract</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span class="badge-ok" style="font-size:10px">Cost</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Tracks cost efficiency and token usage patterns of the AI agent</strong>.<br>
+        <strong>Tracks cost efficiency and token usage patterns of the AI agent</strong>. Report/ops-only — tracked and shown on the dashboard but does not feed any Gate A–G score.<br>
         Provides the basis for cost forecasting and model selection optimization at scale.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Usage Tips</summary>
@@ -7238,6 +7412,31 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 ≤$0.05 Good</span>
         <span class="badge-fail">🔴 &gt;$0.05 Caution</span>
       </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #94a3b8">
+      <div class="row-between">
+        <div class="hstack"><span class="icon-lg">🖼️</span>
+          <div><div class="val-sm">Multimodal — Modality Mix</div>
+          <div class="text-muted">Image/Audio/Video/Text usage · L1 Ops</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
+          <span class="badge-ok" style="font-size:10px">Report only</span>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(148,163,184,.07);border-radius:5px;margin-bottom:8px">
+        <strong>Aggregates image/audio/video/text usage from each task's <code style="font-size:10.5px">extra</code> dict</strong>. Report/ops-only — does not feed any Gate A–G score.
+      </div>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ Fields read</summary>
+        <div class="hint-text">
+          Reads <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">extra["image_count"]</code>,
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">extra["audio_duration_seconds"]</code>,
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">extra["video_frames"]</code> —
+          a task with none of the three is counted as <code style="font-size:10.5px">"text"</code>.
+        </div>
+      </details>
+      <div class="code-hint">📐 modality_mix: Dict[modality → task_count]</div>
     </div>
   </div><!-- /l1 grid -->
   </div><!-- /l1 -->
@@ -7540,7 +7739,8 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
 
   <!-- ── Gates A·C — Hybrid/External ── -->
   <div x-show="mf==='all'||mf==='gA'||mf==='gB'||mf==='gC'||mf==='gD'||mf==='gE'||mf==='gF'||mf==='gG'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Hybrid / External Evaluation (4)<span class="grp-chip grp-A">A DeepEval·LLMJudge</span><span class="grp-chip grp-C">C Ragas·Hallucination</span></span><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Hybrid / External Evaluation (4)<span class="grp-chip grp-C">C LLMJudge·Ragas·Hallucination</span></span><div class="sdiv-line"></div></div>
+  <div style="font-size:11px;color:var(--text2);margin:-6px 0 10px">ℹ️ Layer 3/Hybrid — <code style="font-size:10px">LLMJudge</code>, Ragas, and DeepEval are separate from the 25 Native Trackers count (base install includes them, but they're not counted among the 25). Deployment Gates is the <code style="font-size:10px">agent-eval gate</code> CI feature, not a tracker.</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
@@ -7608,12 +7808,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">5 dimensions + Faithfulness + G-Eval · L3 Native</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A Goal Achievement</span>
+          <span class="grp-chip grp-C" style="margin-left:0;font-size:9.5px">C Reliability</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>LLM directly scores response quality across 5 dimensions without ground_truth</strong>.<br>
+        <strong>LLM directly scores response quality across 5 dimensions without ground_truth</strong>. Per-task faithfulness feeds Gate C (<code style="font-size:10px">_rel_vals</code>) and takes priority over HallucinationDetector's fallback when both are recorded.<br>
         <code>rag_mode=True</code> → <strong>Faithfulness</strong> (replaces Ragas), <code>judge_criteria</code> → <strong>G-Eval custom</strong> (replaces DeepEval) auto-added. No external packages required.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Dimension layout · conditional expansion</summary>
@@ -7667,7 +7867,8 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
 
   <!-- ── Gates G·D — Operational / Extended ── -->
   <div x-show="mf==='all'||mf==='gG'||mf==='gD'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Operational Features (5)<span class="grp-chip grp-G">G Anomaly·Alerts·Streaming·Conversation</span><span class="grp-chip grp-D">D Eval Cost</span></span><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Operational Support Trackers (8)<span class="grp-chip" style="background:rgba(148,163,184,.15);color:#94a3b8">No Gate score — report/ops only</span></span><div class="sdiv-line"></div></div>
+  <div style="font-size:11px;color:var(--text2);margin:-6px 0 10px">ℹ️ These 8 trackers (<code style="font-size:10px">ImplicitFeedbackTracker</code>, <code style="font-size:10px">ConversationSession</code>, <code style="font-size:10px">ConversationMetrics</code>, <code style="font-size:10px">AnomalyDetector</code>, <code style="font-size:10px">CostTracker</code>, <code style="font-size:10px">AdaptivePolicy</code>, <code style="font-size:10px">SamplingStage</code>, <code style="font-size:10px">StreamingEvaluator</code>) complete the 25 Native Trackers, but none of them contribute to a Gate A–G score. <code style="font-size:10px">AlertEngine</code> below is alerting infrastructure, not one of the 25.</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
@@ -7677,13 +7878,13 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Conversation quality · Multi-turn flow analysis</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">Conversation</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>Evaluates overall quality of multi-turn conversation sessions across 6 dimensions</strong>.<br>
-        Structurally measures context retention, topic coherence, depth progression, and session completion — beyond simple accuracy.
+        Structurally measures context retention, topic coherence, depth progression, and session completion — beyond simple accuracy. <code style="font-size:10.5px">compute_metrics()</code> returns a <code style="font-size:10.5px">ConversationMetrics</code> dataclass holding these 6 dimensions.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ 6 measurement dimensions</summary>
         <div class="hint-text">
@@ -7710,7 +7911,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Statistical anomaly pattern auto-detection</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">Anomaly</span>
         </div>
       </div>
@@ -7739,15 +7940,15 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
       <div class="row-between">
         <div class="hstack"><span class="icon-lg">🔔</span>
           <div><div class="val-sm">AlertEngine — Alert Engine</div>
-          <div class="text-muted">Auto alert on threshold breach</div></div>
+          <div class="text-muted">Auto alert on threshold breach · alerting infra, not a tracker</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">Not one of the 25</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">Alerts</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Sends real-time alerts when a metric exceeds a preset threshold</strong>.<br>
+        <strong>Sends real-time alerts when a metric exceeds a preset threshold</strong>. Lives in <code style="font-size:10px">alerts/</code> as alerting infrastructure — not one of the 25 Native Trackers.<br>
         Flexibly configure conditions, severity, and handlers via AlertRule. Supports multiple channels: Slack, email, webhook.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Alert rule configuration</summary>
@@ -7772,7 +7973,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Sliding window · Online evaluation</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">Streaming</span>
         </div>
       </div>
@@ -7797,11 +7998,11 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
       <div class="row-between">
         <div class="hstack"><span class="icon-lg">💸</span>
-          <div><div class="val-sm">CostTracker / AdaptivePolicy — Cost Tracking &amp; Adaptive Policy</div>
+          <div><div class="val-sm">CostTracker / AdaptivePolicy / SamplingStage — Cost Tracking &amp; Adaptive Sampling</div>
           <div class="text-muted">Evaluation cost control · Auto sampling adjustment</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-D" style="margin-left:0;font-size:9.5px">D Perf. Contract</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">Cost</span>
         </div>
       </div>
@@ -7809,10 +8010,10 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <strong>Tracks external evaluation API call costs and automatically reduces the sampling rate when the budget is exceeded</strong>.<br>
         Prevents cost explosions from paid external evaluations such as DeepEval, Ragas, and LLM Judge.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ AdaptivePolicy behavior</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ AdaptivePolicy / SamplingStage behavior</summary>
         <div class="hint-text">
-          3-stage sampling adjustment: Full(100%) → Reduced → Minimal<br>
-          Budget usage 70% → Reduced(50%), 90% → Minimal(10%) auto-switch.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">SamplingStage</code> — the 3-stage sampling adjustment enum itself: Full(100%) → Reduced → Minimal<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">AdaptivePolicy</code> — drives the switch: budget usage 70% → Reduced(50%), 90% → Minimal(10%).<br>
           <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">CostTracker.get_daily_stats()</code> — query today's cost, call count, and provider breakdown.
         </div>
       </details>
@@ -7822,6 +8023,30 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% Auto-reduced</span>
         <span class="badge-fail">🔴 ≥90% Minimal sampling</span>
       </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #94a3b8">
+      <div class="row-between">
+        <div class="hstack"><span class="icon-lg">👍</span>
+          <div><div class="val-sm">ImplicitFeedbackTracker — User Reaction Signals</div>
+          <div class="text-muted">Implicit feedback · copy/retry/thumbs</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
+          <span class="badge-ok" style="font-size:10px">Feedback</span>
+        </div>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(148,163,184,.07);border-radius:5px;margin-bottom:8px">
+        <strong>Aggregates implicit user reaction signals (copy, regenerate, thumbs up/down, share, save, abandon, follow-up, correction) per task</strong>. Feeds the <code style="font-size:10.5px">feedback_negativity</code> anomaly check in <code style="font-size:10.5px">AnomalyDetector</code>; does not feed a Gate A–G score itself.
+      </div>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ Feedback types</summary>
+        <div class="hint-text">
+          <strong>Positive</strong> — <code style="font-size:10.5px">copy</code>, <code style="font-size:10.5px">thumbs_up</code>, <code style="font-size:10.5px">share</code>, <code style="font-size:10.5px">save</code>, <code style="font-size:10.5px">follow_up_depth</code><br>
+          <strong>Negative</strong> — <code style="font-size:10.5px">regenerate</code>, <code style="font-size:10.5px">thumbs_down</code>, <code style="font-size:10.5px">abandon</code>, <code style="font-size:10.5px">correction</code><br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">record(task_id, feedback_type, metadata=None)</code> — call whenever a UI reaction is observed.
+        </div>
+      </details>
+      <div class="code-hint">📐 positive_rate = positive_count / total &nbsp;|&nbsp; regenerate_rate, abandon_rate tracked separately</div>
     </div>
 
   </div>
@@ -10130,6 +10355,10 @@ function app2() {
     /* compare — SPEC-025: group_by(prompt_version/agent_version) + pairwise judge */
     compareGroupBy: '', compareGroupLoading: false, compareGroupTotal: 0,
     comparePairwise: null, comparePairwiseLoading: false,
+    /* improve — Phase 8: Gate RCA & recommendation outcome history */
+    improveCurrentId: '', improveBaselineId: '', improveShowDiff: false,
+    improveResult: null, improveLoading: false, improveError: null,
+    improveRecommendations: null,
     /* regression */
     prevData: null, prevLoading: false,
     /* golden */
@@ -10321,6 +10550,8 @@ function app2() {
         badge: d => { const n=(d.insights?.alerts||[]).length; return n?n+' alerts':'OK'; } },
       { id:'compare',      label:'File Compare',        icon:'📂', scope:'global',
         badge: d => { const n=(d._allFiles||this.files||[]).length; return n>1?n+' files':'—'; } },
+      { id:'improve',      label:'Improve',           icon:'🔧', scope:'global',
+        badge: d => { const n=(this.improveResult?.detected_gates||[]).length; return n?n+' gates':'—'; } },
       { id:'review',       label:'Case Review',      icon:'🗂️', scope:'global',
         badge: d => { const n=(d.golden_candidates||[]).length; return n?n+' items':'—'; } },
       { id:'golden',       label:'Golden Dataset',    icon:'📚', scope:'global',
@@ -11036,6 +11267,33 @@ function app2() {
       if (this.cmpTab === 'pairwise') params.set('pairwise', 'true');
       return `/api/export/html/compare?${params.toString()}`;
     },
+    /* improve — Phase 8: agent_evaluator.rca.diagnose()를 대시보드에 노출 */
+    async loadImproveDiagnosis() {
+      if (!this.improveCurrentId) return;
+      this.improveLoading = true;
+      this.improveError = null;
+      this.improveResult = null;
+      try {
+        const params = new URLSearchParams();
+        if (this.improveBaselineId) params.set('baseline_id', this.improveBaselineId);
+        if (this.improveShowDiff) params.set('show_diff', 'true');
+        const r = await fetch(`/api/diagnose/${this.improveCurrentId}?${params.toString()}`);
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          this.improveError = body.detail || `Diagnosis failed (${r.status})`;
+          return;
+        }
+        this.improveResult = await r.json();
+      } catch(e) { console.warn('diagnose error', e); this.improveError = String(e); }
+      finally { this.improveLoading = false; }
+    },
+    async loadImproveRecommendations() {
+      try {
+        const r = await fetch('/api/diagnose/');
+        if (!r.ok) { console.warn('recommendations fetch failed', r.status); return; }
+        this.improveRecommendations = await r.json();
+      } catch(e) { console.warn('recommendations error', e); }
+    },
     drawCompareChart() {
       if (this.compareData.length < 2) return;
       // 개요 에이전트 역량 레이더와 동일한 6축 · 0–1 정규화
@@ -11349,7 +11607,7 @@ function app2() {
       this.settingsData = { ...p };
     },
     async testWebhook() {
-      if (!this.webhookUrl.startsWith('https://')) { this.webhookResult = { ok: false, status: 0, error: 'URL은 https://로 시작해야 합니다' }; return; }
+      if (!this.webhookUrl.startsWith('https://')) { this.webhookResult = { ok: false, status: 0, error: 'URL must start with https://' }; return; }
       this.webhookLoading = true; this.webhookResult = null;
       try {
         let payload; try { payload = JSON.parse(this.webhookPayload); } catch { payload = this.webhookPayload; }

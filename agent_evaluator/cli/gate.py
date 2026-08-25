@@ -24,8 +24,9 @@ from typing import Any
 
 from agent_evaluator.cli._utils import _supports_color
 
-# SPEC-010 REQ-2: Harness Gate A-G 회귀 판정 로직을 quick_eval.py와 공유한다(HarnessEvaluationGate
-# Python API와 동일한 판정 공식 — 중복 구현 방지).
+# SPEC-010 REQ-2 / 구조변경③: Harness Gate A-G 판정 로직을 quick_eval.py/gates/base.py와
+# 공유한다(HarnessEvaluationGate Python API·QuickEval.gate()와 동일한 판정 공식 — 중복 구현 방지).
+from agent_evaluator.gates.base import evaluate_gate_scores
 from agent_evaluator.quick_eval import _compute_gate_regressions
 
 # ---------------------------------------------------------------------------
@@ -898,6 +899,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
         }
 
     # ── Gate별 개별 임계값 검증 (--gate-thresholds) ──────────────────────────
+    # 구조변경③(3경로 완전 통합): gates/base.py의 evaluate_gate_scores()가 이 루프의
+    # 단일 정본 — HarnessEvaluationGate.evaluate()/QuickEval.gate()와 동일 함수를 호출한다.
     gate_threshold_violations: list[str] = []
     gate_threshold_str = getattr(args, "gate_thresholds", None)
     if gate_threshold_str:
@@ -907,33 +910,26 @@ def cmd_gate(args: argparse.Namespace) -> int:
             print(f"{RD}❌ --gate-thresholds error: {exc}{R}", file=sys.stderr)
             return 1
         required_gates_raw = getattr(args, "required_gates", None)
-        required_set = (
-            set(g.strip().upper() for g in required_gates_raw.split(","))
-            if required_gates_raw else None
+        required_ids = (
+            [g.strip().upper() for g in required_gates_raw.split(",")]
+            if required_gates_raw else list("ABCDEFG")
         )
         fail_on_warn = getattr(args, "fail_on_gate_warn", False)
         harness_raw = (data.get("extra_metrics") or {}).get("harness_groups", {})
         min_gate_fallback = getattr(args, "min_gate_score", None)
-        for gate_id in "ABCDEFG":
-            if required_set is not None and gate_id not in required_set:
-                continue
-            gate_data = harness_raw.get(gate_id)
-            if not isinstance(gate_data, dict):
-                continue
-            score = gate_data.get("score")
-            if score is None:
-                continue
-            threshold = gate_thresholds.get(gate_id, min_gate_fallback)
-            if threshold is None:
-                continue
-            score_f = float(score)
-            status = gate_data.get("status", "")
-            passed = score_f >= threshold
-            if fail_on_warn and status == "warn":
-                passed = False
-            if not passed:
-                reason = f"status={status}" if (fail_on_warn and status == "warn") else f"{score_f:.3f} < {threshold:.3f}"
-                gate_threshold_violations.append(f"Gate {gate_id}: {reason}")
+        _gate_results = evaluate_gate_scores(
+            harness_raw, gate_ids=required_ids, thresholds=gate_thresholds,
+            default_threshold=min_gate_fallback, fail_on_warn=fail_on_warn,
+        )
+        for gate_id, _r in _gate_results.items():
+            if _r.get("not_measured") or _r["passed"]:
+                continue  # 기존 동작: score=None은 조용히 건너뜀(실패 아님)
+            status = _r["status"]
+            reason = (
+                f"status={status}" if (fail_on_warn and status == "warn")
+                else f"{_r['score']:.3f} < {_r['threshold']:.3f}"
+            )
+            gate_threshold_violations.append(f"Gate {gate_id}: {reason}")
 
         if gate_threshold_violations:
             print(f"\n{RD}Gate 임계값 미달:{R}", file=sys.stderr)

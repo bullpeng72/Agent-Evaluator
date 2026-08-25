@@ -1666,25 +1666,20 @@ def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
 def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              hall_rate: float, latency: float,
                              quality_metrics: dict) -> str:
+    from agent_evaluator.ontology.metric_registry import GATE_GUIDANCE, evaluate_native_metric_rules
+
     recs = []
 
-    # Gate-based FAIL/WARN recommendations
-    gate_labels = {
-        "A": ("Goal Achievement", "Improve TCR, accuracy, and hallucination metrics. Add InstructionConfig / GoalAlignmentConfig to your decorator to enable detailed tracking."),
-        "B": ("Behavioral Integrity", "Strengthen loop detection and scope compliance settings. Tune LoopDetectionConfig / ScopeConfig parameters."),
-        "C": ("Reliability", "Review retry policies and fault-tolerance mechanisms. Enable FaultToleranceConfig to measure recovery rate."),
-        "D": ("Performance Contract", "SLA threshold exceeded. Use SLAConfig to define response time limits and monitor P95 latency."),
-        "E": ("Security Boundary", "Security threats detected. Enable enable_security_metrics=True and ThreatSeverityConfig."),
-        "F": ("Multi-Agent Coordination", "Agent collaboration score is low. Add ConsensusConfig / ConflictResolutionConfig."),
-        "G": ("Observability", "Strengthen explainability and observability metrics. Enable ExplainabilityConfig / ObservabilityConfig."),
-    }
+    # Gate-based FAIL/WARN recommendations — 지식(라벨+안내문)은 ontology.metric_registry에서.
     for key in "ABCDEFG":
         gdata = harness_groups.get(key, {})
         if not isinstance(gdata, dict):
             continue
         gate_status = (gdata.get("gate") or gdata.get("status") or "").lower()
         if gate_status in ("fail", "warn"):
-            label, guide = gate_labels.get(key, (f"Gate {key}", "Review configuration."))
+            _default = GATE_GUIDANCE.get(key)
+            label = _default.label if _default else f"Gate {key}"
+            guide = _default.guidance if _default else "Review configuration."
             priority_class = "priority-high" if gate_status == "fail" else "priority-medium"
             badge_cls = "badge-fail" if gate_status == "fail" else "badge-warn"
             badge_label = "FAIL" if gate_status == "fail" else "WARN"
@@ -1695,26 +1690,14 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                 f'</div>'
             )
 
-    # Native metric recommendations
-    if tcr < 75:
+    # Native metric recommendations — 임계값 규칙도 ontology.metric_registry에서.
+    for _rule in evaluate_native_metric_rules(
+        tcr=tcr, accuracy=acc, hallucination_rate=hall_rate, latency=latency,
+    ):
+        _priority_class = "priority-high" if _rule.priority == "high" else "priority-medium"
         recs.append(
-            '<div class="rec priority-high"><strong>TCR Improvement Needed</strong>'
-            '<p>Task completion rate is below 75%. Improve agent prompts and analyze failure cases.</p></div>'
-        )
-    if acc < 70:
-        recs.append(
-            '<div class="rec priority-high"><strong>Accuracy Improvement Needed</strong>'
-            '<p>Accuracy is below 70%. Review RAG context quality or ground_truth configuration.</p></div>'
-        )
-    if hall_rate > 0.2:
-        recs.append(
-            '<div class="rec priority-high"><strong>High Hallucination Risk</strong>'
-            '<p>Hallucination rate exceeds 20%. Strengthen fact-verification logic.</p></div>'
-        )
-    if latency > 5.0:
-        recs.append(
-            '<div class="rec priority-medium"><strong>Response Latency Improvement Needed</strong>'
-            '<p>Average response time exceeds 5s. Consider parallel processing or caching.</p></div>'
+            f'<div class="rec {_priority_class}"><strong>{_rule.title}</strong>'
+            f'<p>{_rule.guidance}</p></div>'
         )
 
     if not recs:
@@ -1730,6 +1713,148 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
         '<h2 style="color:#6366f1">Recommendations</h2>'
         + ''.join(recs)
         + '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate RCA diagnosis — 대시보드 "Improve" 탭과 동일한 rca.diagnose()를 정적
+# HTML 리포트에도 반영한다(새 판정 로직 없음, serve/routers/diagnose.py와 동일
+# 호출 패턴 재사용).
+# ---------------------------------------------------------------------------
+
+def _build_diagnosis(
+    current_dict: dict[str, Any],
+    baseline_dict: dict[str, Any] | None = None,
+    *,
+    recommendation_log_path: Any = None,
+) -> str:
+    """Gate RCA 진단(``rca.diagnose()``) + 추천 이력을 정적 HTML 섹션으로 렌더링한다.
+
+    ``agent-eval diagnose`` CLI(``cli/diagnose.py::_print_finding()``)·대시보드
+    Improve 탭과 동일한 필드를 그대로 옮긴다 — 여기서 새로 계산하는 값은 없다.
+    """
+    from agent_evaluator.rca import diagnose
+    from agent_evaluator.rca.recommendation_tracking import (
+        load_recommendation_outcomes,
+        summarize_recommendation_outcomes,
+    )
+
+    try:
+        result = diagnose(current_dict, baseline_dict)
+    except Exception as e:
+        return (
+            '<div class="gate-section" id="diagnosis" style="border-left-color:#0ea5e9">'
+            '<h2 style="color:#0ea5e9">🔍 Gate RCA Diagnosis</h2>'
+            f'<p style="color:#6b7280">Could not compute diagnosis: {_esc(str(e))}</p></div>'
+        )
+
+    blocks: list[str] = []
+
+    mode_label = {
+        "regression_vs_baseline": "Regression-based detection (vs baseline)",
+        "absolute_threshold": "Absolute-threshold detection (current fail/warn state)",
+    }.get(result["detection_mode"], result["detection_mode"])
+    blocks.append(
+        f'<p style="color:#6b7280;margin:0 0 12px">Detection mode: {_esc(mode_label)}</p>'
+    )
+
+    if result.get("multi_gate_note"):
+        blocks.append(
+            f'<div class="rec priority-medium"><p>⚠️ {_esc(result["multi_gate_note"])}</p></div>'
+        )
+
+    sla_check = result.get("sla_shared_cause_check")
+    if sla_check:
+        blocks.append(f'<div class="rec priority-medium"><p>{_esc(sla_check["note"])}</p></div>')
+
+    if not result["detected_gates"]:
+        blocks.append(
+            '<div class="rec" style="border-left-color:#10b981">'
+            '<strong style="color:#065f46">No regression or fail/warn Gate detected</strong>'
+            '<p>No Gate is currently in a regression or fail/warn state.</p></div>'
+        )
+    for finding in result["findings"]:
+        gate = finding["gate"]
+        cur = finding["current_score"]
+        base = finding["baseline_score"]
+        cur_str = f"{cur:.4f}" if cur is not None else "n/a"
+        base_str = f" (baseline {base:.4f})" if base is not None else ""
+        rows = []
+        for d in finding["top_detail_deltas"]:
+            delta = d["delta"]
+            delta_str = f"{delta:+.4f}" if delta is not None else "n/a"
+            delta_color = "#dc2626" if (delta is not None and delta < 0) else "#16a34a"
+            b_str = f"{d['baseline']:.4f}" if d["baseline"] is not None else "n/a"
+            c_str = f"{d['current']:.4f}" if d["current"] is not None else "n/a"
+            rows.append(
+                f'<tr><td>{_esc(d["field"])}</td><td>{b_str}</td><td>{c_str}</td>'
+                f'<td style="color:{delta_color}">{delta_str}</td></tr>'
+            )
+        table = (
+            '<table class="mtable"><thead><tr><th>Metric</th><th>Baseline</th>'
+            f'<th>Current</th><th>Delta</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
+            if rows else '<p style="color:#9ca3af">No comparable detail metrics</p>'
+        )
+        refs_html = ""
+        refs = finding.get("cross_references") or []
+        if refs:
+            items = "".join(
+                f'<li>{_esc((r.get("summary") or r.get("text") or str(r))[:120])}</li>'
+                for r in refs[:5]
+            )
+            refs_html = (
+                f'<p style="margin:8px 0 4px;color:#6b7280">Related violation history:</p>'
+                f'<ul>{items}</ul>'
+            )
+        mast_html = ""
+        mast = finding.get("mast_candidates") or []
+        if mast:
+            cards = "".join(
+                f'<div class="rec priority-medium">'
+                f'<strong>[{_esc(m["code"])}] {_esc(m["name"])}</strong>'
+                f'<p>{_esc(m["description"])}</p>'
+                f'<p style="color:#6b7280">→ {_esc(m["remediation"])}</p></div>'
+                for m in mast
+            )
+            mast_html = (
+                '<p style="margin:8px 0 4px;color:#6b7280">MAST candidate failure modes '
+                '(Cemri et al., NeurIPS 2025 — not a conclusion):</p>' + cards
+            )
+        blocks.append(
+            f'<div class="rec priority-high"><strong>Gate {_esc(gate)}</strong> — '
+            f'score {cur_str}{base_str}{table}{refs_html}{mast_html}</div>'
+        )
+
+    outcomes_html = ""
+    if recommendation_log_path is not None:
+        outcomes = load_recommendation_outcomes(recommendation_log_path)
+        if outcomes:
+            summary = summarize_recommendation_outcomes(outcomes)
+            outcome_rows = "".join(
+                f'<tr><td>{_esc(o.get("recorded_at", "")[:19])}</td>'
+                f'<td>{_esc(o.get("target_gate", ""))}</td>'
+                f'<td>{_esc(o.get("verdict", ""))}</td>'
+                f'<td>{o.get("gate_delta") if o.get("gate_delta") is not None else "n/a"}</td>'
+                f'<td>{_esc(o.get("note") or "")}</td></tr>'
+                for o in outcomes[-10:]
+            )
+            outcomes_html = (
+                '<h3 style="margin-top:20px">Improvement history '
+                f'(confirmed {summary["confirmed"]} · refuted {summary["refuted"]} · '
+                f'inconclusive {summary["inconclusive"]})</h3>'
+                '<table class="mtable"><thead><tr><th>Recorded</th><th>Gate</th><th>Verdict</th>'
+                f'<th>Δ</th><th>Note</th></tr></thead><tbody>{outcome_rows}</tbody></table>'
+            )
+
+    return (
+        '<div class="gate-section" id="diagnosis" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#0ea5e9">🔍 Gate RCA Diagnosis (Improve)</h2>'
+        + ''.join(blocks)
+        + outcomes_html
+        + '<p style="color:#9ca3af;font-size:12px;margin-top:12px">'
+        'HOTL — this section presents candidate causes and evidence only. '
+        'The final judgment is yours.</p>'
+        '</div>'
     )
 
 
@@ -1821,11 +1946,15 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
 # generate_comprehensive_html_report(monitor)
 # ---------------------------------------------------------------------------
 
-def generate_comprehensive_html_report(monitor) -> str:
+def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None = None) -> str:
     """Generate Harness Gate A–G 중심 종합 HTML 리포트.
 
     Args:
         monitor: PerformanceMonitor or HybridPerformanceMonitor instance.
+        baseline: (선택) 비교 기준 결과 dict — 주어지면 Gate RCA 진단 섹션이
+            회귀 기반 감지(``regression_vs_baseline``)로 동작한다. 생략하면
+            현재 fail/warn 상태 기반 감지(``absolute_threshold``)로 폴백한다
+            (``rca.diagnose()``와 동일 규칙, 기존 호출부는 동작 변경 없음).
 
     Returns:
         Self-contained HTML string.
@@ -2000,6 +2129,17 @@ def generate_comprehensive_html_report(monitor) -> str:
         pass
     has_conversation = bool(conversation_sessions)
 
+    # Gate RCA 진단 — baseline 없이도 절대 임계값 기반으로 동작(rca.diagnose() 참고).
+    diagnosis_html = ""
+    try:
+        current_dict = report.to_dict()
+        recommendation_log_path = monitor.output_dir / "recommendation_outcomes.jsonl"
+        diagnosis_html = _build_diagnosis(
+            current_dict, baseline, recommendation_log_path=recommendation_log_path,
+        )
+    except Exception:
+        pass
+
     # Build HTML
     parts = [
         _build_css(),
@@ -2014,6 +2154,7 @@ def generate_comprehensive_html_report(monitor) -> str:
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        diagnosis_html,
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
         '</div></body></html>',
     ]
@@ -2024,11 +2165,13 @@ def generate_comprehensive_html_report(monitor) -> str:
 # generate_html_from_result_file(rf)  — Dashboard export router용
 # ---------------------------------------------------------------------------
 
-def generate_html_from_result_file(rf) -> str:
+def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -> str:
     """ResultFile 객체에서 Harness Gate A–G 중심 HTML 리포트를 생성한다.
 
     Args:
         rf: loader.ResultFile 인스턴스
+        baseline: (선택) 비교 기준 결과 dict — ``generate_comprehensive_html_report()``의
+            동일 인자와 같은 규칙(Gate RCA 진단 섹션의 감지 모드 전환).
 
     Returns:
         Self-contained HTML string.
@@ -2133,6 +2276,16 @@ def generate_html_from_result_file(rf) -> str:
     has_conversation = getattr(rf, "has_conversation", False)
     conversation_sessions: list = rf.conversation_sessions if has_conversation else []
 
+    # Gate RCA 진단 — baseline 없이도 절대 임계값 기반으로 동작(rca.diagnose() 참고).
+    diagnosis_html = ""
+    try:
+        recommendation_log_path = rf.path.parent / "recommendation_outcomes.jsonl"
+        diagnosis_html = _build_diagnosis(
+            rf.raw, baseline, recommendation_log_path=recommendation_log_path,
+        )
+    except Exception:
+        pass
+
     # Build HTML
     parts = [
         _build_css(),
@@ -2147,6 +2300,7 @@ def generate_html_from_result_file(rf) -> str:
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        diagnosis_html,
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
         '</div></body></html>',
     ]

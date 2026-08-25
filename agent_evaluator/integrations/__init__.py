@@ -20,6 +20,8 @@ AutoGenEvaluator, create_evaluated_*, LLMHelper, ClaudeHelper) 제거.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 # ============================================================================
 # Lightweight utility functions — 즉시 로드 (외부 의존성 없음)
 # ============================================================================
@@ -57,6 +59,15 @@ _LAZY = {
     "PydanticAIEvaluator": (".pydanticai_integration", "PydanticAIEvaluator"),
     "PydanticAITokenExtractor": (".pydanticai_integration", "PydanticAITokenExtractor"),
 }
+
+
+# __all__에 포함된 lazy-import 이름들을 정적 분석기(Pylance/pyright)가
+# reportUnsupportedDunderAll 없이 인식하도록 TYPE_CHECKING 시점에만 바인딩한다
+# — 런타임 지연 로딩(__getattr__)은 그대로 유지된다(TYPE_CHECKING은 항상 False).
+if TYPE_CHECKING:
+    from .dspy_integration import DSPyEvaluator, DSPyMetricAdapter
+    from .llm_judge import LLMJudge
+    from .pydanticai_integration import PydanticAIEvaluator, PydanticAITokenExtractor
 
 
 def __getattr__(name: str):

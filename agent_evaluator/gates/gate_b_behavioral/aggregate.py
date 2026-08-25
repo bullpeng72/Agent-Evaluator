@@ -133,9 +133,9 @@ def compute(
     # loop_detection: 실제 측정 데이터가 있는 태스크가 하나 이상 있을 때만 포함
     # (LoopDetectionConfig 미설정 = 측정 안 함; 루프 없음(1.0)으로 계산하면 Gate B가 허위 부풀려짐)
     _has_loop_data = _n_loop_tasks > 0
-    _loop_score: float | None = max(0.0, 1.0 - _loop_rate) if _has_loop_data else None
+    _loop_score: float | None = min(1.0, max(0.0, 1.0 - _loop_rate)) if _has_loop_data else None
     _deadlock_score: float | None = (
-        max(0.0, 1.0 - _deadlock_count / _n_dl_tasks) if _n_dl_tasks > 0 else None
+        min(1.0, max(0.0, 1.0 - _deadlock_count / _n_dl_tasks)) if _n_dl_tasks > 0 else None
     )
     _other_bint_vals = [
         v for v in [avg_sc, _deadlock_score, avg_scope_score, avg_tool_param_safety, _avg_context_window]
@@ -173,6 +173,15 @@ def compute(
         if _w:
             _b_insufficient.append(_w)
 
+    # gate_b_loop_weight를 사용자가 명시적으로 설정했는데 loop_detection 데이터가 없어
+    # 조용히 단순평균으로 폴백된 경우 — 이전에는 이 사실이 어디에도 안 남아 사용자가
+    # 자기 설정이 실제로 적용됐는지 알 방법이 없었다.
+    if _gate_b_lw > 0.0 and _loop_score is None:
+        _b_insufficient.append(
+            f"gate_b_loop_weight={_gate_b_lw}가 설정됐지만 loop_detection 데이터가 없어 "
+            "적용되지 않음(가용 지표 단순 평균으로 폴백)"
+        )
+
     _b_s = round(float(_bint_score), 4) if _bint_score is not None else None
 
     return _g(_b_s, "Behavioral Integrity", {
@@ -185,7 +194,8 @@ def compute(
         "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
         "deadlock_count": _deadlock_count,
         "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
-        "avg_deadlock_score": round(max(0.0, 1.0 - _deadlock_count / max(_n_dl_tasks, 1)), 4) if _n_dl_tasks > 0 else None,
+        # 점수 계산에 쓴 _deadlock_score를 그대로 재참조 — 별도 공식 재구현으로 인한 drift 방지
+        "avg_deadlock_score": round(_deadlock_score, 4) if _deadlock_score is not None else None,
         "avg_scope_score": round(avg_scope_score, 4) if avg_scope_score is not None else None,
         "avg_tool_parameter_safety": round(avg_tool_param_safety, 4) if avg_tool_param_safety is not None else None,
         "avg_context_window": round(_avg_context_window, 4) if _avg_context_window is not None else None,

@@ -43,7 +43,7 @@ CI/CD 통합 예시:
 
 결과:
     results/ch18_cicd_gate.json
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/08_harness_validation.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import json
@@ -309,7 +309,15 @@ def _run_validation() -> None:
 # 게이트 평가 및 종료 코드
 # ===========================================================================
 def _print_gate(harness: dict) -> bool:
-    """PASS/WARN/FAIL 요약 출력 후 실패 여부 반환."""
+    """PASS/WARN/FAIL 요약 출력 후 실패 여부 반환.
+
+    이 함수는 이미 계산된 고정 기준(0.7/0.5) status를 그대로 읽어 출력만 한다 —
+    Gate별로 다른 커스텀 임계값을 직접 비교·판정해야 한다면(예: Security는 0.95,
+    나머지는 0.7), 이 로직을 손수 구현하지 말고 `HarnessEvaluationGate` 또는
+    `gates/base.py::evaluate_gate_scores()`를 쓸 것 — 세 개의 공식 판정 경로
+    (`HarnessEvaluationGate.evaluate()`/`QuickEval.gate()`/`cli/gate.py
+    --gate-thresholds`)가 공유하는 동일 정본 함수다.
+    """
     overall = harness.get("overall", {})
     gate    = (overall.get("gate") or "unknown").upper()
     score   = overall.get("score")
@@ -378,6 +386,6 @@ if __name__ == "__main__":
         print("\n  Harness Gate 통과 — exit 0")
         sys.exit(0)
 
-# ── 전체 시연은 08_harness_eval.py 참조 ─────────────────────────────────────
+# ── 전체 시연은 ch26_harness_full.py 참조 ───────────────────────────────────
 # 각 Config의 PASS/FAIL 비교, 33개 Config 전체 시연, 역케이스(나쁜 에이전트)는
-# python Evaluator_Examples/.deprecated/08_harness_eval.py 를 실행하세요.
+# python Evaluator_Examples/ch26_harness_full.py 를 실행하세요.

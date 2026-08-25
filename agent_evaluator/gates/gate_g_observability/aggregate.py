@@ -52,7 +52,7 @@ def compute(
         _tc_stats = tool_call_analyzer.get_efficiency_stats()
         _tc_total_calls = _tc_stats.get("total_calls", 0)
         if _tc_total_calls > 0:
-            _tool_coverage = _tc_stats.get("success_rate", 0.0) / 100.0
+            _tool_coverage = min(1.0, max(0.0, _tc_stats.get("success_rate", 0.0) / 100.0))
     except Exception:
         pass
 

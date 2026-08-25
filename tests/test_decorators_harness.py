@@ -85,7 +85,7 @@ class TestConfigDataclasses:
 
     def test_loop_detection_config_defaults(self):
         cfg = LoopDetectionConfig()
-        assert cfg.consecutive_repeat_threshold == 3
+        assert cfg.consecutive_repeat_threshold == 6
         assert cfg.window_size == 5
         assert cfg.duplicate_in_window_threshold == 3
         assert cfg.check_response_loop is False

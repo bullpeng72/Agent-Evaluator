@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-evaluator.dev/schemas/harness_groups.v1.schema.json",
+  "title": "Agent-Evaluator harness_groups v1.0",
+  "description": "extra_metrics.harness_groups 출력 계약. 이 스키마가 정본(source of truth)이며, gates/*/aggregate.py의 _g(...) 반환 dict는 이 스키마를 위반해서는 안 된다. 필드를 추가/삭제/rename할 때는 이 파일을 함께 수정하고 CHANGELOG에 남긴다 — deprecation 없이 details의 기존 필드를 rename/삭제하지 않는다(예: 과거 tool_coverage 명명 혼동 같은 사고를 이 계약으로 구조적으로 막는다). 최상위는 additionalProperties:true다 — PerformanceMonitor.register_gate()로 등록된 서드파티 Gate가 A-G 옆에 추가 키로 나타날 수 있고, 그 키의 내부 구조는 이 v1.0 계약의 보증 범위 밖이다(등록자 책임). 내장 7개 Gate는 A-G 고정 슬롯이라 이름이 겹칠 수 없다(register_gate가 예약어로 차단).",
+  "type": "object",
+  "required": ["A", "B", "C", "D", "E", "F", "G", "overall"],
+  "additionalProperties": true,
+  "properties": {
+    "A": { "$ref": "#/$defs/gate_A" },
+    "B": { "$ref": "#/$defs/gate_B" },
+    "C": { "$ref": "#/$defs/gate_C" },
+    "D": { "$ref": "#/$defs/gate_D" },
+    "E": { "$ref": "#/$defs/gate_E" },
+    "F": { "$ref": "#/$defs/gate_F" },
+    "G": { "$ref": "#/$defs/gate_G" },
+    "overall": { "$ref": "#/$defs/overall" }
+  },
+  "$defs": {
+    "score": {
+      "description": "0-1 정규화 점수. 미측정(측정 상태 계약 — gates/base.py::_measured() 참고)이면 null.",
+      "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0
+    },
+    "score_required": {
+      "description": "0-1 정규화 점수. 항상 존재(항상 계산 가능한 컴포넌트 — 예: TCR).",
+      "type": "number", "minimum": 0.0, "maximum": 1.0
+    },
+    "status": {
+      "description": "_status()가 낸 고정 warn=0.7/fail=0.5 기준 분류. 커스텀 group_thresholds와는 별개(자세한 내용은 이 SDK의 아키텍처 로드맵 문서 참고).",
+      "type": "string", "enum": ["pass", "warn", "fail", "n/a"]
+    },
+    "rate": { "type": ["number", "null"], "minimum": 0.0, "maximum": 1.0 },
+    "count": { "type": "integer", "minimum": 0 },
+    "count_nullable": { "type": ["integer", "null"], "minimum": 0 },
+    "warnings": {
+      "description": "SPEC-002 최소 표본 가드 경고 문자열 목록. 경고 없으면 null(빈 배열 아님).",
+      "type": ["array", "null"], "items": { "type": "string" }
+    },
+    "gate_envelope": {
+      "type": "object",
+      "required": ["name", "score", "status", "gate", "details"],
+      "properties": {
+        "name": { "type": "string" },
+        "score": { "$ref": "#/$defs/score" },
+        "status": { "$ref": "#/$defs/status" },
+        "gate": { "$ref": "#/$defs/status", "description": "status와 항상 동일 — 하위호환용 중복 필드." }
+      }
+    },
+    "gate_A": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["tcr_pct", "gate_a_tcr_weight", "tasks_with_ifr", "insufficient_data_warnings"],
+          "properties": {
+            "tcr_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "avg_accuracy": { "$ref": "#/$defs/rate" },
+            "avg_quality_relevance_completeness": { "$ref": "#/$defs/rate" },
+            "gate_a_tcr_weight": { "type": "number" },
+            "tasks_with_ifr": { "$ref": "#/$defs/count" },
+            "avg_instruction_adherence": { "$ref": "#/$defs/rate" },
+            "avg_goal_alignment": { "$ref": "#/$defs/rate" },
+            "avg_plan_coherence": { "$ref": "#/$defs/rate" },
+            "avg_subtask_completion": { "$ref": "#/$defs/rate" },
+            "avg_context_retention": { "$ref": "#/$defs/rate" },
+            "avg_knowledge_retention": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_B": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["loop_detection_rate", "loop_count", "gate_b_loop_weight", "deadlock_count", "insufficient_data_warnings"],
+          "properties": {
+            "loop_detection_rate": { "$ref": "#/$defs/rate" },
+            "loop_count": { "$ref": "#/$defs/count" },
+            "gate_b_loop_weight": { "type": "number" },
+            "gate_a_ref__avg_goal_alignment": {
+              "$ref": "#/$defs/rate",
+              "description": "Gate A 계산값 재참조(진단용) — Gate B 점수에는 미포함."
+            },
+            "gate_a_ref__avg_plan_coherence": { "$ref": "#/$defs/rate" },
+            "avg_state_consistency": { "$ref": "#/$defs/rate" },
+            "deadlock_count": { "$ref": "#/$defs/count" },
+            "deadlock_by_type": { "type": ["object", "null"] },
+            "avg_deadlock_score": { "$ref": "#/$defs/rate" },
+            "avg_scope_score": { "$ref": "#/$defs/rate" },
+            "avg_tool_parameter_safety": { "$ref": "#/$defs/rate" },
+            "avg_context_window": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_C": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["tcr_pct", "gate_c_tcr_weight", "insufficient_data_warnings"],
+          "properties": {
+            "tcr_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "gate_c_tcr_weight": { "type": "number" },
+            "sla_breach_rate": { "$ref": "#/$defs/rate" },
+            "sla_breach_count": { "$ref": "#/$defs/count_nullable" },
+            "avg_reproducibility": { "$ref": "#/$defs/rate" },
+            "avg_fault_tolerance": { "$ref": "#/$defs/rate" },
+            "avg_degradation": { "$ref": "#/$defs/rate" },
+            "avg_retry_consistency": { "$ref": "#/$defs/rate" },
+            "avg_idempotency": { "$ref": "#/$defs/rate" },
+            "avg_llm_faithfulness": { "$ref": "#/$defs/rate" },
+            "hallucination_rate": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_D": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["p95_latency_s", "sla_window_penalty", "sla_budget_penalty", "insufficient_data_warnings"],
+          "properties": {
+            "p95_latency_s": { "type": "number", "minimum": 0 },
+            "avg_efficiency_calibrated_score": { "$ref": "#/$defs/rate" },
+            "avg_efficiency_ratio": { "type": ["number", "null"] },
+            "efficiency_ratio_reference_cost": {
+              "type": ["number", "null"],
+              "description": "avg_efficiency_calibrated_score가 None일 때(폴백 경로)만 의미 있음 — 실제 사용된 기준 비용."
+            },
+            "avg_budget_score": { "$ref": "#/$defs/rate" },
+            "ttft_variability_score": { "$ref": "#/$defs/rate" },
+            "ttft_stddev_ms": { "type": ["number", "null"], "minimum": 0 },
+            "ttft_p50_ms": { "type": ["number", "null"], "minimum": 0 },
+            "ttft_p95_ms": { "type": ["number", "null"], "minimum": 0 },
+            "avg_cost_predictability": { "$ref": "#/$defs/rate" },
+            "perf_score_pre_sla_penalty": {
+              "$ref": "#/$defs/rate",
+              "description": "SLA 패널티 적용 전 원점수 — score = perf_score_pre_sla_penalty - sla_window_penalty - sla_budget_penalty(역추적용)."
+            },
+            "sla_window_penalty": { "type": "number", "minimum": 0 },
+            "sla_budget_penalty": { "type": "number", "minimum": 0 },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_E": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "threat_count", "threat_free_rate", "privilege_escalation_rate", "chain_attack_rate",
+            "leakage_count", "injection_count", "unauthorized_calls_count", "insufficient_data_warnings"
+          ],
+          "properties": {
+            "threat_count": { "$ref": "#/$defs/count" },
+            "threat_free_rate": { "$ref": "#/$defs/rate" },
+            "avg_cvss_weighted_score": { "type": ["number", "null"], "minimum": 0, "maximum": 10 },
+            "avg_compliance_score": { "$ref": "#/$defs/rate" },
+            "privilege_escalation_rate": { "$ref": "#/$defs/rate" },
+            "chain_attack_rate": { "$ref": "#/$defs/rate" },
+            "leakage_count": { "$ref": "#/$defs/count" },
+            "leakage_defense_rate": { "$ref": "#/$defs/rate" },
+            "injection_count": { "$ref": "#/$defs/count" },
+            "injection_defense_rate": { "$ref": "#/$defs/rate" },
+            "unauthorized_calls_count": { "$ref": "#/$defs/count" },
+            "tool_authorization_rate": { "$ref": "#/$defs/rate" },
+            "avg_threat_response": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_F": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["insufficient_data_warnings"],
+          "properties": {
+            "coordination_score": { "$ref": "#/$defs/rate" },
+            "avg_tool_selection_f1": { "$ref": "#/$defs/rate" },
+            "avg_consensus": { "$ref": "#/$defs/rate" },
+            "avg_propagation": { "$ref": "#/$defs/rate" },
+            "avg_role_compliance": { "$ref": "#/$defs/rate" },
+            "avg_conflict_resolution": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "gate_G": {
+      "allOf": [{ "$ref": "#/$defs/gate_envelope" }],
+      "properties": {
+        "details": {
+          "type": "object", "additionalProperties": false,
+          "required": ["insufficient_data_warnings"],
+          "properties": {
+            "tool_coverage": {
+              "$ref": "#/$defs/rate",
+              "description": "주의: 관측 커버리지가 아니라 ToolCallAnalyzer.get_efficiency_stats().success_rate(도구 호출 성공률)다."
+            },
+            "hallucination_rate": { "$ref": "#/$defs/rate" },
+            "avg_observability_score": { "$ref": "#/$defs/rate" },
+            "avg_explainability": { "$ref": "#/$defs/rate" },
+            "avg_error_diagnosis": { "$ref": "#/$defs/rate" },
+            "avg_latency_attribution": { "$ref": "#/$defs/rate" },
+            "insufficient_data_warnings": { "$ref": "#/$defs/warnings" }
+          }
+        }
+      }
+    },
+    "overall": {
+      "type": "object",
+      "required": ["score", "status", "gate", "scored_groups", "scored_group_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "status": { "$ref": "#/$defs/status" },
+        "gate": { "$ref": "#/$defs/status" },
+        "scored_groups": {
+          "type": "integer", "minimum": 0, "maximum": 7,
+          "description": "score가 null이 아닌 Gate 개수 — 몇 개의 이질적 지표를 평균했는지."
+        },
+        "scored_group_ids": {
+          "type": "array", "items": { "type": "string" },
+          "description": "scored_groups와 길이가 같아야 함 — 어느 Gate들이 채점됐는지. 두 실행을 비교할 때 이 목록이 다르면 overall_score를 직접 비교하면 안 된다. 내장 A-G 외에 register_gate()로 등록된 커스텀 Gate id도 포함될 수 있어 enum으로 제한하지 않는다."
+        }
+      }
+    }
+  }
+}

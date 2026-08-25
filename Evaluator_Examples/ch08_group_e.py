@@ -18,7 +18,7 @@ GDPR 컴플라이언스 처리, 위협 대응(차단·에스컬레이션)을 포
 
 결과:
     results/ch08_group_e.json  (+ .html)
-    → 전체 33개 Config 통합 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import socket

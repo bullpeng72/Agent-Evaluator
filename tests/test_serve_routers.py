@@ -1,7 +1,7 @@
 """
 tests/test_serve_routers.py
 ===========================
-Smoke tests for all 12 serve/routers using FastAPI TestClient.
+Smoke tests for all 13 serve/routers using FastAPI TestClient.
 
 Guards:
 - pytest.importorskip("fastapi") — skips entire module if [serve] extras not installed
@@ -102,6 +102,16 @@ class TestHTMLPages:
     def test_sdk_docs_page(self, client: TestClient):
         r = client.get("/sdk-docs")
         assert r.status_code not in (500,)
+
+    def test_dashboard2_page(self, client: TestClient):
+        """/dashboard(dashboard2.html.j2)는 CLAUDE.md가 명시한 유지 대상 템플릿이다 —
+        이전엔 이 라우트 자체를 렌더링하는 테스트가 없었다(레거시 dashboard.html.j2만
+        간접적으로 /를 통해 테스트됨). Phase 8에서 Improve 탭을 추가하며 신설."""
+        r = client.get("/dashboard")
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+        assert "s-improve" in r.text
+        assert "loadImproveDiagnosis" in r.text
 
 
 # ---------------------------------------------------------------------------
@@ -360,3 +370,31 @@ class TestWebhookRouter:
         r = client.post("/api/webhook/test", json={"url": "http://localhost:9999/hook"})
         # May fail if target unreachable — 200 or 4xx acceptable, never 500
         assert r.status_code not in (500,)
+
+
+# ---------------------------------------------------------------------------
+# diagnose router  (/api/diagnose/...) — Phase 8 "Improve" 탭 백엔드
+# ---------------------------------------------------------------------------
+
+class TestDiagnoseRouter:
+    def test_diagnosis_found(self, client: TestClient):
+        r = client.get("/api/results")
+        file_id = r.json()["files"][0]["id"] if r.json().get("files") else None
+        if file_id is None:
+            pytest.skip("no result file id available from /api/results")
+        r = client.get(f"/api/diagnose/{file_id}")
+        assert r.status_code == 200
+        body = r.json()
+        assert "detection_mode" in body
+        assert "findings" in body
+
+    def test_diagnosis_file_not_found(self, client_empty: TestClient):
+        r = client_empty.get("/api/diagnose/nonexistent")
+        assert r.status_code == 404
+
+    def test_recommendations_empty_when_no_log_file(self, client: TestClient):
+        r = client.get("/api/diagnose/")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["outcomes"] == []
+        assert body["summary"]["total"] == 0

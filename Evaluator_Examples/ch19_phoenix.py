@@ -35,7 +35,6 @@ Layer 3 외부 통합 — 대시보드 '외부평가' 탭 활성화:
 
 결과:
     results/ch19_phoenix.json
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/07_phoenix_hybrid.py
 """
 
 import json

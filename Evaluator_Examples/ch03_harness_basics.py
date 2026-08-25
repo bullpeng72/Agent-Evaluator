@@ -25,7 +25,7 @@ Book Chapter 03 — Harness Engineering 기초
 
 결과:
     results/ch03_harness_basics.json  (+ .html)
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import json

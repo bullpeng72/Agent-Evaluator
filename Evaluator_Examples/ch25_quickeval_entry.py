@@ -396,7 +396,7 @@ print("""
 
 monitor_adapter.save_to_file("ch25_quickeval_entry")
 print("결과 저장 완료: results/ch25_quickeval_entry.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
 
 print("""
 === Ch25 첫 번째 이식 완료 요약 ===

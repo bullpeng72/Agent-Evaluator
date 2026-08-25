@@ -283,4 +283,4 @@ for q, gt in [("주간 리뷰 테스트", "테스트 완료"), ("월간 집계 �
 
 monitor_final.save_to_file("ch17_weekly_review")
 print("\n결과 저장 완료: results/ch17_weekly_review.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

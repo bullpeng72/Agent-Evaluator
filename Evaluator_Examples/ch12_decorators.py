@@ -42,7 +42,6 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
     results/ch12_version_v1_baseline.json / ch12_version_v2_detailed.json
         (동일 task_id 3건 공유 — agent-eval dashboard의 File Compare →
          Group by: prompt_version / ⚖️ Pairwise Judge 탭 데모용)
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/04_decorator_quickeval.py
 """
 
 import asyncio

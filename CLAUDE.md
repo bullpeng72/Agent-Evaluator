@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.13 (Beta) | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.0 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -30,10 +30,15 @@ agent-eval dashboard                                      # FastAPI dashboard (p
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline
 agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3
+agent-eval diagnose result.json --baseline baseline.json   # Gate regression RCA (not a CI gate, informational only)
+agent-eval abtest v1.json v2.json --metric accuracy_score   # statistical A/B (Welch's t-test), not a CI gate
+agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference (safe to peek)
+agent-eval abtest v1.json v2.json v3.json                   # 3+ files -> N-way + Benjamini-Hochberg FDR
 agent-eval dataset build --source results/ --max-cases 30 # golden dataset
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
+agent-eval opencode install --with-recommend-fix           # + register recommend_fix MCP server (requires [mcp] extra)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
 agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim
@@ -96,7 +101,10 @@ agent_evaluator/
 │                          # 33개 Harness Config는 gates/gate_x/configs.py에 정의되고 여기는 re-export만 함
 │                          # EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder
 ├── gates/                 # Gate 단위 패키지 — A~G 전체 7개 Gate
-│   ├── base.py            # 전 Gate 공유 인프라 — _min_sample_warning · _status · _g
+│   ├── base.py            # 전 Gate 공유 인프라 — _min_sample_warning · _status · _g ·
+│   │                       #  _gate_pass_verdict()(단일 Gate pass/fail 공식) ·
+│   │                       #  evaluate_gate_scores()(HarnessEvaluationGate·QuickEval.gate()·
+│   │                       #  cli/gate.py가 공유하는 Gate 판정 루프 — 아래 HarnessEvaluationGate 참고)
 │   ├── shared_metrics.py  # RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
 │   ├── live_guardrail.py  # LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
 │   │                       #  체크를 실행 전 단일 tool call 단위로 동기 호출
@@ -233,12 +241,30 @@ agent_evaluator/
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
 │   │                       #  include_blocked=True로 호출하면 완전 차단된("관찰"이 아닌) 이력까지
 │   │                       #  함께 검색, [차단됨]/[관찰됨] 접두어로 구분
+│   ├── recommend_fix_mcp.py      # recommend_fix(gate, metric=None, value=None) 도구 1개를
+│   │                       #  노출하는 stdio MCP 서버(옵트인, violation_search_mcp.py와 나란히
+│   │                       #  등록) — ontology.metric_registry(GATE_GUIDANCE/NATIVE_METRIC_RULES/
+│   │                       #  ANOMALY_METRIC_SUGGESTIONS)·ontology.mast_taxonomy(Gate F)를 그대로
+│   │                       #  읽는 정적 지식 조회, 새 판정 로직 없음. 결과 파일 불필요 —
+│   │                       #  rca.diagnose()(Gate F만 처방)와 달리 Gate A-G 전체에 답한다
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
 │   └── pydanticai_integration.py
 ├── anomaly/               # AnomalyDetector · AnomalyEvent — 6개 체크(feedback_negativity가
 │                          #  monitor.feedback_tracker의 is_positive 신호를 재사용)
+├── ontology/              # 진단/추천 지식을 모으는 순수 데이터 레지스트리(PyYAML 등 외부
+│                          #  의존성 없이 Python dataclass로 관리, core dependency 원칙 유지)
+│                          # metric_registry.py — GATE_GUIDANCE(Gate 7종 라벨+안내문)·
+│                          #  NATIVE_METRIC_RULES(절대 임계값 기반)·ANOMALY_METRIC_SUGGESTIONS
+│                          #  (AnomalyDetector 상대편차 기반) — comprehensive_report.py의
+│                          #  _build_recommendations()와 serve/routers/data.py의
+│                          #  explain_anomaly_event()가 소비. rca.diagnose()와는 미연결
+│                          #  (Gate F만 mast_taxonomy로 처방을 받음 — 아래 참고)
+│                          # mast_taxonomy.py — MAST(Cemri et al., NeurIPS 2025, arXiv:2503.13657)
+│                          #  14개 실패모드 원문 시드 데이터, Gate F(다중 에이전트) 전용.
+│                          #  rca.diagnose()가 Gate F 감지 시 related_gate_f_metric으로 후보를
+│                          #  붙인다(자동 판정 아님, HOTL 원칙상 후보 제시까지만)
 ├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
 ├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
@@ -254,13 +280,43 @@ agent_evaluator/
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — anomaly_detector/
 │                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
 │                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
-├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·dataset·monitor·opencode·trend·claims)
-│                          # opencode install --with-violation-search: search_violations
-│                          #  MCP 서버 자동 등록(옵트인)
+├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·
+│                          #  diagnose·abtest·dataset·monitor·opencode·trend·claims — 서브파서는
+│                          #  각각 cli/gate.py·cli/diagnose.py·cli/abtest.py·cli/dataset.py·
+│                          #  cli/monitor.py·cli/opencode.py·cli/trend.py·cli/claims.py에 위임)
+│                          # opencode install --with-violation-search/--with-recommend-fix:
+│                          #  각각 search_violations/recommend_fix MCP 서버 자동 등록(옵트인)
 │                          # gate --baseline-version/--golden-set/--fail-on-golden-regression:
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
+├── cli/diagnose.py        # diagnose — agent_evaluator.rca.diagnose()를 감싸는 얇은 터미널
+│                          #  출력 레이어(새 판정 로직 없음). CI 게이트 아님 — 항상 exit 0
+│                          #  (결과 파일을 못 읽을 때만 exit 1), pass/fail 판정하지 않고
+│                          #  후보 원인·근거만 출력(HOTL). --show-diff로 lineage.git_commit
+│                          #  기반 실제 git diff까지 연결(§rca/ 참고)
+├── cli/abtest.py          # abtest — QuickEval.ab_test()/ab_test_nway()/ab_test_sequential()을
+│                          #  감싸는 얇은 터미널 레이어(새 통계 로직 없음). CI 게이트 아님 —
+│                          #  유의성/효과크기/표본경고만 출력, pass/fail 판정 없음. 결과 JSON
+│                          #  파일 2개 → Welch's t-test(--sequential 시 mSPRT), 3개 이상 →
+│                          #  N-way + Benjamini-Hochberg FDR 보정으로 자동 전환. 파일 로딩은
+│                          #  PerformanceMonitor.load_from_file()로 TaskResult를 복원한 뒤
+│                          #  QuickEval._monitor에 주입 — 새 파싱 로직 없음
 ├── cli/claims.py          # claims add/list/release/audit — append_claim()/load_active_claims()/
 │                          #  audit_claims()를 감싸는 얇은 터미널 래퍼, 새 판정 로직 없음
+├── rca/                   # Gate 회귀 원인진단(RCA) + 개선 이력 추적 — Media/Book Part VII
+│                          #  (Ch28–31)가 다루는 기능의 실제 구현. quick_eval.py/gates/base.py의
+│                          #  기존 판정 로직을 재사용할 뿐 새 판정 공식은 만들지 않는다
+│                          # diagnose.py — diagnose(current, baseline=None, ...): 3단계
+│                          #  (감지→원인귀속→교차확인). _compute_gate_regressions()(기존 baseline
+│                          #  회귀 공식) 재사용. Gate C·D 동시 감지 시 SLA 공유데이터로 공유원인
+│                          #  체크. Gate F는 ontology.mast_taxonomy로 MAST 후보 추가(§ontology 참고)
+│                          # experiment_metadata.py — derive_experiment_metadata(): 두 리포트의
+│                          #  extra_metrics.lineage.git_commit을 대조해 순수 git 명령(diff --stat/
+│                          #  log)만으로 코드 diff 해석 — gh CLI/GitHub API 미의존
+│                          # verify.py — verify_recommendation_outcome(): 조치 적용 후 재평가
+│                          #  결과가 실제로 개선됐는지 confirmed/refuted/inconclusive 판정
+│                          # recommendation_tracking.py — record_/load_/summarize_
+│                          #  recommendation_outcomes(): .aoo/claims.jsonl과 동일한 append-only
+│                          #  JSONL 패턴으로 조치 이력 기록
 ├── reporting/
 │   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
@@ -268,17 +324,20 @@ agent_evaluator/
 │                          #  generate_comparison_html_report(compare_result) —
 │                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음)
 └── serve/
-    ├── server.py          # FastAPI dashboard (109 routes)
+    ├── server.py          # FastAPI dashboard (111 routes)
     ├── templates/
     │   └── dashboard2.html.j2  # `/dashboard` 라우트(유지 대상 — dashboard.html.j2는 레거시,
     │                      #  마이그레이션 후 삭제 예정). File Compare 탭: group_by
     │                      #  드롭다운·⚖️ Pairwise Judge 서브탭·📄 Export HTML 버튼
     │                      #  Metric Comparison 표 상단에 agent_version/iteration_note
     │                      #  메타데이터 행 — 새 API 호출 없이 이미 로드된 compareData에서 직접 렌더링
-    └── routers/           # alerts · anomaly · config · conversation · cost · data · export
-                           # feedback · golden · stream · transparency · webhook
+    └── routers/           # alerts · anomaly · config · conversation · cost · data · diagnose
+                           # export · feedback · golden · stream · transparency · webhook
                            # data.py: list_results(prompt_version=/agent_version=)·
                            #  compare_results(group_by=/pairwise=)
+                           # diagnose.py: GET /api/diagnose/{file_id}(rca.diagnose() 호출,
+                           #  baseline_id=/regression_threshold=/show_diff=) · GET /api/diagnose/
+                           #  (recommendation_outcomes.jsonl 읽기) — 대시보드 🔧 Improve 탭이 소비
                            # export.py: GET /html/compare — ids 또는 group_by +
                            #  선택적 pairwise → generate_comparison_html_report(). `/html/{file_id}`
                            #  보다 먼저 등록해야 정적 경로가 파라미터 경로에 삼켜지지 않는다
@@ -480,11 +539,13 @@ gate = HarnessEvaluationGate(
 ```
 
 > **주의**: `HarnessEvaluationGate.evaluate()`(Python API), `QuickEval.gate()`, `cli/gate.py`(`agent-eval gate`)는
-> Gate A-G 임계값 판정을 각각 독립적으로 재구현한 3개의 서로 다른 코드 경로다 — 공유하는 건
-> `_compute_gate_regressions()`(베이스라인 회귀 판정 공식)뿐이다. 세 경로 모두 `score is None`인
+> Gate A-G 임계값 판정을 세 곳에서 각각 호출하는 서로 다른 진입점이다 — `_compute_gate_regressions()`
+> (베이스라인 회귀 판정 공식)와 `gates/base.py::evaluate_gate_scores()`(Gate별 score/threshold/status →
+> passed 판정 루프)를 셋 다 공유한다. 남은 차이는 진입점별 고유 기능뿐이다(`HarnessEvaluationGate`의
+> `strict_required`, CLI의 `--baseline-version`/`--golden-set`). 세 진입점 모두 `score is None`인
 > Gate는 기본적으로 통과 처리한다(`HarnessEvaluationGate`는 `strict_required=True`로만 opt-out 가능,
-> 나머지 둘은 항상 통과). 세 경로 중 하나를 고쳐도 나머지 둘은 저절로 바뀌지 않으니, Gate A-G
-> 임계값 판정 로직을 변경할 때는 세 곳 모두 확인할 것.
+> 나머지 둘은 항상 통과). 판정 루프 자체(`evaluate_gate_scores()`)를 고치면 세 곳 모두 자동으로
+> 반영되지만, 진입점별 고유 기능을 바꿀 때는 해당 진입점만 확인하면 된다.
 
 ---
 
@@ -585,7 +646,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**95 files, 3,628+ test functions** in `tests/`.
+**112 files, 3,884+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

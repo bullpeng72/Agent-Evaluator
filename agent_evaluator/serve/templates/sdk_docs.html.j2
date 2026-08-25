@@ -17,7 +17,7 @@
       </table>
 {%- endmacro %}
 <!DOCTYPE html>
-<html lang="ko" id="root">
+<html lang="en" id="root">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -99,6 +99,19 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#install">📦 Installation &amp; Dependencies</a>
   <a class="nav-item" href="#architecture">🏗️ Architecture Overview</a>
 
+  <div class="nav-group">🔧 CLI Commands — agent-eval</div>
+  <a class="nav-item" href="#cli-init">init</a>
+  <a class="nav-item" href="#cli-check">check</a>
+  <a class="nav-item" href="#cli-dashboard">dashboard</a>
+  <a class="nav-item" href="#gate-cli">gate</a>
+  <a class="nav-item" href="#cli-diagnose">diagnose</a>
+  <a class="nav-item" href="#cli-abtest">abtest</a>
+  <a class="nav-item" href="#cli-claims">claims</a>
+  <a class="nav-item" href="#cli-dataset">dataset</a>
+  <a class="nav-item" href="#cli-monitor">monitor</a>
+  <a class="nav-item" href="#cli-opencode">opencode</a>
+  <a class="nav-item" href="#cli-trend">trend</a>
+
   <div class="nav-group">🎯 Decorators — Recommended Entry Points</div>
   <a class="nav-item" href="#quickeval">QuickEval <span class="tag">facade</span></a>
   <a class="nav-item" href="#decorators">@agent_eval <span class="tag">decorator</span></a>
@@ -111,6 +124,7 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#performance-monitor">PerformanceMonitor <span class="tag">core</span></a>
   <a class="nav-item" href="#task-result">TaskResult <span class="tag">dataclass</span></a>
   <a class="nav-item" href="#task-type">TaskType <span class="tag">enum</span></a>
+  <a class="nav-item" href="#conversation">ConversationSession <span class="tag">multi-turn</span></a>
 
   <div class="nav-group">A · Goal Achievement</div>
   <a class="nav-item" href="#tcr">TaskCompletionTracker <span class="tag">TCR</span></a>
@@ -142,6 +156,7 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <div class="nav-group">D · Performance Contract</div>
   <a class="nav-item" href="#latency">LatencyTracker</a>
   <a class="nav-item" href="#token">TokenEconomyTracker</a>
+  <a class="nav-item" href="#multimodal">MultimodalMetricsTracker</a>
   <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
   <a class="nav-item" href="#cost">CostTracker · AdaptivePolicy</a>
   <a class="nav-item" href="#harness-d" style="font-size:11px;color:var(--text2)">↳ SLAConfig · EfficiencyConfig</a>
@@ -385,7 +400,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
       <tr>
         <td><code class="t">examples</code></td>
         <td><code>pip install "agent-evaluator[examples]"</code></td>
-        <td>Base + eval — all examples 01~07 can be run</td>
+        <td>Base + eval — all Evaluator_Examples/ch01–ch31 chapters can be run</td>
         <td>✅ Recommended for running examples</td>
       </tr>
       <tr>
@@ -397,6 +412,158 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
     </tbody>
   </table>
   <div class="note tip" style="margin-top:12px">💡 <strong>Recommended installation scenario</strong>: The base install alone enables 25 metrics + LLMJudge + dashboard + OTEL. LangChain/LangGraph → <code>[langchain]</code> · DeepEval/Ragas → <code>[eval]</code> · CrewAI only → <code>[crewai]</code> · AutoGen only → <code>[autogen]</code> (simultaneous crewai·autogen installation may cause pydantic version conflicts)</div>
+</section>
+
+<!-- ── CLI Commands ── -->
+<section class="sec" id="cli-commands">
+  <div class="sec-title">🔧 CLI Commands — agent-eval</div>
+  <div class="sec-sub">All commands installed with the base SDK. Run <code>agent-eval &lt;command&gt; --help</code> for the full flag reference at any time.</div>
+
+  <div class="cls-card" id="cli-init">
+    <div class="cls-head"><span class="cls-name">agent-eval init</span><span class="kind fn">CLI</span><span class="cls-src">cli/main.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Interactive wizard — prompts for <code>OPENAI_API_KEY</code>/<code>ANTHROPIC_API_KEY</code> and saves them to a <code>.env</code> file (project-local, global <code>~/.agent-evaluator/.env</code>, or print export commands). Takes no arguments.</div>
+<pre>agent-eval init</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-check" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval check</span><span class="kind fn">CLI</span><span class="cls-src">cli/main.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Shows API key status (masked), other <code>AGENT_EVALUATOR_*</code>/<code>OPENAI_*</code>/<code>ANTHROPIC_*</code>/<code>LANGCHAIN_*</code> settings, installed optional package status, and the loaded <code>.env</code> file path. Takes no arguments.</div>
+<pre>agent-eval check</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-dashboard" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval dashboard</span><span class="kind fn">CLI</span><span class="cls-src">cli/main.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Starts the FastAPI dashboard. Positional <code>results_dir</code> (default <code>./results</code>).</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--host / --port</span></td><td>Bind host/port (default <code>127.0.0.1</code> / <code>8765</code>)</td></tr>
+        <tr><td><span class="p">--open / --no-open</span></td><td>Auto-open browser after start (default: open)</td></tr>
+        <tr><td><span class="p">--watch</span></td><td>Watch result files for changes and auto-refresh</td></tr>
+        <tr><td><span class="p">--offline</span></td><td>Cache CDN assets locally for offline use</td></tr>
+        <tr><td><span class="p">--title TITLE</span></td><td>Dashboard title (default: <code>'Agent Evaluator — Dev Dashboard'</code>)</td></tr>
+        <tr><td><span class="p">--auth-token TOKEN</span></td><td>Require a Bearer token (or <code>AGENT_EVALUATOR_DASHBOARD_TOKEN</code> env var) to access the dashboard. Default: no auth (localhost-only assumption)</td></tr>
+      </tbody></table>
+<pre>agent-eval dashboard results/ --port 8080 --watch</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-diagnose" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval diagnose</span><span class="kind fn">CLI</span><span class="cls-src">cli/diagnose.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Gate root-cause diagnosis (RCA) — the 3-stage detect → attribute → cross-reference procedure. Not a CI gate: informational only, exit code is always <code>0</code> once the file is read (<code>1</code> only if it can't be). Positional <code>result_file</code>.</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--baseline PATH</span></td><td>Enables regression-based detection. Without it, falls back to detecting Gates whose current status is fail/warn</td></tr>
+        <tr><td><span class="p">--regression-threshold PCT</span></td><td>Allowed regression vs baseline (%), same definition as <code>gate --fail-on-regression</code> (default: 10)</td></tr>
+        <tr><td><span class="p">--violation-db PATH</span></td><td>SQLite DB (<code>storage_backend="sqlite"</code>) for stage-3 cross-reference via <code>search_violations()</code>. Skipped if omitted/missing</td></tr>
+        <tr><td><span class="p">--json</span></td><td>Print the raw diagnosis result as JSON instead of the formatted report</td></tr>
+        <tr><td><span class="p">--show-diff</span></td><td>With <code>--baseline</code>: also resolve the actual git commit range between both reports' <code>lineage.git_commit</code> (plain <code>git diff --stat</code>/<code>git log</code>, no <code>gh</code> CLI). Silently omitted if unavailable</td></tr>
+        <tr><td><span class="p">--repo-path PATH</span></td><td>Git repository path for <code>--show-diff</code> (default: current directory)</td></tr>
+      </tbody></table>
+<pre>agent-eval diagnose results/ci_run.json --baseline results/baseline.json --show-diff</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-abtest" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval abtest</span><span class="kind fn">CLI</span><span class="cls-src">cli/abtest.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Statistical A/B comparison of 2+ result JSON files. Not a CI gate — reports significance/effect size/sample-size warnings only, never pass/fail. 2 files → Welch's t-test (or mSPRT with <code>--sequential</code>); 3+ files → N-way pairwise with Benjamini-Hochberg FDR correction.</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--metric NAME</span></td><td>TaskResult attribute or <code>task.extra</code> key to compare (default: <code>accuracy_score</code>)</td></tr>
+        <tr><td><span class="p">--guardrail METRIC:DIRECTION:MAX_REGRESSION</span></td><td>Guardrail Metric (OEC), repeatable. <code>DIRECTION</code> is <code>higher_is_better</code>|<code>lower_is_better</code>. 2-file mode only, not with <code>--sequential</code></td></tr>
+        <tr><td><span class="p">--sequential</span></td><td>Use mSPRT always-valid inference instead of a fixed-sample t-test (safe to check results as they come in). Requires <code>--tau</code>, 2-file mode only</td></tr>
+        <tr><td><span class="p">--tau FLOAT</span></td><td>Mixture prior scale for <code>--sequential</code> — no implicit default, must be set explicitly</td></tr>
+        <tr><td><span class="p">--alpha FLOAT</span></td><td>Significance level for <code>--sequential</code> (default: 0.05)</td></tr>
+        <tr><td><span class="p">--fdr-alpha FLOAT</span></td><td>Significance level after FDR correction, for 3+ files (default: 0.05)</td></tr>
+        <tr><td><span class="p">--min-samples N</span></td><td>Sample count below which a sample-size warning is shown (default: 30)</td></tr>
+        <tr><td><span class="p">--json</span></td><td>Print the raw comparison result as JSON instead of the formatted report</td></tr>
+      </tbody></table>
+<pre>agent-eval abtest results/v1.json results/v2.json --sequential --tau 0.05
+agent-eval abtest results/v1.json results/v2.json results/v3.json  <span class="cm"># N-way + FDR</span></pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-claims" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval claims</span><span class="kind fn">CLI</span><span class="cls-src">cli/claims.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Terminal-friendly wrapper around <code>.aoo/claims.jsonl</code> team-scope claim management (<code>append_claim()</code>/<code>load_active_claims()</code>/<code>audit_claims()</code>) — used by <code>TeamConcurrencyConfig</code>/<code>LiveGuardrail</code> to detect overlapping work between concurrent developers.</div>
+      <table class="mtable"><thead><tr><th>Subcommand</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">add PATH... --developer NAME</span></td><td>Open a new claim over one or more paths. <code>--developer auto</code> (or omitted) resolves via <code>git config user.name</code>. <code>--claim-id ID</code> to set explicitly (default: auto-generated <code>c-&lt;8 hex&gt;</code>)</td></tr>
+        <tr><td><span class="p">list</span></td><td>List currently active claims</td></tr>
+        <tr><td><span class="p">release CLAIM_ID</span></td><td>Release an active claim by ID. <code>--force</code> records the release event even if the ID isn't currently active</td></tr>
+        <tr><td><span class="p">audit --ttl-hours N</span></td><td>CI-friendly — exit <code>1</code> if any active claim exceeds the TTL (default 8.0h) or overlaps another claim's scope</td></tr>
+      </tbody></table>
+      <div class="cls-desc" style="margin-top:6px">All subcommands accept <code>--claims-path PATH</code> (default: <code>.aoo/claims.jsonl</code>).</div>
+<pre>agent-eval claims add src/ --developer alex
+agent-eval claims audit --ttl-hours 8</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-dataset" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval dataset build</span><span class="kind fn">CLI</span><span class="cls-src">cli/dataset.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Auto-extracts golden dataset candidates from production result JSON files. For Phoenix dataset upload, use <code>agent-eval monitor --sync-datasets</code> instead.</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--source DIR</span></td><td>Results JSON directory (default: <code>./results</code>)</td></tr>
+        <tr><td><span class="p">--output DIR</span></td><td>Golden set output directory (default: <code>&lt;source&gt;/golden_datasets/</code>)</td></tr>
+        <tr><td><span class="p">--strategy STRATEGY...</span></td><td><code>failure_cases</code> (failed tasks) · <code>edge_cases</code> (outliers) — default both. Also: <code>high_value</code> (high positive feedback) · <code>coverage_gap</code> (uncovered task types)</td></tr>
+        <tr><td><span class="p">--max-cases N</span></td><td>Maximum cases to extract (default: 50)</td></tr>
+        <tr><td><span class="p">--no-review</span></td><td>Save immediately without a human-review flag (default: flags candidates as needing review)</td></tr>
+        <tr><td><span class="p">--name FILENAME</span></td><td>Output filename (default: <code>candidates_YYYYMMDD_HHMMSS.json</code>)</td></tr>
+      </tbody></table>
+<pre>agent-eval dataset build --source results/ --strategy failure_cases high_value --max-cases 30</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-monitor" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval monitor</span><span class="kind fn">CLI</span><span class="cls-src">cli/monitor.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Starts an Arize Phoenix server + OTLP span receiver for real-time tracing/error detection. Requires <code>pip install "agent-evaluator[otel]"</code>. Phoenix 13.x shares the UI + OTLP HTTP port (default 6006).</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--port / --host</span></td><td>Phoenix UI + OTLP HTTP port/host (default: <code>6006</code> / <code>localhost</code>)</td></tr>
+        <tr><td><span class="p">--no-open</span></td><td>Disable automatic browser launch</td></tr>
+        <tr><td><span class="p">--attach URL</span></td><td>Connect to an already-running Phoenix server instead of starting one</td></tr>
+        <tr><td><span class="p">--check</span></td><td>Check installation status and port availability, then exit</td></tr>
+        <tr><td><span class="p">--working-dir DIR</span></td><td>Phoenix DB directory (default: Phoenix-determined, usually <code>~/.phoenix</code>)</td></tr>
+        <tr><td><span class="p">--sync-datasets GLOB</span></td><td>Upload golden-set JSON files matching the glob to Phoenix Datasets</td></tr>
+        <tr><td><span class="p">--reset / --yes</span></td><td>Delete all traces/projects/datasets from the Phoenix DB (stop Phoenix first) / skip the confirmation prompt</td></tr>
+      </tbody></table>
+<pre>agent-eval monitor
+agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-opencode" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval opencode install</span><span class="kind fn">CLI</span><span class="cls-src">cli/opencode.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Installs the bundled LiveGuardrail OpenCode plugin (a thin Node/Bun stdio client — Gate B/E judgment logic always stays in Python LiveGuardrail) into the location OpenCode auto-loads plugins from.</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--global</span></td><td>Install to <code>~/.config/opencode/plugin/</code> (all projects) instead of project-local <code>.opencode/plugin/</code> (default)</td></tr>
+        <tr><td><span class="p">--force</span></td><td>Overwrite an existing installed plugin file</td></tr>
+        <tr><td><span class="p">--with-violation-search</span></td><td>Also register the <code>search_violations</code> MCP server via <code>opencode mcp add</code> (requires <code>pip install "agent-evaluator[mcp]"</code>)</td></tr>
+        <tr><td><span class="p">--with-recommend-fix</span></td><td>Also register the <code>recommend_fix</code> MCP server — static Gate/metric remediation lookup, no result file required (requires the <code>mcp</code> extra)</td></tr>
+      </tbody></table>
+<pre>agent-eval opencode install --with-violation-search --with-recommend-fix</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-trend" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval trend</span><span class="kind fn">CLI</span><span class="cls-src">cli/trend.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Reads JSON result files in a directory chronologically and computes a linear slope per metric (TCR, accuracy, P95 latency, hallucination rate) to detect sustained decline. Positional <code>results_dir</code>. Exit <code>1</code> on regression when <code>--fail-on-regression</code> is set, otherwise always <code>0</code>.</div>
+      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--window N / -w</span></td><td>Number of most recent files to analyze (default: 10)</td></tr>
+        <tr><td><span class="p">--pattern GLOB</span></td><td>Filename glob pattern (default: <code>'*.json'</code>)</td></tr>
+        <tr><td><span class="p">--slope-threshold FLOAT</span></td><td>Slopes below this absolute value are classified "stable" (default: 0.3). Unit: %/run for TCR·accuracy·hallucination, s/run for latency</td></tr>
+        <tr><td><span class="p">--fail-on-regression</span></td><td>Exit code <code>1</code> on regression (CI/CD failure)</td></tr>
+        <tr><td><span class="p">--output-json PATH</span></td><td>Save analysis results to a JSON file</td></tr>
+      </tbody></table>
+<pre>agent-eval trend results/ --window 20 --fail-on-regression</pre>
+    </div>
+  </div>
 </section>
 
 <!-- ── 아키텍처 ── -->
@@ -500,11 +667,13 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
       <table class="mtable">
         <thead><tr><th>Layer</th><th>Classification</th><th>Tracker Count</th><th>Activation Condition</th><th>Key Metrics</th></tr></thead>
         <tbody>
-          <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>6 types</td><td>Always (Hallucination opt-in only)</td><td>TCR, Accuracy, Quality, Latency, Token, Hallucination</td></tr>
+          <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>7 types</td><td>Always (Hallucination opt-in only)</td><td>TCR, Accuracy, Quality, Latency, Token, Multimodal, Hallucination</td></tr>
           <tr><td><span class="badge l2">L2</span></td><td>Agentic</td><td>5 types</td><td>Auto-activates when <code>tool_calls</code> · <code>chain_steps</code> · <code>agent_interactions</code> data is supplied</td><td>Tool Efficiency, Selection F1, Retry, Coordination, Workflow</td></tr>
           <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5 types</td><td>Decorator: <code>security=SecurityConfig(enable_security_metrics=True)</code><br>or PerformanceMonitor: <code>enable_security_metrics=True</code></td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
+          <tr><td><span class="badge l2">Ops</span></td><td>Operational Support <span class="badge req-b">no Gate score</span></td><td>8 types</td><td>Report/ops-only — feed dashboards, alerting, and cost tooling but do not contribute to any Gate A–G score</td><td>ImplicitFeedback, ConversationSession, ConversationMetrics, Anomaly, Cost, AdaptivePolicy, SamplingStage, Streaming</td></tr>
         </tbody>
       </table>
+      <div class="note tip" style="margin-top:8px">💡 7 + 5 + 5 + 8 = <strong>25 Native Trackers</strong> — the base-install count above. <code>LLMJudge</code> (Layer 3/Hybrid) and <code>AlertEngine</code> (alerting infra) are not trackers and are not counted here, even though both ship in the base install.</div>
     </div>
   </div>
 </section>
@@ -844,7 +1013,7 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
 <!-- ── PerformanceMonitor ── -->
 <section class="sec" id="performance-monitor">
   <div class="sec-title">🎛️ PerformanceMonitor</div>
-  <div class="sec-sub">Central orchestrator coordinating 16 Layer 1+2 trackers internally. The core class called internally by decorators.</div>
+  <div class="sec-sub">Central orchestrator coordinating all 25 Native Trackers internally (17 Layer 1+2 + 8 operational support). The core class called internally by decorators.</div>
   <div class="cls-card">
     <div class="cls-head">
       <span class="cls-name">PerformanceMonitor</span><span class="kind cls">class</span>
@@ -1164,6 +1333,35 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><code class="t">Dict[model → {total_cost, avg_cost_per_task, total_tokens, cost_per_1k_tokens}]</code></td>
           </tr>
       {% endcall %}
+    </div>
+  </div>
+</section>
+
+<!-- ── MultimodalMetricsTracker ── -->
+<section class="sec" id="multimodal">
+  <div class="sec-title"><span class="badge l1">L1</span> MultimodalMetricsTracker</div>
+  <div class="sec-sub">Aggregates modality usage (image/audio/video/text) from a task's <code>extra</code> dict. Report/ops-only — no direct Gate score contribution.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">MultimodalMetricsTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.core.trackers.layer1</span></div>
+    <div class="cls-desc">Constructor: <code>__init__(self)</code> — no arguments.</div>
+    <div class="cls-body">
+      {% call tracker_table() %}
+          <tr>
+            <td><span class="p">track_multimodal(task)</span></td>
+            <td><span class="t">TaskResult</span></td>
+            <td>Reads <code class="t">extra["image_count"]</code>, <code class="t">extra["audio_duration_seconds"]</code>, <code class="t">extra["video_frames"]</code>; a task with none of the three is counted as <code class="t">"text"</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_multimodal_summary()</span></td><td>—</td>
+            <td><code class="t">total_tracked</code>, <code class="t">image_count</code>, <code class="t">audio_duration_seconds</code>, <code class="t">video_frames</code>, <code class="t">modality_mix</code> (<code class="t">Dict[modality → task_count]</code>)</td>
+          </tr>
+      {% endcall %}
+<pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator.core.trackers.layer1</span> <span class="kw">import</span> MultimodalMetricsTracker
+
+tracker = <span class="fn">MultimodalMetricsTracker</span>()
+tracker.<span class="fn">track_multimodal</span>(task_result)  <span class="cm"># reads task_result.extra</span>
+summary = tracker.<span class="fn">get_multimodal_summary</span>()
+<span class="fn">print</span>(summary[<span class="st">"modality_mix"</span>])  <span class="cm"># {'image': 3, 'text': 1}</span></pre>
     </div>
   </div>
 </section>
@@ -1567,12 +1765,15 @@ chat_agent(<span class="st">"What's the difference with asyncio.wait?"</span>, s
         <tr><td><span class="p">--llm-judge N</span></td><td>Minimum LLM Judge score (0–5)</td></tr>
         <tr><td><span class="p">--fail-on-regression N</span></td><td>Allowed regression rate vs. baseline (%)</td><td></td></tr>
         <tr><td><span class="p">--baseline PATH / --save-baseline</span></td><td>Baseline file path (default <code>&lt;result_dir&gt;/baseline.json</code>) / save current results as baseline</td><td></td></tr>
+        <tr><td><span class="p">--baseline-version VERSION</span></td><td>Per-version independent baseline — resolves to <code>&lt;result_dir&gt;/baseline-VERSION.json</code> instead of the shared <code>baseline.json</code></td><td></td></tr>
         <tr><td><span class="p">--junit-xml PATH</span></td><td>Output JUnit XML report (CI integration)</td><td></td></tr>
         <tr><td><span class="p">--min-gate-score SCORE</span></td><td>SPEC-010 — Harness Gate A–G composite score lower bound (0.0–1.0); fails if the weighted group average falls below it</td><td></td></tr>
         <tr><td><span class="p">--group-weights WEIGHTS</span></td><td>Per-gate weights for <code>--min-gate-score</code>. Format: <code>'A:2.0,B:1.5,E:3.0'</code> (default all 1.0)</td><td></td></tr>
         <tr><td><span class="p">--gate-thresholds THRESHOLDS</span></td><td>Per-gate minimum score thresholds. Format: <code>'A:0.8,D:0.9,E:0.95'</code> (unlisted gates fall back to <code>--min-gate-score</code>)</td><td></td></tr>
         <tr><td><span class="p">--required-gates GATES</span></td><td>Comma-separated Gates to check, e.g. <code>'A,D,E'</code> (default: all Gates with data)</td><td></td></tr>
         <tr><td><span class="p">--fail-on-gate-warn</span></td><td>Treat Gate status <code>"warn"</code> as a failure</td><td></td></tr>
+        <tr><td><span class="p">--golden-set PATH</span></td><td>Golden dataset JSON — flags cases whose current answer regresses vs. the recorded golden answer</td><td rowspan="2"><code>3</code> golden-set regression</td></tr>
+        <tr><td><span class="p">--fail-on-golden-regression</span></td><td>Exit <code>3</code> when <code>--golden-set</code> finds a regression (otherwise reported but non-blocking)</td></tr>
       </tbody></table>
       <pre># GitHub Actions integration
 - name: Quality Gate
@@ -1580,7 +1781,11 @@ chat_agent(<span class="st">"What's the difference with asyncio.wait?"</span>, s
     agent-eval gate results/ci_run.json \
       --tcr 85 --accuracy 70 --p95-latency 3.0 \
       --fail-on-regression 10 \
-      --junit-xml results/gate.xml</pre>
+      --junit-xml results/gate.xml
+
+# Per-version baseline + golden-set regression gate
+agent-eval gate results/v2-cot.json --baseline-version v2-cot --fail-on-regression 10
+agent-eval gate results/ci_run.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression</pre>
     </div>
   </div>
 </section>

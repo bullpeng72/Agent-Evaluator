@@ -25,7 +25,7 @@ evaluation_session context manager로 자동 저장을 시연한다.
 결과:
     results/ch11_eval_data.json  (+ .html)
     data/golden_datasets/  (골든 데이터셋)
-    → 전체 운영 인프라 예제: Evaluator_Examples/.deprecated/06_operational.py
+    → 운영 인프라는 ch15(대시보드)·ch16(알림)·ch17(주간 리뷰)·ch18(CI/CD 게이트)에서 각각 다룬다
 """
 
 import socket
@@ -393,4 +393,4 @@ print(f"  evaluation_session 종료 → results/11_session_demo.json 자동 저�
 # ===========================================================================
 monitor_golden.save_to_file("ch11_eval_data")
 print("\n결과 저장 완료: results/ch11_eval_data.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")

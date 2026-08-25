@@ -231,6 +231,21 @@ manually (or for other MCP clients):
 opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
 ```
 
+## `recommend_fix` MCP server
+
+Opt-in (same `[mcp]` extra): `agent_evaluator.integrations.recommend_fix_mcp` exposes a single stdio MCP
+tool, `recommend_fix(gate: str, metric: str | None = None, value: float | None = None)`. Where
+`search_violations` answers "what happened before," `recommend_fix` answers "what should I do about
+Gate X being bad" — a static lookup over `agent_evaluator.ontology.metric_registry`
+(`GATE_GUIDANCE`/`NATIVE_METRIC_RULES`/`ANOMALY_METRIC_SUGGESTIONS`) and, for Gate F, the MAST failure-mode
+taxonomy. No result file is required — it works even before the agent under development has been
+evaluated once. `agent-eval opencode install --with-recommend-fix` registers it automatically; to
+register it manually (or for other MCP clients):
+
+```bash
+opencode mcp add agent-evaluator-recommend-fix -- python -m agent_evaluator.integrations.recommend_fix_mcp
+```
+
 ## Known gotchas from live OpenCode validation
 
 The plugin was live-tested end to end against a real OpenCode `1.17.9` + local Ollama `qwen3-coder`
@@ -262,10 +277,13 @@ opencode run --dir /path/to/project "your message" \
 **`GUARDRAIL_CONFIG`'s defaults had to be tuned to OpenCode's actual tool granularity.** OpenCode routes
 every shell action through a single `"bash"` tool (there's no separate `"shell_exec"` or similar) — so a
 low `consecutive_repeat_threshold` with `on_loop_detected: "fail"` flagged a completely normal
-`ls → cat → ls` sequence as a "loop" and blocked the third call. The shipped default now uses
-`consecutive_repeat_threshold: 6` with the default `on_loop_detected` left at `LoopDetectionConfig`'s
-own default (`"record"` — observe, don't block); raise the threshold or switch to `"fail"` only after
-confirming your agent's tool granularity matches this assumption.
+`ls → cat → ls` sequence as a "loop" and blocked the third call. Loop detection only compares tool
+*names* (not parameters), so any agent whose tools are coarse-grained enough to name-collide on 3
+legitimate, distinct actions in a row hits the same false positive — not an OpenCode-only problem. Because
+of that, `LoopDetectionConfig.consecutive_repeat_threshold`'s own **SDK-wide default was raised from 3 to
+6** (not just this plugin's config); `on_loop_detected` stays at its existing default (`"record"` —
+observe, don't block). Lower the threshold back down, or switch to `"fail"`, only after confirming your
+agent's tool granularity is fine enough that 3-in-a-row genuinely signals a stuck loop.
 
 **The default dangerous-command patterns missed several `rm` bypasses, found and closed in two rounds
 of live testing:**

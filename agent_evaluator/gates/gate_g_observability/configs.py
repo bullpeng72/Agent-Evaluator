@@ -28,6 +28,18 @@ class ObservabilityConfig:
     audit_events: list[str] = dataclasses.field(default_factory=list)
     min_coverage: float = 0.95
 
+    def __post_init__(self) -> None:
+        import warnings as _w
+        # min_coverage는 trace_coverage(0-1)와 >= 비교된다(evaluators.py:94의 slo_met).
+        # 범위 밖 값은 SLO 판정을 항상 통과 또는 항상 미달로 고정시킨다.
+        if not (0.0 <= self.min_coverage <= 1.0):
+            _w.warn(
+                f"ObservabilityConfig: min_coverage={self.min_coverage} 은 [0.0, 1.0] 범위를 "
+                f"벗어납니다. trace_coverage(0-1)와 비교되므로 음수면 SLO가 항상 통과, "
+                f"1.0 초과면 항상 미달로 판정됩니다.",
+                UserWarning, stacklevel=2,
+            )
+
 
 @dataclasses.dataclass
 class ExplainabilityConfig:

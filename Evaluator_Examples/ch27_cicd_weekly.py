@@ -340,7 +340,7 @@ print(f"  비용 드리프트: +{cost_increase_pct:.1f}% (W1→W8)")
 
 weekly_monitor.save_to_file("ch27_cicd_weekly")
 print("\n결과 저장 완료: results/ch27_cicd_weekly.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
 
 print("""
 === Ch27 CI/CD 완성 요약 ===

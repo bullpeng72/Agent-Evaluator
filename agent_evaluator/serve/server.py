@@ -106,6 +106,7 @@ from .routers import config as config_router
 from .routers import conversation as conversation_router
 from .routers import cost as cost_router
 from .routers import data as data_router
+from .routers import diagnose as diagnose_router
 from .routers import export as export_router
 from .routers import feedback as feedback_router
 from .routers import golden as golden_router
@@ -254,6 +255,7 @@ def create_app(
     app.include_router(feedback_router.router)
     app.include_router(anomaly_router.router)
     app.include_router(cost_router.router)
+    app.include_router(diagnose_router.router)
 
     # Templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -261,10 +263,11 @@ def create_app(
     # ------------------------------------------------------------------ #
     # HTML routes
     # ------------------------------------------------------------------ #
-    # serve 명령어 삭제 시 마이그레이션 가이드:
-    #   1. dashboard.html.j2 파일 삭제
-    #   2. 아래 "/" 라우트를 RedirectResponse("/dashboard") 로 교체
-    #   3. /slides, /sdk-docs, /api/* 라우트는 그대로 유지 (독립적)
+    # "/" → "/dashboard" 리다이렉트 적용됨(dashboard.html.j2는 한국어 UI 텍스트가
+    # 남아있는 레거시 템플릿이라 더 이상 라우팅하지 않는다 — dashboard2.html.j2가
+    # 영문 UI의 유지 대상). dashboard.html.j2 파일 자체는 아직 삭제하지 않았다 —
+    # 완전히 정리하려면: 1. dashboard.html.j2 파일 삭제  2. /slides, /sdk-docs,
+    # /api/* 라우트는 그대로 유지(독립적)
     # ------------------------------------------------------------------ #
 
     # SPEC-005: 로그인 라우트 — auth_token 미설정 시에도 등록되지만, 그 경우 middleware가
@@ -291,18 +294,9 @@ def create_app(
             url=f"/login?error=1&next={_urlquote(next_path, safe='')}", status_code=303
         )
 
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/", include_in_schema=False)
     async def dashboard(request: Request):
-        resp = templates.TemplateResponse(
-            request,
-            "dashboard.html.j2",
-            {
-                "title":   app.state.title,
-                "version": app.state.version,
-                "watch":   watch,
-                "offline": app.state.offline,
-            },
-        )
+        resp = RedirectResponse(url="/dashboard")
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         resp.headers["Pragma"] = "no-cache"
         return resp

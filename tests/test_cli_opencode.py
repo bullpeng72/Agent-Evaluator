@@ -23,7 +23,7 @@ from agent_evaluator.cli import opencode as opencode_cli
 def _ns(**kwargs):
     defaults = {
         "opencode_command": "install", "global_install": False, "force": False,
-        "with_violation_search": False,
+        "with_violation_search": False, "with_recommend_fix": False,
     }
     defaults.update(kwargs)
     return argparse.Namespace(**defaults)
@@ -186,6 +186,66 @@ class TestWithViolationSearchMcpRegistration:
         err = capsys.readouterr().err
         assert "opencode" in err.lower()
         assert "mcp add" in err  # 수동 등록 안내 포함
+
+
+class TestWithRecommendFixMcpRegistration:
+    """--with-recommend-fix가 opencode mcp add를 자동 실행한다 (_register_violation_search_mcp와
+    동일한 _register_mcp_server() 공유 실행부를 쓴다)."""
+
+    def test_flag_present_registers_mcp_server(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        calls = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_recommend_fix=True))
+
+        assert code == 0
+        assert len(calls) == 1
+        cmd = calls[0]
+        assert cmd[:4] == ["opencode", "mcp", "add", opencode_cli._RECOMMEND_FIX_MCP_NAME]
+        assert "--" in cmd
+        assert sys.executable in cmd
+        assert "agent_evaluator.integrations.recommend_fix_mcp" in cmd
+        assert "registered" in capsys.readouterr().out.lower()
+
+    def test_both_flags_register_both_servers(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        calls = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(
+            _ns(with_violation_search=True, with_recommend_fix=True)
+        )
+
+        assert code == 0
+        assert len(calls) == 2
+        names = {c[3] for c in calls}
+        assert names == {
+            opencode_cli._VIOLATION_SEARCH_MCP_NAME,
+            opencode_cli._RECOMMEND_FIX_MCP_NAME,
+        }
+
+    def test_opencode_binary_missing_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        def _fake_run(cmd, **kwargs):
+            raise FileNotFoundError("opencode")
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", _fake_run)
+        code = opencode_cli.cmd_opencode(_ns(with_recommend_fix=True))
+
+        assert code == 0
+        err = capsys.readouterr().err
+        assert "opencode" in err.lower()
+        assert "mcp add" in err
 
     def test_non_zero_exit_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)

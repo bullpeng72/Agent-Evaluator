@@ -14,6 +14,7 @@ import tempfile
 import warnings
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -469,8 +470,19 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             'rate': detected / total if total > 0 else 0
         }
 
-    def save_to_file(self, filename: str = "hybrid_evaluation_results.json") -> str:
-        """Save results with advanced metrics to JSON file in results/"""
+    def save_to_file(
+        self, filename: str = "hybrid_evaluation_results.json",
+        baseline_path: str | Path | None = None,
+    ) -> str:
+        """Save results with advanced metrics to JSON file in results/
+
+        Args:
+            filename: Output filename.
+            baseline_path: Accepted for signature compatibility with
+                ``PerformanceMonitor.save_to_file()`` only — this override writes JSON
+                only (no HTML report), so there is no Gate RCA diagnosis section for a
+                baseline to affect. The argument is ignored.
+        """
         # results/ 디렉토리에 저장 (절대 경로가 아닌 경우)
         if not os.path.isabs(filename):
             from ..utils.path_helpers import get_evaluation_results_dir

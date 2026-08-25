@@ -2,7 +2,7 @@
 
 임계값 설정 · 품질 게이팅 · CI/CD 통합
 
-**v0.9.13 | Python 3.8+**
+**v1.0.0 | Python 3.8+**
 
 ---
 
@@ -232,7 +232,7 @@ result = gate.evaluate()
 | `group_thresholds` | `None` | Gate별 개별 최소 점수 dict. CLI `--gate-thresholds`와 동일 개념 |
 | `strict_required` | `False` | `required_groups`에 명시한 Gate가 미측정(`score=None`)이면 실패 처리 |
 
-> ⚠️ `agent-eval gate` CLI(`--gate-thresholds`)·`QuickEval.gate(gate_thresholds=...)`·`HarnessEvaluationGate`는 Gate A–G 임계값 판정을 각각 독립적으로 구현한 3개의 코드 경로입니다 — 공유하는 건 베이스라인 회귀 판정 공식뿐입니다. 세 경로 모두 `score=None`(해당 Gate의 Config를 아예 설정하지 않은 경우)인 Gate는 기본적으로 통과 처리합니다(`HarnessEvaluationGate`만 `strict_required=True`로 이 동작을 끌 수 있습니다). 팀의 게이팅 정책을 바꿀 때는 실제 CI에서 어느 경로를 쓰는지 먼저 확인하세요.
+> ⚠️ `agent-eval gate` CLI(`--gate-thresholds`)·`QuickEval.gate(gate_thresholds=...)`·`HarnessEvaluationGate`는 Gate A–G 임계값 판정을 세 곳에서 각각 호출하는 서로 다른 진입점입니다 — `_compute_gate_regressions()`(베이스라인 회귀 판정 공식)와 `gates/base.py::evaluate_gate_scores()`(Gate별 score/threshold/status → passed 판정 루프)를 셋 다 공유합니다. 남은 차이는 진입점별 고유 기능뿐입니다(`HarnessEvaluationGate`의 `strict_required`, CLI의 `--baseline-version`/`--golden-set`). 세 진입점 모두 `score=None`(해당 Gate의 Config를 아예 설정하지 않은 경우)인 Gate는 기본적으로 통과 처리합니다(`HarnessEvaluationGate`만 `strict_required=True`로 이 동작을 끌 수 있습니다).
 
 ---
 

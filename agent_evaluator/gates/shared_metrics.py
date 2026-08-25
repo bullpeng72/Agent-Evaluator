@@ -585,6 +585,7 @@ class GateCSharedAgg:
         self.sla_cost = RunningSum()
         self.sla_config = RunningLastValue()
         self.sla_window = RunningWindow(maxlen=10)
+        self.sla_p95_ms = RunningAverage()
 
     def update(self, t: Any) -> None:
         extra = t.extra or {}
@@ -630,6 +631,8 @@ class GateCSharedAgg:
             if _cfg:
                 self.sla_config.set(_cfg)
                 self.sla_window.resize(int(_cfg.get("breach_window", 10)))
+                if _cfg.get("p95_ms") is not None:
+                    self.sla_p95_ms.add(float(_cfg["p95_ms"]))
             self.sla_window.add(bool(_sla.get("sla_met", True)))
 
     def snapshot(self) -> dict[str, Any]:
@@ -671,6 +674,7 @@ class GateCSharedAgg:
             "sla_n": _sla_n,
             "sla_window_penalty": _sla_window_penalty,
             "sla_budget_penalty": _sla_budget_penalty,
+            "sla_p95_ms_avg": self.sla_p95_ms.average(),
         }
 
 

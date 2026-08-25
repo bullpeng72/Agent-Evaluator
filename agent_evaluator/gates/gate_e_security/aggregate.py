@@ -180,7 +180,7 @@ def compute(
         # _cvss_count(= RunningAverage.count 또는 len(_cvss_scores))가 0보다 크면
         # _cvss_avg(= RunningAverage.average() 또는 동일 로직)도 항상 non-None이다.
         assert _cvss_avg is not None
-        _cvss_normalized = max(0.0, 1.0 - _cvss_avg / 10.0)
+        _cvss_normalized = min(1.0, max(0.0, 1.0 - _cvss_avg / 10.0))
         _e_base_scores: list[float] = (
             [_sec_score_raw, _cvss_normalized] if _include_sec_raw else [_cvss_normalized]
         )
@@ -210,8 +210,13 @@ def compute(
         if _w:
             _e_insufficient.append(_w)
 
-    # enable_security_metrics=False + 보안 Harness Config 데이터 없음 → 측정값 없음 → None
-    # (보안 비활성 상태의 _sec_score_raw=1.0이 Gate E를 무조건 통과시키는 오탐 방지)
+    # 보안 Harness Config 데이터가 하나도 없으면 측정값 없음 → None.
+    # enable_security_metrics=True인데 트래커가 실제로 한 번도 안 불렸을 때도(배선 오류 등)
+    # "위협 0건"과 구분 안 되던 버그 수정 — enable_security_metrics 값과 무관하게
+    # _has_security_config_data 하나로만 판정한다(Gate C의 hallucination 처리와 동일 패턴:
+    # "감지 자체가 없으면 None 유지"). 이전에는 enable=True + 데이터 없음이면 이 분기를
+    # 건너뛰어 _sec_score_raw=1.0("위협 0건")이 유일한 컴포넌트로 들어가 Gate E가 완벽 점수를
+    # 냈다 — "평가 안 함"과 "안전함"이 구분되지 않는 조용한 실패였다.
     _has_security_config_data = bool(
         _cvss_count > 0
         or _avg_compliance is not None
@@ -219,7 +224,7 @@ def compute(
         or _native_e_scores
     )
     _sec_score: float | None
-    if not enable_security_metrics and not _has_security_config_data:
+    if not _has_security_config_data:
         _sec_score = None
     else:
         _all_e_scores = _e_base_scores + _native_e_scores

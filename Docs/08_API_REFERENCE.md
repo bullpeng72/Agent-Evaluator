@@ -1,14 +1,14 @@
 # API 레퍼런스
 
-Agent Evaluator v0.9.13 전체 API 문서
+Agent Evaluator v1.0.0 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.9.13
+- **버전:** v1.0.0
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-08-19
+- **최종 업데이트:** 2026-08-25
 
 ---
 
@@ -140,8 +140,8 @@ monitor = PerformanceMonitor(
 | `compare(other)` | `dict` | 다른 모니터와 지표 비교 |
 | `analyze()` | `dict` | 병목 분석 + 최적화 권고 |
 | `rehydrate_from_storage(path, limit=None)` *(v0.9.8+)* | `int` | SQLite(`storage_backend="sqlite"`) 이력을 `record_task()` 루프로 재생 — 프로세스 재시작 후에도 `AnomalyDetector` 기준선이 살아남게 한다. 반환값은 재생된 태스크 수 |
-| `agent_version` *(속성, SPEC-027)* | `Optional[str]` | 읽기 전용 — 생성자에 넘긴 값의 최종 해석 결과(`"auto"`면 자동 태깅 결과, 리터럴 문자열이면 그대로, 미지정이면 `None`). setter 없음 |
-| `iteration_note` *(생성자 파라미터, SPEC-029)* | `Optional[str]` | `agent_version="auto"`의 불투명한 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙인다. `extra_metrics.lineage.iteration_note`에 그대로 실림, 새 계산 없음. 대시보드 File Compare의 Metric Comparison 표에 `agent_version`과 나란히 렌더링된다. 생략(기본값 `None`)하면 회귀 없음 |
+| `agent_version` *(속성)* | `Optional[str]` | 읽기 전용 — 생성자에 넘긴 값의 최종 해석 결과(`"auto"`면 자동 태깅 결과, 리터럴 문자열이면 그대로, 미지정이면 `None`). setter 없음 |
+| `iteration_note` *(생성자 파라미터)* | `Optional[str]` | `agent_version="auto"`의 불투명한 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙인다. `extra_metrics.lineage.iteration_note`에 그대로 실림, 새 계산 없음. 대시보드 File Compare의 Metric Comparison 표에 `agent_version`과 나란히 렌더링된다. 생략(기본값 `None`)하면 회귀 없음 |
 
 > **`rehydrate_from_storage()` 사용 시 주의**: `enable_llm_judge`/`enable_hallucination_detection`/`enable_security_metrics`가 켜진 모니터로 재생하면 이미 채점된 과거 태스크가 **다시 채점**된다(LLM Judge라면 비용도 재발생). 과거 이력을 그대로 재현만 하려면 이 플래그들을 끈 모니터로 재생할 것.
 
@@ -151,7 +151,7 @@ monitor = PerformanceMonitor(output_dir="results/", enable_anomaly_detection=Tru
 n = monitor.rehydrate_from_storage("results/production_sessions.db", limit=500)
 ```
 
-> **`agent_version="auto"` (SPEC-027)**: 현재 git 커밋 SHA 앞 8자로 자동 태깅한다.
+> **`agent_version="auto"`**: 현재 git 커밋 SHA 앞 8자로 자동 태깅한다.
 > 커밋되지 않은 tracked 파일 변경이 있으면(`git diff HEAD`) 그 diff를 해시해
 > `{commit8}-dirty-{hash6}` 형태로 접미사를 붙인다 — 커밋 없이 반복 실행하는 로컬
 > 개발 루프에서도 서로 다른 코드 상태가 자동으로 구분된다. git 정보가 없으면(비-git
@@ -162,7 +162,7 @@ n = monitor.rehydrate_from_storage("results/production_sessions.db", limit=500)
 > monitor.agent_version  # -> "a1b2c3d4" | "a1b2c3d4-dirty-f3a91c" | None
 > ```
 
-> **`iteration_note` (SPEC-029)**: 위 `-dirty-<hash>` 태그 자체는 의미를 담지
+> **`iteration_note`**: 위 `-dirty-<hash>` 태그 자체는 의미를 담지
 > 않으므로, 어느 iteration이 무엇을 시도한 것인지 사람이 읽을 수 있는 메모를
 > 함께 남긴다.
 >
@@ -1468,4 +1468,4 @@ FrameworkLiteral,   # 24개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.9.13 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v1.0.0 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

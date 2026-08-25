@@ -170,6 +170,27 @@ class TestGateBMigrationEquivalence:
             "avg_context_window", "insufficient_data_warnings",
         }
 
+    def test_loop_weight_ignored_warning_when_no_loop_data(self):
+        """회귀 테스트 — gate_b_loop_weight>0을 명시적으로 설정해도 loop_detection
+        데이터가 없으면 단순평균으로 조용히 폴백됐다(사용자가 자기 설정이 적용됐는지
+        알 방법이 없었음). 이제 insufficient_data_warnings에 그 사실이 남는다."""
+        from agent_evaluator.gates.gate_b_behavioral import aggregate as gate_b_aggregate
+
+        tasks = [_task("t1", {"state_consistency": {"score": 0.9}})]  # loop_detection 없음
+        result = gate_b_aggregate.compute(tasks, 0.3, 3, None, None)  # gate_b_loop_weight=0.3
+        warnings = result["details"]["insufficient_data_warnings"] or []
+        assert any("gate_b_loop_weight" in w for w in warnings)
+
+    def test_no_loop_weight_warning_when_weight_is_default(self):
+        """기본값(0.0)일 때는 loop_detection 데이터가 없어도 이 경고가 뜨지 않아야 한다
+        — "설정했는데 무시됨"이 아니라 "애초에 가중치를 요청하지 않음"이기 때문."""
+        from agent_evaluator.gates.gate_b_behavioral import aggregate as gate_b_aggregate
+
+        tasks = [_task("t1", {"state_consistency": {"score": 0.9}})]
+        result = gate_b_aggregate.compute(tasks, 0.0, 3, None, None)
+        warnings = result["details"]["insufficient_data_warnings"] or []
+        assert not any("gate_b_loop_weight" in w for w in warnings)
+
     def test_gate_b_cross_references_gate_a_values(self):
         """Gate B의 gate_a_ref__* 필드가 Gate A의 값과 정확히 일치해야 한다(재계산 아님, 재참조)."""
         m = _build_monitor_with_fixtures()

@@ -326,7 +326,7 @@ print(f"  총 태스크: {report.total_tasks}건")
 # ===========================================================================
 monitor.save_to_file("ch23_project_analysis")
 print("\n결과 저장 완료: results/ch23_project_analysis.json")
-print("확인: agent-eval dashboard --results results/")
+print("확인: agent-eval dashboard results/")
 
 print("""
 === Ch23 분석 4단계 완료 요약 ===

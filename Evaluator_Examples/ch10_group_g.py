@@ -16,7 +16,7 @@ LatencyAttributionConfig — 4개 Config 전체 시연.
 
 결과:
     results/ch10_group_g.json  (+ .html)
-    → 전체 33개 Config 통합 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import json

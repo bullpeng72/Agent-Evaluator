@@ -67,53 +67,68 @@ def cmd_opencode(args: argparse.Namespace) -> int:
 
 
 _VIOLATION_SEARCH_MCP_NAME = "agent-evaluator-violations"
+_RECOMMEND_FIX_MCP_NAME = "agent-evaluator-recommend-fix"
 
 
-def _register_violation_search_mcp() -> None:
-    """(SPEC-024 REQ-6) ``opencode mcp add``로 REQ-4의 stdio MCP 서버를 등록한다.
+def _register_mcp_server(name: str, module: str, flag: str) -> None:
+    """``opencode mcp add``로 ``module``의 stdio MCP 서버를 등록한다.
 
-    실패해도(``opencode`` CLI 미설치, 사용자가 ``mcp`` extra 미설치 등) 경고만
-    출력하고 예외를 올리지 않는다 — 플러그인 설치 자체(``_cmd_install``의 본래
-    목적)는 이 등록 성공 여부와 무관하게 이미 끝난 뒤이므로, 이 단계의 실패로
-    전체 install 명령을 실패 처리할 이유가 없다(``live_guardrail_report.py`` 저장
-    실패가 세션 종료를 막지 않는 것과 동일한 원칙, SPEC-019 Rollout 6단계 참고).
+    ``_register_violation_search_mcp()``/``_register_recommend_fix_mcp()``가 공유하는
+    실행부 — 두 도구 모두 실패해도(``opencode`` CLI 미설치, ``mcp`` extra 미설치 등)
+    경고만 출력하고 예외를 올리지 않는다. 플러그인 설치 자체(``_cmd_install``의 본래
+    목적)는 이 등록 성공 여부와 무관하게 이미 끝난 뒤이므로, 이 단계의 실패로 전체
+    install 명령을 실패 처리할 이유가 없다(``live_guardrail_report.py`` 저장 실패가
+    세션 종료를 막지 않는 것과 동일한 원칙, SPEC-019 Rollout 6단계 참고).
     """
+    _manual = f"opencode mcp add {name} -- {sys.executable} -m {module}"
     try:
         result = subprocess.run(
-            [
-                "opencode", "mcp", "add", _VIOLATION_SEARCH_MCP_NAME, "--",
-                sys.executable, "-m", "agent_evaluator.integrations.violation_search_mcp",
-            ],
+            ["opencode", "mcp", "add", name, "--", sys.executable, "-m", module],
             capture_output=True, text=True, timeout=30,
         )
     except FileNotFoundError:
         print(
-            f"{_Y}⚠️  --with-violation-search: 'opencode' CLI를 찾지 못해 MCP 서버 등록을 "
-            f"건너뜁니다. 수동 등록: opencode mcp add {_VIOLATION_SEARCH_MCP_NAME} -- "
-            f"{sys.executable} -m agent_evaluator.integrations.violation_search_mcp{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode' CLI를 찾지 못해 MCP 서버 등록을 건너뜁니다. "
+            f"수동 등록: {_manual}{_R}",
             file=sys.stderr,
         )
         return
     except subprocess.TimeoutExpired:
         print(
-            f"{_Y}⚠️  --with-violation-search: 'opencode mcp add' 호출이 시간 초과됐습니다 "
-            f"— 수동으로 등록하세요.{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode mcp add' 호출이 시간 초과됐습니다 — 수동으로 등록하세요.{_R}",
             file=sys.stderr,
         )
         return
 
     if result.returncode == 0:
-        print(f"{_G}✅ MCP server registered: {_VIOLATION_SEARCH_MCP_NAME}{_R}")
+        print(f"{_G}✅ MCP server registered: {name}{_R}")
     else:
         print(
-            f"{_Y}⚠️  --with-violation-search: 'opencode mcp add' 실패(exit "
-            f"{result.returncode}) — 수동 등록: opencode mcp add "
-            f"{_VIOLATION_SEARCH_MCP_NAME} -- {sys.executable} -m "
-            f"agent_evaluator.integrations.violation_search_mcp{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode mcp add' 실패(exit {result.returncode}) — "
+            f"수동 등록: {_manual}{_R}",
             file=sys.stderr,
         )
         if result.stderr:
             print(f"{_D}   {result.stderr.strip()}{_R}", file=sys.stderr)
+
+
+def _register_recommend_fix_mcp() -> None:
+    """(``--with-recommend-fix``) ``opencode mcp add``로 ``recommend_fix`` stdio MCP
+    서버를 등록한다 — ``search_violations``와 나란히 등록하는 정적 지식 조회 도구다."""
+    _register_mcp_server(
+        _RECOMMEND_FIX_MCP_NAME,
+        "agent_evaluator.integrations.recommend_fix_mcp",
+        "--with-recommend-fix",
+    )
+
+
+def _register_violation_search_mcp() -> None:
+    """(SPEC-024 REQ-6) ``opencode mcp add``로 REQ-4의 stdio MCP 서버를 등록한다."""
+    _register_mcp_server(
+        _VIOLATION_SEARCH_MCP_NAME,
+        "agent_evaluator.integrations.violation_search_mcp",
+        "--with-violation-search",
+    )
 
 
 def _cmd_install(args: argparse.Namespace) -> int:
@@ -158,6 +173,10 @@ def _cmd_install(args: argparse.Namespace) -> int:
         print()
         _register_violation_search_mcp()
 
+    if getattr(args, "with_recommend_fix", False):
+        print()
+        _register_recommend_fix_mcp()
+
     print()
     print(f"{_B}Next steps:{_R}")
     print(f"  1. Edit {target} — adjust GUARDRAIL_CONFIG for your project")
@@ -167,6 +186,16 @@ def _cmd_install(args: argparse.Namespace) -> int:
         f"  {_D}Full Config/tracker option reference: "
         f"agent_evaluator/gates/gate_b_behavioral/configs.py, "
         f"agent_evaluator/core/trackers/security.py{_R}"
+    )
+    print()
+    print(
+        f"{_Y}💡 Tuning tip:{_R} loop_detection.consecutive_repeat_threshold (default 6) only "
+        f"compares tool *names*, not parameters. If your agent routes many distinct actions "
+        f"through one coarse-grained tool (e.g. OpenCode's single \"bash\" tool covers every "
+        f"shell command), that's still a real false-positive risk at low thresholds — raise it "
+        f"further if you see legitimate calls getting blocked/recorded as loops. Lower it only "
+        f"after confirming your agent's tools are fine-grained enough that N-in-a-row genuinely "
+        f"means stuck."
     )
     return 0
 
@@ -178,8 +207,8 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
         formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Install the LiveGuardrail OpenCode plugin (real-time Gate B/E guardrail)",
         description=(
-            "Install the bundled OpenCode plugin (SPEC-019 LiveGuardrail reference\n"
-            "implementation) into the location OpenCode auto-loads plugins from.\n"
+            "Install the bundled OpenCode plugin (LiveGuardrail reference implementation)\n"
+            "into the location OpenCode auto-loads plugins from.\n"
             f"{_D}The plugin is a thin Node/Bun stdio client — the sole source of truth\n"
             f"for Gate B/E judgment logic always stays in the Python LiveGuardrail.{_R}"
         ),
@@ -189,6 +218,7 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             f"  {_G}agent-eval opencode install --global{_R}\n"
             f"  {_G}agent-eval opencode install --force{_R}\n"
             f"  {_G}agent-eval opencode install --with-violation-search{_R}\n"
+            f"  {_G}agent-eval opencode install --with-recommend-fix{_R}\n"
         ),
     )
     op_sub = p.add_subparsers(dest="opencode_command")
@@ -209,6 +239,8 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             f"  {_G}agent-eval opencode install --force{_R} {_D}# overwrite existing{_R}\n"
             f"  {_G}agent-eval opencode install --with-violation-search{_R}\n"
             f"      {_D}# + register search_violations MCP server{_R}\n"
+            f"  {_G}agent-eval opencode install --with-recommend-fix{_R}\n"
+            f"      {_D}# + register recommend_fix MCP server{_R}\n"
         ),
     )
     install_p.add_argument(
@@ -225,8 +257,17 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
     install_p.add_argument(
         "--with-violation-search", dest="with_violation_search", action="store_true",
         help=(
-            "(SPEC-024 REQ-6) Also run 'opencode mcp add' to register the "
+            "Also run 'opencode mcp add' to register the "
             "search_violations MCP server (opt-in, requires the 'mcp' extra: "
+            "pip install \"agent-evaluator[mcp]\")"
+        ),
+    )
+    install_p.add_argument(
+        "--with-recommend-fix", dest="with_recommend_fix", action="store_true",
+        help=(
+            "Also run 'opencode mcp add' to register the "
+            "recommend_fix MCP server — static Gate/metric remediation lookup, "
+            "no result file required (opt-in, requires the 'mcp' extra: "
             "pip install \"agent-evaluator[mcp]\")"
         ),
     )

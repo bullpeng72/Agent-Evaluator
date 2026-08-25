@@ -1915,11 +1915,10 @@ def explain_anomaly_event(
     threshold = event.get("threshold", 0.0)
     deviation_pct = abs(value - threshold) / max(abs(threshold), 1e-9) * 100
     severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
-    suggestions = {
-        "accuracy": "Accuracy is low. Consider improving prompts or upgrading the model.",
-        "latency": "Response time is high. Consider caching or parallel processing.",
-        "error_rate": "Error rate is high. Agent stability review is required.",
-    }
+    from agent_evaluator.ontology.metric_registry import (
+        ANOMALY_METRIC_DEFAULT_SUGGESTION,
+        ANOMALY_METRIC_SUGGESTIONS,
+    )
     return {
         "event_id": event_id,
         "metric": metric,
@@ -1928,7 +1927,7 @@ def explain_anomaly_event(
         "deviation_pct": round(deviation_pct, 2),
         "severity": severity,
         "explanation": f"{metric} value {value:.4f} exceeded threshold {threshold:.4f} by {deviation_pct:.1f}%.",
-        "suggested_action": suggestions.get(metric, "Analyze this metric in detail."),
+        "suggested_action": ANOMALY_METRIC_SUGGESTIONS.get(metric, ANOMALY_METRIC_DEFAULT_SUGGESTION),
         "timestamp": event.get("timestamp", ""),
     }
 
@@ -2652,8 +2651,12 @@ def get_comparison(
         "diff": diff,
         "common_task_count": len(common_ids),
         "per_task_diff": per_task_diff,
+        # 스케일 버그 수정(Phase 2 감사): rf.accuracy·rf.tcr는 둘 다 0-100 스케일
+        # (accuracy_scores.overall_accuracy / TCRTracker.calculate_tcr()) — tcr_dropped는
+        # 이 스케일에 맞게 -5.0(5%p)을 쓰는데 accuracy_dropped만 0-1 스케일용 값(-0.05)을
+        # 써서 사실상 모든 accuracy 변동에 True가 됐다. tcr_dropped와 동일하게 -5.0(5%p)로 정정.
         "regression_flags": {
-            "accuracy_dropped": (diff.get("accuracy") or 0) < -0.05,
+            "accuracy_dropped": (diff.get("accuracy") or 0) < -5.0,
             "latency_increased": (diff.get("avg_latency") or 0) > 0.5,
             "tcr_dropped": (diff.get("tcr") or 0) < -5.0,
         },

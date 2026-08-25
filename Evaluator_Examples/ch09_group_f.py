@@ -18,7 +18,7 @@ EvalMetadata(extra={"consensus": {...}}) 로 합의 점수를 직접 주입한�
 
 결과:
     results/ch09_group_f.json  (+ .html)
-    → 전체 33개 Config 통합 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
+    → 전체 통합 예제: Evaluator_Examples/ch26_harness_full.py (Gate A–G 전체 연결)
 """
 
 import socket

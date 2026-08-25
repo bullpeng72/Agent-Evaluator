@@ -30,7 +30,6 @@ v2 에이전트 (개선 버전):
 
 결과:
     results/ch20_deployment_v1.json / ch20_deployment_v2.json
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/10_version_comparison.py
 """
 
 import json
@@ -507,4 +506,4 @@ print(f"\n  → 권장: {'v2 배포 (개선 확인됨)' if not v2_fail else 'v2�
 monitor_v1.save_to_file("ch20_deployment_v1")
 monitor_v2.save_to_file("ch20_deployment_v2")
 print(f"\n결과 저장: {_OUTPUT_DIR}/ch20_deployment_v1.json / ch20_deployment_v2.json")
-print("대시보드: agent-eval dashboard --results results/")
+print("대시보드: agent-eval dashboard results/")

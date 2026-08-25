@@ -209,7 +209,7 @@ def export_excel(file_id: str, request: Request):
         file_id: Result file ID (from the ``id`` field in ``/api/results``).
     """
     try:
-        import openpyxl
+        import openpyxl  # pyright: ignore[reportMissingModuleSource]
     except ImportError:
         raise HTTPException(
             status_code=501,
@@ -328,7 +328,13 @@ def export_html_compare(
 
 
 @router.get("/html/{file_id}", summary="HTML report export")
-def export_html(file_id: str, request: Request):
+def export_html(
+    file_id: str,
+    request: Request,
+    baseline_id: Optional[str] = Query(  # noqa: UP045
+        None, description="Baseline result file id for regression-based Gate RCA diagnosis",
+    ),
+):
     """Download a self-contained Harness Gate A–G HTML report.
 
     A single-file report that can be opened directly in the browser without any external CDN dependency.
@@ -336,14 +342,25 @@ def export_html(file_id: str, request: Request):
 
     Args:
         file_id: Result file ID (from the ``id`` field in ``/api/results``).
+        baseline_id: (optional) Baseline result file id — same pairing as
+            ``GET /api/diagnose/{file_id}?baseline_id=``. When given, the report's
+            Gate RCA diagnosis section switches from absolute-threshold detection
+            to regression-vs-baseline detection.
     """
     rs = _result_set(request)
     rf = rs.by_id(file_id)
     if rf is None:
         raise HTTPException(status_code=404, detail="File not found")
 
+    baseline_raw = None
+    if baseline_id:
+        baseline_rf = rs.by_id(baseline_id)
+        if baseline_rf is None:
+            raise HTTPException(status_code=404, detail=f"Baseline file not found: {baseline_id}")
+        baseline_raw = baseline_rf.raw
+
     from agent_evaluator.reporting.comprehensive_report import generate_html_from_result_file
-    html = generate_html_from_result_file(rf)
+    html = generate_html_from_result_file(rf, baseline=baseline_raw)
     return HTMLResponse(
         content=html,
         headers={"Content-Disposition": f'attachment; filename="{rf.name}_report.html"'},

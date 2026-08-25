@@ -25,7 +25,6 @@ LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크의 응답에서
 
 결과:
     results/ch13_frameworks.json
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/03_framework_adapters.py
 """
 
 import asyncio

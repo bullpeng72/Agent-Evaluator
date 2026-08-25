@@ -756,6 +756,59 @@ class TestComparisonEndpoint:
         assert r.status_code == 404
 
 
+class TestComparisonAccuracyDroppedScaleFix:
+    """회귀 테스트(Phase 2 감사) — get_comparison()의 regression_flags.accuracy_dropped가
+    rf.accuracy(0-100 스케일)에 0-1 스케일용 임계값(-0.05)을 써서 사실상 항상 True였던
+    버그. tcr_dropped와 동일하게 -5.0(5%p)로 정정됐는지 검증한다."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from agent_evaluator.serve.server import create_app
+        from starlette.testclient import TestClient
+
+        # overall_accuracy는 0-100 스케일 — 90.0 → 88.0은 -2.0 (5%p 미만 하락, 회귀 아님)
+        for name, overall_accuracy in [("eval_a", 90.0), ("eval_b", 88.0)]:
+            payload = {
+                "report": {
+                    "total_tasks": 2, "successful_tasks": 2, "task_completion_rate": 1.0,
+                    "accuracy_metrics": {"accuracy_scores": {"overall_accuracy": overall_accuracy}},
+                    "latency_metrics": {"mean": 1.0, "p50": 1.0, "p95": 1.5, "p99": 2.0},
+                    "token_metrics": {"total_tokens": 100, "total_cost": 0.001},
+                    "quality_metrics": {}, "agentic_metrics": {}, "security_metrics": {},
+                },
+                "tasks": [
+                    {"task_id": f"t{i}", "task_type": "qa", "success": True, "completion_score": 1.0,
+                     "accuracy_score": 0.9, "execution_time": 1.0, "tokens_used": 50,
+                     "tool_calls": [], "attempts": 1, "errors": [], "timestamp": "2026-01-01T00:00:00",
+                     "advanced_metrics": {}}
+                    for i in range(2)
+                ],
+                "metadata": {"version": "0.7.2", "name": name},
+            }
+            (tmp_path / f"{name}.json").write_text(json.dumps(payload))
+
+        app = create_app(results_dir=tmp_path, watch=False, offline=False)
+        return TestClient(app, raise_server_exceptions=False)
+
+    def test_small_accuracy_drop_not_flagged_as_regression(self, client):
+        files = client.get("/api/results").json()["files"]
+        fid_a = next(f["id"] for f in files if "eval_a" in f["name"])
+        fid_b = next(f["id"] for f in files if "eval_b" in f["name"])
+        data = client.get(f"/api/comparison?file_id_a={fid_a}&file_id_b={fid_b}").json()
+        assert data["diff"]["accuracy"] == pytest.approx(-2.0)
+        # 이전 버그(-0.05 임계값)라면 -2.0 < -0.05가 True라 회귀로 오탐됐다.
+        assert data["regression_flags"]["accuracy_dropped"] is False
+
+    def test_accuracy_dropped_threshold_matches_tcr_dropped_scale(self, client):
+        """accuracy_dropped와 tcr_dropped가 이제 동일한 -5.0 임계값(0-100 스케일)을 쓴다."""
+        files = client.get("/api/results").json()["files"]
+        fid_a = next(f["id"] for f in files if "eval_a" in f["name"])
+        fid_b = next(f["id"] for f in files if "eval_b" in f["name"])
+        data = client.get(f"/api/comparison?file_id_a={fid_a}&file_id_b={fid_b}").json()
+        # -2.0은 -5.0보다 크므로(덜 하락) 둘 다 False여야 스케일이 일치한다는 뜻.
+        assert data["regression_flags"]["accuracy_dropped"] == (data["diff"]["accuracy"] < -5.0)
+
+
 # ---------------------------------------------------------------------------
 # Dashboard: E1 get_live_stats via monitor
 # ---------------------------------------------------------------------------

@@ -156,3 +156,24 @@ class TestGateEMigrationEquivalence:
             list(m.tcr_tracker.tasks), m.enable_security_metrics, m._min_samples_default,
         )
         assert result["score"] is None
+
+    def test_security_metrics_enabled_but_no_tracker_data_yields_none_not_perfect_score(self):
+        """회귀 테스트 — enable_security_metrics=True인데 태스크에 보안 트래커 데이터가
+        하나도 없으면(배선 오류·구버전 리포트 재로드 등으로 extra가 비어있는 경우)
+        score=None이어야 한다. 이전에는 이 조합이 "위협 0건"으로 잘못 해석돼
+        score=1.0(완벽)이 나왔다 — "평가 안 함"과 "안전함"이 구분되지 않는 조용한
+        실패였다. Gate C의 hallucination 처리("감지 자체가 없으면 None 유지")와
+        동일한 패턴으로 수정됨.
+
+        PerformanceMonitor.record_task()는 enable_security_metrics=True일 때 보안
+        트래커를 실제로 돌려 extra를 채우므로, "트래커가 안 불렸다"는 상황 자체를
+        재현하려면 aggregate.compute()를 record_task를 거치지 않고 직접 호출해
+        extra={} 태스크를 그대로 넘겨야 한다."""
+        from agent_evaluator.gates.gate_e_security import aggregate as gate_e_aggregate
+        result = gate_e_aggregate.compute(
+            [_task("t0", {})], True, 3,  # enable_security_metrics=True, min_samples_default=3
+        )
+        assert result["score"] is None, (
+            "보안 트래커 데이터가 전혀 없으면 enable_security_metrics 값과 무관하게 "
+            "미측정(None)이어야 한다 — 1.0(완벽)이 나오면 회귀."
+        )

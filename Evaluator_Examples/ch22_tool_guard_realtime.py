@@ -29,14 +29,15 @@ Python이 아닌 런타임(OpenCode 등)과의 연결(stdio 브리지)은 §22.4
     python Evaluator_Examples/ch22_tool_guard_realtime.py
 
 결과:
-    results/ch22_tool_guard_realtime.db (섹션 5)
+    results/ch22_tool_guard_realtime.db (섹션 5 — 감사 이력)
+    results/ch22_tool_guard_realtime.json + .html (섹션 6 — Harness Gate A–G 리포트)
 """
 
 import asyncio
 import subprocess
 from pathlib import Path
 
-from agent_evaluator import create_taskresult
+from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
 from agent_evaluator.gates.live_guardrail import (
     GuardrailBlockedError,
@@ -158,8 +159,10 @@ async def async_search(query: str) -> str:
     return f"(검색 결과 시뮬레이션: {query})"
 
 
+guardrail_s3 = _new_guardrail()  # 세션마다 새 인스턴스 — 섹션 6에서도 재사용
+
+
 async def _run_async_demo() -> None:
-    guardrail_s3 = _new_guardrail()  # 세션마다 새 인스턴스
     with live_guardrail_session(guardrail_s3, task_id="session-3"):
         out = await async_search("최근 배포 이력")
         print(f"  [async_search] 통과 — {out!r}")
@@ -216,5 +219,36 @@ print(f"  search_violations(..., include_blocked=True) 결과 {len(results)}건:
 for r in results:
     print(f"    - task_id={r['task_id']}  blocked={r['blocked']}  summary={r['summary']}")
 
-print("\n결과 저장 완료:", _DB_PATH)
+# ===========================================================================
+# 섹션 6: 배치 리포트 편입 — SQLite 감사 이력과 별개로, 4개 세션을 하나의
+# PerformanceMonitor에 모아 표준 Harness Gate A–G JSON+HTML 리포트도 남긴다.
+# ``live_guardrail_report.py``(OpenCode 브리지)의 SPEC-028 REQ-1과 동일한
+# 규칙 — snapshot()의 "tool_calls" 키는 다른 파생 지표(loop_detection 등)와
+# 달리 TaskResult.extra가 아니라 최상위 TaskResult.tool_calls로 옮겨야
+# Gate G(ToolCallAnalyzer)가 실제 도구 사용 데이터를 읽는다.
+# ===========================================================================
+print("\n=== 섹션 6: 배치 리포트 편입 (JSON + HTML) ===")
+
+report_monitor = PerformanceMonitor(output_dir=str(_OUTPUT_DIR))
+for session_id, session_guardrail, session_response in [
+    ("session-1", guardrail, "echo ok 통과 + rm -rf / 차단 시연"),
+    ("session-2", guardrail_s2, "capture_output으로 실행 결과(exit_code/stdout) 반영 시연"),
+    ("session-3", guardrail_s3, "async 도구 함수 지원 시연"),
+    ("session-4", audit_guardrail, "audit_blocked=True 감사 이력 시연"),
+]:
+    session_extra = dict(session_guardrail.snapshot())
+    session_tool_calls = session_extra.pop("tool_calls", [])
+    report_monitor.record_task(create_taskresult(
+        task_id=session_id,
+        question=session_response,
+        response="tool_guard 데코레이터 세션 완료",
+        execution_time=0.4,
+        task_type="tool_use",
+        tool_calls=session_tool_calls,
+        extra=session_extra,
+    ))
+report_json = report_monitor.save_to_file("ch22_tool_guard_realtime")
+print(f"  저장 완료: {report_json} (+ .html)")
+
+print("\n결과 저장 완료:", _DB_PATH, "+ results/ch22_tool_guard_realtime.json/.html")
 print("확인: agent-eval dashboard results/")

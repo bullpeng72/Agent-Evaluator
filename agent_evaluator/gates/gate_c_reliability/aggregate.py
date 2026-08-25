@@ -36,32 +36,35 @@ def compute_sla_shared_data(
 
     Args:
         tasks: 기록된 TaskResult 리스트.
-        shared_running: (SPEC-018 Phase 6) retention_mode="windowed"일 때
-            ``GateCSharedAgg.snapshot()``이 제공하는 전체 이력 기준 SLA 집계값.
-            ``sla_results``(원본 리스트)는 Gate D(``gate_d_performance/aggregate.py``,
-            p95_ms 임계값 평균 계산에 사용 — 이 스펙 범위 밖, Phase 7 대상)가 여전히
-            소비하므로 ``shared_running`` 유무와 무관하게 **항상 `tasks`(windowed
-            부분집합)에서 계산**한다 — breach_count/rate/window_penalty/budget_penalty
-            "값"만 러닝 집계로 대체되고, "원본 리스트"는 windowed-only로 남는다.
+        shared_running: ``GateCSharedAgg.snapshot()``이 제공하는 전체 이력 기준 SLA
+            집계값(``retention_mode`` 무관 — "full" 모드도 호출자가 임시 집계기로
+            한 번 순회해 만든 스냅숏을 전달하면 이 인자가 채워진다). 채워지면
+            ``sla_p95_ms_avg``(Gate D의 p95_ms 임계값 평균 계산용 — 원래 원본
+            리스트 ``sla_results``를 다시 순회해 계산하던 값을 러닝 평균으로 대체)까지
+            포함하므로, 이 함수는 ``tasks``를 다시 순회하지 않는다(진짜 단일 패스).
+            ``sla_results``(원본 리스트)는 이 경우 빈 리스트로 반환된다 — 이미
+            ``sla_p95_ms_avg``로 대체됐고, 그 외 소비자가 없다(``git grep`` 확인됨).
+            ``None``(기본값)이면 기존과 100% 동일하게 `tasks`에서 매번 재계산한다.
 
     Returns:
         {sla_results, sla_breach_count, sla_breach_rate, sla_warning,
-         sla_window_penalty, sla_budget_penalty, sla_n}
+         sla_window_penalty, sla_budget_penalty, sla_n, sla_p95_ms_avg}
     """
-    _sla_results = [
-        t.extra["sla"]
-        for t in tasks
-        if (t.extra or {}).get("sla") is not None
-    ]
-
     if shared_running is not None:
+        _sla_results: list[dict[str, Any]] = []
         _sla_n = shared_running["sla_n"]
         _sla_breach_count = shared_running["sla_breach_count"]
         _sla_breach_rate = _sla_breach_count / _sla_n if _sla_n > 0 else None
         _sla_warning: str | None = _min_sample_warning("sla", _sla_n, 5)
         _sla_window_penalty = shared_running["sla_window_penalty"]
         _sla_budget_penalty = shared_running["sla_budget_penalty"]
+        _sla_p95_ms_avg = shared_running["sla_p95_ms_avg"]
     else:
+        _sla_results = [
+            t.extra["sla"]
+            for t in tasks
+            if (t.extra or {}).get("sla") is not None
+        ]
         _sla_n = len(_sla_results)
         _sla_breach_count = sum(1 for s in _sla_results if not s.get("sla_met", True))
         _sla_breach_rate = _sla_breach_count / len(_sla_results) if _sla_results else None
@@ -75,9 +78,11 @@ def compute_sla_shared_data(
         _sla_window_penalty = 0.0
         _sla_cfg_summary: dict[str, Any] = {}
         if _sla_results:
-            _sla_cfg_summary = next(
-                (s.get("_config") for s in reversed(_sla_results) if s.get("_config")), {}
-            )
+            for _s in reversed(_sla_results):
+                _cfg = _s.get("_config")
+                if _cfg:
+                    _sla_cfg_summary = _cfg
+                    break
             _breach_window = int(_sla_cfg_summary.get("breach_window", 10))
             _warn_thr = int(_sla_cfg_summary.get("warn_threshold", 2))
             _fail_thr = int(_sla_cfg_summary.get("fail_threshold", 5))
@@ -102,6 +107,10 @@ def compute_sla_shared_data(
                     _overage = _total_session_cost / max(float(_budget_usd), 1e-9) - 1.0
                     _sla_budget_penalty = min(0.3, _overage * 0.1)
 
+        # shared_running 없이는 러닝 평균이 없다 — Gate D가 sla_results에서 직접
+        # 계산하도록 None으로 남긴다(기존 동작 그대로, gate_d_aggregate.compute() 참고).
+        _sla_p95_ms_avg = None
+
     return {
         "sla_results": _sla_results,
         "sla_breach_count": _sla_breach_count,
@@ -110,6 +119,7 @@ def compute_sla_shared_data(
         "sla_window_penalty": _sla_window_penalty,
         "sla_budget_penalty": _sla_budget_penalty,
         "sla_n": _sla_n,
+        "sla_p95_ms_avg": _sla_p95_ms_avg,
     }
 
 
@@ -165,18 +175,18 @@ def compute(
             _hall_data = hallucination_detector.get_hallucination_rate()
             _hall_overall = _hall_data.get("overall_rate")  # 0-100 percentage
             if _hall_overall is not None:
-                hall_rate = float(_hall_overall) / 100.0
+                hall_rate = min(1.0, max(0.0, float(_hall_overall) / 100.0))
     except Exception:
         pass
 
-    _rel_vals: list[float] = [tcr_pct / 100.0]
+    _rel_vals: list[float] = [min(1.0, max(0.0, tcr_pct / 100.0))]
 
     _sla_n = sla_shared["sla_n"]
     _sla_breach_count = sla_shared["sla_breach_count"]
     _sla_breach_rate = sla_shared["sla_breach_rate"]
     _sla_warning = sla_shared["sla_warning"]
     if _sla_breach_rate is not None:
-        _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
+        _rel_vals.append(min(1.0, max(0.0, 1.0 - _sla_breach_rate)))
 
     if shared_running is not None:
         avg_reproducibility: float | None = shared_running["repro_avg"]
