@@ -139,6 +139,10 @@ print(f"저장 완료: {path}")
 agent-eval dataset build --source results/ --strategy high_value --max-cases 30
 ```
 
+> `GoldenSetBuilder`는 `PerformanceMonitor`로 이미 계측된 `results/` 세션만 본다. `@agent_eval` 없이
+> 진행된 일반 대화(예: Claude Code 세션)에서 사례를 찾고 싶다면(선택적, 코어 비의존 개인 도구)
+> [`CTX_SESSION_SEARCH.md`의 워크플로우 B](CTX_SESSION_SEARCH.md#워크플로우-b--골든셋-원료-채굴-계측-안-된-과거-세션에서) 참고.
+
 ---
 
 ### C. KoreanRAGDatasetGenerator (PDF → Golden Dataset)
@@ -668,3 +672,4 @@ if dataset_id:
 | 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
 | 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| ctx 세션 검색 (선택적 개인 워크플로우) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |

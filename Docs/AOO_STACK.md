@@ -347,6 +347,9 @@ of live testing:**
   (SPEC-028 REQ-1).
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — the long-lived, protocol-agnostic (not
   OpenCode-specific) stdio bridge used throughout a session.
+- [`CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md) — optional, non-core individual workflows that pivot
+  from a Gate regression/golden-set/A-B question into `ctx`'s cross-session search (Claude Code provider
+  only — confirms this doc's OpenCode-importer gap does *not* apply the same way there).
 - `agent_evaluator/integrations/live_guardrail_report.py` — the one-shot, session-end batch-integration
   bridge, with opt-in `success`/`execution_time`/`agent_version` fields (SPEC-028).
 - `agent_evaluator/integrations/opencode_plugin/agent-evaluator.ts` — the plugin source itself; its

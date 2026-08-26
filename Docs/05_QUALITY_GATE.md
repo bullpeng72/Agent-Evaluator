@@ -503,6 +503,10 @@ Python API: `agent_evaluator.rca.diagnose()` — 상세 시그니처는 [`08_API
 추천 이력" 절](08_API_REFERENCE.md#14-rca-진단--추천-이력-agent_evaluatorrca--ontology) 참고. 대시보드
 🔧 Improve 탭이 동일 결과를 시각화합니다.
 
+> `--show-diff`가 지목한 git 커밋을 "누가/어떤 대화로 썼는지"까지 역추적하고 싶다면(선택적, 코어
+> 비의존 개인 도구) [`CTX_SESSION_SEARCH.md`의 워크플로우 A](CTX_SESSION_SEARCH.md#워크플로우-a--gate-회귀--git-커밋--원본-세션-역추적)
+> 참고.
+
 ---
 
 ## 9. 도메인별 Harness Config 프리셋
@@ -652,3 +656,4 @@ def domain_agent(question: str, ground_truth: str = "") -> str:
 | 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | 골든 데이터셋 · 한국어 RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
 | Docker · 환경별 설정 | [07_OPERATIONS.md](07_OPERATIONS.md) |
+| ctx 세션 검색 (선택적 개인 워크플로우) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |

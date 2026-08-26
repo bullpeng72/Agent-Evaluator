@@ -1474,6 +1474,7 @@ agent-eval diagnose result.json
 agent-eval diagnose result.json --baseline baseline.json --show-diff
 
 # 통계적 A/B 비교 (2개 파일 → Welch's t-test, 3개+ → N-way + FDR 보정)
+# 비교할 두 실행을 찾는 게 먼저 필요하다면 CTX_SESSION_SEARCH.md 워크플로우 C(선택적) 참고
 agent-eval abtest v1.json v2.json --metric accuracy_score
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference
 agent-eval abtest v1.json v2.json v3.json                   # N-way
