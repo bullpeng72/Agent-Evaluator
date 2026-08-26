@@ -39,6 +39,9 @@ agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval opencode install --with-recommend-fix           # + register recommend_fix MCP server (requires [mcp] extra)
+agent-eval claude install                                 # LiveGuardrail Claude Code CLI hooks (--global/--force)
+agent-eval claude install --with-violation-search         # + register search_violations MCP server (requires [mcp] extra)
+agent-eval claude install --with-recommend-fix             # + register recommend_fix MCP server (requires [mcp] extra)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
 agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim
@@ -237,6 +240,18 @@ agent_evaluator/
 │   │                       #  execution_time/success 옵트인 필드(Gate D/A, success 미지정 시
 │   │                       #  completion_score=0.5 중립값 — None은 TaskResult 검증에 막혀 불가) ·
 │   │                       #  agent_version 기본값 "auto"(자동 태깅 연결)
+│   ├── claude_code_hook.py       # Claude Code CLI 훅(PreToolUse/PostToolUse/SessionEnd) →
+│   │                       #  LiveGuardrail 브리지. Claude Code 훅은 호출마다 별도 프로세스라
+│   │                       #  메모리를 공유하지 않으므로(live_guardrail_stdio.py의 상주
+│   │                       #  프로세스 모델과 다름), 세션별 상태 파일(.claude/.agent-evaluator/
+│   │                       #  sessions/<id>.json)에 확정 tool_call 이력을 남기고 매 호출마다
+│   │                       #  record_tool_call()로 재생(replay)해 판정 상태를 복원한다 — 새
+│   │                       #  탐지 로직 없음, live_guardrail_stdio.build_guardrail()과
+│   │                       #  live_guardrail_report.record_and_save()를 그대로 재사용.
+│   │                       #  team_concurrency/branch_guard는 build_guardrail()이 다루는 키가
+│   │                       #  아니라서 아직 미지원(알려진 제약, Docs/CLAUDE_CODE_HOOKS.md 참고).
+│   │                       #  예외는 항상 fail-open(판정 없음 반환) — 브리지 버그가 모든
+│   │                       #  도구 호출을 막아버리면 안 되므로.
 │   ├── violation_search_mcp.py   # search_violations() 도구 1개를 노출하는 stdio MCP 서버
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
 │   │                       #  include_blocked=True로 호출하면 완전 차단된("관찰"이 아닌) 이력까지
@@ -281,13 +296,26 @@ agent_evaluator/
 │                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
 │                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·
-│                          #  diagnose·abtest·dataset·monitor·opencode·trend·claims — 서브파서는
-│                          #  각각 cli/gate.py·cli/diagnose.py·cli/abtest.py·cli/dataset.py·
-│                          #  cli/monitor.py·cli/opencode.py·cli/trend.py·cli/claims.py에 위임)
+│                          #  diagnose·abtest·dataset·monitor·opencode·claude·trend·claims —
+│                          #  서브파서는 각각 cli/gate.py·cli/diagnose.py·cli/abtest.py·
+│                          #  cli/dataset.py·cli/monitor.py·cli/opencode.py·cli/claude.py·
+│                          #  cli/trend.py·cli/claims.py에 위임)
 │                          # opencode install --with-violation-search/--with-recommend-fix:
 │                          #  각각 search_violations/recommend_fix MCP 서버 자동 등록(옵트인)
 │                          # gate --baseline-version/--golden-set/--fail-on-golden-regression:
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
+├── cli/claude.py          # claude install [--global/--force/--with-violation-search/
+│                          #  --with-recommend-fix] — .claude/settings.json(또는 --global 시
+│                          #  ~/.claude/settings.json)에 PreToolUse/PostToolUse/SessionEnd 훅을
+│                          #  병합(기존 훅 보존, 재설치해도 중복 추가 안 됨) + 기본
+│                          #  guardrail_config.json 복사. OpenCode installer(cli/opencode.py)와
+│                          #  달리 훅 스크립트 자체는 파일 복사가 필요 없음(설치된 패키지를
+│                          #  python -m agent_evaluator.integrations.claude_code_hook로 직접
+│                          #  호출) — 재설치 보호 대상은 guardrail_config.json 하나뿐.
+│                          #  SessionEnd 훅의 matcher는 도구 이름이 아니라 세션종료 사유를
+│                          #  필터링하므로 PreToolUse/PostToolUse와 다른 matcher("*")를 쓴다 —
+│                          #  실제로 이 차이를 놓쳐 배치저장이 발화 안 하는 회귀를 만들었다가
+│                          #  라이브 테스트로 잡은 이력 있음(회귀 방지 테스트 존재).
 ├── cli/diagnose.py        # diagnose — agent_evaluator.rca.diagnose()를 감싸는 얇은 터미널
 │                          #  출력 레이어(새 판정 로직 없음). CI 게이트 아님 — 항상 exit 0
 │                          #  (결과 파일을 못 읽을 때만 exit 1), pass/fail 판정하지 않고

@@ -86,8 +86,10 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   mSPRT always-valid inference (`--sequential`, safe under repeated peeking), or N-way + FDR correction
   (3+ files). → [`Evaluator_Examples/ch29_sequential_ab_test.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Evaluator_Examples/ch29_sequential_ab_test.py)
 - **Real-time guardrail (AOO stack)** — `LiveGuardrail` blocks a single tool call *before* it executes
-  (Gate B/E), with a reference [OpenCode](https://opencode.ai) plugin (`agent-eval opencode install`).
-  → [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md)
+  (Gate B/E), with a reference [OpenCode](https://opencode.ai) plugin (`agent-eval opencode install`)
+  and native [Claude Code](https://claude.com/claude-code) CLI hooks (`agent-eval claude install`).
+  → [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) ·
+  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md)
 - **Dashboard** — `agent-eval dashboard` (FastAPI): Harness Gate breakdown, File Compare with pairwise
   LLM Judge, anomaly/cost tracking, and a 🔧 Improve tab surfacing the RCA engine.
 
@@ -102,7 +104,7 @@ to do. Every category is additive and independent; combine as needed.
 |---|----------|---------|---------------|
 | **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · CLI (`gate`/`diagnose`/`abtest`/`claims`/`trend`/`dataset`) |
 | **2** | **SDK — dashboard + monitoring** | `pip install "agent-evaluator[sdk]"` | FastAPI dashboard (`serve`), Phoenix/OTEL (`otel`), Korean RAG PDF processing (`pdf`+`korean`) — recommended for most users |
-| **3** | **Real-time guardrail — OpenCode + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations` + `recommend_fix` MCP servers so OpenCode (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
+| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations` + `recommend_fix` MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
 | **4** | **Your agent's framework** | `pip install "agent-evaluator[langchain]"` (or `[crewai]`/`[autogen]`/`[dspy]`/`[pydanticai]`/`[eval]`) | Packages your *agent code* imports directly — agent-evaluator itself works without them via duck typing; install only what you actually use |
 | **5** | **Examples / full / dev** | `pip install "agent-evaluator[examples]"` | Everything needed to run `Evaluator_Examples/` with real (non-mock) DeepEval/Ragas/dashboard/Phoenix output. `[full]` = category 4's frameworks all at once (⚠️ 10+ min install); `[dev]` = contributor tooling |
 
@@ -124,6 +126,7 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
 | `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin |
+| `agent-eval claude install` | Install the LiveGuardrail Claude Code CLI hooks |
 | `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
 
 ---
@@ -151,7 +154,7 @@ agent_evaluator/
 ├── ontology/              # GATE_GUIDANCE / MAST failure-mode taxonomy (Gate F)
 ├── integrations/         # LLMJudge · DeepEval/Ragas adapters · MCP servers
 ├── serve/                # FastAPI dashboard ([serve] extra)
-├── cli/                  # agent-eval CLI (gate, diagnose, abtest, trend, claims, opencode, monitor, dataset)
+├── cli/                  # agent-eval CLI (gate, diagnose, abtest, trend, claims, opencode, claude, monitor, dataset)
 └── reporting/             # comprehensive_report.py — self-contained HTML report generation
 
 Evaluator_Examples/       # 31 example files (ch01–ch31)
@@ -181,6 +184,8 @@ Beta version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evalu
 | [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/07_OPERATIONS.md) | Production deployment, monitoring |
 | [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/08_API_REFERENCE.md) | Full public API reference |
 | [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | Real-time guardrail, OpenCode + Ollama integration |
+| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | Real-time guardrail via native Claude Code CLI hooks |
+| [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md) | Version history |
 
 Also available in-app once the dashboard is running: `agent-eval dashboard` → **SDK Reference**
