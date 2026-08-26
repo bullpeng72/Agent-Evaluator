@@ -63,6 +63,24 @@ class TestHandlePreToolUse:
         assert blocked[0]["tool_name"] == "Bash"
         assert blocked[0]["gate"] == "B"
 
+    def test_tool_authorization_backstop_catches_pattern_gate_b_misses(self, tmp_path):
+        """"sudo" isn't in DEFAULT_GUARDRAIL_CONFIG's tool_parameter_safety.dangerous_patterns
+        (Gate B), but it IS in ToolAuthorizationTracker's hardcoded list (Gate E) — this proves
+        the "tool_authorization": {} default (added to close the AOO/AC parity gap: AOO's
+        GUARDRAIL_CONFIG always had this key, AC's DEFAULT_GUARDRAIL_CONFIG didn't) is actually
+        wired in and blocking, not just present without effect."""
+        state_dir = _state_dir(tmp_path)
+        payload = {
+            "session_id": "s1", "tool_name": "Bash",
+            "tool_input": {"command": "sudo systemctl restart nginx"},
+        }
+        result = hook.handle_pre_tool_use(payload, state_dir)
+
+        out = result["hookSpecificOutput"]
+        assert out["permissionDecision"] == "deny"
+        blocked = hook._load_json_list(hook._blocked_file(state_dir, "s1"))
+        assert blocked[0]["gate"] == "E"
+
     def test_loop_detection_uses_replayed_history(self, tmp_path):
         """이전에 확정된 호출 이력이 파일에서 재생되어 루프 판정에 반영돼야 한다."""
         state_dir = _state_dir(tmp_path)

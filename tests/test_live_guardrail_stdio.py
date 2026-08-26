@@ -8,6 +8,7 @@ stdin/stdout을 io.StringIO로 대체해 프로세스 스폰 없이 프로토콜
 import io
 import json
 
+from agent_evaluator.gates.team_concurrency import append_claim
 from agent_evaluator.integrations.live_guardrail_stdio import run
 
 
@@ -126,6 +127,69 @@ class TestRecordBlockedProtocol:
         assert extra["blocked_attempts"] == [
             {"tool_name": "rm", "gate": "B", "reason": "blocked"},
         ]
+
+
+class TestBranchGuardTeamConcurrencyProtocol:
+    """branch_guard/team_concurrency were LiveGuardrail constructor kwargs from the
+    start but were never added to _CONFIG_CLASSES, so neither the OpenCode stdio
+    bridge nor the Claude Code hook bridge (build_guardrail() is shared by both,
+    see claude_code_hook.py) could enable them via the init message. This class
+    proves both are now actually enforced through the protocol, not just accepted
+    without error."""
+
+    def test_branch_guard_blocks_protected_branch_git_commit(self, monkeypatch):
+        monkeypatch.setattr(
+            "agent_evaluator.gates.live_guardrail.get_current_branch", lambda: "main",
+        )
+        responses = _run_protocol([
+            {"op": "init", "branch_guard": {"protected_branches": ["main"]}},
+            {"op": "check", "task_id": "t1", "tool_name": "bash",
+             "parameters": {"command": "git commit -m wip"}},
+        ])
+        assert responses[0] == {"ok": True}
+        verdict = responses[1]
+        assert verdict["block"] is True
+        assert verdict["gate"] == "B"
+
+    def test_branch_guard_allows_non_protected_branch(self, monkeypatch):
+        monkeypatch.setattr(
+            "agent_evaluator.gates.live_guardrail.get_current_branch", lambda: "feature/x",
+        )
+        responses = _run_protocol([
+            {"op": "init", "branch_guard": {"protected_branches": ["main"]}},
+            {"op": "check", "task_id": "t1", "tool_name": "bash",
+             "parameters": {"command": "git commit -m wip"}},
+        ])
+        assert responses[1]["block"] is False
+
+    def test_team_concurrency_blocks_overlapping_claim(self, tmp_path):
+        claims_path = tmp_path / "claims.jsonl"
+        append_claim(
+            claims_path, claim_id="c-1", developer="other-dev",
+            scope=["agent_evaluator/gates/gate_d_performance/"], status="active",
+        )
+        responses = _run_protocol([
+            {"op": "init", "team_concurrency": {"claims_path": str(claims_path)}},
+            {"op": "check", "task_id": "t1", "tool_name": "edit",
+             "parameters": {"path": "agent_evaluator/gates/gate_d_performance/aggregate.py"}},
+        ])
+        assert responses[0] == {"ok": True}
+        verdict = responses[1]
+        assert verdict["block"] is True
+        assert verdict["gate"] == "B"
+
+    def test_team_concurrency_allows_non_overlapping_claim(self, tmp_path):
+        claims_path = tmp_path / "claims.jsonl"
+        append_claim(
+            claims_path, claim_id="c-1", developer="other-dev",
+            scope=["agent_evaluator/gates/gate_d_performance/"], status="active",
+        )
+        responses = _run_protocol([
+            {"op": "init", "team_concurrency": {"claims_path": str(claims_path)}},
+            {"op": "check", "task_id": "t1", "tool_name": "edit",
+             "parameters": {"path": "agent_evaluator/gates/gate_e_security/aggregate.py"}},
+        ])
+        assert responses[1]["block"] is False
 
 
 class TestRecordOutputProtocol:

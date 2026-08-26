@@ -248,8 +248,9 @@ agent_evaluator/
 │   │                       #  record_tool_call()로 재생(replay)해 판정 상태를 복원한다 — 새
 │   │                       #  탐지 로직 없음, live_guardrail_stdio.build_guardrail()과
 │   │                       #  live_guardrail_report.record_and_save()를 그대로 재사용.
-│   │                       #  team_concurrency/branch_guard는 build_guardrail()이 다루는 키가
-│   │                       #  아니라서 아직 미지원(알려진 제약, Docs/CLAUDE_CODE_HOOKS.md 참고).
+│   │                       #  team_concurrency/branch_guard도 build_guardrail()이 다루는 키라
+│   │                       #  guardrail_config.json에 채우면 그대로 지원된다(과거엔 미지원이었으나
+│   │                       #  live_guardrail_stdio.py의 _CONFIG_CLASSES에 두 키가 등록되며 해소됨).
 │   │                       #  예외는 항상 fail-open(판정 없음 반환) — 브리지 버그가 모든
 │   │                       #  도구 호출을 막아버리면 안 되므로.
 │   ├── violation_search_mcp.py   # search_violations() 도구 1개를 노출하는 stdio MCP 서버

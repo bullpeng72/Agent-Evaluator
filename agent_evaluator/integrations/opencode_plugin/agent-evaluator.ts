@@ -62,6 +62,8 @@ import * as readline from "node:readline"
 //     agent_evaluator/gates/gate_b_behavioral/configs.py
 //   - tool_authorization/privilege_escalation/tool_chain_attack:
 //     agent_evaluator/core/trackers/security.py
+//   - branch_guard: agent_evaluator/gates/branch_guard.py (BranchGuardConfig)
+//   - team_concurrency: agent_evaluator/gates/team_concurrency.py (TeamConcurrencyConfig)
 interface GuardrailInitConfig {
   loop_detection?: Record<string, unknown>
   deadlock?: Record<string, unknown>
@@ -70,6 +72,10 @@ interface GuardrailInitConfig {
   tool_authorization?: Record<string, unknown>
   privilege_escalation?: Record<string, unknown>
   tool_chain_attack?: Record<string, unknown>
+  // 두 필드 모두 stdio 브리지(live_guardrail_stdio.build_guardrail())가 이제 받아들인다 —
+  // 기본 GUARDRAIL_CONFIG는 비워둔다(옵트인), 필요한 프로젝트만 값을 채워 넣는다.
+  branch_guard?: Record<string, unknown>
+  team_concurrency?: Record<string, unknown>
 }
 
 // 아래 설정은 실제 OpenCode 1.17.9 + Ollama qwen3-coder 세션으로 라이브 테스트한 뒤
@@ -102,6 +108,14 @@ interface GuardrailInitConfig {
 //    검사하므로, 위 rm 패턴을 그대로 두면 셸과 무관한 도구(예: 검색·메모리 도구가
 //    "rm 시도가 차단됨" 같은 결과 텍스트를 반환하는 경우)까지 오탐할 수 있다.
 //    scope_tool_names로 이 검사를 실제 셸 실행 도구로만 한정해 이 문제를 막는다.
+// loop_detection intentionally omits on_loop_detected here, which falls back to
+// LoopDetectionConfig's own default ("record", observe-only) — the false-positive risk
+// described above (single coarse-grained "bash" tool) means "fail" (block) would be too
+// aggressive by default. The Claude Code hook bridge's DEFAULT_GUARDRAIL_CONFIG
+// (agent_evaluator/integrations/claude_code_hook.py) deliberately sets "fail" instead,
+// because Claude Code's tools are already fine-grained (Bash/Read/Edit/Write/WebFetch),
+// so that false-positive path is far narrower there. Not a bug — see that file's comment
+// for the full reasoning.
 const GUARDRAIL_CONFIG: GuardrailInitConfig = {
   loop_detection: { consecutive_repeat_threshold: 6 },
   scope: { forbidden_tools: ["webfetch"], fail_on_violation: true },

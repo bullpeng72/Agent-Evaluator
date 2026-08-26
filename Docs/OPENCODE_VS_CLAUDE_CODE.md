@@ -55,6 +55,11 @@ Agent-Evaluator의 실시간 `LiveGuardrail`을 붙일 수 있는 두 조합, [A
   `consecutive_repeat_threshold`를 3→6으로 올린 실제 사연이 `AOO_STACK.md`에 있음).
 - Claude Code는 `Bash`/`Edit`/`Write`/`Read`/`Glob` 등 **도구가 원래 세분화**돼 있어 같은
   threshold=6이라도 오탐 위험이 이론상 더 낮음 — 다만 벤치마크로 확인된 수치는 아님.
+- 이 차이가 실제로 두 기본 설정의 `on_loop_detected` 값을 갈라놓는다 — OpenCode 플러그인의
+  `GUARDRAIL_CONFIG`는 이 키를 생략해 `LoopDetectionConfig` 기본값(`"record"`, 관찰만)으로
+  떨어지고, Claude Code 훅의 `DEFAULT_GUARDRAIL_CONFIG`는 명시적으로 `"fail"`(차단)을 쓴다.
+  버그가 아니라 위 도구 세분성 차이를 반영한 의도적 선택이다 — 자세한 근거는
+  [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md#default-guardrail-config) 참고.
 
 ## 검증 성숙도
 
@@ -113,13 +118,22 @@ command: rm target_dir/delete_me.txt -- then run ls target_dir/ to confirm the r
    gate: B, reason: "dangerous tool parameters..."}` — 모델의 "두 번 다 막혔다"는 보고와 정확히
    일치.
 
-## 둘 다 공유하는 제약 (한쪽만의 문제가 아님)
+## 둘 다 공유하는 설정 (한쪽만의 기능이 아님)
 
-`team_concurrency`/`branch_guard`는 **OpenCode·Claude Code 둘 다 미지원**입니다 — 두 브리지가
-똑같이 `live_guardrail_stdio.build_guardrail()`을 재사용하는데, 이 함수 자체가 그 두 키를 안
-다루기 때문입니다. 두 통합의 차이가 아니라, 브리지를 거치지 않고 Python `LiveGuardrail()`을
-직접 쓸 때만(`tool_guard`/`live_guardrail_session()`, [AOO_STACK.md](AOO_STACK.md#why-a-subprocess-bridge)
-참고) 그 두 기능을 쓸 수 있다는 공통 제약입니다.
+`team_concurrency`/`branch_guard`는 **OpenCode·Claude Code 둘 다 지원**합니다 — 두 브리지가
+똑같이 `live_guardrail_stdio.build_guardrail()`을 재사용하는데(변경 이력: 이전에는 이 함수가
+그 두 키를 다루지 않아 두 통합 모두 미지원이었으나, 지금은 `_CONFIG_CLASSES`에 등록돼 둘 다
+받는다), `init` 메시지(OpenCode는 `GUARDRAIL_CONFIG` TS 상수, Claude Code는
+`guardrail_config.json`)에 `branch_guard`/`team_concurrency` 키를 채우면 그대로 동작한다.
+직접 Python `LiveGuardrail()`을 쓰는 방법(`tool_guard`/`live_guardrail_session()`,
+[AOO_STACK.md](AOO_STACK.md#why-a-subprocess-bridge) 참고)도 여전히 유효하지만, 표준 설치
+경로만으로 충분해졌다는 뜻이다.
+
+두 브리지가 같은 함수를 공유한다고 해서 각 설치의 **기본값**(`GUARDRAIL_CONFIG` TS 상수 vs
+`DEFAULT_GUARDRAIL_CONFIG`)까지 자동으로 같아지는 것은 아니다 — `tool_authorization: {}`
+(Gate E 하드코딩 백스톱)이 OpenCode 기본값엔 처음부터 있었는데 Claude Code 기본값엔 빠져 있던
+것이 실제 사례다(발견 즉시 정렬 완료, [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md#default-guardrail-config)
+참고). 새 키를 두 브리지 중 하나의 기본값에만 추가할 때는 다른 쪽 기본값도 같이 검토할 것.
 
 ## 비정상 종료 시 정리
 

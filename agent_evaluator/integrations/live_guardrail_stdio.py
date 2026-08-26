@@ -21,6 +21,8 @@ Agent-Evaluator는 Python SDK이므로, Node/Bun 등 비-Python 런타임(예: O
          "loop_detection": {"consecutive_repeat_threshold": 3, "on_loop_detected": "fail"},
          "scope": {"forbidden_tools": ["shell_exec"], "fail_on_violation": true},
          "tool_authorization": {"restricted_tools": ["rm", "shell_exec"]},
+         "branch_guard": {"protected_branches": ["main", "master"]},
+         "team_concurrency": {"owner": "auto"},
          "max_tool_output_chars": 2000}
         → {"ok": true}
 
@@ -61,6 +63,7 @@ from agent_evaluator.core.trackers.security import (
     ToolAuthorizationTracker,
     ToolChainAttackDetector,
 )
+from agent_evaluator.gates.branch_guard import BranchGuardConfig
 from agent_evaluator.gates.gate_b_behavioral.configs import (
     DeadlockConfig,
     LoopDetectionConfig,
@@ -68,12 +71,22 @@ from agent_evaluator.gates.gate_b_behavioral.configs import (
     ToolParameterSafetyConfig,
 )
 from agent_evaluator.gates.live_guardrail import LiveGuardrail, LiveVerdict
+from agent_evaluator.gates.team_concurrency import TeamConcurrencyConfig
 
 _CONFIG_CLASSES: dict[str, type] = {
     "loop_detection": LoopDetectionConfig,
     "deadlock": DeadlockConfig,
     "scope": ScopeConfig,
     "tool_parameter_safety": ToolParameterSafetyConfig,
+    # SPEC-035/SPEC-032: branch_guard/team_concurrency were LiveGuardrail constructor
+    # kwargs from the start but were never added here, so neither the OpenCode stdio
+    # bridge nor the Claude Code hook bridge (which calls build_guardrail() directly,
+    # see claude_code_hook.py) could enable them — the only working path was
+    # constructing LiveGuardrail() directly in Python. Both fields are plain
+    # JSON-serializable dataclasses (str/bool/tuple-of-str), so they slot into the
+    # same "init_msg[key] -> cls(**init_msg[key])" pattern as the four configs above.
+    "branch_guard": BranchGuardConfig,
+    "team_concurrency": TeamConcurrencyConfig,
 }
 _TRACKER_CLASSES: dict[str, type] = {
     "tool_authorization": ToolAuthorizationTracker,

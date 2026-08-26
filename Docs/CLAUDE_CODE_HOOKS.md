@@ -98,6 +98,7 @@ that you're expected to edit is `guardrail_config.json`.
     "scope_tool_names": ["Bash"],
     "fail_on_dangerous": true
   },
+  "tool_authorization": {},
   "output_dir": "results/claude_code_live_guardrail"
 }
 ```
@@ -105,8 +106,23 @@ that you're expected to edit is `guardrail_config.json`.
 Same principle as the OpenCode plugin's `GUARDRAIL_CONFIG` (`consecutive_repeat_threshold: 6` because
 loop detection compares tool *names* only — see [AOO_STACK.md](AOO_STACK.md) for the false-positive story
 that motivated the SDK-wide default), adapted to Claude Code's own tool naming (`"Bash"`, not the
-lowercase `"bash"` OpenCode uses). `output_dir` isn't a `LiveGuardrail` constructor argument — it's read
-by the hook bridge itself and popped before building the guardrail.
+lowercase `"bash"` OpenCode uses) — with two deliberate exceptions:
+
+- **`tool_authorization: {}`** enables `ToolAuthorizationTracker`'s hardcoded Gate E backstop (`rm -rf`,
+  `DROP TABLE`, `sudo`, `chmod 777`, `eval(`, `exec(`, `__import__`, `system(` — independent of the
+  configurable `tool_parameter_safety` list above) even with no allow/deny lists set. The OpenCode
+  plugin's default has always included this key; this file's default was missing it until it was found
+  to be an undocumented parity gap and fixed — both installs now ship the same backstop.
+- **`on_loop_detected: "fail"`** (blocks) instead of OpenCode's implicit `"record"` (observes only).
+  OpenCode collapses all shell activity into one coarse `"bash"` tool name, so name-only loop detection
+  false-positives on legitimate sequences (`ls` → `cat` → `ls`) — blocking by default there would be too
+  aggressive. Claude Code's tools are already fine-grained (`Bash`/`Read`/`Edit`/`Write`/`WebFetch`), so
+  that false-positive path is far narrower, and blocking a genuine infinite loop before it runs is worth
+  the (smaller) false-positive risk. This divergence is intentional, not a bug — see the comment above
+  `DEFAULT_GUARDRAIL_CONFIG` in `claude_code_hook.py` for the same reasoning in code.
+
+`output_dir` isn't a `LiveGuardrail` constructor argument — it's read by the hook bridge itself and
+popped before building the guardrail.
 
 Edit the installed copy at `.claude/.agent-evaluator/guardrail_config.json`, not the package default —
 `agent-eval claude install --force` resets it and discards your edits. The keys accepted are whatever
@@ -145,10 +161,6 @@ item below, still unbenchmarked) or on abnormal termination (`kill -9`).
 
 ## Known limitations
 
-- **No `team_concurrency`/`branch_guard` support yet.** These are `LiveGuardrail` constructor arguments,
-  but `live_guardrail_stdio.build_guardrail()` — reused here rather than duplicated — doesn't handle
-  them. Using `LiveGuardrail` directly in Python (see the `tool_guard`/`live_guardrail_session()` example
-  in [AOO_STACK.md](AOO_STACK.md#why-a-subprocess-bridge)) is the only way to get those checks today.
 - **Per-call history replay cost grows with session length.** Every `PreToolUse`/`PostToolUse` call
   replays the *entire* confirmed history for that session through `record_tool_call()` before doing its
   own check — so total replay work across an *n*-call session is O(n²). [Live verification](#live-verification)

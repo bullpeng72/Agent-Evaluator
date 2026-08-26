@@ -37,10 +37,24 @@ from agent_evaluator.integrations.live_guardrail_report import record_and_save
 from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail
 
 # OpenCode 플러그인 참조 구현(agent_evaluator/integrations/opencode_plugin/agent-evaluator.ts)의
-# GUARDRAIL_CONFIG 기본값과 같은 원칙(loop_detection 6, scope, tool_parameter_safety)을 따르되,
-# 도구 이름은 Claude Code CLI 자체 명명(예: "Bash", OpenCode의 소문자 "bash"가 아님)에 맞췄다.
+# GUARDRAIL_CONFIG 기본값과 같은 원칙(loop_detection 6, scope, tool_parameter_safety,
+# tool_authorization)을 따르되, 도구 이름은 Claude Code CLI 자체 명명(예: "Bash", OpenCode의
+# 소문자 "bash"가 아님)에 맞췄다. 아래 두 필드는 "같은 원칙"에서 의도적으로 벗어난다 — 이유는
+# 각 필드 옆 주석 참고:
 DEFAULT_GUARDRAIL_CONFIG: dict[str, Any] = {
-    "loop_detection": {"consecutive_repeat_threshold": 6, "on_loop_detected": "fail"},
+    "loop_detection": {
+        "consecutive_repeat_threshold": 6,
+        # AOO(OpenCode) 기본값은 이 키를 생략해 LoopDetectionConfig의 기본값("record",
+        # 관찰만)으로 떨어진다 — OpenCode가 셸 동작 전체를 단일 "bash" 도구로 뭉뚱그려
+        # 기록하는 탓에("ls"→"cat"→"ls" 같은 정상 연속 호출도 도구 *이름*만 보면 반복으로
+        # 잡힘), 6으로 threshold를 올려도 여전히 오탐 위험이 남아 있어 차단(fail) 대신
+        # 관찰(record)로 낮춰뒀다(위 GUARDRAIL_CONFIG 정의부의 라이브 테스트 노트 참고).
+        # Claude Code CLI는 도구가 Bash/Read/Edit/Write/WebFetch 등으로 이미 세분화돼 있어
+        # 이 오탐 경로 자체가 훨씬 좁다 — 그래서 여기서는 실제 무한 루프를 실행 전에 막는
+        # "fail"을 기본값으로 유지한다. 두 기본값이 다른 것은 버그가 아니라 각 스택의 도구
+        # 세분성 차이를 반영한 의도적 선택이다.
+        "on_loop_detected": "fail",
+    },
     "scope": {"forbidden_tools": ["WebFetch"], "fail_on_violation": True},
     "tool_parameter_safety": {
         "dangerous_patterns": [
@@ -49,6 +63,12 @@ DEFAULT_GUARDRAIL_CONFIG: dict[str, Any] = {
         "scope_tool_names": ["Bash"],
         "fail_on_dangerous": True,
     },
+    # Gate E 하드코딩 백스톱(ToolAuthorizationTracker) — allowed_tools/restricted_tools를
+    # 안 줘도 하드코딩된 위험 패턴(rm -rf/DROP TABLE/sudo/eval(/exec(/chmod 777 등)을 모든
+    # 도구 호출 파라미터에서 스캔해 매치 시 차단한다(security.py의 dangerous_patterns,
+    # ToolParameterSafetyConfig의 커스터마이즈 가능한 목록과는 별개). 과거엔 이 키가 빠져
+    # 있어 AC 기본 설치가 AOO 기본 설치보다 이 백스톱 하나만큼 약했다 — 파악 즉시 정렬.
+    "tool_authorization": {},
     # LiveGuardrail 생성자 인자가 아니라 이 브리지 자체가 SessionEnd에서 쓰는 값 —
     # build_guardrail() 호출 전에 pop()으로 제거한다.
     "output_dir": "results/claude_code_live_guardrail",
