@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.0 (2026-08-25) — Improvement Engine (RCA · Statistical A/B · Recommendations) + Structural Unification
+## v1.0.0-rc.1 (2026-08-27) — Improvement Engine (RCA · Statistical A/B · Recommendations) + Structural Unification
 
 First stable release — `Development Status :: 5 - Production/Stable`. Adds a full diagnosis-and-prescription layer on top of the existing measurement SDK, plus several structural unifications that remove long-standing duplication across Gate judgment paths.
 

@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-__version__ = "1.0.0"
+__version__ = "1.0.0-rc.1"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
