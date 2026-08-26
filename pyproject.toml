@@ -345,3 +345,15 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=agent_evaluator --cov-report=html --cov-report=term"
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+# serve/server.py가 FastAPI Jinja2Templates(directory=...)로 .html.j2 템플릿을 렌더링하면,
+# Jinja2가 컴파일한 템플릿 코드 객체의 co_filename이 디스크상의 실제 .html.j2 경로를 그대로
+# 가리킨다 — coverage.py가 이걸 평범한 .py 소스 파일로 착각해 추적 대상에 넣고, HTML 리포트
+# 생성 단계(coverage/phystokens.py::find_soft_key_lines)에서 그 파일 내용을 ast.parse()하려다
+# Jinja/HTML 문법(예: "{{ title }}")을 만나 INTERNALERROR로 죽는다 — 테스트 자체는 전부
+# 통과해도 매번 재현된다. 애초에 .html.j2는 커버리지 측정 대상(진짜 .py 소스)이 아니므로
+# 완전히 제외한다.
+omit = [
+    "agent_evaluator/serve/templates/*",
+]
