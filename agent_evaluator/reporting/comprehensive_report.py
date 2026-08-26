@@ -1811,7 +1811,9 @@ def _build_diagnosis(
         if mast:
             cards = "".join(
                 f'<div class="rec priority-medium">'
-                f'<strong>[{_esc(m["code"])}] {_esc(m["name"])}</strong>'
+                f'<strong>[{_esc(m["code"])}] {_esc(m["name"])}</strong> '
+                f'<span style="color:#6b7280">'
+                f'(observed in {_esc(str(m["prevalence_pct"]))}% of paper traces)</span>'
                 f'<p>{_esc(m["description"])}</p>'
                 f'<p style="color:#6b7280">→ {_esc(m["remediation"])}</p></div>'
                 for m in mast

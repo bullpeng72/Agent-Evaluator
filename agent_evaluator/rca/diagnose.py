@@ -217,6 +217,9 @@ def _mast_candidates_for_gate_f(top_field: str | None) -> list[dict[str, Any]]:
         {
             "code": m.code, "name": m.name, "category": m.category,
             "description": m.description, "remediation": m.remediation,
+            # 논문 Figure 1 관측 빈도(%, 1642개 트레이스 기준) — 참고용, 이 세션에서 실제로
+            # 그 정도 비율로 발생했다는 뜻이 아니다(HOTL 원칙, mast_taxonomy.py 참고).
+            "prevalence_pct": m.prevalence_pct,
         }
         for m in modes
     ]

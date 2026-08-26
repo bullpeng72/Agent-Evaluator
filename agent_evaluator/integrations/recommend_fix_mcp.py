@@ -87,7 +87,10 @@ def format_recommendation(gate: str, metric: str | None, value: float | None) ->
             if mast_candidates:
                 lines.append("\n[MAST 실패모드 후보 — Cemri et al., NeurIPS 2025, 단정 아님]")
                 for m in mast_candidates:
-                    lines.append(f"  [{m.code}] {m.name}: {m.description}")
+                    lines.append(
+                        f"  [{m.code}] {m.name} "
+                        f"(observed in {m.prevalence_pct}% of paper traces): {m.description}"
+                    )
                     lines.append(f"    → {m.remediation}")
 
         if matched_rule is None and not anomaly_suggestion and not mast_candidates:

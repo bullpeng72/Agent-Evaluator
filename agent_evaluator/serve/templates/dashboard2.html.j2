@@ -6561,7 +6561,9 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
               <div style="font-weight:600;color:var(--text2);margin-bottom:4px">MAST candidate failure modes (Cemri et al., NeurIPS 2025 — not a verdict):</div>
               <template x-for="m in finding.mast_candidates" :key="m.code">
                 <div style="padding:6px 10px;background:var(--bg2);border-radius:6px;margin-bottom:4px">
-                  <strong x-text="'['+m.code+'] '+m.name"></strong> — <span x-text="m.description"></span>
+                  <strong x-text="'['+m.code+'] '+m.name"></strong>
+                  <span style="color:var(--text2)" x-text="'(observed in '+m.prevalence_pct+'% of paper traces)'"></span>
+                  — <span x-text="m.description"></span>
                   <div style="color:var(--text2);margin-top:2px">→ <span x-text="m.remediation"></span></div>
                 </div>
               </template>

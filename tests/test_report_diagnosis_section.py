@@ -72,6 +72,7 @@ class TestBuildDiagnosisWithBaseline:
         html = _build_diagnosis(current, baseline)
         assert "MAST" in html
         assert "Cemri et al" in html
+        assert "% of paper traces" in html
 
 
 class TestBuildDiagnosisRecommendationHistory:

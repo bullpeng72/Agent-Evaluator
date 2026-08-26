@@ -89,6 +89,8 @@ class TestRcaGateFMastIntegration:
         assert "mast_candidates" in finding
         codes = {m["code"] for m in finding["mast_candidates"]}
         assert "2.2" in codes  # Fail to Ask for Clarification — related_gate_f_metric="consensus"
+        by_code = {m["code"]: m for m in finding["mast_candidates"]}
+        assert by_code["2.2"]["prevalence_pct"] == 6.8
 
     def test_non_gate_f_finding_has_no_mast_key(self):
         current = self._report({"A": self._gate(0.3)})

@@ -86,7 +86,10 @@ def _print_finding(finding: dict[str, Any]) -> None:
         print(f"  {D}For reference — MAST candidate failure modes "
               f"(Cemri et al. NeurIPS 2025, not a conclusion):{R}")
         for m in mast:
-            print(f"    [{m['code']}] {m['name']} — {m['description']}")
+            print(
+                f"    [{m['code']}] {m['name']} "
+                f"{D}(observed in {m['prevalence_pct']}% of paper traces){R} — {m['description']}"
+            )
             print(f"      {D}→ {m['remediation']}{R}")
 
 

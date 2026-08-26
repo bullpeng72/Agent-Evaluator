@@ -73,6 +73,7 @@ class TestFormatRecommendationWithMetric:
         text = format_recommendation("F", "conflict_resolution", None)
         assert "MAST" in text
         assert "Cemri et al" in text
+        assert "% of paper traces" in text
 
     def test_gate_f_unmatched_metric_falls_back_to_no_rule_message(self):
         text = format_recommendation("F", "not_a_real_mast_metric", None)
