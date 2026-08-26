@@ -31,6 +31,7 @@ except PackageNotFoundError:
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
+from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.diagnose import cmd_diagnose
 from agent_evaluator.cli.gate import cmd_gate
@@ -615,6 +616,7 @@ def _print_welcome() -> None:
     print(f"  {Y}trend{R}      Sequential evaluation trend analysis  {D}(TCR·accuracy regression){R}")
     print(f"  {Y}dataset{R}    Golden dataset management  {D}(auto-extract from results){R}")
     print(f"  {Y}opencode{R}   Install the LiveGuardrail OpenCode plugin")
+    print(f"  {Y}claude{R}     Install the LiveGuardrail Claude Code CLI hooks")
     print(f"  {Y}--version{R}  Show version")
     print()
     print(f"  {D}Full options: {R}{C}agent-eval --help{R}")
@@ -756,6 +758,7 @@ def main() -> None:
             f"  {Y}dataset{R}      Auto-extract golden datasets from production results\n"
             f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
             f"  {Y}opencode{R}     Install the LiveGuardrail OpenCode plugin\n"
+            f"  {Y}claude{R}       Install the LiveGuardrail Claude Code CLI hooks\n"
             f"  {Y}claims{R}       Manage .aoo/claims.jsonl team scope claims\n"
             "\n"
             f"{B}Examples:{R}\n"
@@ -777,6 +780,7 @@ def main() -> None:
             f"  {G}agent-eval monitor --reset{R}\n"
             f"  {G}agent-eval monitor --reset --yes{R}\n"
             f"  {G}agent-eval opencode install{R}\n"
+            f"  {G}agent-eval claude install{R}\n"
             f"  {G}agent-eval claims add src/ --developer auto{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
@@ -1126,6 +1130,9 @@ def main() -> None:
     # opencode subcommand
     build_opencode_subparser(sub)
 
+    # claude subcommand
+    build_claude_subparser(sub)
+
     # trend subcommand
     build_trend_subparser(sub)
 
@@ -1151,6 +1158,7 @@ def main() -> None:
         "dashboard": cmd_dashboard,
         "monitor":   cmd_monitor,
         "opencode":  cmd_opencode,
+        "claude":    cmd_claude,
         "gate":      cmd_gate,
         "diagnose":  cmd_diagnose,
         "dataset":   cmd_dataset,
