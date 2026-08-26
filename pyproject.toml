@@ -283,7 +283,8 @@ mlflow = [
 Homepage = "https://github.com/bullpeng72/Agent-Evaluator"
 Repository = "https://github.com/bullpeng72/Agent-Evaluator"
 "Bug Tracker" = "https://github.com/bullpeng72/Agent-Evaluator/issues"
-Documentation = "https://github.com/bullpeng72/Agent-Evaluator/blob/main/README.md"
+Documentation = "https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/README.md"
+Changelog = "https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md"
 
 [project.scripts]
 agent-eval = "agent_evaluator.cli.main:main"
