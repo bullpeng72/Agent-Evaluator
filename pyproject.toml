@@ -54,8 +54,24 @@ dependencies = [
 
 [project.optional-dependencies]
 # ════════════════════════════════════════════════════════════════════════════
-# Group 1: SDK 자체 기능 (agent-eval dashboard / monitor / LLMJudge / PDF)
+# 5개 카테고리 (사용자 의도 기준) — extra 이름/버전은 하위호환을 위해 그대로 유지.
+# 아래 헤더 순서는 오직 문서화 목적이며 실제 설치 동작에는 영향 없음.
+#
+#   1. 기본 측정 + 진단 — extra 불필요, dependencies(위)만으로 전부 동작
+#      25 트래커 · 33 Harness Config · 7 Gate · LLMJudge 엔진 ·
+#      RCA 진단 엔진(agent_evaluator.rca/ontology/schemas — 표준 라이브러리만 사용, 무료) ·
+#      CLI(gate/diagnose/abtest/claims/trend/dataset)
+#   2. SDK — 대시보드 + 운영 모니터링           → llm · serve · otel · pdf · korean · semantic · sdk
+#   3. 실시간 가드레일 — OpenCode + MCP 연동     → mcp
+#   4. 내 에이전트 프레임워크                    → eval · langchain · dspy · pydanticai · crewai · autogen
+#   5. 예제 실행 / 전체 설치 / 기여              → examples · full · dev
+#
+#   (그 외 export/wandb/mlflow는 위 5개에 안 들어가는 단일 기능 소형 extra — 맨 아래 별도 절)
 # ════════════════════════════════════════════════════════════════════════════
+
+# ────────────────────────────────────────────────────────────────────────────
+# 카테고리 2: SDK — 대시보드 + 운영 모니터링 (agent-eval dashboard / monitor)
+# ────────────────────────────────────────────────────────────────────────────
 
 # LLM 클라이언트 — LLMJudge 엔진 (빠름, ~5개 패키지)
 # agent_evaluator/integrations/llm_judge.py 에서 사용
@@ -111,35 +127,26 @@ sdk = [
     "kiwipiepy>=0.17.0",
 ]
 
-# ════════════════════════════════════════════════════════════════════════════
-# Group 2: Evaluator_Examples 예제 실행
-# ════════════════════════════════════════════════════════════════════════════
+# ────────────────────────────────────────────────────────────────────────────
+# 카테고리 3: 실시간 가드레일 — OpenCode + MCP 연동
+# ────────────────────────────────────────────────────────────────────────────
 
-# 모든 예제 실행 — sdk + eval (예제 01-06은 코어만 필요, 07은 llm+otel+eval 필요)
-# pip install "agent-evaluator[examples]" 로 Evaluator_Examples/ 전체 실행 가능
-examples = [
-    "openai>=2.0.0,<3.0.0",
-    "anthropic>=0.20.0,<1.0.0",
-    "fastapi>=0.110.0,<1.0.0",
-    "uvicorn[standard]>=0.29.0,<1.0.0",
-    "jinja2>=3.1.0,<4.0.0",
-    "python-multipart>=0.0.9,<1.0.0",
-    "opentelemetry-sdk>=1.20.0,<2.0.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<18.0.0",
-    "pdfplumber>=0.10.0,<1.0.0",
-    "deepeval>=3.0.0,<5.0.0",
-    "ragas>=0.4.0,<2.0.0",
-    "datasets>=4.0.0,<6.0.0",
-    "langchain>=1.0.0,<3.0.0",
-    "langchain-openai>=1.0.0,<2.0.0",
-    "kiwipiepy>=0.17.0",
+# search_violations + recommend_fix MCP 서버 2종 (SPEC-024 REQ-4 · v1.0.0 recommend_fix 추가,
+# 빠름 ~1개 패키지) — agent_evaluator/integrations/violation_search_mcp.py,
+# recommend_fix_mcp.py 에서 사용. 둘 다 mcp.server.fastmcp.FastMCP를 함수 내부에서 지연
+# import하므로, 이 extra 없이도 두 함수의 로직 자체(search_violations()/추천 조회, agent-eval
+# diagnose·ch28_rca_diagnosis.py가 직접 호출하는 경로)는 base install만으로 이미 동작한다 —
+# 이 extra는 OpenCode 등 MCP 클라이언트가 이 둘을 "도구"로 자율 호출하는 경로만 켠다.
+# 등록: agent-eval opencode install --with-violation-search / --with-recommend-fix (권장)
+# 수동 등록: opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
+# 참고: opencode CLI 자체(Node/Bun)는 이 extra 범위 밖 — 별도로 설치 필요
+mcp = [
+    "mcp>=1.0.0",
 ]
 
-# ════════════════════════════════════════════════════════════════════════════
-# Group 3: 프레임워크 확장 (agent_evaluator/integrations/ 에서 try/except로 사용)
-# ════════════════════════════════════════════════════════════════════════════
+# ────────────────────────────────────────────────────────────────────────────
+# 카테고리 4: 내 에이전트 프레임워크 (agent_evaluator/integrations/ 에서 try/except로 사용)
+# ────────────────────────────────────────────────────────────────────────────
 
 # 외부 평가 라이브러리 — DeepEval / Ragas (중간, langchain 필요)
 # ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
@@ -166,13 +173,6 @@ langchain = [
 dspy = [
     "dspy-ai>=2.0.0",
 ]
-# 로컬 ADE 위반 이력 검색 MCP 서버 (SPEC-024 REQ-4, 빠름, ~1개 패키지)
-# agent_evaluator/integrations/violation_search_mcp.py 에서 사용
-# 등록: agent-eval opencode install --with-violation-search (SPEC-024 REQ-6, 권장)
-# 수동 등록: opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
-mcp = [
-    "mcp>=1.0.0",
-]
 # PydanticAI 통합 (빠름, ~5개 패키지)
 # 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
 pydanticai = [
@@ -191,32 +191,33 @@ autogen = [
     "autogen-core>=0.4.0,<1.0.0",
 ]
 
-# ════════════════════════════════════════════════════════════════════════════
-# Group 4: 선택적 연동 (각 기능 전용)
-# ════════════════════════════════════════════════════════════════════════════
+# ────────────────────────────────────────────────────────────────────────────
+# 카테고리 5: 예제 실행 / 전체 설치 / 기여
+# ────────────────────────────────────────────────────────────────────────────
 
-# 대시보드 Parquet / Excel 내보내기
-# agent_evaluator/serve/routers/export.py 에서 사용
-# 미설치 시: Parquet 엔드포인트 HTTP 409, Excel 엔드포인트 HTTP 501 반환
-export = [
-    "pyarrow>=10.0.0",
-    "openpyxl>=3.1.0",
+# 모든 예제 실행 — sdk + eval (예제 대부분은 코어만 필요 — agent_evaluator 내부에서 지연 로딩
+# + graceful fallback이라 이 extra 없이도 실행은 되지만, 이 extra가 있어야 DeepEval/Ragas/
+# 대시보드/Phoenix 파트가 mock이 아니라 실제로 동작한다)
+# pip install "agent-evaluator[examples]" 로 Evaluator_Examples/ 전체 실행 가능
+examples = [
+    "openai>=2.0.0,<3.0.0",
+    "anthropic>=0.20.0,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
+    "arize-phoenix>=15.4.0,<18.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+    "deepeval>=3.0.0,<5.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-openai>=1.0.0,<2.0.0",
+    "kiwipiepy>=0.17.0",
 ]
-# Weights & Biases 실험 추적 연동
-# PerformanceMonitor.export_to_wandb() 에서 사용
-wandb = [
-    "wandb>=0.17.0",
-]
-# MLflow 실험 추적 연동
-# PerformanceMonitor.export_to_mlflow() 에서 사용
-mlflow = [
-    "mlflow>=2.0.0",
-]
-
-# ════════════════════════════════════════════════════════════════════════════
-# 조합 편의 extras
-# ════════════════════════════════════════════════════════════════════════════
-
 # 전체 (crewai/autogen 포함 — ⚠️ 설치 10분+ 소요, pydantic 버전 충돌 silent downgrade 가능)
 full = [
     "openai>=2.0.0,<3.0.0",
@@ -254,6 +255,28 @@ dev = [
     "twine>=5.0.0",
     "pre-commit>=3.0.0",
     "jsonschema>=4.0.0",  # harness_groups 출력 계약(schemas/harness_groups.schema.json) contract test용
+]
+
+# ────────────────────────────────────────────────────────────────────────────
+# 그 외: 단일 기능 소형 extras (위 5개 카테고리에 안 들어가는 부가 연동)
+# ────────────────────────────────────────────────────────────────────────────
+
+# 대시보드 Parquet / Excel 내보내기
+# agent_evaluator/serve/routers/export.py 에서 사용
+# 미설치 시: Parquet 엔드포인트 HTTP 409, Excel 엔드포인트 HTTP 501 반환
+export = [
+    "pyarrow>=10.0.0",
+    "openpyxl>=3.1.0",
+]
+# Weights & Biases 실험 추적 연동
+# PerformanceMonitor.export_to_wandb() 에서 사용
+wandb = [
+    "wandb>=0.17.0",
+]
+# MLflow 실험 추적 연동
+# PerformanceMonitor.export_to_mlflow() 에서 사용
+mlflow = [
+    "mlflow>=2.0.0",
 ]
 
 [project.urls]

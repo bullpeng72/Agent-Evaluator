@@ -1012,7 +1012,25 @@ result["swap_check"]  # True면 실제로 A/B를 뒤집어 재확인한 결과
 
 `swap_check=True`(기본값)이면 A/B 순서를 뒤집어 한 번 더 호출한다 — 두 호출의 승자가 일치하면 그 결과를, 불일치하면(포지션 편향 신호) `"tie"`로 수렴한다. 비용을 절반으로 줄이려면 `swap_check=False`를 지정한다. `sample_rate` 샘플링은 적용되지 않는다 — 호출자가 명시적으로 요청하는 단발성 비교이기 때문이다. 예산 초과·연속 오류 자동 비활성화는 `judge()`와 동일하게 적용되며, 판정 이력은 `judge.results`(절대 스코어)와 분리된 `judge.pairwise_results`에 쌓인다.
 
-대시보드에서는 `compare_results(detailed=True, pairwise=True)`가 공통 task마다 이 메서드를 호출해 `win_rate`를 집계한다 — 자세한 내용은 README의 "Version-Aware Comparison" 절 참고.
+대시보드에서는 `compare_results(detailed=True, pairwise=True)`가 공통 task마다 이 메서드를 호출해 `win_rate`를 집계한다.
+
+### 버전별 비교 — `prompt_version`/`agent_version` (v0.9.8+)
+
+결과 파일에 `prompt_version`/`agent_version`을 태깅해두면 대시보드가 파일 `id`를 직접 고르지 않고도 자동으로 그룹핑·비교한다.
+
+```python
+monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.10")
+```
+
+`agent_version="auto"`를 주면 git 상태로 자동 태깅한다 — 현재 커밋의 짧은 SHA(생성 시점에 1회 캐싱), 추적 파일에 커밋 안 된 변경이 있으면 `-dirty-<hash>` 접미사가 붙는다(git 정보를 못 구하면 `None`). `iteration_note=`로 이 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙일 수 있다 — 표시 전용, 채점에는 영향 없음.
+
+```bash
+GET /api/results?prompt_version=v2-cot                    # 태그로 목록 필터
+GET /api/compare?group_by=prompt_version                  # 태그별 최신 파일을 자동 비교(ids= 불필요)
+GET /api/compare?group_by=prompt_version&detailed=true&pairwise=true   # + 페어와이즈 judge_pairwise() 비교
+```
+
+대시보드의 File Compare 탭이 이 API를 그대로 노출한다 — **Group by** 드롭다운(`prompt_version`/`agent_version`), 파일 2개 선택 시 나타나는 **⚖️ Pairwise Judge** 서브탭, 비교 결과를 그대로 내려받는 **📄 Export HTML** 버튼.
 
 ### QuickEval과 통합
 
