@@ -185,6 +185,7 @@ Beta version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evalu
 | [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/08_API_REFERENCE.md) | Full public API reference |
 | [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | Real-time guardrail, OpenCode + Ollama integration |
 | [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | Real-time guardrail via native Claude Code CLI hooks |
+| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md) | OpenCode vs Claude Code integration — detailed comparison |
 | [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md) | Version history |
 

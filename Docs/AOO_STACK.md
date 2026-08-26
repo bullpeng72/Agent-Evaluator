@@ -350,6 +350,10 @@ of live testing:**
 - [`CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md) — optional, non-core individual workflows that pivot
   from a Gate regression/golden-set/A-B question into `ctx`'s cross-session search (Claude Code provider
   only — confirms this doc's OpenCode-importer gap does *not* apply the same way there).
+- [`CLAUDE_CODE_HOOKS.md`](CLAUDE_CODE_HOOKS.md) — the same `LiveGuardrail` engine wired into Claude Code
+  CLI's own hooks instead of an OpenCode plugin.
+- [`OPENCODE_VS_CLAUDE_CODE.md`](OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
+  two integrations.
 - `agent_evaluator/integrations/live_guardrail_report.py` — the one-shot, session-end batch-integration
   bridge, with opt-in `success`/`execution_time`/`agent_version` fields (SPEC-028).
 - `agent_evaluator/integrations/opencode_plugin/agent-evaluator.ts` — the plugin source itself; its
