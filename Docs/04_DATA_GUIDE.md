@@ -640,13 +640,19 @@ if dataset_id:
 
 4. **전략 다양화** — `["high_value", "failure_cases", "coverage_gap"]`을 함께 사용해 성공/실패/미커버리지 케이스를 균형 있게 포함합니다.
 
-5. **CI/CD 통합** — PR 머지 전 골든 데이터셋으로 자동 평가를 실행하고 `eval.gate()`로 품질 기준을 강제합니다.
+5. **CI/CD 통합** — PR 머지 전 골든 데이터셋으로 자동 평가를 실행하고 `eval.gate()`로 품질 기준을 강제합니다. 이 문서에서 다루는 골든 데이터셋 자체를 CI 게이트 기준으로 직접 쓰려면 `--golden-set`/`--fail-on-golden-regression`으로 승인된 케이스가 회귀·누락됐는지 검사할 수 있습니다(`agent-eval dataset build`로 추출·승인한 파일을 그대로 사용).
 
    ```yaml
    - name: Golden Dataset Evaluation
      run: |
        python scripts/run_golden_eval.py
        agent-eval gate results/quickeval.json --tcr 85 --accuracy 70
+
+   - name: Golden-Set Regression Gate
+     run: |
+       agent-eval gate results/quickeval.json \
+         --golden-set data/golden_datasets/golden_1.json \
+         --fail-on-golden-regression   # exit 3 — 승인된 케이스가 누락/실패하면 실패 처리
    ```
 
 6. **태스크 유형별 분리** — QA, RAG, Tool Use 등 태스크 유형별로 별도 파일을 유지합니다. 하나의 파일에 혼합하면 집계 지표가 왜곡될 수 있습니다.

@@ -27,7 +27,8 @@ Agent Evaluator v1.0.0 전체 API 문서
 11. [예외 클래스](#11-예외-클래스)
 12. [Layer 2 Agentic 트래커](#12-layer-2-agentic-트래커)
 13. [하이브리드 평가 (Layer 3)](#13-하이브리드-평가-layer-3)
-14. [CLI 레퍼런스](#14-cli-레퍼런스)
+14. [RCA 진단 + 추천 이력 (agent_evaluator.rca / ontology)](#14-rca-진단--추천-이력-agent_evaluatorrca--ontology)
+15. [CLI 레퍼런스](#15-cli-레퍼런스)
 
 ---
 
@@ -123,7 +124,8 @@ monitor = PerformanceMonitor(
 |--------|--------|------|
 | `record_task(result)` | `self` | TaskResult 기록. 메서드 체이닝 지원 |
 | `generate_report()` | `EvaluationReport` | 누적 지표 기반 보고서 생성 |
-| `save_to_file(filename)` | `None` | JSON + HTML 파일 저장 |
+| `save_to_file(filename, baseline_path=None)` | `str` (저장된 JSON 경로) | JSON + HTML 파일 저장. `baseline_path` 지정 시 HTML의 Gate RCA 진단 섹션이 회귀 기반 감지로 동작 |
+| `register_gate(gate_id, compute_fn)` | `None` | 독립 커스텀 Gate 플러그인 등록 — `compute_fn(tasks, min_samples) -> dict` |
 | `compare_with_thresholds()` | `dict` | 임계값 대비 통과/실패 여부 (`monitor.thresholds = {...}`로 설정) |
 | `reset(keep_config=True)` | `None` | 누적 태스크 초기화 |
 | `snapshot()` | `dict` | 현재 상태 스냅샷 |
@@ -1216,11 +1218,14 @@ from agent_evaluator import ImplicitFeedbackTracker
 tracker = ImplicitFeedbackTracker()
 tracker.record(
     task_id="t1",
-    feedback_type="thumbs_up",    # "thumbs_up"|"thumbs_down"|"copy"|"regenerate"
-    latency=0.1,
+    feedback_type="thumbs_up",    # 긍정: copy·thumbs_up·share·save·follow_up_depth
+                                   # 부정: regenerate·thumbs_down·abandon·correction
+    metadata={"source": "web_ui"},  # 선택
 )
 stats = tracker.get_stats()
-# {"thumbs_up_rate": float, "regenerate_rate": float, ...}
+# {"total": int, "positive_count": int, "negative_count": int, "positive_rate": float,
+#  "negative_rate": float, "regenerate_rate": float, "abandon_rate": float,
+#  "type_distribution": dict}
 ```
 
 ---
@@ -1323,8 +1328,8 @@ from agent_evaluator.decorators import agent_eval
 
 monitor = HybridPerformanceMonitor(
     output_dir="results/",
-    enable_deepeval=True,
-    enable_ragas=True,
+    use_deepeval=True,
+    use_ragas=True,
 )
 
 # 권장: 데코레이터 방식 (rag_mode=True → hallucination + IR 자동 활성)
@@ -1383,7 +1388,63 @@ scores = adapter.evaluate(
 
 ---
 
-## 14. CLI 레퍼런스
+## 14. RCA 진단 + 추천 이력 (agent_evaluator.rca / ontology)
+
+`agent_evaluator`의 top-level `__all__`에는 없는 서브모듈이다 — `from agent_evaluator.rca import ...`
+/ `from agent_evaluator.ontology import ...`로 직접 임포트한다. Gate 점수가 하락했을 때 "왜"를
+3단계(감지→원인귀속→교차확인)로 자동화하고, 조치를 적용한 뒤 실제로 개선됐는지 폐루프로 검증한다.
+HOTL 원칙 — 후보와 근거만 제시하고 최종 판단은 사람의 몫이다.
+
+```python
+from agent_evaluator.rca import diagnose
+
+result = diagnose(
+    current,                       # 평가 결과 JSON dict (report.to_dict() 또는 json.load())
+    baseline=None,                 # 있으면 회귀 기반 감지, 없으면 현재 fail/warn 상태로 폴백 감지
+    regression_threshold=0.1,      # baseline 대비 허용 회귀 비율
+    violation_db_path=None,        # SQLite DB 경로 — 있으면 3단계(교차확인)에서 search_violations() 호출
+    with_experiment_metadata=False,  # True면 git diff로 baseline↔current 사이 실제 커밋 변경 이력도 첨부
+    repo_path=".",
+)
+# result: {detection_mode, detected_gates, multi_gate_note, sla_shared_cause_check,
+#          findings: [{gate, current_score, baseline_score, top_detail_deltas,
+#                      cross_references, mast_candidates(Gate F만)}],
+#          shared_cause_explanations, independently_investigate_gates, experiment_metadata}
+```
+
+추천을 적용한 뒤 실제로 개선됐는지 폐루프 검증(`.aoo/claims.jsonl`과 같은 append-only JSONL 패턴):
+
+```python
+from agent_evaluator.rca import verify_recommendation_outcome, record_recommendation_outcome
+
+# 1회성 판정만 필요할 때
+verdict = verify_recommendation_outcome(
+    before, after, target_gate="A", improvement_threshold=0.05,
+)
+# {target_gate, before_score, after_score, gate_delta, verdict: "confirmed"|"refuted"|"inconclusive", ...}
+
+# 판정 + JSONL 이력 기록까지 한 번에
+record_recommendation_outcome(
+    ".aoo/recommendation_outcomes.jsonl",
+    recommendation_id="gate-a-instruction-config", target_gate="A",
+    before=before, after=after, note="InstructionConfig required_keywords 추가",
+)
+```
+
+Gate F 진단 시 참고용 MAST(Multi-Agent System Failure Taxonomy, Cemri et al. NeurIPS 2025) 후보:
+
+```python
+from agent_evaluator.ontology.mast_taxonomy import mast_failure_modes_for_gate_f_metric
+
+modes = mast_failure_modes_for_gate_f_metric("avg_conflict_resolution")
+# 관련된 MASTFailureMode(code, category, name, prevalence_pct, description, remediation, ...) 후보들
+```
+
+CLI: `agent-eval diagnose`, 대시보드: 🔧 Improve 탭이 동일 결과를 노출한다.
+
+---
+
+## 15. CLI 레퍼런스
 
 ```bash
 # API 키 설정 마법사
@@ -1405,6 +1466,17 @@ agent-eval monitor --check     # OTEL 패키지 설치 여부 및 포트 확인
 # CI/CD 품질 게이팅
 agent-eval gate result.json --tcr 85 --accuracy 70
 agent-eval gate result.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
+agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10
+agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression
+
+# Gate 회귀 원인진단 (RCA — detect → attribute → cross-reference, HOTL 원칙)
+agent-eval diagnose result.json
+agent-eval diagnose result.json --baseline baseline.json --show-diff
+
+# 통계적 A/B 비교 (2개 파일 → Welch's t-test, 3개+ → N-way + FDR 보정)
+agent-eval abtest v1.json v2.json --metric accuracy_score
+agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference
+agent-eval abtest v1.json v2.json v3.json                   # N-way
 
 # 골든 데이터셋 자동 추출
 agent-eval dataset build --source results/ --max-cases 30
@@ -1418,6 +1490,7 @@ agent-eval opencode install
 agent-eval opencode install --global   # 전역 설치
 agent-eval opencode install --force    # 기존 설치 덮어쓰기
 agent-eval opencode install --with-violation-search   # + search_violations MCP 서버 등록
+agent-eval opencode install --with-recommend-fix       # + recommend_fix MCP 서버 등록
 
 # .aoo/claims.jsonl 팀 스코프 클레임 관리 (TeamConcurrencyConfig 연동)
 agent-eval claims add src/ --developer auto   # 클레임 개설 (git config user.name으로 자동 해석)

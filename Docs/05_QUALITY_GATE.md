@@ -15,8 +15,9 @@
 5. [CI/CD 통합](#5-cicd-통합)
 6. [임계값 파일 관리](#6-임계값-파일-관리)
 7. [추세 분석 (agent-eval trend)](#7-추세-분석-agent-eval-trend)
-8. [도메인별 Harness Config 프리셋](#8-도메인별-harness-config-프리셋)
-9. [Best Practices](#9-best-practices)
+8. [Gate 회귀 원인진단 (agent-eval diagnose)](#8-gate-회귀-원인진단-agent-eval-diagnose)
+9. [도메인별 Harness Config 프리셋](#9-도메인별-harness-config-프리셋)
+10. [Best Practices](#10-best-practices)
 
 ---
 
@@ -472,7 +473,39 @@ agent-eval trend results/ --output-json trend.json
 
 ---
 
-## 8. 도메인별 Harness Config 프리셋
+## 8. Gate 회귀 원인진단 (agent-eval diagnose)
+
+`agent-eval gate`/`agent-eval trend`가 회귀를 잡아낸 *다음* 단계 — "어떤 Gate가, 어느 세부 지표
+때문에, 왜" 나빠졌는지 3단계(감지 → 원인귀속 → 교차확인)로 자동 진단합니다. **CI 게이트가 아닙니다**
+— pass/fail을 판정하지 않고 사람이 읽을 후보 원인과 근거만 출력합니다(HOTL 원칙). baseline이 없어도
+현재 fail/warn 상태인 Gate를 감지하는 방식으로 동작합니다.
+
+```bash
+# baseline 없이 — 현재 fail/warn 상태인 Gate를 감지
+agent-eval diagnose results/latest.json
+
+# baseline과 비교 — 회귀 기반 감지로 격상
+agent-eval diagnose results/latest.json --baseline results/baseline.json
+
+# --show-diff: baseline↔current 사이 실제 git 커밋 변경 이력까지 함께 표시
+agent-eval diagnose results/latest.json --baseline results/baseline.json --show-diff
+
+# JSON으로 출력 (스크립트 연동용)
+agent-eval diagnose results/latest.json --json
+```
+
+출력에는 감지 방식(`detection_mode`), 감지된 Gate 목록, Gate별 `top_detail_deltas`(baseline 대비
+가장 많이 움직인 세부 지표), SQLite 위반 이력이 있으면 관련 위반 건, Gate F는 MAST(Cemri et al.,
+NeurIPS 2025) 실패모드 후보까지 포함됩니다. Gate C·D가 동시에 감지되면 SLA가 공유 원인인지 먼저
+확인하는 체크도 함께 표시됩니다.
+
+Python API: `agent_evaluator.rca.diagnose()` — 상세 시그니처는 [`08_API_REFERENCE.md`의 "RCA 진단 +
+추천 이력" 절](08_API_REFERENCE.md#14-rca-진단--추천-이력-agent_evaluatorrca--ontology) 참고. 대시보드
+🔧 Improve 탭이 동일 결과를 시각화합니다.
+
+---
+
+## 9. 도메인별 Harness Config 프리셋
 
 도메인마다 위험 허용 수준이 다릅니다. 아래 프리셋을 참고해 도메인에 맞게 임계값을 조정하세요.
 
@@ -590,7 +623,7 @@ def domain_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 9. Best Practices
+## 10. Best Practices
 
 **보수적으로 시작하라**
 처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.

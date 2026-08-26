@@ -34,7 +34,7 @@ from agent_evaluator.decorators import agent_eval
 # Harness Gate 설정 — @agent_eval 파라미터로 전달
 @agent_eval(monitor, task_type="qa",
     instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),   # Gate A
-    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),                   # Gate B
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=6),                   # Gate B
     sla=SLAConfig(p95_ms=3000),                                                           # Gate D
     explainability=ExplainabilityConfig(require_reasoning=True, min_reasoning_length=30), # Gate G
 )
@@ -74,7 +74,7 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 
 > **C+G**: `HallucinationDetector`는 Gate C(신뢰성 — 출력 사실 충실성, `_rel_vals`)와 Gate G(관측성 — 환각률 모니터링, `_obs_vals`) 양쪽에 점수를 기여한다. 실제 감지 건수(`_detections`)가 0이면 두 Gate 모두에 미기여.
 
-> **Operational 전용 트래커** (Gate 점수에 기여하지 않음): `RetryCorrectionTracker` (재시도 횟수·패턴 추적), `TokenEconomyTracker` (토큰 비용 추적·보고), `WorkflowExecutionTracker` (체인 단계·분기 추적). 이들의 데이터는 리포트와 대시보드에 표시되지만 Gate A–G 점수 산출에는 포함되지 않는다.
+> **Operational 전용 트래커** (Gate 점수에 기여하지 않음, 위 표의 13개 + 이 9개 = 25개 Native Trackers 전체): `RetryCorrectionTracker`(재시도 횟수·패턴 추적) · `TokenEconomyTracker`(토큰 비용 추적·보고) · `WorkflowExecutionTracker`(체인 단계·분기 추적) · `MultimodalMetricsTracker`(이미지·오디오·비디오·텍스트 사용 비중 집계, `extra["image_count"]`/`extra["audio_duration_seconds"]`/`extra["video_frames"]` 자동 반영) · `ImplicitFeedbackTracker`(사용자 암묵적 피드백 — copy·thumbs_up·regenerate 등) · `ConversationSession`/`ConversationMetrics`(멀티턴 대화 품질) · `AnomalyDetector`(Z-score·IQR 이상탐지) · `CostTracker`/`AdaptivePolicy`(외부 평가 비용 예산 관리) · `SamplingStage`(적응형 샘플링 단계) · `StreamingEvaluator`(실시간 스트리밍 평가). 이들의 데이터는 리포트와 대시보드에 표시되지만 Gate A–G 점수 산출에는 포함되지 않는다 — 자세한 내용은 [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md) 참고.
 
 > LLMJudge(L3)는 기본 설치에 포함. DeepEval·Ragas는 `pip install agent-evaluator[eval]` 필요.
 
@@ -1413,6 +1413,7 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 | **Gate A — 목표 달성** | | | | |
 | TCR | ✅ 자동 | ✅ 자동 | ✅ 자동 | 항상 (`completion_fn` 선택) |
 | Accuracy | ✅ 자동 | ✅ 자동 | ✅ 자동 | `ground_truth_arg` 존재 시 |
+| Response Quality (5차원) | ✅ 자동 | ✅ 자동 | ✅ 자동 | response + question 존재 시 |
 | **Gate B — 행동 무결성** | | | | |
 | Tool Call Efficiency | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata.tool_calls |
 | **Gate C — 신뢰성** | | | | |
@@ -1433,7 +1434,6 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 | Agent Coordination | ✅ `framework="crewai/autogen"` | ❌ | ❌ | CrewAI/AutoGen 어댑터 또는 EvalMetadata |
 | Workflow Execution | ✅ `framework="langchain/langgraph"` | ❌ | ❌ | LangChain/LangGraph 어댑터 |
 | **Gate G — 관찰 가능성** | | | | |
-| Response Quality (5차원) | ✅ 자동 | ✅ 자동 | ✅ 자동 | response + question 존재 시 |
 | Hallucination Rate (G) | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context + `enable_hallucination_detection=True` — Gate C에도 동시 기여 |
 | **L3 / LLM Judge** | | | | |
 | LLM Judge (5차원) | ✅ `llm_judge=LLMJudgeConfig()` | ❌ | ❌ | 기본 설치에 포함 |

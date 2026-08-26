@@ -149,7 +149,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 
 | 메뉴 | 작동 방식 |
 |------|----------|
-| 📂 **파일 비교** | `results/*.json` 2개 이상 → 드롭다운에서 두 파일 선택 |
+| 📂 **파일 비교** | `results/*.json` 2개 이상 → 드롭다운에서 두 파일 선택. `prompt_version`/`agent_version` 태그 기준 **Group by** 드롭다운으로 자동 그룹핑, 파일 2개 선택 시 **⚖️ Pairwise Judge** 서브탭(승률 비교), **📄 Export HTML**로 비교 결과 단일 파일 다운로드 — 자세한 내용은 [`08_API_REFERENCE.md`의 "버전별 비교" 절](08_API_REFERENCE.md#버전별-비교--prompt_versionagent_version-v098) 참고 |
 | 🗂️ **케이스 검토** | `agent-eval dataset build`로 추출한 후보 케이스 승인/거부 |
 | 📚 **골든 데이터셋** | `data/golden_datasets/*.json` 또는 `GoldenSetBuilder` |
 | 📤 **내보내기** | JSON 원본 / 태스크별 CSV / 독립형 HTML 리포트 3가지 형식 |
@@ -387,7 +387,10 @@ agent-eval monitor --check
 | `--no-open` | (플래그) | 브라우저 자동 오픈 비활성화 |
 | `--attach <url>` | — | 자체 기동 없이 기존 Phoenix에 연결 |
 | `--check` | (플래그) | 설치 상태 및 포트 점유 확인 |
-| `--working-dir <path>` | `./` | Phoenix DB 저장 디렉토리 |
+| `--working-dir <path>` | Phoenix 자동 결정(보통 `~/.phoenix`) | Phoenix DB 저장 디렉토리 |
+| `--sync-datasets <glob>` | — | 골든셋 JSON 파일을 Phoenix Datasets로 업로드 (glob 패턴 지원) |
+| `--reset` | (플래그) | Phoenix DB의 모든 trace·project·dataset 삭제 (먼저 Phoenix 중지 필요) |
+| `--yes` / `-y` | (플래그) | `--reset` 확인 프롬프트 건너뛰기 |
 
 ---
 
@@ -441,11 +444,12 @@ _try_setup_otel("my-service")
 
 | TaskType | span kind |
 |----------|-----------|
-| `qa`, `code_generation`, `coding`, `creative` | `LLM` |
+| `qa`, `code_generation`, `coding`, `creative`, `document_creation`, `reasoning` | `LLM` |
 | `information_retrieval` | `RETRIEVER` |
 | `tool_use` | `TOOL` |
 | `planning` | `AGENT` |
-| `data_analysis`, `document_creation`, `reasoning` | `CHAIN` |
+| `data_analysis` | `CHAIN` |
+| 그 외(`multi_agent`, `streaming` 등 매핑에 없는 TaskType) | `LLM` (기본값 폴백) |
 
 ### Phoenix Annotations (점수 전송)
 

@@ -33,6 +33,9 @@ pip install "agent-evaluator[sdk]"
 # 모든 예제 실행 — sdk + deepeval/ragas/langchain
 pip install "agent-evaluator[examples]"
 
+# 실시간 가드레일 — OpenCode + MCP 연동 (search_violations · recommend_fix)
+pip install "agent-evaluator[mcp]"
+
 # 프레임워크 통합 (사용자 에이전트가 해당 프레임워크를 사용하는 경우)
 pip install "agent-evaluator[langchain]"   # LangChain/LangGraph
 pip install "agent-evaluator[eval]"        # DeepEval + Ragas
@@ -40,7 +43,8 @@ pip install "agent-evaluator[full]"        # 전체 (⚠️ crewai/autogen 포�
 ```
 
 > **Python 3.8–3.13** 지원. numpy, pandas는 자동 설치됩니다.  
-> 대시보드(`agent-eval dashboard`)·Phoenix 모니터링(`agent-eval monitor`)·PDF 처리는 `[sdk]` extra가 필요합니다.
+> 대시보드(`agent-eval dashboard`)·Phoenix 모니터링(`agent-eval monitor`)·PDF 처리는 `[sdk]` extra가 필요합니다.  
+> extras 전체를 5개 카테고리로 정리한 표는 [README.md의 Installation 절](../README.md#installation) 참고.
 
 ---
 
@@ -220,7 +224,7 @@ export AGENT_EVALUATOR_ROOT=/path/to/my/project
 import os
 os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/my/project'
 monitor.save_to_file("my_evaluation")
-# → /path/to/my/project/results/my_evaluation_evaluation.json
+# → /path/to/my/project/results/my_evaluation.json (+ .html)
 ```
 
 ### 결과 파일 자동 레지스트리

@@ -84,6 +84,7 @@ agent-eval opencode install                       # .opencode/plugin/ (project-l
 # or: agent-eval opencode install --global         # ~/.config/opencode/plugin/
 # or: agent-eval opencode install --force          # overwrite an existing install
 # or: agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
+# or: agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
 ```
 
 `agent-eval opencode install` verifies the installed copy actually registers all three plugin hooks

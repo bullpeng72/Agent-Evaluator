@@ -119,20 +119,26 @@ print(settings)  # 현재 설정 출력
 
 ## 3. AGENT_EVAL_PRESETS — 용도별 사전 설정
 
+직접 지정한 파라미터가 preset보다 항상 우선한다.
+
+| Preset | sample_rate | timeout | flush_every | 그 외 |
+|--------|:-----------:|:-------:|:-----------:|-------|
+| `production` | 0.1 | 30.0s | 50 | `enable_anomaly_detection=True` · `enable_llm_judge=True` · `allow_duplicate_task_ids=False` |
+| `development` | 1.0 | 없음 | 1 | `enable_llm_judge=True` · `auto_detect_framework=True` |
+| `testing` | 0.1 | 60.0s | 5 | — |
+| `canary` | 0.05 | 30.0s | 50 | `enable_anomaly_detection=True` |
+| `performance` | 1.0 | 10.0s | 20 | `enable_anomaly_detection=True` — 레이턴시/토큰 지표 위주, LLM Judge는 끈 채로 가볍게 |
+| `security` | 1.0 | 30.0s | 기본값 | 보안 지표 위주 시나리오용 경량 프리셋(`security=SecurityConfig()`는 preset이 자동으로 켜주지 않으므로 필요하면 별도 지정) |
+
 ```python
 from agent_evaluator import QuickEval
 
-# production: flush_every=50, enable_anomaly_detection=True
-eval = QuickEval("results/", preset="production")
-
-# development: llm_judge=LLMJudgeConfig(), auto_detect_framework=True
-eval = QuickEval("results/", preset="development")
-
-# testing: 경량 평가 (외부 API 호출 최소화)
-eval = QuickEval("results/", preset="testing")
-
-# canary: 카나리 배포 — 트래픽 일부에만 적용
-eval = QuickEval("results/", preset="canary")
+eval = QuickEval("results/", preset="production")   # 운영 배포
+eval = QuickEval("results/", preset="development")  # 개발 중 전량 평가 + LLM Judge
+eval = QuickEval("results/", preset="testing")       # 테스트 — 외부 API 호출 샘플링으로 최소화
+eval = QuickEval("results/", preset="canary")        # 카나리 배포 — 5% 샘플링
+eval = QuickEval("results/", preset="performance")   # 레이턴시/토큰 지표 집중 모니터링
+eval = QuickEval("results/", preset="security")      # 보안 시나리오 — sample_rate=1.0
 ```
 
 ---
