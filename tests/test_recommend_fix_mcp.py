@@ -86,5 +86,6 @@ class TestFormatRecommendationWithMetric:
 
 class TestBuildServer:
     def test_server_builds_with_expected_name(self):
+        pytest.importorskip("mcp")
         server = build_server()
         assert server.name == "agent-evaluator-recommend-fix"

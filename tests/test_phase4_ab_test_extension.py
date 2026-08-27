@@ -80,6 +80,7 @@ class TestMetricGeneralization:
 
 class TestEffectSizeAndSignificance:
     def test_effect_size_present_with_enough_samples(self, tmp_path):
+        pytest.importorskip("scipy")
         a = _qeval(tmp_path, "a", [0.9, 0.85, 0.95, 0.88, 0.92])
         b = _qeval(tmp_path, "b", [0.5, 0.45, 0.55, 0.48, 0.52])
         result = a.ab_test(b)

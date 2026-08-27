@@ -11,7 +11,7 @@ HOTL 원칙(Chapter 2): 이 라우터도 후보 원인과 근거만 반환한다
 """
 from __future__ import annotations
 
-from typing import Any, Optional  # noqa: UP035
+from typing import Any, Dict, Optional  # noqa: UP035
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -38,7 +38,7 @@ def get_diagnosis(
     ),
     regression_threshold: float = Query(0.1, description="Allowed regression vs baseline (0-1)"),
     show_diff: bool = Query(False, description="Resolve git commit range via lineage.git_commit"),
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """``agent-eval diagnose``와 동일한 판정을 대시보드용 JSON으로 반환한다.
 
     Args:
@@ -54,7 +54,7 @@ def get_diagnosis(
     if rf is None:
         raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
 
-    baseline_raw: dict[str, Any] | None = None
+    baseline_raw: Optional[Dict[str, Any]] = None  # noqa: UP006,UP045
     if baseline_id:
         baseline_rf = rs.by_id(baseline_id)
         if baseline_rf is None:
@@ -76,7 +76,7 @@ def get_diagnosis(
 def get_recommendation_outcomes(
     request: Request,
     gate: Optional[str] = Query(None, description="Filter by target_gate"),  # noqa: UP045
-) -> dict[str, Any]:
+) -> Dict[str, Any]:  # noqa: UP006
     """추천 적용 이력(``rca.record_recommendation_outcome()``이 기록한 JSONL)을
     읽어 원본 이력 + 개수 집계를 반환한다. 파일이 없으면 빈 이력(정상 — 아직 아무
     추천도 기록되지 않았다는 뜻, 에러 아님).
