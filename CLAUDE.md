@@ -39,9 +39,15 @@ agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval opencode install --with-recommend-fix           # + register recommend_fix MCP server (requires [mcp] extra)
+agent-eval opencode upgrade                               # re-copy the plugin .ts after a package update (keeps agent-evaluator.config.json)
+agent-eval opencode doctor                                # verify the install works: plugin freshness + Python stdio-bridge round-trip (--json/--no-live/--strict)
+agent-eval opencode uninstall                             # remove plugin file + opencode.json mcp entries (run BEFORE pip uninstall; --purge/--dry-run/--yes)
 agent-eval claude install                                 # LiveGuardrail Claude Code CLI hooks (--global/--force)
 agent-eval claude install --with-violation-search         # + register search_violations MCP server (requires [mcp] extra)
 agent-eval claude install --with-recommend-fix             # + register recommend_fix MCP server (requires [mcp] extra)
+agent-eval claude upgrade                                 # refresh hooks/matchers + deep-merge NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
+agent-eval claude doctor                                  # verify the install works: static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
+agent-eval claude uninstall                               # remove our hooks from settings.json + deregister MCP + delete session state (run BEFORE pip uninstall; --keep-config/--purge/--dry-run/--yes)
 agent-eval trend results/ --fail-on-regression            # trend analysis
 agent-eval trend results/ --output-json trend.json
 agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim
@@ -516,6 +522,13 @@ agent_evaluator/
 │                          #  cli/trend.py·cli/claims.py에 위임)
 │                          # opencode install --with-violation-search/--with-recommend-fix:
 │                          #  각각 search_violations/recommend_fix MCP 서버 자동 등록(옵트인)
+│                          # opencode/claude 공통 서브커맨드(cli/_integration_health.py 공유):
+│                          #  install(설치) · upgrade(패키지 업데이트 후 현행화, 사용자 config 보존) ·
+│                          #  doctor(설치가 실제로 도는지 정적+라이브 검증, --json/--no-live/--strict) ·
+│                          #  uninstall(훅·플러그인·MCP 제거 — `pip uninstall` *전에* 실행,
+│                          #  --purge/--dry-run/--yes). opencode uninstall은 `opencode mcp`에 remove가
+│                          #  없어 opencode.json의 mcp.<name>을 직접 편집(.jsonc는 수동 안내).
+│                          #  MCP add "already exists"는 이제 실패가 아니라 "nothing to change"로 출력.
 │                          # gate --baseline-version/--golden-set/--fail-on-golden-regression:
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
 ├── cli/claude.py          # claude install [--global/--force/--with-violation-search/
@@ -551,6 +564,38 @@ agent_evaluator/
 │                          #  matcher가 아니라 command 문자열(_HOOK_MODULE 포함 여부)로 식별하므로
 │                          #  옛 "Bash|Edit|Write" 설치도 "우리 것"으로 인식돼 matcher가 bump된다
 │                          #  (SPEC-041; "재설치해도 갱신 안 됨"이라는 옛 서술은 틀렸다).
+│                          #  claude upgrade — install과 달리 사용자가 편집한 guardrail_config.json을
+│                          #  보존한다: 훅 matcher/인터프리터만 갱신 + _integration_health.
+│                          #  deep_merge_defaults()로 DEFAULT_GUARDRAIL_CONFIG의 *새 키만* 추가
+│                          #  (기존 값 절대 안 건드림, 추가된 키 경로를 출력). --with-violation-search/
+│                          #  --with-recommend-fix를 줬을 때만 해당 MCP를 remove→add로 재등록
+│                          #  (스코프 사고 방지 — get으로 자동 감지 안 함).
+│                          #  claude uninstall — install의 역함수: _our_hook_entries()로 우리 훅만
+│                          #  settings.json에서 제거(타 훅·설정 보존, 우리만 있던 이벤트 키는 삭제),
+│                          #  claude mcp remove로 두 MCP 해제(_deregister_mcp_server, "not found"는
+│                          #  무시), sessions/ 상태 삭제. guardrail_config.json은 기본 보존
+│                          #  (--purge면 state dir 통째 삭제, --keep-config면 명시적 보존).
+│                          #  --dry-run/--yes/-y. `pip uninstall` 후엔 agent-eval 엔트리포인트가
+│                          #  사라지므로 반드시 그 전에 실행(도움말에 순서 명시).
+│                          #  claude doctor — 설치가 실제로 도는지 검증. 정적: settings.json 파싱·
+│                          #  훅 3개 등록·matcher 최신·훅 인터프리터 생존·그 인터프리터로 패키지
+│                          #  import·guardrail_config가 build_guardrail()됨(SKIPPED 경고 수집)·
+│                          #  MCP 등록(claude mcp get). 라이브(임시 sandbox cwd, output_dir도
+│                          #  sandbox로 오버라이드해 hermetic): settings.json에 등록된 *실제 커맨드*를
+│                          #  subprocess로 돌려 무해 Bash→allow, rm -rf→deny(exit 2), WebFetch→deny,
+│                          #  PostToolUse+SessionEnd→배치 리포트 파일 생성 + 세션 상태 정리 확인.
+│                          #  MCP: 등록된 서버에 initialize+tools/list 핸드셰이크(mcp_initialize_probe).
+│                          #  --no-live(정적만)·--json(CI)·--strict(경고도 exit 1). 에러 있으면 exit 1.
+├── cli/_integration_health.py  # claude/opencode의 doctor·upgrade·uninstall이 공유하는 헬퍼
+│                          #  (새 판정 로직 없음, 순수 운영 계층). DoctorReport(체크 누적 + 텍스트/
+│                          #  JSON 렌더 + exit_code(strict)) · deep_merge_defaults(사용자 값 보존
+│                          #  deep-merge, 추가된 키 경로 반환, 리스트는 leaf) · interpreter_from_command
+│                          #  (nice/env VAR=v 접두 건너뛰고 첫 실행 토큰) · probe_import(서브프로세스
+│                          #  import 성공 여부) · validate_guardrail_config(build_guardrail() 호출 +
+│                          #  stderr의 SKIPPED 경고 캡처) · mcp_initialize_probe(init→initialized→
+│                          #  tools/list 3메시지를 한 번에 쓰고 communicate로 전부 읽어 파싱 —
+│                          #  버퍼 파이프에서 select 한 줄 읽기보다 견고. MCP는 opt-in이라 실패는
+│                          #  항상 warn, [mcp] extra 미설치는 안내 메시지로 구분).
 ├── cli/diagnose.py        # diagnose — agent_evaluator.rca.diagnose()를 감싸는 얇은 터미널
 │                          #  출력 레이어(새 판정 로직 없음). CI 게이트 아님 — 항상 exit 0
 │                          #  (결과 파일을 못 읽을 때만 exit 1), pass/fail 판정하지 않고
@@ -936,7 +981,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**116 files, 4,070+ test functions** in `tests/`.
+**117 files, 4,090+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

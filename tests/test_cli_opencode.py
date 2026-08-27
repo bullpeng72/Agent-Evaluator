@@ -337,3 +337,166 @@ class TestMissingHooksCheck:
         err = capsys.readouterr().err
         assert "missing hook" in err
         assert "tool.execute.after" in err
+
+
+# ---------------------------------------------------------------------------
+# upgrade / uninstall / doctor  (업그레이드·제거·설치검증 기능)
+# ---------------------------------------------------------------------------
+import json  # noqa: E402
+
+_RMRF = "rm -" + "rf"  # 세션 가드레일 오탐 회피용 분할 리터럴
+
+
+def _upg_ns(**kwargs):
+    d = {"opencode_command": "upgrade", "global_install": False}
+    d.update(kwargs)
+    return argparse.Namespace(**d)
+
+
+def _uni_ns(**kwargs):
+    d = {
+        "opencode_command": "uninstall", "global_install": False,
+        "keep_config": False, "purge": False, "dry_run": False, "yes": True,
+    }
+    d.update(kwargs)
+    return argparse.Namespace(**d)
+
+
+def _doc_ns(**kwargs):
+    d = {
+        "opencode_command": "doctor", "global_install": False,
+        "json": False, "no_live": True, "strict": False,
+    }
+    d.update(kwargs)
+    return argparse.Namespace(**d)
+
+
+class TestOpencodeAlreadyExistsMcp:
+    def test_already_exists_is_no_change_not_warning(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        class _P:
+            returncode = 1
+            stderr = "mcp server already exists"
+
+        monkeypatch.setattr(opencode_cli.subprocess, "run", lambda *a, **k: _P())
+        code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
+        assert code == 0
+        out, err = capsys.readouterr()
+        assert "already registered" in out
+        assert "실패" not in err
+
+
+class TestOpencodeUpgrade:
+    def test_no_install_returns_1(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        assert opencode_cli.cmd_opencode(_upg_ns()) == 1
+        assert "No installed plugin" in capsys.readouterr().err
+
+    def test_refreshes_stale_plugin_but_keeps_config_json(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        tgt = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
+        tgt.write_text(tgt.read_text().replace("EFFECTIVE_GUARDRAIL_CONFIG", "OLD_NAME"))
+        cfg = tgt.parent / "agent-evaluator.config.json"
+        cfg.write_text('{"scope": {"forbidden_tools": ["webfetch"]}}')
+
+        assert opencode_cli.cmd_opencode(_upg_ns()) == 0
+        assert "EFFECTIVE_GUARDRAIL_CONFIG" in tgt.read_text()
+        assert sys.executable in tgt.read_text()
+        assert cfg.read_text() == '{"scope": {"forbidden_tools": ["webfetch"]}}'
+
+    def test_noop_when_already_current(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        capsys.readouterr()
+        assert opencode_cli.cmd_opencode(_upg_ns()) == 0
+        assert "already up to date" in capsys.readouterr().out
+
+
+class TestOpencodeUninstall:
+    def test_deletes_plugin_keeps_config_and_prunes_mcp(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        tgt = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
+        cfg = tgt.parent / "agent-evaluator.config.json"
+        cfg.write_text("{}")
+        (tmp_path / "opencode.json").write_text(json.dumps({"mcp": {
+            "agent-evaluator-violations": {"type": "local"}, "keep-me": {"x": 1},
+        }}))
+
+        assert opencode_cli.cmd_opencode(_uni_ns()) == 0
+        assert not tgt.exists()
+        assert cfg.exists()  # 기본은 config 보존
+        oc = json.loads((tmp_path / "opencode.json").read_text())
+        assert oc == {"mcp": {"keep-me": {"x": 1}}}
+
+    def test_purge_also_deletes_config_json(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        cfg = tmp_path / ".opencode" / "plugin" / "agent-evaluator.config.json"
+        cfg.write_text("{}")
+        assert opencode_cli.cmd_opencode(_uni_ns(purge=True)) == 0
+        assert not cfg.exists()
+
+    def test_dry_run_changes_nothing(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        tgt = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
+        before = tgt.read_text()
+        assert opencode_cli.cmd_opencode(_uni_ns(dry_run=True)) == 0
+        assert tgt.read_text() == before
+        assert "dry-run" in capsys.readouterr().out
+
+    def test_jsonc_config_is_not_auto_edited(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        jsonc = tmp_path / "opencode.jsonc"
+        jsonc.write_text('{\n  // c\n  "mcp": {"agent-evaluator-violations": {}}\n}')
+        opencode_cli.cmd_opencode(_uni_ns())
+        assert "agent-evaluator-violations" in jsonc.read_text()  # untouched
+        assert "JSONC" in capsys.readouterr().err
+
+
+class TestOpencodeDoctor:
+    def test_missing_plugin_is_error_exit_1(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        assert opencode_cli.cmd_opencode(_doc_ns()) == 1
+        assert "plugin file exists" in capsys.readouterr().out
+
+    def test_healthy_install_static_checks_pass(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        capsys.readouterr()
+        assert opencode_cli.cmd_opencode(_doc_ns()) == 0
+        out = capsys.readouterr().out
+        assert "all hooks present" in out
+        assert "plugin not stale" in out
+        assert "bridge module importable" in out
+
+    def test_stale_plugin_warns(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        tgt = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
+        tgt.write_text(tgt.read_text().replace("EFFECTIVE_GUARDRAIL_CONFIG", "X"))
+        assert opencode_cli.cmd_opencode(_doc_ns()) == 0
+        assert opencode_cli.cmd_opencode(_doc_ns(strict=True)) == 1
+        assert "upgrade" in capsys.readouterr().out
+
+    def test_json_output_valid(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        capsys.readouterr()
+        opencode_cli.cmd_opencode(_doc_ns(json=True))
+        data = json.loads(capsys.readouterr().out)
+        assert data["summary"]["errors"] == 0
+
+    def test_live_bridge_roundtrip(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())
+        capsys.readouterr()
+        code = opencode_cli.cmd_opencode(_doc_ns(no_live=False))
+        out = capsys.readouterr().out
+        assert "bridge init" in out
+        assert f"check: {_RMRF} → block" in out
+        assert code == 0

@@ -395,3 +395,198 @@ class TestWithRecommendFixMcpRegistration:
 
         assert code == 0
         assert "시간 초과" in capsys.readouterr().err
+
+    def test_already_exists_is_reported_as_no_change_not_a_warning(
+        self, tmp_path, monkeypatch, capsys,
+    ):
+        """SPEC: 재설치/업그레이드 시 'already exists'는 정상 — ⚠️ + 수동 명령이 아니라
+        조용한 'nothing to change'로 출력한다."""
+        monkeypatch.chdir(tmp_path)
+
+        def _fake_run(cmd, **kwargs):
+            return _FakeCompletedProcess(1, stderr="MCP server foo already exists in config")
+
+        monkeypatch.setattr(claude_cli.subprocess, "run", _fake_run)
+        code = claude_cli.cmd_claude(_ns(with_violation_search=True))
+
+        assert code == 0
+        out, err = capsys.readouterr()
+        assert "already registered" in out
+        assert "실패" not in err
+        assert "mcp add" not in err
+
+
+def _uni_ns(**kwargs):
+    defaults = {
+        "claude_command": "uninstall", "global_install": False,
+        "keep_config": False, "purge": False, "dry_run": False, "yes": True,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+def _upg_ns(**kwargs):
+    defaults = {
+        "claude_command": "upgrade", "global_install": False,
+        "with_violation_search": False, "with_recommend_fix": False,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+def _doc_ns(**kwargs):
+    defaults = {
+        "claude_command": "doctor", "global_install": False,
+        "json": False, "no_live": True, "strict": False,
+    }
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+class TestUpgrade:
+    def test_no_install_returns_1(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        assert claude_cli.cmd_claude(_upg_ns()) == 1
+        assert "No existing install" in capsys.readouterr().err
+
+    def test_refreshes_stale_matcher_and_keeps_config_edits(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        # 설치 후 옛 matcher + 사용자 편집 + 기본 키 하나 제거로 "구버전" 시뮬레이션
+        claude_cli.cmd_claude(_ns())
+        sp = tmp_path / ".claude" / "settings.json"
+        s = json.loads(sp.read_text())
+        for ev in ("PreToolUse", "PostToolUse"):
+            s["hooks"][ev][0]["matcher"] = "Bash|Edit|Write"
+        sp.write_text(json.dumps(s))
+        cp = tmp_path / ".claude" / ".agent-evaluator" / "guardrail_config.json"
+        c = json.loads(cp.read_text())
+        c["loop_detection"]["consecutive_repeat_threshold"] = 99
+        c.pop("live_loop_window", None)
+        cp.write_text(json.dumps(c))
+
+        # MCP 등록 조회는 하지 않도록 (플래그 없음)
+        assert claude_cli.cmd_claude(_upg_ns()) == 0
+
+        s2 = json.loads(sp.read_text())
+        assert s2["hooks"]["PreToolUse"][0]["matcher"] == claude_cli._TOOL_MATCHER
+        c2 = json.loads(cp.read_text())
+        assert c2["loop_detection"]["consecutive_repeat_threshold"] == 99  # 사용자 값 보존
+        assert c2["live_loop_window"] == 15  # 빠졌던 기본 키 복원
+        assert "Added 1 new default key" in capsys.readouterr().out
+
+    def test_invalid_config_json_is_left_untouched(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        cp = tmp_path / ".claude" / ".agent-evaluator" / "guardrail_config.json"
+        cp.write_text("{not json")
+        assert claude_cli.cmd_claude(_upg_ns()) == 0
+        assert cp.read_text() == "{not json"
+        assert "not valid JSON" in capsys.readouterr().err
+
+
+class TestUninstall:
+    def test_removes_only_our_hooks_keeps_others(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        sp = tmp_path / ".claude" / "settings.json"
+        sp.parent.mkdir()
+        sp.write_text(json.dumps({
+            "hooks": {"PreToolUse": [
+                {"matcher": "Write", "hooks": [{"type": "command", "command": "keep.sh"}]},
+            ]},
+            "other": 1,
+        }))
+        claude_cli.cmd_claude(_ns())  # adds our hooks alongside keep.sh
+        monkeypatch.setattr(claude_cli, "_deregister_mcp_server", lambda *a, **k: None)
+
+        assert claude_cli.cmd_claude(_uni_ns()) == 0
+        s = json.loads(sp.read_text())
+        assert s["other"] == 1
+        cmds = [h["command"] for e in s["hooks"].get("PreToolUse", []) for h in e["hooks"]]
+        assert cmds == ["keep.sh"]
+        assert "PostToolUse" not in s["hooks"]  # 우리만 있던 이벤트는 제거
+        assert not (tmp_path / ".claude" / ".agent-evaluator" / "guardrail_config.json").exists()
+
+    def test_keep_config_preserves_guardrail_config(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        monkeypatch.setattr(claude_cli, "_deregister_mcp_server", lambda *a, **k: None)
+        cp = tmp_path / ".claude" / ".agent-evaluator" / "guardrail_config.json"
+        assert claude_cli.cmd_claude(_uni_ns(keep_config=True)) == 0
+        assert cp.exists()
+
+    def test_dry_run_changes_nothing(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        sp = tmp_path / ".claude" / "settings.json"
+        before = sp.read_text()
+        called = []
+        monkeypatch.setattr(claude_cli, "_deregister_mcp_server", lambda *a, **k: called.append(a))
+        assert claude_cli.cmd_claude(_uni_ns(dry_run=True)) == 0
+        assert sp.read_text() == before
+        assert called == []
+        assert "dry-run" in capsys.readouterr().out
+
+    def test_purge_deletes_state_dir(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        monkeypatch.setattr(claude_cli, "_deregister_mcp_server", lambda *a, **k: None)
+        state = tmp_path / ".claude" / ".agent-evaluator"
+        (state / "sessions").mkdir(parents=True, exist_ok=True)
+        (state / "sessions" / "x.json").write_text("{}")
+        assert claude_cli.cmd_claude(_uni_ns(purge=True)) == 0
+        assert not state.exists()
+
+
+class TestDoctorStatic:
+    def test_missing_settings_is_error_exit_1(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        assert claude_cli.cmd_claude(_doc_ns()) == 1
+        out = capsys.readouterr().out
+        assert "settings.json exists" in out
+        assert "❌" in out
+
+    def test_healthy_install_passes(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        # MCP 조회를 오프라인으로
+        monkeypatch.setattr(claude_cli, "_mcp_is_registered", lambda name: False)
+        assert claude_cli.cmd_claude(_doc_ns()) == 0
+        out = capsys.readouterr().out
+        assert "hooks registered" in out
+        assert "guardrail_config builds" in out
+        assert "all checks passed" in out
+
+    def test_stale_matcher_is_a_warning(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        sp = tmp_path / ".claude" / "settings.json"
+        s = json.loads(sp.read_text())
+        s["hooks"]["PreToolUse"][0]["matcher"] = "Bash|Edit|Write"
+        sp.write_text(json.dumps(s))
+        monkeypatch.setattr(claude_cli, "_mcp_is_registered", lambda name: False)
+        assert claude_cli.cmd_claude(_doc_ns()) == 0  # 경고는 exit 0
+        assert claude_cli.cmd_claude(_doc_ns(strict=True)) == 1  # --strict면 1
+        assert "drift" in capsys.readouterr().out
+
+    def test_json_output_is_valid(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        monkeypatch.setattr(claude_cli, "_mcp_is_registered", lambda name: None)
+        capsys.readouterr()  # drain install output
+        claude_cli.cmd_claude(_doc_ns(json=True))
+        data = json.loads(capsys.readouterr().out)
+        assert data["summary"]["errors"] == 0
+        assert {c["label"] for c in data["checks"]} >= {"settings.json parses", "hooks registered"}
+
+
+class TestDoctorLive:
+    def test_live_roundtrip_allow_and_block(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+        monkeypatch.setattr(claude_cli, "_mcp_is_registered", lambda name: False)
+        code = claude_cli.cmd_claude(_doc_ns(no_live=False))
+        out = capsys.readouterr().out
+        assert "allow: benign Bash → allow" in out
+        assert "block: rm -rf → deny (exit 2)" in out
+        assert "batch report written" in out
+        assert code == 0

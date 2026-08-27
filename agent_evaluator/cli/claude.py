@@ -14,11 +14,19 @@ Claude Code 훅은 설치된 패키지를 ``python -m agent_evaluator.integratio
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
+import shlex
+import shutil
 import subprocess as subprocess  # re-export: tests monkeypatch claude.subprocess.run directly
 import sys
+import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agent_evaluator.cli._integration_health import DoctorReport
 
 # 재export(redundant alias) — installer가 쓰는 기본 설정을 이 모듈의 공개 심볼로도 노출.
 from agent_evaluator.integrations.claude_code_hook import (
@@ -83,11 +91,21 @@ def cmd_claude(args: argparse.Namespace) -> int:
     cmd = getattr(args, "claude_command", None)
     if cmd == "install":
         return _cmd_install(args)
+    if cmd == "upgrade":
+        return _cmd_upgrade(args)
+    if cmd == "uninstall":
+        return _cmd_uninstall(args)
+    if cmd == "doctor":
+        return _cmd_doctor(args)
     print(
         f"{_B}agent-eval claude{_R} — LiveGuardrail Claude Code CLI hooks\n\n"
-        f"  {_Y}install{_R}   Register PreToolUse/PostToolUse/SessionEnd hooks in "
-        f".claude/settings.json\n\n"
-        f"Usage: agent-eval claude install --help",
+        f"  {_Y}install{_R}     Register PreToolUse/PostToolUse/SessionEnd hooks in "
+        f".claude/settings.json\n"
+        f"  {_Y}upgrade{_R}     Refresh hooks/config after a package update "
+        f"(keeps your guardrail_config.json edits)\n"
+        f"  {_Y}doctor{_R}      Verify the install actually works (static + live round-trip)\n"
+        f"  {_Y}uninstall{_R}   Remove the hooks/MCP servers (run before 'pip uninstall')\n\n"
+        f"Usage: agent-eval claude <command> --help",
         file=sys.stderr,
     )
     return 1
@@ -209,10 +227,54 @@ def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
 
     if result.returncode == 0:
         print(f"{_G}✅ MCP server registered: {name}{_R}")
+    elif "already exists" in (result.stderr or "").lower():
+        # 재설치/업그레이드 시 정상 상태 — 실패가 아니다. 과거엔 이걸 ⚠️ + 수동
+        # 명령으로 출력해 업그레이드가 깨진 것처럼 보였다.
+        print(f"{_D}   MCP server already registered: {name} — nothing to change{_R}")
     else:
         print(
             f"{_Y}⚠️  {flag}: 'claude mcp add' 실패(exit {result.returncode}) — "
             f"수동 등록: {_manual}{_R}",
+            file=sys.stderr,
+        )
+        if result.stderr:
+            print(f"{_D}   {result.stderr.strip()}{_R}", file=sys.stderr)
+
+
+def _deregister_mcp_server(name: str, scope: str) -> None:
+    """``claude mcp remove``로 MCP 서버 등록을 해제한다 (uninstall용).
+
+    ``_register_mcp_server()``와 동일한 fail-soft 원칙 — ``claude`` CLI 미설치나
+    "not found"(이미 없음)는 조용히 넘어간다.
+    """
+    try:
+        result = subprocess.run(
+            ["claude", "mcp", "remove", name, "--scope", scope],
+            capture_output=True, text=True, timeout=30,
+        )
+    except FileNotFoundError:
+        print(
+            f"{_Y}⚠️  'claude' CLI를 찾지 못해 MCP 서버 '{name}' 해제를 건너뜁니다. "
+            f"수동: claude mcp remove {name} --scope {scope}{_R}",
+            file=sys.stderr,
+        )
+        return
+    except subprocess.TimeoutExpired:
+        print(
+            f"{_Y}⚠️  'claude mcp remove {name}' 시간 초과 — 수동으로 해제하세요.{_R}",
+            file=sys.stderr,
+        )
+        return
+
+    _stderr = (result.stderr or "").lower()
+    if result.returncode == 0:
+        print(f"{_G}✅ MCP server deregistered: {name}{_R}")
+    elif "no mcp server" in _stderr or "not found" in _stderr or "does not exist" in _stderr:
+        print(f"{_D}   MCP server not registered: {name} — nothing to remove{_R}")
+    else:
+        print(
+            f"{_Y}⚠️  'claude mcp remove {name}' 실패(exit {result.returncode}) — "
+            f"수동: claude mcp remove {name} --scope {scope}{_R}",
             file=sys.stderr,
         )
         if result.stderr:
@@ -311,6 +373,488 @@ def _cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
+# ===========================================================================
+# upgrade — 패키지 업데이트 후 훅/설정 현행화 (사용자 편집 보존)
+# ===========================================================================
+def _mcp_is_registered(name: str) -> bool | None:
+    """``claude mcp get <name>``으로 등록 여부를 확인한다. CLI 미설치/오류면 ``None``."""
+    try:
+        r = subprocess.run(
+            ["claude", "mcp", "get", name], capture_output=True, text=True, timeout=15,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    return r.returncode == 0
+
+
+def _cmd_upgrade(args: argparse.Namespace) -> int:
+    """``install``과 달리 사용자가 편집한 ``guardrail_config.json``을 보존하면서
+    (1) 훅 matcher/인터프리터 경로를 현재 값으로 갱신하고 (2) 새로 추가된 기본 설정
+    키만 deep-merge하고 (3) 이미 등록된 MCP 서버를 인터프리터 경로 갱신을 위해 재등록한다.
+    """
+    from agent_evaluator.cli._integration_health import deep_merge_defaults
+
+    is_global: bool = getattr(args, "global_install", False)
+    settings_path = _GLOBAL_SETTINGS if is_global else _LOCAL_SETTINGS
+    config_path = _GLOBAL_CONFIG if is_global else _LOCAL_CONFIG
+    scope = "user" if is_global else "local"
+
+    if not settings_path.exists():
+        print(
+            f"{_Y}No existing install at {settings_path} — run `agent-eval claude install` "
+            f"first.{_R}",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        existing = json.loads(settings_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"{_RD}❌ Failed to parse {settings_path}: {exc}{_R}", file=sys.stderr)
+        return 1
+
+    # 1. 훅: install과 동일한 병합(누락 훅 추가 + stale matcher/인터프리터 갱신).
+    merged, added, updated = _merge_settings(existing, sys.executable)
+    settings_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+    if added:
+        print(f"{_G}✅ Added missing hooks: {', '.join(added)}{_R}")
+    if updated:
+        print(f"{_G}✅ Refreshed hook matcher/interpreter: {', '.join(updated)}{_R}")
+    if not added and not updated:
+        print(f"{_D}   Hooks already current{_R}")
+
+    # 2. guardrail_config.json: 새 기본 키만 채우고 사용자 값은 절대 안 건드린다.
+    if config_path.exists():
+        try:
+            user_cfg: object = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(
+                f"{_Y}⚠️  {config_path} is not valid JSON ({exc}) — left untouched. Fix it, "
+                f"or `agent-eval claude install --force` to reset to defaults.{_R}",
+                file=sys.stderr,
+            )
+            user_cfg = None
+        if isinstance(user_cfg, dict):
+            new_cfg, new_keys = deep_merge_defaults(user_cfg, DEFAULT_GUARDRAIL_CONFIG)
+            if new_keys:
+                config_path.write_text(json.dumps(new_cfg, indent=2) + "\n", encoding="utf-8")
+                print(
+                    f"{_G}✅ Added {len(new_keys)} new default key(s) to {config_path} "
+                    f"(your values kept):{_R}"
+                )
+                for k in new_keys:
+                    print(f"     {_D}+ {k}{_R}")
+            else:
+                print(f"{_D}   guardrail_config.json already has every default key{_R}")
+    else:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(DEFAULT_GUARDRAIL_CONFIG, indent=2) + "\n", encoding="utf-8",
+        )
+        print(f"{_G}✅ Wrote default guardrail config: {config_path}{_R}")
+
+    # 3. MCP 서버: install과 동일하게 --with-* 플래그를 줬을 때만 재등록(remove→add)한다.
+    #    (get으로 자동 감지해 재등록하면 user-scope로만 등록된 서버를 local-scope에
+    #     중복 등록하는 사고가 난다 — 스코프를 명시적으로 다루기 위해 opt-in 유지.)
+    if getattr(args, "with_violation_search", False):
+        print()
+        _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
+        _register_violation_search_mcp(scope)
+    if getattr(args, "with_recommend_fix", False):
+        print()
+        _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
+        _register_recommend_fix_mcp(scope)
+
+    print()
+    print(f"{_B}Done.{_R} Start a new Claude Code session (or /clear) to pick up the changes.")
+    print(f"{_D}Run `agent-eval claude doctor` to verify.{_R}")
+    return 0
+
+
+# ===========================================================================
+# uninstall — 훅/MCP 제거 (pip uninstall 전에 실행)
+# ===========================================================================
+def _cmd_uninstall(args: argparse.Namespace) -> int:
+    is_global: bool = getattr(args, "global_install", False)
+    keep_config: bool = getattr(args, "keep_config", False)
+    purge: bool = getattr(args, "purge", False)
+    dry_run: bool = getattr(args, "dry_run", False)
+    assume_yes: bool = getattr(args, "yes", False)
+
+    settings_path = _GLOBAL_SETTINGS if is_global else _LOCAL_SETTINGS
+    state_dir = (_GLOBAL_CONFIG if is_global else _LOCAL_CONFIG).parent
+    config_file = state_dir / "guardrail_config.json"
+    sessions_dir = state_dir / "sessions"
+    scope = "user" if is_global else "local"
+
+    settings: object = None
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"{_RD}❌ Failed to parse {settings_path}: {exc}{_R}", file=sys.stderr)
+            return 1
+
+    n_hooks = 0
+    if isinstance(settings, dict) and isinstance(settings.get("hooks"), dict):
+        for event in _HOOK_EVENTS:
+            n_hooks += len(_our_hook_entries(settings["hooks"].get(event) or []))
+
+    plan: list[str] = []
+    if n_hooks:
+        plan.append(
+            f"remove {n_hooks} agent-evaluator hook entr"
+            f"{'y' if n_hooks == 1 else 'ies'} from {settings_path} (other hooks untouched)"
+        )
+    plan.append(
+        f"deregister MCP servers {_VIOLATION_SEARCH_MCP_NAME}, {_RECOMMEND_FIX_MCP_NAME} "
+        f"(--scope {scope}) if registered"
+    )
+    if purge and state_dir.exists():
+        plan.append(f"delete the whole state dir {state_dir} (sessions + config)")
+    else:
+        if sessions_dir.exists():
+            plan.append(f"delete session state {sessions_dir}")
+        if config_file.exists() and not keep_config:
+            plan.append(f"delete {config_file}")
+        elif config_file.exists():
+            plan.append(f"keep {config_file} (--keep-config)")
+
+    if not (n_hooks or config_file.exists() or sessions_dir.exists()):
+        print(
+            f"{_D}Nothing to remove — no agent-evaluator hooks or state found "
+            f"({settings_path}).{_R}"
+        )
+        # MCP는 별도 저장소라 그래도 시도해준다.
+        if not dry_run:
+            _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
+            _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
+        return 0
+
+    print(f"{_B}agent-eval claude uninstall{_R} will:")
+    for item in plan:
+        print(f"  - {item}")
+
+    if dry_run:
+        print(f"\n{_D}(--dry-run — nothing changed){_R}")
+        return 0
+
+    if not assume_yes:
+        try:
+            resp = input("\nProceed? [y/N] ").strip().lower()
+        except EOFError:
+            resp = ""
+        if resp not in ("y", "yes"):
+            print("Aborted.")
+            return 1
+
+    # --- 실행 ---
+    if isinstance(settings, dict) and isinstance(settings.get("hooks"), dict):
+        hooks = settings["hooks"]
+        for event in list(hooks):
+            if event not in _HOOK_EVENTS:
+                continue
+            entries = hooks.get(event) or []
+            ours = _our_hook_entries(entries)
+            kept = [e for e in entries if e not in ours]
+            if kept:
+                hooks[event] = kept
+            else:
+                hooks.pop(event, None)
+        if not hooks:
+            settings.pop("hooks", None)
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+        print(f"{_G}✅ Removed hook entries from {settings_path}{_R}")
+
+    _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
+    _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
+
+    if purge and state_dir.exists():
+        shutil.rmtree(state_dir, ignore_errors=True)
+        print(f"{_G}✅ Deleted {state_dir}{_R}")
+    else:
+        if sessions_dir.exists():
+            shutil.rmtree(sessions_dir, ignore_errors=True)
+            print(f"{_G}✅ Deleted {sessions_dir}{_R}")
+        if config_file.exists() and not keep_config:
+            config_file.unlink()
+            print(f"{_G}✅ Deleted {config_file}{_R}")
+        with contextlib.suppress(OSError):
+            state_dir.rmdir()  # 비었을 때만 성공
+
+    print()
+    print(
+        f"{_B}Next:{_R} pip uninstall agent-evaluator  "
+        f"{_D}(hooks are gone — safe to remove the package now){_R}"
+    )
+    return 0
+
+
+# ===========================================================================
+# doctor — 설치가 실제로 도는지 검증 (정적 + 라이브 라운드트립)
+# ===========================================================================
+def _doctor_live_claude(
+    rpt: DoctorReport, cmd_parts: list[str], sandbox: Path, resolved_cfg: dict,
+) -> None:
+    """등록된 훅 커맨드를 hermetic sandbox(cwd)로 실제 실행해 allow/deny/배치리포트를 확인한다."""
+    cfg = dict(resolved_cfg)
+    cfg["output_dir"] = str(sandbox / "results")  # 상대경로 리포트가 sandbox 밖으로 안 새게
+    state_dir = sandbox / ".claude" / ".agent-evaluator"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "guardrail_config.json").write_text(json.dumps(cfg), encoding="utf-8")
+    sid = "doctor-session"
+
+    def _run(payload: dict, timeout: float = 60.0) -> tuple[int, object, str]:
+        proc = subprocess.run(
+            cmd_parts, input=json.dumps(payload), capture_output=True, text=True,
+            cwd=str(sandbox), timeout=timeout,
+        )
+        parsed: object = None
+        for line in reversed((proc.stdout or "").strip().splitlines()):
+            try:
+                parsed = json.loads(line)
+                break
+            except json.JSONDecodeError:
+                continue
+        return proc.returncode, parsed, proc.stderr or ""
+
+    def _decision(parsed: object) -> object:
+        if isinstance(parsed, dict):
+            return (parsed.get("hookSpecificOutput") or {}).get("permissionDecision")
+        return None
+
+    def _pre(tool: str, tool_input: dict) -> dict:
+        return {
+            "hook_event_name": "PreToolUse", "session_id": sid, "cwd": str(sandbox),
+            "tool_name": tool, "tool_input": tool_input,
+        }
+
+    # allow: 무해한 Bash
+    try:
+        rc, parsed, _ = _run(_pre("Bash", {"command": "ls -la"}))
+        if _decision(parsed) == "allow":
+            rpt.ok("live", "allow: benign Bash → allow")
+        else:
+            rpt.error(
+                "live", "allow: benign Bash → allow",
+                f"got decision={_decision(parsed)!r}, exit={rc}",
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        rpt.error("live", "allow: benign Bash → allow", str(exc))
+
+    # block: rm -rf (Gate B dangerous_patterns)
+    try:
+        rc, parsed, _ = _run(_pre("Bash", {"command": "rm -rf /tmp/ae-doctor-target-xyz"}))
+        if _decision(parsed) == "deny" and rc == 2:
+            rpt.ok("live", "block: rm -rf → deny (exit 2)")
+        else:
+            rpt.error(
+                "live", "block: rm -rf → deny (exit 2)",
+                f"got decision={_decision(parsed)!r}, exit={rc}",
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        rpt.error("live", "block: rm -rf → deny (exit 2)", str(exc))
+
+    # block: WebFetch (기본 scope.forbidden_tools)
+    try:
+        _, parsed, _ = _run(_pre("WebFetch", {"url": "https://example.com"}))
+        dec = _decision(parsed)
+        if dec == "deny":
+            rpt.ok("live", "block: WebFetch → deny (scope.forbidden_tools)")
+        else:
+            rpt.warn(
+                "live", "block: WebFetch → deny",
+                f"got decision={dec!r} — is WebFetch still in scope.forbidden_tools?",
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        rpt.warn("live", "block: WebFetch → deny", str(exc))
+
+    # 배치 리포트: PostToolUse → SessionEnd
+    try:
+        _run({
+            "hook_event_name": "PostToolUse", "session_id": sid, "cwd": str(sandbox),
+            "tool_name": "Bash", "tool_input": {"command": "ls"},
+            "tool_result": {"type": "text", "content": "a\nb"},
+        })
+        _run({
+            "hook_event_name": "SessionEnd", "session_id": sid, "cwd": str(sandbox),
+            "reason": "doctor",
+        })
+        reports = list((sandbox / "results").rglob("claude_code_sessions*")) \
+            if (sandbox / "results").exists() else []
+        leftover = list(state_dir.glob("sessions/*")) if (state_dir / "sessions").exists() else []
+        if reports and not leftover:
+            rpt.ok("live", "batch report written + session files cleaned", reports[0].name)
+        elif reports:
+            rpt.warn(
+                "live", "batch report written",
+                f"{len(leftover)} session state file(s) left behind",
+            )
+        else:
+            rpt.warn(
+                "live", "batch report written",
+                "no report produced — SessionEnd hook may not be wired (check its matcher)",
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        rpt.warn("live", "batch report", str(exc))
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from agent_evaluator.cli._integration_health import (
+        DoctorReport,
+        interpreter_from_command,
+        mcp_initialize_probe,
+        probe_import,
+        validate_guardrail_config,
+    )
+
+    is_global: bool = getattr(args, "global_install", False)
+    as_json: bool = getattr(args, "json", False)
+    no_live: bool = getattr(args, "no_live", False)
+    strict: bool = getattr(args, "strict", False)
+
+    settings_path = _GLOBAL_SETTINGS if is_global else _LOCAL_SETTINGS
+    config_path = _GLOBAL_CONFIG if is_global else _LOCAL_CONFIG
+    rpt = DoctorReport(title=f"agent-eval claude doctor — {settings_path}")
+
+    # ---------- Tier 1: 정적 ----------
+    settings: object = None
+    if not settings_path.exists():
+        hint = "run `agent-eval claude install`" + ("" if is_global else " (or add --global)")
+        rpt.error("static", "settings.json exists", f"not found: {settings_path} — {hint}")
+    else:
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            rpt.ok("static", "settings.json parses")
+        except json.JSONDecodeError as exc:
+            rpt.error("static", "settings.json parses", str(exc))
+
+    hook_cmd: str | None = None
+    if isinstance(settings, dict):
+        hooks = settings.get("hooks") or {}
+        missing: list[str] = []
+        stale: set[str] = set()
+        for event in _HOOK_EVENTS:
+            ours = _our_hook_entries(hooks.get(event) or [])
+            if not ours:
+                missing.append(event)
+                continue
+            for entry in ours:
+                for h in entry.get("hooks", []):
+                    if _HOOK_MODULE in (h.get("command") or "") and hook_cmd is None:
+                        hook_cmd = h["command"]
+                if entry.get("matcher") != _HOOK_MATCHERS[event]:
+                    stale.add(event)
+        if missing:
+            rpt.error("static", "hooks registered", f"missing: {', '.join(missing)}")
+        else:
+            rpt.ok("static", "hooks registered", "PreToolUse, PostToolUse, SessionEnd")
+        if stale:
+            rpt.warn(
+                "static", "hook matcher up to date",
+                f"drift on {', '.join(sorted(stale))} — run `agent-eval claude upgrade`",
+            )
+        elif not missing:
+            rpt.ok("static", "hook matcher up to date")
+
+    py_bin: str | None = None
+    if hook_cmd:
+        py_bin = interpreter_from_command(hook_cmd)
+        if py_bin and Path(py_bin).exists():
+            rpt.ok("static", "hook interpreter exists", py_bin)
+        elif py_bin:
+            rpt.error(
+                "static", "hook interpreter exists",
+                f"{py_bin} is gone — recreate the venv / rerun `agent-eval claude install`",
+            )
+        else:
+            rpt.warn("static", "hook interpreter exists", f"could not parse: {hook_cmd}")
+
+    probe_bin = py_bin if (py_bin and Path(py_bin).exists()) else sys.executable
+    ok, err = probe_import(probe_bin, _HOOK_MODULE)
+    if ok:
+        rpt.ok("static", "package importable from that interpreter", probe_bin)
+    else:
+        rpt.error("static", "package importable from that interpreter", err)
+
+    resolved_cfg: dict | None = None
+    try:
+        from agent_evaluator.integrations.claude_code_hook import load_config
+
+        resolved_cfg = dict(load_config(config_path.parent))
+    except Exception as exc:  # noqa: BLE001
+        rpt.error("static", "guardrail_config resolves", str(exc))
+    if resolved_cfg is not None:
+        src = str(config_path) if config_path.exists() else "package defaults (no config file)"
+        built, warns = validate_guardrail_config(resolved_cfg)
+        if built and not warns:
+            rpt.ok("static", "guardrail_config builds", f"from {src}")
+        elif built:
+            rpt.warn("static", "guardrail_config builds", f"{src}; SKIPPED: {' | '.join(warns)}")
+        else:
+            rpt.error("static", "guardrail_config builds", " | ".join(warns))
+
+    mcp_targets = (
+        (_VIOLATION_SEARCH_MCP_NAME, "agent_evaluator.integrations.violation_search_mcp",
+         "search_violations"),
+        (_RECOMMEND_FIX_MCP_NAME, "agent_evaluator.integrations.recommend_fix_mcp",
+         "recommend_fix"),
+    )
+    mcp_status: dict[str, bool | None] = {}
+    for mname, _mmod, _mtool in mcp_targets:
+        reg = _mcp_is_registered(mname)
+        mcp_status[mname] = reg
+        if reg:
+            rpt.ok("static", f"MCP registered: {mname}")
+        elif reg is False:
+            rpt.info(
+                "static", f"MCP registered: {mname}",
+                "not registered (only needed with --with-violation-search / --with-recommend-fix)",
+            )
+        else:
+            rpt.info("static", f"MCP registered: {mname}", "could not query `claude mcp get`")
+
+    # ---------- Tier 2: 라이브 ----------
+    if no_live:
+        rpt.info("live", "skipped (--no-live)")
+    elif rpt.n_errors:
+        rpt.info("live", "skipped — fix the static errors above first")
+    elif not hook_cmd:
+        rpt.info("live", "skipped — no hook command found")
+    else:
+        try:
+            cmd_parts = shlex.split(hook_cmd)
+        except ValueError:
+            cmd_parts = []
+        if not cmd_parts:
+            rpt.warn("live", "run registered hook command", f"unparseable: {hook_cmd}")
+        else:
+            sandbox = Path(tempfile.mkdtemp(prefix="ae-claude-doctor-"))
+            try:
+                _doctor_live_claude(rpt, cmd_parts, sandbox, resolved_cfg or {})
+            finally:
+                shutil.rmtree(sandbox, ignore_errors=True)
+
+    # ---------- Tier 3: MCP 핸드셰이크 (등록된 서버만) ----------
+    if not no_live:
+        for mname, mmod, mtool in mcp_targets:
+            if mcp_status.get(mname):
+                status, detail = mcp_initialize_probe(probe_bin, mmod, mtool)
+                rpt.add("mcp", status, f"{mname} responds to initialize", detail)
+
+    if as_json:
+        print(rpt.render_json())
+    else:
+        print(rpt.render_text(color=_USE_COLOR))
+    return rpt.exit_code(strict=strict)
+
+
+def _add_common_target_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--global", dest="global_install", action="store_true",
+        help="Target ~/.claude/settings.json instead of the project-local .claude/settings.json",
+    )
+
+
 def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
     """claude 서브커맨드를 argparse 서브파서에 등록한다."""
     p = sub.add_parser(
@@ -382,4 +926,105 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
             "no result file required (opt-in, requires the 'mcp' extra: "
             "pip install \"agent-evaluator[mcp]\")"
         ),
+    )
+
+    # --- upgrade ---
+    upgrade_p = cl_sub.add_parser(
+        "upgrade",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Refresh hooks/config after a package update (keeps your guardrail_config.json edits)",
+        description=(
+            "Idempotent refresh for an existing install. Unlike `install --force`:\n"
+            "  - refreshes stale hook matchers and dead interpreter paths\n"
+            "  - deep-merges only NEW default keys into guardrail_config.json (never\n"
+            "    overwrites your values)\n"
+            "  - with --with-violation-search/--with-recommend-fix, re-registers those\n"
+            "    MCP servers (remove + add) so the interpreter path is refreshed too"
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval claude upgrade{_R}\n"
+            f"  {_G}agent-eval claude upgrade --global --with-recommend-fix{_R}\n"
+        ),
+    )
+    _add_common_target_flags(upgrade_p)
+    upgrade_p.add_argument(
+        "--with-violation-search", dest="with_violation_search", action="store_true",
+        help="Also re-register the search_violations MCP server (remove + add)",
+    )
+    upgrade_p.add_argument(
+        "--with-recommend-fix", dest="with_recommend_fix", action="store_true",
+        help="Also re-register the recommend_fix MCP server (remove + add)",
+    )
+
+    # --- doctor ---
+    doctor_p = cl_sub.add_parser(
+        "doctor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Verify the install actually works (static checks + live round-trip)",
+        description=(
+            "Static: settings.json parses, all 3 hooks registered, matcher current, hook\n"
+            "interpreter alive, package importable from it, guardrail_config.json builds,\n"
+            "MCP servers registered.\n"
+            "Live (in a throwaway sandbox dir): runs the REAL registered hook command with\n"
+            "synthetic PreToolUse/PostToolUse/SessionEnd payloads and checks that a benign\n"
+            "call is allowed, `rm -rf`/WebFetch are denied, and a batch report is written.\n"
+            "MCP: initialize + tools/list handshake against each registered MCP server.\n"
+            "Exit 1 on any error (add --strict to also fail on warnings)."
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval claude doctor{_R}\n"
+            f"  {_G}agent-eval claude doctor --global --json{_R}\n"
+            f"  {_G}agent-eval claude doctor --no-live{_R} {_D}# static checks only{_R}\n"
+        ),
+    )
+    _add_common_target_flags(doctor_p)
+    doctor_p.add_argument(
+        "--no-live", dest="no_live", action="store_true",
+        help="Static checks only — don't spawn the hook subprocess",
+    )
+    doctor_p.add_argument(
+        "--json", action="store_true", help="Emit the report as JSON (for CI)",
+    )
+    doctor_p.add_argument(
+        "--strict", action="store_true", help="Exit 1 on warnings too, not just errors",
+    )
+
+    # --- uninstall ---
+    uninstall_p = cl_sub.add_parser(
+        "uninstall",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Remove the hooks + MCP servers (run BEFORE 'pip uninstall agent-evaluator')",
+        description=(
+            "Reverses `install`: removes only our hook entries from settings.json (other\n"
+            "hooks untouched), deregisters the MCP servers, and deletes session state.\n"
+            "Keeps guardrail_config.json by default (--purge removes everything).\n\n"
+            "NOTE: `agent-eval` disappears once the package is uninstalled, so this must be\n"
+            "run first. Order:  agent-eval claude uninstall  →  pip uninstall agent-evaluator"
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval claude uninstall{_R}\n"
+            f"  {_G}agent-eval claude uninstall --global --yes{_R}\n"
+            f"  {_G}agent-eval claude uninstall --dry-run{_R}\n"
+            f"  {_G}agent-eval claude uninstall --purge{_R} {_D}# also delete config + state{_R}\n"
+        ),
+    )
+    _add_common_target_flags(uninstall_p)
+    uninstall_p.add_argument(
+        "--keep-config", dest="keep_config", action="store_true",
+        help="Keep guardrail_config.json (default already keeps it unless --purge)",
+    )
+    uninstall_p.add_argument(
+        "--purge", action="store_true",
+        help="Also delete guardrail_config.json and the whole .agent-evaluator state dir",
+    )
+    uninstall_p.add_argument(
+        "--dry-run", dest="dry_run", action="store_true",
+        help="Print what would be removed, change nothing",
+    )
+    uninstall_p.add_argument(
+        "--yes", "-y", dest="yes", action="store_true",
+        help="Skip the confirmation prompt",
     )
