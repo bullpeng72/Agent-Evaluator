@@ -14,12 +14,17 @@ import statistics
 import threading
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Sequence, Union
-
-import pandas as pd
+from typing import TYPE_CHECKING, Any, Sequence, Union
 
 from ...exceptions import ValidationError
+from ...utils.lazy_import import LazyModule as _LazyModule
 from .base import BaseTracker
+
+# SPEC-041: 런타임엔 지연 로딩 프록시, 타입 체커엔 실제 모듈(layer1.py 참고).
+if TYPE_CHECKING:
+    import pandas as pd
+else:
+    pd = _LazyModule("pandas")
 
 logger = logging.getLogger(__name__)
 

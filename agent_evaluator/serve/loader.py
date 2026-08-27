@@ -749,15 +749,20 @@ def _parse_anomaly_data(raw: dict) -> list[dict[str, Any]]:
     if not isinstance(anomalies_raw, list):
         return []
     result = []
-    for a in anomalies_raw:
+    for idx, a in enumerate(anomalies_raw):
         if not isinstance(a, dict):
             continue
+        _type = a.get("type", "unknown")
         result.append({
-            "type": a.get("type", "unknown"),
+            # SPEC-041: 옛 저장본은 event_id가 없다 — type + index로 안정적 폴백 id를 만든다.
+            "event_id": a.get("event_id") or f"{_type}-{idx}",
+            "type": _type,
             "severity": a.get("severity", "warning"),
             "detail": a.get("detail", a.get("message", a.get("description", ""))),
             "detected_at": a.get("detected_at", a.get("timestamp", "")),
-            "metric": a.get("metric", ""),
+            # SPEC-041: 이상 이벤트에서 metric은 곧 type이다 — 옛 저장본은 metric 키가
+            # 없어서 "" 였고, 그 탓에 explain 엔드포인트가 항상 "unknown"으로 떨어졌다.
+            "metric": a.get("metric") or _type,
             "value": a.get("value"),
             "threshold": a.get("threshold"),
             "algorithm": a.get("algorithm", ""),

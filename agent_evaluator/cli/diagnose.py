@@ -130,7 +130,16 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
     print(f"{B}Gate RCA Diagnosis{R} — {args.result_file}")
     print(f"{D}Detection mode: {result['detection_mode']}{R}")
 
+    _unmeasured = result.get("newly_unmeasured_gates") or []
+    if _unmeasured:
+        print(
+            f"\n{Y}⚠ Measurement coverage lost: Gate(s) {', '.join(_unmeasured)} had a "
+            f"baseline score but are not measured in this run. Did a Config get removed?{R}"
+        )
+
     if not result["detected_gates"]:
+        if _unmeasured:
+            return 0
         print(f"\n{G}✅ No Gate detected — no Gate is in a regression or fail/warn state.{R}")
         return 0
 

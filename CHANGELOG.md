@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.0-rc2 (2026-08-27) — Packaging / CI Fixes + LiveGuardrail Bridge Parity
+
+Re-tag of `rc.1` with packaging, CI, and real-time-guardrail bridge fixes found during release validation. No public API changes.
+
+- 🐛 `fix(build)` — pinned `hatchling==1.27.0` so the built wheel keeps `Metadata-Version: 2.4` (newer hatchling emits `2.5`, which some PyPI/pip tooling still rejects).
+- 🐛 `fix(ci)` — fixed 3 main-branch CI failures surfaced while triaging PR #10; excluded `serve/templates/*.html.j2` from `coverage.run` (Jinja templates were being counted as uncovered source).
+- 🔧 `fix(live_guardrail)` — closed AOO/AC LiveGuardrail bridge parity gaps between the OpenCode plugin and the Claude Code hook path.
+- 🔧 `chore(deps)` — `actions/setup-python` 6 → 7.
+- 📝 `CLAUDE.md` test-file count corrected (112 → 116).
+
 ## v1.0.0-rc.1 (2026-08-27) — Improvement Engine (RCA · Statistical A/B · Recommendations) + Structural Unification
 
 First stable release — `Development Status :: 5 - Production/Stable`. Adds a full diagnosis-and-prescription layer on top of the existing measurement SDK, plus several structural unifications that remove long-standing duplication across Gate judgment paths.

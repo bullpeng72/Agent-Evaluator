@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0--rc.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -158,16 +158,16 @@ agent_evaluator/
 └── reporting/             # comprehensive_report.py — self-contained HTML report generation
 
 Evaluator_Examples/       # 31 example files (ch01–ch31)
-tests/                    # 3,900+ test functions
+tests/                    # 4,070+ test functions
 ```
 
 ---
 
 ## Changelog
 
-**v1.0.0-rc.1** (2026-08-27) — Release candidate for v1.0.0.
+**v1.0.0-rc2** (2026-08-27) — Release candidate for v1.0.0: packaging/CI fixes + LiveGuardrail bridge parity on top of rc.1.
 
-Beta version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
+Full version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
 
 ---
 

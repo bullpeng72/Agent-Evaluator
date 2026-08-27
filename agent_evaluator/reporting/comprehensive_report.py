@@ -1767,7 +1767,18 @@ def _build_diagnosis(
     if sla_check:
         blocks.append(f'<div class="rec priority-medium"><p>{_esc(sla_check["note"])}</p></div>')
 
-    if not result["detected_gates"]:
+    # SPEC-041: baseline엔 점수가 있었는데 current엔 사라진 Gate — 회귀 감지가 놓치는
+    # 측정 커버리지 손실. CLI(cli/diagnose.py)와 동일한 경고를 HTML 리포트에도 낸다.
+    _unmeasured = result.get("newly_unmeasured_gates") or []
+    if _unmeasured:
+        blocks.append(
+            '<div class="rec priority-medium">'
+            f'<strong>⚠️ Measurement coverage lost: Gate(s) {_esc(", ".join(_unmeasured))}</strong>'
+            '<p>These Gates had a baseline score but are not measured in this run. '
+            'A Config may have been removed from the decorator/monitor.</p></div>'
+        )
+
+    if not result["detected_gates"] and not _unmeasured:
         blocks.append(
             '<div class="rec" style="border-left-color:#10b981">'
             '<strong style="color:#065f46">No regression or fail/warn Gate detected</strong>'

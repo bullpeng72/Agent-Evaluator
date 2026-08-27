@@ -168,13 +168,17 @@ def reload_results(app: FastAPI) -> None:
 
 
 def create_app(
-    results_dir: Path,
+    results_dir: str | Path,
     title: str = "Agent Evaluator Dashboard",
     watch: bool = False,
     version: str = _VERSION,
     offline: bool = False,
     auth_token: str | None = None,
 ) -> FastAPI:
+    # SPEC-041: str도 받아 항상 Path로 정규화한다 — app.state.results_dir가 Path여야
+    # 라우터들이 `results_dir / "..."`로 경로를 조립할 수 있다(예: serve/routers/
+    # diagnose.py의 recommendation_outcomes.jsonl 로딩).
+    results_dir = Path(results_dir)
     # ------------------------------------------------------------------ #
     # Lifespan: file watcher startup / shutdown
     # ------------------------------------------------------------------ #
@@ -263,11 +267,9 @@ def create_app(
     # ------------------------------------------------------------------ #
     # HTML routes
     # ------------------------------------------------------------------ #
-    # "/" → "/dashboard" 리다이렉트 적용됨(dashboard.html.j2는 한국어 UI 텍스트가
-    # 남아있는 레거시 템플릿이라 더 이상 라우팅하지 않는다 — dashboard2.html.j2가
-    # 영문 UI의 유지 대상). dashboard.html.j2 파일 자체는 아직 삭제하지 않았다 —
-    # 완전히 정리하려면: 1. dashboard.html.j2 파일 삭제  2. /slides, /sdk-docs,
-    # /api/* 라우트는 그대로 유지(독립적)
+    # "/" → "/dashboard" 리다이렉트. 대시보드 템플릿은 dashboard2.html.j2 하나뿐이다
+    # (한국어 UI 레거시 dashboard.html.j2는 삭제됨 — git 이력 참고). /slides · /sdk-docs ·
+    # /api/* 라우트는 이와 독립적이다.
     # ------------------------------------------------------------------ #
 
     # SPEC-005: 로그인 라우트 — auth_token 미설정 시에도 등록되지만, 그 경우 middleware가

@@ -51,6 +51,15 @@ _BUNDLED_PLUGIN = (
 _LOCAL_TARGET = Path(".opencode") / "plugin" / "agent-evaluator.ts"
 _GLOBAL_TARGET = Path.home() / ".config" / "opencode" / "plugin" / "agent-evaluator.ts"
 
+# SPEC-041: 이 마커가 설치된 .ts에 없으면 그 플러그인은 구버전이다 — 외부
+# agent-evaluator.config.json 설정 분리·stdio 데스싱크 수정·다중턴 세션 수정 등이
+# 전부 빠져 있다는 뜻이라, "이미 있음" 거부 메시지에서 --force를 강하게 권한다.
+_CURRENT_PLUGIN_MARKER = "EFFECTIVE_GUARDRAIL_CONFIG"
+
+
+def _plugin_is_stale(content: str) -> bool:
+    return bool(_missing_hooks(content)) or _CURRENT_PLUGIN_MARKER not in content
+
 
 def cmd_opencode(args: argparse.Namespace) -> int:
     """opencode 서브커맨드 진입점."""
@@ -142,11 +151,30 @@ def _cmd_install(args: argparse.Namespace) -> int:
     target = _GLOBAL_TARGET if is_global else _LOCAL_TARGET
 
     if target.exists() and not force:
-        print(
-            f"{_Y}⚠️  Already exists: {target}{_R} — use --force to overwrite "
-            f"(your edited GUARDRAIL_CONFIG will be lost)",
-            file=sys.stderr,
+        try:
+            _stale = _plugin_is_stale(target.read_text(encoding="utf-8"))
+        except OSError:
+            _stale = False
+        _cfg_hint = (
+            "Put project config in a sibling agent-evaluator.config.json (JSON object, "
+            "shallow-merged over the built-in defaults) — that file is never touched by "
+            "reinstall, so future updates cost you nothing."
         )
+        if _stale:
+            print(
+                f"{_Y}⚠️  {target} is OUT OF DATE{_R} — the bundled plugin has important "
+                f"fixes it is missing (external config file, stdio response-id matching, "
+                f"multi-turn session handling, fail-open hardening).\n"
+                f"{_D}   Move any GUARDRAIL_CONFIG edits into agent-evaluator.config.json, "
+                f"then rerun with --force. {_cfg_hint}{_R}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"{_Y}⚠️  Already exists: {target}{_R} — use --force to overwrite the plugin "
+                f"code.\n{_D}   {_cfg_hint}{_R}",
+                file=sys.stderr,
+            )
         return 1
 
     content = _BUNDLED_PLUGIN.read_text(encoding="utf-8")
@@ -179,8 +207,15 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     print()
     print(f"{_B}Next steps:{_R}")
-    print(f"  1. Edit {target} — adjust GUARDRAIL_CONFIG for your project")
-    print("     (edit the copy, not the package-bundled source — reinstalling overwrites it)")
+    print(
+        f"  1. To customize, create {target.parent / 'agent-evaluator.config.json'} — a JSON "
+        f"object whose top-level keys (scope, tool_parameter_safety, …) are shallow-merged "
+        f"over the built-in defaults."
+    )
+    print(
+        f"     {_D}Keep config in that file, NOT in the .ts — reinstalling overwrites the .ts "
+        f"code but never the .config.json.{_R}"
+    )
     print("  2. Restart OpenCode (or start a new session) so it loads the plugin")
     print(
         f"  {_D}Full Config/tracker option reference: "

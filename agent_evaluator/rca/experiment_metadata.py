@@ -104,8 +104,15 @@ def derive_experiment_metadata(
         return None  # 저장소가 아니거나 커밋을 못 찾음 — 조용히 포기
 
     lines = [ln for ln in diff_stat.splitlines() if ln.strip()]
-    changed_files = [ln.split("|")[0].strip() for ln in lines[:-1]] if len(lines) > 1 else []
     summary = lines[-1].strip() if lines else "(no changes)"
+    # SPEC-041: 파일 목록은 --stat 출력을 파싱하지 않는다 — tty가 아닌 서브프로세스에서
+    # git은 폭을 80으로 잡아 긴 경로를 "...abbrev/path"로 잘라버리고, rename은 "a => b"로
+    # 표기해 파일명이 뭉개진다. --name-only는 전체 경로를 한 줄에 하나씩, 잘림 없이 준다.
+    name_only = _run_git(repo_path, ["diff", "--name-only", f"{from_commit}..{to_commit}"])
+    if name_only is not None:
+        changed_files = [ln.strip() for ln in name_only.splitlines() if ln.strip()]
+    else:
+        changed_files = [ln.split("|")[0].strip() for ln in lines[:-1]] if len(lines) > 1 else []
 
     log_output = _run_git(
         repo_path,

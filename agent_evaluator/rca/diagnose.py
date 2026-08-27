@@ -47,14 +47,30 @@ def _as_number(v: Any) -> float | None:
     return None
 
 
+# 정렬용 스케일 보정표 — Gate details 필드명 접미사 → 그 필드의 "1.0 점수 변화에
+# 상당하는" 자연 단위 크기. 원시 delta를 이걸로 나눠 비교해야 서로 다른 단위의
+# 세부 지표를 공정하게 랭킹한다(SPEC-041). 접미사가 서로 겹치지 않도록 확인함.
+_RANKING_SCALE_BY_SUFFIX: tuple[tuple[str, float], ...] = (
+    ("_pct", 100.0),      # tcr_pct 등 0-100
+    ("_ms", 2000.0),      # ttft_p95_ms/ttft_stddev_ms 등 밀리초 — ~2s 이동 ≈ 1.0 score
+    ("_count", 10.0),     # loop_count/sla_breach_count 등 정수 카운트 — 10건 ≈ 1.0 score
+    ("_latency_s", 5.0),  # p95_latency_s — SLA 임계가 보통 3~5s라 5초 이동 ≈ 1.0 score
+)
+
+
 def _ranking_scale(field: str) -> float:
     """정렬용 스케일 보정 — Gate details는 필드마다 자연 단위가 다르다(``tcr_pct``는
-    0-100, 대부분의 ``avg_*``/``*_rate``는 0-1). 원시 delta를 그대로 비교하면
-    0-100 스케일 필드가 항상 "가장 크게 움직인 지표"로 오판되는데, 이건 이미
-    Phase 2(``get_comparison`` accuracy_dropped)에서 확인한 것과 같은 클래스의
-    스케일 오판이다 — 여기서도 같은 실수를 반복하지 않는다.
+    0-100, ``ttft_p95_ms``는 밀리초, ``sla_breach_count``는 정수 카운트, 대부분의
+    ``avg_*``/``*_rate``/``*_score``는 0-1). 원시 delta를 그대로 비교하면 큰 단위
+    필드가 항상 "가장 크게 움직인 지표"로 오판된다 — 예: ttft_p95_ms 800→1500(Δ700)이
+    avg_budget_score 0.9→0.3(Δ0.6)보다 700배 크게 잡혀, RCA가 예산 붕괴 대신 미미한
+    지연 변동을 원인 1순위로 지목한다. 접미사별 보정으로 이 오판을 막는다(단, ``*_rate``·
+    ``*_score``는 이미 0-1이라 보정 불필요 → 1.0).
     """
-    return 100.0 if field.endswith("_pct") else 1.0
+    for _suffix, _scale in _RANKING_SCALE_BY_SUFFIX:
+        if field.endswith(_suffix):
+            return _scale
+    return 1.0
 
 
 def _numeric_detail_deltas(
@@ -85,13 +101,17 @@ def _numeric_detail_deltas(
         deltas.append({"field": key, "current": cur_f, "baseline": base_f, "delta": delta})
 
     # delta가 있는 항목을 스케일 보정된 절대값 큰 순으로 먼저, baseline이 없어 delta를
-    # 못 낸 항목은 뒤로.
+    # 못 낸 항목은 뒤로. SPEC-041: 동점(특히 baseline 없는 absolute_threshold 모드에서는
+    # 전부 delta=None이라 전부 동점)일 때 field 이름을 결정적 tiebreak로 쓴다 — 안 그러면
+    # set 순회 순서(PYTHONHASHSEED 랜덤화)에 따라 top_detail_deltas[0]가 실행마다 바뀌어
+    # step-3 교차검색 쿼리와 Gate F MAST 후보가 비결정적으로 흔들린다.
     def _sort_key(d: dict[str, Any]) -> float:
         if d["delta"] is None:
             return -1.0
         return abs(d["delta"]) / _ranking_scale(d["field"])
 
-    deltas.sort(key=_sort_key, reverse=True)
+    deltas.sort(key=lambda d: d["field"])              # 결정적 기준 순서(이름 오름차순)
+    deltas.sort(key=_sort_key, reverse=True)           # stable: 동점은 이름 오름차순 유지
     return deltas
 
 
@@ -269,11 +289,15 @@ def diagnose(
 
     Returns:
         ``{detection_mode, regression_threshold, detected_gates, regressions,
-        findings, multi_gate_note, sla_shared_cause_check, shared_cause_explanations,
-        independently_investigate_gates, experiment_metadata}``. ``findings``의 각
+        newly_unmeasured_gates, findings, multi_gate_note, sla_shared_cause_check,
+        shared_cause_explanations, independently_investigate_gates,
+        experiment_metadata}``. ``findings``의 각
         항목은 ``{gate, current_score, baseline_score, top_detail_deltas,
         cross_references, [F만] mast_candidates}`` — "이게 원인이다"를 단정하지 않고
-        후보와 근거만 담는다. ``shared_cause_explanations``는
+        후보와 근거만 담는다. ``newly_unmeasured_gates``는 baseline엔 숫자 점수가
+        있었는데 current엔 없는(측정이 사라진) Gate 목록이다 — 회귀 감지 공식은
+        current=None을 건너뛰므로 이 커버리지 손실이 조용히 묻히지 않게 별도로 낸다
+        (baseline 없으면 항상 빈 리스트). ``shared_cause_explanations``는
         ``SHARED_CAUSE_CHECKS``(reverse-diagnosis — 폐루프 학습)에서 채택된 공유
         원인 목록, ``independently_investigate_gates``는 어떤 체크로도 설명 안 돼
         각자 독립 조사가 필요한 Gate 목록이다. ``experiment_metadata``는
@@ -287,6 +311,11 @@ def diagnose(
 
     regressions: list[dict[str, Any]] | None = None
     baseline_scores: dict[str, float | None] = {}
+    # SPEC-041: baseline에선 숫자 점수였는데 current에선 None(측정 자체가 사라진) Gate.
+    # _compute_gate_regressions는 current is None을 조용히 건너뛰므로(3개 게이트 경로가
+    # 공유하는 공식이라 여기서 바꿀 수 없다), 측정 커버리지 손실을 별도 신호로 노출한다
+    # — 반복 개발 중 Config를 실수로 빼먹어 Gate가 통째로 사라지는 흔한 케이스.
+    newly_unmeasured_gates: list[str] = []
     if baseline_hg is not None:
         baseline_scores = _normalize_gate_score_dict(baseline_hg)
         regressions = _compute_gate_regressions(
@@ -294,6 +323,11 @@ def diagnose(
         )
         detected_gate_ids = [r["gate"] for r in regressions]
         detection_mode = "regression_vs_baseline"
+        newly_unmeasured_gates = [
+            g for g in "ABCDEFG"
+            if current_scores.get(g) is None
+            and isinstance(baseline_scores.get(g), (int, float))
+        ]
     else:
         detected_gate_ids = [
             g for g in "ABCDEFG" if (current_hg.get(g) or {}).get("status") in ("fail", "warn")
@@ -367,6 +401,7 @@ def diagnose(
         "regression_threshold": regression_threshold if baseline_hg is not None else None,
         "detected_gates": detected_gate_ids,
         "regressions": regressions,
+        "newly_unmeasured_gates": newly_unmeasured_gates,
         "findings": findings,
         "multi_gate_note": multi_gate_note,
         "sla_shared_cause_check": sla_shared_cause,

@@ -67,6 +67,21 @@ class TestCheckScopeClaimPromotion:
         claims = load_active_claims(claims_path)
         assert len(claims) == 1
 
+    def test_corrupt_or_incomplete_lines_are_skipped_not_fatal(self, tmp_path):
+        """SPEC-041: 손상된 줄 하나가 전체 로드/LiveGuardrail 생성을 깨면 안 된다."""
+        claims_path = tmp_path / "claims.jsonl"
+        append_claim(claims_path, claim_id="c1", developer="alice", scope=["src/"], status="active")
+        with open(claims_path, "a", encoding="utf-8") as f:
+            f.write('{"claim_id": "c2", "developer": "bob"\n')   # 잘린 JSON
+            f.write("not json at all\n")
+            f.write('{"developer": "no-id"}\n')                   # claim_id 없음
+            f.write("\n")
+        claims = load_active_claims(claims_path)
+        assert [c["claim_id"] for c in claims] == ["c1"]
+        # LiveGuardrail 생성도 예외 없이 완료돼야 한다
+        g = LiveGuardrail(team_concurrency=TeamConcurrencyConfig(claims_path=str(claims_path)))
+        assert g.check_before_tool_call("t", "Write", {"file_path": "src/x.py"}).block is True
+
 
 class TestExtractPathParam:
     def test_finds_first_matching_candidate_key(self):
@@ -118,6 +133,27 @@ class TestLiveGuardrailTeamConcurrencyIntegration:
         guardrail = LiveGuardrail(team_concurrency=TeamConcurrencyConfig(claims_path=str(claims_path)))
         verdict = guardrail.check_before_tool_call("t1", "edit", {"file": "src/module_b/x.py"})
         assert verdict.block is False
+
+    def test_claude_code_tool_names_and_param_keys_covered(self, tmp_path):
+        """SPEC-041: 기본 scoped_tool_names/path_param_candidates가 Claude Code 표기
+        (Write/Edit/MultiEdit/NotebookEdit, file_path/notebook_path)도 커버하고,
+        도구 이름 매칭은 대소문자 무시다 — 과거엔 조용히 미발화했다."""
+        claims_path = self._make_claims(
+            tmp_path, claim_id="c1", developer="alice", scope=["src/module_a/"], status="active",
+        )
+        g = LiveGuardrail(team_concurrency=TeamConcurrencyConfig(claims_path=str(claims_path)))
+        for tool, params in [
+            ("Write", {"file_path": "src/module_a/x.py", "content": "y"}),
+            ("Edit", {"file_path": "src/module_a/x.py"}),
+            ("MultiEdit", {"file_path": "src/module_a/x.py"}),
+            ("NotebookEdit", {"notebook_path": "src/module_a/n.ipynb"}),
+            ("EDIT", {"filePath": "src/module_a/x.py"}),  # 대소문자 무시
+        ]:
+            assert g.check_before_tool_call("t1", tool, params).block is True, (tool, params)
+        # 다른 스코프는 통과
+        assert g.check_before_tool_call(
+            "t1", "Write", {"file_path": "src/module_b/x.py", "content": "y"}
+        ).block is False
 
     def test_bash_is_excluded_from_scoped_tool_names(self, tmp_path):
         claims_path = self._make_claims(

@@ -30,20 +30,26 @@ class TestRegistryCompleteness:
             "tcr", "accuracy", "hallucination_rate", "latency",
         }
 
-    def test_anomaly_suggestions_cover_original_three_metrics(self):
-        assert set(ANOMALY_METRIC_SUGGESTIONS.keys()) == {"accuracy", "latency", "error_rate"}
+    def test_anomaly_suggestions_are_keyed_by_actual_event_types(self):
+        # SPEC-041: Phase 2 통합 때 accuracy/latency/error_rate 3개로 잘못 옮겨졌던 것을
+        # 실제 AnomalyEvent.type 6종으로 바로잡았다.
+        assert set(ANOMALY_METRIC_SUGGESTIONS.keys()) == {
+            "latency_trend", "accuracy_drift", "token_spike",
+            "error_surge", "feedback_negativity", "security_pattern",
+        }
 
 
 class TestEvaluateNativeMetricRules:
     def test_all_healthy_yields_no_violations(self):
+        # SPEC-041: hallucination_rate도 퍼센트(0-100) 규약
         violated = evaluate_native_metric_rules(
-            tcr=90.0, accuracy=85.0, hallucination_rate=0.05, latency=1.0,
+            tcr=90.0, accuracy=85.0, hallucination_rate=5.0, latency=1.0,
         )
         assert violated == []
 
     def test_low_tcr_violates_in_original_order(self):
         violated = evaluate_native_metric_rules(
-            tcr=50.0, accuracy=50.0, hallucination_rate=0.5, latency=10.0,
+            tcr=50.0, accuracy=50.0, hallucination_rate=50.0, latency=10.0,
         )
         # 원본 코드의 순서(tcr, accuracy, hallucination_rate, latency) 그대로 보존
         assert [r.metric for r in violated] == ["tcr", "accuracy", "hallucination_rate", "latency"]
@@ -51,7 +57,15 @@ class TestEvaluateNativeMetricRules:
     def test_exact_boundary_not_violated(self):
         # 원본은 엄격 부등호(< / >)였다 — 경계값 자체는 위반 아님
         violated = evaluate_native_metric_rules(
-            tcr=75.0, accuracy=70.0, hallucination_rate=0.2, latency=5.0,
+            tcr=75.0, accuracy=70.0, hallucination_rate=20.0, latency=5.0,
+        )
+        assert violated == []
+
+    def test_low_hallucination_percent_does_not_falsely_trigger(self):
+        # SPEC-041 회귀: 환각률 3%(퍼센트)는 "exceeds 20%" 추천을 유발하면 안 된다
+        # (옛 threshold 0.2 분수와 비교돼 오탐하던 버그).
+        violated = evaluate_native_metric_rules(
+            tcr=90.0, accuracy=90.0, hallucination_rate=3.0, latency=1.0,
         )
         assert violated == []
 
@@ -148,11 +162,34 @@ class TestSummarizeViolationsAllTypes:
 
 
 class TestExplainAnomalyEventUsesRegistry:
-    def test_known_metric_uses_registry_suggestion(self):
-        assert ANOMALY_METRIC_SUGGESTIONS["accuracy"] == (
-            "Accuracy is low. Consider improving prompts or upgrading the model."
-        )
+    def test_known_event_type_uses_registry_suggestion(self):
+        assert "trending up" in ANOMALY_METRIC_SUGGESTIONS["latency_trend"]
 
     def test_unknown_metric_falls_back_to_default(self):
         result = ANOMALY_METRIC_SUGGESTIONS.get("unknown_metric", ANOMALY_METRIC_DEFAULT_SUGGESTION)
         assert result == ANOMALY_METRIC_DEFAULT_SUGGESTION
+
+
+class TestAnomalySuggestionForHelper:
+    """SPEC-041: anomaly_suggestion_for()는 AnomalyEvent.type('latency_trend')와
+    canonical 지표명('latency') 둘 다 받는다."""
+
+    def test_accepts_event_type(self):
+        from agent_evaluator.ontology.metric_registry import anomaly_suggestion_for
+
+        result = anomaly_suggestion_for("latency_trend")
+        assert result is not None and "trending up" in result
+
+    def test_accepts_canonical_metric_name(self):
+        from agent_evaluator.ontology.metric_registry import anomaly_suggestion_for
+
+        assert anomaly_suggestion_for("latency") == ANOMALY_METRIC_SUGGESTIONS["latency_trend"]
+        assert anomaly_suggestion_for("accuracy") == ANOMALY_METRIC_SUGGESTIONS["accuracy_drift"]
+        assert anomaly_suggestion_for("error_rate") == ANOMALY_METRIC_SUGGESTIONS["error_surge"]
+
+    def test_returns_none_for_unknown(self):
+        from agent_evaluator.ontology.metric_registry import anomaly_suggestion_for
+
+        assert anomaly_suggestion_for("nonsense") is None
+        assert anomaly_suggestion_for(None) is None
+        assert anomaly_suggestion_for("") is None

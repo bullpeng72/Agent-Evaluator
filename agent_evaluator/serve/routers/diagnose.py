@@ -84,6 +84,8 @@ def get_recommendation_outcomes(
     results_dir = getattr(request.app.state, "results_dir", None)
     if results_dir is None:
         return {"outcomes": [], "summary": summarize_recommendation_outcomes([])}
-    log_path = results_dir / _RECOMMENDATIONS_FILENAME
+    from pathlib import Path
+
+    log_path = Path(results_dir) / _RECOMMENDATIONS_FILENAME  # str app.state에도 안전
     outcomes = load_recommendation_outcomes(log_path, target_gate=gate)
     return {"outcomes": outcomes, "summary": summarize_recommendation_outcomes(outcomes)}

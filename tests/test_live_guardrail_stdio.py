@@ -9,7 +9,7 @@ import io
 import json
 
 from agent_evaluator.gates.team_concurrency import append_claim
-from agent_evaluator.integrations.live_guardrail_stdio import run
+from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail, run
 
 
 def _run_protocol(requests):
@@ -43,6 +43,68 @@ class TestInitProtocol:
         assert lines[0] == {"ok": True}
         assert "error" in lines[1]
         assert lines[2] == {"ok": True}
+
+
+class TestRequestIdEcho:
+    """SPEC-041: 요청에 "id"가 있으면 응답에 그대로 되돌려 실어 준다 — OpenCode .ts
+    브리지가 응답을 FIFO 순서가 아니라 id로 매칭해, 타임아웃으로 취소된 요청의 늦은
+    응답이 다음 요청에 잘못 배정되는 데스싱크를 피할 수 있게 한다."""
+
+    def test_every_response_carries_its_request_id(self):
+        responses = _run_protocol([
+            {"op": "init", "id": 100, "scope": {"forbidden_tools": ["WebFetch"],
+                                                "fail_on_violation": True}},
+            {"op": "check", "id": 1, "task_id": "t", "tool_name": "Bash",
+             "parameters": {"command": "ls"}},
+            {"op": "check", "id": 2, "task_id": "t", "tool_name": "webfetch",
+             "parameters": {"url": "x"}},
+            {"op": "snapshot", "id": 3},
+            {"op": "shutdown", "id": 4},
+        ])
+        by_id = {r["id"]: r for r in responses}
+        assert by_id[100]["ok"] is True
+        assert by_id[1]["block"] is False
+        assert by_id[2]["block"] is True and by_id[2]["gate"] == "B"  # case-insensitive too
+        assert "extra" in by_id[3]
+        assert by_id[4]["ok"] is True
+
+    def test_idless_request_gets_idless_response_backward_compat(self):
+        responses = _run_protocol([{"op": "init"}, {"op": "bogus"}, {"op": "shutdown"}])
+        assert all("id" not in r for r in responses)
+
+    def test_error_response_also_carries_id(self):
+        responses = _run_protocol([
+            {"op": "check", "id": 7, "task_id": "t", "tool_name": "x"},  # before init
+        ])
+        assert responses[0]["id"] == 7 and "error" in responses[0]
+
+
+class TestBuildGuardrailResilience:
+    """SPEC-041: 한 Config 블록의 오타/잘못된 값이 전체 가드레일 빌드를 깨면 안 된다
+    (설정 오타 하나로 보안 기능이 통째로 fail-open 되던 문제)."""
+
+    def test_typo_in_one_config_block_is_skipped_rest_active(self, capsys):
+        g = build_guardrail({
+            "loop_detection": {"consecutive_repeat_treshold": 3},  # typo
+            "tool_parameter_safety": {
+                "dangerous_patterns": [r"rm -rf"], "scope_tool_names": ["bash"],
+                "fail_on_dangerous": True,
+            },
+            "tool_authorization": {},
+        })
+        assert g._loop_detection is None                 # 잘못된 블록만 스킵
+        assert g._tool_parameter_safety is not None       # 나머지는 살아있음
+        assert "SKIPPED" in capsys.readouterr().err
+        assert g.check_before_tool_call("t", "bash", {"command": "rm -rf /x"}).block is True
+
+    def test_bad_value_in_tracker_block_is_skipped(self, capsys):
+        g = build_guardrail({
+            "privilege_escalation": {"not_a_real_kwarg": 1},
+            "scope": {"forbidden_tools": ["webfetch"], "fail_on_violation": True},
+        })
+        assert g._privilege_escalation is None
+        assert g._scope is not None
+        assert "SKIPPED" in capsys.readouterr().err
 
 
 class TestCheckRecordSnapshotRoundTrip:

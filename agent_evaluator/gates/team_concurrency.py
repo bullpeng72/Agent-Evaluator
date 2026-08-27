@@ -55,8 +55,15 @@ class TeamConcurrencyConfig:
 
     claims_path: str = ".aoo/claims.jsonl"
     shared_files_path: str | None = None
-    scoped_tool_names: tuple[str, ...] = ("read", "edit", "write")
-    path_param_candidates: tuple[str, ...] = ("file", "filePath", "path")
+    # SPEC-041: OpenCode(read/edit/write) + Claude Code(Read/Edit/Write/MultiEdit/
+    # NotebookEdit) 둘 다 커버. check_before_tool_call() 매칭도 대소문자 무시.
+    scoped_tool_names: tuple[str, ...] = (
+        "read", "Read", "edit", "Edit", "write", "Write", "MultiEdit", "NotebookEdit",
+    )
+    # OpenCode(file/filePath/path) + Claude Code(file_path/notebook_path) + MCP(path).
+    path_param_candidates: tuple[str, ...] = (
+        "file", "filePath", "file_path", "path", "notebook_path", "notebookPath",
+    )
     fail_on_conflict: bool = True
     owner: str | None = None
 
@@ -108,12 +115,24 @@ def load_active_claims(claims_path: Union[str, Path]) -> list[dict[str, Any]]:
     """
     latest_by_id: dict[str, dict[str, Any]] = {}
     path = Path(claims_path)
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
+    try:
+        _text = path.read_text(encoding="utf-8") if path.exists() else ""
+    except OSError:
+        _text = ""
+    for line in _text.splitlines():
+        if not line.strip():
+            continue
+        # SPEC-041: 손상된 줄(부분 write·수동 편집 실수) 하나가 전체 로드를 깨거나
+        # LiveGuardrail 생성을 실패시키면 안 된다 — 그 줄만 건너뛴다(append-only 로그의
+        # 다른 이력은 유효). claim_id 없는 줄도 무시.
+        try:
             entry = json.loads(line)
-            latest_by_id[entry["claim_id"]] = {**latest_by_id.get(entry["claim_id"], {}), **entry}
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict) or not entry.get("claim_id"):
+            continue
+        _cid = entry["claim_id"]
+        latest_by_id[_cid] = {**latest_by_id.get(_cid, {}), **entry}
     return [claim for claim in latest_by_id.values() if claim.get("status") == "active"]
 
 

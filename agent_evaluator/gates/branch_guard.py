@@ -33,8 +33,16 @@ class BranchGuardConfig:
     protected_branches: tuple[str, ...] = ("main", "master")
     git_mutation_patterns: tuple[str, ...] = (r"git\s+commit", r"git\s+push")
     require_branch_prefix: str | None = None
-    scoped_tool_names: tuple[str, ...] = ("bash",)
+    # SPEC-041: OpenCode는 "bash", Claude Code는 "Bash" — 둘 다 넣는다.
+    # LiveGuardrail.check_before_tool_call()의 매칭도 대소문자 무시라 커스텀
+    # 도구 이름 대소문자가 달라도 동작한다.
+    scoped_tool_names: tuple[str, ...] = ("bash", "Bash")
     fail_on_violation: bool = True
+    # SPEC-041: True면 커밋/푸시 직전에 현재 브랜치를 다시 조회한다 — 상주 프로세스
+    # (OpenCode)에서 세션 중 `git checkout main` 후 커밋이 통과되던 구멍을 막는다.
+    # False면 생성자 시점 1회 조회값을 계속 쓴다. Claude Code 훅은 호출마다 새 프로세스라
+    # 어느 쪽이든 항상 최신이다.
+    recheck_branch: bool = True
 
 
 def get_current_branch() -> str | None:

@@ -108,7 +108,18 @@ def build_server(db_path: str | None = None) -> Any:
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     db_path = argv[0] if argv else None
-    server = build_server(db_path)
+    try:
+        server = build_server(db_path)
+    except ImportError as exc:
+        # SPEC-041: [mcp] extra 미설치 시 bare "No module named 'mcp'" 대신 명확한 안내를
+        # stderr로 낸다 — 이 프로세스는 OpenCode/Claude가 스폰하므로 사용자는 클라이언트
+        # 로그에서만 이걸 보게 된다.
+        sys.stderr.write(
+            f"[agent-evaluator] recommend/violation-search MCP server needs the optional "
+            f"'mcp' dependency — install it with:  pip install \"agent-evaluator[mcp]\"\n"
+            f"  (original error: {exc})\n"
+        )
+        raise SystemExit(1) from exc
     server.run()
 
 

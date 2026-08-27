@@ -1904,20 +1904,20 @@ def explain_anomaly_event(
     f = next((x for x in rs.files if x.file_id == file_id), None)
     if f is None:
         raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
-    raw = getattr(f, "raw", {}) or {}
-    anomaly_data = raw.get("anomaly_data", {}) or {}
-    events = anomaly_data.get("anomalies", []) or []
+    # SPEC-041: 파싱된 리스트(loader._parse_anomaly_data)를 쓴다 — raw의 AnomalyEvent.to_dict()
+    # 를 재파싱하던 옛 코드는 event_id/metric 키가 없어 항상 404 아니면 "unknown"이었다.
+    events = list(getattr(f, "anomaly_data", []) or [])
     event = next((e for e in events if str(e.get("event_id", "")) == event_id), None)
     if event is None:
         raise HTTPException(status_code=404, detail=f"Anomaly event not found: {event_id}")
-    metric = event.get("metric", "unknown")
-    value = event.get("value", 0.0)
-    threshold = event.get("threshold", 0.0)
+    metric = event.get("metric") or event.get("type") or "unknown"
+    value = event.get("value") or 0.0
+    threshold = event.get("threshold") or 0.0
     deviation_pct = abs(value - threshold) / max(abs(threshold), 1e-9) * 100
     severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
     from agent_evaluator.ontology.metric_registry import (
         ANOMALY_METRIC_DEFAULT_SUGGESTION,
-        ANOMALY_METRIC_SUGGESTIONS,
+        anomaly_suggestion_for,
     )
     return {
         "event_id": event_id,
@@ -1926,9 +1926,14 @@ def explain_anomaly_event(
         "threshold": threshold,
         "deviation_pct": round(deviation_pct, 2),
         "severity": severity,
-        "explanation": f"{metric} value {value:.4f} exceeded threshold {threshold:.4f} by {deviation_pct:.1f}%.",
-        "suggested_action": ANOMALY_METRIC_SUGGESTIONS.get(metric, ANOMALY_METRIC_DEFAULT_SUGGESTION),
-        "timestamp": event.get("timestamp", ""),
+        "explanation": (
+            f"{metric} value {value:.4f} deviates {deviation_pct:.1f}% "
+            f"from threshold {threshold:.4f}."
+        ),
+        "suggested_action": (
+            anomaly_suggestion_for(metric) or ANOMALY_METRIC_DEFAULT_SUGGESTION
+        ),
+        "timestamp": event.get("detected_at", ""),
     }
 
 

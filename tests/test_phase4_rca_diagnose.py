@@ -51,6 +51,33 @@ class TestDetectionMode:
         assert result["detected_gates"] == []
 
 
+class TestNewlyUnmeasuredGates:
+    """SPEC-041: baseline엔 숫자 점수가 있었는데 current엔 없는 Gate — 회귀 감지 공식은
+    current=None을 조용히 건너뛰므로, 측정 커버리지 손실을 별도 신호로 낸다."""
+
+    def test_gate_dropped_between_baseline_and_current_is_flagged(self):
+        baseline = _report({"A": _gate(0.9), "B": _gate(0.85)})
+        current = _report({"A": {"score": 0.88, "status": "pass", "details": {}}})  # B 사라짐
+        result = diagnose(current, baseline, regression_threshold=0.1)
+        assert result["newly_unmeasured_gates"] == ["B"]
+        assert result["detected_gates"] == []  # 회귀는 아님
+
+    def test_none_score_in_current_with_numeric_baseline_is_flagged(self):
+        baseline = _report({"C": _gate(0.9)})
+        current = _report({"C": {"score": None, "status": "not_measured", "details": {}}})
+        result = diagnose(current, baseline, regression_threshold=0.1)
+        assert result["newly_unmeasured_gates"] == ["C"]
+
+    def test_no_baseline_never_flags_unmeasured(self):
+        current = _report({"A": {"score": None, "status": "pass", "details": {}}})
+        assert diagnose(current)["newly_unmeasured_gates"] == []
+
+    def test_both_none_is_not_flagged(self):
+        baseline = _report({"A": {"score": None, "details": {}}})
+        current = _report({"A": {"score": None, "details": {}}})
+        assert diagnose(current, baseline)["newly_unmeasured_gates"] == []
+
+
 class TestChapter31Section0GateAWorkedExample:
     """§31.0/§31.4 워크드 예제 — Gate A 0.85→0.60, avg_plan_coherence가 원인 1순위여야 함."""
 
@@ -157,6 +184,33 @@ class TestDetailDeltaRankingIsScaleAware:
         assert tcr_entry["baseline"] == 55.0
         assert tcr_entry["delta"] == 5.0
 
+    def test_ms_field_does_not_dominate_score_field_by_raw_magnitude(self):
+        """SPEC-041: _ms 필드(밀리초)도 _pct처럼 스케일 보정 — ttft_p95_ms 800→2000
+        (Δ1200)이 avg_budget_score 0.9→0.2(Δ0.7)를 원시 크기로 1700배 눌러 RCA가
+        예산 붕괴 대신 지연 변동을 원인 1순위로 지목하던 것 방지."""
+        current = _report({"D": _gate(0.4, ttft_p95_ms=2000.0, avg_budget_score=0.2)})
+        baseline = _report({"D": _gate(0.9, ttft_p95_ms=800.0, avg_budget_score=0.9)})
+        result = diagnose(current, baseline, regression_threshold=0.1)
+        top_field = result["findings"][0]["top_detail_deltas"][0]["field"]
+        assert top_field == "avg_budget_score"
+
+    def test_count_field_does_not_dominate_score_field(self):
+        """SPEC-041: sla_breach_count 0→3(Δ3)이 avg_scope_score 0.95→0.3(Δ0.65)를
+        원시 크기로 ~5배 눌러 순위를 뒤집던 것 방지(_count 스케일 10 — 소수 카운트는
+        약한 랭킹 신호, 표본크기 정규화된 _rate 필드가 있으면 그쪽이 실질 신호)."""
+        current = _report({"C": _gate(0.4, sla_breach_count=3, avg_scope_score=0.3)})
+        baseline = _report({"C": _gate(0.9, sla_breach_count=0, avg_scope_score=0.95)})
+        result = diagnose(current, baseline, regression_threshold=0.1)
+        top_field = result["findings"][0]["top_detail_deltas"][0]["field"]
+        assert top_field == "avg_scope_score"
+
+    def test_ms_delta_values_stay_in_original_units(self):
+        current = _report({"D": _gate(0.4, ttft_p95_ms=2000.0)})
+        baseline = _report({"D": _gate(0.9, ttft_p95_ms=800.0)})
+        result = diagnose(current, baseline, regression_threshold=0.1)
+        e = result["findings"][0]["top_detail_deltas"][0]
+        assert e["current"] == 2000.0 and e["baseline"] == 800.0 and e["delta"] == 1200.0
+
 
 class TestReverseDiagnosisSharedCauseGeneralization:
     """폐루프 학습 — SHARED_CAUSE_CHECKS 레지스트리 + 최소 설명집합 선택
@@ -239,6 +293,48 @@ class TestDetailDeltasExcludeNonNumeric:
         fields = {d["field"] for d in result["findings"][0]["top_detail_deltas"]}
         assert "deadlock_by_type" not in fields
         assert "avg_deadlock_score" in fields
+
+
+class TestDetailDeltaOrderingIsDeterministic:
+    """SPEC-041: baseline이 없어 모든 delta가 None인 absolute_threshold 모드에서도
+    top_detail_deltas 순서가 실행마다(PYTHONHASHSEED 랜덤화) 흔들리면 안 된다 —
+    top_detail_deltas[0]가 step-3 교차검색 쿼리와 Gate F MAST 후보 선택에 쓰이므로
+    비결정적이면 같은 입력에 다른 RCA 결과가 나온다. 동점은 field 이름 오름차순 tiebreak."""
+
+    def test_no_baseline_ordering_is_field_name_sorted(self):
+        current = {
+            "extra_metrics": {"harness_groups": {
+                "F": {"score": 0.5, "status": "fail", "details": {
+                    "avg_role_compliance": 0.4, "avg_consensus": 0.4,
+                    "avg_conflict_resolution": 0.4, "avg_propagation": 0.4,
+                    "coordination_score": 0.4,
+                }},
+            }},
+        }
+        fields = [d["field"] for d in diagnose(current)["findings"][0]["top_detail_deltas"]]
+        assert fields == sorted(fields)  # 결정적: 이름 오름차순
+
+    def test_repeated_calls_give_identical_ordering(self):
+        current = {
+            "extra_metrics": {"harness_groups": {
+                "C": {"score": 0.5, "status": "warn", "details": {
+                    "zeta_rate": 0.1, "alpha_rate": 0.1, "mu_rate": 0.1, "beta_rate": 0.1,
+                }},
+            }},
+        }
+        runs = [
+            [d["field"] for d in diagnose(current)["findings"][0]["top_detail_deltas"]]
+            for _ in range(5)
+        ]
+        assert all(r == runs[0] for r in runs)
+
+    def test_baseline_mode_still_ranks_by_magnitude(self):
+        base = _report({"C": _gate(0.9, sla_breach_rate=0.0, hall_rate=0.0, idempotency_score=1.0)})
+        cur = _report({"C": {"score": 0.5, "status": "fail", "gate": "fail", "details": {
+            "sla_breach_rate": 0.3, "hall_rate": 0.05, "idempotency_score": 1.0,
+        }}})
+        result = diagnose(cur, base, regression_threshold=0.1)
+        assert result["findings"][0]["top_detail_deltas"][0]["field"] == "sla_breach_rate"
 
 
 class TestCrossReferenceSkippedWithoutDb:

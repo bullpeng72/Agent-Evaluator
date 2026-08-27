@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 
@@ -62,8 +63,26 @@ class TestInstallLocal:
         # SessionEnd's matcher filters by session-end *reason*, not tool name — reusing the
         # tool-name matcher there would make the batch-save hook never fire.
         assert hooks["SessionEnd"][0]["matcher"] == "*"
-        assert hooks["PreToolUse"][0]["matcher"] == "Bash|Edit|Write"
-        assert hooks["PostToolUse"][0]["matcher"] == "Bash|Edit|Write"
+        # SPEC-041: fully-anchored tool-name matcher. Behaves the same under
+        # re.search/re.match/re.fullmatch. Verify with realistic Claude Code tool names.
+        pre_matcher = hooks["PreToolUse"][0]["matcher"]
+        assert hooks["PostToolUse"][0]["matcher"] == pre_matcher
+        should_match = [
+            "Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch",
+            "mcp__filesystem__write_file", "mcp__filesystem__edit_file",
+            "mcp__filesystem__move_file", "mcp__git__create_branch",
+            "mcp__claude_ai_Google_Drive__update_file",
+        ]
+        should_not_match = [
+            "Read", "Glob", "Grep", "Task", "TodoWrite", "BashOutput", "KillShell",
+            "ExitPlanMode", "WebSearch",
+            "mcp__ctx__search", "mcp__ctx__sql", "mcp__x__list_dir",
+            "mcp__claude_ai_Gmail__send_message", "mcp__foo__dispatch_event",
+        ]
+        for name in should_match:
+            assert re.search(pre_matcher, name), f"expected match: {name}"
+        for name in should_not_match:
+            assert not re.search(pre_matcher, name), f"unexpected match: {name}"
 
     def test_hook_command_bakes_in_python_executable(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -79,6 +98,62 @@ class TestInstallLocal:
         claude_cli.cmd_claude(_ns())
         settings = json.loads((tmp_path / ".claude" / "settings.json").read_text())
         assert len(settings["hooks"]["PreToolUse"]) == 1
+
+    def test_reinstall_refreshes_stale_matcher_only(self, tmp_path, monkeypatch):
+        """SPEC-041: 우리 훅이 이미 있고 matcher만 옛 값이면, matcher만 갱신하고
+        command·다른 훅은 건드리지 않는다."""
+        monkeypatch.chdir(tmp_path)
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        our_cmd = f"{sys.executable} -m agent_evaluator.integrations.claude_code_hook"
+        stale = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "OTHER", "hooks": [{"type": "command", "command": "keep-me.sh"}]},
+                    {"matcher": "Bash|Edit|Write",
+                     "hooks": [{"type": "command", "command": our_cmd}]},
+                ],
+            },
+        }
+        (settings_dir / "settings.json").write_text(json.dumps(stale))
+
+        assert claude_cli.cmd_claude(_ns()) == 0
+        settings = json.loads((settings_dir / "settings.json").read_text())
+        pre = settings["hooks"]["PreToolUse"]
+        assert len(pre) == 2  # 중복 추가 없음
+        our = [e for e in pre if any(our_cmd in h["command"] for h in e["hooks"])][0]
+        other = [e for e in pre if any("keep-me.sh" in h["command"] for h in e["hooks"])][0]
+        assert our["matcher"] == claude_cli._TOOL_MATCHER  # 갱신됨
+        assert other["matcher"] == "OTHER"                  # 남의 훅은 그대로
+
+    def test_reinstall_refreshes_stale_interpreter_in_canonical_command(self, tmp_path, monkeypatch):
+        """SPEC-041: 우리 훅의 커맨드가 정확한 canonical 형태
+        ("<python> -m agent_evaluator.integrations.claude_code_hook")인데 인터프리터
+        경로만 죽은 옛 venv면, 재설치 시 현재 인터프리터로 갱신한다. 래핑된
+        커맨드(추가 인자 등)는 사용자 의도로 보고 건드리지 않는다."""
+        monkeypatch.chdir(tmp_path)
+        settings_dir = tmp_path / ".claude"
+        settings_dir.mkdir()
+        mod = "agent_evaluator.integrations.claude_code_hook"
+        stale = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": claude_cli._TOOL_MATCHER,
+                     "hooks": [{"type": "command", "command": f"/dead/venv/bin/python -m {mod}"}]},
+                ],
+                "PostToolUse": [
+                    {"matcher": claude_cli._TOOL_MATCHER,
+                     "hooks": [{"type": "command", "command": f"nice /dead/python -m {mod} --flag"}]},
+                ],
+            },
+        }
+        (settings_dir / "settings.json").write_text(json.dumps(stale))
+        assert claude_cli.cmd_claude(_ns()) == 0
+        settings = json.loads((settings_dir / "settings.json").read_text())
+        pre_cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        post_cmd = settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+        assert pre_cmd == f"{sys.executable} -m {mod}"          # canonical → refreshed
+        assert post_cmd == f"nice /dead/python -m {mod} --flag"  # wrapped → untouched
 
     def test_preserves_existing_unrelated_hooks(self, tmp_path, monkeypatch):
         """settings.json에 이미 사용자의 다른 훅이 있으면 지우지 않고 보존해야 한다."""

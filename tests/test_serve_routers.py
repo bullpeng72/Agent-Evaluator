@@ -104,9 +104,8 @@ class TestHTMLPages:
         assert r.status_code not in (500,)
 
     def test_dashboard2_page(self, client: TestClient):
-        """/dashboard(dashboard2.html.j2)는 CLAUDE.md가 명시한 유지 대상 템플릿이다 —
-        이전엔 이 라우트 자체를 렌더링하는 테스트가 없었다(레거시 dashboard.html.j2만
-        간접적으로 /를 통해 테스트됨). Phase 8에서 Improve 탭을 추가하며 신설."""
+        """/dashboard는 dashboard2.html.j2(유일한 대시보드 템플릿)를 렌더링한다.
+        Phase 8에서 Improve 탭을 추가하며 이 라우트 직접 렌더링 테스트를 신설."""
         r = client.get("/dashboard")
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
@@ -214,6 +213,56 @@ class TestAnomalyRouter:
     def test_anomaly_file_not_found(self, client_empty: TestClient):
         r = client_empty.get("/api/anomalies/nonexistent")
         assert r.status_code in (200, 404)
+
+
+@pytest.fixture(scope="module")
+def client_with_anomaly(tmp_path_factory: pytest.TempPathFactory) -> TestClient:
+    from agent_evaluator.serve.server import create_app
+
+    d = tmp_path_factory.mktemp("results_anomaly")
+    payload = {
+        "report": {"total_tasks": 1, "successful_tasks": 1, "task_completion_rate": 1.0,
+                   "latency_metrics": {"mean": 1.0, "p50": 1.0, "p95": 1.5, "p99": 2.0}},
+        "tasks": [{"task_id": "t1", "task_type": "qa", "success": True,
+                   "completion_score": 1.0, "accuracy_score": 0.9, "execution_time": 1.0,
+                   "tokens_used": 50, "tool_calls": [], "attempts": 1, "errors": [],
+                   "timestamp": "2026-01-01T00:00:00"}],
+        "anomaly_data": {"anomalies": [{
+            "event_id": "latency_trend-abc12345", "type": "latency_trend",
+            "metric": "latency_trend", "severity": "critical",
+            "detail": "p95 up 40%", "value": 0.12, "threshold": 0.05,
+            "detected_at": "2026-01-01T00:00:00", "algorithm": "linear_regression",
+        }]},
+        "metadata": {"version": "0.7.0", "name": "anom_eval"},
+    }
+    (d / "anom_eval.json").write_text(json.dumps(payload), encoding="utf-8")
+    app = create_app(results_dir=d, watch=False, offline=False)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+class TestAnomalyExplainEndpoint:
+    """SPEC-041: explain 엔드포인트가 살아났는지 — 예전엔 저장된 AnomalyEvent에
+    event_id/metric 키가 없어 항상 404 아니면 metric='unknown'이었다."""
+
+    @staticmethod
+    def _file_id(c: TestClient) -> str:
+        return c.get("/api/results").json()["files"][0]["id"]
+
+    def test_explain_resolves_event_and_returns_real_suggestion(self, client_with_anomaly):
+        c = client_with_anomaly
+        fid = self._file_id(c)
+        r = c.get(f"/api/results/{fid}/anomaly/explain/latency_trend-abc12345")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["metric"] == "latency_trend"
+        assert body["suggested_action"] != "Analyze this metric in detail."
+        assert "trending up" in body["suggested_action"]
+
+    def test_unknown_event_id_is_404(self, client_with_anomaly):
+        c = client_with_anomaly
+        fid = self._file_id(c)
+        r = c.get(f"/api/results/{fid}/anomaly/explain/no-such-event")
+        assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -398,3 +447,14 @@ class TestDiagnoseRouter:
         body = r.json()
         assert body["outcomes"] == []
         assert body["summary"]["total"] == 0
+
+    def test_recommendation_outcomes_ok_with_str_results_dir(self, tmp_path):
+        """SPEC-041: 프로그래매틱 호출자가 create_app(results_dir=<str>)로 만들어도
+        recommendation_outcomes 엔드포인트가 `str / str` 로 500 나지 않는다."""
+        from agent_evaluator.serve.server import create_app
+
+        app = create_app(results_dir=str(tmp_path), watch=False, offline=False)
+        c = TestClient(app, raise_server_exceptions=False)
+        r = c.get("/api/diagnose/")
+        assert r.status_code == 200
+        assert r.json()["summary"]["total"] == 0

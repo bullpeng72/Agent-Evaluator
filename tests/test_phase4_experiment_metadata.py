@@ -93,6 +93,32 @@ class TestDeriveExperimentMetadata:
         assert result.commits_between[0].subject == "second commit"
         assert result.source == "git"
 
+    def test_changed_files_not_truncated_for_deep_paths(self, real_git_repo: Path):
+        """SPEC-041: --stat 출력을 파싱하면 tty가 아닌 서브프로세스에서 git이 폭을
+        80으로 잡아 긴 경로를 '...abbrev/'로 잘라버린다. --name-only는 전체 경로를
+        잘림 없이 준다."""
+        deep = real_git_repo / (
+            "src/very/deeply/nested/package/subpackage/module/component"
+        )
+        deep.mkdir(parents=True)
+        long_file = deep / "a_rather_long_filename_that_pushes_past_eighty_columns.py"
+        long_file.write_text("x = 1\n")
+        _git(real_git_repo, "add", "-A")
+        _git(real_git_repo, "commit", "-q", "-m", "add deep file")
+
+        commits = subprocess.run(
+            ["git", "-C", str(real_git_repo), "log", "--pretty=format:%H", "--reverse"],
+            check=True, capture_output=True, text=True,
+        ).stdout.splitlines()
+        result = derive_experiment_metadata(
+            _report(commits[0]), _report(commits[-1]), repo_path=real_git_repo,
+        )
+        rel = "src/very/deeply/nested/package/subpackage/module/component/" \
+              "a_rather_long_filename_that_pushes_past_eighty_columns.py"
+        assert result is not None
+        assert rel in result.changed_files
+        assert all("..." not in f for f in result.changed_files)
+
     def test_none_when_commits_are_identical(self, real_git_repo: Path):
         sha = _sha(real_git_repo)
         result = derive_experiment_metadata(_report(sha), _report(sha), repo_path=real_git_repo)

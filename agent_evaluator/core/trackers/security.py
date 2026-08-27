@@ -12,11 +12,16 @@ from __future__ import annotations
 import json
 import random
 import re
-from typing import Any, Sequence, Union
+from typing import TYPE_CHECKING, Any, Sequence, Union
 
-import pandas as pd
-
+from ...utils.lazy_import import LazyModule as _LazyModule
 from .base import BaseTracker
+
+# SPEC-041: 런타임엔 지연 로딩 프록시, 타입 체커엔 실제 모듈(layer1.py 참고).
+if TYPE_CHECKING:
+    import pandas as pd
+else:
+    pd = _LazyModule("pandas")
 
 # 재시도 에러 자동 분류 매핑 — RetryCorrectionTracker retry_reason 고도화
 RETRY_ERROR_CATEGORY_MAP: dict[str, str] = {

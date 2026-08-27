@@ -74,6 +74,22 @@ class TestBuildDiagnosisWithBaseline:
         assert "Cemri et al" in html
         assert "% of paper traces" in html
 
+    def test_measurement_coverage_loss_is_rendered(self):
+        """SPEC-041: baseline엔 점수가 있었는데 current엔 사라진 Gate를 HTML 리포트도
+        경고한다(CLI cli/diagnose.py와 동일). 없으면 "all clear"로 오도되던 케이스."""
+        baseline = _harness_groups(
+            A={"score": 0.9, "status": "pass", "gate": "pass", "details": {}},
+            B={"score": 0.85, "status": "pass", "gate": "pass", "details": {}},
+        )
+        current = _harness_groups(
+            A={"score": 0.88, "status": "pass", "gate": "pass", "details": {}},
+        )
+        html = _build_diagnosis(current, baseline)
+        assert "Measurement coverage lost" in html
+        assert "Gate(s) B" in html
+        # 커버리지 손실이 있으면 "no detection" 안심 메시지를 띄우지 않는다
+        assert "No regression or fail/warn Gate detected" not in html
+
 
 class TestBuildDiagnosisRecommendationHistory:
     def test_history_rendered_when_log_has_entries(self, tmp_path):

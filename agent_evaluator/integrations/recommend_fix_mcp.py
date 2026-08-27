@@ -36,7 +36,9 @@ _GATE_NAMES = (
 )
 
 
-def format_recommendation(gate: str, metric: str | None, value: float | None) -> str:
+def format_recommendation(
+    gate: str, metric: str | None = None, value: float | None = None,
+) -> str:
     """Gate/지표 하나에 대한 조치 후보 텍스트를 만든다.
 
     Args:
@@ -54,9 +56,10 @@ def format_recommendation(gate: str, metric: str | None, value: float | None) ->
     """
     from agent_evaluator.ontology.mast_taxonomy import mast_failure_modes_for_gate_f_metric
     from agent_evaluator.ontology.metric_registry import (
-        ANOMALY_METRIC_SUGGESTIONS,
         GATE_GUIDANCE,
         NATIVE_METRIC_RULES,
+        anomaly_suggestion_for,
+        canonical_metric_name,
     )
 
     gate_key = (gate or "").strip().upper()
@@ -67,6 +70,14 @@ def format_recommendation(gate: str, metric: str | None, value: float | None) ->
     lines = [f"[Gate {gate_key} — {guidance.label}] {guidance.guidance}"]
 
     if metric:
+        # SPEC-041: rca.diagnose()가 주는 필드명(hall_rate, avg_role_compliance,
+        # p95_latency_ms …)을 규칙/제안/MAST 조회용 canonical 키로 정규화한다. 두 MCP
+        # 도구(diagnose ↔ recommend_fix)가 같은 어휘를 쓰게 해, "규칙이 있는데 없다"고
+        # 답하던 문제를 없앤다. 정규화로 이름이 바뀌면 사용자에게 그 사실을 알린다.
+        canonical = canonical_metric_name(metric)
+        if canonical and canonical != metric:
+            lines.append(f"\n('{metric}' → '{canonical}'로 해석)")
+        metric = canonical or metric
         matched_rule = next((r for r in NATIVE_METRIC_RULES if r.metric == metric), None)
         if matched_rule is not None:
             lines.append(f"\n[{matched_rule.title}] {matched_rule.guidance}")
@@ -77,7 +88,9 @@ def format_recommendation(gate: str, metric: str | None, value: float | None) ->
                     f"({matched_rule.direction}) 기준 {_status}"
                 )
 
-        anomaly_suggestion = ANOMALY_METRIC_SUGGESTIONS.get(metric)
+        # canonical 지표명(latency/accuracy/error_rate)이나 AnomalyEvent.type
+        # (latency_trend 등) 둘 다 받아 이상탐지 조치 제안을 붙인다.
+        anomaly_suggestion = anomaly_suggestion_for(metric)
         if anomaly_suggestion:
             lines.append(f"\n[이상탐지 참고] {anomaly_suggestion}")
 
@@ -129,7 +142,19 @@ def build_server() -> Any:
 
 
 def main() -> None:
-    server = build_server()
+    try:
+        server = build_server()
+    except ImportError as exc:
+        # SPEC-041: [mcp] extra 미설치 시 bare ImportError 대신 명확한 안내(stderr) —
+        # 이 프로세스는 OpenCode/Claude가 스폰하므로 사용자는 클라이언트 로그에서만 본다.
+        import sys
+
+        sys.stderr.write(
+            f"[agent-evaluator] recommend_fix MCP server needs the optional 'mcp' "
+            f"dependency — install it with:  pip install \"agent-evaluator[mcp]\"\n"
+            f"  (original error: {exc})\n"
+        )
+        raise SystemExit(1) from exc
     server.run()
 
 

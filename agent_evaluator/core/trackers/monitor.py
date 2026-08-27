@@ -25,10 +25,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal, cast
-
-import numpy as np
-import pandas as pd
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal, cast
 
 from ...exceptions import MetricComputationError, StorageError, ValidationError
 
@@ -43,6 +40,7 @@ from ...gates.gate_e_security import aggregate as gate_e_aggregate
 # SPEC-000 Commit 1: Gate F 집계 로직 이관
 from ...gates.gate_f_multiagent import aggregate as gate_f_aggregate
 from ...gates.gate_g_observability import aggregate as gate_g_aggregate
+from ...utils.lazy_import import LazyModule as _LazyModule
 from .base import BaseTracker, EvaluationReport, TaskResult, TaskType, _TaskContext
 from .conversation import ConversationSession
 from .layer1 import (
@@ -76,6 +74,15 @@ try:
 except ImportError:
     _ImplicitFeedbackTracker = None  # type: ignore[assignment,misc]
     _FEEDBACK_AVAILABLE = False
+
+# SPEC-041: 런타임엔 지연 로딩 프록시(훅 콜드스타트 eager import 제거), 타입 체커엔
+# 실제 모듈로 보이게 해 `-> pd.DataFrame` 어노테이션이 해석되게 한다(layer1.py 참고).
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+else:
+    np = _LazyModule("numpy")
+    pd = _LazyModule("pandas")
 
 logger = logging.getLogger(__name__)
 

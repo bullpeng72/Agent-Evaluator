@@ -304,6 +304,7 @@ class LiveVerdict:
 - **REQ-3 (Gate E)**: `ToolAuthorizationTracker(restricted_tools=["rm"])`에서 `tool_name="rm"` 호출이 `is_restricted=True` → `block=True, gate="E"`로 이어지는지 검증.
 - **정상 시나리오 회귀**: 위반이 전혀 없는 호출 시퀀스에서 `check_before_tool_call`이 항상 `block=False`를 반환하는지 검증.
 - **REQ-4/5 (항등성)**: `record_tool_call()`을 여러 번 호출한 뒤 `snapshot()`의 `loop_detection`/`scope` 등 각 키가, 동일한 `tool_calls` 리스트를 배치 `eval_loop_detection(tool_calls, config)`에 직접 넣어 계산한 결과와 **byte-diff 동일**한지 검증(SPEC-018 Acceptance와 동일한 "재해석 없음" 검증 정신).
+  > **SPEC-041 이탈**: `loop_detection`(도구 이름 → 이름+인자 해시 비교)과 `tool_parameter_safety`(`_benign_write` 항목 제외) 두 지표는 `check_before_tool_call`과 `snapshot` *양쪽*에서 함께 보정한다 — opencode/claude처럼 도구가 굵은(`Bash`/`Edit`) 환경에서 원본 함수가 정상 세션을 loop/dangerous로 오탐해 Gate B/CI를 오탈락시켰기 때문. 실시간·배치가 서로 일치한다는 REQ-5/6의 본래 취지는 유지되며, `@agent_eval` 순수 배치 경로(도구 이름 세분화됨)와만 달라진다. 자세한 근거는 `LiveGuardrail.snapshot()` docstring과 `[[project-spec041-live-guardrail-hardening]]` 참조.
 - **REQ-6 (배치 편입 항등성)**: `to_task_extra()`로 만든 `extra`를 실은 `TaskResult`를 `monitor.record_task()`에 넘겼을 때, Gate B `details`의 `loop_detection_rate`/`avg_scope_score` 등이 동일한 도구 호출 시퀀스를 기존 `@agent_eval` 배치 경로(에이전트 함수가 `tool_calls`를 반환 → decorators.py 자동 평가)로 처리했을 때와 동일한지 교차검증.
 - **REQ-7**: 두 개의 독립된 `LiveGuardrail` 인스턴스를 병렬로 조작해도 서로의 `_tool_calls`에 영향을 주지 않는지 확인(인스턴스 격리 검증).
 

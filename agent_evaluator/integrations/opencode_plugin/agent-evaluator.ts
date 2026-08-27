@@ -15,9 +15,12 @@
  *      `.opencode/plugin/agent-evaluator.ts`(프로젝트 로컬, 기본값)에 복사하고
  *      아래 PYTHON_BIN 기본값을 설치 시점의 인터프리터 절대경로로 채워 넣는다.
  *      전역 설치는 `--global`, 이미 있는 파일을 덮어쓰려면 `--force`.
- *   3. 복사된 `.opencode/plugin/agent-evaluator.ts`의 GUARDRAIL_CONFIG를 프로젝트
- *      상황에 맞게 수정한다 — 이 패키지 번들 원본이 아니라 복사본을 수정할 것
- *      (`agent-eval opencode install`을 다시 실행하면 번들 원본으로 덮어써진다).
+ *   3. 프로젝트별 설정은 `.ts` 파일을 편집하는 대신 옆에 두는
+ *      `agent-evaluator.config.json`(JSON 객체)에 적는다 — 최상위 키가
+ *      `GUARDRAIL_CONFIG` 위에 얕게 병합된다. 이렇게 하면 `agent-eval opencode
+ *      install`을 다시 실행해 이 `.ts`(코드)를 최신으로 갱신해도 설정이 살아남는다
+ *      (Claude Code 훅의 guardrail_config.json과 동일한 분리 원칙). `resolveGuardrailConfig()`
+ *      참조. 파일이 없으면 위 인라인 GUARDRAIL_CONFIG가 그대로 쓰인다.
  *
  * 훅 필드는 실제 설치된 `@opencode-ai/plugin@1.17.9`의 타입 선언
  * (`node_modules/@opencode-ai/plugin/dist/index.d.ts`,
@@ -55,6 +58,9 @@ import type { Plugin, PluginInput } from "@opencode-ai/plugin"
 import { spawn, type ChildProcessByStdio } from "node:child_process"
 import type { Writable, Readable } from "node:stream"
 import * as readline from "node:readline"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 // ── 프로젝트별 설정 ──────────────────────────────────────────────────────────
 // 각 키의 전체 필드는 다음을 참조:
@@ -76,6 +82,15 @@ interface GuardrailInitConfig {
   // 기본 GUARDRAIL_CONFIG는 비워둔다(옵트인), 필요한 프로젝트만 값을 채워 넣는다.
   branch_guard?: Record<string, unknown>
   team_concurrency?: Record<string, unknown>
+  // SPEC-041: 실시간 루프 판정을 최근 N호출로만 한정(latch 방지). null이면 전체 이력.
+  live_loop_window?: number | null
+  // SPEC-041: on_loop_detected="fail"일 때 실제로 차단할 루프 타입(기본 consecutive_repeat만).
+  live_loop_blocking_types?: string[]
+  // SPEC-041: tool_authorization 백스톱 스캔에서 제외할 파일 본문 키.
+  auth_scan_skip_keys?: string[]
+  // SPEC-041: cat/tee/echo/printf 리다이렉트·heredoc으로 파일을 만드는 순수 쓰기는
+  // 명령 안의 위험 문자열을 "파일 내용"으로 보고 차단하지 않는다(기본 true).
+  lenient_shell_file_write?: boolean
 }
 
 // 아래 설정은 실제 OpenCode 1.17.9 + Ollama qwen3-coder 세션으로 라이브 테스트한 뒤
@@ -92,22 +107,20 @@ interface GuardrailInitConfig {
 // 2. `ScopeConfig.forbidden_tools=["bash"]`처럼 "bash" 자체를 막으면 코딩 에이전트의
 //    정상 동작이 전부 막힌다 — 도구 전체를 통째로 막는 예시로는 네트워크 접근
 //    ("webfetch", 실 세션 로그에서 확인된 실제 도구명)이 더 현실적이다.
-// 3. `ToolParameterSafetyConfig.dangerous_patterns`(Gate B, 커스터마이즈 가능)의
-//    기본값은 세미콜론으로 연결된 `rm`만 잡고, `rm -rf`/`rm -f` 단독 호출은 안
-//    잡는다. `ToolAuthorizationTracker`(Gate E)는 `rm -rf`는 하드코딩으로 이미
-//    잡지만(커스터마이즈 불가), `-rf`가 아닌 `rm -f`(단일 플래그)는 두 Gate 모두
-//    놓친다는 것도 라이브 테스트로 직접 확인했다(모델이 스스로 `-rf` 대신 `-f`를
-//    선택해 실제로 파일이 삭제됨) — 여기서 패턴을 보강한다.
-// 4. 2026-07-05 재검증: `rm\s+-\w*f` 패턴을 추가한 뒤에도, **플래그를 아예 쓰지
-//    않는** `rm victim.txt`(단순 삭제)는 Gate B/E 어느 쪽에도 걸리지 않고 실제로
-//    파일이 삭제되는 것을 라이브 세션(OpenCode 1.17.9 + Ollama qwen3-coder)으로
-//    다시 확인했다 — 모델이 "정리해줘" 같은 자연스러운 요청에는 `-f` 플래그 없이
-//    바로 `rm <file>`을 호출했다. `\brm\s+\S`로 패턴을 넓혀 플래그 유무와 무관하게
-//    모든 `rm <인자>` 호출을 잡도록 보강했다.
+// 3. dangerous_patterns(Gate B, 커스터마이즈 가능)는 SPEC-041(2026-08-27)에서
+//    재정비했다 — 과거엔 `\brm\s+\S`로 플래그 유무와 무관하게 모든 `rm <인자>`를
+//    잡았으나, `rm dist/bundle.js`처럼 정상적인 빌드 산출물 정리까지 하드 차단해
+//    코딩 세션 마찰이 컸다. 이제는 **재귀+강제 삭제**(`rm -rf`/`-fr`/`-Rf` 등),
+//    체이닝된 `; rm -`, mkfs, 디바이스로의 dd, fork bomb, `curl|sh`만 잡는다.
+//    단일 파일 `rm foo`/`rm -f foo`는 통과시킨다(되돌리기 쉬움, 대개 git으로 복구).
+//    `rm -rf`는 Gate E 하드코딩 백스톱(ToolAuthorizationTracker, 커스터마이즈 불가)도
+//    계속 잡으므로 이중 방어다.
 // 4. dangerous_patterns는 도구 이름과 무관하게 모든 도구 호출의 파라미터 전체를
 //    검사하므로, 위 rm 패턴을 그대로 두면 셸과 무관한 도구(예: 검색·메모리 도구가
 //    "rm 시도가 차단됨" 같은 결과 텍스트를 반환하는 경우)까지 오탐할 수 있다.
-//    scope_tool_names로 이 검사를 실제 셸 실행 도구로만 한정해 이 문제를 막는다.
+//    scope_tool_names로 이 검사를 실제 셸 실행 도구("bash")로만 한정해 이 문제를
+//    막는다. SPEC-041에서 길이 검사(max_argument_length)도 같은 스코프를 따르게 돼,
+//    write/edit로 쓰는 큰 파일 본문이 arg_too_long으로 차단되지 않는다.
 // loop_detection intentionally omits on_loop_detected here, which falls back to
 // LoopDetectionConfig's own default ("record", observe-only) — the false-positive risk
 // described above (single coarse-grained "bash" tool) means "fail" (block) would be too
@@ -116,19 +129,64 @@ interface GuardrailInitConfig {
 // because Claude Code's tools are already fine-grained (Bash/Read/Edit/Write/WebFetch),
 // so that false-positive path is far narrower there. Not a bug — see that file's comment
 // for the full reasoning.
+// SPEC-041 (2026-08-27): `\.\./`(상대 경로)·`&&`·`||`(셸 체이닝)은 정상 코딩 세션에서
+// 흔하고 그 자체로 파괴적이지 않아 dangerous_patterns에서 뺐다(Claude Code 훅의
+// DEFAULT_GUARDRAIL_CONFIG와 동일한 정리) — `cd src && make`, `cat ../x.json` 같은
+// 정상 명령이 차단되던 것을 없앴다. 남긴 건 되돌리기 어려운 실제 파괴 명령뿐이고,
+// Gate E 하드코딩 백스톱(tool_authorization)이 sudo/rm -rf/chmod 777 등을 계속 잡는다.
+// consecutive_repeat_threshold는 6→8, live_loop_window=15(latch 방지)를 추가했다.
+// on_loop_detected는 여전히 생략한다 — OpenCode는 셸 동작 전체가 단일 "bash" 도구라
+// 정상 연속 사용도 루프로 오탐될 수 있어 차단("fail") 대신 관찰("record")이 안전하다.
 const GUARDRAIL_CONFIG: GuardrailInitConfig = {
-  loop_detection: { consecutive_repeat_threshold: 6 },
+  loop_detection: { consecutive_repeat_threshold: 8 },
+  live_loop_window: 15,
   scope: { forbidden_tools: ["webfetch"], fail_on_violation: true },
   tool_parameter_safety: {
     dangerous_patterns: [
-      "\\.\\./", "&&", "\\|\\|", ";.*rm\\s", "__import__", "eval\\(", "exec\\(",
-      "\\brm\\s+\\S",
+      "\\brm\\s+-[a-zA-Z]*r[a-zA-Z]*f", "\\brm\\s+-[a-zA-Z]*f[a-zA-Z]*r",
+      ";\\s*rm\\s+-", "\\bmkfs\\b", "\\bdd\\s+if=.*of=/dev/",
+      ":\\(\\)\\s*\\{\\s*:\\s*\\|",
+      "\\|\\s*(sh|bash|zsh|ksh)\\b", "[<>]\\(\\s*(sh|bash|zsh|ksh)\\b",
+      "__import__", "eval\\(", "exec\\(",
     ],
     scope_tool_names: ["bash"],
+    max_argument_length: 100000,
     fail_on_dangerous: true,
   },
   tool_authorization: {},
 }
+
+// SPEC-041: 프로젝트별 설정은 이 파일(코드)을 편집하는 대신 옆에 두는
+// `agent-evaluator.config.json`(JSON 객체)으로 오버라이드할 수 있다. 그러면
+// `agent-eval opencode install`이 이 .ts(코드)를 최신으로 덮어써도 설정이 살아남는다
+// (Claude Code 훅의 guardrail_config.json과 동일한 분리 원칙). JSON의 최상위 키는
+// 위 GUARDRAIL_CONFIG 위에 *얕게* 병합된다 — 예: `{"scope": {...}}`만 적으면 scope
+// 블록만 교체되고 나머지 기본값(tool_parameter_safety 등)은 그대로 유지된다.
+// 파일이 없거나 JSON이 깨졌으면 위 인라인 기본값을 그대로 쓴다(회귀 없음).
+function resolveGuardrailConfig(): GuardrailInitConfig {
+  let overridePath: string
+  try {
+    overridePath = join(dirname(fileURLToPath(import.meta.url)), "agent-evaluator.config.json")
+  } catch {
+    return GUARDRAIL_CONFIG
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(overridePath, "utf-8"))
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      console.error(`[agent-evaluator] applying guardrail config override: ${overridePath}`)
+      return { ...GUARDRAIL_CONFIG, ...parsed }
+    }
+    console.error(`[agent-evaluator] ${overridePath} is not a JSON object — using built-in defaults`)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code
+    if (code !== "ENOENT") {
+      console.error(`[agent-evaluator] ignoring invalid ${overridePath}: ${err}`)
+    }
+  }
+  return GUARDRAIL_CONFIG
+}
+
+const EFFECTIVE_GUARDRAIL_CONFIG: GuardrailInitConfig = resolveGuardrailConfig()
 
 // 기본값 "__AGENT_EVALUATOR_PYTHON_DEFAULT__"는 `agent-eval opencode install`이 설치
 // 시점의 인터프리터 절대경로로 치환한다(이 번들 원본에는 리터럴 플레이스홀더로 남는다).
@@ -220,31 +278,103 @@ class GuardrailSession {
   // stdio: ["pipe", "pipe", "inherit"] — stderr는 부모로 상속되어 파이프되지 않으므로
   // stderr 스트림 타입은 null(ChildProcessWithoutNullStreams가 아님).
   private readonly proc: ChildProcessByStdio<Writable, Readable, null>
-  private readonly pending: Array<(msg: any) => void> = []
+  // SPEC-041: id → resolver. 예전엔 순수 FIFO 배열이라, 한 요청이 SEND_TIMEOUT_MS로
+  // 취소되면서 pending에서 빠진 뒤 브리지가 (느렸을 뿐) 그 요청의 응답을 늦게 뱉으면
+  // shift()가 그걸 *다음* 요청에 배정 → 이후 모든 응답이 한 칸씩 밀려 세션 내내
+  // 데스싱크됐다. 이제 요청마다 id를 붙이고 응답의 id로 매칭한다. Map은 삽입 순서를
+  // 보존하므로, id 없는(구 브리지) 응답은 가장 오래된 pending으로 FIFO 폴백한다.
+  private readonly pending = new Map<number, (msg: any) => void>()
+  private seq = 0
   private initPromise: Promise<void>
+  // SPEC-041: 브리지가 응답을 안 주고 hang하면 세션이 통째로 멈춘다 — 요청마다
+  // 타임아웃을 걸어 {error}로 resolve하고 호출부의 fail-open으로 흘려보낸다.
+  private static readonly SEND_TIMEOUT_MS = 5000
   // SPEC-028 REQ-2: 세션 생성 시각 — session.idle 시점에 경과 시간을 계산하는 데 쓴다.
   readonly startedAt: number = Date.now()
+  // SPEC-041: 마지막 도구 호출/스냅숏 시각 — 브리지 서브프로세스가 무한정 쌓이지
+  // 않도록 getOrCreateSession()에서 가장 오래 논 세션부터 회수하는 데 쓴다.
+  lastActivity: number = Date.now()
+  // SPEC-041: 직전에 transcript로 알린 위반/차단 건수 — session.idle이 턴마다 오므로,
+  // 새 위반이 생겼을 때만 synthetic 요약을 transcript에 덧붙여 컨텍스트 부풀림을 막는다.
+  reportedViolationCount = 0
 
   constructor() {
     this.proc = spawn(PYTHON_BIN, ["-m", "agent_evaluator.integrations.live_guardrail_stdio"], {
       stdio: ["pipe", "pipe", "inherit"],
     })
+    // SPEC-041: 브리지가 죽거나 stdout에 비-JSON 줄(스택트레이스 등)을 뱉어도
+    // 콜백에서 throw하지 않게 방어한다 — 대기 중인 요청은 파싱 실패를 그대로
+    // resolve해서 호출부의 fail-open 경로로 흘려보낸다.
     const rl = readline.createInterface({ input: this.proc.stdout })
     rl.on("line", (line) => {
-      const resolve = this.pending.shift()
-      if (resolve) resolve(JSON.parse(line))
+      let msg: any
+      try {
+        msg = JSON.parse(line)
+      } catch {
+        msg = { error: `non-JSON bridge output: ${line.slice(0, 200)}` }
+      }
+      // 응답에 숫자 id가 있으면(현행 브리지) 오직 그 id로만 매칭한다 — 이미 타임아웃
+      // 처리돼 pending에서 빠진 요청의 늦은 응답은 여기서 조용히 버린다(FIFO로
+      // 폴백하면 그 늦은 응답이 다음 요청에 잘못 배정되는 바로 그 데스싱크가 난다).
+      // id가 아예 없을 때만(구 브리지) 가장 오래된 pending으로 FIFO 폴백한다.
+      let key: number | undefined
+      if (msg && typeof msg.id === "number") {
+        key = this.pending.has(msg.id) ? msg.id : undefined
+      } else {
+        key = this.pending.keys().next().value
+      }
+      if (key === undefined) return
+      const resolve = this.pending.get(key)!
+      this.pending.delete(key)
+      resolve(msg)
     })
-    this.initPromise = this.send({ op: "init", ...GUARDRAIL_CONFIG }).then((res) => {
+    const failPending = (reason: string) => {
+      for (const resolve of this.pending.values()) resolve({ error: reason })
+      this.pending.clear()
+    }
+    this.proc.on("error", (err) => failPending(`bridge spawn error: ${err}`))
+    this.proc.on("exit", (code) => failPending(`bridge exited (code ${code})`))
+    // init 실패 시 throw하지 않는다 — initPromise가 reject되면 unhandled rejection이
+    // 되거나 check()가 매번 터진다. 대신 로그만 남기고, 이후 check/record send가
+    // 죽은 브리지로부터 {error}를 받아 호출부의 fail-open으로 흐르게 둔다.
+    this.initPromise = this.send({ op: "init", ...EFFECTIVE_GUARDRAIL_CONFIG }).then((res) => {
       if (!res?.ok) {
-        throw new Error(`[agent-evaluator] guardrail init failed: ${JSON.stringify(res)}`)
+        console.error(
+          `[agent-evaluator] guardrail init failed — checks will fail-open: ${JSON.stringify(res)}`,
+        )
       }
     })
   }
 
   private send(payload: Record<string, unknown>): Promise<any> {
+    const id = ++this.seq
     return new Promise((resolve) => {
-      this.pending.push(resolve)
-      this.proc.stdin.write(JSON.stringify(payload) + "\n")
+      let settled = false
+      const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        this.pending.delete(id)
+        resolve({ error: "bridge response timeout" })
+      }, GuardrailSession.SEND_TIMEOUT_MS)
+      const entry = (msg: any) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve(msg)
+      }
+      this.pending.set(id, entry)
+      try {
+        this.proc.stdin.write(JSON.stringify({ ...payload, id }) + "\n")
+      } catch (err) {
+        // stdin이 닫혔으면(브리지 사망) 이 요청을 즉시 실패로 resolve — 위 check()의
+        // try/catch가 fail-open으로 처리한다.
+        clearTimeout(timer)
+        this.pending.delete(id)
+        if (!settled) {
+          settled = true
+          resolve({ error: `bridge stdin write failed: ${err}` })
+        }
+      }
     })
   }
 
@@ -284,12 +414,33 @@ class GuardrailSession {
 
 const sessions = new Map<string, GuardrailSession>()
 
+// SPEC-041: OpenCode의 session.idle은 세션당 *여러 번* 발생한다(턴이 끝날 때마다).
+// 예전엔 idle마다 endSession()으로 브리지를 죽여, 다음 턴이 빈 이력으로 새 브리지를
+// 스폰했다 — 턴을 가로지르는 loop/scope/deadlock 탐지와 max_tool_calls 누적 상한이
+// 리셋되고, task_id upsert라 최종 리포트가 "마지막 턴"만 반영(앞 턴의 위반이 지워짐)
+// 됐다. 이제 브리지는 세션 내내 살려두고(누적 상태 유지가 원래 설계) idle마다
+// 스냅숏+리포트만 upsert한다. 진짜 회수는 dispose/session.error, 그리고 아래
+// LRU 상한(장기 데몬에서 브리지 프로세스 무한 증식 방지)에서만 한다.
+const MAX_LIVE_SESSIONS = 64
+
 function getOrCreateSession(sessionId: string): GuardrailSession {
   let session = sessions.get(sessionId)
   if (!session) {
+    if (sessions.size >= MAX_LIVE_SESSIONS) {
+      let oldestId: string | undefined
+      let oldest = Infinity
+      for (const [id, s] of sessions) {
+        if (s.lastActivity < oldest) { oldest = s.lastActivity; oldestId = id }
+      }
+      if (oldestId !== undefined) {
+        console.error(`[agent-evaluator] MAX_LIVE_SESSIONS reached — reaping idle session ${oldestId}`)
+        endSession(oldestId)
+      }
+    }
     session = new GuardrailSession()
     sessions.set(sessionId, session)
   }
+  session.lastActivity = Date.now()
   return session
 }
 
@@ -299,6 +450,25 @@ function endSession(sessionId: string): void {
     session.shutdown()
     sessions.delete(sessionId)
   }
+}
+
+/** snapshot extra에서 세션 누적 "나쁜 신호" 총계 — session.idle이 턴마다 오므로,
+ * 이 값이 지난번보다 늘었을 때만 synthetic 요약을 transcript에 덧붙인다(SPEC-041). */
+function countGuardrailViolations(extra: Record<string, any>): number {
+  let n = 0
+  n += Array.isArray(extra?.blocked_attempts) ? extra.blocked_attempts.length : 0
+  if (extra?.loop_detection?.detected) n += 1
+  if (extra?.deadlock?.deadlock_detected) n += 1
+  if (extra?.scope && extra.scope.in_scope === false) {
+    n += Array.isArray(extra.scope.violations) ? extra.scope.violations.length : 1
+  }
+  n += Array.isArray(extra?.tool_parameter_safety?.dangerous_calls)
+    ? extra.tool_parameter_safety.dangerous_calls.length : 0
+  n += typeof extra?.tool_authorization?.total_violations === "number"
+    ? extra.tool_authorization.total_violations : 0
+  if (extra?.privilege_escalation?.escalation_detected) n += 1
+  if (extra?.tool_chain_attack?.is_suspicious_chain) n += 1
+  return n
 }
 
 /** Gate B/E extra에서 실제 위반/이상 신호만 뽑아 사람이 읽을 수 있는 요약을 만든다.
@@ -388,12 +558,14 @@ async function recordVerdictToTranscript(
   }
 }
 
-/** session.idle: 세션의 최종 Gate B/E extra를 스냅숏해 배치 리포트로 편입하고,
- * 그 판정 요약을 세션 transcript에 기록한 뒤 세션을 종료한다(SPEC-019 REQ-6 +
- * ctx 피드백 루프). */
+/** session.idle: 세션의 현재까지 누적된 Gate B/E extra를 스냅숏해 배치 리포트로
+ * upsert하고, 새 위반이 있으면 그 요약을 세션 transcript에 덧붙인다(SPEC-019 REQ-6 +
+ * ctx 피드백 루프). session.idle은 턴마다 오므로 여기서 세션을 종료하지 않는다
+ * (SPEC-041) — 브리지는 dispose/session.error/LRU 상한에서만 회수한다. */
 async function handleSessionIdle(client: PluginInput["client"], sessionId: string): Promise<void> {
   const session = sessions.get(sessionId)
   if (!session) return
+  session.lastActivity = Date.now()
   try {
     const extra = await session.snapshot()
     // SPEC-028 REQ-2: 세션 전체 경과 시간(초) — 도구 호출 사이 유휴 시간을 포함한
@@ -408,25 +580,46 @@ async function handleSessionIdle(client: PluginInput["client"], sessionId: strin
     } else {
       console.error(`[agent-evaluator] failed to record session ${sessionId}: ${result.error}`)
     }
-    const summary = summarizeGuardrailResult(sessionId, extra, result)
-    await recordVerdictToTranscript(client, sessionId, summary)
+    // session.idle은 턴마다 오므로, 깨끗한 세션에 매 턴 "위반 없음" synthetic 파트를
+    // 붙이면 컨텍스트만 부풀린다. 차단/위반 총계가 지난번보다 늘었을 때만 기록한다.
+    const violationCount = countGuardrailViolations(extra)
+    if (violationCount > session.reportedViolationCount) {
+      session.reportedViolationCount = violationCount
+      const summary = summarizeGuardrailResult(sessionId, extra, result)
+      await recordVerdictToTranscript(client, sessionId, summary)
+    }
   } catch (err) {
     console.error(`[agent-evaluator] failed to record session ${sessionId}:`, err)
-  } finally {
-    endSession(sessionId)
   }
+  // SPEC-041: endSession()을 여기서 하지 않는다 — session.idle은 턴마다 오므로
+  // 브리지를 살려둬야 다음 턴이 누적 이력을 이어받는다. 회수는 dispose /
+  // session.error / getOrCreateSession()의 LRU 상한에서만.
 }
 
 export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
   return {
     "tool.execute.before": async (input, output) => {
       const sessionId = input.sessionID
-      const session = getOrCreateSession(sessionId)
-      const verdict = await session.check(sessionId, input.tool, output.args)
+      let verdict: LiveVerdict
+      try {
+        const session = getOrCreateSession(sessionId)
+        verdict = await session.check(sessionId, input.tool, output.args)
+      } catch (err) {
+        // SPEC-041: fail-open — 파이썬 브리지 인프라 오류(패키지 미설치, 서브프로세스
+        // 사망, 손상된 응답 등)가 세션의 *모든* 도구 호출을 막아버리면 안 된다.
+        // claude_code_hook.run()의 예외=fail-open 원칙과 동일. verdict.block==true인
+        // "실제 판정"일 때만 차단한다.
+        console.error(`[agent-evaluator] guardrail check failed — allowing tool "${input.tool}": ${err}`)
+        return
+      }
       if (verdict.block) {
         // SPEC-030 REQ-6: 이 시도를 실제로 실행하지 않기로 확정하는 지점 —
         // 에러를 던지기 전에 감사 이력에 기록한다.
-        await session.recordBlocked(sessionId, input.tool, verdict)
+        try {
+          await getOrCreateSession(sessionId).recordBlocked(sessionId, input.tool, verdict)
+        } catch (err) {
+          console.error(`[agent-evaluator] recordBlocked failed: ${err}`)
+        }
         // 이 에러 메시지가 다음 턴 컨텍스트에 노출되어 로컬 모델(qwen-code 등)의
         // 자가 교정 신호가 된다 — SPEC-019 Context 참조.
         throw new Error(`[agent-evaluator] blocked by Gate ${verdict.gate}: ${verdict.reason}`)
@@ -438,9 +631,14 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
       // SPEC-031 REQ-3: output.output(타입 보장)을 stdout으로, output.metadata(any —
       // 미검증, extractToolExecutionOutput() 주석 참조)에서 best-effort로 exit code를
       // 뽑아 Gate G(ToolCallAnalyzer)가 실제 성공/실패를 반영하게 한다.
-      const sessionId = input.sessionID
-      const session = getOrCreateSession(sessionId)
-      await session.record(sessionId, input.tool, input.args, extractToolExecutionOutput(output))
+      // SPEC-041: 기록 실패가 세션을 깨면 안 되므로 삼킨다(fail-open).
+      try {
+        const sessionId = input.sessionID
+        const session = getOrCreateSession(sessionId)
+        await session.record(sessionId, input.tool, input.args, extractToolExecutionOutput(output))
+      } catch (err) {
+        console.error(`[agent-evaluator] tool.execute.after record failed: ${err}`)
+      }
     },
 
     // session.idle/session.error는 독립 훅이 아니라 이 단일 event 훅으로 전달된다.

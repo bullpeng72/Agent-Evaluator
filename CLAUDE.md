@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.0.0-rc.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.0-rc2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -115,19 +115,104 @@ agent_evaluator/
 │   │                       #  반환한 시도를 호출자가 명시적으로 감사 이력(blocked_violations)에 기록
 │   │                       #  record_tool_call(output=...) — success/exit_code/stdout/stderr
 │   │                       #  옵트인 전달, max_tool_output_chars로 truncate. 미지정 시 회귀 없음
+│   │                       #  live_loop_window(기본 15) — check_before_tool_call()의 루프
+│   │                       #  판정을 최근 N호출 트레일링 윈도우로만 한정(세션 초반 반복 하나가
+│   │                       #  세션 전체를 막는 latch 방지). None이면 전체 이력(구 동작).
+│   │                       #  snapshot()/배치 경로는 항상 전체 이력을 본다 — 이 축소는 실시간 전용
+│   │                       #  live_loop_blocking_types(기본 ("consecutive_repeat",)) —
+│   │                       #  on_loop_detected="fail"이어도 이 타입만 차단. window_duplicate/
+│   │                       #  response_similarity는 소프트 신호라 fail이어도 통과(snapshot엔 남음)
+│   │                       #  SPEC-041: 루프 판정은 도구 *이름*이 아니라 (이름 + 정렬된 인자
+│   │                       #  JSON, 길면 전체 SHA1)으로 동일성을 따진다 — Claude "Bash"/"Edit",
+│   │                       #  OpenCode "bash"처럼 굵은 도구를 서로 다른 인자로 8번 이어 호출한
+│   │                       #  정상 작업(npm test→git status→ls, 연속 편집)이 consecutive_repeat로
+│   │                       #  오탐되던 것 방지. *완전히 동일한* 호출 반복만 루프. 실시간
+│   │                       #  (check)뿐 아니라 snapshot()/배치 리포트도 같은 식별자를 쓴다
+│   │                       #  — 이름 기준이면 정상 세션이 loop_detection.detected=True로 잡혀
+│   │                       #  Gate B 점수를 떨어뜨려 CI `agent-eval gate`가 오탈락시켰다.
+│   │                       #  긴 인자는 앞부분만 자르지 않고 전체 SHA1(접두어만 같고 뒤가
+│   │                       #  다른 연속 편집의 오탐 collision 방지). _loop_call_identity() 참고.
+│   │                       #  합성 식별자는 verdict.detail·snapshot 출력에 새지 않도록
+│   │                       #  _clean_loop_result()가 loop_tool·detected_loops[].loop_tool을
+│   │                       #  사람이 읽을 이름으로 되돌린다(check + snapshot 공유).
+│   │                       #  auth_scan_skip_keys(기본: Claude Write/Edit/NotebookEdit의
+│   │                       #  content/old_string/new_string/new_source, OpenCode edit/patch의
+│   │                       #  oldString/newString/patchText, MCP의 file_text/edits/diff/oldText/
+│   │                       #  newText, TodoWrite의 todos 등) — tool_authorization 하드코딩 백스톱
+│   │                       #  (rm -rf/sudo/eval(/DROP TABLE…, 커스터마이즈 불가)이 모든 파라미터
+│   │                       #  JSON을 스캔하는데, *파일 본문*에 위 문자열이 있으면(README의 sudo,
+│   │                       #  배포 스크립트의 rm -rf, SQL의 DROP TABLE 등) 정상 파일 생성이 통째로
+│   │                       #  차단되던 걸 막는다. 이 키들의 값은 백스톱 스캔에서 제외(check + record
+│   │                       #  양쪽). ()면 옛 동작. 파일에 위험 명령을 쓰는 것 자체는 무해(실행돼야
+│   │                       #  위험, 실행은 Bash에서 잡힘)
+│   │                       #  SPEC-041: check_before_tool_call()의 tool_parameter_safety 검사는
+│   │                       #  *이번 호출만* 스캔한다(과거 _candidate 전체 아님) — 세션 길이에
+│   │                       #  비례한 O(n²) 재스캔과, 과거 위험 호출 하나가 이후 전부를 막는 latch
+│   │                       #  방지. scope도 forbidden_tools/allowed_tools만이면 이번 호출만 보고,
+│   │                       #  max_tool_calls/max_unique_tools(누적 상한)가 설정된 경우에만 이력
+│   │                       #  전체를 본다. deadlock/privilege_escalation/tool_chain_attack은
+│   │                       #  체인 전체가 필요해 이력 기준 유지(오탐 시 circuit breaker가 해제).
+│   │                       #  snapshot()/배치는 여전히 전체 이력을 본다.
+│   │                       #  lenient_shell_file_write(기본 True) — cat/tee/echo/printf가
+│   │                       #  리다이렉트(>,>>)·heredoc(<<)·`producer | tee [-a] FILE`(1단계
+│   │                       #  파이프, `| sudo tee /etc/…` 포함)로 파일을 만들고, 껍데기(heredoc
+│   │                       #  본문·따옴표·fd리다이렉트·`>/dev/null` 제거, `|` 분리 후 세그먼트)에
+│   │                       #  `` ` `` `$(` `;` `&&` `||` `<(` `>(` 백그라운드 `&`가 하나도 없으면,
+│   │                       #  명령 안의 rm -rf/sudo/DROP TABLE 등은 파일 *내용*이므로
+│   │                       #  dangerous_patterns/백스톱을 건너뛴다(Write와 동일 취급). 따옴표 없는
+│   │                       #  <<EOF 본문의 $( )·백틱은 실행되므로 예외. `echo x | tee f | sh`(2단계
+│   │                       #  파이프)·`cat > >(sh)`(프로세스치환)은 여전히 스캔·차단.
+│   │                       #  _is_benign_shell_file_write() 참고. record_tool_call은 benign
+│   │                       #  write에 _benign_write=True 표식 → snapshot()의 tool_parameter_safety
+│   │                       #  스캔에서 제외(실시간 allow와 배치 리포트 점수 일치). loop 식별자는
+│   │                       #  원본 arguments 그대로 사용.
+│   │                       #  team_concurrency/branch_guard의 scoped_tool_names 매칭은 대소문자
+│   │                       #  무시(_tool_in) — OpenCode "bash"/"edit" ↔ Claude "Bash"/"Edit".
+│   │                       #  기본 scoped_tool_names·path_param_candidates도 양쪽 표기 모두 포함
+│   │                       #  (file_path/notebook_path 등). 과거엔 소문자 기본값이라 Claude Code
+│   │                       #  훅에서 두 기능이 조용히 미발화했다.
+│   │                       #  privilege_escalation/tool_chain_attack의 peek-후-복원은 [:-1] 대신
+│   │                       #  호출 전 길이로 슬라이스 — analyze_*가 safe-workflow whitelist 등으로
+│   │                       #  조기 반환해 append 안 할 때 이전 항목이 지워지던 버그 수정.
+│   │                       #  protected_write_paths(기본: ~/.ssh·셸 rc(.bashrc/.zshrc/.profile)·
+│   │                       #  ~/.aws/credentials·~/.gnupg·/etc·/usr·/bin·크론·LaunchAgents 등
+│   │                       #  regex 리스트) — 파일 *위치*가 민감하면 도구·내용과 무관하게
+│   │                       #  Gate E로 차단(benign 셸 쓰기여도). Write/Edit/NotebookEdit/MCP-write는
+│   │                       #  파라미터 키(file_path/filePath/path/notebook_path)에서, 순수 셸
+│   │                       #  쓰기는 `> TARGET`/`tee TARGET`을 파싱해 대상 추출. 프로젝트
+│   │                       #  `.git/hooks/`는 의도적으로 목록에서 제외(정상 셋업). None/[]이면 끔.
+│   │                       #  _extract_write_targets()/_protected_write_hit() 참고.
+│   │                       #  대상 파싱: `> "..."` `> '...'` `> $HOME/x` `tee "..."` +
+│   │                       #  `sed -i FILE`/`perl -pi FILE`/`cp x DEST`/`mv x DEST`/`dd of=DEST`/
+│   │                       #  `ln -sf t LINK`/`install ... DEST`/`truncate FILE`/`rsync ... DEST`
+│   │                       #  (`> FILE` 대신 이걸로 민감 경로에 쓰는 우회를 잡음). `a;b&&c`는
+│   │                       #  세그먼트별 검사, `sudo`/`time`/`env X=y` 접두 허용. cp/mv는 목적지
+│   │                       #  (마지막 인자)만 봐서 `cp ~/.ssh/config /tmp`(read from protected)는 통과.
+│   │                       #  견고성(SPEC-041): tool_name이 None/비-str이어도 str로 정규화(.lower
+│   │                       #  크래시 방지), record_tool_call의 output이 dict가 아니면 무시
+│   │                       #  ('stdout' in "…stdout…" substring 후 TypeError 나던 것), branch_guard
+│   │                       #  json.dumps는 default=str+try/except. load_active_claims는 손상된
+│   │                       #  claims.jsonl 줄을 건너뛴다(한 줄 오류가 LiveGuardrail 생성을 안 깬다).
 │   │                       #  team_concurrency=TeamConcurrencyConfig(...) — 생성자 시점 1회
 │   │                       #  로드한 .aoo/claims.jsonl로 read/edit/write 스코프 겹침 자동 차단
 │   │                       #  (bash 제외), refresh_team_claims()로 수동 재조회
-│   │                       #  branch_guard=BranchGuardConfig(...) — 생성자 시점 1회 조회한
-│   │                       #  현재 git 브랜치가 protected_branches(기본 main/master)이거나
-│   │                       #  require_branch_prefix와 불일치하면 git commit/push 자동 차단(fail-open)
+│   │                       #  branch_guard=BranchGuardConfig(...) — 현재 git 브랜치가
+│   │                       #  protected_branches(기본 main/master)이거나 require_branch_prefix와
+│   │                       #  불일치하면 git commit/push 자동 차단(fail-open). recheck_branch=True
+│   │                       #  (기본)면 커밋/푸시 직전에 브랜치를 다시 조회 — OpenCode 상주
+│   │                       #  프로세스에서 세션 중 `git checkout main` 후 커밋이 통과되던 구멍 방지
+│   │                       #  (Claude 훅은 호출마다 새 프로세스라 어느 쪽이든 항상 최신).
 │   │                       #  tool_guard() 데코레이터 + live_guardrail_session() 컨텍스트
 │   │                       #  매니저 — 도구 함수에 @tool_guard를 붙이면 세션 블록 안에서 호출될 때
 │   │                       #  check_before_tool_call() → 실행 → record_tool_call()이 자동으로
 │   │                       #  이어진다(새 탐지 로직 아님, 순수 적용 계층). 차단 시 GuardrailBlockedError
 │   │                       #  (.verdict에 판정 담김), audit_blocked=True로 record_blocked_attempt()
 │   │                       #  자동 연결, fail_closed=False(기본)면 세션 밖 호출을 RuntimeWarning만
-│   │                       #  내고 가드 없이 통과(다른 fail_on_*와 반대로 fail-open이 기본값)
+│   │                       #  내고 가드 없이 통과(다른 fail_on_*와 반대로 fail-open이 기본값).
+│   │                       #  SPEC-041: 감싼 함수가 예외를 던져도 record_tool_call(output=
+│   │                       #  {"success":False})로 이력에 남긴다(같은 실패 명령 반복을 루프로
+│   │                       #  잡고 Gate G 성공률 정확화). _bind_call_params는 이름 바인딩 실패 시
+│   │                       #  {} 대신 {"_args":..,"_kwargs":..}를 넘겨 인자 값이 스캔되게 한다.
 │   ├── team_concurrency.py # TeamConcurrencyConfig · load_active_claims() · check_scope_claim() ·
 │   │                       #  append_claim() — .aoo/claims.jsonl 클레임 로그 파싱·기록
 │   │                       #  audit_claims() — load_active_claims()/_scopes_overlap() 재사용해
@@ -157,6 +242,25 @@ agent_evaluator/
 │   │   │                   #  (decode_encodings=True) 옵트인 시 base64/hex로 인코딩된 위험 명령을
 │   │   │                   #  디코드해 기존 dangerous_patterns로 재매치(새 탐지 규칙 아님, printable
 │   │   │                   #  90% 필터로 오탐 방지, max_depth=2까지 재귀)
+│   │   │                   # eval_tool_parameter_safety: scope_tool_names(SPEC-024)는 이제
+│   │   │                   #  dangerous_patterns뿐 아니라 길이 검사(max_argument_length)까지
+│   │   │                   #  게이트한다(SPEC-041) — Write/Edit처럼 인자=파일 본문인 도구를
+│   │   │                   #  스코프에서 빼면 큰 파일 생성이 arg_too_long으로 오탐되지 않는다.
+│   │   │                   #  scope_tool_names=None(기본값)이면 기존과 동일하게 전체 검사.
+│   │   │                   #  SPEC-041: dangerous_patterns 매칭은 args_str에서 이스케이프된
+│   │   │                   #  \n/\t/\r을 공백으로 되돌린 _scan_str에 대고 한다 — json.dumps가
+│   │   │                   #  개행을 '\'+'n'으로 이스케이프해, 여러 줄 셸 명령의 2번째 줄
+│   │   │                   #  이후 토큰 앞에 'n'이 붙어 \b(단어경계) 앵커가 깨지던 것 수정
+│   │   │                   #  (기본 패턴이 전부 \brm/\bmkfs/\bdd/\bcurl로 시작). 길이 검사는
+│   │   │                   #  원본 args_str 길이 유지.
+│   │   │                   #  SPEC-041: eval_scope의 forbidden_tools/allowed_tools 매칭과
+│   │   │                   #  eval_tool_parameter_safety의 scope_tool_names 매칭은 이제
+│   │   │                   #  대소문자를 무시한다(_tool_name_in) — OpenCode "bash"/"webfetch" ↔
+│   │   │                   #  Claude "Bash"/"WebFetch". 하나의 guardrail_config.json을 두 런타임
+│   │   │                   #  공용으로 쓸 수 있게 하기 위함. 과거엔 정확 문자열 매치라
+│   │   │                   #  forbidden_tools=["WebFetch"]가 OpenCode에서 조용히 미발효하고
+│   │   │                   #  scope_tool_names=["Bash"]가 OpenCode bash 호출의 dangerous_patterns
+│   │   │                   #  스캔을 통째로 스킵했다. violations 문자열엔 실제 표기를 그대로 남긴다.
 │   │   └── aggregate.py    # Gate B 집계 로직 (loop+state_consistency+deadlock+scope+tps+context_window;
 │   │                       #  avg_goal_alignment/avg_plan_coherence는 Gate A에서 파라미터로 전달받아 진단용 재참조)
 │   ├── gate_c_reliability/ # Gate C(Reliability)
@@ -214,9 +318,16 @@ agent_evaluator/
 ├── core/
 │   ├── trackers/
 │   │   ├── base.py        # BaseTracker, TaskResult, EvaluationReport, TaskType
-│   │   ├── layer1.py      # Layer 1 trackers
-│   │   ├── layer2.py      # Layer 2 trackers
-│   │   ├── security.py    # Security trackers
+│   │   ├── layer1.py      # Layer 1 trackers (pandas/numpy는 SPEC-041 B45로 지연 로딩 —
+│   │   │                  #  Claude Code 훅 콜드스타트에서 eager import pandas ~135ms 제거.
+│   │   │                  #  pd/np 사용처는 전부 get_*_stats() 등 배치 리포트 메서드 안이고
+│   │   │                  #  실시간 판정 경로는 안 건드림. 패턴: `if TYPE_CHECKING: import
+│   │   │                  #  pandas as pd / else: pd = _LazyModule("pandas")` — 런타임엔
+│   │   │                  #  프록시(무료), 타입 체커엔 실제 모듈로 보여 `-> pd.DataFrame`
+│   │   │                  #  어노테이션이 해석된다(Pylance reportInvalidTypeForm 회피).
+│   │   │                  #  from __future__ import annotations라 런타임 어노테이션 평가도 없음)
+│   │   ├── layer2.py      # Layer 2 trackers (pd도 동일 TYPE_CHECKING/LazyModule 패턴)
+│   │   ├── security.py    # Security trackers (pd도 동일 TYPE_CHECKING/LazyModule 패턴)
 │   │   ├── monitor.py     # PerformanceMonitor (central orchestrator)
 │   │   │                  #  rehydrate_from_storage() — SQLite 이력 재생으로 재시작 생존 이상탐지 기준선
 │   │   │                  #  agent_version="auto" — 캐싱된 self._git_commit 앞 8자 +
@@ -235,6 +346,44 @@ agent_evaluator/
 │   ├── llm_judge_calibration.py  # LLMJudgeCalibration — judge-vs-human 골든셋 일치도
 │   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
 │   ├── live_guardrail_stdio.py   # LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
+│   │                       #  build_guardrail이 받는 키: 4개 Config + tracker 3종 +
+│   │                       #  max_tool_output_chars/live_loop_window/live_loop_blocking_types/
+│   │                       #  auth_scan_skip_keys/lenient_shell_file_write/protected_write_paths.
+│   │                       #  SPEC-041: 한 Config/tracker 블록에 오타 키·잘못된 값이 있으면 그
+│   │                       #  블록만 건너뛰고(stderr 경고) 나머지로 빌드 — 과거엔 오타 하나가
+│   │                       #  전체 빌드를 깨서 가드레일이 통째로 fail-open 됐다.
+│   │                       #  SPEC-041: 요청에 "id"가 있으면 응답에 그대로 되돌려 실어 준다
+│   │                       #  (_write의 _req_id) — 비-Python 호출자가 응답을 FIFO가 아니라
+│   │                       #  id로 매칭해, 타임아웃으로 취소된 요청의 늦은 응답이 다음 요청에
+│   │                       #  잘못 배정되는 영구 데스싱크를 피한다. id 없으면 응답에도 안 붙음
+│   │                       #  (구 호출자 100% 호환). 프로토콜은 여전히 "1요청→1응답, 순서 보존".
+│   ├── opencode_plugin/agent-evaluator.ts  # OpenCode tool.execute.before/after 훅 → stdio 브리지.
+│   │                       #  SPEC-041: tool.execute.before/after·GuardrailSession(stdio 콜백·
+│   │                       #  stdin write·process error/exit)를 전부 try/catch로 감싸 브리지가
+│   │                       #  죽거나 비-JSON을 뱉어도 fail-open(도구 통과) — 과거엔 예외가
+│   │                       #  그대로 전파돼 파이썬 미설치 시 세션의 모든 도구가 막혔다
+│   │                       #  (claude_code_hook.run()의 fail-open과 반대였음). 요청마다
+│   │                       #  5초 타임아웃(SEND_TIMEOUT_MS) — hang한 브리지가 세션을 통째로
+│   │                       #  멈추지 않고 {error}로 resolve → fail-open.
+│   │                       #  SPEC-041: GuardrailSession.pending은 id→resolver Map(구:FIFO
+│   │                       #  배열) — 응답을 요청 id로 매칭한다. 타임아웃난 요청은 pending에서
+│   │                       #  빠지고, 그 요청의 늦은 응답(id 존재하나 pending에 없음)은 조용히
+│   │                       #  버린다(FIFO 폴백 금지 — 그게 데스싱크의 원인). id 없는 응답만
+│   │                       #  (구 브리지) 가장 오래된 pending으로 폴백.
+│   │                       #  SPEC-041: session.idle은 세션당 여러 번(턴마다) 발생 — 예전엔
+│   │                       #  idle마다 endSession()으로 브리지를 죽여 다음 턴이 빈 이력으로
+│   │                       #  시작(턴 가로지르는 loop/scope 탐지·max_tool_calls 누적 상한 리셋,
+│   │                       #  task_id upsert라 최종 리포트가 "마지막 턴"만 반영해 앞 턴 위반이
+│   │                       #  지워짐). 이제 브리지는 세션 내내 살려두고 idle마다 스냅숏+리포트
+│   │                       #  upsert만. 회수는 dispose/session.error/MAX_LIVE_SESSIONS(64) LRU
+│   │                       #  상한. synthetic transcript 요약은 위반 총계가 늘었을 때만 덧붙임
+│   │                       #  (countGuardrailViolations, 매 턴 "위반 없음" 컨텍스트 부풀림 방지).
+│   │                       #  SPEC-041: 프로젝트 설정은 .ts 인라인 GUARDRAIL_CONFIG를 편집하는
+│   │                       #  대신 옆에 두는 agent-evaluator.config.json(JSON 객체)으로 오버라이드
+│   │                       #  — resolveGuardrailConfig()가 최상위 키를 인라인 기본값 위에 *얕게*
+│   │                       #  병합(EFFECTIVE_GUARDRAIL_CONFIG). 파일 없거나 깨졌으면 인라인 그대로.
+│   │                       #  Claude 훅의 guardrail_config.json과 동일 분리 원칙 — `opencode
+│   │                       #  install`이 .ts(코드)를 갱신해도 config는 안 건드린다.
 │   ├── live_guardrail_report.py  # SQLite 기반 배치 리포트 브리지 (다중 세션 동시 기록)
 │   │                       #  tool_calls를 TaskResult.tool_calls로 승격(Gate G) ·
 │   │                       #  execution_time/success 옵트인 필드(Gate D/A, success 미지정 시
@@ -246,6 +395,10 @@ agent_evaluator/
 │   │                       #  프로세스 모델과 다름), 세션별 상태 파일(.claude/.agent-evaluator/
 │   │                       #  sessions/<id>.json)에 확정 tool_call 이력을 남기고 매 호출마다
 │   │                       #  record_tool_call()로 재생(replay)해 판정 상태를 복원한다 — 새
+│   │                       #  SPEC-041: <id>는 _safe_session_id()로 [A-Za-z0-9._-]만 남기고
+│   │                       #  앞쪽 점을 제거한다(방어적) — session_id가 그대로 상태 파일
+│   │                       #  경로에 쓰이므로 `/`·`..`가 sessions/ 밖으로 새는 것 차단.
+│   │                       #  Claude Code는 UUID만 넘기지만 4개 상태 파일 헬퍼가 모두 동일 적용.
 │   │                       #  탐지 로직 없음, live_guardrail_stdio.build_guardrail()과
 │   │                       #  live_guardrail_report.record_and_save()를 그대로 재사용.
 │   │                       #  team_concurrency/branch_guard도 build_guardrail()이 다루는 키라
@@ -253,6 +406,42 @@ agent_evaluator/
 │   │                       #  live_guardrail_stdio.py의 _CONFIG_CLASSES에 두 키가 등록되며 해소됨).
 │   │                       #  예외는 항상 fail-open(판정 없음 반환) — 브리지 버그가 모든
 │   │                       #  도구 호출을 막아버리면 안 되므로.
+│   │                       #  load_config() 탐색 순서(SPEC-041): <cwd>/.claude/.agent-evaluator/
+│   │                       #  guardrail_config.json → cwd 상위로 walk-up → ~/.claude/.agent-
+│   │                       #  evaluator/guardrail_config.json → DEFAULT_GUARDRAIL_CONFIG.
+│   │                       #  과거엔 <cwd>만 봐서 `claude install --global` 설정이 무시됐다.
+│   │                       #  SPEC-041: _session_config()가 첫 PreToolUse에서 해석한 설정을
+│   │                       #  sessions/<id>.config.json에 고정한다 — 훅이 호출마다 별도
+│   │                       #  프로세스라, 세션 도중 config 파일이 바뀌면 PreToolUse들이 서로
+│   │                       #  다른 설정으로 판정하고 SessionEnd 리포트도 세션이 실제 강제한
+│   │                       #  것과 다른 설정으로 점수를 내던 것 방지. SessionEnd는 고정본을
+│   │                       #  읽고(없으면 만들지 않음) 세션 종료 시 삭제. config 변경은
+│   │                       #  새 세션부터 적용(OpenCode는 .ts const라 원래 세션 시작 고정).
+│   │                       #  circuit_breaker_after(기본 5, 0/null이면 끔) — 한 세션에서 연속
+│   │                       #  N회 차단되면 남은 세션 동안 관찰 전용(allow+systemMessage)으로
+│   │                       #  전환. 지속 차단은 공격보다 오설정일 확률이 압도적이라 무기한
+│   │                       #  락아웃을 막는다. 위반은 계속 감사(sessions/<id>.circuit.json
+│   │                       #  카운터 + blocked.json에 enforced=false로 기록), PostToolUse가
+│   │                       #  성공 실행 시 연속 카운터 리셋. build_guardrail 전에 pop되는
+│   │                       #  브리지 전용 키(output_dir와 동일 패턴).
+│   │                       #  DEFAULT_GUARDRAIL_CONFIG(SPEC-041): dangerous_patterns에서
+│   │                       #  `../`·`&&`·`||`·단일 `rm foo` 제거(코딩 세션 오탐), 재귀+강제
+│   │                       #  삭제/mkfs/dd of=dev/fork bomb/curl|sh만 유지. tool_parameter_safety를
+│   │                       #  scope_tool_names=["Bash"] + max_argument_length=100000으로 좁혀
+│   │                       #  Write/Edit 파일 본문이 arg_too_long으로 차단되지 않게 함.
+│   │                       #  이력 파일은 JSON 배열→JSON Lines(append-only) — read-modify-write
+│   │                       #  제거로 O(n²) I/O를 O(n)으로, 병렬 PostToolUse 레코드 유실 방지.
+│   │                       #  _load_json_list는 레거시 배열 파일·잘린 마지막 줄도 관대하게 읽음.
+│   │                       #  PostToolUse 결과 성공 판정: Claude Code는 성공에 type="text"를
+│   │                       #  보낸다(에러는 "error"/"failure") — 과거 type=="success"만 성공으로
+│   │                       #  봐서 모든 성공 호출을 실패로 기록하고 stdout을 stderr로 넣던 버그 수정.
+│   │                       #  run()은 int 반환 — PreToolUse deny면 JSON(permissionDecision=deny)
+│   │                       #  + exit 2 + stderr 사유를 함께 낸다(구버전/다른 하네스가 JSON을
+│   │                       #  파싱 안 해도 차단이 먹도록). __main__은 sys.exit(run()).
+│   │                       #  서브에이전트(Task) tool 호출은 부모 session_id로 오되 payload에
+│   │                       #  agent_id가 있으면 PostToolUse가 세션 이력에 그대로 남긴다(리포트용).
+│   │                       #  DEFAULT dangerous_patterns에 파이프-투-셸 `\|\s*(sh|bash|zsh|ksh)\b`
+│   │                       #  와 프로세스치환-투-셸 `[<>]\(\s*(sh|bash|zsh|ksh)\b` 추가.
 │   ├── violation_search_mcp.py   # search_violations() 도구 1개를 노출하는 stdio MCP 서버
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
 │   │                       #  include_blocked=True로 호출하면 완전 차단된("관찰"이 아닌) 이력까지
@@ -262,21 +451,45 @@ agent_evaluator/
 │   │                       #  등록) — ontology.metric_registry(GATE_GUIDANCE/NATIVE_METRIC_RULES/
 │   │                       #  ANOMALY_METRIC_SUGGESTIONS)·ontology.mast_taxonomy(Gate F)를 그대로
 │   │                       #  읽는 정적 지식 조회, 새 판정 로직 없음. 결과 파일 불필요 —
-│   │                       #  rca.diagnose()(Gate F만 처방)와 달리 Gate A-G 전체에 답한다
+│   │                       #  rca.diagnose()(Gate F만 처방)와 달리 Gate A-G 전체에 답한다.
+│   │                       #  SPEC-041: metric은 canonical_metric_name()으로 정규화한다 —
+│   │                       #  diagnose()가 주는 필드명(hall_rate, avg_role_compliance,
+│   │                       #  p95_latency_ms, tcr_pct…)을 규칙/제안/MAST 키로 매핑해 "규칙 있는데
+│   │                       #  없다"고 답하던 어휘 불일치 제거. 이름이 바뀌면 사용자에게 고지.
+│   │                       #  main()은 [mcp] extra 미설치 시 bare ImportError 대신 설치 안내
+│   │                       #  (stderr) + exit 1(violation_search_mcp.py도 동일).
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
 │   └── pydanticai_integration.py
 ├── anomaly/               # AnomalyDetector · AnomalyEvent — 6개 체크(feedback_negativity가
-│                          #  monitor.feedback_tracker의 is_positive 신호를 재사용)
+│                          #  monitor.feedback_tracker의 is_positive 신호를 재사용).
+│                          #  SPEC-041: AnomalyEvent.to_dict()가 event_id(type+시각+값 sha1
+│                          #  프리픽스)·metric(=type)을 실는다 — 옛 저장본은 둘 다 없어서 serve
+│                          #  explain 엔드포인트가 항상 404/"unknown"이었다. explain_event()는
+│                          #  로컬 _suggestions 사본을 버리고 ontology.anomaly_suggestion_for()
+│                          #  를 읽는다(Phase 2 통합 완성).
 ├── ontology/              # 진단/추천 지식을 모으는 순수 데이터 레지스트리(PyYAML 등 외부
 │                          #  의존성 없이 Python dataclass로 관리, core dependency 원칙 유지)
 │                          # metric_registry.py — GATE_GUIDANCE(Gate 7종 라벨+안내문)·
-│                          #  NATIVE_METRIC_RULES(절대 임계값 기반)·ANOMALY_METRIC_SUGGESTIONS
-│                          #  (AnomalyDetector 상대편차 기반) — comprehensive_report.py의
-│                          #  _build_recommendations()와 serve/routers/data.py의
-│                          #  explain_anomaly_event()가 소비. rca.diagnose()와는 미연결
-│                          #  (Gate F만 mast_taxonomy로 처방을 받음 — 아래 참고)
+│                          #  NATIVE_METRIC_RULES(절대 임계값 기반 — SPEC-041: tcr/accuracy/
+│                          #  hallucination_rate 전부 퍼센트(0-100) 규약. hallucination_rate
+│                          #  threshold는 20.0(옛 0.2 분수는 모든 호출자가 퍼센트를 넘기는데
+│                          #  0.2%만 넘어도 "exceeds 20%" 추천이 뜨는 오탐이었다). latency만
+│                          #  절대 단위(초).)·ANOMALY_METRIC_SUGGESTIONS
+│                          #  (AnomalyEvent.type 6종 키: latency_trend/accuracy_drift/token_spike/
+│                          #  error_surge/feedback_negativity/security_pattern — SPEC-041에서
+│                          #  잘못된 accuracy/latency/error_rate 3키를 바로잡음) — comprehensive_report.py의
+│                          #  _build_recommendations()·serve/routers/data.py의 explain_anomaly_event()·
+│                          #  anomaly/detector.py의 explain_event()·recommend_fix_mcp가 소비.
+│                          #  rca.diagnose()와는 미연결(Gate F만 mast_taxonomy로 처방).
+│                          #  canonical_metric_name(metric) — Gate details 필드명·RCA 출력
+│                          #  필드명을 규칙/제안/MAST canonical 키로 정규화(_METRIC_ALIASES +
+│                          #  avg_ 접두·_ms/_pct/_rate/_score/_count 접미사 제거). 모르면 원본
+│                          #  그대로(없는 규칙 안 만듦). recommend_fix_mcp가 소비.
+│                          #  anomaly_suggestion_for(name) — name이 AnomalyEvent.type
+│                          #  ("latency_trend")이든 canonical 지표명("latency")이든 받아 제안
+│                          #  반환(_METRIC_TO_ANOMALY_TYPE로 후자를 매핑). 안 맞으면 None.
 │                          # mast_taxonomy.py — MAST(Cemri et al., NeurIPS 2025, arXiv:2503.13657)
 │                          #  14개 실패모드 원문 시드 데이터, Gate F(다중 에이전트) 전용.
 │                          #  rca.diagnose()가 Gate F 감지 시 related_gate_f_metric으로 후보를
@@ -309,7 +522,12 @@ agent_evaluator/
 │                          #  --with-recommend-fix] — .claude/settings.json(또는 --global 시
 │                          #  ~/.claude/settings.json)에 PreToolUse/PostToolUse/SessionEnd 훅을
 │                          #  병합(기존 훅 보존, 재설치해도 중복 추가 안 됨) + 기본
-│                          #  guardrail_config.json 복사. OpenCode installer(cli/opencode.py)와
+│                          #  guardrail_config.json 복사. SPEC-041: 재설치 시 우리 훅의 커맨드가
+│                          #  정확한 canonical 형태("<python> -m <_HOOK_MODULE>")면 죽은 옛
+│                          #  인터프리터 경로를 현재 sys.executable로 갱신한다(_refresh_hook_command)
+│                          #  — venv 재생성·pipx reinstall 후 재설치만으로 고쳐짐. 래핑된 커맨드
+│                          #  (추가 인자·파이프)는 사용자 의도로 보고 그대로 둔다.
+│                          #  OpenCode installer(cli/opencode.py)와
 │                          #  달리 훅 스크립트 자체는 파일 복사가 필요 없음(설치된 패키지를
 │                          #  python -m agent_evaluator.integrations.claude_code_hook로 직접
 │                          #  호출) — 재설치 보호 대상은 guardrail_config.json 하나뿐.
@@ -317,6 +535,22 @@ agent_evaluator/
 │                          #  필터링하므로 PreToolUse/PostToolUse와 다른 matcher("*")를 쓴다 —
 │                          #  실제로 이 차이를 놓쳐 배치저장이 발화 안 하는 회귀를 만들었다가
 │                          #  라이브 테스트로 잡은 이력 있음(회귀 방지 테스트 존재).
+│                          #  SPEC-041: Claude Code는 [A-Za-z0-9_\-, |\s]만 있는 matcher를
+│                          #  *정확 이름*(또는 |-구분 정확 리스트)으로, 그 밖의 문자가 있으면
+│                          #  비앵커 regex로 해석한다(docs 확인). 그래서 옛 "Bash|Edit|Write"는
+│                          #  정확 리스트 — NotebookEdit·MultiEdit·WebFetch·모든 MCP 도구를 조용히
+│                          #  놓쳤다(MCP 파일 생성은 PreToolUse 검사도, PostToolUse 이력도 없었음).
+│                          #  _TOOL_MATCHER는 메타문자를 넣어 regex로 만들고 ^(...)$로 완전 앵커
+│                          #  (re.search/match/fullmatch 동일). 커버: Bash|Write|Edit|MultiEdit|
+│                          #  NotebookEdit|WebFetch + mcp__<server>__<verb>…(verb 앞 "_" 필수).
+│                          #  WebFetch를 넣어야 기본 scope.forbidden_tools=["WebFetch"]가 발효.
+│                          #  _merge_settings가 재설치 시 우리 훅의 stale matcher만 갱신
+│                          #  (command·타 훅 불변). 읽기 전용 MCP(search/list/get)는 훅
+│                          #  서브프로세스 비용 때문에 제외. 기존 설치도 `agent-eval claude install`
+│                          #  재실행하면 matcher가 자동 갱신된다 — _our_hook_entries()가 훅을
+│                          #  matcher가 아니라 command 문자열(_HOOK_MODULE 포함 여부)로 식별하므로
+│                          #  옛 "Bash|Edit|Write" 설치도 "우리 것"으로 인식돼 matcher가 bump된다
+│                          #  (SPEC-041; "재설치해도 갱신 안 됨"이라는 옛 서술은 틀렸다).
 ├── cli/diagnose.py        # diagnose — agent_evaluator.rca.diagnose()를 감싸는 얇은 터미널
 │                          #  출력 레이어(새 판정 로직 없음). CI 게이트 아님 — 항상 exit 0
 │                          #  (결과 파일을 못 읽을 때만 exit 1), pass/fail 판정하지 않고
@@ -338,9 +572,28 @@ agent_evaluator/
 │                          #  (감지→원인귀속→교차확인). _compute_gate_regressions()(기존 baseline
 │                          #  회귀 공식) 재사용. Gate C·D 동시 감지 시 SLA 공유데이터로 공유원인
 │                          #  체크. Gate F는 ontology.mast_taxonomy로 MAST 후보 추가(§ontology 참고)
+│                          #  SPEC-041: _numeric_detail_deltas는 동점(baseline 없는
+│                          #  absolute_threshold 모드는 전부 delta=None이라 전부 동점)을 field
+│                          #  이름 오름차순으로 tiebreak한다 — 안 하면 set 순회 순서(PYTHONHASHSEED
+│                          #  랜덤화)로 top_detail_deltas[0]가 실행마다 바뀌어 step-3 교차검색
+│                          #  쿼리·Gate F MAST 후보가 비결정적이 된다.
+│                          #  SPEC-041: _ranking_scale은 접미사별 스케일 보정표(_RANKING_SCALE_BY_SUFFIX)
+│                          #  — _pct→100, _ms→2000, _count→10, _latency_s→5. 예전엔 _pct만
+│                          #  처리해서 ttft_p95_ms(밀리초)·sla_breach_count(정수)가 원시 delta
+│                          #  크기로 0-1 score 필드를 수백~수천배 눌러, RCA가 예산 붕괴 대신
+│                          #  미미한 지연 변동을 원인 1순위로 지목했다. 반환값(current/baseline/
+│                          #  delta)은 원래 단위 보존, 정렬 기준에만 보정.
+│                          #  SPEC-041: newly_unmeasured_gates — baseline엔 숫자 점수가 있었는데
+│                          #  current엔 None인 Gate. _compute_gate_regressions(3개 게이트 경로
+│                          #  공유 공식)가 current=None을 조용히 건너뛰므로, Config 실수로 빼서
+│                          #  Gate가 통째로 사라지는 커버리지 손실을 별도 신호로 낸다. CLI가
+│                          #  ⚠ 경고로 출력.
 │                          # experiment_metadata.py — derive_experiment_metadata(): 두 리포트의
-│                          #  extra_metrics.lineage.git_commit을 대조해 순수 git 명령(diff --stat/
-│                          #  log)만으로 코드 diff 해석 — gh CLI/GitHub API 미의존
+│                          #  extra_metrics.lineage.git_commit을 대조해 순수 git 명령만으로 코드
+│                          #  diff 해석 — gh CLI/GitHub API 미의존. SPEC-041: changed_files는
+│                          #  `git diff --name-only`로 뽑는다(요약줄만 --stat) — 비-tty 서브프로세스
+│                          #  에서 --stat은 폭 80으로 긴 경로를 "...abbrev/"로 자르고 rename을
+│                          #  "a => b"로 뭉개서 파일명이 손상됐다.
 │                          # verify.py — verify_recommendation_outcome(): 조치 적용 후 재평가
 │                          #  결과가 실제로 개선됐는지 confirmed/refuted/inconclusive 판정
 │                          # recommendation_tracking.py — record_/load_/summarize_
@@ -351,12 +604,20 @@ agent_evaluator/
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
 │                          #  (agent-eval gate 저장/대시보드 export_html 공용).
 │                          #  generate_comparison_html_report(compare_result) —
-│                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음)
+│                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음).
+│                          #  _build_diagnosis()는 rca.diagnose() 출력의 newly_unmeasured_gates도
+│                          #  경고로 렌더링한다(SPEC-041, CLI cli/diagnose.py와 동일) — 커버리지
+│                          #  손실이 있으면 "no detection" 안심 메시지를 안 띄운다.
+│                          #  _build_recommendations()의 hallucination_rate는 퍼센트(0-100)를
+│                          #  NATIVE_METRIC_RULES(threshold 20.0)에 그대로 넘긴다(§ontology 참고).
 └── serve/
-    ├── server.py          # FastAPI dashboard (111 routes)
-    ├── templates/
-    │   └── dashboard2.html.j2  # `/dashboard` 라우트(유지 대상 — dashboard.html.j2는 레거시,
-    │                      #  마이그레이션 후 삭제 예정). File Compare 탭: group_by
+    ├── server.py          # FastAPI dashboard (111 routes). SPEC-041: create_app이
+    │                      #  results_dir를 Path로 강제 — str로 호출해도 라우터의
+    │                      #  `results_dir / "..."`(예: routers/diagnose.py의
+    │                      #  recommendation_outcomes.jsonl)가 500 나지 않는다.
+    ├── templates/         # dashboard2.html.j2 · slides.html.j2 · sdk_docs.html.j2
+    │   └── dashboard2.html.j2  # `/dashboard` 라우트의 유일한 대시보드 템플릿
+    │                      #  (한국어 UI 레거시 dashboard.html.j2는 삭제됨). File Compare 탭: group_by
     │                      #  드롭다운·⚖️ Pairwise Judge 서브탭·📄 Export HTML 버튼
     │                      #  Metric Comparison 표 상단에 agent_version/iteration_note
     │                      #  메타데이터 행 — 새 API 호출 없이 이미 로드된 compareData에서 직접 렌더링
@@ -675,7 +936,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**116 files, 3,884+ test functions** in `tests/`.
+**116 files, 4,070+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

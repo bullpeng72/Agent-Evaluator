@@ -15,11 +15,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess as subprocess  # re-export: tests monkeypatch claude.subprocess.run directly
 import sys
 from pathlib import Path
 
-from agent_evaluator.integrations.claude_code_hook import DEFAULT_GUARDRAIL_CONFIG
+# 재export(redundant alias) — installer가 쓰는 기본 설정을 이 모듈의 공개 심볼로도 노출.
+from agent_evaluator.integrations.claude_code_hook import (
+    DEFAULT_GUARDRAIL_CONFIG as DEFAULT_GUARDRAIL_CONFIG,
+)
 
 # ---------------------------------------------------------------------------
 # ANSI helpers (main.py에서 직접 복사 불가 — 경량 재정의, opencode.py와 동일 패턴)
@@ -33,13 +37,34 @@ _D  = "\033[2m"  if _USE_COLOR else ""
 _R  = "\033[0m"  if _USE_COLOR else ""
 
 _HOOK_MODULE = "agent_evaluator.integrations.claude_code_hook"
-# PreToolUse/PostToolUse matchers filter by *tool name* — SessionEnd's matcher filters by
-# session-end *reason* (clear/logout/prompt_input_exit/...) instead, so reusing the tool-name
-# matcher there would silently never match and the batch-save hook would never fire. "*" means
-# "match all" for SessionEnd (there's no tool name to restrict it by).
+# PreToolUse/PostToolUse matchers filter by *tool name* (a regex) — SessionEnd's matcher
+# filters by session-end *reason* (clear/logout/prompt_input_exit/...) instead, so reusing
+# the tool-name matcher there would silently never match and the batch-save hook would
+# never fire. "*" means "match all" for SessionEnd (there's no tool name to restrict by).
+#
+# SPEC-041: Claude Code treats a matcher of only [A-Za-z0-9_\-, |\s] as an EXACT name
+# (or |-separated exact list); anything with other chars is an unanchored regex. So the
+# old "Bash|Edit|Write" was an exact list — it matched ONLY Bash/Edit/Write and silently
+# MISSED NotebookEdit, MultiEdit, WebFetch, and every MCP tool (file/command creation via
+# an MCP filesystem/editor/patch server had no PreToolUse check and left no PostToolUse
+# history, so loop detection was blind to it too).
+# This matcher contains regex metachars, so it IS a regex; it is fully anchored ^(...)$ so
+# it behaves the same under re.search / re.match / re.fullmatch:
+#   - built-ins: exact names (adding NotebookEdit/MultiEdit/WebFetch that the old list missed);
+#     TodoWrite/BashOutput/Read/Glob/Grep stay excluded.
+#   - WebFetch: included so the default scope.forbidden_tools=["WebFetch"] finally takes effect.
+#   - MCP: mcp__<server>__<verb>... where <verb> is preceded by "_" (so read-only tools like
+#     mcp__ctx__search / mcp__x__list_dir don't pay the per-call hook-subprocess cost).
+_MCP_MUTATION_VERBS = (
+    "write|edit|create|patch|apply|delete|remove|move|rename|mkdir|put|save|update|insert|append"
+)
+_TOOL_MATCHER = (
+    f"^(Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch"
+    f"|mcp__.+_({_MCP_MUTATION_VERBS})[a-zA-Z0-9_]*)$"
+)
 _HOOK_MATCHERS: dict[str, str] = {
-    "PreToolUse": "Bash|Edit|Write",
-    "PostToolUse": "Bash|Edit|Write",
+    "PreToolUse": _TOOL_MATCHER,
+    "PostToolUse": _TOOL_MATCHER,
     "SessionEnd": "*",
 }
 _HOOK_EVENTS: tuple[str, ...] = tuple(_HOOK_MATCHERS)
@@ -75,37 +100,83 @@ def _hook_entry(python_bin: str, event: str) -> dict:
     }
 
 
+def _our_hook_entries(entries: list) -> list[dict]:
+    return [
+        entry
+        for entry in entries or []
+        if any(_HOOK_MODULE in (h.get("command") or "") for h in entry.get("hooks", []))
+    ]
+
+
+# 우리가 쓴 정확한 형태: "<python> -m agent_evaluator.integrations.claude_code_hook"
+# (_hook_entry가 만드는 그대로). 사용자가 래핑/추가 인자를 붙인 커맨드는 이 정규식에
+# 안 걸리므로 건드리지 않는다.
+_CANONICAL_HOOK_CMD_RE = re.compile(
+    r"^\S+\s+-m\s+" + re.escape(_HOOK_MODULE) + r"\s*$"
+)
+
+
+def _refresh_hook_command(entry: dict, python_bin: str) -> bool:
+    """entry.hooks[*].command가 우리의 정확한 canonical 형태인데 인터프리터 경로만
+    다르면 현재 인터프리터로 갱신한다 (SPEC-041). venv 재생성·pipx reinstall 등으로
+    옛 python 경로가 죽었을 때 `agent-eval claude install` 재실행만으로 고쳐지게 한다.
+    래핑된 커맨드(추가 인자·셸 파이프 등)는 사용자 의도로 보고 그대로 둔다."""
+    want = f"{python_bin} -m {_HOOK_MODULE}"
+    bumped = False
+    for h in entry.get("hooks", []):
+        cmd = h.get("command") or ""
+        if cmd != want and _CANONICAL_HOOK_CMD_RE.match(cmd):
+            h["command"] = want
+            bumped = True
+    return bumped
+
+
 def _has_our_hook(entries: list) -> bool:
-    for entry in entries or []:
-        for h in entry.get("hooks", []):
-            if _HOOK_MODULE in (h.get("command") or ""):
-                return True
-    return False
+    return bool(_our_hook_entries(entries))
 
 
-def _merge_settings(existing: dict, python_bin: str) -> tuple[dict, list[str]]:
+def _merge_settings(existing: dict, python_bin: str) -> tuple[dict, list[str], list[str]]:
     """기존 ``settings.json``에 세 훅을 병합한다.
 
     이미 있는 다른 훅/설정은 그대로 보존한다 — 무조건 덮어쓰지 않는다(OpenCode installer의
     단순 파일 복사와 달리, Claude Code의 ``settings.json``은 사용자가 이미 다른 훅을 등록해
     뒀을 수 있는 공유 파일이라 read-modify-write가 필요하다).
 
+    재설치 시:
+      - 우리 훅이 없는 이벤트는 새로 추가한다(``added``에 기록).
+      - 우리 훅이 이미 있는데 ``matcher``가 현재 :data:`_HOOK_MATCHERS`와 다르면
+        그 필드만 갱신한다(``updated``). SPEC-041에서 matcher를 넓혔는데(MCP/NotebookEdit/
+        WebFetch), 이 갱신이 없으면 기존 설치는 재설치해도 옛 matcher에 갇힌다.
+        ``command``·기타 필드·다른 훅은 건드리지 않는다.
+
     Returns:
-        ``(병합된 settings dict, 새로 추가된 이벤트 이름 목록)``. 이미 등록된 이벤트는
-        건너뛴다(재설치 시 중복 추가 방지) — 목록이 비어 있으면 이미 전부 등록된 상태다.
+        ``(병합된 settings dict, 새로 추가된 이벤트, matcher가 갱신된 이벤트)``.
     """
     merged = dict(existing)
     hooks = dict(merged.get("hooks") or {})
     added: list[str] = []
+    updated: list[str] = []
     for event in _HOOK_EVENTS:
         entries = list(hooks.get(event) or [])
-        if _has_our_hook(entries):
+        ours = _our_hook_entries(entries)
+        if not ours:
+            entries.append(_hook_entry(python_bin, event))
+            hooks[event] = entries
+            added.append(event)
             continue
-        entries.append(_hook_entry(python_bin, event))
-        hooks[event] = entries
-        added.append(event)
+        want = _HOOK_MATCHERS[event]
+        bumped = False
+        for entry in ours:
+            if entry.get("matcher") != want:
+                entry["matcher"] = want
+                bumped = True
+            if _refresh_hook_command(entry, python_bin):
+                bumped = True
+        if bumped:
+            hooks[event] = entries
+            updated.append(event)
     merged["hooks"] = hooks
-    return merged, added
+    return merged, added, updated
 
 
 def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
@@ -177,14 +248,16 @@ def _cmd_install(args: argparse.Namespace) -> int:
             print(f"{_RD}❌ Failed to parse existing {settings_path}: {exc}{_R}", file=sys.stderr)
             return 1
 
-    merged, added = _merge_settings(existing_settings, sys.executable)
+    merged, added, updated = _merge_settings(existing_settings, sys.executable)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
 
     if added:
         print(f"{_G}✅ Registered hooks in {settings_path}: {', '.join(added)}{_R}")
-    else:
-        print(f"{_D}   Hooks already registered in {settings_path} — nothing to add{_R}")
+    if updated:
+        print(f"{_G}✅ Refreshed tool matcher for existing hooks: {', '.join(updated)}{_R}")
+    if not added and not updated:
+        print(f"{_D}   Hooks already registered in {settings_path} — nothing to change{_R}")
 
     if config_path.exists() and not force:
         print(
@@ -218,10 +291,22 @@ def _cmd_install(args: argparse.Namespace) -> int:
     )
     print()
     print(
-        f"{_Y}💡 Tuning tip:{_R} same as the OpenCode plugin — "
-        f"loop_detection.consecutive_repeat_threshold (default 6) only compares tool *names*, "
-        f"not parameters. Raise it further if legitimate repeated Bash/Edit calls get "
-        f"blocked/recorded as loops."
+        f"{_Y}💡 Tuning tips:{_R}\n"
+        f"  - loop_detection.consecutive_repeat_threshold (default 8) only compares tool "
+        f"*names*, not parameters. Only 'consecutive_repeat' loops hard-block on the live "
+        f"path (live_loop_blocking_types); 'window_duplicate' is recorded but not enforced.\n"
+        f"  - live_loop_window (default 15) bounds the live loop check to the last N calls, "
+        f"so an early transient repeat can't latch the whole session.\n"
+        f"  - circuit_breaker_after (default 5) flips the session to observe-only after that "
+        f"many consecutive blocks — a miscalibrated config warns instead of locking you out.\n"
+        f"  - tool_parameter_safety.scope_tool_names is [\"Bash\"] by default, so Write/Edit "
+        f"file bodies are never length-checked or pattern-scanned.\n"
+        f"  - shell file creation (cat/tee/echo/printf > FILE, heredocs, '| tee') is treated "
+        f"like Write — dangerous strings in the *content* don't block; '| sh', ';', '&&', "
+        f"'$(...)' do.\n"
+        f"  - protected_write_paths (built-in default list: ~/.ssh, shell rc files, /etc, "
+        f"cron, LaunchAgents, ...) blocks writes by *location* regardless of tool/content. "
+        f"Add the key with your own regex list to customize, or [] to disable."
     )
     return 0
 

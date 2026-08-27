@@ -79,13 +79,37 @@ class TestLiveGuardrailBranchGuardIntegration:
         verdict = guardrail.check_before_tool_call("t1", "bash", {"command": "git commit -m wip"})
         assert verdict.block is False
 
-    def test_current_branch_cached_once_at_construction(self):
+    def test_non_git_calls_do_not_recheck_branch(self):
         guardrail = LiveGuardrail(branch_guard=BranchGuardConfig())
         cached = guardrail._current_branch
-        # 여러 번 호출해도 브랜치가 재조회되지 않고 동일 값 유지(순수 조회 계약)
+        # 비-git 호출은 브랜치를 다시 조회하지 않는다(git 서브프로세스 낭비 방지)
         guardrail.check_before_tool_call("t1", "bash", {"command": "ls"})
         guardrail.check_before_tool_call("t2", "bash", {"command": "pwd"})
         assert guardrail._current_branch == cached
+
+    def test_recheck_branch_catches_mid_session_checkout(self, monkeypatch):
+        """SPEC-041: 상주 프로세스(OpenCode)에서 세션 중 `git checkout main` 후 커밋이
+        (세션 시작 시 캐시된 feature 브랜치 기준으로) 통과되던 구멍을 막는다."""
+        live = {"branch": "feature/x"}
+        monkeypatch.setattr(
+            "agent_evaluator.gates.live_guardrail.get_current_branch",
+            lambda: live["branch"],
+        )
+        g = LiveGuardrail(branch_guard=BranchGuardConfig())  # caches feature/x
+        assert g.check_before_tool_call("t", "bash", {"command": "git commit -m x"}).block is False
+        live["branch"] = "main"  # `git checkout main`
+        v = g.check_before_tool_call("t", "bash", {"command": "git commit -m x"})
+        assert v.block is True and v.reason is not None and "main" in v.reason
+
+    def test_recheck_branch_false_keeps_stale_construction_value(self, monkeypatch):
+        live = {"branch": "feature/x"}
+        monkeypatch.setattr(
+            "agent_evaluator.gates.live_guardrail.get_current_branch",
+            lambda: live["branch"],
+        )
+        g = LiveGuardrail(branch_guard=BranchGuardConfig(recheck_branch=False))
+        live["branch"] = "main"
+        assert g.check_before_tool_call("t", "bash", {"command": "git commit -m x"}).block is False
 
     def test_protected_branch_blocks_git_commit(self, monkeypatch):
         monkeypatch.setattr(
@@ -97,6 +121,20 @@ class TestLiveGuardrailBranchGuardIntegration:
         assert verdict.gate == "B"
         assert verdict.reason is not None
         assert "main" in verdict.reason
+
+    def test_claude_code_capitalized_bash_tool_name_still_fires(self, monkeypatch):
+        """SPEC-041: 기본 scoped_tool_names가 ("bash","Bash")이고 매칭도 대소문자 무시라,
+        Claude Code의 "Bash"에서도 branch_guard가 발화한다(과거엔 조용히 무시됐다)."""
+        monkeypatch.setattr(
+            "agent_evaluator.gates.live_guardrail.get_current_branch", lambda: "main",
+        )
+        guardrail = LiveGuardrail(branch_guard=BranchGuardConfig())
+        assert guardrail.check_before_tool_call(
+            "t1", "Bash", {"command": "git push origin HEAD"}
+        ).block is True
+        # 커스텀 config가 소문자만 지정해도 "Bash" 호출을 잡는다
+        g2 = LiveGuardrail(branch_guard=BranchGuardConfig(scoped_tool_names=("bash",)))
+        assert g2.check_before_tool_call("t1", "Bash", {"command": "git commit -m x"}).block is True
 
     def test_non_protected_branch_allows_git_commit(self, monkeypatch):
         monkeypatch.setattr(

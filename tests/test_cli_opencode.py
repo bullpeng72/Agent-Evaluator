@@ -61,12 +61,34 @@ class TestInstallLocal:
         monkeypatch.chdir(tmp_path)
         target = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
         target.parent.mkdir(parents=True)
-        target.write_text("# user-customized GUARDRAIL_CONFIG")
+        # A current-shaped plugin (has the marker + all hooks) → plain "already exists".
+        target.write_text(
+            'EFFECTIVE_GUARDRAIL_CONFIG "tool.execute.before": "tool.execute.after": event:'
+        )
 
         code = opencode_cli.cmd_opencode(_ns())
         assert code == 1
-        assert "already exists" in capsys.readouterr().err.lower()
-        assert target.read_text() == "# user-customized GUARDRAIL_CONFIG"
+        err = capsys.readouterr().err.lower()
+        assert "already exists" in err
+        assert "agent-evaluator.config.json" in err  # points user at the external config file
+        assert target.read_text().startswith("EFFECTIVE_GUARDRAIL_CONFIG")  # unchanged
+
+    def test_stale_existing_plugin_without_force_is_rejected_with_update_notice(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """SPEC-041: 구버전 플러그인(외부 config 마커 없음)은 --force 없이 거부하되,
+        "OUT OF DATE" + config.json 이관 안내를 낸다."""
+        monkeypatch.chdir(tmp_path)
+        target = tmp_path / ".opencode" / "plugin" / "agent-evaluator.ts"
+        target.parent.mkdir(parents=True)
+        target.write_text("# old plugin with inline GUARDRAIL_CONFIG only")
+
+        code = opencode_cli.cmd_opencode(_ns())
+        assert code == 1
+        err = capsys.readouterr().err.lower()
+        assert "out of date" in err
+        assert "agent-evaluator.config.json" in err
+        assert target.read_text() == "# old plugin with inline GUARDRAIL_CONFIG only"
 
     def test_existing_file_with_force_is_overwritten(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

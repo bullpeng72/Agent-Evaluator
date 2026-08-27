@@ -45,9 +45,24 @@ class AnomalyEvent:
     detected_at: str = field(default_factory=lambda: datetime.now().isoformat())
     algorithm: str = ""   # z-score, iqr, linear_regression, ratio
 
+    @property
+    def event_id(self) -> str:
+        """직렬화·재로드해도 안정적인 식별자 — serve의 anomaly explain 엔드포인트가
+        목록에서 특정 이벤트를 다시 찾을 때 쓴다(SPEC-041). type + 탐지시각 +
+        값/기준의 짧은 해시로 만든다(한 스캔 안에서 같은 type이 여러 번 나와도 구분)."""
+        import hashlib
+
+        _raw = f"{self.type}|{self.detected_at}|{self.value}|{self.threshold}"
+        return f"{self.type}-{hashlib.sha1(_raw.encode('utf-8', 'replace')).hexdigest()[:8]}"
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "event_id": self.event_id,
             "type": self.type,
+            # SPEC-041: serve의 explain 엔드포인트·_parse_anomaly_data가 "metric" 키로
+            # 조회한다 — 이상 이벤트에서 "metric"은 곧 유형(type)이다. 예전엔 이 키가
+            # 없어서 metric이 항상 "unknown"으로 떨어졌다.
+            "metric": self.type,
             "severity": self.severity,
             "detail": self.detail,
             "value": self.value,
@@ -352,17 +367,14 @@ class AnomalyDetector:
         deviation_pct = abs(event.value - event.threshold) / max(abs(event.threshold), 1e-9) * 100
         severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
 
-        _suggestions = {
-            "latency_trend": "Response time is trending up. Consider caching, parallel processing, or a lighter model.",
-            "accuracy_drift": "Accuracy has dropped. Review prompt improvements or fine-tuning.",
-            "token_spike": "Token usage has spiked. Consider reducing context length or adding a summarization step.",
-            "error_surge": "Error rate has surged. Check agent stability and external service connections.",
-            "security_pattern": "Security pattern detected. Strengthen input validation and review audit logs.",
-            "feedback_negativity": "Negative feedback (regenerate/thumbs_down/etc.) has surged. "
-                                    "Review recent prompt/model changes.",
-        }
+        # SPEC-041: 이 사본을 없애고 ontology 정본을 읽는다(Phase 2 통합 완성).
+        from agent_evaluator.ontology.metric_registry import (
+            ANOMALY_METRIC_DEFAULT_SUGGESTION,
+            anomaly_suggestion_for,
+        )
 
         return {
+            "event_id": event.event_id,
             "metric": event.type,
             "value": event.value,
             "threshold": event.threshold,
@@ -372,7 +384,9 @@ class AnomalyDetector:
                 f"{event.type} value {event.value:.4f} deviates {deviation_pct:.1f}% "
                 f"from threshold {event.threshold:.4f}. ({event.detail})"
             ),
-            "suggested_action": _suggestions.get(event.type, "Analyze this metric in detail."),
+            "suggested_action": (
+                anomaly_suggestion_for(event.type) or ANOMALY_METRIC_DEFAULT_SUGGESTION
+            ),
             "detected_at": event.detected_at,
         }
 

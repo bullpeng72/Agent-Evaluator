@@ -14,14 +14,21 @@ import re
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, cast
-
-import numpy as np
-import pandas as pd
+from typing import TYPE_CHECKING, Any, cast
 
 from ...exceptions import ValidationError
+from ...utils.lazy_import import LazyModule as _LazyModule
 from ...utils.text_similarity import lcs_ratio as _lcs_ratio
 from .base import BaseTracker, TaskResult, TaskType
+
+# SPEC-041: 런타임엔 지연 로딩 프록시(훅 콜드스타트에서 eager import pandas ~135ms 제거),
+# 타입 체커에는 실제 모듈로 보이게 해 `-> pd.DataFrame` 같은 어노테이션이 해석되게 한다.
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+else:
+    np = _LazyModule("numpy")
+    pd = _LazyModule("pandas")
 
 logger = logging.getLogger(__name__)
 
