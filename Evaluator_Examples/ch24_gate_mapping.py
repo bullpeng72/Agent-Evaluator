@@ -214,7 +214,7 @@ print("""
   # Gate A + B + D + F 적용 예시
   @agent_eval(monitor, task_type="qa",
       instructions=InstructionConfig(required_keywords=["학습목표"]),
-      loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+      loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=6),
       sla=SLAConfig(p95_ms=120_000),
       propagation=PropagationConfig(key_facts=["audience_level"]),
   )
@@ -253,7 +253,7 @@ def goal_aligned_writer(question: str, ground_truth: str = "") -> str:
     monitor,
     task_type="tool_use",
     task_id_prefix="ch24_loop",
-    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=6),
     scope=ScopeConfig(allowed_tools=["search", "write", "revise"]),
 )
 def loop_safe_writer(question: str, ground_truth: str = "") -> str:
