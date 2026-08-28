@@ -461,8 +461,23 @@ class TestOpencodeUninstall:
 class TestOpencodeDoctor:
     def test_missing_plugin_is_error_exit_1(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
+        # isolate from any real global install so the local->global fallback finds nothing
+        monkeypatch.setattr(opencode_cli, "_GLOBAL_TARGET", tmp_path / "no" / "plugin.ts")
         assert opencode_cli.cmd_opencode(_doc_ns()) == 1
         assert "plugin file exists" in capsys.readouterr().out
+
+    def test_missing_local_falls_back_to_global(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        gt = tmp_path / "home" / ".config" / "opencode" / "plugin" / "agent-evaluator.ts"
+        gt.parent.mkdir(parents=True)
+        gt.write_text(opencode_cli._BUNDLED_PLUGIN.read_text(encoding="utf-8").replace(
+            opencode_cli._PYTHON_PLACEHOLDER, sys.executable,
+        ))
+        monkeypatch.setattr(opencode_cli, "_GLOBAL_TARGET", gt)
+        code = opencode_cli.cmd_opencode(_doc_ns())
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "global — no project-local install" in out
 
     def test_healthy_install_static_checks_pass(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)

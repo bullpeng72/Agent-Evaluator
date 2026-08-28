@@ -296,13 +296,12 @@ def _cmd_install(args: argparse.Namespace) -> int:
     )
     print()
     print(
-        f"{_Y}💡 Tuning tip:{_R} loop_detection.consecutive_repeat_threshold (default 6) only "
-        f"compares tool *names*, not parameters. If your agent routes many distinct actions "
-        f"through one coarse-grained tool (e.g. OpenCode's single \"bash\" tool covers every "
-        f"shell command), that's still a real false-positive risk at low thresholds — raise it "
-        f"further if you see legitimate calls getting blocked/recorded as loops. Lower it only "
-        f"after confirming your agent's tools are fine-grained enough that N-in-a-row genuinely "
-        f"means stuck."
+        f"{_Y}💡 Tuning tip:{_R} loop_detection.consecutive_repeat_threshold (plugin default 8) "
+        f"fires only on N *identical* calls in a row — same tool name AND same arguments "
+        f"(SPEC-041); a varied `bash` → `bash` → `bash` sequence with different commands is not a "
+        f"loop. live_loop_window (default 15) also bounds the check to the last N calls. Raise the "
+        f"threshold further only if you still see a legitimate genuinely-repeated call (e.g. "
+        f"re-running the same failing test) getting flagged."
     )
     return 0
 
@@ -516,6 +515,14 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     strict: bool = getattr(args, "strict", False)
 
     target = _GLOBAL_TARGET if is_global else _LOCAL_TARGET
+    # OpenCode auto-loads plugins from BOTH the project-local and the global dir, so a
+    # missing project-local plugin is not an error when a global one is installed —
+    # fall back to checking that instead (mirrors OpenCode's own resolution).
+    fell_back_to_global = False
+    if not is_global and not target.exists() and _GLOBAL_TARGET.exists():
+        target = _GLOBAL_TARGET
+        fell_back_to_global = True
+
     sibling = target.parent / _SIBLING_CONFIG
     rpt = DoctorReport(title=f"agent-eval opencode doctor — {target}")
 
@@ -530,7 +537,9 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     else:
         try:
             content = target.read_text(encoding="utf-8")
-            rpt.ok("static", "plugin file exists", str(target))
+            _detail = f"{target} (global — no project-local install)" if fell_back_to_global \
+                else str(target)
+            rpt.ok("static", "plugin file exists", _detail)
         except OSError as exc:
             rpt.error("static", "plugin file readable", str(exc))
 

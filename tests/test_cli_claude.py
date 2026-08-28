@@ -540,10 +540,26 @@ class TestUninstall:
 class TestDoctorStatic:
     def test_missing_settings_is_error_exit_1(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
+        # isolate from any real ~/.claude/settings.json so the local->global fallback finds nothing
+        monkeypatch.setattr(claude_cli, "_GLOBAL_SETTINGS", tmp_path / "nope" / "settings.json")
         assert claude_cli.cmd_claude(_doc_ns()) == 1
         out = capsys.readouterr().out
         assert "settings.json exists" in out
         assert "❌" in out
+
+    def test_missing_local_settings_falls_back_to_global(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        gs = tmp_path / "home" / ".claude" / "settings.json"
+        gc = tmp_path / "home" / ".claude" / ".agent-evaluator" / "guardrail_config.json"
+        monkeypatch.setattr(claude_cli, "_GLOBAL_SETTINGS", gs)
+        monkeypatch.setattr(claude_cli, "_GLOBAL_CONFIG", gc)
+        claude_cli.cmd_claude(_ns(global_install=True))  # create the global install
+        monkeypatch.setattr(claude_cli, "_mcp_is_registered", lambda name: False)
+        capsys.readouterr()
+        code = claude_cli.cmd_claude(_doc_ns())  # no --global
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "global — no project-local" in out
 
     def test_healthy_install_passes(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)

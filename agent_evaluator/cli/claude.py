@@ -714,6 +714,13 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
     settings_path = _GLOBAL_SETTINGS if is_global else _LOCAL_SETTINGS
     config_path = _GLOBAL_CONFIG if is_global else _LOCAL_CONFIG
+    # Claude Code merges ~/.claude/settings.json with the project-local one, so a missing
+    # project-local file is not an error when the global install exists — check that instead.
+    fell_back_to_global = False
+    if not is_global and not settings_path.exists() and _GLOBAL_SETTINGS.exists():
+        settings_path, config_path = _GLOBAL_SETTINGS, _GLOBAL_CONFIG
+        fell_back_to_global = True
+
     rpt = DoctorReport(title=f"agent-eval claude doctor — {settings_path}")
 
     # ---------- Tier 1: 정적 ----------
@@ -724,7 +731,10 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     else:
         try:
             settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            rpt.ok("static", "settings.json parses")
+            _detail = (
+                "global — no project-local .claude/settings.json" if fell_back_to_global else ""
+            )
+            rpt.ok("static", "settings.json parses", _detail)
         except json.JSONDecodeError as exc:
             rpt.error("static", "settings.json parses", str(exc))
 
