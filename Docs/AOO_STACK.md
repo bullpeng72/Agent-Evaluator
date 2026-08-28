@@ -85,6 +85,12 @@ agent-eval opencode install                       # .opencode/plugin/ (project-l
 # or: agent-eval opencode install --force          # overwrite an existing install
 # or: agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
 # or: agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
+
+agent-eval opencode doctor      # verify the install works: plugin freshness + a live Python
+                                # stdio-bridge round-trip (init, benign->allow, dangerous->block)
+agent-eval opencode upgrade     # after a package update: re-copy the plugin .ts, never touching
+                                # your sibling agent-evaluator.config.json
+agent-eval opencode uninstall   # remove the plugin file + opencode.json mcp entries — run BEFORE `pip uninstall`
 ```
 
 `agent-eval opencode install` verifies the installed copy actually registers all three plugin hooks
@@ -101,8 +107,10 @@ export AGENT_EVALUATOR_PYTHON=/path/to/venv/bin/python
 export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project
 ```
 
-Adjust `GUARDRAIL_CONFIG` at the top of the installed `.opencode/plugin/agent-evaluator.ts` (the copy,
-not the package-bundled source — reinstalling overwrites it) — it takes the same
+To adjust the config, put a JSON object in a sibling `agent-evaluator.config.json` next to the installed
+plugin (its top-level keys are shallow-merged over the built-in `GUARDRAIL_CONFIG` — SPEC-041). Keep it
+in that file, not in the `.ts`: reinstalling / `agent-eval opencode upgrade` overwrites the `.ts` code
+but never the `.config.json`. It takes the same
 `LoopDetectionConfig`/`DeadlockConfig`/`ScopeConfig`/`ToolParameterSafetyConfig` (Gate B) and
 `ToolAuthorizationTracker`/`PrivilegeEscalationDetector`/`ToolChainAttackDetector` (Gate E) fields as
 `@agent_eval`.
@@ -274,6 +282,16 @@ working directory as the cause. Always close stdin for headless/CI invocations:
 opencode run --dir /path/to/project "your message" \
   --dangerously-skip-permissions < /dev/null
 ```
+
+> **Update (SPEC-041, 2026-08):** the sections below are the *original* prototype-era tuning history and
+> no longer match the shipped defaults. Current state: `dangerous_patterns` was trimmed back to
+> genuinely destructive commands only — bare `rm <file>` and `rm -f` are **no longer** blocked (only
+> `rm -rf`/`-fr`, chained `rm`, `mkfs`, `dd of=/dev/…`, fork bombs, and pipe-to-shell); the OpenCode
+> plugin's `consecutive_repeat_threshold` is 8 with `live_loop_window: 15` and a `circuit_breaker`; loop
+> identity now compares tool *name + arguments*, not just the name; and most of the "Remaining prototype
+> limitations" below (stdio pipe race, `session.idle` killing the bridge, blocked-attempt transcript
+> timing) were fixed. See `CLAUDE.md` (`gates/live_guardrail.py` notes) and `CHANGELOG.md` for the
+> authoritative current behavior.
 
 **`GUARDRAIL_CONFIG`'s defaults had to be tuned to OpenCode's actual tool granularity.** OpenCode routes
 every shell action through a single `"bash"` tool (there's no separate `"shell_exec"` or similar) — so a

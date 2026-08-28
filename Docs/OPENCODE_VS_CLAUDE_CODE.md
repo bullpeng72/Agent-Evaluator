@@ -30,10 +30,12 @@ Agent-Evaluator의 실시간 `LiveGuardrail`을 붙일 수 있는 두 조합, [A
 | | `agent-eval opencode install` | `agent-eval claude install` |
 |---|---|---|
 | 설치 방식 | **파일 통째로 복사**(`agent-evaluator.ts`) | `.claude/settings.json`에 훅 3개를 **병합**(read-modify-write) |
-| 기존 설정 보존 | ❌ — 재설치 시 `--force` 없으면 거부, 있으면 파일 전체 덮어씀 | ✅ — 사용자가 이미 등록한 다른 훅은 그대로 두고 우리 훅만 추가/갱신 |
-| GUARDRAIL_CONFIG 위치 | 복사된 **.ts 파일 안**의 객체 리터럴(TS 문법 이해 필요) | 별도 **JSON 파일**(`guardrail_config.json`) — 훅 스크립트 자체는 복사 불필요 |
+| 기존 훅 보존 | N/A(플러그인 파일 1개) | ✅ — 사용자가 이미 등록한 다른 훅은 그대로 두고 우리 훅만 추가/갱신 |
+| 사용자 설정 보존 | ✅(SPEC-041) — 재설치/`upgrade`는 `.ts`만 덮어쓰고 옆의 `agent-evaluator.config.json`은 안 건드림 | ✅ — `install --force`만 `guardrail_config.json`을 리셋, `upgrade`는 새 기본 키만 deep-merge |
+| GUARDRAIL_CONFIG 위치 | 플러그인 옆 **`agent-evaluator.config.json`**(SPEC-041 — `.ts` 인라인 기본값 위에 얕게 병합; `.ts`를 직접 편집하면 재설치 시 유실) | 별도 **JSON 파일**(`guardrail_config.json`) — 훅 스크립트 자체는 복사 불필요 |
 | `--global` 타겟 | `~/.config/opencode/plugin/` | `~/.claude/settings.json` |
-| MCP 등록 명령 | `opencode mcp add <name> -- <cmd>`(scope 개념 없음) | `claude mcp add <name> --scope {local\|user} -- <cmd>`(더 세밀함) |
+| MCP 등록 명령 | `opencode mcp add <name> -- <cmd>`(scope 개념 없음; `mcp remove` 없어 `uninstall`은 `opencode.json` 직접 편집) | `claude mcp add <name> --scope {local\|user} -- <cmd>`(더 세밀함) |
+| 라이프사이클 서브커맨드 | `install` · `upgrade` · `doctor` · `uninstall` | `install` · `upgrade` · `doctor` · `uninstall` |
 
 ## 훅 3종 매핑
 

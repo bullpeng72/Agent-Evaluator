@@ -9,7 +9,7 @@ No new detection logic is involved — exactly the same Behavioral Integrity (lo
 tool-parameter safety) and Security Boundary evaluators that power Gates B/E in batch mode, called
 synchronously per tool call instead.
 
-> **Status**: implemented, covered by 40 unit/integration tests (`tests/test_claude_code_hook.py`,
+> **Status**: implemented, covered by 85 unit/integration tests (`tests/test_claude_code_hook.py`,
 > `tests/test_cli_claude.py`), and **live-verified end-to-end against a real, separate Claude Code CLI
 > session** (not crafted payloads) — see [Live verification](#live-verification) below. The one
 > still-unconfirmed item is replay cost on a *long* session (see [Known limitations](#known-limitations)).
@@ -33,11 +33,11 @@ So a resident-process bridge doesn't fit here. Instead, each hook invocation:
 Claude Code CLI                                   Python (spawned fresh per hook call)
 ┌──────────────────────┐  stdin (one JSON obj)  ┌────────────────────────────────────────┐
 │ PreToolUse hook       │───────────────────────►│ claude_code_hook.py                    │
-│  (Bash|Edit|Write)    │◄───────────────────────│  replay history → check_before_tool_call│
+│  (Bash|Write|Edit|…)  │◄───────────────────────│  replay history → check_before_tool_call│
 └──────────────────────┘  stdout (allow/deny)    │  → gates/live_guardrail.py (SPEC-019)   │
 ┌──────────────────────┐                         └────────────────────────────────────────┘
 │ PostToolUse hook      │───────────────────────► same module → record_tool_call(), appends
-│  (Bash|Edit|Write)    │                          the confirmed call to the session state file
+│  (Bash|Write|Edit|…)  │                          the confirmed call to the session state file
 └──────────────────────┘
 ┌──────────────────────┐                         ┌────────────────────────────────────────┐
 │ SessionEnd hook       │───────────────────────►│ same module → replay full history →     │
@@ -58,11 +58,14 @@ State lives under the project (or `~/.claude/` with `--global`):
 
 **`SessionEnd`'s matcher is not a tool-name matcher** — it filters by session-end *reason*
 (`clear`/`logout`/`prompt_input_exit`/...), unlike `PreToolUse`/`PostToolUse` which filter by tool name.
-`agent-eval claude install` registers `PreToolUse`/`PostToolUse` with `"Bash|Edit|Write"` and
-`SessionEnd` with `"*"` (match all reasons) — reusing the tool-name matcher for `SessionEnd` would mean
-the batch-save hook silently never fires. This was actually caught by running the install → hook flow
-end-to-end during development, not by reading the docs alone, and has a regression test
-(`test_all_three_events_registered_with_correct_matchers`).
+`agent-eval claude install` registers `PreToolUse`/`PostToolUse` with a fully-anchored tool-name regex
+(`Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch` plus `mcp__<server>__<write-verb>…` — MCP file/editor
+servers were silently uncovered before SPEC-041) and `SessionEnd` with `"*"` (match all reasons) —
+reusing the tool-name matcher for `SessionEnd` would mean the batch-save hook silently never fires. This
+was actually caught by running the install → hook flow end-to-end during development, not by reading the
+docs alone, and has a regression test (`test_all_three_events_registered_with_correct_matchers`).
+Re-running `install` (or `agent-eval claude upgrade`) bumps an out-of-date matcher on our own hook
+entries and refreshes a dead interpreter path, without touching other hooks.
 
 ## Setup
 
@@ -74,6 +77,12 @@ agent-eval claude install                              # .claude/settings.json (
 # or: agent-eval claude install --force                 # reset guardrail_config.json to defaults
 # or: agent-eval claude install --with-violation-search  # + register the search_violations MCP server
 # or: agent-eval claude install --with-recommend-fix      # + register the recommend_fix MCP server
+
+agent-eval claude doctor      # verify the install works: static checks + a live hook round-trip
+                              # (benign->allow, dangerous->deny, batch report) + MCP handshake
+agent-eval claude upgrade     # after a package update: refresh hook matchers/interpreter and
+                              # deep-merge only NEW default keys into guardrail_config.json (keeps your edits)
+agent-eval claude uninstall   # remove our hooks + MCP servers + session state — run BEFORE `pip uninstall`
 ```
 
 `agent-eval claude install` **merges** into `.claude/settings.json` rather than overwriting it — if you
@@ -91,22 +100,34 @@ that you're expected to edit is `guardrail_config.json`.
 
 ```json
 {
-  "loop_detection": {"consecutive_repeat_threshold": 6, "on_loop_detected": "fail"},
+  "loop_detection": {"consecutive_repeat_threshold": 8, "on_loop_detected": "fail"},
+  "live_loop_window": 15,
   "scope": {"forbidden_tools": ["WebFetch"], "fail_on_violation": true},
   "tool_parameter_safety": {
-    "dangerous_patterns": ["\\.\\./", "&&", "\\|\\|", ";.*rm\\s", "\\brm\\s+\\S", "__import__", "eval\\(", "exec\\("],
+    "dangerous_patterns": [
+      "\\brm\\s+-[a-zA-Z]*r[a-zA-Z]*f", "\\brm\\s+-[a-zA-Z]*f[a-zA-Z]*r", ";\\s*rm\\s+-",
+      "\\bmkfs\\b", "\\bdd\\s+if=.*of=/dev/", ":\\(\\)\\s*\\{\\s*:\\s*\\|",
+      "\\|\\s*(sh|bash|zsh|ksh)\\b", "[<>]\\(\\s*(sh|bash|zsh|ksh)\\b",
+      "__import__", "eval\\(", "exec\\("
+    ],
     "scope_tool_names": ["Bash"],
+    "max_argument_length": 100000,
     "fail_on_dangerous": true
   },
   "tool_authorization": {},
+  "circuit_breaker_after": 5,
   "output_dir": "results/claude_code_live_guardrail"
 }
 ```
 
-Same principle as the OpenCode plugin's `GUARDRAIL_CONFIG` (`consecutive_repeat_threshold: 6` because
-loop detection compares tool *names* only — see [AOO_STACK.md](AOO_STACK.md) for the false-positive story
-that motivated the SDK-wide default), adapted to Claude Code's own tool naming (`"Bash"`, not the
-lowercase `"bash"` OpenCode uses) — with two deliberate exceptions:
+Same principle as the OpenCode plugin's `GUARDRAIL_CONFIG`, adapted to Claude Code's own tool naming
+(`"Bash"`, not the lowercase `"bash"` OpenCode uses). SPEC-041 trimmed `dangerous_patterns` down to
+genuinely destructive commands (`../`, `&&`, `||`, and bare single-file `rm` were removed — too common
+in normal coding sessions), raised `consecutive_repeat_threshold` to 8, added `live_loop_window: 15`
+(bounds the live loop check to the last N calls so an early transient repeat can't latch the session),
+and `circuit_breaker_after: 5` (after that many consecutive blocks the session flips to observe-only —
+sustained blocking is far more often a misconfigured config than an attack). Two more deliberate
+exceptions vs. OpenCode:
 
 - **`tool_authorization: {}`** enables `ToolAuthorizationTracker`'s hardcoded Gate E backstop (`rm -rf`,
   `DROP TABLE`, `sudo`, `chmod 777`, `eval(`, `exec(`, `__import__`, `system(` — independent of the
@@ -121,11 +142,12 @@ lowercase `"bash"` OpenCode uses) — with two deliberate exceptions:
   the (smaller) false-positive risk. This divergence is intentional, not a bug — see the comment above
   `DEFAULT_GUARDRAIL_CONFIG` in `claude_code_hook.py` for the same reasoning in code.
 
-`output_dir` isn't a `LiveGuardrail` constructor argument — it's read by the hook bridge itself and
-popped before building the guardrail.
+`output_dir` and `circuit_breaker_after` aren't `LiveGuardrail` constructor arguments — they're read by
+the hook bridge itself and popped before building the guardrail.
 
 Edit the installed copy at `.claude/.agent-evaluator/guardrail_config.json`, not the package default —
-`agent-eval claude install --force` resets it and discards your edits. The keys accepted are whatever
+`agent-eval claude install --force` resets it and discards your edits (`agent-eval claude upgrade` only
+adds new default keys and keeps your values). The keys accepted are whatever
 `live_guardrail_stdio.build_guardrail()` understands: `loop_detection`, `deadlock`, `scope`,
 `tool_parameter_safety` (Gate B configs), plus `tool_authorization`, `privilege_escalation`,
 `tool_chain_attack` (Gate E tracker constructor kwargs).
