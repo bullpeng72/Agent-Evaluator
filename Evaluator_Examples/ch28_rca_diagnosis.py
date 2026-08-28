@@ -4,15 +4,15 @@ ch28_rca_diagnosis.py — Gate 회귀 원인진단 (RCA)
 Book Chapter 28 — Gate 회귀 원인진단(RCA)
 
 ch17(주간 리뷰)이 "회귀가 있었는가"를 발견했다면, 이 챕터는 그다음 질문
-"왜 떨어졌는가"에 답한다. Chapter 31(Gate 하락 원인진단 RCA 프레임워크)의
-3단계 절차(감지 → Gate 세부값 원인귀속 → 위반 이력 교차확인)를 자동화한
-``agent_evaluator.rca.diagnose()``를 시연한다.
+"왜 떨어졌는가"에 답한다. 3단계 절차(감지 → Gate 세부값 원인귀속 → 위반 이력
+교차확인)를 자동화한 ``agent_evaluator.rca.diagnose()``를 시연한다.
 
   섹션 1: baseline 결과 생성 — 정상 에이전트
   섹션 2: current 결과 생성 — Gate A가 하락한 에이전트 (plan_coherence 저하)
-  섹션 3: diagnose() — 회귀 감지 + 세부 지표 원인귀속
+  섹션 3: diagnose() — 회귀 감지 + 세부 지표 원인귀속 + newly_unmeasured_gates
   섹션 4: 다중 Gate 동시 하락 — 공유원인 체크(SharedCauseCheck)
-  섹션 5: CLI 대응: agent-eval diagnose
+  섹션 5: diagnose 후보 → 처방 — format_recommendation()으로 잇기
+  섹션 6: CLI 대응: agent-eval diagnose
 
 HOTL 원칙(Chapter 2): diagnose()는 "후보 원인 + 근거"만 반환한다 — "이게 원인이다"를
 절대 단정하지 않는다. 최종 판단은 사람(QA·거버넌스 담당자)의 몫이다.
@@ -30,6 +30,8 @@ HOTL 원칙(Chapter 2): diagnose()는 "후보 원인 + 근거"만 반환한다 �
 from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator.integrations.recommend_fix_mcp import format_recommendation
+from agent_evaluator.ontology.metric_registry import canonical_metric_name
 from agent_evaluator.rca import diagnose
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -50,8 +52,7 @@ for i in range(15):
         execution_time=1.0,
         task_type="qa",
         extra={
-            # §31.4 워크드 예제와 동일한 형태 — plan_coherence가 avg_plan_coherence로
-            # Gate A details에 집계된다.
+            # plan_coherence가 avg_plan_coherence로 Gate A details에 집계된다.
             "plan_coherence": {"score": 0.90},
         },
     ))
@@ -77,8 +78,8 @@ for i in range(15):
         execution_time=1.0,
         task_type="qa",
         extra={
-            # §31.4 실제 사례 재현: plan_coherence만 급락 — top-line 점수만 보면
-            # 놓치는, 세부값의 반대 방향 이동을 diagnose()가 그대로 드러내야 한다.
+            # plan_coherence만 급락 — top-line 점수만 보면 놓치는, 세부값의
+            # 반대 방향 이동을 diagnose()가 그대로 드러내야 한다.
             "plan_coherence": {"score": 0.35},
         },
     ))
@@ -111,15 +112,26 @@ for finding in result["findings"]:
 print(f"\n  {'-'*60}")
 print("  이 리포트는 후보 원인과 근거만 제시합니다 — 최종 판단은 사람의 몫입니다 (HOTL).")
 
+# newly_unmeasured_gates — baseline엔 점수가 있었는데 current엔 측정 자체가 사라진 Gate.
+# Config를 실수로 빼면 그 Gate가 통째로 안 보이는데, 회귀 판정 공식은 current=None을
+# 조용히 건너뛰므로 "감지된 Gate 없음"으로만 나온다. diagnose()는 이 커버리지 손실을
+# 별도 신호로 낸다(이 예제 데이터는 두 리포트 모두 Gate 구성이 같아 비어 있다).
+_unmeasured = result.get("newly_unmeasured_gates", [])
+if _unmeasured:
+    print(f"  ⚠ 측정 커버리지 손실 — baseline엔 점수가 있었으나 current엔 측정이 없는 Gate:"
+          f" {_unmeasured}")
+else:
+    print("  newly_unmeasured_gates: [] (두 리포트의 Gate 구성이 동일)")
+
 # ===========================================================================
 # 섹션 4: 다중 Gate 동시 하락 — 공유원인 체크
 # ===========================================================================
 print("\n=== 섹션 4: 다중 Gate 동시 하락 — 공유원인 체크 ===")
 print("""
-  §31.2 교훈: 두 개 이상의 Gate가 동시에 하락해도 diagnose()는 "하나의 원인"으로
-  성급히 단정하지 않는다. Gate C·D가 함께 감지되면 가장 싼 체크(SLA breach_rate/
-  window_penalty 대조)부터 먼저 시도하고, 그래도 설명이 안 되면 각 Gate를 독립
-  원인으로 보고한다 — result["shared_cause_explanations"] /
+  Chapter 17 §17.3의 교훈: 두 개 이상의 Gate가 동시에 하락해도 diagnose()는 "하나의
+  원인"으로 성급히 단정하지 않는다. Gate C·D가 함께 감지되면 가장 싼 체크(SLA
+  breach_rate/window_penalty 대조)부터 먼저 시도하고, 그래도 설명이 안 되면 각 Gate를
+  독립 원인으로 보고한다 — result["shared_cause_explanations"] /
   result["independently_investigate_gates"]에서 확인할 수 있다.
 
   (이 챕터의 데이터는 Gate A 단일 회귀만 재현하므로 실제로는 비어 있다 — 다중 Gate
@@ -130,9 +142,28 @@ print(f"  shared_cause_explanations: {result['shared_cause_explanations']}")
 print(f"  independently_investigate_gates: {result['independently_investigate_gates']}")
 
 # ===========================================================================
-# 섹션 5: CLI 대응
+# 섹션 5: diagnose 후보 → 처방 — format_recommendation()으로 잇기
 # ===========================================================================
-print("\n=== 섹션 5: CLI로 동일한 진단 실행하기 ===")
+# diagnose()의 findings는 Gate F만 처방까지 담는다. 나머지 Gate는 1순위 후보 지표명을
+# 그대로 recommend_fix(= format_recommendation)에 넘기면 된다 —
+# canonical_metric_name()이 diagnose가 내는 필드명(avg_*, *_pct, *_ms, hall_rate 등)을
+# NATIVE_METRIC_RULES 키로 정규화하므로, 어휘 변환을 손으로 할 필요가 없다.
+print("\n=== 섹션 5: diagnose 후보 → 처방 (format_recommendation) ===")
+
+for finding in result["findings"]:
+    gate = finding["gate"]
+    if not finding["top_detail_deltas"]:
+        continue
+    top_field = finding["top_detail_deltas"][0]["field"]
+    canon = canonical_metric_name(top_field)
+    print(f"\n  [Gate {gate}] 1순위 후보 지표: {top_field}"
+          + (f"  (→ '{canon}'로 정규화)" if canon != top_field else ""))
+    print("  " + "\n  ".join(format_recommendation(gate, top_field).splitlines()))
+
+# ===========================================================================
+# 섹션 6: CLI 대응
+# ===========================================================================
+print("\n=== 섹션 6: CLI로 동일한 진단 실행하기 ===")
 print("""
   agent-eval diagnose results/ch28_current.json --baseline results/ch28_baseline.json
 
@@ -141,7 +172,12 @@ print("""
     --violation-db results/v.db      3단계(교차확인) — search_violations() 이력 조회
     --show-diff                      두 리포트의 lineage.git_commit 사이 실제 git
                                       diff까지 함께 표시(agent_version="auto" 필요)
+    --repo-path /path/to/repo        --show-diff를 판단할 git 저장소 경로 (기본: 현재 디렉토리)
     --json                           원본 dict를 그대로 출력(스크립트 연동용)
+
+  세부 지표 순위는 필드명 접미사별 스케일 보정표(_pct→100, _ms→2000, _count→10,
+  _latency_s→5)로 단위를 맞춘 뒤 매겨진다. 커버리지 손실이 있으면 감지된 Gate와
+  별개로 "⚠ 측정 커버리지 손실"과 newly_unmeasured_gates 목록이 함께 출력된다.
 
   대시보드에서 보려면: agent-eval dashboard results/ → 🔧 Improve 탭
 """)

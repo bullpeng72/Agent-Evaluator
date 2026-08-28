@@ -1,11 +1,12 @@
 """
 ch31_recommendation_tracking.py — 개선 이력 추적 (폐루프 학습)
 ===================================================================
-Book Chapter 31 — Gate 하락 원인진단(RCA)과 짝을 이루는 마지막 고리:
-"추천한 조치를 실제로 적용했더니 나아졌는가"를 기록하고 누적한다.
+Book Chapter 31 — 개선 이력 추적(폐루프 학습): Chapter 28(RCA)과 짝을 이루는
+마지막 고리 — "추천한 조치를 실제로 적용했더니 나아졌는가"를 기록하고 누적한다.
 
-ch28(RCA)이 "무엇이 원인일 가능성이 있는지" 후보를 낸다면, 이 챕터는 그
-추천을 실제로 적용한 뒤 재평가한 결과를 판정·기록해 폐루프를 완성한다.
+ch28(RCA)이 "무엇이 원인일 가능성이 있는지" 후보를 내고 그 후보 지표명을
+recommend_fix/format_recommendation에 넘겨 처방을 얻는다면, 이 챕터는 그 처방을
+실제로 적용한 뒤 재평가한 결과를 판정·기록해 폐루프를 완성한다.
 
   섹션 1: 개선 전(before) / 개선 후(after) 결과 생성
   섹션 2: verify_recommendation_outcome() — 실제로 개선됐는가 판정
@@ -15,7 +16,7 @@ ch28(RCA)이 "무엇이 원인일 가능성이 있는지" 후보를 낸다면, �
 
 HOTL 원칙: verdict는 confirmed/refuted/inconclusive 세 상태로만 보고한다 —
 "이 추천 덕분에 좋아졌다"는 인과 주장은 하지 않는다(다른 변경이 동시에
-있었을 수 있다, Chapter 31 §31.2의 경계심과 동일).
+있었을 수 있다, Chapter 17 §17.3의 회귀 분석 경계심과 동일).
 
 의존성:
     pip install agent-evaluator
@@ -144,7 +145,7 @@ print(f"  Gate별: {summary['by_gate']}")
 # 섹션 5: 대시보드 Improve 탭과의 연동
 # ===========================================================================
 print("\n=== 섹션 5: 대시보드에서 확인하기 ===")
-print(f"""
+print("""
   agent-eval dashboard results/ → 🔧 Improve 탭
 
   "Recommendation Outcome History" 섹션이 방금 기록한 항목을 그대로
