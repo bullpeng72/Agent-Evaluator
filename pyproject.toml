@@ -93,7 +93,7 @@ otel = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<19.0.0",
+    "arize-phoenix>=15.4.0,<20.0.0",
 ]
 # PDF 처리 — 한국어 RAG 데이터셋 생성기 (빠름, ~2개 패키지)
 # agent_evaluator/datasets/korean_rag_dataset_generator.py 에서 사용
@@ -122,7 +122,7 @@ sdk = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<19.0.0",
+    "arize-phoenix>=15.4.0,<20.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "kiwipiepy>=0.17.0",
 ]
@@ -209,7 +209,7 @@ examples = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<19.0.0",
+    "arize-phoenix>=15.4.0,<20.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
@@ -229,7 +229,7 @@ full = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
     # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<19.0.0",
+    "arize-phoenix>=15.4.0,<20.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
