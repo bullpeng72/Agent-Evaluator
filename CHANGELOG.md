@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.0-rc3 (2026-08-28) — Integration Install Lifecycle (upgrade · doctor · uninstall)
+
+`agent-eval claude` and `agent-eval opencode` each gain three subcommands for the LiveGuardrail integration lifecycle, backed by a shared helper module (`agent_evaluator/cli/_integration_health.py`) — pure operational layer, no new judgment logic. No public SDK API changes.
+
+- ✨ **`upgrade`** — edit-preserving refresh after a `pip install -U`. Unlike `install --force`: refreshes stale hook matchers and dead interpreter paths; deep-merges only *new* default keys into `guardrail_config.json` (never overwrites your values, prints the added key paths); re-copies the OpenCode `.ts` only when it's stale and never touches `agent-evaluator.config.json`. `--with-violation-search`/`--with-recommend-fix` re-register those MCP servers (remove + add, refreshing the interpreter path).
+- ✨ **`doctor`** — verifies the install actually works, not just that files exist. Static: settings/plugin parse, all 3 hooks registered, matcher current, hook interpreter alive and package importable from it, `guardrail_config` builds via `build_guardrail()` (collects skipped-block warnings), MCP servers registered. Live (in a throwaway sandbox dir, `output_dir` redirected so it's hermetic): runs the *real* registered hook command / stdio bridge with synthetic `PreToolUse`/`PostToolUse`/`SessionEnd` payloads and checks that a benign call is allowed, a destructive command / `WebFetch` is denied (exit 2), and a batch report is written with session state cleaned up. MCP: `initialize` + `tools/list` handshake against each registered server. `--json` (CI), `--no-live`, `--strict`. Exit 1 on any error.
+- ✨ **`uninstall`** — reverses `install`: removes only our hook entries from `settings.json` (other hooks untouched), deregisters the MCP servers (`claude mcp remove`; OpenCode has no `mcp remove` subcommand, so it edits `opencode.json`'s `mcp` map directly, leaving `.jsonc` for manual editing), and deletes session state. Keeps `guardrail_config.json` / `agent-evaluator.config.json` unless `--purge`. `--dry-run`, `--yes`. Must be run **before** `pip uninstall agent-evaluator` — the `agent-eval` entrypoint disappears with the package.
+- 🔧 `claude mcp add` / `opencode mcp add` — an existing registration is now reported as "nothing to change" instead of a warning plus a manual-command hint.
+- 📝 `CLAUDE.md` updated (Common Commands, `cli/` architecture notes, new `cli/_integration_health.py` entry); test-function count 4,090+ → 4,120+ (+45 tests, `tests/test_cli_integration_health.py` new).
+
 ## v1.0.0-rc2 (2026-08-27) — Packaging / CI Fixes + LiveGuardrail Bridge Parity
 
 Re-tag of `rc.1` with packaging, CI, and real-time-guardrail bridge fixes found during release validation. No public API changes.

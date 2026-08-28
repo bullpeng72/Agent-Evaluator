@@ -1,12 +1,12 @@
 # API 레퍼런스
 
-Agent Evaluator v1.0.0-rc2 전체 API 문서
+Agent Evaluator v1.0.0-rc3 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v1.0.0-rc2
+- **버전:** v1.0.0-rc3
 - **Python:** 3.8+
 - **최종 업데이트:** 2026-08-27
 
@@ -1486,12 +1486,18 @@ agent-eval dataset build --source results/ --strategy high_value --output data/g
 # 순차 평가 결과 추세 분석 (TCR·정확도 회귀 감지)
 agent-eval trend results/ --fail-on-regression
 
-# LiveGuardrail OpenCode 플러그인 설치
+# LiveGuardrail OpenCode 플러그인 / Claude Code 훅 설치 라이프사이클
 agent-eval opencode install
 agent-eval opencode install --global   # 전역 설치
 agent-eval opencode install --force    # 기존 설치 덮어쓰기
 agent-eval opencode install --with-violation-search   # + search_violations MCP 서버 등록
 agent-eval opencode install --with-recommend-fix       # + recommend_fix MCP 서버 등록
+agent-eval opencode upgrade            # 패키지 업데이트 후 플러그인 .ts 갱신 (agent-evaluator.config.json 보존)
+agent-eval opencode doctor            # 설치가 실제로 도는지 검증 (정적 + Python stdio 브리지 라운드트립, --json/--no-live/--strict)
+agent-eval opencode uninstall         # 플러그인 + opencode.json mcp 항목 제거 (pip uninstall 전에 실행, --purge/--dry-run/--yes)
+agent-eval claude upgrade             # 훅 matcher/인터프리터 갱신 + guardrail_config.json에 새 기본 키만 deep-merge (사용자 편집 보존)
+agent-eval claude doctor             # 정적 검사 + 라이브 훅 라운드트립(allow/deny/배치리포트) + MCP 핸드셰이크
+agent-eval claude uninstall          # settings.json에서 우리 훅 제거 + MCP 해제 + 세션 상태 삭제 (pip uninstall 전에 실행)
 
 # .aoo/claims.jsonl 팀 스코프 클레임 관리 (TeamConcurrencyConfig 연동)
 agent-eval claims add src/ --developer auto   # 클레임 개설 (git config user.name으로 자동 해석)
@@ -1560,4 +1566,4 @@ FrameworkLiteral,   # 24개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v1.0.0-rc2 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v1.0.0-rc3 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

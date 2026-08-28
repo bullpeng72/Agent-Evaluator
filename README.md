@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0--rc2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -158,12 +158,14 @@ agent_evaluator/
 └── reporting/             # comprehensive_report.py — self-contained HTML report generation
 
 Evaluator_Examples/       # 31 example files (ch01–ch31)
-tests/                    # 4,070+ test functions
+tests/                    # 4,120+ test functions
 ```
 
 ---
 
 ## Changelog
+
+**v1.0.0-rc3** (2026-08-28) — Integration install lifecycle: `agent-eval claude`/`opencode` gain `upgrade` (edit-preserving refresh), `doctor` (static + live round-trip verification), and `uninstall` subcommands.
 
 **v1.0.0-rc2** (2026-08-27) — Release candidate for v1.0.0: packaging/CI fixes + LiveGuardrail bridge parity on top of rc.1.
 
