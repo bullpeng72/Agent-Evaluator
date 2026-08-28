@@ -1,12 +1,12 @@
 # API 레퍼런스
 
-Agent Evaluator v1.0.0-rc3 전체 API 문서
+Agent Evaluator v1.0.0-rc4 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v1.0.0-rc3
+- **버전:** v1.0.0-rc4
 - **Python:** 3.8+
 - **최종 업데이트:** 2026-08-27
 
@@ -1566,4 +1566,4 @@ FrameworkLiteral,   # 24개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v1.0.0-rc3 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v1.0.0-rc4 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

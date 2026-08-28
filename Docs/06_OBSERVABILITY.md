@@ -2,7 +2,7 @@
 
 대시보드 사용법 · Phoenix OTEL 실시간 모니터링
 
-**v1.0.0-rc3 | Python 3.8+**
+**v1.0.0-rc4 | Python 3.8+**
 
 ---
 

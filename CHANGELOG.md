@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.0-rc4 (2026-08-28) — `doctor` global fallback + hook-docs currency
+
+Follow-up to rc3. No public SDK API changes.
+
+- 🐛 `agent-eval opencode doctor` / `agent-eval claude doctor` (without `--global`) no longer report a hard error when there is no project-local install but a healthy global one exists — OpenCode and Claude Code both auto-load / merge the global location, so `doctor` now checks it and notes "global — no project-local install". `❌` is raised only when neither exists.
+- 🔧 `agent-eval opencode install`'s tuning tip corrected — the plugin's `consecutive_repeat_threshold` default is 8 (not 6), and loop identity is tool *name + arguments* (SPEC-041), so only N *identical* calls in a row count.
+- 📝 `docs/CLAUDE_CODE_HOOKS.md` / `docs/AOO_STACK.md` / `docs/OPENCODE_VS_CLAUDE_CODE.md` currency pass: stale hook-matcher description, out-of-date default `guardrail_config.json` block, and the pre-SPEC-041 config-in-the-`.ts` guidance were corrected; the new `upgrade`/`doctor`/`uninstall` subcommands were added to the install sections.
+
 ## v1.0.0-rc3 (2026-08-28) — Integration Install Lifecycle (upgrade · doctor · uninstall)
 
 `agent-eval claude` and `agent-eval opencode` each gain three subcommands for the LiveGuardrail integration lifecycle, backed by a shared helper module (`agent_evaluator/cli/_integration_health.py`) — pure operational layer, no new judgment logic. No public SDK API changes.
