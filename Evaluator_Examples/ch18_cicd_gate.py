@@ -151,7 +151,7 @@ def _group_a_agent(question: str, ground_truth: str = "") -> str:
     monitor,
     task_type="tool_use",
     task_id_prefix="val_b",
-    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, window_size=5),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=6, window_size=5),
     scope=ScopeConfig(
         allowed_tools=["search", "summarize", "report"],
         forbidden_tools=["delete_all", "drop_table"],

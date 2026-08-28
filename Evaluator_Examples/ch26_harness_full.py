@@ -479,7 +479,7 @@ print("""
     ),
     goal_alignment=GoalAlignmentConfig(alignment_threshold=0.70),
     # Gate B — 행동 무결성
-    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=6),
     scope=ScopeConfig(allowed_tools=["rag_query", "answer"]),
     # Gate D — 성능 계약
     sla=SLAConfig(p95_ms=3_000),

@@ -115,6 +115,9 @@ try:
 
     if report.any_regression:
         print(f"\n  → CI/CD 연동: agent-eval trend results/ --fail-on-regression")
+        print("  → 회귀의 '왜'는 다음 단계다: agent-eval diagnose <current.json> "
+              "--baseline <baseline.json>  (Chapter 28 — 세부 지표 원인귀속 + "
+              "newly_unmeasured_gates 커버리지 손실 경고)")
 
 except Exception as e:
     print(f"  RunTrendAnalyzer: {e}")
