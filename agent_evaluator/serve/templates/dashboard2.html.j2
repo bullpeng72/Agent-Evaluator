@@ -6710,6 +6710,45 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.security_findings && improveResult.insights.security_findings.length">
+            <div style="border:1px solid var(--border);border-left:4px solid var(--red);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700" x-text="'Security findings ('+improveResult.insights.security_findings.length+' — most severe first)'"></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">A security regression is the highest-priority fix.</div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Severity</th><th style="text-align:left;padding:4px">Task</th><th style="text-align:left;padding:4px">Threat</th><th style="text-align:left;padding:4px">Detail</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(f, i) in improveResult.insights.security_findings" :key="i">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:700" :style="(f.severity==='critical'||f.severity==='high')?'color:var(--red)':'color:var(--yellow)'" x-text="f.severity.toUpperCase()"></td>
+                        <td style="padding:4px;white-space:nowrap" x-text="f.task_id"></td>
+                        <td style="padding:4px;white-space:nowrap" x-text="f.threat_type+(f.cwe?(' ('+f.cwe+')'):'')"></td>
+                        <td style="padding:4px;color:var(--text2)" x-text="f.detail+' ['+f.tracker+']'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="improveResult.insights.nondeterminism && improveResult.insights.nondeterminism.length">
+            <div style="border:1px solid var(--border);border-left:4px solid var(--yellow);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700" x-text="'Non-determinism ('+improveResult.insights.nondeterminism.length+' task(s))'"></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Different answers to the same input across reproducibility runs.</div>
+              <template x-for="(d, i) in improveResult.insights.nondeterminism" :key="i">
+                <div style="margin:6px 0;padding:6px 8px;background:var(--bg2);border-radius:6px">
+                  <div style="font-size:12px" x-text="d.task_id+' — reproducibility '+d.reproducibility_score.toFixed(2)+' over '+d.run_count+' runs (variance '+d.variance.toFixed(3)+')'"></div>
+                  <template x-for="(s, j) in (d.sample_responses||[])" :key="j">
+                    <div style="font-family:monospace;font-size:11px;color:var(--text2);border-top:1px dashed var(--border);padding:2px 0" x-text="s"></div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.cost_economics">
             <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700;margin-bottom:4px">Cost economics</div>

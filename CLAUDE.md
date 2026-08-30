@@ -861,6 +861,10 @@ narrative: str (SPEC-041 P17 — 배포 준비도 판정 + 최약 병목 + 리�
 change_attribution{prompt_changed, prompt_diff{similarity, added[], removed[]}, config_changed,
 config_diff{changed_keys}, git{from_commit, to_commit}, largest_gate_move{gate, delta}, note}|null
 (SPEC-041 P18 — baseline 필요. 두 run의 lineage.prompt_text/config_snapshot diff + 최대 Gate 이동),
+security_findings[]{task_id, tracker, threat_type, severity, cwe, detail}|null (SPEC-041 P19 — 5개 보안
+트래커의 per-task 위협 상세, severity 순, CWE 매핑),
+nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_responses[]}|null
+(SPEC-041 P19 — Gate C 재현성 score<0.85 태스크 + 변형 응답 텍스트),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -946,6 +950,16 @@ narrator=Callable[[insights_dict], str])`로 LLM 작성 대체 — narrator가 r
 최대 회귀 Gate(`largest_gate_move`). `insights.change_attribution`. `comprehensive_report.py::
 _build_change_attribution`(리포트 `change-attribution` 섹션, diagnosis 앞), 대시보드 Improve 탭 패널.
 report 두 진입점이 `build_insights`를 1회 호출해 `_insights_obj`로 narrative(P17)와 공유.
+monitor 경로는 `_ins_input`에 tasks + `monitor._get_security_evaluator_data()`도 graft한다.
+
+**SPEC-041 P19 (재현성·보안 국소화)** — `reporting/insights.py`: `_security_findings_section(current)` —
+`evaluators.security`의 5개 트래커(input_sanitizer/output_leakage_detector/tool_authorizer/
+privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 실제 탐지된 것만 per-task
+`{task_id, tracker, threat_type, severity, cwe(_THREAT_CWE 매핑), detail}`로, severity 순 25개.
+`_nondeterminism_section(tasks)` — `extra.reproducibility.score<0.85 & run_count>=2` 태스크 + `variance`
++ `sample_responses`(decorators.py가 score<1.0일 때 변형 응답 3개 truncate 저장, SPEC-041 P19). 리포트
+섹션 `security-findings`(가장 심각 먼저)·`nondeterminism`, 대시보드 Improve 탭 패널.
+`_review_dict_tasks`가 `extra`/`attempts`/`tokens_used`도 담도록 확장.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

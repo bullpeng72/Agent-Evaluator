@@ -617,6 +617,82 @@ class TestLineagePromptText:
         assert lin["config_snapshot"] == {"temperature": 0.3}
 
 
+class TestSecurityFindings:
+    def _with_security(self, records: dict):
+        rpt = _report(
+            {"E": {"score": 0.5, "status": "fail", "gate": "fail", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(4)],
+        )
+        rpt["evaluators"] = {"security": records}
+        return rpt
+
+    def test_input_and_tool_findings_are_localized_and_sorted(self):
+        rpt = self._with_security({
+            "input_sanitizer": {"evaluations": [
+                {"task_id": "t0", "has_prompt_injection": True, "threat_count": 1,
+                 "sanitization_needed": True, "risk_level": "medium"},
+            ]},
+            "tool_authorizer": {"tool_calls": [
+                {"task_id": "t1", "tool_name": "shell", "is_authorized": False,
+                 "violation_type": "unauthorized_tool"},
+            ]},
+            "privilege_escalation_detector": {"escalation_events": [
+                {"task_id": "t2", "escalation_detected": True, "risk_score": 9,
+                 "initial_privilege": "read", "max_privilege": "admin"},
+            ]},
+        })
+        sf = build_insights(rpt)["security_findings"]
+        assert sf[0]["severity"] == "critical"          # privilege escalation risk 9
+        assert sf[0]["task_id"] == "t2"
+        types = {f["threat_type"] for f in sf}
+        assert {"prompt_injection", "unauthorized_tool", "privilege_escalation"} <= types
+        pi = next(f for f in sf if f["threat_type"] == "prompt_injection")
+        assert pi["cwe"] == "LLM01"
+
+    def test_none_without_security_data(self):
+        rpt = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task("t1", ok=True)],
+        )
+        assert build_insights(rpt)["security_findings"] is None
+
+    def test_none_when_no_finding_triggered(self):
+        rpt = self._with_security({
+            "input_sanitizer": {"evaluations": [
+                {"task_id": "t0", "threat_count": 0, "sanitization_needed": False},
+            ]},
+        })
+        assert build_insights(rpt)["security_findings"] is None
+
+
+class TestNondeterminism:
+    def test_low_reproducibility_tasks_surface_with_variants(self):
+        tasks = [
+            {"task_id": "flaky", "task_type": "qa", "success": True,
+             "accuracy_score": 0.8, "completion_score": 1.0,
+             "extra": {"reproducibility": {"score": 0.4, "variance": 0.05,
+                                           "run_count": 3,
+                                           "sample_responses": ["A", "B differs", "C too"]}}},
+            {"task_id": "stable", "task_type": "qa", "success": True,
+             "accuracy_score": 0.9, "completion_score": 1.0,
+             "extra": {"reproducibility": {"score": 0.98, "variance": 0.0,
+                                           "run_count": 3}}},
+        ]
+        rpt = _report(
+            {"C": {"score": 0.6, "status": "warn", "gate": "warn", "details": {}}}, tasks,
+        )
+        nd = build_insights(rpt)["nondeterminism"]
+        assert [d["task_id"] for d in nd] == ["flaky"]
+        assert nd[0]["sample_responses"] == ["A", "B differs", "C too"]
+
+    def test_none_without_reproducibility_data(self):
+        rpt = _report(
+            {"C": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task("t1", ok=True)],
+        )
+        assert build_insights(rpt)["nondeterminism"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

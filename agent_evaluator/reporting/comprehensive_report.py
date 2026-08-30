@@ -2469,7 +2469,11 @@ def _review_dict_tasks(tasks: list[Any]) -> list[dict[str, Any]]:
             "response": c["response"], "ground_truth": c["ground_truth"],
             "accuracy_score": c["accuracy_score"], "completion_score": c["completion_score"],
             "tool_calls": c["tool_calls"], "agent_interactions": c["agent_interactions"],
-            "context": _task_context(t),
+            "context": _task_context(t), "extra": _task_extra(t),
+            "attempts": getattr(t, "attempts", None) if not isinstance(getattr(t, "raw", None), dict)
+                        else (t.raw or {}).get("attempts"),
+            "tokens_used": getattr(t, "tokens_used", None) if not isinstance(getattr(t, "raw", None), dict)
+                           else (t.raw or {}).get("tokens_used"),
             "llm_judge": (t.raw.get("llm_judge") if isinstance(getattr(t, "raw", None), dict)
                           else getattr(t, "llm_judge", None)),
         })
@@ -2865,6 +2869,86 @@ _GATE_FULL = {
     "D": "Performance Contract", "E": "Security Boundary",
     "F": "Multi-Agent Coordination", "G": "Observability",
 }
+
+
+_SEC_SEV_COLOR = {"critical": "#7f1d1d", "high": "#dc2626", "medium": "#d97706",
+                  "low": "#6b7280", "unknown": "#6b7280"}
+
+
+def _build_security_findings(current: dict[str, Any] | None) -> str:
+    """P19: which task triggered which threat — the per-task detail Gate E's
+    aggregate section never showed."""
+    try:
+        from agent_evaluator.reporting.insights import _security_findings_section
+
+        findings = _security_findings_section(current or {})
+    except Exception:
+        findings = None
+    if not findings:
+        return ""
+    rows = ""
+    for f in findings:
+        sev = f.get("severity", "unknown")
+        col = _SEC_SEV_COLOR.get(sev, "#6b7280")
+        cwe = f.get("cwe")
+        rows += (
+            f'<tr><td style="color:{col};font-weight:700;white-space:nowrap">{_esc(sev.upper())}</td>'
+            f'<td style="white-space:nowrap;font-size:12px">{_esc(f.get("task_id", ""))}</td>'
+            f'<td style="white-space:nowrap">{_esc(f.get("threat_type", ""))}'
+            + (f' <span style="color:#9ca3af">({_esc(cwe)})</span>' if cwe else "")
+            + f'</td><td style="font-size:12px;color:#4b5563">{_esc(f.get("detail", ""))} '
+            f'<span style="color:#9ca3af">[{_esc(f.get("tracker", ""))}]</span></td></tr>'
+        )
+    return (
+        '<div class="gate-section" id="security-findings" style="border-left-color:#dc2626">'
+        f'<h2 style="color:#dc2626">Security Findings '
+        f'<span style="font-size:13px;color:#6b7280">({len(findings)} — most severe first)</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 10px">'
+        'A security regression is the highest-priority fix. Each row is the task that '
+        'triggered the threat.</p>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Severity</th><th>Task</th><th>Threat</th><th>Detail</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+        '</div>'
+    )
+
+
+def _build_nondeterminism(tasks: list[Any] | None) -> str:
+    """P19: localize a low Gate C reproducibility score to the tasks that
+    diverged, with the variant texts when the run kept them."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import _nondeterminism_section
+
+        nd = _nondeterminism_section(_review_dict_tasks(tasks))
+    except Exception:
+        nd = None
+    if not nd:
+        return ""
+    blocks = ""
+    for d in nd:
+        samples = "".join(
+            f'<div style="font-family:monospace;font-size:11px;color:#374151;'
+            f'padding:2px 0;border-top:1px dashed #e5e7eb">{_esc(_clip(s, 200))}</div>'
+            for s in d.get("sample_responses") or []
+        )
+        blocks += (
+            f'<div style="margin:8px 0;padding:8px 10px;background:#fafafa;border-radius:6px">'
+            f'<div style="font-size:12px"><strong>{_esc(d.get("task_id", ""))}</strong> — '
+            f'reproducibility {d.get("reproducibility_score", 0):.2f} over '
+            f'{d.get("run_count", "?")} runs (variance {d.get("variance", 0):.3f})</div>'
+            f'{samples}</div>'
+        )
+    return (
+        '<div class="gate-section" id="nondeterminism" style="border-left-color:#f59e0b">'
+        f'<h2 style="color:#1e2030">Non-Determinism '
+        f'<span style="font-size:13px;color:#6b7280">({len(nd)} task(s))</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'These tasks produced different answers to the same input across '
+        'reproducibility runs.</p>'
+        f'{blocks}</div>'
+    )
 
 
 def _build_change_attribution(ca: dict[str, Any] | None) -> str:
@@ -3880,15 +3964,21 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         pass
 
     _tasks_list = list(getattr(monitor, "tasks", []) or [])
+    # report.to_dict() (monitor path) carries no tasks[] and no evaluators.security —
+    # graft both so the insight layer (narrative / security_findings / …) sees them.
+    _ins_input: dict[str, Any] = dict(current_dict) if isinstance(current_dict, dict) else {}
+    if not _ins_input.get("tasks"):
+        _ins_input["tasks"] = _review_dict_tasks(_tasks_list)
+    try:
+        _sec = monitor._get_security_evaluator_data()
+        if _sec:
+            _ins_input.setdefault("evaluators", {})["security"] = _sec
+    except Exception:
+        pass
     _narrative = ""
     _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
-        # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
-        # task dicts on so the insight narrative sees real task data.
-        _ins_input = current_dict
-        if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
-            _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
         ) or {}
@@ -3948,6 +4038,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_slice_analysis(_tasks_list, baseline),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
+        _build_security_findings(_ins_input),
+        _build_nondeterminism(_tasks_list),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -4105,15 +4197,14 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
     _tasks_list = list(getattr(rf, "tasks", []) or [])
     _cur_file = getattr(rf, "path", None)
     _res_dir = str(Path(_cur_file).parent) if _cur_file else None
+    # rf.raw already carries tasks[] + evaluators.security; fall back defensively.
+    _ins_input: dict[str, Any] = dict(current_dict) if isinstance(current_dict, dict) else {}
+    if not _ins_input.get("tasks"):
+        _ins_input["tasks"] = _review_dict_tasks(_tasks_list)
     _narrative = ""
     _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
-        # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
-        # task dicts on so the insight narrative sees real task data.
-        _ins_input = current_dict
-        if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
-            _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
         ) or {}
@@ -4159,6 +4250,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_slice_analysis(_tasks_list, baseline),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
+        _build_security_findings(_ins_input),
+        _build_nondeterminism(_tasks_list),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,

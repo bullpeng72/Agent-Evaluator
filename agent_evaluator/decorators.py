@@ -4041,6 +4041,14 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
                 _repro_result = compute_reproducibility_score(
                     reproducibility_responses, reproducibility.similarity_measure
                 )
+                # SPEC-041 P19: keep a few truncated variant texts so a low
+                # reproducibility score can be *localized* in the report (the
+                # actual divergent answers, not just the number).
+                if _repro_result.get("score", 1.0) < 1.0:
+                    _repro_result["sample_responses"] = [
+                        (str(r)[:400] if r is not None else "")
+                        for r in reproducibility_responses[:3]
+                    ]
                 _p1_extra["reproducibility"] = _repro_result
                 if (
                     reproducibility.fail_on_low_reproducibility

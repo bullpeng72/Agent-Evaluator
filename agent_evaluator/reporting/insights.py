@@ -149,6 +149,125 @@ def _extract_task_attr(t: dict[str, Any]) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Security findings (P19) — per-task threat detail from the 5 security trackers.
+# Gate E has its own aggregate section but never said *which task* triggered
+# *which threat*; a security regression is the highest-priority improve item.
+# ---------------------------------------------------------------------------
+_THREAT_CWE = {
+    "sql_injection": "CWE-89", "command_injection": "CWE-78",
+    "path_traversal": "CWE-22", "xss": "CWE-79", "prompt_injection": "LLM01",
+    "template_injection": "CWE-1336", "ldap_injection": "CWE-90", "xxe": "CWE-611",
+    "ssrf": "CWE-918", "jwt_manipulation": "CWE-347",
+    "api_key": "CWE-312", "password": "CWE-256", "credit_card": "CWE-311",
+    "ssn": "CWE-359", "private_ip": "CWE-200", "db_connection": "CWE-522",
+    "jwt_token": "CWE-522", "crypto_address": "CWE-200",
+    "privilege_escalation": "CWE-269", "dangerous_params": "CWE-77",
+    "unauthorized_tool": "CWE-862", "restricted_tool": "CWE-863",
+    "tool_chain_attack": "CWE-506",
+}
+
+
+def _sec_records(current: dict[str, Any], name: str) -> list[dict[str, Any]]:
+    sec = ((current.get("evaluators") or {}).get("security") or {}) if isinstance(current, dict) else {}
+    block = sec.get(name)
+    if not isinstance(block, dict):
+        return []
+    for v in block.values():           # {"evaluations": [...]} / {"detections": [...]} / ...
+        if isinstance(v, list):
+            return [r for r in v if isinstance(r, dict)]
+    return []
+
+
+def _security_findings_section(current: dict[str, Any]) -> list[dict[str, Any]] | None:
+    if not isinstance(current, dict) or not (current.get("evaluators") or {}).get("security"):
+        return None
+    out: list[dict[str, Any]] = []
+
+    def _emit(tid: Any, tracker: str, threat: str, severity: str, detail: str) -> None:
+        out.append({
+            "task_id": str(tid or "—"), "tracker": tracker,
+            "threat_type": threat, "severity": severity or "unknown",
+            "cwe": _THREAT_CWE.get(threat), "detail": detail[:200],
+        })
+
+    for r in _sec_records(current, "input_sanitizer"):
+        if r.get("threat_count", 0) or r.get("sanitization_needed"):
+            hits = [k[4:] for k in r if k.startswith("has_") and r.get(k)]
+            _emit(r.get("task_id"), "input_sanitizer",
+                  hits[0] if hits else "input_threat", r.get("risk_level", ""),
+                  f"input threats: {', '.join(hits) or 'unspecified'}")
+    for r in _sec_records(current, "output_leakage_detector"):
+        if r.get("leakage_count", 0):
+            hits = [k[9:] for k in r if k.startswith("contains_") and r.get(k)]
+            _emit(r.get("task_id"), "output_leakage_detector",
+                  hits[0] if hits else "output_leak", r.get("severity", ""),
+                  f"response leaked: {', '.join(hits) or 'unspecified'}")
+    for r in _sec_records(current, "tool_authorizer"):
+        if r.get("has_dangerous_params") or not r.get("is_authorized", True) or r.get("is_restricted"):
+            vt = r.get("violation_type") or (
+                "unauthorized_tool" if not r.get("is_authorized", True) else "dangerous_params"
+            )
+            sev = "high" if not r.get("is_authorized", True) else "medium"
+            _emit(r.get("task_id"), "tool_authorizer", vt, sev,
+                  f"tool {r.get('tool_name', '?')} — {vt}")
+    for r in _sec_records(current, "privilege_escalation_detector"):
+        if r.get("escalation_detected"):
+            rs = r.get("risk_score", 0)
+            sev = "critical" if rs >= 8 else "high" if rs >= 5 else "medium"
+            _emit(r.get("task_id"), "privilege_escalation_detector",
+                  "privilege_escalation", sev,
+                  f"{r.get('initial_privilege')} -> {r.get('max_privilege')} "
+                  f"(risk {rs})")
+    for r in _sec_records(current, "tool_chain_attack_detector"):
+        if r.get("is_suspicious_chain"):
+            pats = r.get("attack_patterns_detected") or [
+                k for k, v in (r.get("attack_types") or {}).items() if v
+            ]
+            conf = r.get("confidence", 0.0)
+            sev = "critical" if conf >= 0.8 else "high" if conf >= 0.5 else "medium"
+            _emit(r.get("task_id"), "tool_chain_attack_detector",
+                  "tool_chain_attack", sev,
+                  f"patterns: {', '.join(str(p) for p in pats) or 'unspecified'}")
+
+    if not out:
+        return None
+    _sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+    out.sort(key=lambda f: (_sev_rank.get(f["severity"], 4), f["task_id"]))
+    return out[:25]
+
+
+# ---------------------------------------------------------------------------
+# Non-determinism (P19) — localize a low Gate C reproducibility score to the
+# tasks that actually diverged (with the variant texts when the run kept them).
+# ---------------------------------------------------------------------------
+
+def _nondeterminism_section(tasks: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+    out: list[dict[str, Any]] = []
+    for t in tasks:
+        extra = t.get("extra")
+        rep = extra.get("reproducibility") if isinstance(extra, dict) else None
+        if not isinstance(rep, dict):
+            continue
+        score = _safe_float(rep.get("score"))
+        rc = rep.get("run_count")
+        if score is None or not isinstance(rc, int) or rc < 2 or score >= 0.85:
+            continue
+        out.append({
+            "task_id": str(t.get("task_id") or "—"),
+            "reproducibility_score": round(score, 3),
+            "run_count": rc,
+            "variance": round(_safe_float(rep.get("variance"), 0.0) or 0.0, 4),
+            "sample_responses": [
+                str(s)[:300] for s in (rep.get("sample_responses") or [])
+            ][:3],
+        })
+    if not out:
+        return None
+    out.sort(key=lambda d: d["reproducibility_score"])
+    return out[:15]
+
+
+# ---------------------------------------------------------------------------
 # Cost economics (P16) — the number that actually matters is cost per *successful*
 # task, plus how much is being burned on failures and retries, plus what that
 # projects to at scale. Gate D only ever showed total / per-task cost.
@@ -1432,6 +1551,8 @@ def build_insights(
         "rag_localization": _safe(rag_localization, tasks, default=None),
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
+        "security_findings": _safe(_security_findings_section, current, default=None),
+        "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(
             _change_attribution_section, current, baseline, diagnosis, default=None,
