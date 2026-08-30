@@ -1566,9 +1566,15 @@ def _failure_segments_section(
         })
     segments.sort(key=lambda s: -s["n"])
     segments = segments[:_SEG_MAX]
-    if not segments:
-        return None
+    # An "other" bucket is worth showing even when nothing clustered — "12
+    # failures, no shared topic" is itself a finding (spread across capabilities).
     if len(leftovers) >= _SEG_MIN_MEMBERS:
+        lo_members = [by_id[tid] for tid in leftovers if tid in by_id]
+        by_reason = Counter(_reason_signature(_task_reason(m)) for m in lo_members)
+        lo_example = min(
+            (str(m.get("question") or "") for m in lo_members if m.get("question")),
+            key=len, default="",
+        )
         segments.append({
             "label": "other (no shared topic)",
             "keywords": [],
@@ -1576,10 +1582,10 @@ def _failure_segments_section(
             "n": len(leftovers),
             "share_of_failures_pct": round(len(leftovers) / n_fail * 100.0, 1),
             "impact_pct": round(len(leftovers) / total * 100.0, 1),
-            "dominant_reason": "mixed",
-            "example_question": "",
+            "dominant_reason": by_reason.most_common(1)[0][0] if by_reason else "mixed",
+            "example_question": lo_example[:160],
         })
-    return segments
+    return segments or None
 
 
 _TRIG_LIMIT = 12
@@ -2531,6 +2537,9 @@ def _days_between(a: Any, b: Any) -> int | None:
     da, db = _parse(a), _parse(b)
     if da is None or db is None:
         return None
+    # one side may be tz-aware and the other naive — compare on the wall clock.
+    da = da.replace(tzinfo=None)
+    db = db.replace(tzinfo=None)
     return abs((da - db).days)
 
 
