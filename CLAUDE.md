@@ -43,12 +43,14 @@ agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
 agent-eval opencode install --with-recommend-fix           # + register recommend_fix MCP server (requires [mcp] extra)
+agent-eval opencode install --with-ask-insights            # + register ask_insights MCP server — query a result JSON's insight layer (requires [mcp] extra)
 agent-eval opencode upgrade                               # re-copy the plugin .ts after a package update (keeps agent-evaluator.config.json)
 agent-eval opencode doctor                                # verify the install works: plugin freshness + Python stdio-bridge round-trip (--json/--no-live/--strict)
 agent-eval opencode uninstall                             # remove plugin file + opencode.json mcp entries (run BEFORE pip uninstall; --purge/--dry-run/--yes)
 agent-eval claude install                                 # LiveGuardrail Claude Code CLI hooks (--global/--force)
 agent-eval claude install --with-violation-search         # + register search_violations MCP server (requires [mcp] extra)
 agent-eval claude install --with-recommend-fix             # + register recommend_fix MCP server (requires [mcp] extra)
+agent-eval claude install --with-ask-insights              # + register ask_insights MCP server — query a result JSON's insight layer (requires [mcp] extra)
 agent-eval claude upgrade                                 # refresh hooks/matchers + deep-merge NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
 agent-eval claude doctor                                  # verify the install works: static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
 agent-eval claude uninstall                               # remove our hooks from settings.json + deregister MCP + delete session state (run BEFORE pip uninstall; --keep-config/--purge/--dry-run/--yes)
@@ -509,6 +511,16 @@ agent_evaluator/
 │   │                       #  없다"고 답하던 어휘 불일치 제거. 이름이 바뀌면 사용자에게 고지.
 │   │                       #  main()은 [mcp] extra 미설치 시 bare ImportError 대신 설치 안내
 │   │                       #  (stderr) + exit 1(violation_search_mcp.py도 동일).
+│   ├── ask_insights_mcp.py       # SPEC-041 P31 — 결과 JSON의 insight 계층을 구조화 질문으로
+│   │                       #  조회하는 stdio MCP 서버(옵트인, 위 둘과 나란히 등록). 4개 도구:
+│   │                       #  insights_summary(verdict+narrative+최대 실패테마+리뷰카운트) ·
+│   │                       #  insights_readiness(path-to-green: 게이트 갭+수정계획+투영) ·
+│   │                       #  insights_why_failed(task_id: 사유+트리거+세그먼트+점수신호+리뷰) ·
+│   │                       #  insights_list(filter: failing/judge_disagreement/borderline/
+│   │                       #  nondeterministic/security/regressed(baseline 필요)/review/
+│   │                       #  segment:<text>). build_insights()를 1회 계산해 순수 조회 —
+│   │                       #  새 판정 없음, 결과 파일 미변경. search_violations/recommend_fix와
+│   │                       #  체이닝(찾기→조회→고치기). --with-ask-insights로 설치.
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
 │   ├── framework_integrations.py  # EvaluatorProtocol · to_graph_state · to_crew_inputs
 │   ├── dspy_integration.py
@@ -1076,6 +1088,17 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P31 (`ask_insights` MCP)** — `integrations/ask_insights_mcp.py` — 결과 JSON을 로드해
+`build_insights()`를 1회 계산하고 4개 구조화 질문에 답하는 stdio MCP 서버(옵트인 `[mcp]`,
+`violation_search_mcp`/`recommend_fix_mcp`와 나란히). 도구: `insights_summary(result_file,
+baseline_file="")` · `insights_readiness(result_file)` · `insights_why_failed(result_file, task_id)` ·
+`insights_list(result_file, filter, baseline_file="")`. 순수 함수(`summary_text`/`readiness_text`/
+`why_failed_text`/`list_task_ids`)는 별도 import·테스트 가능. filter: failing/judge_disagreement/
+borderline/nondeterministic/security/regressed(baseline 필요)/review/`segment:<text>`. 새 판정
+로직 없음, 결과 파일 미변경. `agent-eval {opencode,claude} install --with-ask-insights`로 등록
+(constants·register fn·install/upgrade hook·uninstall deregister·claude doctor mcp_targets 전부 배선,
+`_MCP_NAMES`에 `agent-evaluator-ask-insights` 추가). opencode doctor는 MCP 미검사라 변경 없음.
 
 **SPEC-041 P30 (의미 기반 실패 세그먼트 + 트리거 국소화)** — `reporting/insights.py`:
 `_failure_segments_section(tasks)` — 실패 태스크의 *질문*을 어휘 토픽으로 군집화. `_tfidf_vectors`

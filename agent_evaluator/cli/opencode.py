@@ -94,6 +94,7 @@ def cmd_opencode(args: argparse.Namespace) -> int:
 
 _VIOLATION_SEARCH_MCP_NAME = "agent-evaluator-violations"
 _RECOMMEND_FIX_MCP_NAME = "agent-evaluator-recommend-fix"
+_ASK_INSIGHTS_MCP_NAME = "agent-evaluator-ask-insights"
 
 
 def _register_mcp_server(name: str, module: str, flag: str) -> None:
@@ -203,6 +204,16 @@ def _register_recommend_fix_mcp() -> None:
     )
 
 
+def _register_ask_insights_mcp() -> None:
+    """(``--with-ask-insights``) ``opencode mcp add``로 ``ask_insights`` stdio MCP
+    서버를 등록한다 — 결과 JSON의 insights 계층을 구조화 질문으로 조회한다."""
+    _register_mcp_server(
+        _ASK_INSIGHTS_MCP_NAME,
+        "agent_evaluator.integrations.ask_insights_mcp",
+        "--with-ask-insights",
+    )
+
+
 def _register_violation_search_mcp() -> None:
     """(SPEC-024 REQ-6) ``opencode mcp add``로 REQ-4의 stdio MCP 서버를 등록한다."""
     _register_mcp_server(
@@ -277,6 +288,10 @@ def _cmd_install(args: argparse.Namespace) -> int:
         print()
         _register_recommend_fix_mcp()
 
+    if getattr(args, "with_ask_insights", False):
+        print()
+        _register_ask_insights_mcp()
+
     print()
     print(f"{_B}Next steps:{_R}")
     print(
@@ -306,7 +321,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
-_MCP_NAMES = [_VIOLATION_SEARCH_MCP_NAME, _RECOMMEND_FIX_MCP_NAME]
+_MCP_NAMES = [_VIOLATION_SEARCH_MCP_NAME, _RECOMMEND_FIX_MCP_NAME, _ASK_INSIGHTS_MCP_NAME]
 _LGR_STDIO_MODULE = "agent_evaluator.integrations.live_guardrail_stdio"
 _LGR_PLUGIN_MODULE = "agent_evaluator.integrations.opencode_plugin"  # doctor import 프로브용
 _SIBLING_CONFIG = "agent-evaluator.config.json"
@@ -691,6 +706,15 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             "recommend_fix MCP server — static Gate/metric remediation lookup, "
             "no result file required (opt-in, requires the 'mcp' extra: "
             "pip install \"agent-evaluator[mcp]\")"
+        ),
+    )
+    install_p.add_argument(
+        "--with-ask-insights", dest="with_ask_insights", action="store_true",
+        help=(
+            "Also run 'opencode mcp add' to register the ask_insights MCP "
+            "server — query a result JSON's insight layer (verdict, path to "
+            "green, why a task failed, task lists by filter) (opt-in, requires "
+            "the 'mcp' extra: pip install \"agent-evaluator[mcp]\")"
         ),
     )
 

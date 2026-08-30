@@ -63,6 +63,7 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | **SessionEnd 요약** | Claude `systemMessage` / OpenCode synthetic transcript | 세션 종료 / 매 턴 | AI 런타임·사용자 | Gate B/E 점수 + 위반 요약 |
 | **`search_violations` MCP** | 자연어 문자열 | 에이전트가 도구 호출 | AI 런타임 | 과거 차단 이력 + `recommend_fix` 힌트 |
 | **`recommend_fix` MCP** | 자연어 문자열 | 에이전트가 도구 호출 | AI 런타임 | Gate/지표별 정적 조치 지식 (L6) |
+| **`ask_insights` MCP** (SPEC-041 P31) | result JSON 경로 + 질문 | 에이전트가 도구 호출 | AI 런타임 | `insights_summary` / `insights_readiness`(path-to-green) / `insights_why_failed(task_id)` / `insights_list(filter)` — insight 계층을 구조화 질문으로 조회 (L5/L6) |
 
 ---
 

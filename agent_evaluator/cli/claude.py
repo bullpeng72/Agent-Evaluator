@@ -84,6 +84,7 @@ _GLOBAL_CONFIG = Path.home() / ".claude" / ".agent-evaluator" / "guardrail_confi
 
 _VIOLATION_SEARCH_MCP_NAME = "agent-evaluator-violations"
 _RECOMMEND_FIX_MCP_NAME = "agent-evaluator-recommend-fix"
+_ASK_INSIGHTS_MCP_NAME = "agent-evaluator-ask-insights"
 
 
 def cmd_claude(args: argparse.Namespace) -> int:
@@ -295,6 +296,13 @@ def _register_recommend_fix_mcp(scope: str) -> None:
     )
 
 
+def _register_ask_insights_mcp(scope: str) -> None:
+    _register_mcp_server(
+        _ASK_INSIGHTS_MCP_NAME, "agent_evaluator.integrations.ask_insights_mcp",
+        "--with-ask-insights", scope,
+    )
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     is_global: bool = getattr(args, "global_install", False)
     force: bool = getattr(args, "force", False)
@@ -340,6 +348,10 @@ def _cmd_install(args: argparse.Namespace) -> int:
     if getattr(args, "with_recommend_fix", False):
         print()
         _register_recommend_fix_mcp(scope)
+
+    if getattr(args, "with_ask_insights", False):
+        print()
+        _register_ask_insights_mcp(scope)
 
     print()
     print(f"{_B}Next steps:{_R}")
@@ -463,6 +475,10 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
         print()
         _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
         _register_recommend_fix_mcp(scope)
+    if getattr(args, "with_ask_insights", False):
+        print()
+        _deregister_mcp_server(_ASK_INSIGHTS_MCP_NAME, scope)
+        _register_ask_insights_mcp(scope)
 
     print()
     print(f"{_B}Done.{_R} Start a new Claude Code session (or /clear) to pick up the changes.")
@@ -528,6 +544,7 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
         if not dry_run:
             _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
             _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
+            _deregister_mcp_server(_ASK_INSIGHTS_MCP_NAME, scope)
         return 0
 
     print(f"{_B}agent-eval claude uninstall{_R} will:")
@@ -567,6 +584,7 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
 
     _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
     _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
+    _deregister_mcp_server(_ASK_INSIGHTS_MCP_NAME, scope)
 
     if purge and state_dir.exists():
         shutil.rmtree(state_dir, ignore_errors=True)
@@ -808,6 +826,8 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
          "search_violations"),
         (_RECOMMEND_FIX_MCP_NAME, "agent_evaluator.integrations.recommend_fix_mcp",
          "recommend_fix"),
+        (_ASK_INSIGHTS_MCP_NAME, "agent_evaluator.integrations.ask_insights_mcp",
+         "insights_summary"),
     )
     mcp_status: dict[str, bool | None] = {}
     for mname, _mmod, _mtool in mcp_targets:
@@ -937,6 +957,15 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
             "pip install \"agent-evaluator[mcp]\")"
         ),
     )
+    install_p.add_argument(
+        "--with-ask-insights", dest="with_ask_insights", action="store_true",
+        help=(
+            "Also run 'claude mcp add' to register the ask_insights MCP server "
+            "— query a result JSON's insight layer (verdict, path to green, why "
+            "a task failed, task lists by filter) (opt-in, requires the 'mcp' "
+            "extra: pip install \"agent-evaluator[mcp]\")"
+        ),
+    )
 
     # --- upgrade ---
     upgrade_p = cl_sub.add_parser(
@@ -965,6 +994,10 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
     upgrade_p.add_argument(
         "--with-recommend-fix", dest="with_recommend_fix", action="store_true",
         help="Also re-register the recommend_fix MCP server (remove + add)",
+    )
+    upgrade_p.add_argument(
+        "--with-ask-insights", dest="with_ask_insights", action="store_true",
+        help="Also re-register the ask_insights MCP server (remove + add)",
     )
 
     # --- doctor ---
