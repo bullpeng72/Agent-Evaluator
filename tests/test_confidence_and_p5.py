@@ -15,7 +15,9 @@ from agent_evaluator.reporting.comprehensive_report import (
     generate_comprehensive_html_report,
 )
 from agent_evaluator.utils.confidence import (
+    bootstrap_diff_ci,
     bootstrap_mean_ci,
+    mde_two_proportions,
     required_n_for_halfwidth,
     verdict_confidence,
     wilson_interval,
@@ -63,6 +65,35 @@ class TestRequiredN:
 
     def test_p_half_is_worst_case(self):
         assert required_n_for_halfwidth(0.5, 0.05) >= required_n_for_halfwidth(0.9, 0.05)
+
+
+class TestMdeTwoProportions:
+    def test_smaller_sample_larger_mde(self):
+        assert mde_two_proportions(20, 20, 0.5) > mde_two_proportions(400, 400, 0.5)
+
+    def test_zero_sample_returns_none(self):
+        assert mde_two_proportions(0, 10) is None
+
+    def test_typical_small_run_is_coarse(self):
+        # n=24 per arm can only reliably detect a ~40pp swing at 80% power
+        assert 0.30 < mde_two_proportions(24, 24, 0.5) < 0.55
+
+
+class TestBootstrapDiffCI:
+    def test_clear_difference_excludes_zero(self):
+        lo, hi = bootstrap_diff_ci([1.0] * 18 + [0.0] * 2, [0.0] * 18 + [1.0] * 2)
+        assert lo > 0  # a is clearly higher
+
+    def test_no_difference_spans_zero(self):
+        ci = bootstrap_diff_ci([1.0, 0.0] * 15, [1.0, 0.0] * 15)
+        assert ci[0] <= 0 <= ci[1]
+
+    def test_too_few_samples_returns_none(self):
+        assert bootstrap_diff_ci([1.0, 0.0], [1.0, 0.0, 1.0]) is None
+
+    def test_deterministic(self):
+        a, b = [1.0] * 12 + [0.0] * 8, [1.0] * 8 + [0.0] * 12
+        assert bootstrap_diff_ci(a, b) == bootstrap_diff_ci(a, b)
 
 
 class TestVerdictConfidence:

@@ -6676,6 +6676,36 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.slice_analysis && improveResult.insights.slice_analysis.length > 1">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">Per-slice breakdown</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">A headline metric can hide a regression concentrated in one task_type.</div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Task type</th><th style="text-align:right;padding:4px">N</th>
+                    <th style="text-align:right;padding:4px">TCR (95% CI)</th><th style="text-align:right;padding:4px">Accuracy</th>
+                    <th style="text-align:right;padding:4px">Δ vs baseline</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="s in improveResult.insights.slice_analysis" :key="s.task_type">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:600" x-text="s.task_type"></td>
+                        <td style="padding:4px;text-align:right" x-text="s.n"></td>
+                        <td style="padding:4px;text-align:right;white-space:nowrap" x-text="s.tcr_pct!=null?(s.tcr_pct.toFixed(1)+'%'+(s.tcr_ci_pct?(' ('+s.tcr_ci_pct[0].toFixed(0)+'–'+s.tcr_ci_pct[1].toFixed(0)+')'):'')):'—'"></td>
+                        <td style="padding:4px;text-align:right" x-text="s.accuracy_pct!=null?s.accuracy_pct.toFixed(1)+'%':'—'"></td>
+                        <td style="padding:4px;text-align:right;white-space:nowrap;font-weight:600"
+                            :style="s.tcr_delta_pp==null?'':(s.significant?(s.tcr_delta_pp<0?'color:var(--red)':'color:var(--green)'):'color:var(--text2)')"
+                            x-text="s.tcr_delta_pp!=null?((s.tcr_delta_pp>0?'+':'')+s.tcr_delta_pp.toFixed(1)+'pp'+(s.significant?' *':'')):'—'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div style="font-size:11px;color:var(--text2);margin-top:4px">* = two-sample bootstrap 95% CI of the difference excludes 0.</div>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.rag_localization && improveResult.insights.rag_localization.dominant_failure">
             <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700;margin-bottom:2px">RAG failure localization</div>

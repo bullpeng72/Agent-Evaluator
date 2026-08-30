@@ -118,6 +118,7 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | 3 | Gate A–G 상세 (`gate-a`…`gate-g`) | L3 | **Score Breakdown** (산식 + 컴포넌트별 raw value/기여도/note) + KPI + 상세 표. 측정 컴포넌트 ≤2 & score<90이면 "대표성 낮음" 경고. **전 Gate `insufficient_data_warnings`**(표본 부족 컴포넌트) 노출. **Gate D**: **Latency Budget** (SPEC-041 P7) — `eval_latency_attribution`의 per-task span 분해를 평균낸 model/tool/network/unattributed 스택바 + `Bottleneck: <component>` (span 데이터 있을 때) | 항상 (미측정 항목은 `⚙️ Not Configured` / `📉 Insufficient Data` / `➖ Not Applicable` 배너) |
 | 4 | Advanced Metrics (`advanced`) | L2 | DeepEval · Ragas · 멀티턴 대화 세션 | 데이터 있을 때 |
 | 5 | **Operational Signals** (`operational-signals`) | L6 | AnomalyDetector 결과 — type/severity/detail/value + `anomaly_suggestion_for()` 조치 | `enable_anomaly_detection=True` |
+| 5b | **Per-Slice Breakdown** (`slice-analysis`) | **L4** | task_type별 N · TCR(95% CI) · Accuracy. baseline 있으면 `Δ vs baseline` + 두-표본 부트스트랩 유의성(*) (SPEC-041 P10 — "회귀가 한 코호트에 몰렸는지") | task_type ≥ 2종일 때 |
 | 6 | **실패/저점 케이스** (`failure-cases`) | **L1** | ① **Failure set vs baseline** — 📉Regressed/♻️Persistent/🆕New/✅Fixed (baseline 시) ② **RAG failure localization** (SPEC-041 P11) — retrieved context 있는 태스크를 retrieval-miss / grounding-miss / generation-error로 분류, 클래스별 count + 조치 + unsupported claim 예시 ③ **Failure themes** — `(사유 테마 × task_type)` 군집을 count·영향도(~%p) 순 ④ **Worst cases** 표 (`Status · Question→Response · Score(C/A) · Likely reason`) — 각 행에 **▸ Trajectory** `<details>` (SPEC-041 P7): `tool_calls`→`chain_steps`→`agent_interactions` 순으로 step→tool→인자/출력 요약→✓/✗ + 스텝별 duration/토큰 | 실패·저점 태스크 있을 때 |
 | 7 | **Recommendations** (`recommendations`) | **L6** | fail/warn Gate마다 (a) `▲/▼ Since baseline` confirmed/refuted (b) GATE_GUIDANCE (c) **Biggest measured shortfalls** (d) **붙여넣을 수 있는 `@agent_eval` 코드 스니펫** (e) **🧪 실험 제안** — 예측 Δ + 권장 표본 + `agent-eval abtest` (f) **📈 과거 이력** — 이 Gate 조치 confirmed/refuted/avg Δ | 항상 |
 | 8 | **Gate Failure / RCA Diagnosis** (`diagnosis`) | **L5** | baseline 없으면 "🔍 Gate Failure Diagnosis" — `component_shortfalls`(Component/Current/Health 약한 순) + 처방. baseline 있으면 "🔍 Gate RCA Diagnosis (Improve)" — Baseline/Current/Δ 표 + MAST 후보 + 추천 이력 | 항상 |
@@ -189,7 +190,7 @@ CI 게이트 **아님** — 항상 exit 0 (파일 못 읽을 때만 1). 3단계 
 
 ### `agent-eval abtest` — 통계 A/B
 
-CI 게이트 아님. 파일 2개 → Welch's t-test (`--sequential` 시 mSPRT always-valid), 3개+ → N-way + FDR. 유의성 · 효과크기 · 표본 경고만 출력, pass/fail 없음.
+CI 게이트 아님. 파일 2개 → Welch's t-test (`--sequential` 시 mSPRT always-valid), 3개+ → N-way + FDR. 유의성 · 효과크기 · 표본 경고만 출력, pass/fail 없음. **SPEC-041 P10**: proportion형 지표(양쪽 mean∈[0,1])에 `min detectable effect @ 80% power (α=0.05): ±X — observed |delta| Y` 한 줄. not significant인데 관측 차이가 MDE보다 작으면 "underpowered — 동등성 증거가 아님, 태스크를 더 모으거나 `--sequential`" 경고.
 
 ### `agent-eval trend` — 시계열 추세
 

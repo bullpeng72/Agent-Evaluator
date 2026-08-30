@@ -4,6 +4,7 @@ Harness Gate A–G 중심 구조 (v0.8.2+)
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from typing import Any
@@ -2285,6 +2286,77 @@ def _task_context(t: Any) -> str:
     return getattr(t, "context", "") or ""
 
 
+def _build_slice_analysis(tasks: list[Any] | None,
+                          baseline: dict[str, Any] | None) -> str:
+    """P10: per-task_type TCR/accuracy with CIs, and — with a baseline — the
+    per-slice delta + a two-sample bootstrap significance flag. Answers "the
+    regression is entirely in the rag cohort; qa is flat"."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import _slice_analysis_section
+
+        norm = [_norm_task_for_case(t) for t in tasks]
+        rows_data = _slice_analysis_section(
+            [
+                {"task_type": c["task_type"], "completion_score": c["completion_score"],
+                 "accuracy_score": c["accuracy_score"]}
+                for c in norm
+            ],
+            baseline,
+        )
+    except Exception:
+        rows_data = []
+    if len(rows_data) < 2:
+        return ""   # a single slice adds nothing over the headline numbers
+
+    has_base = any("tcr_delta_pp" in r for r in rows_data)
+    body = ""
+    for r in rows_data:
+        tcr = r.get("tcr_pct")
+        ci = r.get("tcr_ci_pct")
+        acc = r.get("accuracy_pct")
+        tcr_cell = "—"
+        if tcr is not None:
+            ci_s = (f' <span style="color:#9ca3af">({ci[0]:.0f}–{ci[1]:.0f})</span>'
+                    if ci else "")
+            tcr_cell = f'{tcr:.1f}%{ci_s}'
+        acc_cell = f'{acc:.1f}%' if acc is not None else "—"
+        delta_cell = ""
+        if has_base:
+            d = r.get("tcr_delta_pp")
+            if d is None:
+                delta_cell = '<td style="color:#9ca3af">—</td>'
+            else:
+                sig = r.get("significant")
+                col = ("#dc2626" if d < 0 else "#059669") if sig else "#6b7280"
+                tag = " *" if sig else ""
+                delta_cell = (f'<td style="color:{col};font-weight:600;white-space:nowrap">'
+                              f'{d:+.1f}pp{tag}</td>')
+        body += (
+            f'<tr><td style="font-weight:600">{_esc(r.get("task_type", "—"))}</td>'
+            f'<td style="text-align:right">{r.get("n", 0)}</td>'
+            f'<td style="text-align:right;white-space:nowrap">{tcr_cell}</td>'
+            f'<td style="text-align:right">{acc_cell}</td>'
+            f'{delta_cell}</tr>'
+        )
+
+    head = ('<th>Task type</th><th>N</th><th>TCR (95% CI)</th><th>Accuracy</th>'
+            + ('<th>Δ vs baseline</th>' if has_base else ''))
+    note = ('<p style="font-size:11px;color:#9ca3af;margin:4px 0 0">'
+            '* = the two-sample bootstrap 95% CI of the difference excludes 0 '
+            '(significant for that slice).</p>' if has_base else '')
+    return (
+        '<div class="gate-section" id="slice-analysis" style="border-left-color:#6366f1">'
+        '<h2 style="color:#1e2030">Per-Slice Breakdown</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 10px">'
+        'A headline metric can hide a regression concentrated in one cohort. '
+        'Each row is a <code>task_type</code>.</p>'
+        f'<table class="mtable"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+        f'{note}</div>'
+    )
+
+
 def _task_extra(t: Any) -> dict:
     raw = getattr(t, "raw", None)
     v = raw.get("extra") if isinstance(raw, dict) else getattr(t, "extra", None)
@@ -3363,6 +3435,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
+        _build_slice_analysis(_tasks_list, baseline),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
@@ -3549,6 +3622,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
+        _build_slice_analysis(_tasks_list, baseline),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,

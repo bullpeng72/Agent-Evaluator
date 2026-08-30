@@ -9,7 +9,8 @@ agent_evaluator.utils.confidence
 생성해도 신뢰구간 값이 흔들리지 않는다.
 
 소비처: ``reporting/comprehensive_report.py``(헤더 CI · Executive Summary 확신도 배지 ·
-Conclusion Grade 확신도).
+Conclusion Grade 확신도) · ``reporting/insights.py``(per-slice 유의성) · ``cli/abtest.py``
+(MDE/검정력 라인).
 """
 from __future__ import annotations
 
@@ -69,6 +70,37 @@ def bootstrap_mean_ci(
     return (means[lo_i], means[hi_i])
 
 
+def bootstrap_diff_ci(
+    a: Sequence[float],
+    b: Sequence[float],
+    *,
+    ci: float = 0.95,
+    n_resamples: int = 2000,
+    seed: int = 12345,
+) -> tuple[float, float] | None:
+    """``mean(a) - mean(b)``의 백분위 부트스트랩 신뢰구간 (0–1 per-task 값 기준).
+
+    두 슬라이스(예: current vs baseline의 같은 task_type)를 각각 복원추출해 평균차
+    분포를 만든다. CI가 0을 포함하지 않으면 그 차이는 통계적으로 유의하다고 본다.
+    어느 한쪽이라도 3개 미만이면 판정 불가 → ``None``.
+    """
+    av = [float(v) for v in a if v is not None]
+    bv = [float(v) for v in b if v is not None]
+    if len(av) < 3 or len(bv) < 3:
+        return None
+    rng = random.Random(seed)
+    na, nb = len(av), len(bv)
+    diffs: list[float] = []
+    for _ in range(n_resamples):
+        sa = sum(av[rng.randrange(na)] for _ in range(na)) / na
+        sb = sum(bv[rng.randrange(nb)] for _ in range(nb)) / nb
+        diffs.append(sa - sb)
+    diffs.sort()
+    lo_i = int((1.0 - ci) / 2.0 * n_resamples)
+    hi_i = min(n_resamples - 1, int((1.0 + ci) / 2.0 * n_resamples))
+    return (diffs[lo_i], diffs[hi_i])
+
+
 def required_n_for_halfwidth(p: float, target_halfwidth: float, z: float = _Z_95) -> int:
     """비율 ``p``를 ±``target_halfwidth``(둘 다 0–1 스케일)로 추정하는 데 필요한
     대략적 표본 수 (정규근사: ``n ≈ z² p(1-p) / h²``)."""
@@ -76,6 +108,34 @@ def required_n_for_halfwidth(p: float, target_halfwidth: float, z: float = _Z_95
         return 0
     p = min(max(p, 1e-6), 1.0 - 1e-6)
     return math.ceil(z * z * p * (1.0 - p) / (target_halfwidth * target_halfwidth))
+
+
+_Z_POWER_80 = 0.8416212335729143  # Φ⁻¹(0.80) — one-sided power 0.80
+
+
+def mde_two_proportions(
+    n_a: int,
+    n_b: int,
+    p_pooled: float = 0.5,
+    *,
+    z_alpha: float = _Z_95,
+    z_power: float = _Z_POWER_80,
+) -> float | None:
+    """두 비율 비교(A/B)에서 주어진 표본 수로 탐지 가능한 **최소 효과 크기**(MDE),
+    0–1 스케일. 관측된 차이가 이 값보다 작으면 "표본이 부족해 노이즈와 구분 불가".
+
+    정규근사 표준식::
+
+        MDE ≈ (z_α/2 + z_β) · sqrt( p(1-p)·(1/n_a + 1/n_b) )
+
+    ``p_pooled``는 두 그룹 합산 비율(모르면 0.5 — 가장 보수적, MDE 최대). 표본이
+    없으면 ``None``.
+    """
+    if n_a <= 0 or n_b <= 0:
+        return None
+    p = min(max(p_pooled, 1e-6), 1.0 - 1e-6)
+    se = math.sqrt(p * (1.0 - p) * (1.0 / n_a + 1.0 / n_b))
+    return (z_alpha + z_power) * se
 
 
 _LEVEL_ORDER = {"high": 2, "medium": 1, "low": 0}

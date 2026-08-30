@@ -264,6 +264,37 @@ class TestRagLocalization:
         assert build_insights(rpt)["rag_localization"] is None
 
 
+class TestSliceAnalysis:
+    def test_per_type_rows_with_ci(self):
+        rpt = _report(
+            {"A": {"score": 0.7, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"q{i}", ok=True, ttype="qa") for i in range(12)]
+            + [_task(f"r{i}", ok=i % 4 == 0, ttype="rag") for i in range(12)],
+        )
+        sl = build_insights(rpt)["slice_analysis"]
+        by = {r["task_type"]: r for r in sl}
+        assert by["qa"]["tcr_pct"] == 100.0
+        assert by["rag"]["tcr_pct"] < 100.0
+        assert len(by["rag"]["tcr_ci_pct"]) == 2
+
+    def test_baseline_delta_flags_the_regressed_slice(self):
+        base = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"q{i}", ok=True, ttype="qa") for i in range(16)]
+            + [_task(f"r{i}", ok=True, ttype="rag") for i in range(16)],
+        )
+        cur = _report(
+            {"A": {"score": 0.6, "status": "fail", "gate": "fail", "details": {"tcr_pct": 60.0}}},
+            [_task(f"q{i}", ok=True, ttype="qa") for i in range(16)]
+            + [_task(f"r{i}", ok=i < 4, ttype="rag") for i in range(16)],
+        )
+        sl = {r["task_type"]: r for r in build_insights(cur, base)["slice_analysis"]}
+        assert sl["qa"]["tcr_delta_pp"] == 0.0
+        assert sl["qa"]["significant"] is False
+        assert sl["rag"]["tcr_delta_pp"] < 0
+        assert sl["rag"]["significant"] is True
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

@@ -830,6 +830,8 @@ latency_budget{n_tasks, tool_ms, model_ms, network_ms, unattributed_ms, *_ratio,
 (SPEC-041 P7 — eval_latency_attribution의 per-task span 분해를 평균낸 것, 모달 bottleneck),
 rag_localization{n_rag_tasks, by_class, dominant_failure, remediation_by_class, unsupported_claim_examples}|null
 (SPEC-041 P11 — RAG 실패를 retrieval/grounding/generation으로 분류),
+slice_analysis[]{task_type, n, tcr_pct, tcr_ci_pct, accuracy_pct, baseline_tcr_pct?, tcr_delta_pp?,
+tcr_delta_ci_pp?, significant?} (SPEC-041 P10 — per-task_type CI, baseline 있으면 두-표본 부트스트랩 유의성),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -848,6 +850,14 @@ faithfulness<0.6) / `generation_error`(검색·근거 OK인데 여전히 오답)
 `insights.rag_localization{n_rag_tasks, by_class, dominant_failure, remediation_by_class{retrieval→top_k/re-rank,
 grounding→프롬프트/temperature, generation→few-shot/검증}, unsupported_claim_examples[]}`. 리포트:
 `_build_rag_localization(tasks)`(실패 케이스 섹션 안), 대시보드 Improve 탭 패널.
+
+**SPEC-041 P10 (통계 심도)** — `utils/confidence.py`: `mde_two_proportions(n_a, n_b, p_pooled)` — 주어진
+표본에서 80% 검정력·α=0.05로 탐지 가능한 최소 효과 크기(정규근사). `bootstrap_diff_ci(a, b)` — 두 슬라이스
+평균차의 백분위 부트스트랩 CI(0 포함 안 하면 유의). `cli/abtest.py::_print_mde()` — proportion형 지표
+(양쪽 mean∈[0,1])에 "min detectable effect @ 80% power ±X — observed |delta| Y" 한 줄 + not significant인데
+|delta|<MDE면 "underpowered, 동등성 증거 아님" 경고. `reporting/insights.py::_slice_analysis_section` +
+`comprehensive_report.py::_build_slice_analysis` — task_type별 TCR/accuracy(+CI), baseline 있으면 per-slice
+Δ + 유의성(*) 표. "헤더 지표는 한 코호트에 몰린 회귀를 숨긴다".
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
@@ -1157,7 +1167,7 @@ pytest  # configured in pyproject.toml (testpaths, cov)
 
 Note: `agent_evaluator/utils/transparency_manager.py` contains `TestTransparencyManager` — a **production class**, not a test file.
 
-`agent_evaluator/utils/confidence.py` (SPEC-041 P5) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `required_n_for_halfwidth` · `verdict_confidence`. 소비: `reporting/comprehensive_report.py`.
+`agent_evaluator/utils/confidence.py` (SPEC-041 P5·P10) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `bootstrap_diff_ci`(P10, 두-표본 평균차 CI) · `required_n_for_halfwidth` · `mde_two_proportions`(P10, 80% 검정력 최소 탐지 효과) · `verdict_confidence`. 소비: `reporting/comprehensive_report.py` · `reporting/insights.py` · `cli/abtest.py`.
 
 ---
 

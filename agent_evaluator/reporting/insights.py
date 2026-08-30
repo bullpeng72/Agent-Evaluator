@@ -451,6 +451,66 @@ def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _slice_analysis_section(
+    tasks: list[dict[str, Any]], baseline: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Per-``task_type`` TCR/accuracy with CIs, and — when a baseline is given —
+    the per-slice delta plus whether a two-sample bootstrap CI of the difference
+    excludes 0. Answers "the 12pp TCR regression is entirely in the rag cohort;
+    qa is flat (significant)". (P10)
+    """
+    if not tasks:
+        return []
+    try:
+        from agent_evaluator.utils.confidence import bootstrap_diff_ci, bootstrap_mean_ci
+    except Exception:  # pragma: no cover - defensive
+        return []
+
+    def _by_type(ts: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        out: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for t in ts:
+            out[str(t.get("task_type") or "—")].append(t)
+        return out
+
+    cur_by = _by_type(tasks)
+    base_by = _by_type(
+        [t for t in (baseline.get("tasks") or []) if isinstance(t, dict)]
+    ) if baseline else {}
+
+    rows: list[dict[str, Any]] = []
+    for ttype, members in sorted(cur_by.items(), key=lambda kv: -len(kv[1])):
+        comps = [
+            c for c in (_safe_float(m.get("completion_score")) for m in members)
+            if c is not None
+        ]
+        accs = [
+            a for a in (_safe_float(m.get("accuracy_score")) for m in members)
+            if a is not None
+        ]
+        row: dict[str, Any] = {"task_type": ttype, "n": len(members)}
+        if comps:
+            row["tcr_pct"] = round(sum(comps) / len(comps) * 100.0, 2)
+            lo, hi = bootstrap_mean_ci(comps)
+            row["tcr_ci_pct"] = [round(lo * 100, 2), round(hi * 100, 2)]
+        if accs:
+            row["accuracy_pct"] = round(sum(accs) / len(accs) * 100.0, 2)
+        base_members = base_by.get(ttype) or []
+        if base_members:
+            b_comps = [
+                c for c in (_safe_float(m.get("completion_score")) for m in base_members)
+                if c is not None
+            ]
+            if b_comps and comps:
+                row["baseline_tcr_pct"] = round(sum(b_comps) / len(b_comps) * 100.0, 2)
+                row["tcr_delta_pp"] = round(row["tcr_pct"] - row["baseline_tcr_pct"], 2)
+                dci = bootstrap_diff_ci(comps, b_comps)
+                if dci is not None:
+                    row["tcr_delta_ci_pp"] = [round(dci[0] * 100, 2), round(dci[1] * 100, 2)]
+                    row["significant"] = dci[0] > 0 or dci[1] < 0
+        rows.append(row)
+    return rows
+
+
 def _gate_findings_section(diagnosis: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not diagnosis:
         return []
@@ -786,6 +846,7 @@ def build_insights(
             default=None,
         ),
         "rag_localization": _safe(rag_localization, tasks, default=None),
+        "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),

@@ -127,6 +127,23 @@ class TestTwoWayAbTest:
         assert code == 1
         assert "Invalid --guardrail format" in capsys.readouterr().err
 
+    def test_mde_line_shown_for_proportion_metric_and_underpower_warning(self, tmp_path, capsys):
+        # accuracy_score is proportion-like; tiny near-identical samples -> underpowered
+        f1 = _make_result_file(tmp_path, "v1", [0.8, 0.9] * 6, metric_key="accuracy_score")
+        f2 = _make_result_file(tmp_path, "v2", [0.85, 0.85] * 6, metric_key="accuracy_score")
+        code = cmd_abtest(_ns(result_files=[f1, f2], metric="accuracy_score"))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "min detectable effect" in out
+        assert "underpowered" in out
+
+    def test_mde_line_skipped_for_non_proportion_metric(self, tmp_path, capsys):
+        f1 = _make_result_file(tmp_path, "v1", [1.0, 1.2] * 8)
+        f2 = _make_result_file(tmp_path, "v2", [3.0, 3.2] * 8)
+        code = cmd_abtest(_ns(result_files=[f1, f2], metric="execution_time"))
+        assert code == 0
+        assert "min detectable effect" not in capsys.readouterr().out
+
 
 class TestSequentialAbTest:
     def test_missing_tau_exits_1(self, tmp_path, capsys):

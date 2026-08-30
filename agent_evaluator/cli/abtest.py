@@ -81,6 +81,43 @@ def _parse_guardrail(spec: str) -> dict[str, Any]:
     return {"metric": metric, "direction": direction, "max_regression": float(max_regression)}
 
 
+def _print_mde(result: dict[str, Any]) -> None:
+    """Minimum detectable effect at 80% power for this sample size (P10).
+
+    Only meaningful for a proportion-like metric (both means in [0, 1]) — for
+    latency/token metrics we skip it. Turns "not significant" into an actionable
+    statement: is the difference genuinely small, or is the sample just too small
+    to tell?
+    """
+    try:
+        from agent_evaluator.utils.confidence import mde_two_proportions
+    except Exception:
+        return
+    m_a = result.get("self_mean")
+    m_b = result.get("other_mean")
+    n_a = (result.get("sample_sizes") or {}).get("self", 0)
+    n_b = (result.get("sample_sizes") or {}).get("other", 0)
+    if not all(isinstance(x, (int, float)) for x in (m_a, m_b)):
+        return
+    if not (0.0 <= m_a <= 1.0 and 0.0 <= m_b <= 1.0):
+        return  # not a proportion-like metric — MDE for proportions doesn't apply
+    p_pooled = (m_a * n_a + m_b * n_b) / max(n_a + n_b, 1)
+    mde = mde_two_proportions(n_a, n_b, p_pooled)
+    if mde is None:
+        return
+    observed = abs(result.get("delta") or 0.0)
+    print(
+        f"  {D}min detectable effect @ 80% power (α=0.05): "
+        f"±{mde:.4f} — observed |delta| {observed:.4f}{R}"
+    )
+    if not result.get("significant") and observed < mde:
+        print(
+            f"  {Y}⚠ the observed difference is smaller than this sample can reliably "
+            f"detect — underpowered, not evidence the versions are equivalent. "
+            f"Collect more tasks or run --sequential.{R}"
+        )
+
+
 def _print_two_way(result: dict[str, Any], name_a: str, name_b: str) -> None:
     metric = result["metric"]
     print(f"{D}Metric: {metric}{R}")
@@ -101,6 +138,8 @@ def _print_two_way(result: dict[str, Any], name_a: str, name_b: str) -> None:
         print(f"  {_sig_color}Statistically {_sig_text}{R}")
     else:
         print(f"  {Y}⚠ scipy not installed — skipping t-test/effect size (pip install scipy){R}")
+
+    _print_mde(result)
 
     if result["sample_size_warning"]:
         print(f"  {Y}⚠ {result['sample_size_warning']}{R}")
