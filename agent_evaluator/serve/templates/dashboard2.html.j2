@@ -6634,6 +6634,39 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.freshness && improveResult.insights.freshness.warnings && improveResult.insights.freshness.warnings.length">
+            <div style="border:1px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin-bottom:14px">
+              <div style="font-weight:700;color:#92400e">⏳ Freshness</div>
+              <ul style="margin:4px 0 0 18px;font-size:12px;color:#92400e;line-height:1.5">
+                <template x-for="(w, i) in improveResult.insights.freshness.warnings" :key="i"><li x-text="w"></li></template>
+              </ul>
+            </div>
+          </template>
+
+          <template x-if="improveResult.insights.insight_changes">
+            <div style="border:1px solid var(--border);border-left:4px solid #0ea5e9;border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">What changed in the insights (vs baseline)</div>
+              <template x-if="improveResult.insights.insight_changes.verdict_change">
+                <div style="font-size:12px" x-text="'🔀 Verdict: '+improveResult.insights.insight_changes.verdict_change.from+' → '+improveResult.insights.insight_changes.verdict_change.to"></div>
+              </template>
+              <template x-if="(improveResult.insights.insight_changes.newly_failing_gates||[]).length">
+                <div style="font-size:12px;color:var(--red)" x-text="'📉 Newly failing gates: '+improveResult.insights.insight_changes.newly_failing_gates.join(', ')"></div>
+              </template>
+              <template x-if="(improveResult.insights.insight_changes.new_clusters||[]).length">
+                <div style="font-size:12px;color:var(--red)" x-text="'🆕 New failure clusters: '+improveResult.insights.insight_changes.new_clusters.join('; ')"></div>
+              </template>
+              <template x-if="(improveResult.insights.insight_changes.resolved_clusters||[]).length">
+                <div style="font-size:12px;color:var(--green)" x-text="'🧹 Resolved clusters: '+improveResult.insights.insight_changes.resolved_clusters.join('; ')"></div>
+              </template>
+              <template x-if="improveResult.insights.insight_changes.trust_change">
+                <div style="font-size:12px" x-text="'⚖️ Evaluator trust: '+improveResult.insights.insight_changes.trust_change.from+' → '+improveResult.insights.insight_changes.trust_change.to"></div>
+              </template>
+              <template x-if="(improveResult.insights.insight_changes.new_security_findings||[]).length">
+                <div style="font-size:12px;color:var(--red)" x-text="'🔒 New security findings: '+improveResult.insights.insight_changes.new_security_findings.length"></div>
+              </template>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.readiness && (improveResult.insights.readiness.gaps.length || improveResult.insights.readiness.fix_plan.length)">
             <div style="border:1px solid var(--border);border-left:4px solid var(--red);border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700">Path to green</div>

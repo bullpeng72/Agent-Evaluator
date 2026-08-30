@@ -3639,6 +3639,7 @@ _TOC_LABELS = {
     "failure-cases": "Failures", "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
+    "freshness": "Freshness", "insight-changes": "Insight diff",
     "change-attribution": "Change", "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
@@ -3684,6 +3685,66 @@ def _build_narrative_banner(narrative: str) -> str:
         '<p style="font-size:11px;color:#9ca3af;margin:6px 0 0">'
         'Auto-generated summary — see the sections below for the evidence.</p>'
         '</div>'
+    )
+
+
+def _build_freshness_banner(fr: dict[str, Any] | None) -> str:
+    """P33: a staleness warning banner — old baseline, unchanged eval set,
+    mislabelled cases, tiny eval set."""
+    if not fr or not fr.get("warnings"):
+        return ""
+    items = "".join(f"<li>{_esc(w)}</li>" for w in fr["warnings"])
+    return (
+        '<div class="gate-section" id="freshness" '
+        'style="border-left-color:#b45309;background:#fffbeb">'
+        '<div style="font-weight:700;color:#92400e;font-size:13px">⏳ Freshness</div>'
+        f'<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.6;color:#92400e">'
+        f'{items}</ul></div>'
+    )
+
+
+def _build_insight_changes(ic: dict[str, Any] | None) -> str:
+    """P33: how the *insights* changed vs the baseline — new/resolved failure
+    clusters, verdict move, judge-trust move, new security findings."""
+    if not ic:
+        return ""
+    rows = ""
+
+    def _line(icon: str, label: str, val: str, col: str = "#374151") -> str:
+        return (f'<div style="font-size:12px;margin:3px 0"><span style="font-weight:700">'
+                f'{icon} {_esc(label)}</span> <span style="color:{col}">{_esc(val)}</span></div>')
+
+    vc = ic.get("verdict_change")
+    if vc:
+        rows += _line("🔀", "Verdict", f"{vc.get('from')} → {vc.get('to')}",
+                      "#dc2626" if vc.get("to") == "not_ready" else "#059669")
+    if ic.get("newly_failing_gates"):
+        rows += _line("📉", "Newly failing gates", ", ".join(ic["newly_failing_gates"]), "#dc2626")
+    if ic.get("newly_passing_gates"):
+        rows += _line("✅", "Newly passing gates", ", ".join(ic["newly_passing_gates"]), "#059669")
+    tc = ic.get("trust_change")
+    if tc:
+        rows += _line("⚖️", "Evaluator trust", f"{tc.get('from')} → {tc.get('to')}",
+                      "#dc2626" if tc.get("to") == "low" else "#374151")
+    if ic.get("new_clusters"):
+        rows += _line("🆕", "New failure clusters",
+                      "; ".join(_clip(s, 60) for s in ic["new_clusters"]), "#dc2626")
+    if ic.get("resolved_clusters"):
+        rows += _line("🧹", "Resolved failure clusters",
+                      "; ".join(_clip(s, 60) for s in ic["resolved_clusters"]), "#059669")
+    nsf = ic.get("new_security_findings") or []
+    if nsf:
+        rows += _line("🔒", "New security findings",
+                      "; ".join(f"{s.get('task_id')}:{s.get('threat_type')}"
+                                f"({s.get('severity')})" for s in nsf[:6]), "#dc2626")
+    if not rows:
+        return ""
+    return (
+        '<div class="gate-section" id="insight-changes" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">What Changed in the Insights</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">Meta-diff vs the baseline '
+        '— not the metrics, but the findings.</p>'
+        f'{rows}</div>'
     )
 
 
@@ -4863,6 +4924,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
+        _build_freshness_banner(_insights_obj.get("freshness")),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_readiness(_insights_obj.get("readiness")),
         _build_scorecard(harness_groups),
@@ -4892,6 +4954,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
+        _build_insight_changes(_insights_obj.get("insight_changes")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
@@ -5090,6 +5153,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
+        _build_freshness_banner(_insights_obj.get("freshness")),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_readiness(_insights_obj.get("readiness")),
         _build_scorecard(harness_groups),
@@ -5119,6 +5183,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
+        _build_insight_changes(_insights_obj.get("insight_changes")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,

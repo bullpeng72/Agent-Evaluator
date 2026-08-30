@@ -97,6 +97,31 @@
       }
     },
 
+    "insight_changes": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "new_clusters": { "type": "array", "items": { "type": "string" } },
+        "resolved_clusters": { "type": "array", "items": { "type": "string" } },
+        "trust_change": { "type": ["object", "null"] },
+        "new_security_findings": { "type": "array" },
+        "verdict_change": { "type": ["object", "null"] },
+        "newly_failing_gates": { "type": "array", "items": { "type": "string" } },
+        "newly_passing_gates": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "freshness": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "baseline_age_days": { "type": ["integer", "null"] },
+        "eval_set_identical_to_baseline": { "type": ["boolean", "null"] },
+        "n_tasks": { "type": "integer" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
     "metric_confidence": {
       "type": "object",
       "additionalProperties": true,

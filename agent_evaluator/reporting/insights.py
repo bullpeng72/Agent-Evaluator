@@ -2496,6 +2496,175 @@ def _trace_diffs_section(
 
 
 # ---------------------------------------------------------------------------
+# Insight meta-diff + staleness (P33). change_attribution diffs prompts/config/
+# metrics. This diffs the *insights* themselves ("a new failure cluster
+# appeared", "judge trust dropped", "a new CWE finding") and flags when the
+# baseline / eval set is stale enough that the comparison is shaky.
+# ---------------------------------------------------------------------------
+
+def _report_timestamp(report: dict[str, Any] | None) -> Any:
+    if not report:
+        return None
+    for k in ("timestamp", "created_at", "generated_at"):
+        v = report.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    lin = _lineage(report)
+    for k in ("timestamp", "created_at"):
+        v = lin.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
+def _days_between(a: Any, b: Any) -> int | None:
+    from datetime import datetime
+
+    def _parse(s: Any) -> Any:
+        if not isinstance(s, str):
+            return None
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    da, db = _parse(a), _parse(b)
+    if da is None or db is None:
+        return None
+    return abs((da - db).days)
+
+
+def _question_fingerprint(report: dict[str, Any] | None) -> frozenset:
+    return frozenset(
+        str(t.get("question") or "").strip().lower()
+        for t in ((report or {}).get("tasks") or [])
+        if isinstance(t, dict) and str(t.get("question") or "").strip()
+    )
+
+
+def _insight_changes_section(
+    current: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    security_findings: list[dict[str, Any]] | None,
+    evaluator_trust: dict[str, Any] | None,
+    failure_clusters: list[dict[str, Any]] | None,
+    harness_groups: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not baseline:
+        return None
+    base_tasks = [t for t in (baseline.get("tasks") or []) if isinstance(t, dict)]
+    base_hg = _harness_groups(baseline)
+
+    b_clusters = _safe(_failure_clusters_section, base_tasks, len(base_tasks), default=[]) or []
+    cur_sigs = {c.get("signature") for c in (failure_clusters or [])}
+    base_sigs = {c.get("signature") for c in b_clusters}
+    new_clusters = sorted(s for s in cur_sigs - base_sigs if s)
+    resolved_clusters = sorted(s for s in base_sigs - cur_sigs if s)
+
+    b_trust = _safe(_evaluator_trust_section, base_tasks, baseline, default=None) or {}
+    trust_change = None
+    ct, bt = (evaluator_trust or {}).get("trust_level"), b_trust.get("trust_level")
+    if ct and bt and ct != bt:
+        trust_change = {"from": bt, "to": ct}
+
+    b_sec = _safe(_security_findings_section, baseline, default=None) or []
+    base_sec_keys = {(s.get("task_id"), s.get("threat_type")) for s in b_sec}
+    new_security_findings = [
+        {"task_id": s.get("task_id"), "threat_type": s.get("threat_type"),
+         "severity": s.get("severity")}
+        for s in (security_findings or [])
+        if (s.get("task_id"), s.get("threat_type")) not in base_sec_keys
+    ]
+
+    def _lvl(hg: dict[str, Any]) -> str:
+        v = _safe(
+            _verdict_section, hg, None, {"n_tasks": 0}, 0, default={},
+        )
+        return (v or {}).get("level", "unknown")
+
+    cur_lvl, base_lvl = _lvl(harness_groups), _lvl(base_hg)
+    verdict_change = {"from": base_lvl, "to": cur_lvl} if cur_lvl != base_lvl else None
+
+    cur_fail = {k for k in "ABCDEFG" if _gate_status(harness_groups.get(k)) == "fail"}
+    base_fail = {k for k in "ABCDEFG" if _gate_status(base_hg.get(k)) == "fail"}
+    newly_failing_gates = sorted(cur_fail - base_fail)
+    newly_passing_gates = sorted(base_fail - cur_fail)
+
+    if not any([new_clusters, resolved_clusters, trust_change, new_security_findings,
+                verdict_change, newly_failing_gates, newly_passing_gates]):
+        return None
+    return {
+        "new_clusters": new_clusters,
+        "resolved_clusters": resolved_clusters,
+        "trust_change": trust_change,
+        "new_security_findings": new_security_findings,
+        "verdict_change": verdict_change,
+        "newly_failing_gates": newly_failing_gates,
+        "newly_passing_gates": newly_passing_gates,
+    }
+
+
+_FRESH_BASELINE_MAX_DAYS = 30
+_FRESH_MIN_TASKS = 20
+
+
+def _freshness_section(
+    current: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    eval_set_quality: dict[str, Any] | None,
+    failure_clusters: list[dict[str, Any]] | None,
+    failure_segments: list[dict[str, Any]] | None,
+    ci: dict[str, Any],
+) -> dict[str, Any] | None:
+    warnings: list[str] = []
+    baseline_age_days = None
+    eval_set_identical = None
+
+    if baseline:
+        baseline_age_days = _days_between(
+            _report_timestamp(current), _report_timestamp(baseline)
+        )
+        if baseline_age_days is not None and baseline_age_days > _FRESH_BASELINE_MAX_DAYS:
+            warnings.append(
+                f"The baseline run is {baseline_age_days} days old — the "
+                f"regression comparison may be stale; re-baseline against a "
+                f"recent run."
+            )
+        cur_fp = _question_fingerprint(current)
+        base_fp = _question_fingerprint(baseline)
+        if cur_fp and base_fp:
+            eval_set_identical = cur_fp == base_fp
+            if eval_set_identical and (failure_clusters or failure_segments):
+                warnings.append(
+                    "The eval set has not changed since the baseline, yet new "
+                    "failure modes are present — add cases that cover them so "
+                    "the next run can track them."
+                )
+
+    sgt = (eval_set_quality or {}).get("suspicious_ground_truth") or []
+    if sgt:
+        warnings.append(
+            f"{len(sgt)} eval case(s) look mislabelled (they fail near-identically "
+            f"in both runs) — refresh their ground truth before trusting the scores."
+        )
+    n_tasks = int((ci or {}).get("n_tasks") or 0)
+    if 0 < n_tasks < _FRESH_MIN_TASKS:
+        warnings.append(
+            f"Only {n_tasks} task(s) in the eval set — widen it toward "
+            f"{_FRESH_MIN_TASKS}+ for a stable verdict."
+        )
+
+    if baseline_age_days is None and eval_set_identical is None and not warnings:
+        return None
+    return {
+        "baseline_age_days": baseline_age_days,
+        "eval_set_identical_to_baseline": eval_set_identical,
+        "n_tasks": n_tasks,
+        "warnings": warnings,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Change attribution (P18) — tie a metric move to the specific thing that
 # changed. experiment_metadata already gives the git file/commit diff; this adds
 # the system-prompt / config text diff (when the run stashed it in lineage) and
@@ -2847,6 +3016,8 @@ def build_insights(
     )
     rag_loc = _safe(rag_localization, tasks, default=None)
     security_findings = _safe(_security_findings_section, current, default=None)
+    fclusters = _safe(_failure_clusters_section, tasks, total_tasks, default=[])
+    fsegments = _safe(_failure_segments_section, tasks, default=None)
 
     out: dict[str, Any] = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
@@ -2864,12 +3035,18 @@ def build_insights(
             eval_set_quality=eval_set_quality, rag_localization=rag_loc, default=None,
         ),
         "gate_findings": _safe(_gate_findings_section, diagnosis, default=[]),
-        "failure_clusters": _safe(
-            _failure_clusters_section, tasks, total_tasks, default=[],
-        ),
-        "failure_segments": _safe(_failure_segments_section, tasks, default=None),
+        "failure_clusters": fclusters,
+        "failure_segments": fsegments,
         "failure_triggers": _safe(_failure_triggers_section, tasks, default=None),
         "failure_lineage": failure_lineage,
+        "insight_changes": _safe(
+            _insight_changes_section, current, baseline, security_findings,
+            evaluator_trust, fclusters, hg, default=None,
+        ),
+        "freshness": _safe(
+            _freshness_section, current, baseline, eval_set_quality,
+            fclusters, fsegments, ci, default=None,
+        ),
         "recommendations": _safe(
             _recommendations_section, hg, diagnosis,
             recommendation_log_path=recommendation_log_path,

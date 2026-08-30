@@ -953,6 +953,14 @@ sample_guidance{n_tasks, tcr_ci_halfwidth_pp, target_halfwidth_pp, recommended_n
 message}|null (SPEC-041 P28 — "TCR CI를 ±5pp로 좁히려면 태스크 몇 개 더". `required_n_for_halfwidth` 재사용),
 reproducibility_manifest{model_name, model_params, judge_model, dataset_ref, evaluator_config,
 evaluator_config_hash, dependency_versions}|null (SPEC-041 P28 — `lineage.reproducibility_manifest` 패스스루),
+insight_changes{new_clusters[], resolved_clusters[], trust_change{from,to}|null, new_security_findings[],
+verdict_change{from,to}|null, newly_failing_gates[], newly_passing_gates[]}|null (SPEC-041 P33 — baseline
+필요. *인사이트*의 메타 diff: current vs baseline의 failure_clusters 시그니처·evaluator_trust.trust_level·
+security_findings(task_id,threat_type)·verdict.level·fail 게이트 집합을 대조. 아무것도 안 움직였으면 null.
+baseline 인사이트는 full build_insights 재실행 대신 필요한 하위섹션만 baseline로 직접 호출),
+freshness{baseline_age_days, eval_set_identical_to_baseline, n_tasks, warnings[]}|null (SPEC-041 P33 —
+신선도 신호: baseline timestamp 나이 >30일 · 질문셋 fingerprint가 baseline과 동일한데 새 실패모드 존재 ·
+suspicious_ground_truth 있음 · n_tasks<20. warnings는 사람 읽는 문장 리스트),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
 스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
 `build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
@@ -1093,6 +1101,21 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P33 (인사이트 메타-diff + 신선도)** — `reporting/insights.py`:
+`_insight_changes_section(current, baseline, security_findings, evaluator_trust, failure_clusters,
+harness_groups)` → `insights.insight_changes` (baseline 필요). `change_attribution`이 프롬프트/config/
+지표 delta를 보는 것과 달리 *인사이트 자체*를 diff — new/resolved failure cluster(시그니처 집합 차),
+trust_change(trust_level), new_security_findings((task_id,threat_type) 신규), verdict_change(level),
+newly_failing/passing_gates. baseline 인사이트는 full 재실행 대신 `_failure_clusters_section`/
+`_evaluator_trust_section`/`_security_findings_section`/`_verdict_section`을 baseline로 직접 호출(경량).
+아무것도 안 움직였으면 None. `_freshness_section(current, baseline, eval_set_quality, failure_clusters,
+failure_segments, ci)` → `insights.freshness{baseline_age_days(_days_between+_report_timestamp),
+eval_set_identical_to_baseline(_question_fingerprint 동일성), n_tasks, warnings[]}`. 경고: baseline
+>30일 · 질문셋 그대로인데 새 실패모드 · suspicious_ground_truth · n_tasks<20. baseline 없어도
+n_tasks 경고는 가능(그땐 baseline_age_days=None). 리포트 `_build_freshness_banner()`(narrative 배너
+다음, 앰버) + `_build_insight_changes()` 섹션 `insight-changes`(change-attribution 앞). 대시보드
+Improve 탭 상단 패널 2개. build_insights가 `fclusters`/`fsegments`를 1회 계산해 out dict과 양 섹션이 공유.
 
 **SPEC-041 P32 (트레이스 레벨 버전 간 diff)** — `reporting/insights.py::_trace_diffs_section(current,
 cohort)` → `insights.trace_diffs` (cohort 지정 시만). `_labelled_cohort`(P22 재사용)로 [(label, report)…],
