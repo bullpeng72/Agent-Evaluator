@@ -997,6 +997,17 @@ privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 �
 - **`_build_toc()`** — 23개 섹션용 스티키 in-page 네비(C3). `_build_history_trend`에 first/last run
   라벨(C5), `_build_slice_analysis`에 delta CI(C6), review_queue 2차 정렬 `-len(reasons)`(C4).
 
+**SPEC-041 P24 (대화/멀티턴 인사이트)** — `reporting/insights.py::_conversation_section(current)` —
+결과 JSON `conversation_sessions[]`를 훑어 `insights.conversation{n_sessions, avg_overall_score,
+avg_context_retention, turn_quality_trajectory[]{turn, n, context_ref(에이전트 턴이 이전 턴 토큰을
+재사용하는 비율), avg_response_chars, repetition(직전 에이전트 턴과의 유사도), nonanswer_rate},
+degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전엔 아니었던 첫 지점 —
+`_is_nonanswer`: <15자 또는 "i can't"/"could you clarify" 등 deflection 구문), goal_drift_sessions[]
+{session_id, first_last_topic_overlap(첫↔마지막 user 턴 토큰 오버랩), reason}(마지막 턴이 substantive일
+때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
+degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
+`conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
 **SPEC-041 P23 (태스크별 점수 분해)** — `core/trackers/layer1.py::AccuracyEvaluator.decompose_qa(gt, pred)`
 신설 — QA 정확도 뒤의 4개 신호 `{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted, weakest}`
 (새 채점 없음, `_qa_accuracy`가 이제 이걸 호출). `reporting/insights.py::_score_breakdowns_section(tasks)` —

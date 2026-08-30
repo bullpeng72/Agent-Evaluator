@@ -1404,6 +1404,126 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Conversation / multi-turn (P24) — `insights` had zero coverage for a whole
+# product category. Session-level scores were in the JSON; this adds the
+# per-turn quality trajectory, the turn where the agent starts to degrade, and
+# per-session goal drift. Coarse text heuristics, stdlib only.
+# ---------------------------------------------------------------------------
+_CONV_DRIFT_OVERLAP = 0.15     # first<->last user-turn content overlap below this = goal drift
+_CONV_NONANSWER_MIN_CHARS = 15
+_CONV_NONANSWER_PHRASES = (
+    "i can't", "i cannot", "i can not", "not able to", "unable to",
+    "could you clarify", "please clarify", "i don't have", "i do not have",
+    "i'm not sure", "i am not sure", "contact support", "contact our support",
+    "i don't know", "i do not know", "cannot help with", "can't help with",
+    "not something i can", "reach out to",
+)
+
+
+def _is_nonanswer(agent_text: str) -> bool:
+    """A turn where the agent effectively didn't answer — very short, or a
+    deflection phrase. Used to find where a multi-turn agent gives up."""
+    t = str(agent_text or "").strip().lower()
+    if len(t) < _CONV_NONANSWER_MIN_CHARS:
+        return True
+    return any(p in t for p in _CONV_NONANSWER_PHRASES)
+
+
+def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
+    sessions = (current or {}).get("conversation_sessions") or []
+    sessions = [s for s in sessions if isinstance(s, dict) and s.get("turns")]
+    if not sessions:
+        return None
+
+    overalls, ctx_rets = [], []
+    per_turn: dict[int, dict[str, list[float]]] = defaultdict(
+        lambda: {"ctx": [], "len": [], "rep": [], "nonans": []}
+    )
+    drift: list[dict[str, Any]] = []
+    worst = None
+
+    for s in sessions:
+        turns = [t for t in s["turns"] if isinstance(t, dict)]
+        m = s.get("metrics") or {}
+        ov = _safe_float(m.get("overall_score"))
+        if ov is not None:
+            overalls.append(ov)
+            if worst is None or ov < worst[1]:
+                worst = (s.get("session_id"), ov)
+        cr = _safe_float(m.get("context_retention"))
+        if cr is not None:
+            ctx_rets.append(cr)
+
+        prior_tokens: set[str] = set()
+        prev_agent = ""
+        for t in turns:
+            i = t.get("turn_index", 0)
+            agent = str(t.get("agent") or "")
+            user = str(t.get("user") or "")
+            a_tok = _wtok(agent)
+            ref = _overlap(a_tok, prior_tokens) if prior_tokens else 1.0
+            rep = _overlap(a_tok, _wtok(prev_agent)) if prev_agent else 0.0
+            per_turn[i]["ctx"].append(ref)
+            per_turn[i]["len"].append(float(len(agent)))
+            per_turn[i]["rep"].append(rep)
+            per_turn[i]["nonans"].append(1.0 if _is_nonanswer(agent) else 0.0)
+            prior_tokens |= _wtok(user) | a_tok
+            prev_agent = agent
+
+        if len(turns) >= 2:
+            first_u = _wtok(turns[0].get("user") or "")
+            last_u = _wtok(turns[-1].get("user") or "")
+            ov_fl = _overlap(last_u, first_u) if first_u else 1.0
+            tc = _safe_float((s.get("metrics") or {}).get("topic_coherence"))
+            # ignore a trailing "ok thanks / bye" — only a substantive last turn
+            # counts as drift.
+            substantive_last = len(last_u) >= 4
+            if (substantive_last and ov_fl < _CONV_DRIFT_OVERLAP) or (tc is not None and tc < 0.4):
+                drift.append({
+                    "session_id": s.get("session_id"),
+                    "first_last_topic_overlap": round(ov_fl, 3),
+                    "reason": ("the last user turn barely overlaps the first "
+                               "(topic drifted) " if ov_fl < _CONV_DRIFT_OVERLAP
+                               else "low topic_coherence"),
+                })
+
+    traj = []
+    for i in sorted(per_turn):
+        d = per_turn[i]
+        traj.append({
+            "turn": i + 1,
+            "n": len(d["ctx"]),
+            "context_ref": round(sum(d["ctx"]) / len(d["ctx"]), 3) if d["ctx"] else None,
+            "avg_response_chars": round(sum(d["len"]) / len(d["len"])) if d["len"] else None,
+            "repetition": round(sum(d["rep"]) / len(d["rep"]), 3) if d["rep"] else None,
+            "nonanswer_rate": round(sum(d["nonans"]) / len(d["nonans"]), 3) if d["nonans"] else None,
+        })
+
+    # degradation: the first turn from which the agent mostly stops answering
+    # (short / deflecting responses) and never recovers. This keys off actual
+    # non-answers, not token reuse — a healthy follow-up naturally introduces new
+    # tokens and must not be flagged.
+    degradation_after = None
+    if len(traj) >= 3:
+        na = [x["nonanswer_rate"] or 0.0 for x in traj]
+        for k in range(1, len(na)):
+            if na[k] >= 0.5 and all(v >= 0.5 for v in na[k:]) and any(v < 0.5 for v in na[:k]):
+                degradation_after = traj[k]["turn"] - 1
+                break
+
+    return {
+        "n_sessions": len(sessions),
+        "avg_overall_score": round(sum(overalls) / len(overalls), 3) if overalls else None,
+        "avg_context_retention": round(sum(ctx_rets) / len(ctx_rets), 3) if ctx_rets else None,
+        "turn_quality_trajectory": traj,
+        "degradation_after_turn": degradation_after,
+        "goal_drift_sessions": drift[:10],
+        "worst_session": ({"session_id": worst[0], "overall_score": round(worst[1], 3)}
+                          if worst else None),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Cohort comparison (P22) — the report / insights only ever compared one result
 # to one optional baseline. World-class tooling puts 3+ versions side by side,
 # per task_type, with multiple-comparison-safe significance and a "pick the
@@ -1870,6 +1990,7 @@ def build_insights(
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
+        "conversation": _safe(_conversation_section, current, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(
             _change_attribution_section, current, baseline, diagnosis, default=None,

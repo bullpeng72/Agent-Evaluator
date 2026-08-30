@@ -306,6 +306,34 @@
       }
     },
 
+    "conversation": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_sessions": { "type": "integer" },
+        "avg_overall_score": { "type": ["number", "null"] },
+        "avg_context_retention": { "type": ["number", "null"] },
+        "turn_quality_trajectory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "turn": { "type": "integer" },
+              "n": { "type": "integer" },
+              "context_ref": { "type": ["number", "null"] },
+              "avg_response_chars": { "type": ["number", "null"] },
+              "repetition": { "type": ["number", "null"] },
+              "nonanswer_rate": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "degradation_after_turn": { "type": ["integer", "null"] },
+        "goal_drift_sessions": { "type": "array" },
+        "worst_session": { "type": ["object", "null"] }
+      }
+    },
+
     "eval_set_quality": {
       "type": ["object", "null"],
       "additionalProperties": true,

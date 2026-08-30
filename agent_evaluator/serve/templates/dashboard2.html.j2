@@ -6657,6 +6657,40 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.conversation">
+            <div style="border:1px solid var(--border);border-left:4px solid #8b5cf6;border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700" x-text="'Multi-turn conversation ('+improveResult.insights.conversation.n_sessions+' sessions)'"></div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px"
+                   x-text="'Avg session score '+(improveResult.insights.conversation.avg_overall_score!=null?(improveResult.insights.conversation.avg_overall_score*100).toFixed(0)+'%':'—')+' · avg context retention '+(improveResult.insights.conversation.avg_context_retention!=null?(improveResult.insights.conversation.avg_context_retention*100).toFixed(0)+'%':'—')"></div>
+              <template x-if="improveResult.insights.conversation.degradation_after_turn!=null">
+                <div style="font-size:13px;font-weight:700;color:var(--red);margin-top:4px"
+                     x-text="'⚠️ The agent starts losing context after turn '+improveResult.insights.conversation.degradation_after_turn"></div>
+              </template>
+              <div style="overflow-x:auto;margin-top:6px">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Turn</th><th style="text-align:right;padding:4px">Context ref</th><th style="text-align:right;padding:4px">Chars</th><th style="text-align:right;padding:4px">Non-answer</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="x in improveResult.insights.conversation.turn_quality_trajectory" :key="x.turn">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px" x-text="'Turn '+x.turn"></td>
+                        <td style="padding:4px;text-align:right" :style="x.context_ref!=null&&x.context_ref<0.3?'color:var(--red)':''" x-text="x.context_ref!=null?(x.context_ref*100).toFixed(0)+'%':'—'"></td>
+                        <td style="padding:4px;text-align:right" x-text="x.avg_response_chars??'—'"></td>
+                        <td style="padding:4px;text-align:right" :style="x.nonanswer_rate!=null&&x.nonanswer_rate>=0.5?'color:var(--red)':''" x-text="x.nonanswer_rate!=null?(x.nonanswer_rate*100).toFixed(0)+'%':'—'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <template x-if="improveResult.insights.conversation.goal_drift_sessions && improveResult.insights.conversation.goal_drift_sessions.length">
+                <div style="font-size:12px;color:var(--text2);margin-top:6px">
+                  Goal drift: <span x-text="improveResult.insights.conversation.goal_drift_sessions.map(d=>d.session_id).join(', ')"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.score_breakdowns && improveResult.insights.score_breakdowns.length">
             <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700;margin-bottom:2px">Per-task score breakdown</div>

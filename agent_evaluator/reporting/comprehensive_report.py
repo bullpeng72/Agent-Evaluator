@@ -3050,6 +3050,78 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
     )
 
 
+def _build_conversation(cv: dict[str, Any] | None) -> str:
+    """P24: multi-turn quality — per-turn context-reference trajectory, the turn
+    the agent starts to degrade, and per-session goal drift."""
+    if not cv or not cv.get("turn_quality_trajectory"):
+        return ""
+    traj = cv["turn_quality_trajectory"]
+    dat = cv.get("degradation_after_turn")
+    kpis = (
+        f'<div class="kpi"><div class="kpi-lbl">Sessions</div>'
+        f'<div class="kpi-val">{cv.get("n_sessions", 0)}</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">Avg Session Score</div>'
+        f'<div class="kpi-val">{_pct(cv.get("avg_overall_score"), 100)}</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">Avg Context Retention</div>'
+        f'<div class="kpi-val">{_pct(cv.get("avg_context_retention"), 100)}</div></div>'
+    )
+    # per-turn context-reference sparkline
+    series = [x["context_ref"] for x in traj if x["context_ref"] is not None]
+    spark = _spark_svg(series, color="#dc2626" if dat else "#6366f1") if len(series) > 1 else ""
+
+    rows = ""
+    for x in traj:
+        cr = x.get("context_ref")
+        rep = x.get("repetition")
+        na = x.get("nonanswer_rate")
+        col = "#dc2626" if (cr is not None and cr < 0.3) else "#374151"
+        cr_s = f"{cr * 100:.0f}%" if cr is not None else "—"
+        rep_s = f"{rep * 100:.0f}%" if rep is not None else "—"
+        na_s = (f'<span style="color:#dc2626">{na * 100:.0f}%</span>'
+                if na is not None and na >= 0.5
+                else (f"{na * 100:.0f}%" if na is not None else "—"))
+        rows += (
+            f'<tr><td>Turn {x["turn"]}</td>'
+            f'<td style="text-align:right">{x.get("n", 0)}</td>'
+            f'<td style="text-align:right;color:{col}">{cr_s}</td>'
+            f'<td style="text-align:right">{x.get("avg_response_chars", "—")}</td>'
+            f'<td style="text-align:right">{rep_s}</td>'
+            f'<td style="text-align:right">{na_s}</td></tr>'
+        )
+    dat_html = ""
+    if dat:
+        dat_html = (f'<p style="font-size:13px;font-weight:700;color:#dc2626;margin:8px 0 0">'
+                    f'⚠️ The agent starts losing context after turn {dat}.</p>')
+    drift = cv.get("goal_drift_sessions") or []
+    drift_html = ""
+    if drift:
+        items = "".join(
+            f'<li><strong>{_esc(str(d.get("session_id")))}</strong> — {_esc(d.get("reason", ""))} '
+            f'(first↔last overlap {d.get("first_last_topic_overlap")})</li>' for d in drift
+        )
+        drift_html = ('<p style="font-size:12px;color:#6b7280;margin:8px 0 2px">'
+                      'Goal drift (session went off-topic):</p>'
+                      f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{items}</ul>')
+    ws = cv.get("worst_session") or {}
+    ws_html = (f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">Worst session: '
+               f'<strong>{_esc(str(ws.get("session_id")))}</strong> '
+               f'(score {ws.get("overall_score")})</p>' if ws.get("session_id") else "")
+    return (
+        '<div class="gate-section" id="conversation" style="border-left-color:#8b5cf6">'
+        '<h2 style="color:#1e2030">Multi-Turn Conversation</h2>'
+        f'<div class="kpis">{kpis}</div>'
+        f'<h3 style="margin:10px 0 4px">Per-turn context reference {spark}</h3>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">'
+        'How much each agent turn reuses content from earlier turns — a decline '
+        'means the agent is losing the thread.</p>'
+        '<table class="mtable"><thead><tr><th>Turn</th><th>N</th>'
+        '<th>Context ref</th><th>Avg chars</th><th>Repetition</th>'
+        '<th>Non-answer</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table>'
+        f'{dat_html}{drift_html}{ws_html}</div>'
+    )
+
+
 def _build_cohort_comparison(cc: dict[str, Any] | None) -> str:
     """P22: 3+ versions side by side — per-version TCR + Gate scores, per-task_type
     winner, FDR-adjusted pairwise significance, and a 'pick the winner' call."""
@@ -3179,7 +3251,7 @@ _TOC_LABELS = {
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "recommendations": "Recommendations",
-    "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
+    "conversation": "Conversation", "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
 
@@ -4243,6 +4315,14 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
             or getattr(monitor, "pricing", None)
         if isinstance(_pricing, dict) and _pricing:
             _ins_input["pricing"] = _pricing
+    if not _ins_input.get("conversation_sessions"):
+        try:
+            _cs = getattr(monitor, "conversation_sessions", None) or []
+            _ins_input["conversation_sessions"] = [
+                s.to_dict() if hasattr(s, "to_dict") else s for s in _cs
+            ]
+        except Exception:
+            pass
     _narrative = ""
     _insights_obj: dict[str, Any] = {}
     try:
@@ -4315,6 +4395,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_conversation(_insights_obj.get("conversation")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
@@ -4533,6 +4614,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_conversation(_insights_obj.get("conversation")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
