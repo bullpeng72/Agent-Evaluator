@@ -930,6 +930,11 @@ cohort_comparison{metric, n_versions, versions[]{label, n_tasks, tcr_pct, gate_s
 pairwise[]{a, b, delta_pp, p_value, p_value_fdr, significant_fdr, ci_pp}, by_task_type[]{task_type,
 winner, scores}, winner{label, reason}|null}|null (SPEC-041 P22 — `build_insights(cohort=[dict,…])` 시.
 N-버전 비교 + Benjamini-Hochberg FDR + 슬라이스별 승자 + "승자 지목"),
+trace_diffs[]{task_id, question, compared[from,to], verdict(fixed|improved|regressed|declined|changed),
+score_delta{completion, accuracy}, response_diff{similarity, added[], removed[]},
+trajectory_diff{before[], after[], added[], removed[], reordered}, per_version[]{label, completion,
+accuracy, success, response_excerpt}}|null (SPEC-041 P32 — cohort에 ≥2회 등장하고 결과/점수가 움직인
+태스크의 응답 텍스트 diff(difflib) + 궤적 스텝 시퀀스 diff. current vs 첫 cohort 항목. cohort 없으면 null),
 security_findings[]{task_id, tracker, threat_type, severity, cwe, detail}|null (SPEC-041 P19 — 5개 보안
 트래커의 per-task 위협 상세, severity 순, CWE 매핑),
 nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_responses[]}|null
@@ -1088,6 +1093,16 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P32 (트레이스 레벨 버전 간 diff)** — `reporting/insights.py::_trace_diffs_section(current,
+cohort)` → `insights.trace_diffs` (cohort 지정 시만). `_labelled_cohort`(P22 재사용)로 [(label, report)…],
+[0]=current. current에 있고 cohort 버전 ≥1개에도 있으며 결과가 뒤집혔거나 |Δacc|≥0.15/|Δcomp|≥0.20인
+태스크만. current vs *첫* cohort 항목을 diff: `response_diff`(difflib SequenceMatcher — similarity +
+added/removed 단어런, `_word_runs`) · `trajectory_diff`(`_trace_step_names`로 tool_calls→chain_steps→
+agent_interactions 스텝명 시퀀스 추출 → added/removed/reordered) · `score_delta` · `per_version[]`
+(태스크를 담은 모든 버전, current 먼저). verdict fixed/improved/regressed/declined/changed. 정렬:
+regressed 먼저, |Δacc| 큰 순. 최대 8개. 리포트 `_build_trace_diffs()` 섹션 `trace-diffs`
+(cohort-comparison 바로 뒤), 대시보드 cohort 패널 하위 리스트.
 
 **SPEC-041 P31 (`ask_insights` MCP)** — `integrations/ask_insights_mcp.py` — 결과 JSON을 로드해
 `build_insights()`를 1회 계산하고 4개 구조화 질문에 답하는 stdio MCP 서버(옵트인 `[mcp]`,

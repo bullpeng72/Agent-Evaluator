@@ -7092,6 +7092,20 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <template x-if="improveResult.insights.cohort_comparison.winner">
             <div style="font-size:11px;color:var(--text2)" x-text="improveResult.insights.cohort_comparison.winner.reason"></div>
           </template>
+          <template x-if="improveResult.insights.trace_diffs && improveResult.insights.trace_diffs.length">
+            <div style="margin-top:10px">
+              <div style="font-weight:700;font-size:12px">Trace-level diff — what changed per task</div>
+              <template x-for="(d, i) in improveResult.insights.trace_diffs" :key="i">
+                <div style="border-top:1px solid var(--border);padding:6px 0;font-size:12px">
+                  <div><strong x-text="d.task_id"></strong>
+                    <span style="font-weight:700" :style="(d.verdict==='regressed'||d.verdict==='declined')?'color:var(--red)':(d.verdict==='fixed'||d.verdict==='improved'?'color:var(--green)':'color:var(--text2)')" x-text="' '+d.verdict"></span>
+                    <span style="color:var(--text2)" x-text="' ('+(d.compared||[]).join(' → ')+') · C '+(d.score_delta.completion>=0?'+':'')+d.score_delta.completion+' · A '+(d.score_delta.accuracy>=0?'+':'')+d.score_delta.accuracy"></span>
+                  </div>
+                  <div style="color:var(--text2);font-size:11px" x-text="'Response '+Math.round((d.response_diff.similarity||0)*100)+'% unchanged'+((d.trajectory_diff.added||[]).length?(' · trajectory +'+d.trajectory_diff.added.join('/')):'')+((d.trajectory_diff.removed||[]).length?(' −'+d.trajectory_diff.removed.join('/')):'')"></div>
+                </div>
+              </template>
+            </div>
+          </template>
         </div>
       </template>
 

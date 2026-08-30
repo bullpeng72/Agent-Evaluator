@@ -21,6 +21,7 @@ evidence — nothing asserts "this is the cause".
 """
 from __future__ import annotations
 
+import difflib
 import math
 import re
 from collections import Counter, defaultdict
@@ -2347,6 +2348,154 @@ def _cohort_comparison_section(
 
 
 # ---------------------------------------------------------------------------
+# Trace-level cross-version diff (P32) — cohort_comparison is aggregate. For a
+# task that appears in >=2 cohort versions and whose outcome/score moved, this
+# diffs the response text and the trajectory step sequence so the reader sees
+# *what actually changed* for that task, not just that the average moved.
+# ---------------------------------------------------------------------------
+
+_TD_ACC_DELTA = 0.15
+_TD_COMP_DELTA = 0.20
+_TD_LIMIT = 8
+
+
+def _trace_step_names(t: dict[str, Any]) -> list[str]:
+    for key in ("tool_calls", "chain_steps", "agent_interactions"):
+        steps = [s for s in (t.get(key) or []) if isinstance(s, dict)]
+        if not steps:
+            continue
+        names = []
+        for s in steps:
+            nm = (s.get("tool_name") or s.get("tool") or s.get("name")
+                  or s.get("step") or s.get("action") or s.get("type"))
+            if not nm and (s.get("from") or s.get("to")):
+                nm = f"{s.get('from', '?')}→{s.get('to', '?')}"
+            names.append(str(nm or "step"))
+        return names
+    return []
+
+
+def _word_runs(
+    sm: difflib.SequenceMatcher, side: str, words: list[str], *, cap: int = 6,
+) -> list[str]:
+    tag = "delete" if side == "a" else "insert"
+    out = []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == tag or (op == "replace" and side == "b"):
+            run = words[j1:j2] if side == "b" else words[i1:i2]
+            if run:
+                out.append(" ".join(run)[:80])
+        elif op == "replace" and side == "a":
+            run = words[i1:i2]
+            if run:
+                out.append(" ".join(run)[:80])
+    return out[:cap]
+
+
+def _trace_diffs_section(
+    current: dict[str, Any], cohort: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    labelled = _labelled_cohort(current, cohort)
+    if len(labelled) < 2:
+        return None
+    cur_label, cur_rep = labelled[0]
+    priors = labelled[1:]
+
+    def _index(rep: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        return {
+            str(t.get("task_id")): t
+            for t in (rep.get("tasks") or [])
+            if isinstance(t, dict) and t.get("task_id")
+        }
+
+    cur_idx = _index(cur_rep)
+    prior_idxs = [(lbl, _index(rep)) for lbl, rep in priors]
+    if not cur_idx or not any(idx for _lbl, idx in prior_idxs):
+        return None
+
+    def _ok(t: dict[str, Any]) -> bool:
+        return not _effective_fail(
+            success=t.get("success", False), accuracy=t.get("accuracy_score"),
+            completion=t.get("completion_score"),
+        )
+
+    out: list[dict[str, Any]] = []
+    for tid, ct in cur_idx.items():
+        hits = [(lbl, idx[tid]) for lbl, idx in prior_idxs if tid in idx]
+        if not hits:
+            continue
+        first_lbl, pt = hits[0]
+        c_acc = _safe_float(ct.get("accuracy_score"), 0.0) or 0.0
+        p_acc = _safe_float(pt.get("accuracy_score"), 0.0) or 0.0
+        c_comp = _safe_float(ct.get("completion_score"), 0.0) or 0.0
+        p_comp = _safe_float(pt.get("completion_score"), 0.0) or 0.0
+        acc_d, comp_d = c_acc - p_acc, c_comp - p_comp
+        c_ok, p_ok = _ok(ct), _ok(pt)
+        if not (c_ok != p_ok or abs(acc_d) >= _TD_ACC_DELTA or abs(comp_d) >= _TD_COMP_DELTA):
+            continue
+
+        rp = str(pt.get("response") or "")
+        rc = str(ct.get("response") or "")
+        w_p, w_c = rp.split(), rc.split()
+        sm = difflib.SequenceMatcher(None, w_p, w_c)
+
+        steps_p, steps_c = _trace_step_names(pt), _trace_step_names(ct)
+        traj = {
+            "before": steps_p[:12],
+            "after": steps_c[:12],
+            "added": [s for s in steps_c if s not in steps_p][:8],
+            "removed": [s for s in steps_p if s not in steps_c][:8],
+            "reordered": bool(
+                steps_p and steps_c and steps_p != steps_c
+                and sorted(steps_p) == sorted(steps_c)
+            ),
+        }
+        if c_ok and not p_ok:
+            verdict = "fixed"
+        elif p_ok and not c_ok:
+            verdict = "regressed"
+        elif acc_d > 0:
+            verdict = "improved"
+        elif acc_d < 0:
+            verdict = "declined"
+        else:
+            verdict = "changed"
+
+        per_version = []
+        for lbl, idx in [(cur_label, cur_idx)] + prior_idxs:
+            if tid in idx:
+                vt = idx[tid]
+                per_version.append({
+                    "label": lbl,
+                    "completion": _safe_float(vt.get("completion_score")),
+                    "accuracy": _safe_float(vt.get("accuracy_score")),
+                    "success": bool(vt.get("success", False)),
+                    "response_excerpt": str(vt.get("response") or "")[:160],
+                })
+
+        out.append({
+            "task_id": tid,
+            "question": str(ct.get("question") or "")[:160],
+            "compared": [first_lbl, cur_label],
+            "verdict": verdict,
+            "score_delta": {"completion": round(comp_d, 3), "accuracy": round(acc_d, 3)},
+            "response_diff": {
+                "similarity": round(sm.ratio(), 3),
+                "added": _word_runs(sm, "b", w_c),
+                "removed": _word_runs(sm, "a", w_p),
+            },
+            "trajectory_diff": traj,
+            "per_version": per_version,
+        })
+
+    out.sort(key=lambda d: (
+        0 if d["verdict"] == "regressed" else 1,
+        -abs(d["score_delta"]["accuracy"]),
+    ))
+    return out[:_TD_LIMIT] or None
+
+
+# ---------------------------------------------------------------------------
 # Change attribution (P18) — tie a metric move to the specific thing that
 # changed. experiment_metadata already gives the git file/commit diff; this adds
 # the system-prompt / config text diff (when the run stashed it in lineage) and
@@ -2752,6 +2901,9 @@ def build_insights(
         "cohort_comparison": _safe(
             _cohort_comparison_section,
             _labelled_cohort(current, cohort), cohort_metric, default=None,
+        ) if cohort else None,
+        "trace_diffs": _safe(
+            _trace_diffs_section, current, cohort, default=None,
         ) if cohort else None,
         "reproducibility_manifest": _safe(
             lambda: ((current.get("extra_metrics") or {}).get("lineage") or {})

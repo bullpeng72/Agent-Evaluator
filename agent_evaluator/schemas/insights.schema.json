@@ -469,6 +469,25 @@
       }
     },
 
+    "trace_diffs": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["task_id", "verdict"],
+        "properties": {
+          "task_id": { "type": "string" },
+          "question": { "type": "string" },
+          "compared": { "type": "array", "items": { "type": "string" } },
+          "verdict": { "type": "string" },
+          "score_delta": { "type": "object" },
+          "response_diff": { "type": "object" },
+          "trajectory_diff": { "type": "object" },
+          "per_version": { "type": "array" }
+        }
+      }
+    },
+
     "nondeterminism": {
       "type": ["array", "null"],
       "items": {

@@ -3429,6 +3429,83 @@ def _build_experiments(exps: list[dict[str, Any]] | None) -> str:
     )
 
 
+_TD_VERDICT_STYLE = {
+    "fixed": ("#059669", "✔ fixed"),
+    "improved": ("#059669", "▲ improved"),
+    "regressed": ("#dc2626", "✘ regressed"),
+    "declined": ("#dc2626", "▼ declined"),
+    "changed": ("#6b7280", "~ changed"),
+}
+
+
+def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
+    """P32: for a task that moved between cohort versions, show WHAT changed —
+    the response text diff and the trajectory step diff, not just the average."""
+    if not td:
+        return ""
+    blocks = ""
+    for d in td:
+        col, lbl = _TD_VERDICT_STYLE.get(d.get("verdict", ""), ("#6b7280", d.get("verdict", "")))
+        cmp_ = d.get("compared") or []
+        sd = d.get("score_delta") or {}
+        rd = d.get("response_diff") or {}
+        tj = d.get("trajectory_diff") or {}
+
+        pv_rows = ""
+        for v in d.get("per_version") or []:
+            ok = v.get("success")
+            pv_rows += (
+                f'<tr><td style="font-weight:600">{_esc(str(v.get("label", "")))}</td>'
+                f'<td style="text-align:right">{v.get("completion")}</td>'
+                f'<td style="text-align:right">{v.get("accuracy")}</td>'
+                f'<td style="text-align:center;color:{"#059669" if ok else "#dc2626"}">'
+                f'{"✓" if ok else "✗"}</td>'
+                f'<td style="font-size:11px;color:#6b7280">'
+                f'{_esc(_clip(str(v.get("response_excerpt", "")), 110))}</td></tr>'
+            )
+
+        added = ", ".join(_esc(x) for x in (rd.get("added") or [])[:5])
+        removed = ", ".join(_esc(x) for x in (rd.get("removed") or [])[:5])
+        traj_line = ""
+        if tj.get("added") or tj.get("removed") or tj.get("reordered"):
+            bits = []
+            if tj.get("added"):
+                bits.append("+" + "/".join(_esc(s) for s in tj["added"]))
+            if tj.get("removed"):
+                bits.append("−" + "/".join(_esc(s) for s in tj["removed"]))
+            if tj.get("reordered"):
+                bits.append("reordered")
+            traj_line = (f'<div style="font-size:11px;color:#6b7280;margin-top:4px">'
+                         f'Trajectory: {" · ".join(bits)}</div>')
+
+        blocks += (
+            f'<div style="border-top:1px solid #e5e7eb;padding:8px 0">'
+            f'<div style="font-size:12px"><strong>{_esc(str(d.get("task_id", "")))}</strong> '
+            f'<span style="color:{col};font-weight:700">{_esc(lbl)}</span> '
+            f'<span style="color:#9ca3af">'
+            f'{_esc(" → ".join(str(c) for c in cmp_))} · '
+            f'C {sd.get("completion", 0):+.2f} · A {sd.get("accuracy", 0):+.2f}</span></div>'
+            f'<div style="font-size:11px;color:#374151;margin:2px 0">'
+            f'{_esc(_clip(str(d.get("question", "")), 120))}</div>'
+            f'<table class="mtable" style="font-size:12px;margin:4px 0"><thead><tr>'
+            f'<th>Version</th><th>C</th><th>A</th><th>OK</th><th>Response</th>'
+            f'</tr></thead><tbody>{pv_rows}</tbody></table>'
+            f'<div style="font-size:11px;color:#6b7280">Response '
+            f'{rd.get("similarity", 0) * 100:.0f}% unchanged'
+            + (f' · <span style="color:#059669">added:</span> {added}' if added else "")
+            + (f' · <span style="color:#dc2626">removed:</span> {removed}' if removed else "")
+            + f'</div>{traj_line}</div>'
+        )
+    return (
+        '<div class="gate-section" id="trace-diffs" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">Trace-Level Version Diff</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'For each task that changed outcome or score across the compared versions '
+        '&mdash; what changed in the response and the tool trajectory, not just the average.</p>'
+        f'{blocks}</div>'
+    )
+
+
 def _build_cohort_comparison(cc: dict[str, Any] | None) -> str:
     """P22: 3+ versions side by side — per-version TCR + Gate scores, per-task_type
     winner, FDR-adjusted pairwise significance, and a 'pick the winner' call."""
@@ -3561,7 +3638,8 @@ _TOC_LABELS = {
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
-    "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
+    "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
+    "change-attribution": "Change", "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
 
@@ -4813,6 +4891,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
+        _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
@@ -5039,6 +5118,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
+        _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
