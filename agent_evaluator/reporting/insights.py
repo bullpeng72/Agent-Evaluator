@@ -1885,6 +1885,238 @@ def _baseline_verdict(
 
 
 # ---------------------------------------------------------------------------
+# Evidence-grounded fix proposals (P36)
+#
+# `_recommendations_section` gives a per-Gate *component* + static guidance
+# ("strengthen the response-format instructions"). This layer looks at the actual
+# failing tasks in that Gate's top cluster (+ the system prompt, when the run
+# recorded one) and turns the guidance into a concrete, paste-able change proposal
+# with `before`/`after` text and the evidence task ids. Deterministic by default;
+# `build_insights(fixer=Callable)` swaps in an LLM-authored proposal (same pattern
+# as `narrator`), never auto-applied — HOTL, the proposal is a draft for a human.
+# ---------------------------------------------------------------------------
+_PROPOSAL_KINDS = ("prompt_edit", "config_change", "data_fix")
+
+
+def _proposal_category(sig: str) -> str:
+    s = (sig or "").lower()
+    if s.startswith("error:") or "timeout" in s or "exceeded" in s:
+        return "runtime"
+    if ("not grounded" in s or "contradict" in s or "retrieved context" in s
+            or "hallucin" in s or "unsupported" in s):
+        return "grounding"
+    if ("part of" in s or "multi-step" in s or "remaining steps" in s):
+        return "decomposition"
+    if ("loop" in s or "repeat" in s or "scope" in s or "unauthorized" in s
+            or "injection" in s or "ignore previous" in s):
+        return "guardrail"
+    if ("ground_truth similarity" in s or "label" in s or "suspicious" in s):
+        return "data"
+    return "generic"
+
+
+def _first_prompt_line(prompt_text: str, *keywords: str) -> str:
+    """First line of the system prompt that mentions one of `keywords` (used as
+    the `before` text for a prompt_edit proposal). Empty string when absent."""
+    for ln in str(prompt_text or "").splitlines():
+        low = ln.lower()
+        if ln.strip() and any(k in low for k in keywords):
+            return ln.strip()
+    return ""
+
+
+def _evidence_rows(members: list[dict[str, Any]], *, limit: int = 5) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for m in members[:limit]:
+        rows.append({
+            "task_id": str(m.get("task_id") or ""),
+            "question": str(m.get("question") or "")[:200],
+            "response": str(m.get("response") or "")[:200],
+            "reason": _task_reason(m),
+        })
+    return rows
+
+
+def _deterministic_proposal(
+    gate: str, sig: str, members: list[dict[str, Any]], prompt_text: str,
+) -> dict[str, Any]:
+    cat = _proposal_category(sig)
+    n = len(members)
+    ex = next((str(m.get("task_id")) for m in members if m.get("task_id")), "")
+    ev = [str(m.get("task_id")) for m in members[:5] if m.get("task_id")]
+    has_prompt = bool(str(prompt_text or "").strip())
+
+    if cat == "grounding":
+        before = _first_prompt_line(prompt_text, "context", "answer", "help", "grounded")
+        add = ("Only state facts that appear in the retrieved context. If the "
+               "context does not contain the answer, say you don't know rather "
+               "than guessing.")
+        return {
+            "kind": "prompt_edit",
+            "before": before or "(no grounding instruction in the system prompt)",
+            "after": (before + " " + add) if before else add,
+            "rationale": (f"{n} failing task(s) in Gate {gate} added claims not "
+                          f"supported by the retrieved context (e.g. {ex}). A "
+                          f"stricter grounding instruction + a re-ranker / higher "
+                          f"top_k is the usual fix."),
+            "evidence_task_ids": ev,
+        }
+    if cat == "runtime":
+        top_err = _reason_signature(_task_reason(members[0])) if members else "error"
+        return {
+            "kind": "config_change",
+            "before": "(no retry / fault-tolerance config on the decorator)",
+            "after": ("fault_tolerance=FaultToleranceConfig(max_retries=2, "
+                      "backoff_s=1.0),\n    retry=RetryConfig(retry_on_timeout=True)"),
+            "rationale": (f"{n} task(s) failed with runtime errors / timeouts "
+                          f"({top_err}). Bounded retries with backoff recover the "
+                          f"transient ones; a lighter model or a tighter tool "
+                          f"timeout fixes the rest."),
+            "evidence_task_ids": ev,
+        }
+    if cat == "decomposition":
+        before = _first_prompt_line(prompt_text, "step", "break", "numbered")
+        add = ("Break the task into numbered sub-steps, complete every step, and "
+               "verify each step's output before writing the final answer.")
+        return {
+            "kind": "prompt_edit",
+            "before": before or "(no step-decomposition instruction)",
+            "after": (before + " " + add) if before else add,
+            "rationale": (f"{n} task(s) only partially completed a multi-step "
+                          f"answer (e.g. {ex}). Add SubtaskConfig(min_subtasks=…) "
+                          f"so each step is checked, and make the instruction "
+                          f"explicit."),
+            "evidence_task_ids": ev,
+        }
+    if cat == "guardrail":
+        return {
+            "kind": "config_change",
+            "before": "(no behavioural / security guardrail config)",
+            "after": ("loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),\n"
+                      "    scope=ScopeConfig(forbidden_tools=[...]),\n"
+                      "    tool_parameter_safety=ToolParameterSafetyConfig()"),
+            "rationale": (f"{n} task(s) tripped a loop / scope / injection signal "
+                          f"(e.g. {ex}). Tighten the guardrail configs and, for "
+                          f"live runs, enable the LiveGuardrail plugin."),
+            "evidence_task_ids": ev,
+        }
+    if cat == "data":
+        return {
+            "kind": "data_fix",
+            "before": "(ground_truth / question as written in the eval set)",
+            "after": f"Re-check the ground_truth and wording for: {', '.join(ev) or '—'}",
+            "rationale": (f"{n} task(s) fail near-identically across runs with very "
+                          f"low accuracy — this pattern points at a label / "
+                          f"question problem, not the agent. Fix the eval set, "
+                          f"then `agent-eval dataset promote`."),
+            "evidence_task_ids": ev,
+        }
+    # generic
+    return {
+        "kind": "prompt_edit" if has_prompt else "config_change",
+        "before": "(review the worst-case tasks in this cluster)",
+        "after": (f"Inspect tasks {', '.join(ev) or '—'} for the shared root cause, "
+                  f"then adjust the prompt or the relevant Gate {gate} config."),
+        "rationale": (f"{n} task(s) share the failure signature \"{sig}\" but it "
+                      f"does not map to a known fix template — needs a human look."),
+        "evidence_task_ids": ev,
+    }
+
+
+def _validate_proposal(p: Any) -> dict[str, Any] | None:
+    if not isinstance(p, dict):
+        return None
+    if p.get("kind") not in _PROPOSAL_KINDS:
+        return None
+    return {
+        "kind": p["kind"],
+        "before": str(p.get("before") or ""),
+        "after": str(p.get("after") or ""),
+        "rationale": str(p.get("rationale") or ""),
+        "evidence_task_ids": [str(x) for x in (p.get("evidence_task_ids") or [])][:5],
+        "authored_by": "fixer" if p.get("_from_fixer") else "template",
+    }
+
+
+def _attach_proposals(
+    out: dict[str, Any], tasks: list[dict[str, Any]],
+    current: dict[str, Any], fixer: Any = None,
+) -> None:
+    """Mutate ``out['recommendations']`` — add a ``proposal`` to each rec whose
+    Gate has an identifiable top failure cluster."""
+    recs = out.get("recommendations") or []
+    if not recs:
+        return
+    by_id = {str(t.get("task_id")): t for t in tasks if t.get("task_id")}
+    fix_plan = (out.get("readiness") or {}).get("fix_plan") or []
+    fclusters = out.get("failure_clusters") or []
+    prompt_text = (
+        ((current.get("extra_metrics") or {}).get("lineage") or {}).get("prompt_text") or ""
+    )
+
+    def _cluster_for_gate(gate: str) -> tuple[str, list[dict[str, Any]]] | None:
+        for row in fix_plan:
+            if gate in (row.get("targets_gates") or []):
+                ids = row.get("example_task_ids") or []
+                members = [by_id[i] for i in ids if i in by_id]
+                if not members:
+                    sig = row.get("signature") or ""
+                    members = [
+                        t for t in tasks
+                        if _effective_fail(
+                            success=t.get("success", False),
+                            accuracy=t.get("accuracy_score"),
+                            completion=t.get("completion_score"),
+                        ) and _reason_signature(_task_reason(t)) == sig
+                    ]
+                return (row.get("signature") or "", members)
+        for c in fclusters:
+            sig = c.get("signature") or c.get("label") or ""
+            _, gates = _fix_effort_hint(sig)
+            if gate in gates:
+                members = [
+                    t for t in tasks
+                    if _effective_fail(
+                        success=t.get("success", False),
+                        accuracy=t.get("accuracy_score"),
+                        completion=t.get("completion_score"),
+                    ) and _reason_signature(_task_reason(t)) == sig
+                ]
+                return (sig, members)
+        return None
+
+    for rec in recs:
+        gate = rec.get("gate")
+        hit = _cluster_for_gate(gate)
+        if not hit or not hit[1]:
+            continue
+        sig, members = hit
+        template = _deterministic_proposal(gate, sig, members, prompt_text)
+        proposal = template
+        if fixer is not None:
+            try:
+                payload = {
+                    "gate": gate,
+                    "cluster_signature": sig,
+                    "prompt_text": prompt_text,
+                    "evidence": _evidence_rows(members),
+                    "template_proposal": dict(template),
+                }
+                authored = fixer(payload)
+                if authored is not None:
+                    authored = dict(authored)
+                    authored["_from_fixer"] = True
+                    validated = _validate_proposal(authored)
+                    if validated is not None:
+                        proposal = validated
+            except Exception:  # pragma: no cover - fixer is user code
+                proposal = template
+        if "authored_by" not in proposal:
+            proposal = {**proposal, "authored_by": "template"}
+        rec["proposal"] = proposal
+
+
+# ---------------------------------------------------------------------------
 # Review queue (P15) — the HITL triage list
 #
 # Every signal needed to say "a human should look at these" already exists in the
@@ -3293,6 +3525,7 @@ def build_insights(
     with_experiment_metadata: bool = False,
     repo_path: str | Path = ".",
     narrator: Any = None,
+    fixer: Any = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
 ) -> dict[str, Any]:
@@ -3309,6 +3542,13 @@ def build_insights(
             open ones are scored (predicted vs actual) if ``baseline`` is given.
         with_experiment_metadata: pass through to ``rca.diagnose()`` (git diff).
         repo_path: git repo path for ``with_experiment_metadata``.
+        narrator: optional ``Callable[[insights_dict], str]`` — swaps the
+            deterministic ``narrative`` for LLM-authored text (template fallback).
+        fixer: optional ``Callable[[payload], dict|None]`` (SPEC-041 P36) — given
+            ``{gate, cluster_signature, prompt_text, evidence[], template_proposal}``
+            it may return a concrete ``{kind, before, after, rationale,
+            evidence_task_ids}`` fix proposal that replaces the deterministic one
+            on ``recommendations[].proposal``. Never auto-applied.
 
     Returns:
         A JSON-serializable dict — see ``INSIGHTS_SCHEMA_VERSION``. Never raises;
@@ -3418,6 +3658,7 @@ def build_insights(
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
+    _safe(_attach_proposals, out, tasks, current, fixer, default=None)
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     out["narrative_audit"] = _safe(
         _narrative_audit_section, out.get("narrative", ""), out,

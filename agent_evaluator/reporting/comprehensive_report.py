@@ -4300,6 +4300,43 @@ def _rec_baseline_verdict(baseline: dict[str, Any] | None, current: dict[str, An
     )
 
 
+_PROPOSAL_KIND_LABEL = {
+    "prompt_edit": ("Prompt edit", "#7c3aed"),
+    "config_change": ("Config change", "#0ea5e9"),
+    "data_fix": ("Eval-set fix", "#d97706"),
+}
+
+
+def _rec_proposal_html(p: dict[str, Any] | None) -> str:
+    """P36: render an evidence-grounded fix proposal (before → after + rationale +
+    the task ids it is based on). A draft for a human — never auto-applied."""
+    if not p or not isinstance(p, dict):
+        return ""
+    lbl, col = _PROPOSAL_KIND_LABEL.get(p.get("kind", ""), (p.get("kind", "Change"), "#6b7280"))
+    src = "LLM-drafted" if p.get("authored_by") == "fixer" else "template"
+    before = _esc(str(p.get("before", "")))
+    after = _esc(str(p.get("after", "")))
+    rationale = _esc(str(p.get("rationale", "")))
+    ev = ", ".join(_esc(str(x)) for x in (p.get("evidence_task_ids") or []))
+    return (
+        '<div style="margin:8px 0 0;border:1px solid #e5e7eb;border-radius:8px;'
+        'padding:10px 12px;background:#fff">'
+        f'<div style="font-size:11px;font-weight:700;color:{col};text-transform:uppercase;'
+        f'letter-spacing:.4px">Proposed fix — {_esc(lbl)} '
+        f'<span style="color:#9ca3af;font-weight:400;text-transform:none">({src}, '
+        f'review before applying)</span></div>'
+        f'<div style="font-size:12px;margin-top:6px"><span style="color:#dc2626">− </span>'
+        f'<code style="background:#fef2f2;padding:1px 4px;border-radius:3px">{before}</code></div>'
+        f'<div style="font-size:12px;margin-top:3px"><span style="color:#059669">+ </span>'
+        f'<code style="background:#ecfdf5;padding:1px 4px;border-radius:3px;'
+        f'white-space:pre-wrap">{after}</code></div>'
+        f'<p style="font-size:11px;color:#6b7280;margin:6px 0 0">{rationale}</p>'
+        + (f'<p style="font-size:11px;color:#9ca3af;margin:2px 0 0">Evidence: {ev}</p>'
+           if ev else "")
+        + '</div>'
+    )
+
+
 def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              hall_rate: float, latency: float,
                              quality_metrics: dict,
@@ -4307,7 +4344,8 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              *,
                              recommendation_log_path: Any = None,
                              baseline: dict[str, Any] | None = None,
-                             current: dict[str, Any] | None = None) -> str:
+                             current: dict[str, Any] | None = None,
+                             insights_recs: list[dict[str, Any]] | None = None) -> str:
     from agent_evaluator.ontology.metric_registry import (
         GATE_GUIDANCE,
         component_guidance_for,
@@ -4315,6 +4353,11 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
     )
 
     recs = []
+    # P36: evidence-grounded fix proposals, keyed by gate (from insights.recommendations)
+    _proposal_by_gate = {
+        r.get("gate"): r.get("proposal")
+        for r in (insights_recs or []) if r.get("proposal")
+    }
 
     # diagnosis(rca.diagnose() 반환값)의 findings에서 Gate별 최악 컴포넌트를 뽑아둔다 —
     # Gate 단위 일반론 대신 "측정된 이 컴포넌트가 병목"이라고 구체적으로 짚기 위해서.
@@ -4381,6 +4424,7 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             past_html = _rec_past_outcomes(recommendation_log_path, key)
             exp_html = _rec_experiment_block(key, _top_fld, _top_h, _ncomp) if _top_fld else ""
             base_html = _rec_baseline_verdict(baseline, current, key)
+            proposal_html = _rec_proposal_html(_proposal_by_gate.get(key))
 
             recs.append(
                 f'<div class="rec {priority_class}">'
@@ -4388,6 +4432,7 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                 f'{base_html}'
                 f'<p>{guide}</p>'
                 f'{comp_html}'
+                f'{proposal_html}'
                 f'{code_html}'
                 f'{exp_html}'
                 f'{past_html}'
@@ -5179,7 +5224,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
-                               baseline=baseline, current=current_dict),
+                               baseline=baseline, current=current_dict,
+                               insights_recs=_insights_obj.get("recommendations")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
@@ -5410,7 +5456,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
-                               baseline=baseline, current=current_dict),
+                               baseline=baseline, current=current_dict,
+                               insights_recs=_insights_obj.get("recommendations")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),

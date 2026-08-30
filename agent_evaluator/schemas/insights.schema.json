@@ -310,7 +310,19 @@
           "code_snippet": { "type": ["string", "null"] },
           "experiment": { "type": ["object", "null"] },
           "past_outcomes": { "type": ["object", "null"] },
-          "baseline_verdict": { "type": ["object", "null"] }
+          "baseline_verdict": { "type": ["object", "null"] },
+          "proposal": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "properties": {
+              "kind": { "enum": ["prompt_edit", "config_change", "data_fix"] },
+              "before": { "type": "string" },
+              "after": { "type": "string" },
+              "rationale": { "type": "string" },
+              "evidence_task_ids": { "type": "array", "items": { "type": "string" } },
+              "authored_by": { "enum": ["template", "fixer"] }
+            }
+          }
         }
       }
     },

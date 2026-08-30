@@ -1207,6 +1207,20 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
   잘라냄.
 전체 4542 통과. `test_p35_report_qa_fixes.py`(+8 = 23).
 
+**SPEC-041 P36 (증거 기반 처방)** — `reporting/insights.py`: `recommendations[]`에 `proposal`
+객체 추가. `_attach_proposals(out, tasks, current, fixer)`가 각 fail/warn 게이트의 최상위 실패
+클러스터(`readiness.fix_plan`의 `targets_gates` 매칭 → 없으면 `failure_clusters` + `_fix_effort_hint`)
+멤버 태스크와 시스템 프롬프트(`lineage.prompt_text`, 있을 때)를 보고 `{kind:
+prompt_edit|config_change|data_fix, before, after, rationale, evidence_task_ids, authored_by}`를
+합성한다. `_proposal_category()`(runtime/grounding/decomposition/guardrail/data/generic) →
+`_deterministic_proposal()` 템플릿. `build_insights(fixer=Callable[[payload], dict|None])` —
+`{gate, cluster_signature, prompt_text, evidence[], template_proposal}`를 받아 LLM 작성 proposal을
+돌려주면 `_validate_proposal()`(kind 화이트리스트) 통과 시 교체, 아니면/raise면 템플릿 폴백
+(`narrator`와 동일 패턴). **자동 적용 절대 안 함 — 사람이 검토할 초안.** 리포트
+`_rec_proposal_html()`가 recommendations 카드에 before(−)/after(+) + rationale + Evidence 태스크
+id 블록 렌더(`_build_recommendations(insights_recs=)`, 두 진입점 모두 `_insights_obj["recommendations"]`
+전달). 스키마 `recommendations[].proposal` 추가. `test_fix_proposals.py`(9). 전체 4551 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적
