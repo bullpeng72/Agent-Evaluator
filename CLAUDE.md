@@ -1234,6 +1234,21 @@ flip → 게이트 점수 재계산, 400회, seed `_PROJ_SEED+rank`로 결정적
 스키마 `readiness.fix_plan[].{effort_weight,projected_gate_scores,projected_gate_scores_ci,gate_moves,roi}`
 + `projected_ready_after.{p_ready,likely_fix_count}`. `test_readiness_projection_p37.py`(6). 전체 4557 통과.
 
+**SPEC-041 P38 (회귀 → 원인 연결)** — `reporting/insights.py::_regression_attribution_section`:
+`failure_lineage.regressed`(baseline pass→current fail 태스크) × `change_attribution`(무엇이 바뀜:
+config_diff.changed_keys / prompt_diff.removed) × `metadata_slices`(어디에 몰림: model_variant/
+difficulty별 tcr_delta_pp)를 조인. 회귀 태스크를 `_reason_signature`로 군집화 → 각 군집에
+`slice_concentration[]`(≥60%가 한 슬라이스 값에 몰리고 그 슬라이스가 baseline 대비 음수 Δ면
+`{dimension, value, share_pct, slice_tcr_delta_pp}`) + `implicated_changes[]`(`_change_implicates`:
+config 키/프롬프트 제거 라인의 성격이 그 군집의 실패 카테고리와 매칭 — model→전부, temp/top_k/
+context→grounding, retry/timeout/tool→runtime, step/numbered→decomposition, scope/guard→guardrail).
+비-스칼라 `extra` 키(dict/60자 초과 문자열)는 제외, `metadata_slices`가 이미 검증한 dimension만
+우선. **단일 run엔 change-set이 하나뿐이라 시간적 격리가 아닌 상관** — note에 명시. `build_insights`
+`out` 딕셔너리 조립 후 `_attach_proposals` 옆에서 계산(`out.regression_attribution`, baseline
+없으면 None). 리포트 `_build_regression_attribution()` 섹션 `regression-attribution`
+(change-attribution 앞), TOC "Reg. cause". 스키마 `regression_attribution` 추가.
+`test_regression_attribution_p38.py`(5). 전체 4562 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

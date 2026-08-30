@@ -680,6 +680,32 @@
       }
     },
 
+    "regression_attribution": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_regressed_tasks": { "type": "integer" },
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "signature": { "type": "string" },
+              "n": { "type": "integer" },
+              "task_ids": { "type": "array", "items": { "type": "string" } },
+              "category": { "type": "string" },
+              "slice_concentration": { "type": "array" },
+              "implicated_changes": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "changed_config_keys": { "type": "array", "items": { "type": "string" } },
+        "prompt_changed": { "type": "boolean" },
+        "note": { "type": "string" }
+      }
+    },
+
     "shared_cause_explanations": { "type": "array" },
     "newly_unmeasured_gates": { "type": "array", "items": { "type": "string" } },
     "experiment_metadata": { "type": ["object", "null"] }

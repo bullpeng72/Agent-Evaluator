@@ -1845,6 +1845,169 @@ def _failure_lineage_section(
     }
 
 
+# ---------------------------------------------------------------------------
+# Regression -> cause linkage (P38)
+#
+# `failure_lineage.regressed` says WHICH tasks passed before and fail now.
+# `change_attribution` says WHAT changed between the two runs (prompt / config).
+# `metadata_slices` says WHERE the drop concentrated (model_variant / difficulty).
+# This section joins the three — for each regressed cluster it reports the slice
+# it concentrates in and the config/prompt changes whose nature plausibly
+# explains that failure category. One run has exactly one change-set, so this is
+# correlational ("the regression is all in the haiku-mini slice and the config
+# diff changed the model"), never a temporal isolation. Labelled as such.
+# ---------------------------------------------------------------------------
+def _change_implicates(change_label: str, category: str) -> bool:
+    c = change_label.lower()
+    if "model" in c:
+        return True                                  # a model swap affects everything
+    if category == "grounding":
+        return any(k in c for k in ("temp", "top_p", "top_k", "sample", "context",
+                                    "grounded", "only from", "retriev"))
+    if category == "runtime":
+        return any(k in c for k in ("retry", "timeout", "tool", "concurren", "budget"))
+    if category == "decomposition":
+        return any(k in c for k in ("step", "numbered", "plan", "decompos", "subtask"))
+    if category == "guardrail":
+        return any(k in c for k in ("scope", "guard", "loop", "safety", "allow", "forbid"))
+    return False
+
+
+def _regression_attribution_section(
+    tasks: list[dict[str, Any]],
+    failure_lineage: dict[str, Any] | None,
+    change_attribution: dict[str, Any] | None,
+    metadata_slices: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    regressed = list((failure_lineage or {}).get("regressed") or [])
+    if not regressed:
+        return None
+    by_id = {str(t.get("task_id")): t for t in tasks if t.get("task_id")}
+    reg_tasks = [by_id[i] for i in regressed if i in by_id]
+    if not reg_tasks:
+        return None
+
+    # candidate changes, as human labels
+    ca = change_attribution or {}
+    changes: list[str] = []
+    ck = ((ca.get("config_diff") or {}).get("changed_keys") or {})
+    for k, mv in (ck.items() if isinstance(ck, dict) else []):
+        if isinstance(mv, dict):
+            changes.append(f"config: {k} ({mv.get('from')} → {mv.get('to')})")
+        else:
+            changes.append(f"config: {k}")
+    pd = ca.get("prompt_diff") or {}
+    prompt_changed = bool(ca.get("prompt_changed"))
+    if prompt_changed:
+        sim = pd.get("similarity")
+        changes.append(
+            f"prompt reworded ({sim * 100:.0f}% similar)" if isinstance(sim, (int, float))
+            else "prompt reworded"
+        )
+    removed_lines = [str(x).lower() for x in (pd.get("removed") or [])]
+
+    # slice concentration lookup: {dimension: {value: tcr_delta_pp}} — only the
+    # `extra` keys the metadata slicer already vetted as real dimensions.
+    slice_delta: dict[str, dict[str, float]] = {}
+    for dim in metadata_slices or []:
+        d = dim.get("dimension", "")
+        slice_delta[d] = {}
+        for s in dim.get("slices") or []:
+            dv = s.get("tcr_delta_pp")
+            if dv is not None:
+                slice_delta[d][str(s.get("value"))] = float(dv)
+    vetted_keys = {d[6:] for d in slice_delta if d.startswith("extra.")}
+
+    def _scalar_extra_keys(m: dict[str, Any]) -> set[str]:
+        ex = _task_extra(m) or {}
+        if vetted_keys:
+            return {k for k in ex if k in vetted_keys}
+        return {
+            k for k, v in ex.items()
+            if isinstance(v, (str, int, float, bool))
+            and not (isinstance(v, str) and len(v) > 60)
+        }
+
+    clusters_out: list[dict[str, Any]] = []
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for t in reg_tasks:
+        buckets[_reason_signature(_task_reason(t))].append(t)
+
+    for sig, members in sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        cat = _proposal_category(sig)
+        n = len(members)
+
+        # where does this cluster concentrate?
+        concentration: list[dict[str, Any]] = []
+        for key in {k for m in members for k in _scalar_extra_keys(m)}:
+            vals = Counter(
+                str((_task_extra(m) or {}).get(key)) for m in members
+                if (_task_extra(m) or {}).get(key) is not None
+            )
+            if not vals:
+                continue
+            top_val, top_n = vals.most_common(1)[0]
+            share = top_n / n
+            if share >= 0.6 and top_n >= 2:
+                dd = slice_delta.get(f"extra.{key}", {}).get(top_val)
+                concentration.append({
+                    "dimension": f"extra.{key}",
+                    "value": top_val,
+                    "share_pct": round(share * 100.0, 1),
+                    "slice_tcr_delta_pp": None if dd is None else round(dd, 1),
+                })
+        concentration.sort(key=lambda c: (c["slice_tcr_delta_pp"] is None,
+                                          c["slice_tcr_delta_pp"] or 0.0))
+
+        implicated = [c for c in changes if _change_implicates(c, cat)]
+        # a removed grounding/step line in the prompt is directly implicated
+        if cat == "grounding" and any(
+            any(w in ln for w in ("context", "only", "grounded", "cite"))
+            for ln in removed_lines
+        ):
+            implicated.append("prompt: removed a grounding instruction")
+        if cat == "decomposition" and any(
+            any(w in ln for w in ("step", "numbered", "break")) for ln in removed_lines
+        ):
+            implicated.append("prompt: removed a step-decomposition instruction")
+
+        clusters_out.append({
+            "signature": sig,
+            "n": n,
+            "task_ids": [str(m.get("task_id")) for m in members[:10] if m.get("task_id")],
+            "category": cat,
+            "slice_concentration": concentration,
+            "implicated_changes": sorted(set(implicated)),
+        })
+
+    # overall note
+    _n = len(reg_tasks)
+    _top = clusters_out[0] if clusters_out else None
+    parts = [f"{_n} task(s) that passed in the baseline now fail"]
+    if _top and _top["slice_concentration"]:
+        c0 = _top["slice_concentration"][0]
+        parts.append(
+            f"the largest regressed cluster (\"{_top['signature']}\") concentrates "
+            f"in {c0['dimension']}={c0['value']} ({c0['share_pct']}%"
+            + (f", that slice is {c0['slice_tcr_delta_pp']:+.1f}pp vs baseline"
+               if c0.get("slice_tcr_delta_pp") is not None else "") + ")"
+        )
+    if _top and _top["implicated_changes"]:
+        parts.append("co-occurring change(s): " + "; ".join(_top["implicated_changes"]))
+    note = ". ".join(parts) + ". One run has a single change-set — this is a " \
+                              "correlation, not a temporal isolation."
+
+    return {
+        "n_regressed_tasks": _n,
+        "clusters": clusters_out,
+        "changed_config_keys": [
+            k for k in (ck.keys() if isinstance(ck, dict) else [])
+        ],
+        "prompt_changed": prompt_changed,
+        "note": note,
+    }
+
+
 def _recommendations_section(
     harness_groups: dict[str, Any],
     diagnosis: dict[str, Any] | None,
@@ -3773,6 +3936,10 @@ def build_insights(
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
     _safe(_attach_proposals, out, tasks, current, fixer, default=None)
+    out["regression_attribution"] = _safe(
+        _regression_attribution_section, tasks, out.get("failure_lineage"),
+        out.get("change_attribution"), out.get("metadata_slices"), default=None,
+    )
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     out["narrative_audit"] = _safe(
         _narrative_audit_section, out.get("narrative", ""), out,

@@ -3766,6 +3766,44 @@ def _build_change_attribution(ca: dict[str, Any] | None) -> str:
     )
 
 
+def _build_regression_attribution(ra: dict[str, Any] | None) -> str:
+    """P38: for each regressed failure cluster, the slice it concentrates in and
+    the prompt/config change whose nature plausibly explains it. Correlational."""
+    if not ra or not ra.get("clusters"):
+        return ""
+    rows = ""
+    for c in ra["clusters"]:
+        conc = c.get("slice_concentration") or []
+        conc_html = "—"
+        if conc:
+            conc_html = "<br>".join(
+                f'{_esc(s["dimension"])}=<strong>{_esc(str(s["value"]))}</strong> '
+                f'({s["share_pct"]}%'
+                + (f', <span style="color:#b91c1c">{s["slice_tcr_delta_pp"]:+.1f}pp</span>'
+                   if s.get("slice_tcr_delta_pp") is not None else "")
+                + ')'
+                for s in conc[:2]
+            )
+        imp = c.get("implicated_changes") or []
+        imp_html = ("<br>".join(_esc(x) for x in imp)
+                    if imp else '<span style="color:#9ca3af">no matching change</span>')
+        rows += (
+            f'<tr><td><div style="font-weight:600">{_esc(_clip(c.get("signature", ""), 80))}'
+            f'</div><div style="font-size:11px;color:#9ca3af">{c.get("n")} task(s) · '
+            f'{_esc(c.get("category", ""))}</div></td>'
+            f'<td style="font-size:11px">{conc_html}</td>'
+            f'<td style="font-size:11px">{imp_html}</td></tr>'
+        )
+    return (
+        '<div class="gate-section" id="regression-attribution" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">Regression Attribution</h2>'
+        f'<p style="font-size:13px;color:#374151;margin:0 0 8px">{_esc(ra.get("note", ""))}</p>'
+        '<table class="mtable"><thead><tr><th>Regressed cluster</th>'
+        '<th>Concentrates in</th><th>Co-occurring change(s)</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 _TOC_LABELS = {
     "narrative": "Summary", "exec-summary": "Verdict", "path-to-green": "Path to Green",
     "briefs": "Briefs",
@@ -3781,7 +3819,8 @@ _TOC_LABELS = {
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "insight-changes": "Insight diff",
-    "change-attribution": "Change", "diagnosis": "RCA",
+    "regression-attribution": "Reg. cause", "change-attribution": "Change",
+    "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
 
@@ -5260,6 +5299,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_insight_changes(_insights_obj.get("insight_changes")),
+        _build_regression_attribution(_insights_obj.get("regression_attribution")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
@@ -5492,6 +5532,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_insight_changes(_insights_obj.get("insight_changes")),
+        _build_regression_attribution(_insights_obj.get("regression_attribution")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
