@@ -858,6 +858,9 @@ wasted_cost_pct, retry_cost_usd, retry_cost_pct, projection{calls, total_usd, wa
 (SPEC-041 P16 — 성공 태스크당 비용·실패/재시도 낭비·10만 콜 투사. per-task 토큰×pricing, 없으면 집계 균등분할),
 narrative: str (SPEC-041 P17 — 배포 준비도 판정 + 최약 병목 + 리뷰/신뢰도 + 비용 투사를 2~4문장 영어로.
 `build_insights(narrator=<callable>)`로 LLM 작성 대체 가능, 실패 시 결정적 템플릿 폴백),
+change_attribution{prompt_changed, prompt_diff{similarity, added[], removed[]}, config_changed,
+config_diff{changed_keys}, git{from_commit, to_commit}, largest_gate_move{gate, delta}, note}|null
+(SPEC-041 P18 — baseline 필요. 두 run의 lineage.prompt_text/config_snapshot diff + 최대 Gate 이동),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -935,6 +938,14 @@ narrator=Callable[[insights_dict], str])`로 LLM 작성 대체 — narrator가 r
 `out["narrative"]`. `comprehensive_report.py::_build_narrative_banner`(리포트 최상단 `narrative` 섹션,
 헤더 다음), `cli/gate.py::_print_narrative`(`agent-eval gate` 표 다음 "Summary"). monitor 경로는
 `report.to_dict()`에 tasks[]가 없어 `_review_dict_tasks(_tasks_list)`를 graft해서 넘긴다.
+
+**SPEC-041 P18 (변경 귀속)** — `PerformanceMonitor(prompt_text=..., config_snapshot={...})`(opt-in, 점수
+무관) → `_build_lineage()`가 `lineage.prompt_text`/`prompt_hash`(sha1[:16])/`config_snapshot`으로 실음.
+`reporting/insights.py::_change_attribution_section`(baseline 필요) — 두 run의 프롬프트 본문 line diff
+(difflib SequenceMatcher, added/removed/similarity) + config_snapshot 키 diff + git commit + diagnosis의
+최대 회귀 Gate(`largest_gate_move`). `insights.change_attribution`. `comprehensive_report.py::
+_build_change_attribution`(리포트 `change-attribution` 섹션, diagnosis 앞), 대시보드 Improve 탭 패널.
+report 두 진입점이 `build_insights`를 1회 호출해 `_insights_obj`로 narrative(P17)와 공유.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
@@ -1145,7 +1156,7 @@ auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
-prompt_version, agent_version, iteration_note
+prompt_version, agent_version, iteration_note, prompt_text, config_snapshot
 retention_mode, window_size
 storage_backend
 enable_pii_redaction, pii_redaction_categories

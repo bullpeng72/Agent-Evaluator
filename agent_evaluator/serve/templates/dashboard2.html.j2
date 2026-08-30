@@ -6861,6 +6861,30 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         </div>
       </template>
 
+      <template x-if="improveResult.insights && improveResult.insights.change_attribution">
+        <div style="border:1px solid var(--border);border-left:4px solid #0ea5e9;border-radius:8px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;margin-bottom:4px">Change attribution</div>
+          <div style="font-size:12px;color:var(--text2)" x-text="improveResult.insights.change_attribution.note"></div>
+          <template x-if="improveResult.insights.change_attribution.prompt_diff">
+            <div style="margin-top:6px">
+              <template x-for="(l, i) in improveResult.insights.change_attribution.prompt_diff.removed" :key="'r'+i">
+                <div style="color:var(--red);font-family:monospace;font-size:11px" x-text="'- '+l"></div>
+              </template>
+              <template x-for="(l, i) in improveResult.insights.change_attribution.prompt_diff.added" :key="'a'+i">
+                <div style="color:var(--green);font-family:monospace;font-size:11px" x-text="'+ '+l"></div>
+              </template>
+            </div>
+          </template>
+          <template x-if="improveResult.insights.change_attribution.config_diff">
+            <div style="font-size:12px;margin-top:6px">
+              <template x-for="(v, k) in improveResult.insights.change_attribution.config_diff.changed_keys" :key="k">
+                <div><strong x-text="k"></strong>: <span style="color:var(--red)" x-text="String(v.from)"></span> → <span style="color:var(--green)" x-text="String(v.to)"></span></div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
       <template x-if="improveResult.experiment_metadata">
         <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
           <div style="font-weight:700;margin-bottom:6px">

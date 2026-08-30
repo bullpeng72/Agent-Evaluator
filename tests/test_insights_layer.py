@@ -554,6 +554,69 @@ class TestNarrative:
         assert n.startswith("Not deployment-ready")
 
 
+class TestChangeAttribution:
+    def _rep(self, score, prompt, cfg=None, commit=None):
+        import hashlib
+        lin = {"prompt_text": prompt,
+               "prompt_hash": hashlib.sha1(prompt.encode()).hexdigest()[:16]}
+        if cfg is not None:
+            lin["config_snapshot"] = cfg
+        if commit:
+            lin["git_commit"] = commit
+        st = "fail" if score < 0.7 else "pass"
+        r = _report(
+            {"A": {"score": score, "status": st, "gate": st,
+                   "details": {"tcr_pct": score * 100}}},
+            [{"task_id": f"t{i}", "task_type": "qa", "success": score >= 0.7,
+              "accuracy_score": score, "completion_score": 1.0} for i in range(20)],
+        )
+        r["extra_metrics"]["lineage"] = lin
+        return r
+
+    def test_none_without_baseline(self):
+        cur = self._rep(0.5, "prompt")
+        assert build_insights(cur)["change_attribution"] is None
+
+    def test_prompt_and_config_diff_with_gate_move(self):
+        base = self._rep(0.9, "You are helpful.\nBe concise.", {"temperature": 0.2}, "aaaa")
+        cur = self._rep(0.5, "You are an agent.\nBe verbose.", {"temperature": 0.9}, "bbbb")
+        ca = build_insights(cur, base)["change_attribution"]
+        assert ca["prompt_changed"] is True
+        assert ca["prompt_diff"]["similarity"] < 1.0
+        assert "Be verbose." in ca["prompt_diff"]["added"]
+        assert ca["config_changed"] is True
+        assert ca["config_diff"]["changed_keys"]["temperature"] == {"from": 0.2, "to": 0.9}
+        assert ca["largest_gate_move"]["gate"] == "A"
+        assert ca["largest_gate_move"]["delta"] < 0
+        assert "system prompt changed" in ca["note"]
+
+    def test_none_when_lineage_has_no_prompt_or_config(self):
+        base = _report({"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+                       [{"task_id": "t1", "accuracy_score": 0.9, "completion_score": 1.0}])
+        cur = _report({"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+                      [{"task_id": "t1", "accuracy_score": 0.9, "completion_score": 1.0}])
+        assert build_insights(cur, base)["change_attribution"] is None
+
+
+class TestLineagePromptText:
+    def test_monitor_stashes_prompt_text_and_hash(self, tmp_path):
+        import json as _json
+
+        from agent_evaluator import PerformanceMonitor, create_taskresult
+        m = PerformanceMonitor(output_dir=str(tmp_path),
+                               prompt_text="You are a helpful QA bot.",
+                               config_snapshot={"temperature": 0.3})
+        m.record_task(create_taskresult(
+            task_id="t1", question="q", response="a", ground_truth="a",
+            execution_time=1.0, task_type="qa",
+        ))
+        data = _json.loads(open(m.save_to_file("x")).read())
+        lin = data["extra_metrics"]["lineage"]
+        assert lin["prompt_text"] == "You are a helpful QA bot."
+        assert len(lin["prompt_hash"]) == 16
+        assert lin["config_snapshot"] == {"temperature": 0.3}
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

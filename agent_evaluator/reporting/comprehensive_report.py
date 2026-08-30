@@ -2867,6 +2867,47 @@ _GATE_FULL = {
 }
 
 
+def _build_change_attribution(ca: dict[str, Any] | None) -> str:
+    """P18: tie the metric move to the specific prompt / config / code change
+    between this run and its baseline."""
+    if not ca:
+        return ""
+    note = ca.get("note") or ""
+    body = f'<p style="font-size:13px;color:#374151;margin:0 0 8px">{_esc(note)}</p>'
+
+    pd = ca.get("prompt_diff")
+    if pd:
+        def _lines(items: list, color: str, sign: str) -> str:
+            return "".join(
+                f'<div style="color:{color};font-family:monospace;font-size:11px">'
+                f'{sign} {_esc(_clip(x, 120))}</div>' for x in items
+            )
+        body += (
+            f'<p style="font-size:12px;color:#6b7280;margin:6px 0 2px">System prompt '
+            f'({pd.get("similarity", 0) * 100:.0f}% similar):</p>'
+            + _lines(pd.get("removed") or [], "#b91c1c", "-")
+            + _lines(pd.get("added") or [], "#047857", "+")
+        )
+    cd = ca.get("config_diff")
+    if cd and cd.get("changed_keys"):
+        rows = "".join(
+            f'<tr><td style="font-weight:600">{_esc(str(k))}</td>'
+            f'<td style="color:#b91c1c">{_esc(str(v.get("from")))}</td>'
+            f'<td style="color:#047857">{_esc(str(v.get("to")))}</td></tr>'
+            for k, v in cd["changed_keys"].items()
+        )
+        body += (
+            '<p style="font-size:12px;color:#6b7280;margin:8px 0 2px">Config changes:</p>'
+            '<table class="mtable"><thead><tr><th>Key</th><th>From</th><th>To</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+    return (
+        '<div class="gate-section" id="change-attribution" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">Change Attribution</h2>'
+        f'{body}</div>'
+    )
+
+
 def _build_narrative_banner(narrative: str) -> str:
     """P17: the plain-English "what happened / what to do / how confident"
     sentences at the very top of the report — pasteable into a release ticket."""
@@ -3840,6 +3881,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
 
     _tasks_list = list(getattr(monitor, "tasks", []) or [])
     _narrative = ""
+    _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
@@ -3847,9 +3889,10 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _ins_input = current_dict
         if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
             _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
-        _narrative = (_build_insights(
+        _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-        ) or {}).get("narrative", "")
+        ) or {}
+        _narrative = _insights_obj.get("narrative", "")
     except Exception:
         pass
     _res_dir = getattr(monitor, "output_dir", None)
@@ -3911,6 +3954,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
@@ -4062,6 +4106,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
     _cur_file = getattr(rf, "path", None)
     _res_dir = str(Path(_cur_file).parent) if _cur_file else None
     _narrative = ""
+    _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
@@ -4069,9 +4114,10 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _ins_input = current_dict
         if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
             _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
-        _narrative = (_build_insights(
+        _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-        ) or {}).get("narrative", "")
+        ) or {}
+        _narrative = _insights_obj.get("narrative", "")
     except Exception:
         pass
     failure_cases_html = ""
@@ -4119,6 +4165,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),

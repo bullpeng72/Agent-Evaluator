@@ -291,6 +291,12 @@ class PerformanceMonitor:
         # SPEC-029: agent_version="auto"(SPEC-027)가 만드는 dirty-hash 태그에 사람이
         # 읽을 수 있는 한 줄 메모를 붙인다 — 순수 표시용, 점수 계산에는 관여하지 않는다.
         iteration_note: str | None = None,
+        # SPEC-041 P18: 이 run에서 실제로 쓴 시스템 프롬프트 본문 / 에이전트 설정 스냅샷
+        # (선택). 지정하면 lineage에 본문 + sha1 해시로 실려, build_insights()가 두 run을
+        # 대조해 "무엇이 바뀌어 어느 Gate가 움직였나"(insights.change_attribution)를 낸다.
+        # 순수 메타데이터 — 점수 계산에는 관여하지 않는다.
+        prompt_text: str | None = None,
+        config_snapshot: dict[str, Any] | None = None,
         # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
         retention_mode: Literal["full", "windowed"] = "full",
         window_size: int = 10000,
@@ -507,6 +513,8 @@ class PerformanceMonitor:
         self._prompt_version = prompt_version
         self._agent_version = agent_version
         self._iteration_note = iteration_note
+        self._prompt_text = prompt_text
+        self._config_snapshot = config_snapshot
         try:
             from importlib.metadata import version as _pkg_version_lookup
             self._sdk_version: str | None = _pkg_version_lookup("agent-evaluator")
@@ -3050,11 +3058,22 @@ class PerformanceMonitor:
                     break
             if _judge_snapshot is None:
                 _judge_snapshot = self.llm_judge.model
+        _lineage_prompt: dict[str, Any] = {}
+        if self._prompt_text is not None:
+            import hashlib
+            _pt = str(self._prompt_text)
+            _lineage_prompt["prompt_text"] = _pt
+            # non-crypto identity hash for change-attribution diffing
+            _lineage_prompt["prompt_hash"] = hashlib.sha1(_pt.encode("utf-8")).hexdigest()[:16]  # noqa: S324
+        if self._config_snapshot is not None:
+            _lineage_prompt["config_snapshot"] = self._config_snapshot
+
         return {
             "sdk_version": self._sdk_version,
             "git_commit": self._git_commit,
             "prompt_version": self._prompt_version,
             "agent_version": self._agent_version,
+            **_lineage_prompt,
             # SPEC-029: agent_version="auto"의 불투명한 dirty-hash에 사람이 읽을 수 있는
             # 한 줄 메모를 붙인다 — 새 계산 없이 생성자 인자를 그대로 실어 보낸다.
             "iteration_note": self._iteration_note,

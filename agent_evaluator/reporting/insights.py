@@ -1143,6 +1143,117 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Change attribution (P18) — tie a metric move to the specific thing that
+# changed. experiment_metadata already gives the git file/commit diff; this adds
+# the system-prompt / config text diff (when the run stashed it in lineage) and
+# points at the largest Gate move between the two runs.
+# ---------------------------------------------------------------------------
+
+def _lineage(report: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(report, dict):
+        return {}
+    return (report.get("extra_metrics") or {}).get("lineage") or {}
+
+
+def _prompt_line_diff(old: str, new: str) -> dict[str, Any]:
+    import difflib
+
+    a = (old or "").splitlines()
+    b = (new or "").splitlines()
+    sm = difflib.SequenceMatcher(None, a, b)
+    added = [ln for i, ln in enumerate(b) if i in _changed_indices(sm, "b")]
+    removed = [ln for i, ln in enumerate(a) if i in _changed_indices(sm, "a")]
+    return {
+        "similarity": round(sm.ratio(), 3),
+        "added": [ln.strip() for ln in added if ln.strip()][:15],
+        "removed": [ln.strip() for ln in removed if ln.strip()][:15],
+    }
+
+
+def _changed_indices(sm: Any, side: str) -> set[int]:
+    out: set[int] = set()
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        rng = range(i1, i2) if side == "a" else range(j1, j2)
+        out.update(rng)
+    return out
+
+
+def _change_attribution_section(
+    current: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    diagnosis: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not baseline:
+        return None
+    cur_l, base_l = _lineage(current), _lineage(baseline)
+
+    prompt_changed = False
+    prompt_diff = None
+    cp, bp = cur_l.get("prompt_text"), base_l.get("prompt_text")
+    if isinstance(cp, str) and isinstance(bp, str):
+        prompt_changed = cur_l.get("prompt_hash") != base_l.get("prompt_hash") or cp != bp
+        if prompt_changed:
+            prompt_diff = _prompt_line_diff(bp, cp)
+
+    config_changed = False
+    config_diff = None
+    cc, bc = cur_l.get("config_snapshot"), base_l.get("config_snapshot")
+    if isinstance(cc, dict) and isinstance(bc, dict):
+        changed_keys = {
+            k: {"from": bc.get(k), "to": cc.get(k)}
+            for k in set(cc) | set(bc)
+            if cc.get(k) != bc.get(k)
+        }
+        if changed_keys:
+            config_changed = True
+            config_diff = {"changed_keys": changed_keys}
+
+    git = None
+    fc, tc = base_l.get("git_commit"), cur_l.get("git_commit")
+    if fc and tc and fc != tc:
+        git = {"from_commit": fc, "to_commit": tc}
+
+    largest_move = None
+    regs = (diagnosis or {}).get("regressions") or []
+    if regs:
+        r = max(regs, key=lambda x: abs(_safe_float(x.get("delta"), 0.0) or 0.0))
+        largest_move = {
+            "gate": r.get("gate"),
+            "delta": round(_safe_float(r.get("delta"), 0.0) or 0.0, 4),
+        }
+
+    if not (prompt_changed or config_changed or git or largest_move):
+        return None
+
+    bits: list[str] = []
+    if prompt_changed and prompt_diff:
+        bits.append(f"the system prompt changed ({prompt_diff['similarity'] * 100:.0f}% similar)")
+    if config_changed:
+        bits.append(f"{len(config_diff['changed_keys'])} config key(s) changed")
+    if git and not (prompt_changed or config_changed):
+        bits.append(f"code changed ({fc[:8]}..{tc[:8]})")
+    move_txt = ""
+    if largest_move and largest_move["gate"]:
+        move_txt = (f", and Gate {largest_move['gate']} moved "
+                    f"{largest_move['delta']:+.2f}")
+    note = ("Between these two runs " + " and ".join(bits) + move_txt +
+            ". Correlation, not proof — other changes may coincide." if bits
+            else "No prompt/config/code change recorded between the two runs.")
+
+    return {
+        "prompt_changed": prompt_changed,
+        "prompt_diff": prompt_diff,
+        "config_changed": config_changed,
+        "config_diff": config_diff,
+        "git": git,
+        "largest_gate_move": largest_move,
+        "note": note,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Narrative (P17) — the 2-4 plain-English sentences a QA lead pastes into a
 # release ticket. Deterministic template by default; a `narrator` callable can
 # replace it with an LLM-written version (falls back to the template on error).
@@ -1322,6 +1433,9 @@ def build_insights(
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "eval_set_quality": eval_set_quality,
+        "change_attribution": _safe(
+            _change_attribution_section, current, baseline, diagnosis, default=None,
+        ),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
