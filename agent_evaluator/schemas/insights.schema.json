@@ -100,7 +100,12 @@
               "targets_gates": { "type": "array", "items": { "type": "string" } },
               "projected_tcr_after_pct": { "type": "number" },
               "projected_accuracy_after_pct": { "type": "number" },
-              "cumulative_tcr_gain_pp": { "type": "number" }
+              "cumulative_tcr_gain_pp": { "type": "number" },
+              "effort_weight": { "type": "number" },
+              "projected_gate_scores": { "type": "object" },
+              "projected_gate_scores_ci": { "type": "object" },
+              "gate_moves": { "type": "object" },
+              "roi": { "type": "number" }
             }
           }
         },
@@ -112,6 +117,8 @@
             "plan_fixes_projected": { "type": "integer" },
             "projected_gate_scores": { "type": "object" },
             "remaining_structural_blockers": { "type": "array", "items": { "type": "string" } },
+            "p_ready": { "type": ["number", "null"] },
+            "likely_fix_count": { "type": ["integer", "null"] },
             "note": { "type": "string" }
           }
         }

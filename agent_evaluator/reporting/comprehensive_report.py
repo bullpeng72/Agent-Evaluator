@@ -3961,12 +3961,30 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
             f'<td style="text-align:right;color:#059669">{after_cell}</td></tr>'
         )
 
+    _EFFORT_LABEL = {1.0: "low", 2.0: "low–med", 3.0: "med", 4.0: "high"}
     plan_rows = ""
     for it in rd.get("fix_plan") or []:
         gates = ", ".join(it.get("targets_gates") or []) or "—"
         _tts = it.get("task_types") or ([it["task_type"]] if it.get("task_type") else [])
         _tt_s = (f' <span style="color:#9ca3af;font-weight:400">· '
                  f'{_esc(", ".join(str(x) for x in _tts))}</span>' if _tts else "")
+        # P37: projected gate vector + CI for the TCR-driven gates
+        _pgs = it.get("projected_gate_scores") or {}
+        _pci = it.get("projected_gate_scores_ci") or {}
+        _moves = it.get("gate_moves") or {}
+        _vec_bits = []
+        for gk in sorted(_pgs):
+            if _moves.get(gk):
+                _c = _pci.get(gk)
+                _ci_s = (f" [{_c[0]:.2f}–{_c[1]:.2f}]" if isinstance(_c, list) and len(_c) == 2
+                         else "")
+                _vec_bits.append(f"{gk}~{_pgs[gk]:.2f}{_ci_s}")
+        _vec_s = (f'<div style="font-size:11px;color:#9ca3af">→ {" · ".join(_vec_bits)}</div>'
+                  if _vec_bits else "")
+        _eff_w = it.get("effort_weight")
+        _eff_lbl = _EFFORT_LABEL.get(_eff_w, str(_eff_w) if _eff_w is not None else "—")
+        _roi = it.get("roi")
+        _roi_s = f'{_roi:.1f}' if isinstance(_roi, (int, float)) else "—"
         plan_rows += (
             f'<tr><td style="text-align:center;color:#6b7280">{it.get("rank")}</td>'
             f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}{_tt_s}'
@@ -3974,16 +3992,27 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
             f'</div></td>'
             f'<td style="text-align:right;white-space:nowrap">{it.get("count")} task(s)'
             f'<div style="font-size:11px;color:#9ca3af">{it.get("impact_pct")}% of set</div></td>'
-            f'<td style="text-align:center;font-size:11px;color:#6b7280">{_esc(gates)}</td>'
+            f'<td style="text-align:center;font-size:11px;color:#6b7280">{_esc(gates)}'
+            f'<div style="font-size:11px;color:#9ca3af">effort {_esc(_eff_lbl)} · '
+            f'ROI {_roi_s}</div></td>'
             f'<td style="text-align:right;white-space:nowrap;'
             f'font-variant-numeric:tabular-nums">{it.get("projected_tcr_after_pct")}%'
             f'<div style="font-size:11px;color:#059669">'
-            f'+{it.get("cumulative_tcr_gain_pp")}pp cum.</div></td></tr>'
+            f'+{it.get("cumulative_tcr_gain_pp")}pp cum.</div>{_vec_s}</td></tr>'
         )
 
     pr = rd.get("projected_ready_after") or {}
     n = pr.get("ready_after_n_items")
     _note_col = "#059669" if n else "#b45309"
+    _pr_ready = pr.get("p_ready")
+    _lfc = pr.get("likely_fix_count")
+    _conf_s = ""
+    if isinstance(_pr_ready, (int, float)):
+        _conf_s = (
+            f' <span style="color:#6b7280">(~{_pr_ready * 100:.0f}% likely to clear'
+            + (f" after {_lfc} fix{'es' if _lfc != 1 else ''}" if _lfc else "")
+            + ', bootstrap over the flip rate)</span>'
+        )
     verdict_line = (
         f'<span style="color:{_note_col};font-weight:700">Projected:</span> '
     )
@@ -4004,7 +4033,7 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
             f'<tbody>{plan_rows}</tbody></table>' if plan_rows else ""
         )
         + f'<p style="font-size:13px;margin:10px 0 0">{cur_line}{verdict_line}'
-        f'<span style="color:#6b7280">{_esc(pr.get("note", ""))}</span></p>'
+        f'<span style="color:#6b7280">{_esc(pr.get("note", ""))}</span>{_conf_s}</p>'
         '<p style="font-size:11px;color:#9ca3af;margin:4px 0 0">'
         'Projection is first-order — it assumes each cluster&rsquo;s tasks then pass '
         'and nothing else changes. Use it to sequence work, not as a guarantee.</p>'

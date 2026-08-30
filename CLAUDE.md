@@ -1221,6 +1221,19 @@ prompt_edit|config_change|data_fix, before, after, rationale, evidence_task_ids,
 id 블록 렌더(`_build_recommendations(insights_recs=)`, 두 진입점 모두 `_insights_obj["recommendations"]`
 전달). 스키마 `recommendations[].proposal` 추가. `test_fix_proposals.py`(9). 전체 4551 통과.
 
+**SPEC-041 P37 (불확실성 있는 전(全)게이트 투영)** — `reporting/insights.py::_readiness_section`:
+`fix_plan[]` 각 행에 `projected_gate_scores{모든 below-target 게이트}` + `projected_gate_scores_ci`
+(A·C만, Beta-Binomial 부트스트랩) + `gate_moves{게이트→bool}`(A·C=True는 TCR 이동, B/D/E/F/G=False는
+현재값 고정 — 태스크 결과가 지연/비용/보안을 안 바꿈) + `effort_weight`(`_effort_weight_for_sig`:
+data 1·runtime/guardrail 2·grounding/decomposition 3·generic 4) + `roi`(= 닫힌 gap pp ÷ effort_weight).
+부트스트랩: 전체 pass율 Beta(passes+1, fails+1)에서 p 추출 → 누적 fixed 태스크가 각각 Bernoulli(p)로
+flip → 게이트 점수 재계산, 400회, seed `_PROJ_SEED+rank`로 결정적. `projected_ready_after`에 `p_ready`
+(TCR 블로커 전부 target 도달 확률) + `likely_fix_count`(부트스트랩 modal rank) 추가. 리포트
+`_build_readiness`: fix-plan 표 Helps 열에 "effort <label> · ROI <n>", Projected TCR 열 아래
+"→ A~0.76 [0.64–0.76] · C~..." 벡터, Projected 문장에 "~100% likely to clear after 1 fix" 꼬리말.
+스키마 `readiness.fix_plan[].{effort_weight,projected_gate_scores,projected_gate_scores_ci,gate_moves,roi}`
++ `projected_ready_after.{p_ready,likely_fix_count}`. `test_readiness_projection_p37.py`(6). 전체 4557 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import difflib
 import math
+import random
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -912,6 +913,35 @@ def _fix_effort_hint(sig: str) -> tuple[str, list[str]]:
             "root cause.", ["A"])
 
 
+# P37: rough relative effort of each fix category (higher = more work). Used only
+# to rank clusters by ROI (readiness gain per unit effort) — not a time estimate.
+_EFFORT_WEIGHT = {
+    "data": 1.0, "runtime": 2.0, "guardrail": 2.0,
+    "grounding": 3.0, "decomposition": 3.0, "generic": 4.0,
+}
+
+
+def _effort_weight_for_sig(sig: str) -> float:
+    s = (sig or "").lower()
+    if s.startswith("error:") or "timeout" in s or "exceeded" in s:
+        return _EFFORT_WEIGHT["runtime"]
+    if ("not grounded" in s or "contradict" in s or "retrieved context" in s
+            or "hallucin" in s or "unsupported" in s):
+        return _EFFORT_WEIGHT["grounding"]
+    if "part of" in s or "multi-step" in s or "remaining steps" in s:
+        return _EFFORT_WEIGHT["decomposition"]
+    if ("loop" in s or "repeat" in s or "scope" in s or "unauthorized" in s
+            or "injection" in s or "ignore previous" in s):
+        return _EFFORT_WEIGHT["guardrail"]
+    if "ground_truth similarity" in s or "label" in s or "suspicious" in s:
+        return _EFFORT_WEIGHT["data"]
+    return _EFFORT_WEIGHT["generic"]
+
+
+_PROJ_BOOT_N = 400
+_PROJ_SEED = 12345
+
+
 def _readiness_section(
     tasks: list[dict[str, Any]],
     harness_groups: dict[str, Any],
@@ -976,12 +1006,32 @@ def _readiness_section(
         return None
 
     total = len(tasks)
+    # P37: base pass-rate prior for the flip bootstrap — Beta(passes+1, fails+1).
+    _n_pass_set = sum(
+        0 if _effective_fail(success=t.get("success", False),
+                             accuracy=t.get("accuracy_score"),
+                             completion=t.get("completion_score")) else 1
+        for t in tasks
+    )
+    _beta_a, _beta_b = _n_pass_set + 1.0, (total - _n_pass_set) + 1.0
+    below_all = fails + warns
+    _cur_scores = {
+        k: (_safe_float((harness_groups.get(k) or {}).get("score")) or 0.0)
+        for k in below_all
+    }
+
     fixed_ids: set[str] = set()
+    fixed_lift: list[float] = []          # (1 − completion) of every task fixed so far
+    lift_by_rank: dict[int, list[float]] = {}
     fix_plan: list[dict[str, Any]] = []
     for rank, (sig, members) in enumerate(ranked[:8], 1):
         for m in members:
             if m.get("task_id"):
                 fixed_ids.add(str(m["task_id"]))
+                fixed_lift.append(
+                    max(0.0, 1.0 - (_safe_float(m.get("completion_score")) or 0.0))
+                )
+        lift_by_rank[rank] = list(fixed_lift)
         proj_tcr = sum(
             1.0 if str(t.get("task_id")) in fixed_ids
             else (_safe_float(t.get("completion_score")) or 0.0)
@@ -994,6 +1044,41 @@ def _readiness_section(
         ) / total
         hint, tgt_gates = _fix_effort_hint(sig)
         ttypes = sorted({str(m.get("task_type") or "—") for m in members} - {"—"})
+        _cum_gain = proj_tcr - (cur_tcr or 0.0)
+
+        # P37: project every below-target gate at this rank, with a bootstrap CI on
+        # the TCR-driven ones (A/C move with completion; B/D/E/F/G are held — task
+        # outcomes don't change latency/cost/security). `moves` says which is which.
+        proj_gate_scores: dict[str, float] = {}
+        proj_gate_ci: dict[str, list[float]] = {}
+        gate_moves: dict[str, bool] = {}
+        _rng = random.Random(_PROJ_SEED + rank)
+        _samples: dict[str, list[float]] = {k: [] for k in below_all if k in _TCR_DRIVEN_GATES}
+        for _ in range(_PROJ_BOOT_N if _samples else 0):
+            _p = _rng.betavariate(_beta_a, _beta_b)
+            _gain_b = sum(lf for lf in fixed_lift if _rng.random() < _p) / total
+            for k in _samples:
+                _samples[k].append(min(1.0, _cur_scores[k] + _gain_b))
+        for k in below_all:
+            if k in _TCR_DRIVEN_GATES:
+                proj_gate_scores[k] = round(min(1.0, _cur_scores[k] + _cum_gain), 3)
+                gate_moves[k] = True
+                if _samples.get(k):
+                    ss = sorted(_samples[k])
+                    lo = ss[int(0.025 * (len(ss) - 1))]
+                    hi = ss[int(0.975 * (len(ss) - 1))]
+                    proj_gate_ci[k] = [round(lo, 3), round(hi, 3)]
+            else:
+                proj_gate_scores[k] = round(_cur_scores[k], 3)
+                gate_moves[k] = False
+
+        _gap_closed_pp = sum(
+            max(0.0, min(_READINESS_TARGET, proj_gate_scores[k])
+                - min(_READINESS_TARGET, _cur_scores[k])) * 100.0
+            for k in below_all if k in _TCR_DRIVEN_GATES
+        )
+        _eff = _effort_weight_for_sig(sig)
+
         fix_plan.append({
             "rank": rank,
             "signature": sig,
@@ -1003,10 +1088,15 @@ def _readiness_section(
             "impact_pct": round(len(members) / total * 100.0, 1),
             "example_task_ids": [str(m.get("task_id")) for m in members[:5] if m.get("task_id")],
             "effort_hint": hint,
+            "effort_weight": _eff,
             "targets_gates": tgt_gates,
             "projected_tcr_after_pct": round(proj_tcr * 100.0, 1),
             "projected_accuracy_after_pct": round(proj_acc * 100.0, 1),
-            "cumulative_tcr_gain_pp": round((proj_tcr - (cur_tcr or 0.0)) * 100.0, 1),
+            "cumulative_tcr_gain_pp": round(_cum_gain * 100.0, 1),
+            "projected_gate_scores": proj_gate_scores,
+            "projected_gate_scores_ci": proj_gate_ci,
+            "gate_moves": gate_moves,
+            "roi": round(_gap_closed_pp / _eff, 2),
         })
 
     # Every below-target gate is a candidate for the plan to lift. Split into the
@@ -1066,6 +1156,28 @@ def _readiness_section(
     }
     _proj_str = ", ".join(f"Gate {k} ~{v:.2f}" for k, v in proj_scores.items())
 
+    # P37: bootstrap "how likely is the plan to actually clear the TCR blockers,
+    # and after how many fixes" — draws a pass-rate, flips each fixed task, and
+    # finds the first rank where every TCR blocker clears target.
+    p_ready: float | None = None
+    likely_fix_count: int | None = None
+    if tcr_blockers and fix_plan:
+        _rng2 = random.Random(_PROJ_SEED + 999)
+        _clear_ranks: list[int | None] = []
+        for _ in range(_PROJ_BOOT_N):
+            _p = _rng2.betavariate(_beta_a, _beta_b)
+            _hit: int | None = None
+            for r in range(1, len(fix_plan) + 1):
+                _g = sum(lf for lf in lift_by_rank[r] if _rng2.random() < _p) / total
+                if all(_cur_scores[k] + _g >= _READINESS_TARGET for k in tcr_blockers):
+                    _hit = r
+                    break
+            _clear_ranks.append(_hit)
+        _hits = [r for r in _clear_ranks if r is not None]
+        p_ready = round(len(_hits) / len(_clear_ranks), 3)
+        if _hits:
+            likely_fix_count = Counter(_hits).most_common(1)[0][0]
+
     _word = "warning" if _only_warn else "failing"
     if not tcr_blockers and not other_blockers:
         note = ("No gate is below target; the fix plan is ordered by how much TCR "
@@ -1101,6 +1213,8 @@ def _readiness_section(
             "plan_fixes_projected": _plan_rank,
             "projected_gate_scores": proj_scores,
             "remaining_structural_blockers": other_blockers,
+            "p_ready": p_ready,
+            "likely_fix_count": likely_fix_count,
             "note": note,
         },
     }
