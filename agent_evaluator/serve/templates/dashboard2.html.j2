@@ -6774,11 +6774,6 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
                   </tbody>
                 </table>
               </div>
-              <template x-if="improveResult.insights.conversation.goal_drift_sessions && improveResult.insights.conversation.goal_drift_sessions.length">
-                <div style="font-size:12px;color:var(--text2);margin-top:6px">
-                  Goal drift: <span x-text="improveResult.insights.conversation.goal_drift_sessions.map(d=>d.session_id).join(', ')"></span>
-                </div>
-              </template>
             </div>
           </template>
 

@@ -3350,17 +3350,7 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
     if dat:
         dat_html = (f'<p style="font-size:13px;font-weight:700;color:#dc2626;margin:8px 0 0">'
                     f'⚠️ The agent starts losing context after turn {dat}.</p>')
-    drift = cv.get("goal_drift_sessions") or []
-    drift_html = ""
-    if drift:
-        items = "".join(
-            f'<li><strong>{_esc(str(d.get("session_id")))}</strong> — {_esc(d.get("reason", ""))} '
-            f'(overlap with earlier turns '
-            f'{d.get("prior_overlap", d.get("first_last_topic_overlap"))})</li>' for d in drift
-        )
-        drift_html = ('<p style="font-size:12px;color:#6b7280;margin:8px 0 2px">'
-                      'Goal drift (session went off-topic):</p>'
-                      f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{items}</ul>')
+    drift_html = ""   # P35: goal-drift signal removed (unreliable, see insights.py)
     ws = cv.get("worst_session") or {}
     ws_html = (f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">Worst session: '
                f'<strong>{_esc(str(ws.get("session_id")))}</strong> '

@@ -2099,9 +2099,8 @@ def _trajectories_section(
 # Conversation / multi-turn (P24) — `insights` had zero coverage for a whole
 # product category. Session-level scores were in the JSON; this adds the
 # per-turn quality trajectory, the turn where the agent starts to degrade, and
-# per-session goal drift. Coarse text heuristics, stdlib only.
+# Coarse text heuristics, stdlib only.
 # ---------------------------------------------------------------------------
-_CONV_DRIFT_OVERLAP = 0.15     # first<->last user-turn content overlap below this = goal drift
 _CONV_NONANSWER_MIN_CHARS = 15
 _CONV_NONANSWER_PHRASES = (
     "i can't", "i cannot", "i can not", "not able to", "unable to",
@@ -2131,7 +2130,6 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
     per_turn: dict[int, dict[str, list[float]]] = defaultdict(
         lambda: {"ctx": [], "len": [], "rep": [], "nonans": []}
     )
-    drift: list[dict[str, Any]] = []
     worst = None
 
     for s in sessions:
@@ -2162,29 +2160,12 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
             prior_tokens |= _wtok(user) | a_tok
             prev_agent = agent
 
-        if len(turns) >= 2:
-            user_toks = [_wtok(t.get("user") or "") for t in turns]
-            first_u, last_u = user_toks[0], user_toks[-1]
-            # P35: compare the last turn against *every* earlier user turn, not
-            # just the first — a follow-up ("how long until the money arrives?")
-            # can share no keywords with the opener yet stay on topic.
-            prior_union: set[str] = set().union(*user_toks[:-1]) if first_u else set()
-            ov_prior = _overlap(last_u, prior_union) if prior_union else 1.0
-            ov_fl = _overlap(last_u, first_u) if first_u else 1.0
-            tc = _safe_float((s.get("metrics") or {}).get("topic_coherence"))
-            substantive_last = len(last_u) >= 4
-            # Drift only when the last turn is off-topic vs the whole history
-            # AND the session's own coherence metric agrees (or is unavailable).
-            off_topic = substantive_last and ov_prior < _CONV_DRIFT_OVERLAP
-            incoherent = tc is None or tc < 0.5
-            if off_topic and incoherent:
-                drift.append({
-                    "session_id": s.get("session_id"),
-                    "first_last_topic_overlap": round(ov_fl, 3),
-                    "prior_overlap": round(ov_prior, 3),
-                    "reason": ("the last user turn shares almost no content with "
-                               "any earlier turn (topic drifted)"),
-                })
+        # P35: a lexical "goal drift" flag (last user turn shares no content words
+        # with the earlier turns) can't tell a distinct follow-up ("how long
+        # until the money arrives?") from a real topic change — it false-positives
+        # on healthy multi-turn Q&A. `degradation_after_turn` + the per-turn
+        # trajectory already surface a session that goes bad; goal-drift is
+        # dropped rather than shipped unreliable.
 
     traj = []
     for i in sorted(per_turn):
@@ -2216,7 +2197,6 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
         "avg_context_retention": round(sum(ctx_rets) / len(ctx_rets), 3) if ctx_rets else None,
         "turn_quality_trajectory": traj,
         "degradation_after_turn": degradation_after,
-        "goal_drift_sessions": drift[:10],
         "worst_session": ({"session_id": worst[0], "overall_score": round(worst[1], 3)}
                           if worst else None),
     }

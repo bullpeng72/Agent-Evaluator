@@ -570,7 +570,6 @@
           }
         },
         "degradation_after_turn": { "type": ["integer", "null"] },
-        "goal_drift_sessions": { "type": "array" },
         "worst_session": { "type": ["object", "null"] }
       }
     },

@@ -89,26 +89,20 @@ def _sess(sid, turns, topic=0.8):
     }
 
 
-def test_b3_healthy_qa_session_not_flagged_as_drift():
+def test_b3_goal_drift_signal_removed():
+    # P35: the lexical goal-drift heuristic false-positived on a healthy 4-turn
+    # returns conversation (topic_coherence came back 0.098 — no threshold could
+    # separate it) and was removed entirely.
     healthy = _sess("clean", [
         ("How do I return an item?", "Unopened items within 14 days get a full refund."),
         ("What about opened items?", "Opened items within 14 days get store credit only."),
         ("Do I pay the return shipping?", "No — we email you a prepaid label."),
         ("How long until I see the money?", "Refunds post within 3 business days."),
-    ], topic=0.8)
+    ], topic=0.1)
     cv = _conversation_section({"conversation_sessions": [healthy]})
-    assert cv["goal_drift_sessions"] == []
-
-
-def test_b3_genuinely_off_topic_last_turn_still_flagged():
-    drift = _sess("d", [
-        ("What is your refund policy?", "Unopened, 14 days, full refund."),
-        ("thanks", "welcome"),
-        ("What will the weather in Tokyo be next Tuesday afternoon?",
-         "I cannot check live weather."),
-    ], topic=0.2)
-    cv = _conversation_section({"conversation_sessions": [drift]})
-    assert any(d["session_id"] == "d" for d in cv["goal_drift_sessions"])
+    assert "goal_drift_sessions" not in cv
+    # degradation_after_turn still covers "the session went bad"
+    assert "degradation_after_turn" in cv
 
 
 # ---- B4 -------------------------------------------------------------------

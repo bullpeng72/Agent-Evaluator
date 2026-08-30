@@ -67,21 +67,24 @@ class TestConversationSection:
         cv = _conversation_section({"conversation_sessions": [_session("ok", _GOOD)]})
         assert cv["degradation_after_turn"] is None
 
-    def test_goal_drift_flagged_on_off_topic_last_turn(self):
-        drift_sess = _session("d1", [
-            ("What is your refund policy?", "Unopened, 14 days, full refund."),
-            ("thanks", "welcome"),
-            ("What will the weather in Tokyo be next Tuesday afternoon?",
-             "I cannot check live weather."),
-        ], topic=0.2)
-        cv = _conversation_section({"conversation_sessions": [drift_sess]})
-        assert any(d["session_id"] == "d1" for d in cv["goal_drift_sessions"])
+    def test_goal_drift_field_removed(self):
+        # P35: the lexical goal-drift heuristic false-positived on healthy
+        # multi-turn Q&A and was removed. The section no longer carries it.
+        cv = _conversation_section({"conversation_sessions": [
+            _session("d1", [
+                ("What is your refund policy?", "Unopened, 14 days, full refund."),
+                ("thanks", "welcome"),
+                ("What will the weather in Tokyo be next Tuesday afternoon?",
+                 "I cannot check live weather."),
+            ], topic=0.2),
+        ]})
+        assert "goal_drift_sessions" not in cv
 
-    def test_trailing_filler_turn_is_not_drift(self):
-        # a substantive conversation that ends with "ok bye" must NOT be flagged
-        s = _session("s", _GOOD + [("ok bye", "Goodbye!")], topic=0.85)
-        cv = _conversation_section({"conversation_sessions": [s]})
-        assert cv["goal_drift_sessions"] == []
+    def test_healthy_multiturn_qa_has_no_drift_noise(self):
+        cv = _conversation_section({"conversation_sessions": [
+            _session("clean", _GOOD, topic=0.1),
+        ]})
+        assert "goal_drift_sessions" not in cv
 
     def test_worst_session_is_lowest_overall(self):
         cv = _conversation_section({"conversation_sessions": [

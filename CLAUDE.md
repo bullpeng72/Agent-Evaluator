@@ -1104,11 +1104,11 @@ privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 �
 avg_context_retention, turn_quality_trajectory[]{turn, n, context_ref(에이전트 턴이 이전 턴 토큰을
 재사용하는 비율), avg_response_chars, repetition(직전 에이전트 턴과의 유사도), nonanswer_rate},
 degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전엔 아니었던 첫 지점 —
-`_is_nonanswer`: <15자 또는 "i can't"/"could you clarify" 등 deflection 구문), goal_drift_sessions[]
-{session_id, first_last_topic_overlap(첫↔마지막 user 턴 토큰 오버랩), reason}(마지막 턴이 substantive일
-때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
-degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
-`conversation_sessions`도 graft(`report.to_dict()`에 없음).
+`_is_nonanswer`: <15자 또는 "i can't"/"could you clarify" 등 deflection 구문), worst_session}`.
+(P35: `goal_drift_sessions`는 제거됨 — 첫↔마지막 user 턴 어휘 오버랩 휴리스틱이 같은 주제의
+후속 질문을 주제 이탈로 오탐. `degradation_after_turn`이 "세션이 나빠지는 지점"을 이미 커버.)
+리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 + degradation 경고),
+대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에 `conversation_sessions`도 graft.
 
 **SPEC-041 P35 (round-5 예시 리포트 감사 수정)** — 8건.
 - **B1**: `comprehensive_report._review_dict_tasks`가 `partial_reason`/`errors`를 안 실어
@@ -1118,9 +1118,11 @@ degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경
 - **B2**: `_narrative_audit_section`의 `_RE_PCT`가 컴포넌트 health % ("relevance completeness (40%)")를
   TCR/accuracy 주장으로 오탐 → 항상-clean이어야 할 템플릿에 빨간 박스. 이제 % 앞뒤 40자에
   "tcr"/"accuracy"/"completion rate" 등이 있을 때만 검사.
-- **B3**: `_conversation_section` goal-drift가 첫↔마지막 user 턴 오버랩만으로 발화 → 같은 주제의
-  후속 질문("돈 언제 들어와요?")이 키워드 안 겹쳐 healthy 세션 오탐. 이제 (마지막 턴 vs *모든* 이전
-  user 턴 union 오버랩 < 0.15) AND (topic_coherence 없거나 < 0.5) 둘 다 필요. `prior_overlap` 필드 추가.
+- **B3**: `_conversation_section`의 `goal_drift_sessions` **제거**. 첫↔마지막 user 턴 어휘 오버랩
+  휴리스틱이 같은 주제의 후속 질문("돈 언제 들어와요?")을 주제 이탈로 오탐 — 실측: healthy 4-턴
+  반품 대화의 topic_coherence가 0.098로 나와 어떤 임계값 조합으로도 분리 불가. semantic 없이는
+  신뢰 불가라 폐기. `degradation_after_turn`(비답변율)이 "세션이 나빠지는 지점"을 이미 커버.
+  schema/09_OUTPUTS/대시보드에서도 제거.
 - **B4**: `_trace_diffs_section`이 `hits[0]`(가장 오래된 cohort)와 diff → `hits[-1]`(가장 가까운 이전
   버전). `compared`/`first_lbl`→`prior_lbl`.
 - **B5**: trace-diff "Response 0% unchanged"(이중부정) → `_td_resp_summary()`: ≤2% "fully rewritten",
