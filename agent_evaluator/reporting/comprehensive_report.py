@@ -1924,10 +1924,78 @@ def _traj_summarize(v: Any, n: int = 80) -> str:
     return _clip(str(v), n)
 
 
+_WF_W = 1000.0
+_WF_LABEL_W = 250.0
+_WF_ROW_H = 22.0
+
+
+def _build_waterfall(items: list[Any]) -> str:
+    """P25: inline-SVG waterfall for a step list that carries timing
+    (start_ms/end_ms or per-step duration). "" when there is no usable timing —
+    the caller then falls back to the flat step table."""
+    try:
+        from agent_evaluator.reporting.insights import parse_span_timeline
+
+        tl = parse_span_timeline(items)
+    except Exception:
+        tl = None
+    if not tl or not tl.get("spans") or not tl.get("total_ms"):
+        return ""
+
+    spans = tl["spans"][:_TRAJ_MAX_STEPS]
+    total_ms = float(tl["total_ms"]) or 1.0
+    bar_w = _WF_W - _WF_LABEL_W - 90.0
+    scale = bar_w / total_ms
+    crit = set(tl.get("critical_path") or [])
+    height = _WF_ROW_H * len(spans) + 12.0
+    parts = [
+        f'<svg viewBox="0 0 {_WF_W:.0f} {height:.0f}" width="100%" '
+        f'style="max-width:720px;font-size:10px" '
+        f'xmlns="http://www.w3.org/2000/svg" role="img">'
+    ]
+    for i, s in enumerate(spans):
+        y = 6.0 + i * _WF_ROW_H
+        x = _WF_LABEL_W + float(s["start_ms"]) * scale
+        w = max(2.0, (float(s["end_ms"]) - float(s["start_ms"])) * scale)
+        on_crit = s["name"] in crit
+        fill = "#ef4444" if not s.get("ok", True) else ("#6366f1" if on_crit else "#a5b4fc")
+        indent = min(int(s.get("depth", 0)), 6) * 10.0
+        nm = _clip(str(s["name"]), 34)
+        meta_bits = [f'{s["self_ms"]:.0f}ms']
+        if isinstance(s.get("tokens"), (int, float)):
+            meta_bits.append(f'{int(s["tokens"])}tok')
+        if isinstance(s.get("cost"), (int, float)) and s["cost"]:
+            meta_bits.append(_fmt_usd(s["cost"]))
+        parts.append(
+            f'<text x="{6 + indent:.0f}" y="{y + 14:.0f}" fill="#6b7280">{_esc(nm)}</text>'
+            f'<rect x="{x:.1f}" y="{y + 4:.1f}" width="{w:.1f}" height="12" rx="2" '
+            f'fill="{fill}"><title>{_esc(str(s["name"]))} — {" · ".join(meta_bits)}</title></rect>'
+            f'<text x="{x + w + 4:.1f}" y="{y + 14:.0f}" fill="#9ca3af">'
+            f'{" · ".join(meta_bits)}</text>'
+        )
+    parts.append("</svg>")
+
+    hdr_bits = [f'{total_ms:.0f}ms total']
+    if tl.get("total_tokens"):
+        hdr_bits.append(f'{int(tl["total_tokens"])} tok')
+    if tl.get("total_cost_usd"):
+        hdr_bits.append(_fmt_usd(tl["total_cost_usd"]))
+    bn = tl.get("bottleneck") or {}
+    if bn.get("name"):
+        hdr_bits.append(f'bottleneck: {_esc(_clip(str(bn["name"]), 30))} '
+                        f'({bn.get("self_ms", 0):.0f}ms)')
+    return (
+        f'<div style="margin:4px 0 2px">'
+        f'<div style="font-size:11px;color:#6b7280;margin-bottom:2px">'
+        f'{" · ".join(hdr_bits)}</div>{"".join(parts)}</div>'
+    )
+
+
 def _build_trajectory(case: dict[str, Any]) -> str:
     """P7: per-step execution trace for a failure case — step → tool → in/out →
     outcome. Uses tool_calls, then chain_steps, then agent_interactions. Returns
-    "" when the task carried no step data (common for plain QA)."""
+    "" when the task carried no step data (common for plain QA). P25: when the
+    steps carry timing, an inline-SVG waterfall is shown above the flat table."""
     tcs = case.get("tool_calls") or []
     steps = case.get("chain_steps") or []
     inter = case.get("agent_interactions") or []
@@ -1996,9 +2064,11 @@ def _build_trajectory(case: dict[str, Any]) -> str:
     more = (f'<tr><td></td><td colspan="3" style="color:#9ca3af;font-size:11px">'
             f'… {total - _TRAJ_MAX_STEPS} more step(s)</td></tr>'
             if total > _TRAJ_MAX_STEPS else "")
+    waterfall = _build_waterfall(tcs or steps or inter)
     return (
         f'<details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;'
         f'color:#6366f1">▸ Trajectory ({total} {kind})</summary>'
+        f'{waterfall}'
         f'<table class="mtable" style="margin-top:4px;font-size:12px"><tbody>{rows}{more}</tbody></table>'
         f'</details>'
     )

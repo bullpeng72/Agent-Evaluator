@@ -1404,6 +1404,170 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Span timeline (P25) — the P7 trajectory is a flat list. When the steps carry
+# timing (start_ms/end_ms or per-step duration) this parses them into a nested
+# timeline with per-span self-time and cost, so a report can show a waterfall
+# and name the critical path instead of just listing steps.
+# ---------------------------------------------------------------------------
+
+def _span_name(item: dict[str, Any]) -> str:
+    for k in ("name", "tool_name", "tool", "step", "action", "type", "operation"):
+        v = item.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    frm = item.get("from") or item.get("from_agent") or item.get("sender")
+    to = item.get("to") or item.get("to_agent") or item.get("receiver")
+    if frm or to:
+        return f"{frm or '?'} → {to or '?'}"
+    return "step"
+
+
+def _span_num(item: dict[str, Any], *keys: str) -> float | None:
+    for k in keys:
+        v = _safe_float(item.get(k))
+        if v is not None:
+            return v
+    return None
+
+
+def _span_tokens(item: dict[str, Any]) -> int | None:
+    v = item.get("tokens") or item.get("tokens_used") or item.get("total_tokens")
+    if isinstance(v, (int, float)):
+        return int(v)
+    if isinstance(v, dict) and isinstance(v.get("total"), (int, float)):
+        return int(v["total"])
+    return None
+
+
+def parse_span_timeline(items: list[Any]) -> dict[str, Any] | None:
+    """Nested timeline from a list of step dicts. ``None`` when no step carries
+    usable timing (start_ms/end_ms or a duration)."""
+    steps = [s for s in (items or []) if isinstance(s, dict)]
+    if not steps:
+        return None
+
+    # --- 1. absolute or relative timing --------------------------------------
+    have_abs = any(
+        _span_num(s, "start_ms", "start", "t_start") is not None for s in steps
+    )
+
+    def _dur_ms(s: dict[str, Any]) -> float | None:
+        # explicit-millisecond keys are trusted as-is; bare `duration` /
+        # `latency` are seconds by convention -> scale to ms.
+        v = _span_num(s, "duration_ms", "latency_ms", "elapsed_ms", "self_ms")
+        if v is not None:
+            return v
+        v = _span_num(s, "duration", "latency", "elapsed")
+        return v * 1000.0 if v is not None else None
+
+    durs = [_dur_ms(s) for s in steps]
+    if not have_abs and not any(d is not None for d in durs):
+        return None
+
+    raw: list[dict[str, Any]] = []
+    cursor = 0.0
+    for i, s in enumerate(steps):
+        st = _span_num(s, "start_ms", "start", "t_start")
+        en = _span_num(s, "end_ms", "end", "t_end")
+        d = durs[i]
+        if st is None:
+            st = cursor
+        if en is None:
+            en = st + (d if d is not None else 0.0)
+        cursor = max(cursor, en)
+        raw.append({
+            "idx": i, "name": _span_name(s),
+            "id": s.get("id") or s.get("span_id"),
+            "parent": s.get("parent") or s.get("parent_id") or s.get("parent_span"),
+            "start_ms": round(float(st), 1), "end_ms": round(float(en), 1),
+            "tokens": _span_tokens(s),
+            "cost": _span_num(s, "cost", "cost_usd"),
+            "ok": s.get("success", True),
+        })
+
+    t0 = min(r["start_ms"] for r in raw)
+    total_ms = round(max(r["end_ms"] for r in raw) - t0, 1)
+    for r in raw:
+        r["start_ms"] = round(r["start_ms"] - t0, 1)
+        r["end_ms"] = round(r["end_ms"] - t0, 1)
+
+    # --- 2. depth from id/parent (else flat) -------------------------------
+    by_id = {r["id"]: r for r in raw if r["id"] is not None}
+    for r in raw:
+        depth, p, guard = 0, r["parent"], 0
+        while p is not None and p in by_id and guard < 20:
+            depth += 1
+            p = by_id[p]["parent"]
+            guard += 1
+        r["depth"] = depth
+
+    # --- 3. self-time (interval minus child intervals) --------------------
+    children: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+    for r in raw:
+        if r["parent"] in by_id:
+            children[r["parent"]].append(r)
+    for r in raw:
+        span = r["end_ms"] - r["start_ms"]
+        covered = sum(c["end_ms"] - c["start_ms"] for c in children.get(r["id"], []))
+        r["self_ms"] = round(max(0.0, span - covered), 1)
+
+    spans = [
+        {"idx": r["idx"], "name": r["name"], "depth": r["depth"],
+         "start_ms": r["start_ms"], "end_ms": r["end_ms"], "self_ms": r["self_ms"],
+         "tokens": r["tokens"], "cost": r["cost"], "ok": bool(r["ok"])}
+        for r in raw
+    ]
+
+    ranked = sorted(spans, key=lambda s: -s["self_ms"])
+    crit, acc = [], 0.0
+    for s in ranked:
+        crit.append(s["name"])
+        acc += s["self_ms"]
+        if total_ms and acc >= 0.8 * total_ms:
+            break
+    costs = [s["cost"] for s in spans if isinstance(s["cost"], (int, float))]
+    toks = [s["tokens"] for s in spans if isinstance(s["tokens"], (int, float))]
+    return {
+        "n_spans": len(spans),
+        "total_ms": total_ms,
+        "spans": spans,
+        "critical_path": crit,
+        "bottleneck": ({"name": ranked[0]["name"], "self_ms": ranked[0]["self_ms"]}
+                       if ranked else None),
+        "total_cost_usd": round(sum(costs), 6) if costs else None,
+        "total_tokens": sum(toks) if toks else None,
+    }
+
+
+def _trajectories_section(
+    tasks: list[dict[str, Any]], *, limit: int = 8,
+) -> list[dict[str, Any]] | None:
+    failing = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ] or tasks
+    out: list[dict[str, Any]] = []
+    for t in failing:
+        for key in ("tool_calls", "chain_steps", "agent_interactions"):
+            tl = _safe(parse_span_timeline, t.get(key) or [], default=None)
+            if tl:
+                out.append({
+                    "task_id": str(t.get("task_id") or "—"),
+                    "source": key, **{
+                        k: tl[k] for k in
+                        ("n_spans", "total_ms", "critical_path", "bottleneck",
+                         "total_cost_usd", "total_tokens")
+                    },
+                })
+                break
+        if len(out) >= limit:
+            break
+    return out or None
+
+
+# ---------------------------------------------------------------------------
 # Conversation / multi-turn (P24) — `insights` had zero coverage for a whole
 # product category. Session-level scores were in the JSON; this adds the
 # per-turn quality trajectory, the turn where the agent starts to degrade, and
@@ -1990,6 +2154,7 @@ def build_insights(
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
+        "trajectories": _safe(_trajectories_section, tasks, default=None),
         "conversation": _safe(_conversation_section, current, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(

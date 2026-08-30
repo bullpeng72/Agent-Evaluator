@@ -290,6 +290,25 @@
       }
     },
 
+    "trajectories": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["task_id"],
+        "properties": {
+          "task_id": { "type": "string" },
+          "source": { "type": "string" },
+          "n_spans": { "type": "integer" },
+          "total_ms": { "type": "number" },
+          "critical_path": { "type": "array", "items": { "type": "string" } },
+          "bottleneck": { "type": ["object", "null"] },
+          "total_cost_usd": { "type": ["number", "null"] },
+          "total_tokens": { "type": ["integer", "null"] }
+        }
+      }
+    },
+
     "nondeterminism": {
       "type": ["array", "null"],
       "items": {

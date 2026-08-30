@@ -719,6 +719,8 @@ agent_evaluator/
 │   │                          #  순수 stdlib, 나쁜 파일은 건너뜀. comprehensive_report의 Trend/Change
 │   │                          #  Ledger 섹션(SPEC-041 P13)이 소비.
 │   ├── insights.py           # build_insights(current, baseline=None, *, recommendation_log_path=None)
+│   │                          #  P25: parse_span_timeline(items) — 타이밍 있는 스텝 리스트를
+│   │                          #  중첩 타임라인(self_ms·critical_path·bottleneck)으로. insights.trajectories
 │   │                          #  — 머신 판독 인사이트 계층(L5/L6)을 JSON 직렬화 가능한 한 객체로.
 │   │                          #  rca.diagnose()·utils.confidence·ontology.metric_registry·
 │   │                          #  rca.recommendation_tracking/verify 재사용, 새 판정 없음, 절대
@@ -869,6 +871,9 @@ security_findings[]{task_id, tracker, threat_type, severity, cwe, detail}|null (
 트래커의 per-task 위협 상세, severity 순, CWE 매핑),
 nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_responses[]}|null
 (SPEC-041 P19 — Gate C 재현성 score<0.85 태스크 + 변형 응답 텍스트),
+trajectories[]{task_id, source, n_spans, total_ms, critical_path[], bottleneck{name, self_ms},
+total_cost_usd, total_tokens}|null (SPEC-041 P25 — worst-N 실패 태스크의 스텝 타임라인.
+`parse_span_timeline()`이 타이밍 있는 스텝만 중첩 파싱, 없으면 null),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
 스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
 `build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
@@ -883,6 +888,8 @@ nullable 섹션은 신호 없으면 null). `tests/test_insights_schema.py`가 �
 `_build_trajectory(case)`(실패 케이스 표의 각 행에 `<details>`) — `tool_calls`→`chain_steps`→`agent_interactions`
 순으로 step→tool→인자/출력 요약→✓/✗ + 스텝별 duration/토큰. 스텝 데이터 없는 태스크(순수 QA)는 "".
 `_norm_task_for_case`가 tool_calls/chain_steps/agent_interactions도 담는다. `_build_gate_d`가 `tasks` 인자 추가.
+P25: 스텝에 타이밍이 있으면 이 평면 표 위에 `_build_waterfall(items)`이 인라인 SVG 워터폴을 얹는다
+(`parse_span_timeline` 재사용, critical-path 스팬 강조 + bottleneck 헤더). 타이밍 없으면 평면 표만.
 
 **SPEC-041 P11 (RAG 국소화)** — `reporting/insights.py`: `classify_rag_failure(response, context, ground_truth,
 accuracy, faithfulness)` — retrieved context 있는 태스크를 `retrieval_miss`(정답 정보가 애초에 검색 안 됨:
@@ -1007,6 +1014,21 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P25 (스팬 타임라인·워터폴 트레이스)** — `reporting/insights.py::parse_span_timeline(items)`
+신설(순수 함수) — 평면 스텝 리스트(`tool_calls`/`chain_steps`/`agent_interactions`)에 타이밍이 있으면
+(`start_ms`/`end_ms` 절대값 **또는** 스텝별 `duration`/`duration_ms`/`latency_ms`) 중첩 타임라인으로 파싱:
+`{n_spans, total_ms, spans[{idx,name,depth,start_ms,end_ms,self_ms,tokens,cost,ok}], critical_path,
+bottleneck{name,self_ms}, total_cost_usd, total_tokens}`. `duration_ms`/`latency_ms`/`elapsed_ms`는
+밀리초로 신뢰, bare `duration`/`latency`/`elapsed`만 초로 보고 ×1000. `depth`는 `id`/`parent` 체인,
+없으면 전부 0(평면). `self_ms` = 자기 구간 − 자식 구간 합. `critical_path` = self_ms 내림차순으로 total의
+80%를 채우는 스팬들. 타이밍이 하나도 없으면 `None`. `_trajectories_section(tasks, limit=8)` — worst-N
+실패 태스크(없으면 전체)에서 `tool_calls`→`chain_steps`→`agent_interactions` 순으로 첫 타임라인만
+`{task_id, source, n_spans, total_ms, critical_path, bottleneck, total_cost_usd, total_tokens}`.
+`insights.trajectories`(타이밍 없으면 None). 리포트 `_build_waterfall(items)` — `_build_trajectory`의
+`<details>` 안 평면 표 **위에** 인라인 SVG 워터폴(start_ms로 배치, duration으로 너비, critical-path
+스팬은 진한 남색, 실패는 빨강, depth 들여쓰기, 스팬별 self_ms/tok/$ 라벨 + 헤더에 total·bottleneck).
+타이밍 없으면 워터폴 생략하고 기존 평면 표만(회귀 없음). 대시보드는 트레이스가 리포트 전용이라 스킵.
 
 **SPEC-041 P23 (태스크별 점수 분해)** — `core/trackers/layer1.py::AccuracyEvaluator.decompose_qa(gt, pred)`
 신설 — QA 정확도 뒤의 4개 신호 `{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted, weakest}`
