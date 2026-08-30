@@ -559,8 +559,17 @@ def classify_rag_failure(
         klass = "grounding_miss"
     else:
         klass = "generation_error"
+
+    # SPEC-041 P20: flag a classification that sits close to a threshold — the
+    # coarse heuristic is least reliable there, so a human should confirm it.
+    borderline = klass != "ok" and (
+        (recall is not None and abs(recall - _RAG_RECALL_MISS) < 0.08)
+        or abs(unsupported_ratio - _RAG_UNSUPPORTED_MAX) < 0.12
+        or (accuracy is not None and abs(accuracy - 0.7) < 0.06)
+    )
     return {
         "klass": klass,
+        "borderline": bool(borderline),
         "context_recall": round(recall, 3) if recall is not None else None,
         "unsupported_ratio": round(unsupported_ratio, 3),
         "unsupported_claims": [s[:160] for s in unsupported[:3]],
@@ -588,6 +597,8 @@ def rag_localization(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
     by_class: dict[str, int] = defaultdict(int)
     examples: list[dict[str, Any]] = []
     n_rag = 0
+    n_borderline = 0
+    borderline_task_ids: list[str] = []
     for t in tasks:
         res = classify_rag_failure(
             response=t.get("response") or "",
@@ -600,11 +611,16 @@ def rag_localization(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
             continue
         n_rag += 1
         by_class[res["klass"]] += 1
+        if res.get("borderline"):
+            n_borderline += 1
+            if t.get("task_id"):
+                borderline_task_ids.append(str(t["task_id"]))
         if res["klass"] != "ok" and res["unsupported_claims"] and len(examples) < 10:
             examples.append({
                 "task_id": str(t.get("task_id") or "—"),
                 "klass": res["klass"],
                 "context_recall": res["context_recall"],
+                "borderline": bool(res.get("borderline")),
                 "unsupported_claims": res["unsupported_claims"],
             })
     if n_rag == 0:
@@ -612,6 +628,8 @@ def rag_localization(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
     failing = {k: v for k, v in by_class.items() if k != "ok"}
     return {
         "n_rag_tasks": n_rag,
+        "n_borderline": n_borderline,
+        "borderline_task_ids": borderline_task_ids[:15],
         "by_class": dict(by_class),
         "dominant_failure": (max(failing, key=failing.get) if failing else None),
         "remediation_by_class": {
@@ -1202,6 +1220,7 @@ def _review_queue_section(
     evaluator_trust: dict[str, Any] | None = None,
     failure_lineage: dict[str, Any] | None = None,
     eval_set_quality: dict[str, Any] | None = None,
+    rag_localization: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     by_task: dict[str, dict[str, Any]] = {}
 
@@ -1232,7 +1251,11 @@ def _review_queue_section(
     for tid in (failure_lineage or {}).get("new") or []:
         _add(tid, "medium", "new failure not present in the baseline run")
 
-    # 4. borderline scores — near a pass/fail boundary, a human tie-breaks best
+    # 4. borderline RCA classification — the coarse heuristic is least reliable here
+    for tid in (rag_localization or {}).get("borderline_task_ids") or []:
+        _add(tid, "medium", "RAG failure classification is borderline (heuristic uncertain)")
+
+    # 5. borderline scores — near a pass/fail boundary, a human tie-breaks best
     for t in tasks:
         tid = str(t.get("task_id") or "")
         if not tid:
@@ -1518,6 +1541,7 @@ def build_insights(
     eval_set_quality = _safe(
         _eval_set_quality_section, tasks, baseline, hg, default=None,
     )
+    rag_loc = _safe(rag_localization, tasks, default=None)
 
     out: dict[str, Any] = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
@@ -1530,7 +1554,7 @@ def build_insights(
         "review_queue": _safe(
             _review_queue_section, tasks,
             evaluator_trust=evaluator_trust, failure_lineage=failure_lineage,
-            eval_set_quality=eval_set_quality, default=None,
+            eval_set_quality=eval_set_quality, rag_localization=rag_loc, default=None,
         ),
         "gate_findings": _safe(_gate_findings_section, diagnosis, default=[]),
         "failure_clusters": _safe(
@@ -1548,7 +1572,7 @@ def build_insights(
             ),
             default=None,
         ),
-        "rag_localization": _safe(rag_localization, tasks, default=None),
+        "rag_localization": rag_loc,
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "security_findings": _safe(_security_findings_section, current, default=None),

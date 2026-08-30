@@ -1,0 +1,127 @@
+"""
+tests/test_insights_schema.py
+=================================
+SPEC-041 P20 — `extra_metrics.insights` is a documented contract.
+``agent_evaluator/schemas/insights.schema.json`` is the source of truth; every
+``build_insights()`` output must validate against it so CI / automation
+consumers can rely on the shape.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import jsonschema
+import pytest
+
+from agent_evaluator.reporting.insights import INSIGHTS_SCHEMA_VERSION, build_insights
+
+_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "agent_evaluator" / "schemas" / "insights.schema.json"
+)
+
+
+@pytest.fixture(scope="module")
+def schema():
+    return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def _task(tid, *, ok, ttype="qa", judge=None, extra=None):
+    d = {
+        "task_id": tid, "task_type": ttype, "success": ok,
+        "question": f"q {tid}", "response": "r", "ground_truth": "gt",
+        "accuracy_score": 0.9 if ok else 0.2,
+        "completion_score": 1.0 if ok else 0.1,
+        "tokens_used": {"input": 100, "output": 50, "total": 150},
+    }
+    if judge is not None:
+        d["llm_judge"] = {"skipped": False, "scores": {"overall": judge}}
+    if extra is not None:
+        d["extra"] = extra
+    return d
+
+
+def _report(hg, tasks, *, pricing=True, lineage=None, security=None):
+    r = {"extra_metrics": {"harness_groups": hg}, "tasks": tasks}
+    if pricing:
+        r["pricing"] = {"input": 0.003, "output": 0.015}
+    if lineage:
+        r["extra_metrics"]["lineage"] = lineage
+    if security:
+        r["evaluators"] = {"security": security}
+    return r
+
+
+class TestSchemaItself:
+    def test_schema_is_valid_draft_2020_12(self, schema):
+        jsonschema.Draft202012Validator.check_schema(schema)
+
+    def test_schema_version_matches_module_constant(self, schema):
+        # the file is v1.x; the module constant should stay in the same major
+        assert INSIGHTS_SCHEMA_VERSION.split(".")[0] == "1"
+
+
+class TestBuildInsightsValidates:
+    def _check(self, schema, ins):
+        jsonschema.validate(ins, schema)
+        json.dumps(ins)  # still serializable
+
+    def test_empty_report(self, schema):
+        self._check(schema, build_insights({}))
+
+    def test_healthy_pass_report(self, schema):
+        rpt = _report(
+            {"A": {"score": 0.95, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(25)],
+        )
+        self._check(schema, build_insights(rpt))
+
+    def test_failing_report_with_all_signals(self, schema):
+        tasks = (
+            [_task(f"d{i}", ok=False, judge=9.0) for i in range(3)]
+            + [_task(f"b{i}", ok=True, judge=7.0) for i in range(2)]
+            + [_task("flaky", ok=True, judge=8.0,
+                     extra={"reproducibility": {"score": 0.4, "variance": 0.05,
+                                                "run_count": 3,
+                                                "sample_responses": ["A", "B", "C"]}})]
+            + [_task(f"ok{i}", ok=True, judge=8.5) for i in range(12)]
+        )
+        for t in tasks[:3]:
+            t["accuracy_score"] = 0.2
+        rpt = _report(
+            {"A": {"score": 0.45, "status": "fail", "gate": "fail",
+                   "details": {"tcr_pct": 45.0, "avg_subtask_completion": 0.3}}},
+            tasks,
+            lineage={"prompt_text": "You are helpful.", "prompt_hash": "abc123",
+                     "config_snapshot": {"temperature": 0.7}},
+            security={"input_sanitizer": {"evaluations": [
+                {"task_id": "d0", "has_prompt_injection": True, "threat_count": 1,
+                 "sanitization_needed": True, "risk_level": "high"},
+            ]}},
+        )
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        # sanity: the rich signals are actually populated in this scenario
+        assert ins["evaluator_trust"] is not None
+        assert ins["review_queue"] is not None
+        assert ins["security_findings"]
+        assert ins["nondeterminism"]
+        assert ins["narrative"]
+
+    def test_regression_mode_with_baseline(self, schema):
+        base = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(20)],
+            lineage={"prompt_text": "v1 prompt\nline two", "prompt_hash": "h1"},
+        )
+        cur = _report(
+            {"A": {"score": 0.5, "status": "fail", "gate": "fail",
+                   "details": {"tcr_pct": 50.0}}},
+            [_task(f"t{i}", ok=i > 9) for i in range(20)],
+            lineage={"prompt_text": "v2 prompt\nline two changed", "prompt_hash": "h2"},
+        )
+        ins = build_insights(cur, base)
+        self._check(schema, ins)
+        assert ins["detection_mode"] == "regression_vs_baseline"
+        assert ins["change_attribution"] is not None

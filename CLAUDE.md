@@ -865,7 +865,12 @@ security_findings[]{task_id, tracker, threat_type, severity, cwe, detail}|null (
 트래커의 per-task 위협 상세, severity 순, CWE 매핑),
 nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_responses[]}|null
 (SPEC-041 P19 — Gate C 재현성 score<0.85 태스크 + 변형 응답 텍스트),
-shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
+shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
+스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
+`build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
+nullable 섹션은 신호 없으면 null). `tests/test_insights_schema.py`가 여러 시나리오로 검증.
+`harness_groups.schema.json`과 동일 계약 원칙. P20: `classify_rag_failure`가 임계값 근처면
+`borderline:True` → `rag_localization.n_borderline`/`borderline_task_ids` + review_queue medium 항목. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
 **SPEC-041 P7 (궤적 가시성)** — `reporting/comprehensive_report.py`:
