@@ -6628,6 +6628,29 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.review_queue && improveResult.insights.review_queue.items.length">
+            <div style="border:1px solid var(--border);border-left:4px solid #7c3aed;border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700" x-text="'Human review queue ('+improveResult.insights.review_queue.by_priority.high+' high · '+improveResult.insights.review_queue.by_priority.medium+' medium)'"></div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Least-trustworthy automated verdicts — resolve first, then <code>agent-eval dataset promote &lt;result.json&gt;</code>.</div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Priority</th><th style="text-align:left;padding:4px">Task</th><th style="text-align:left;padding:4px">Why</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(it, i) in improveResult.insights.review_queue.items" :key="i">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:700" :style="it.priority==='high'?'color:var(--red)':(it.priority==='medium'?'color:var(--yellow)':'color:var(--text2)')" x-text="it.priority.toUpperCase()"></td>
+                        <td style="padding:4px;white-space:nowrap" x-text="it.task_id"></td>
+                        <td style="padding:4px;color:var(--text2)" x-text="(it.reasons||[]).join('; ')"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.evaluator_trust">
             <div style="border:1px solid var(--border);border-left:4px solid #0891b2;border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700">Evaluator reliability</div>

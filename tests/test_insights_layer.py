@@ -393,6 +393,58 @@ class TestEvaluatorTrust:
         assert et["trust_level"] == "low"          # kappa 0.2 < 0.4
 
 
+class TestReviewQueue:
+    def _judge_task(self, tid, judge_overall, acc, ok=True, **kw):
+        d = {
+            "task_id": tid, "task_type": "qa", "success": ok,
+            "question": f"q {tid}", "response": f"r {tid}", "ground_truth": "gt",
+            "accuracy_score": acc, "completion_score": 1.0 if ok else 0.2,
+            "llm_judge": {"skipped": False, "scores": {"overall": judge_overall}},
+        }
+        d.update(kw)
+        return d
+
+    def test_disagreement_and_borderline_populate_queue(self):
+        tasks = (
+            [self._judge_task(f"d{i}", 9.0, 0.2, ok=False) for i in range(4)]
+            + [self._judge_task(f"b{i}", 7.0, 0.65) for i in range(3)]
+            + [self._judge_task(f"ok{i}", 8.5, 0.9) for i in range(10)]
+        )
+        rpt = _report(
+            {"A": {"score": 0.6, "status": "fail", "gate": "fail", "details": {"tcr_pct": 60.0}}},
+            tasks,
+        )
+        rq = build_insights(rpt)["review_queue"]
+        by_id = {it["task_id"]: it for it in rq["items"]}
+        assert by_id["d0"]["priority"] == "high"
+        assert "disagree" in by_id["d0"]["reasons"][0]
+        assert by_id["b0"]["priority"] == "medium"
+        assert rq["by_priority"]["high"] == 4
+
+    def test_regressed_failures_are_high_priority(self):
+        base = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [{**_task("shared", ok=True), "task_type": "qa"}]
+            + [_task(f"t{i}", ok=True) for i in range(20)],
+        )
+        cur = _report(
+            {"A": {"score": 0.5, "status": "fail", "gate": "fail", "details": {"tcr_pct": 50.0}}},
+            [{**_task("shared", ok=False), "task_type": "qa"}]
+            + [_task(f"t{i}", ok=True) for i in range(20)],
+        )
+        rq = build_insights(cur, base)["review_queue"]
+        it = next(i for i in rq["items"] if i["task_id"] == "shared")
+        assert it["priority"] == "high"
+        assert "baseline" in it["reasons"][0]
+
+    def test_none_when_nothing_to_review(self):
+        rpt = _report(
+            {"A": {"score": 0.95, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(20)],
+        )
+        assert build_insights(rpt)["review_queue"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

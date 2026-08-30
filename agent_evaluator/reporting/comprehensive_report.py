@@ -2400,6 +2400,82 @@ def _build_change_ledger(results_dir: Any) -> str:
     )
 
 
+def _review_dict_tasks(tasks: list[Any]) -> list[dict[str, Any]]:
+    """Normalize TaskResult / TaskRecord to the plain dicts the insights sub-
+    sections consume (shared by the P14/P15 report helpers)."""
+    out = []
+    for t in tasks:
+        c = _norm_task_for_case(t)
+        out.append({
+            "task_id": c["task_id"], "task_type": c["task_type"],
+            "success": c["success"], "question": c["question"],
+            "response": c["response"], "ground_truth": c["ground_truth"],
+            "accuracy_score": c["accuracy_score"], "completion_score": c["completion_score"],
+            "tool_calls": c["tool_calls"], "agent_interactions": c["agent_interactions"],
+            "context": _task_context(t),
+            "llm_judge": (t.raw.get("llm_judge") if isinstance(getattr(t, "raw", None), dict)
+                          else getattr(t, "llm_judge", None)),
+        })
+    return out
+
+
+def _build_review_queue(tasks: list[Any] | None,
+                        current: dict[str, Any] | None,
+                        baseline: dict[str, Any] | None) -> str:
+    """P15: the HITL triage list — which tasks a human should look at, ranked,
+    and why. Assembled from evaluator disagreement, suspicious labels, regressed
+    failures and borderline scores (same data as insights.review_queue)."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import (
+            _eval_set_quality_section,
+            _evaluator_trust_section,
+            _failure_lineage_section,
+            _review_queue_section,
+        )
+
+        dt = _review_dict_tasks(tasks)
+        hg = ((current or {}).get("extra_metrics") or {}).get("harness_groups") or {}
+        rq = _review_queue_section(
+            dt,
+            evaluator_trust=_evaluator_trust_section(dt, current or {}),
+            failure_lineage=_failure_lineage_section(dt, baseline),
+            eval_set_quality=_eval_set_quality_section(dt, baseline, hg),
+        )
+    except Exception:
+        rq = None
+    if not rq or not rq.get("items"):
+        return ""
+
+    rows = ""
+    for it in rq["items"]:
+        pri = it.get("priority", "medium")
+        col = {"high": "#dc2626", "medium": "#d97706", "low": "#6b7280"}.get(pri, "#6b7280")
+        reasons = "; ".join(_esc(r) for r in it.get("reasons") or [])
+        rows += (
+            f'<tr><td style="white-space:nowrap"><span style="color:{col};font-weight:700">'
+            f'{pri.upper()}</span></td>'
+            f'<td style="white-space:nowrap;font-size:12px">{_esc(it.get("task_id", ""))}</td>'
+            f'<td style="font-size:12px;color:#4b5563">{reasons}</td></tr>'
+        )
+    bp = rq.get("by_priority") or {}
+    return (
+        '<div class="gate-section" id="review-queue" style="border-left-color:#7c3aed">'
+        '<h2 style="color:#1e2030">Human Review Queue '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'({bp.get("high", 0)} high · {bp.get("medium", 0)} medium)</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 10px">'
+        'Tasks whose automated verdict is least trustworthy — resolve these first, '
+        'then <code>agent-eval dataset promote &lt;result.json&gt;</code> '
+        'to turn them into golden regression cases.</p>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Priority</th><th>Task</th><th>Why review</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+        '</div>'
+    )
+
+
 def _build_evaluator_reliability(tasks: list[Any] | None,
                                  current: dict[str, Any] | None) -> str:
     """P14: how much can the reader trust the numbers? Surfaces judge-vs-heuristic
@@ -3741,6 +3817,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
         _build_evaluator_reliability(_tasks_list, current_dict),
+        _build_review_queue(_tasks_list, current_dict, baseline),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -3934,6 +4011,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
         _build_evaluator_reliability(_tasks_list, current_dict),
+        _build_review_queue(_tasks_list, current_dict, baseline),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,

@@ -35,6 +35,7 @@ agent-eval abtest v1.json v2.json --metric accuracy_score   # statistical A/B (W
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference (safe to peek)
 agent-eval abtest v1.json v2.json v3.json                   # 3+ files -> N-way + Benjamini-Hochberg FDR
 agent-eval dataset build --source results/ --max-cases 30 # golden dataset
+agent-eval dataset promote result.json --min-priority high # HITL review queue -> golden regression cases (P15)
 agent-eval monitor                                        # Arize Phoenix + OTLP
 agent-eval opencode install                               # LiveGuardrail OpenCode plugin (--global/--force)
 agent-eval opencode install --with-violation-search       # + register search_violations MCP server (requires [mcp] extra)
@@ -850,6 +851,8 @@ coverage_warnings[], suspicious_ground_truth[]{task_id, reason}}|null (SPEC-041 
 evaluator_trust{judge_vs_heuristic{n_comparable, agreement_rate, mean_abs_diff, disagreements[]},
 judge_calibration|null, judge_self_consistency|null, trust_level: high|medium|low, trust_reasons[]}|null
 (SPEC-041 P14 — 평가기 신뢰도. trust_level=low/medium면 verdict.confidence를 같은 등급으로 강등),
+review_queue{n_items, by_priority{high, medium, low}, items[]{task_id, priority, reasons[]}}|null
+(SPEC-041 P15 — HITL 트리아지: judge↔휴리스틱 불일치·suspicious 라벨·회귀 실패·경계선 점수를 우선순위로),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -900,6 +903,17 @@ LLM judge `scores.overall`(/10 정규화)와 `AccuracyEvaluator` `accuracy_score
 셋을 종합해 `trust_level` high/medium/low(최저 등급 승) → `verdict_confidence(judge_trust=...)`로
 배포 준비도 확신도 강등. judge 데이터 자체가 없으면 `evaluator_trust=None`. 리포트 섹션
 `evaluator-reliability`, 대시보드 Improve 탭 패널.
+
+**SPEC-041 P15 (HITL 트리아지 + 골든셋 승격)** — `reporting/insights.py::_review_queue_section` +
+`comprehensive_report.py::_build_review_queue`: 기존 신호를 우선순위 리스트로 조립 —
+judge↔휴리스틱 불일치(high) · suspicious ground_truth(high) · baseline 대비 회귀 실패(high) · baseline에
+없던 신규 실패(medium) · 경계선 점수(acc 0.55–0.75 / comp 0.35–0.55, medium). task_id로 dedupe,
+사유 병합, 25개 캡. 리포트 섹션 `review-queue`, 대시보드 패널.
+**`agent-eval dataset promote <result.json> [--baseline F] [--min-priority high|medium|low] [--out DIR]
+[--name F] [--tag TAG]`** (`cli/dataset.py::_cmd_promote`) — `build_insights().review_queue`의 플래그된
+태스크를 `tasks[]`에서 찾아 `{question, ground_truth, context, source_task_id, review_reasons,
+needs_human_review:True}` 골든 케이스로 `GoldenSetBuilder.merge_to_golden()`. 실패→회귀테스트 루프를 닫는다.
+(주의: `--tag`이 golden version — top-level `--version`(store_true)과 충돌 피하려 `dest="promote_version"`.)
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

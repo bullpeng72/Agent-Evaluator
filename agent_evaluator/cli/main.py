@@ -1137,6 +1137,52 @@ def main() -> None:
         help="Output filename (default: candidates_YYYYMMDD_HHMMSS.json)",
     )
 
+    promote_p = ds_sub.add_parser(
+        "promote",
+        help="Promote a result file's human-review queue into golden regression cases",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "Turn the tasks in a result file's insights.review_queue (SPEC-041 P15) —\n"
+            "the ones whose automated verdict is least trustworthy (judge/heuristic\n"
+            "disagreement, suspicious labels, regressed failures, borderline scores) —\n"
+            "into golden dataset cases, closing the failure -> regression-test loop.\n"
+            "Every promoted case is flagged needs_human_review.\n"
+        ),
+        epilog=(
+            f"{B}Examples:{R}\n"
+            f"  {G}agent-eval dataset promote results/v3.json{R}\n"
+            f"  {G}agent-eval dataset promote results/v3.json --baseline results/v2.json "
+            f"--min-priority high{R}\n"
+            f"  {G}agent-eval dataset promote results/v3.json --out data/golden_datasets/ "
+            f"--name review_v3.json --tag v3-review{R}\n"
+        ),
+    )
+    promote_p.add_argument(
+        "result_file", metavar="RESULT_FILE",
+        help="Evaluation result JSON file to pull the review queue from",
+    )
+    promote_p.add_argument(
+        "--baseline", default=None, metavar="FILE",
+        help="Baseline result JSON — enables 'regressed failure' review items",
+    )
+    promote_p.add_argument(
+        "--min-priority", default="medium", choices=["high", "medium", "low"],
+        dest="min_priority",
+        help="Only promote review items at this priority or higher (default: medium)",
+    )
+    promote_p.add_argument(
+        "--out", default=None, metavar="DIR",
+        help="Golden dataset output directory (default: <result dir>/golden_datasets/)",
+    )
+    promote_p.add_argument(
+        "--name", default=None, metavar="FILENAME",
+        help="Output filename (default: golden_<version>_YYYYMMDD_HHMMSS.json)",
+    )
+    promote_p.add_argument(
+        "--tag", default="review", metavar="TAG", dest="promote_version",
+        help="Version tag stored in the golden dataset (default: review)",
+    )
+
     # monitor subcommand
     build_monitor_subparser(sub)
 

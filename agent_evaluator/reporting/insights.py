@@ -977,6 +977,82 @@ def _baseline_verdict(
 
 
 # ---------------------------------------------------------------------------
+# Review queue (P15) — the HITL triage list
+#
+# Every signal needed to say "a human should look at these" already exists in the
+# other sections; this assembles them into one prioritized list and dedupes by
+# task. `agent-eval dataset promote <result.json>` turns this list into golden
+# cases (closing the failure -> regression-test loop).
+# ---------------------------------------------------------------------------
+_REVIEW_PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
+def _review_queue_section(
+    tasks: list[dict[str, Any]],
+    *,
+    evaluator_trust: dict[str, Any] | None = None,
+    failure_lineage: dict[str, Any] | None = None,
+    eval_set_quality: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    by_task: dict[str, dict[str, Any]] = {}
+
+    def _add(tid: str, priority: str, reason: str) -> None:
+        tid = str(tid)
+        cur = by_task.get(tid)
+        if cur is None:
+            by_task[tid] = {"task_id": tid, "priority": priority, "reasons": [reason]}
+            return
+        if reason not in cur["reasons"]:
+            cur["reasons"].append(reason)
+        if _REVIEW_PRIORITY_ORDER[priority] < _REVIEW_PRIORITY_ORDER[cur["priority"]]:
+            cur["priority"] = priority
+
+    # 1. judge <-> heuristic disagreement (the two scorers can't both be right)
+    for d in ((evaluator_trust or {}).get("judge_vs_heuristic") or {}).get("disagreements") or []:
+        _add(d.get("task_id", ""), "high",
+             f"LLM judge ({d.get('judge')}) and heuristic scorer ({d.get('heuristic')}) "
+             f"disagree by {d.get('diff')}")
+
+    # 2. suspicious ground truth / question (label is the likelier culprit)
+    for s in (eval_set_quality or {}).get("suspicious_ground_truth") or []:
+        _add(s.get("task_id", ""), "high", s.get("reason", "suspicious ground truth"))
+
+    # 3. regressed vs baseline (passed before, fails now)
+    for tid in (failure_lineage or {}).get("regressed") or []:
+        _add(tid, "high", "passed in the baseline run, fails now")
+    for tid in (failure_lineage or {}).get("new") or []:
+        _add(tid, "medium", "new failure not present in the baseline run")
+
+    # 4. borderline scores — near a pass/fail boundary, a human tie-breaks best
+    for t in tasks:
+        tid = str(t.get("task_id") or "")
+        if not tid:
+            continue
+        acc = _safe_float(t.get("accuracy_score"))
+        comp = _safe_float(t.get("completion_score"))
+        if acc is not None and 0.55 <= acc < 0.75:
+            _add(tid, "medium", f"borderline accuracy ({acc:.2f})")
+        elif comp is not None and 0.35 <= comp < 0.55:
+            _add(tid, "medium", f"borderline completion ({comp:.2f})")
+
+    if not by_task:
+        return None
+    items = sorted(
+        by_task.values(),
+        key=lambda it: (_REVIEW_PRIORITY_ORDER[it["priority"]], it["task_id"]),
+    )[:25]
+    return {
+        "n_items": len(items),
+        "by_priority": {
+            "high": sum(1 for i in items if i["priority"] == "high"),
+            "medium": sum(1 for i in items if i["priority"] == "medium"),
+            "low": sum(1 for i in items if i["priority"] == "low"),
+        },
+        "items": items,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -1026,6 +1102,10 @@ def build_insights(
         ci = {"n_tasks": total_tasks}
 
     evaluator_trust = _safe(_evaluator_trust_section, tasks, current, default=None)
+    failure_lineage = _safe(_failure_lineage_section, tasks, baseline, default=None)
+    eval_set_quality = _safe(
+        _eval_set_quality_section, tasks, baseline, hg, default=None,
+    )
 
     out: dict[str, Any] = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
@@ -1035,13 +1115,16 @@ def build_insights(
         ),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
+        "review_queue": _safe(
+            _review_queue_section, tasks,
+            evaluator_trust=evaluator_trust, failure_lineage=failure_lineage,
+            eval_set_quality=eval_set_quality, default=None,
+        ),
         "gate_findings": _safe(_gate_findings_section, diagnosis, default=[]),
         "failure_clusters": _safe(
             _failure_clusters_section, tasks, total_tasks, default=[],
         ),
-        "failure_lineage": _safe(
-            _failure_lineage_section, tasks, baseline, default=None,
-        ),
+        "failure_lineage": failure_lineage,
         "recommendations": _safe(
             _recommendations_section, hg, diagnosis,
             recommendation_log_path=recommendation_log_path,
@@ -1055,9 +1138,7 @@ def build_insights(
         ),
         "rag_localization": _safe(rag_localization, tasks, default=None),
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
-        "eval_set_quality": _safe(
-            _eval_set_quality_section, tasks, baseline, hg, default=None,
-        ),
+        "eval_set_quality": eval_set_quality,
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
