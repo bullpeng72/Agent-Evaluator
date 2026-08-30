@@ -5192,9 +5192,11 @@ class PerformanceMonitor:
             from ...reporting.insights import build_insights
 
             _rec_log = self.output_dir / "recommendation_outcomes.jsonl"
+            _exp_log = Path(".aoo/experiments.jsonl")
             _insights = build_insights(
                 data, None,
                 recommendation_log_path=(_rec_log if _rec_log.exists() else None),
+                experiments_log_path=(_exp_log if _exp_log.is_file() else None),
             )
             _em = data.get("extra_metrics")
             if not isinstance(_em, dict):

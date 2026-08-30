@@ -309,6 +309,26 @@
       }
     },
 
+    "experiments": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["hypothesis", "verdict"],
+        "properties": {
+          "experiment_id": { "type": ["string", "null"] },
+          "hypothesis": { "type": "string" },
+          "target_gate": { "type": ["string", "null"] },
+          "target_field": { "type": ["string", "null"] },
+          "predicted": { "type": ["number", "null"] },
+          "actual": { "type": ["number", "null"] },
+          "verdict": { "type": "string" },
+          "status": { "type": "string" },
+          "note": { "type": ["string", "null"] }
+        }
+      }
+    },
+
     "nondeterminism": {
       "type": ["array", "null"],
       "items": {

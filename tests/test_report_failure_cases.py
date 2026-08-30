@@ -350,7 +350,8 @@ class TestImprovementLoopClosure:
         assert "Run it as an experiment" in html
         assert "Gate A ≈ +0.15" in html          # (0.85-0.25)/4
         assert "tasks recommended" in html
-        assert "agent-eval abtest" in html
+        # P27: the block now points at the experiment registry, not a bare abtest
+        assert "agent-eval experiment register" in html
 
     def test_experiment_block_empty_when_already_healthy(self):
         from agent_evaluator.reporting.comprehensive_report import _rec_experiment_block

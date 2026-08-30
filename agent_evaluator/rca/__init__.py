@@ -12,6 +12,13 @@ from __future__ import annotations
 
 from agent_evaluator.rca.diagnose import diagnose
 from agent_evaluator.rca.experiment_metadata import ExperimentMetadata, derive_experiment_metadata
+from agent_evaluator.rca.experiments import (
+    load_experiments,
+    recalibrated_delta,
+    register_experiment,
+    resolve_experiment,
+    score_experiments,
+)
 from agent_evaluator.rca.recommendation_tracking import (
     load_recommendation_outcomes,
     record_recommendation_outcome,
@@ -24,4 +31,6 @@ __all__ = [
     "ExperimentMetadata", "derive_experiment_metadata",
     "record_recommendation_outcome", "load_recommendation_outcomes",
     "summarize_recommendation_outcomes",
+    "register_experiment", "load_experiments", "score_experiments",
+    "resolve_experiment", "recalibrated_delta",
 ]

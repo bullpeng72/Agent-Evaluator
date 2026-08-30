@@ -3192,6 +3192,54 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
     )
 
 
+_EXP_VERDICT_STYLE = {
+    "confirmed": ("#059669", "✔ confirmed"),
+    "partially_confirmed": ("#d97706", "◑ partial"),
+    "refuted": ("#dc2626", "✘ refuted"),
+    "inconclusive": ("#6b7280", "– inconclusive"),
+    "pending": ("#6b7280", "… pending"),
+}
+
+
+def _build_experiments(exps: list[dict[str, Any]] | None) -> str:
+    """P27: registered improvement hypotheses (.aoo/experiments.jsonl) — predicted
+    vs actual movement of the target Gate/field, with the verdict."""
+    if not exps:
+        return ""
+    n_open = sum(1 for e in exps if e.get("status") != "resolved")
+    n_res = len(exps) - n_open
+    rows = ""
+    for e in exps:
+        pred = e.get("predicted")
+        act = e.get("actual")
+        verdict = e.get("verdict") or "pending"
+        col, lbl = _EXP_VERDICT_STYLE.get(verdict, ("#6b7280", verdict))
+        pred_s = f"{pred:+.3f}" if isinstance(pred, (int, float)) else "—"
+        act_s = f"{act:+.3f}" if isinstance(act, (int, float)) else "—"
+        note = _esc(str(e.get("note") or ""))
+        rows += (
+            f'<tr><td>{_esc(str(e.get("hypothesis", "")))}</td>'
+            f'<td style="text-align:right;font-variant-numeric:tabular-nums">{pred_s}</td>'
+            f'<td style="text-align:right;font-variant-numeric:tabular-nums">{act_s}</td>'
+            f'<td style="color:{col};font-weight:700">{lbl}</td>'
+            f'<td style="font-size:11px;color:#6b7280">{e.get("status", "")}</td></tr>'
+            + (f'<tr><td colspan="5" style="font-size:11px;color:#9ca3af;'
+               f'padding-top:0">{note}</td></tr>' if note else "")
+        )
+    return (
+        '<div class="gate-section" id="experiments" style="border-left-color:#f59e0b">'
+        '<h2 style="color:#1e2030">Improvement Experiments</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">'
+        f'{n_open} open · {n_res} resolved. Each row is a prediction registered with '
+        '<code>agent-eval experiment register</code>; "actual" is the measured '
+        'movement vs the baseline run. Correlation, not proof — other changes may '
+        'have ridden along.</p>'
+        '<table class="mtable"><thead><tr><th>Hypothesis</th><th>Predicted Δ</th>'
+        '<th>Actual Δ</th><th>Verdict</th><th>Status</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _build_cohort_comparison(cc: dict[str, Any] | None) -> str:
     """P22: 3+ versions side by side — per-version TCR + Gate scores, per-task_type
     winner, FDR-adjusted pairwise significance, and a 'pick the winner' call."""
@@ -3321,7 +3369,8 @@ _TOC_LABELS = {
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "recommendations": "Recommendations",
-    "conversation": "Conversation", "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
+    "conversation": "Conversation", "experiments": "Experiments",
+    "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
 
@@ -3594,19 +3643,39 @@ def _rec_experiment_block(gate: str, field: str, health: Any, n_components: int)
     if health >= target:
         return ""
     predicted = (target - health) / max(n_components, 1)
+    # P27: recalibrate the heuristic Δ against past confirmed experiments for the
+    # same Gate/field, when .aoo/experiments.jsonl has ≥2 such outcomes.
+    calib_note = ""
+    try:
+        _exp_log = Path(".aoo/experiments.jsonl")
+        if _exp_log.is_file():
+            from agent_evaluator.rca.experiments import load_experiments, recalibrated_delta
+
+            _rc, _n = recalibrated_delta(
+                load_experiments(_exp_log), gate, field, predicted,
+            )
+            if _n >= 2:
+                calib_note = (
+                    f' <span style="color:#6b7280">(recalibrated to +{_rc:.2f} '
+                    f'from {_n} past outcome(s))</span>'
+                )
+                predicted = _rc
+    except Exception:
+        pass
     try:
         from agent_evaluator.utils.confidence import required_n_for_halfwidth
 
-        need_n = required_n_for_halfwidth(0.5, max(predicted / 2.0, 0.02))
+        need_n = required_n_for_halfwidth(0.5, max(abs(predicted) / 2.0, 0.02))
     except Exception:
         need_n = 40
     fld = field.replace("avg_", "").replace("_", " ")
     return (
         f'<p style="margin:6px 0 0;font-size:12px;color:#4b5563">'
         f'🧪 <strong>Run it as an experiment</strong>: if <em>{_esc(fld)}</em> reaches '
-        f'{target * 100:.0f}%, Gate {gate} ≈ +{predicted:.2f} '
+        f'{target * 100:.0f}%, Gate {gate} ≈ +{predicted:.2f}{calib_note} '
         f'(rough; ~{need_n} tasks recommended to confirm). '
-        f'<code>agent-eval abtest before.json after.json --sequential</code></p>'
+        f'<code>agent-eval experiment register --gate {gate} --field {_esc(field)} '
+        f'--predict-delta {predicted:.2f}</code></p>'
     )
 
 
@@ -4350,6 +4419,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         recommendation_log_path = monitor.output_dir / "recommendation_outcomes.jsonl"
     except Exception:
         recommendation_log_path = None
+    _experiments_log = Path(".aoo/experiments.jsonl")
+    experiments_log_path = _experiments_log if _experiments_log.is_file() else None
 
     diagnosis_html = ""
     diag_result: dict[str, Any] | None = None
@@ -4399,7 +4470,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-            cohort=cohort,
+            experiments_log_path=experiments_log_path, cohort=cohort,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -4466,6 +4537,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
         _build_conversation(_insights_obj.get("conversation")),
+        _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
@@ -4601,6 +4673,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         recommendation_log_path = rf.path.parent / "recommendation_outcomes.jsonl"
     except Exception:
         recommendation_log_path = None
+    _experiments_log = Path(".aoo/experiments.jsonl")
+    experiments_log_path = _experiments_log if _experiments_log.is_file() else None
     current_dict = rf.raw or {}
 
     diagnosis_html = ""
@@ -4632,7 +4706,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-            cohort=cohort,
+            experiments_log_path=experiments_log_path, cohort=cohort,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -4685,6 +4759,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
         _build_conversation(_insights_obj.get("conversation")),
+        _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,

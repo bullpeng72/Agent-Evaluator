@@ -58,6 +58,10 @@ agent-eval claims list                                     # show active claims
 agent-eval claims release c-a1b2c3d4                       # release a claim
 agent-eval claims audit --ttl-hours 8                      # CI: flag TTL-exceeded/overlapping claims
 
+agent-eval experiment register --gate A --field avg_subtask_completion --predict-delta 0.08 --note "add SubtaskConfig"  # register a hypothesis in .aoo/experiments.jsonl (SPEC-041 P27)
+agent-eval experiment list                                 # show open/resolved hypotheses
+agent-eval experiment score v3.json --baseline v2.json --persist  # score open hypotheses vs baseline, write verdicts back
+
 # Quality
 pytest
 ruff check agent_evaluator/
@@ -572,10 +576,10 @@ agent_evaluator/
 │                          #  anomaly_scan_interval/anomaly_alert_handler로 기존 flush 스레드에
 │                          #  주기적 이상탐지 스캔 + AlertEngine.dispatch_anomaly_events 자동 연결
 ├── cli/main.py            # CLI entry point (subcommands: init·check·version·dashboard·gate·
-│                          #  diagnose·abtest·dataset·monitor·opencode·claude·trend·claims —
-│                          #  서브파서는 각각 cli/gate.py·cli/diagnose.py·cli/abtest.py·
-│                          #  cli/dataset.py·cli/monitor.py·cli/opencode.py·cli/claude.py·
-│                          #  cli/trend.py·cli/claims.py에 위임)
+│                          #  diagnose·abtest·dataset·monitor·opencode·claude·trend·claims·
+│                          #  experiment — 서브파서는 각각 cli/gate.py·cli/diagnose.py·
+│                          #  cli/abtest.py·cli/dataset.py·cli/monitor.py·cli/opencode.py·
+│                          #  cli/claude.py·cli/trend.py·cli/claims.py·cli/experiment.py에 위임)
 │                          # opencode install --with-violation-search/--with-recommend-fix:
 │                          #  각각 search_violations/recommend_fix MCP 서버 자동 등록(옵트인)
 │                          # opencode/claude 공통 서브커맨드(cli/_integration_health.py 공유):
@@ -727,6 +731,17 @@ agent_evaluator/
 │                          # recommendation_tracking.py — record_/load_/summarize_
 │                          #  recommendation_outcomes(): .aoo/claims.jsonl과 동일한 append-only
 │                          #  JSONL 패턴으로 조치 이력 기록
+│                          # experiments.py(SPEC-041 P27) — .aoo/experiments.jsonl 가설 레지스트리.
+│                          #  register_experiment(target_gate, predicted_delta, target_field=, ...) ·
+│                          #  load_experiments(status=)(id별 fold, last-write-wins — claims.jsonl처럼
+│                          #  open→resolved 상태 기계) · score_experiments(open, current, baseline)
+│                          #  (순수, verify_recommendation_outcome 재사용 → predicted vs actual →
+│                          #  confirmed/partially_confirmed/refuted/inconclusive, baseline None이면
+│                          #  전부 pending) · resolve_experiment(log, id, actual_delta=, verdict=)
+│                          #  (resolution 줄 append) · recalibrated_delta(exps, gate, field,
+│                          #  heuristic)(같은 gate/field의 confirmed 과거 outcome ≥2개면
+│                          #  0.5·heuristic + 0.5·mean(actual)로 블렌딩, 아니면 heuristic 그대로).
+│                          #  새 판정 공식 없음 — verify.py 위임 + 로깅 계층
 ├── reporting/                # 출력 표면 전체 지도·정보 계층(L1~L6)·역할별 워크플로우는
 │                             #  docs/09_OUTPUTS.md에 정리(결과 JSON·HTML 리포트·CLI·대시보드·
 │                             #  AI 런타임 출력). 새 출력 섹션/필드를 추가하면 그 문서도 갱신.
@@ -892,6 +907,10 @@ nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_res
 trajectories[]{task_id, source, n_spans, total_ms, critical_path[], bottleneck{name, self_ms},
 total_cost_usd, total_tokens}|null (SPEC-041 P25 — worst-N 실패 태스크의 스텝 타임라인.
 `parse_span_timeline()`이 타이밍 있는 스텝만 중첩 파싱, 없으면 null),
+experiments[]{experiment_id, hypothesis, target_gate, target_field, predicted, actual, verdict, status,
+note}|null (SPEC-041 P27 — `build_insights(experiments_log_path=)` 시 `.aoo/experiments.jsonl`의
+등록 가설. baseline 있으면 open 가설을 score(predicted vs actual → confirmed/partially_confirmed/
+refuted/inconclusive), 없으면 pending. resolved 가설은 저장된 verdict 그대로. 로그 없으면 null),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
 스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
 `build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
@@ -1032,6 +1051,19 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P27 (개선 실험 레지스트리)** — `agent-eval experiment {register,list,score}`
+(`cli/experiment.py`, `cli/main.py` 위임) + `rca/experiments.py`(§rca/ 참고). "Gate A의
+avg_subtask_completion이 +0.08 오를 것" 같은 반증 가능한 예측을 `.aoo/experiments.jsonl`에
+append-only 등록 → 다음 run이 baseline을 주면 `score` 서브커맨드가 `verify_recommendation_outcome`로
+predicted vs actual을 대조해 confirmed/partially_confirmed/refuted/inconclusive 판정,
+`--persist`면 resolution 줄을 write back. `build_insights(current, baseline, *,
+experiments_log_path=)` — open 가설을 in-memory로 score(쓰기 없음), resolved는 저장 verdict 그대로
+→ `insights.experiments[]`. 리포트 `_build_experiments()` 섹션 `experiments`(hypothesis/predicted/
+actual/verdict 표), `_rec_experiment_block`이 `.aoo/experiments.jsonl`에 같은 gate/field의
+confirmed 과거 outcome ≥2개면 heuristic 예측 Δ를 `recalibrated_delta()`로 재보정 + 명령을
+`agent-eval experiment register`로 변경. 소비처(모두 파일 존재 시에만 경로 전달): `monitor.save_to_file`
+(baseline 없음 → pending), `comprehensive_report` 두 진입점, `serve/routers/diagnose.py`.
 
 **SPEC-041 P26 (케이스 회귀 게이트 + 알림)** — `agent-eval gate`에 옵트인 exit 4 체크 2개 +
 `--notify` 추가. `cli/gate.py::_compute_gate_insights(data, args, baseline_path)` — full baseline

@@ -94,9 +94,11 @@ def get_diagnosis(
                 _cohort.append(_crf.raw)
 
         _rec_log = Path(_repo_path) / "recommendation_outcomes.jsonl"
+        _exp_log = Path(_repo_path) / ".aoo" / "experiments.jsonl"
         result["insights"] = build_insights(
             rf.raw, baseline_raw,
             recommendation_log_path=(_rec_log if _rec_log.exists() else None),
+            experiments_log_path=(_exp_log if _exp_log.is_file() else None),
             with_experiment_metadata=show_diff,
             repo_path=_repo_path,
             cohort=_cohort,

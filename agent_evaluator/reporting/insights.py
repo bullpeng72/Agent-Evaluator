@@ -2059,6 +2059,77 @@ def _narrative_section(ins: dict[str, Any], narrator: Any = None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Registered experiments (P27) — falsifiable "I expect Gate X's <field> to move
+# +N" hypotheses from `.aoo/experiments.jsonl`. When a baseline is available the
+# open ones are scored (predicted vs actual); resolved ones carry their stored
+# verdict. Read-only here — `agent-eval experiment score` persists resolutions.
+# ---------------------------------------------------------------------------
+
+def _experiment_hypothesis(gate: str, field: Any, predicted: Any) -> str:
+    tgt = f"Gate {gate}" + (f" {field}" if field else " score")
+    try:
+        return f"{tgt} {float(predicted):+.3f}"
+    except (TypeError, ValueError):
+        return tgt
+
+
+def _experiments_section(
+    current: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    experiments_log_path: Any,
+) -> list[dict[str, Any]] | None:
+    if not experiments_log_path:
+        return None
+    try:
+        from agent_evaluator.rca.experiments import load_experiments, score_experiments
+    except Exception:  # pragma: no cover - defensive
+        return None
+    try:
+        registry = load_experiments(experiments_log_path)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    if not registry:
+        return None
+
+    open_exps = [e for e in registry if e.get("status") != "resolved"]
+    resolved = [e for e in registry if e.get("status") == "resolved"]
+    scored = _safe(score_experiments, open_exps, current, baseline, default=[]) or []
+
+    items: list[dict[str, Any]] = []
+    for row in scored:
+        items.append({
+            "experiment_id": row.get("experiment_id"),
+            "hypothesis": _experiment_hypothesis(
+                row.get("target_gate", ""), row.get("target_field"),
+                row.get("predicted_delta"),
+            ),
+            "target_gate": row.get("target_gate"),
+            "target_field": row.get("target_field"),
+            "predicted": row.get("predicted_delta"),
+            "actual": row.get("actual_delta"),
+            "verdict": row.get("verdict"),
+            "status": "open",
+            "note": row.get("note"),
+        })
+    for e in resolved:
+        items.append({
+            "experiment_id": e.get("experiment_id"),
+            "hypothesis": _experiment_hypothesis(
+                e.get("target_gate", ""), e.get("target_field"),
+                e.get("predicted_delta"),
+            ),
+            "target_gate": e.get("target_gate"),
+            "target_field": e.get("target_field"),
+            "predicted": e.get("predicted_delta"),
+            "actual": e.get("actual_delta"),
+            "verdict": e.get("verdict"),
+            "status": "resolved",
+            "note": e.get("note"),
+        })
+    return items or None
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -2067,6 +2138,7 @@ def build_insights(
     baseline: dict[str, Any] | None = None,
     *,
     recommendation_log_path: str | Path | None = None,
+    experiments_log_path: str | Path | None = None,
     with_experiment_metadata: bool = False,
     repo_path: str | Path = ".",
     narrator: Any = None,
@@ -2081,6 +2153,9 @@ def build_insights(
             failure-set lineage.
         recommendation_log_path: path to ``recommendation_outcomes.jsonl`` — when
             present, per-Gate "past changes" summaries are included.
+        experiments_log_path: path to ``.aoo/experiments.jsonl`` (SPEC-041 P27) —
+            when present, registered hypotheses are surfaced in ``experiments``;
+            open ones are scored (predicted vs actual) if ``baseline`` is given.
         with_experiment_metadata: pass through to ``rca.diagnose()`` (git diff).
         repo_path: git repo path for ``with_experiment_metadata``.
 
@@ -2155,6 +2230,9 @@ def build_insights(
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
         "trajectories": _safe(_trajectories_section, tasks, default=None),
+        "experiments": _safe(
+            _experiments_section, current, baseline, experiments_log_path, default=None,
+        ),
         "conversation": _safe(_conversation_section, current, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(
