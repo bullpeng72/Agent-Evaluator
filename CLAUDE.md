@@ -997,6 +997,14 @@ privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 �
 - **`_build_toc()`** — 23개 섹션용 스티키 in-page 네비(C3). `_build_history_trend`에 first/last run
   라벨(C5), `_build_slice_analysis`에 delta CI(C6), review_queue 2차 정렬 `-len(reasons)`(C4).
 
+**SPEC-041 P23 (태스크별 점수 분해)** — `core/trackers/layer1.py::AccuracyEvaluator.decompose_qa(gt, pred)`
+신설 — QA 정확도 뒤의 4개 신호 `{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted, weakest}`
+(새 채점 없음, `_qa_accuracy`가 이제 이걸 호출). `reporting/insights.py::_score_breakdowns_section(tasks)` —
+worst-N 실패 태스크별 `{accuracy, accuracy_components, accuracy_weakest / accuracy_note(code/tool_use),
+judge_overall, judge_reasoning, judge_dimensions, weakest_signal(accuracy 신호 + judge dim÷5 통합 최저)}`.
+`insights.score_breakdowns`. 리포트 `_build_score_breakdown_detail` — Worst-cases 표 각 행에 `▸ Score
+breakdown` `<details>`(4개 신호 + judge rationale, 최저 신호 빨강). 대시보드 Improve 탭 패널.
+
 **SPEC-041 P22 (N-버전 코호트 비교)** — `utils/confidence.py::welch_t_p(a, b)` — stdlib Welch t-검정
 정규근사 p-value(scipy 무의존). `reporting/insights.py::_cohort_comparison_section(labelled, metric)` —
 `quick_eval._benjamini_hochberg` + `bootstrap_diff_ci` 재사용: per-version {label(lineage.agent_version/

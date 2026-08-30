@@ -579,6 +579,85 @@ def classify_rag_failure(
     }
 
 
+# ---------------------------------------------------------------------------
+# Per-example score decomposition (P23) — "why did THIS task get THIS score".
+# The blended accuracy number and the judge's verdict alone don't say which
+# signal dragged a task down; this surfaces the breakdown that AccuracyEvaluator
+# and the LLM judge already computed.
+# ---------------------------------------------------------------------------
+_QA_TYPES = frozenset({"qa", "information_retrieval", "reasoning", "chat"})
+
+
+def _score_breakdowns_section(
+    tasks: list[dict[str, Any]], *, limit: int = 12,
+) -> list[dict[str, Any]] | None:
+    failing = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    if not failing:
+        return None
+    try:
+        from agent_evaluator.core.trackers.layer1 import AccuracyEvaluator
+
+        _ae = AccuracyEvaluator()
+    except Exception:  # pragma: no cover - defensive
+        _ae = None
+
+    failing.sort(key=lambda t: _safe_float(t.get("accuracy_score"), 1.0) or 1.0)
+    out: list[dict[str, Any]] = []
+    for t in failing[:limit]:
+        acc = _safe_float(t.get("accuracy_score"))
+        row: dict[str, Any] = {
+            "task_id": str(t.get("task_id") or "—"),
+            "task_type": str(t.get("task_type") or ""),
+            "accuracy": round(acc, 3) if acc is not None else None,
+            "completion": _safe_float(t.get("completion_score")),
+        }
+        signals: dict[str, float] = {}
+
+        tt = str(t.get("task_type") or "").lower()
+        gt = str(t.get("ground_truth") or "")
+        resp = str(t.get("response") or "")
+        if _ae is not None and gt and resp and (tt in _QA_TYPES or not tt):
+            try:
+                comps = _ae.decompose_qa(gt, resp)
+                row["accuracy_components"] = {
+                    k: comps[k] for k in
+                    ("token_overlap_f1", "jaccard", "lcs_ratio", "char_sim")
+                }
+                row["accuracy_weakest"] = comps.get("weakest")
+                signals.update(row["accuracy_components"])
+            except Exception:  # pragma: no cover - defensive
+                pass
+        elif tt in ("coding", "code_generation"):
+            row["accuracy_note"] = "1.0 iff the response is AST-parseable code, else 0.0"
+        elif tt == "tool_use":
+            row["accuracy_note"] = "0.6 floor when no tool_calls were recorded"
+
+        j = t.get("llm_judge")
+        if isinstance(j, dict) and not j.get("skipped"):
+            sc = j.get("scores") or {}
+            row["judge_overall"] = sc.get("overall")
+            row["judge_reasoning"] = str(j.get("reasoning") or "")[:300] or None
+            dims = {
+                k: sc.get(k) for k in
+                ("completeness", "relevance", "factual_consistency", "faithfulness")
+                if isinstance(sc.get(k), (int, float))
+            }
+            if dims:
+                row["judge_dimensions"] = dims
+                # judge dims are 0-5; normalise to 0-1 for the "weakest overall"
+                signals.update({f"judge.{k}": v / 5.0 for k, v in dims.items()})
+
+        if signals:
+            row["weakest_signal"] = min(signals, key=signals.get)
+        out.append(row)
+    return out or None
+
+
 def _task_faithfulness(t: dict[str, Any]) -> float | None:
     j = t.get("llm_judge")
     if isinstance(j, dict) and not j.get("skipped"):
@@ -1790,6 +1869,7 @@ def build_insights(
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
+        "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(
             _change_attribution_section, current, baseline, diagnosis, default=None,

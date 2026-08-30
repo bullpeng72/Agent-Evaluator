@@ -2178,6 +2178,49 @@ def _build_failure_lineage(cases: list[dict[str, Any]],
     )
 
 
+def _build_score_breakdown_detail(sb: dict[str, Any] | None) -> str:
+    """P23: a collapsible per-task "why this score" — the four accuracy signals
+    and/or the judge's rationale + dimension scores."""
+    if not sb:
+        return ""
+    bits = []
+    ac = sb.get("accuracy_components")
+    if isinstance(ac, dict) and ac:
+        weak = sb.get("accuracy_weakest")
+        cells = " · ".join(
+            (f'<strong style="color:#dc2626">{k.replace("_", " ")} {v:.2f}</strong>'
+             if k == weak else f'{k.replace("_", " ")} {v:.2f}')
+            for k, v in ac.items()
+        )
+        bits.append(f'<div style="font-size:11px;color:#6b7280">accuracy signals: {cells}</div>')
+    elif sb.get("accuracy_note"):
+        bits.append(f'<div style="font-size:11px;color:#9ca3af">{_esc(sb["accuracy_note"])}</div>')
+    jr = sb.get("judge_reasoning")
+    jd = sb.get("judge_dimensions")
+    if jr or jd:
+        jd_txt = ""
+        if isinstance(jd, dict) and jd:
+            jd_txt = " · ".join(f'{k.replace("_", " ")} {v}/5' for k, v in jd.items())
+        jo = sb.get("judge_overall")
+        head = f'judge {jo}/10' if jo is not None else 'judge'
+        bits.append(
+            f'<div style="font-size:11px;color:#6b7280">{head}'
+            + (f' ({_esc(jd_txt)})' if jd_txt else '')
+            + (f' — "{_esc(str(jr))}"' if jr else '') + '</div>'
+        )
+    ws = sb.get("weakest_signal")
+    if ws:
+        bits.append(f'<div style="font-size:11px;color:#9ca3af">weakest signal: '
+                    f'<code>{_esc(str(ws))}</code></div>')
+    if not bits:
+        return ""
+    return (
+        '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:11px;'
+        'color:#6366f1">▸ Score breakdown</summary>'
+        f'<div style="margin-top:3px">{"".join(bits)}</div></details>'
+    )
+
+
 def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
                          total_tasks: int | None = None,
                          baseline: dict[str, Any] | None = None) -> str:
@@ -2212,6 +2255,16 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
     if not worst:
         return ""
 
+    # P23: per-task score decomposition, keyed by task_id.
+    _sb_by_id: dict[str, dict[str, Any]] = {}
+    try:
+        from agent_evaluator.reporting.insights import _score_breakdowns_section
+
+        for _b in _score_breakdowns_section(_review_dict_tasks(tasks)) or []:
+            _sb_by_id[_b["task_id"]] = _b
+    except Exception:
+        pass
+
     rows = ""
     for c in worst:
         comp = "—" if c["completion_score"] is None else f"{c['completion_score'] * 100:.0f}%"
@@ -2227,12 +2280,14 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         type_row = (f'<br><span style="font-size:10px;color:#9ca3af">{_esc(c["task_type"])}</span>'
                     if c["task_type"] else "")
         traj = _build_trajectory(c)
+        sb_row = _build_score_breakdown_detail(_sb_by_id.get(c["task_id"]))
         rows += (
             f'<tr>'
             f'<td style="vertical-align:top;white-space:nowrap">{badge}<br>'
             f'<span style="font-size:11px;color:#6b7280">{_esc(c["task_id"])}</span>{type_row}</td>'
             f'<td style="vertical-align:top">{q}'
-            f'<div style="font-size:12px;color:#374151;margin-top:4px">→ {r}</div>{gt_row}{traj}</td>'
+            f'<div style="font-size:12px;color:#374151;margin-top:4px">→ {r}</div>'
+            f'{gt_row}{sb_row}{traj}</td>'
             f'<td style="vertical-align:top;white-space:nowrap;font-size:12px">'
             f'C {comp}<br>A {acc}</td>'
             f'<td style="vertical-align:top;color:{sev_col};font-size:12px;font-weight:600">'

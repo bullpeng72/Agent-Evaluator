@@ -268,6 +268,28 @@
       }
     },
 
+    "score_breakdowns": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["task_id"],
+        "properties": {
+          "task_id": { "type": "string" },
+          "task_type": { "type": "string" },
+          "accuracy": { "type": ["number", "null"] },
+          "completion": { "type": ["number", "null"] },
+          "accuracy_components": { "type": "object" },
+          "accuracy_weakest": { "type": ["string", "null"] },
+          "accuracy_note": { "type": "string" },
+          "judge_overall": { "type": ["number", "null"] },
+          "judge_reasoning": { "type": ["string", "null"] },
+          "judge_dimensions": { "type": "object" },
+          "weakest_signal": { "type": ["string", "null"] }
+        }
+      }
+    },
+
     "nondeterminism": {
       "type": ["array", "null"],
       "items": {

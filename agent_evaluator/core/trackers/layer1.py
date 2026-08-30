@@ -361,53 +361,50 @@ class AccuracyEvaluator(BaseTracker):
         else:
             return self._general_accuracy(ground_truth, prediction)
 
-    def _qa_accuracy(self, ground_truth: str, prediction: str) -> float:
-        """
-        QA accuracy using improved token-based similarity
+    def decompose_qa(self, ground_truth: str, prediction: str) -> dict[str, float]:
+        """SPEC-041 P23: the per-signal breakdown behind the QA accuracy score.
 
-        Uses multiple similarity metrics:
-        - Token overlap (Jaccard similarity)
-        - Longest common subsequence ratio
-        - Character-level similarity
+        Returns ``{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted,
+        weakest}`` — the four similarity signals (each 0–1), their weighted
+        combination (pre-clamp), and the name of the lowest signal. Lets a report
+        answer "which signal dragged this task's accuracy down" instead of only
+        showing the blended number. No new scoring logic — this is exactly what
+        ``_qa_accuracy`` computes.
         """
         gt_norm = _normalize_qa_text(ground_truth)
         pred_norm = _normalize_qa_text(prediction)
-
+        _empty = {"token_overlap_f1": 0.0, "jaccard": 0.0, "lcs_ratio": 0.0,
+                  "char_sim": 0.0, "weighted": 0.0, "weakest": "token_overlap_f1"}
         if not gt_norm:
-            return 0.0
-
-        # 1. Token-based Jaccard similarity
+            return _empty
         gt_tokens = self._tokenize_words(gt_norm)
         pred_tokens = self._tokenize_words(pred_norm)
-
         if not gt_tokens:
-            return 0.0
+            return _empty
 
         intersection = len(gt_tokens & pred_tokens)
         union = len(gt_tokens | pred_tokens)
-        # Jaccard: coverage relative to *union* (penalises extra tokens in prediction)
         jaccard = intersection / union if union > 0 else 0.0
-
-        # Token overlap F1: harmonic mean of precision and recall.
-        # Balances coverage of ground-truth (recall) and avoiding hallucinated tokens (precision).
         precision = intersection / len(pred_tokens) if pred_tokens else 0.0
         recall = intersection / len(gt_tokens) if gt_tokens else 0.0
         overlap_ratio = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
-
-        # 3. Character-level similarity (handles typos better)
         char_sim = _qa_char_similarity(gt_norm, pred_norm)
-
-        # 4. Longest common subsequence ratio — rolling 2-row DP: O(n) space
         lcs_sim = _lcs_ratio(gt_norm, pred_norm)
-
-        # Weighted combination (weights defined as module constants above)
-        final_score = (
-            _QA_WEIGHT_TOKEN_OVERLAP * overlap_ratio +
-            _QA_WEIGHT_JACCARD * jaccard +
-            _QA_WEIGHT_LCS * lcs_sim +
-            _QA_WEIGHT_CHAR * char_sim
+        weighted = (
+            _QA_WEIGHT_TOKEN_OVERLAP * overlap_ratio
+            + _QA_WEIGHT_JACCARD * jaccard
+            + _QA_WEIGHT_LCS * lcs_sim
+            + _QA_WEIGHT_CHAR * char_sim
         )
+        comps = {"token_overlap_f1": round(overlap_ratio, 4), "jaccard": round(jaccard, 4),
+                 "lcs_ratio": round(lcs_sim, 4), "char_sim": round(char_sim, 4)}
+        return {**comps, "weighted": round(weighted, 4),
+                "weakest": min(comps, key=comps.get)}
 
+    def _qa_accuracy(self, ground_truth: str, prediction: str) -> float:
+        """QA accuracy — weighted blend of token-overlap F1, Jaccard, LCS ratio
+        and character similarity (see :meth:`decompose_qa`)."""
+        final_score = self.decompose_qa(ground_truth, prediction)["weighted"]
         if final_score > 1.0:
             logger.debug(
                 "_qa_accuracy: weighted score %.4f exceeded 1.0 (clamped). "
