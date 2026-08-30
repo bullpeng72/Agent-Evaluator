@@ -3454,10 +3454,14 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
         pv_rows = ""
         for v in d.get("per_version") or []:
             ok = v.get("success")
+            _c = v.get("completion")
+            _a = v.get("accuracy")
+            c_s = f"{_c:.2f}" if isinstance(_c, (int, float)) else "—"
+            a_s = f"{_a:.2f}" if isinstance(_a, (int, float)) else "—"
             pv_rows += (
                 f'<tr><td style="font-weight:600">{_esc(str(v.get("label", "")))}</td>'
-                f'<td style="text-align:right">{v.get("completion")}</td>'
-                f'<td style="text-align:right">{v.get("accuracy")}</td>'
+                f'<td style="text-align:right">{c_s}</td>'
+                f'<td style="text-align:right">{a_s}</td>'
                 f'<td style="text-align:center;color:{"#059669" if ok else "#dc2626"}">'
                 f'{"✓" if ok else "✗"}</td>'
                 f'<td style="font-size:11px;color:#6b7280">'
