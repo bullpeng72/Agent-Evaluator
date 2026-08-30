@@ -37,6 +37,61 @@ _RE_NORM_WHITESPACE = re.compile(r'\s+')
 
 # SPEC-000: _clamp01은 Gate A 전용 헬퍼 — gates/gate_a_goal/evaluators.py로 이관됨.
 
+# SPEC-041: common developer synonyms for the canonical TaskType values. Without
+# this, create_taskresult(task_type="rag") silently became "qa" (via
+# getattr(TaskType, "RAG", TaskType.QA)) — losing the RAG cohort from per-slice /
+# eval-set-quality reporting even though the SDK is RAG-centric.
+_TASK_TYPE_ALIASES: dict[str, str] = {
+    "rag": "information_retrieval",
+    "retrieval": "information_retrieval",
+    "search": "information_retrieval",
+    "kb": "information_retrieval",
+    "summarization": "document_creation",
+    "summary": "document_creation",
+    "writing": "document_creation",
+    "report": "document_creation",
+    "chat": "qa",
+    "conversation": "qa",
+    "conversational": "qa",
+    "plan": "planning",
+    "analysis": "data_analysis",
+    "data": "data_analysis",
+}
+
+
+def _resolve_task_type(task_type: str | None) -> str:
+    """Map a task_type string to a canonical ``TaskType`` value.
+
+    Accepts the canonical lowercase values, the ``TaskType`` enum names, and the
+    developer synonyms in ``_TASK_TYPE_ALIASES``. An unrecognised value is kept
+    as-is (lowercased) rather than silently forced to ``"qa"`` — ``TaskResult``
+    accepts any string — but a warning is emitted so the typo/synonym surfaces.
+    """
+    from agent_evaluator import TaskType
+
+    if not task_type:
+        return TaskType.QA.value
+    raw = str(task_type).strip().lower()
+    if not raw:
+        return TaskType.QA.value
+    valid = {t.value for t in TaskType}
+    if raw in valid:
+        return raw
+    if raw in _TASK_TYPE_ALIASES:
+        return _TASK_TYPE_ALIASES[raw]
+    enum_member = getattr(TaskType, raw.upper(), None)
+    if enum_member is not None:
+        return enum_member.value
+    import warnings as _w
+    _w.warn(
+        f"create_taskresult: unrecognised task_type {task_type!r}; keeping it as-is. "
+        f"Canonical values: {sorted(valid)}. Common aliases (e.g. 'rag' -> "
+        f"'information_retrieval') are accepted.",
+        UserWarning,
+        stacklevel=3,
+    )
+    return raw
+
 
 # ---------------------------------------------------------------------------
 # Pre-compiled patterns for validate_input_security()
@@ -600,7 +655,7 @@ def create_taskresult_from_execution(
         ...     langchain_result=result
         ... )
     """
-    from agent_evaluator import TaskResult, TaskType
+    from agent_evaluator import TaskResult
 
     # 1. tokens_used 동적 추출
     if openai_response:
@@ -685,7 +740,7 @@ def create_taskresult_from_execution(
     # 7. TaskResult 생성 (기본값 dict 먼저 구성)
     _base_kwargs: dict[str, Any] = dict(
         task_id=task_id,
-        task_type=getattr(TaskType, task_type.upper(), TaskType.QA).value,
+        task_type=_resolve_task_type(task_type),
         success=not has_error,
         completion_score=completion,      # ✅ 동적 계산
         accuracy_score=accuracy,          # ✅ 동적 계산 (4가지 메트릭 조합)

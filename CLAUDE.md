@@ -966,6 +966,33 @@ privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 �
 섹션 `security-findings`(가장 심각 먼저)·`nondeterminism`, 대시보드 Improve 탭 패널.
 `_review_dict_tasks`가 `extra`/`attempts`/`tokens_used`도 담도록 확장.
 
+**SPEC-041 P21 (리포트 QA 수정 — 예시 리포트 감사에서 발견)**:
+- **`create_taskresult(task_type="rag")`가 조용히 `"qa"`로 강등**되던 버그 — `taskresult_helpers.py::
+  _resolve_task_type()` 신설: `_TASK_TYPE_ALIASES`(rag→information_retrieval, summarization→
+  document_creation 등) + 알 수 없는 값은 QA 강등 대신 **원본 보존 + `UserWarning`**. per-slice/
+  eval-set-quality가 RAG 코호트를 통째로 잃던 것 해소.
+- **`_fmt_usd()`**(`comprehensive_report.py`) — 공용 통화 포맷 헬퍼. ≥$100은 `,.0f`, ≥$1은 `,.2f`,
+  소수는 유효숫자. Cost Efficiency의 `$1267.5000`·`_build_gate_d._cost`의 4자리 고정 제거. 내러티브와
+  Gate D 표의 금액이 이제 일치.
+- **`_ins_input`에 `pricing` graft**(monitor 경로) — `report.to_dict()`엔 pricing이 없어 cost_economics가
+  균등분할 폴백만 하던 것 → per-task 토큰 비용 정상 계산. `_build_gate_d`도 `_ins_input`을 받는다.
+- **cost_economics.n_failed_or_lowscore** 추가 + 리포트 라벨 "Wasted on failed / low-scoring tasks
+  (N of M)" — `_effective_fail`(12) vs Failed Cases의 `success` 플래그(10) 불일치를 명시.
+- **`rca/diagnose.py::_is_excluded_detail_key()`** — regression 모드 `top_detail_deltas`에서
+  `gate_*_tcr_weight`·`*_weight`·`*_penalty`·config 상수 제외(`_SHORTFALL_EXCLUDE_*`와 동일 취지,
+  이전엔 `component_shortfalls`에만 적용).
+- **Gate G LLM Judge**: dimension별 native scale 명시(`_judge_val(v, denom)`) — faithfulness/relevance는
+  `/5`, overall만 `/10`(Gate C의 `/5`와 불일치 해소). 헤더 "7 Dimensions"→"LLM Judge".
+- **Gate F**: workflow 카운트가 0이면 `step_success_rate=0.0`을 "0.0%"로 렌더하지 않음(N/A 배너).
+- **Gate E**: `_count_noun(n, "threat")` — "1 threats"→"1 threat".
+- **`insights._verdict_section(security_findings=)`** — critical/high 보안 findings를 `next_actions[0]`
+  (`security:True`)로 넣고, 내러티브/exec-summary가 Gate 점수와 무관하게 최상단 노출(C1). 저표본
+  컴포넌트(`insufficient_data_warnings`)는 `next_actions`에서 뒤로 밀고 `low_sample:True` 표식(C2).
+- **`_build_executive_summary(verdict_obj=)`** — 이제 `insights.verdict.next_actions`를 그대로 렌더
+  (내러티브와 단일 소스). confidence도 `verdict_obj`에서(judge_trust 강등 반영).
+- **`_build_toc()`** — 23개 섹션용 스티키 in-page 네비(C3). `_build_history_trend`에 first/last run
+  라벨(C5), `_build_slice_analysis`에 delta CI(C6), review_queue 2차 정렬 `-len(reasons)`(C4).
+
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
 | Tracker | Gate | 기여 방식 | 조건 |

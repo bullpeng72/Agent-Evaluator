@@ -96,6 +96,16 @@ def trend_summary(history: list[dict[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {"n_runs": len(history), "gates": {}}
     if len(history) < 2:
         return out
+
+    def _label(r: dict[str, Any]) -> str:
+        name = str(r.get("file") or "").rsplit("/", 1)[-1]
+        if name.endswith(".json"):
+            name = name[:-5]
+        ts = str(r.get("timestamp") or "")[:10]
+        return f"{name} ({ts})" if ts else name
+
+    out["first_run"] = _label(history[0])
+    out["last_run"] = _label(history[-1])
     tol = 0.005
     for g in _GATES:
         series = [

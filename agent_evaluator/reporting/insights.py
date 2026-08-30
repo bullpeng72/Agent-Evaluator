@@ -320,6 +320,8 @@ def _cost_economics_section(
     if total_cost <= 0:
         return None
 
+    # A task that fails OR scores below target is (at least partly) wasted spend —
+    # this is intentionally the wider `_effective_fail` set, not just success=False.
     failed = [
         i for i, t in enumerate(tasks)
         if _effective_fail(success=t.get("success", False),
@@ -341,6 +343,7 @@ def _cost_economics_section(
         "cost_source": "per_task_tokens" if have_per_task else "aggregate_uniform_split",
         "n_tasks": n,
         "n_successful": n_success,
+        "n_failed_or_lowscore": len(failed),
         "cost_per_task_usd": round(cost_per_task, 6),
         "cost_per_successful_task_usd": (
             round(total_cost / n_success, 6) if n_success else None
@@ -661,6 +664,7 @@ def _verdict_section(
     ci: dict[str, Any],
     n_tasks: int,
     evaluator_trust: dict[str, Any] | None = None,
+    security_findings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     fails, warns, passes = [], [], []
     for k in "ABCDEFG":
@@ -700,9 +704,41 @@ def _verdict_section(
     except Exception:  # pragma: no cover - defensive
         component_guidance_for = lambda _f: None  # noqa: E731
 
+    # fields whose Gate score component fell below its minimum sample size — an
+    # action recommended on one of these is shaky, so mark it and don't let it be
+    # the headline when a better-supported shortfall exists.
+    low_sample_fields: set[str] = set()
+    for _g in harness_groups.values():
+        if not isinstance(_g, dict):
+            continue
+        for _w in (_g.get("details") or {}).get("insufficient_data_warnings") or []:
+            _name = str(_w).split(":", 1)[0].strip().lower()
+            if _name:
+                low_sample_fields.add(_name)
+
+    def _is_low_sample(field: str) -> bool:
+        f = str(field or "").replace("avg_", "").strip().lower()
+        return f in low_sample_fields or any(f == w or f.endswith("_" + w) for w in low_sample_fields)
+
     next_actions: list[dict[str, Any]] = []
+
+    # C1: a critical/high security finding is the top action, above any Gate.
+    for _sf in security_findings or []:
+        if _sf.get("severity") in ("critical", "high"):
+            next_actions.append({
+                "gate": "E", "field": _sf.get("threat_type"), "health": None,
+                "action": (f"Investigate the {_sf.get('severity')} "
+                           f"{_sf.get('threat_type')} on task {_sf.get('task_id')} "
+                           f"before shipping — the Gate E score is rate-based and can "
+                           f"still pass with a severe finding."),
+                "security": True,
+            })
+            break
+
     for k in (fails + warns)[:3]:
-        sf = shortfalls_by_gate.get(k) or []
+        sf = list(shortfalls_by_gate.get(k) or [])
+        # push low-sample components to the back so a solidly-measured shortfall wins
+        sf.sort(key=lambda s: _is_low_sample(s.get("field", "")))
         if sf:
             top = sf[0]
             fld = str(top.get("field", ""))
@@ -711,6 +747,7 @@ def _verdict_section(
                 "field": fld,
                 "health": top.get("health"),
                 "action": component_guidance_for(fld) or "",
+                "low_sample": _is_low_sample(fld),
             })
         else:
             g = harness_groups.get(k) or {}
@@ -1269,9 +1306,12 @@ def _review_queue_section(
 
     if not by_task:
         return None
+    # within a priority band, more independent reasons = more urgent (breaks the
+    # "everything is HIGH" tie so the top of the list is still meaningful)
     items = sorted(
         by_task.values(),
-        key=lambda it: (_REVIEW_PRIORITY_ORDER[it["priority"]], it["task_id"]),
+        key=lambda it: (_REVIEW_PRIORITY_ORDER[it["priority"]],
+                        -len(it.get("reasons") or []), it["task_id"]),
     )[:25]
     return {
         "n_items": len(items),
@@ -1425,7 +1465,21 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
             s1 += f" ({why[0]})"
     parts.append(s1 + ".")
 
-    acts = v.get("next_actions") or []
+    # A critical / high security finding outranks everything else — surface it
+    # even when Gate E's rate-based score reads as a pass.
+    sec = ins.get("security_findings") or []
+    sev_sec = [f for f in sec if f.get("severity") in ("critical", "high")]
+    if sev_sec:
+        kinds = sorted({f.get("threat_type", "threat") for f in sev_sec})
+        parts.append(
+            f"A {sev_sec[0]['severity']}-severity security finding was detected "
+            f"({', '.join(kinds)} on task {sev_sec[0].get('task_id')}) — treat this "
+            f"as the top priority regardless of the Gate E score."
+        )
+
+    # the security finding already has its own sentence above — the "biggest
+    # measured shortfall" line describes a *scored* Gate component.
+    acts = [a for a in (v.get("next_actions") or []) if not a.get("security")]
     if acts:
         a = acts[0]
         fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
@@ -1434,7 +1488,8 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
             hp = ""
             if isinstance(a.get("health"), (int, float)):
                 hp = f" ({a['health'] * 100:.0f}%)"
-            s2 = f"The biggest measured shortfall is {fld}{hp} in Gate {a.get('gate')}"
+            low_n = " (low sample — confirm before acting)" if a.get("low_sample") else ""
+            s2 = f"The biggest measured shortfall is {fld}{hp} in Gate {a.get('gate')}{low_n}"
             if act_txt:
                 s2 += f" — {act_txt[0].lower() + act_txt[1:]}"
             parts.append(s2 + ".")
@@ -1463,7 +1518,8 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
         s = f"At {proj.get('calls', 100000):,} calls this configuration costs " \
             f"about ${proj['total_usd']:,.0f}"
         if proj.get("wasted_usd"):
-            s += f", of which about ${proj['wasted_usd']:,.0f} is wasted on failed tasks"
+            s += (f", of which about ${proj['wasted_usd']:,.0f} is spent on failed "
+                  f"or low-scoring tasks")
         parts.append(s + ".")
 
     return " ".join(parts)
@@ -1542,12 +1598,14 @@ def build_insights(
         _eval_set_quality_section, tasks, baseline, hg, default=None,
     )
     rag_loc = _safe(rag_localization, tasks, default=None)
+    security_findings = _safe(_security_findings_section, current, default=None)
 
     out: dict[str, Any] = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
         "detection_mode": (diagnosis or {}).get("detection_mode", "absolute_threshold"),
         "verdict": _safe(
-            _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust, default={},
+            _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust,
+            security_findings, default={},
         ),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
@@ -1575,7 +1633,7 @@ def build_insights(
         "rag_localization": rag_loc,
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
-        "security_findings": _safe(_security_findings_section, current, default=None),
+        "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(

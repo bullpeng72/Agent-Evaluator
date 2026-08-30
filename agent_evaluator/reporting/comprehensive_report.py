@@ -204,6 +204,36 @@ def _num(v: Any, fmt: str = ".2f") -> str:
         return "—"
 
 
+def _count_noun(n: Any, singular: str, plural: str | None = None) -> str:
+    """'1 threat' / '2 threats' — avoids the '1 threats' in count columns."""
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        n = 0
+    return f"{n} {singular if n == 1 else (plural or singular + 's')}"
+
+
+def _fmt_usd(v: Any) -> str:
+    """Human-readable USD. Sub-cent values keep significant digits; larger values
+    get a thousands separator and 2 decimals (so a scale projection reads as
+    ``$1,267.50``, not ``$1267.5000``)."""
+    try:
+        fv = float(v)
+    except (TypeError, ValueError):
+        return "—"
+    if fv == 0:
+        return "$0"
+    neg = "-" if fv < 0 else ""
+    fv = abs(fv)
+    if fv < 0.01:
+        return neg + "$" + f"{fv:.6f}".rstrip("0").rstrip(".")
+    if fv < 1.0:
+        return neg + "$" + f"{fv:.4f}".rstrip("0").rstrip(".")
+    if fv < 100.0:
+        return neg + f"${fv:,.2f}"
+    return neg + f"${fv:,.0f}"
+
+
 def _score_color(v: Any, hi: float = 70.0, lo: float = 50.0) -> str:
     if v is None:
         return "#9ca3af"
@@ -577,9 +607,9 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         tfr = details.get("threat_free_rate")
         if tfr is None:
             tfr = 1.0 if threat_count == 0 else None
-        note_threat = "" if threat_count == 0 else f"{threat_count} threats detected"
+        note_threat = "" if threat_count == 0 else _count_noun(threat_count, "threat") + " detected"
         _add("Threat-Free Rate (1 − threats/total)",
-             f"{float(tfr):.3f}" if tfr is not None else f"{threat_count} threats",
+             f"{float(tfr):.3f}" if tfr is not None else _count_noun(threat_count, "threat"),
              tfr,
              formula_label="1−threat_rate", always=True,
              note=note_threat)
@@ -607,7 +637,7 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         if leak_def is not None:
             lc = details.get("leakage_count", 0)
             _add("Output Leakage Defense (1 − leakage/total)",
-                 f"{lc} leaks", leak_def, formula_label="1−leakage_rate")
+                 _count_noun(lc, "leak"), leak_def, formula_label="1−leakage_rate")
         else:
             _add("Output Leakage Defense (1 − leakage/total)", None, None,
                  formula_label="1−leakage_rate",
@@ -617,7 +647,7 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         if inj_def is not None:
             ic = details.get("injection_count", 0)
             _add("Injection Defense (1 − threats/total)",
-                 f"{ic} threats", inj_def, formula_label="1−injection_rate")
+                 _count_noun(ic, "threat"), inj_def, formula_label="1−injection_rate")
         else:
             _add("Injection Defense (1 − threats/total)", None, None,
                  formula_label="1−injection_rate",
@@ -627,7 +657,7 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         if ta_rate is not None:
             uc = details.get("unauthorized_calls_count", 0)
             _add("Tool Authorization Defense (1 − unauth/total)",
-                 f"{uc} unauth calls", ta_rate, formula_label="1−unauth_rate")
+                 _count_noun(uc, "unauthorized call"), ta_rate, formula_label="1−unauth_rate")
         else:
             _add("Tool Authorization Defense (1 − unauth/total)", None, None,
                  formula_label="1−unauth_rate",
@@ -1232,17 +1262,7 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
                           "record token counts in <code>TaskResult</code> to measure.")
         )
     if token_stats:
-        def _cost(v):
-            if v is None:
-                return "—"
-            try:
-                fv = float(v)
-                if fv == 0:
-                    return "$0"
-                s = f"{fv:.6f}" if fv < 0.01 else f"{fv:.4f}"
-                return "$" + s.rstrip("0").rstrip(".")
-            except (TypeError, ValueError):
-                return "—"
+        _cost = _fmt_usd
 
         tok_kpis = (
             f'<div class="kpi"><div class="kpi-lbl">Total Tokens</div>'
@@ -1313,14 +1333,7 @@ def _build_cost_economics(tasks: list[Any] | None, current: dict[str, Any] | Non
     if not ce:
         return ""
 
-    def _usd(v: Any) -> str:
-        try:
-            fv = float(v)
-        except (TypeError, ValueError):
-            return "—"
-        if fv == 0:
-            return "$0"
-        return "$" + (f"{fv:.6f}".rstrip("0").rstrip(".") if fv < 0.01 else f"{fv:.4f}")
+    _usd = _fmt_usd
 
     cps = ce.get("cost_per_successful_task_usd")
     cpt = ce.get("cost_per_task_usd")
@@ -1328,6 +1341,11 @@ def _build_cost_economics(tasks: list[Any] | None, current: dict[str, Any] | Non
     if isinstance(cps, (int, float)) and isinstance(cpt, (int, float)) and cpt > 0:
         penalty = f' <span style="color:#6b7280">({cps / cpt:.1f}x cost/task)</span>'
     proj = ce.get("projection") or {}
+    _nfail = ce.get("n_failed_or_lowscore")
+    _ntot = ce.get("n_tasks")
+    _wlabel = "Wasted on failed / low-scoring tasks"
+    if isinstance(_nfail, int) and isinstance(_ntot, int):
+        _wlabel += f" ({_nfail} of {_ntot})"
     wasted_val = f'{_usd(ce.get("wasted_cost_usd"))} ({ce.get("wasted_cost_pct")}%)'
     retry_val = f'{_usd(ce.get("retry_cost_usd"))} ({ce.get("retry_cost_pct")}%)'
     proj_calls = proj.get("calls", 100000)
@@ -1335,7 +1353,7 @@ def _build_cost_economics(tasks: list[Any] | None, current: dict[str, Any] | Non
                 f'(of which {_usd(proj.get("wasted_usd"))} wasted)')
     rows = (
         _metric_row("Cost per successful task", _usd(cps) + penalty)
-        + _metric_row("Wasted on failed tasks", wasted_val)
+        + _metric_row(_wlabel, wasted_val)
         + _metric_row("Retry burn", retry_val)
         + _metric_row(f"Projected at {proj_calls:,} calls", proj_val)
     )
@@ -1560,15 +1578,22 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
                     f'{float(coord_score)*100:.1f}%</div></div>'
                 )
         if workflow_stats:
+            # a workflow tracker that saw nothing reports 0.0 rates — don't render
+            # those as a catastrophic "0.0%"; require a positive count.
+            _wf_count = (workflow_stats.get("total_workflows")
+                         or workflow_stats.get("total_executions")
+                         or workflow_stats.get("count") or 0)
+            _step_count = (workflow_stats.get("total_steps")
+                           or workflow_stats.get("step_count") or 0)
             wf_rate = workflow_stats.get("success_rate") or workflow_stats.get("overall_success_rate")
             step_rate = workflow_stats.get("step_success_rate")
-            if wf_rate is not None:
+            if wf_rate is not None and (_wf_count or wf_rate):
                 kpi_parts.append(
                     f'<div class="kpi"><div class="kpi-lbl">Workflow Success Rate</div>'
                     f'<div class="kpi-val" style="color:{_score_color(float(wf_rate)*100)}">'
                     f'{float(wf_rate)*100:.1f}%</div></div>'
                 )
-            if step_rate is not None:
+            if step_rate is not None and (_step_count or step_rate):
                 _step_pct = float(step_rate) if float(step_rate) > 1.0 else float(step_rate) * 100
                 kpi_parts.append(
                     f'<div class="kpi"><div class="kpi-lbl">Step Success Rate</div>'
@@ -1577,6 +1602,12 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
                 )
         if kpi_parts:
             coord_html = f'<h3>Coordination / Workflow</h3><div class="kpis">{"".join(kpi_parts)}</div>'
+        elif not gate_status or gate_status in ("n/a", "na"):
+            coord_html = (
+                '<h3>Coordination / Workflow</h3>'
+                + _not_tested("No multi-agent / workflow execution data recorded.",
+                              kind="n/a")
+            )
 
     details = harness_f.get("details") or {}
     harness_rows = ""
@@ -1662,39 +1693,42 @@ def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
                                   kind="data")
                 )
             if judged_count > 0:
-                def _judge_val(v):
+                # LLMJudge dimensions have different native scales: `overall` (and
+                # criteria_overall) is 0-10; completeness / relevance /
+                # factual_consistency / faithfulness are 0-5. Show each on its own
+                # denominator instead of guessing from the magnitude.
+                def _judge_val(v, denom=5):
                     if v is None:
                         return "—"
-                    fv = float(v)
-                    # Normalize to 0-10 scale for display
-                    scale = 10 if fv <= 10 else 100
-                    return f"{fv:.2f}/{scale}"
+                    try:
+                        return f"{float(v):.2f}/{denom}"
+                    except (TypeError, ValueError):
+                        return "—"
                 ov_100 = float(overall) * 10 if overall is not None and float(overall) <= 10 else float(overall or 0)
                 faith_kpi = ""
                 if faithfulness is not None:
-                    faith_pct = float(faithfulness) * 10  # 0-5 → 0-50 (percentage-ish scale)
                     faith_kpi = (
                         f'<div class="kpi"><div class="kpi-lbl">Faithfulness (RAG)</div>'
-                        f'<div class="kpi-val" style="color:{_score_color(faith_pct * 2)}">'
-                        f'{_judge_val(faithfulness)}</div></div>'
+                        f'<div class="kpi-val" style="color:{_score_color(float(faithfulness) * 20)}">'
+                        f'{_judge_val(faithfulness, 5)}</div></div>'
                     )
                 judge_kpis = (
                     f'<div class="kpi"><div class="kpi-lbl">Evaluated Count</div>'
                     f'<div class="kpi-val">{judged_count}</div></div>'
                     f'<div class="kpi"><div class="kpi-lbl">Overall Score</div>'
                     f'<div class="kpi-val" style="color:{_score_color(ov_100)}">'
-                    f'{_judge_val(overall)}</div></div>'
+                    f'{_judge_val(overall, 10)}</div></div>'
                     f'<div class="kpi"><div class="kpi-lbl">Completeness</div>'
-                    f'<div class="kpi-val">{_judge_val(completeness)}</div></div>'
+                    f'<div class="kpi-val">{_judge_val(completeness, 5)}</div></div>'
                     f'<div class="kpi"><div class="kpi-lbl">Relevance</div>'
-                    f'<div class="kpi-val">{_judge_val(relevance)}</div></div>'
+                    f'<div class="kpi-val">{_judge_val(relevance, 5)}</div></div>'
                     f'<div class="kpi"><div class="kpi-lbl">Factual Consistency</div>'
-                    f'<div class="kpi-val">{_judge_val(factual)}</div></div>'
+                    f'<div class="kpi-val">{_judge_val(factual, 5)}</div></div>'
                     + faith_kpi +
                     f'<div class="kpi"><div class="kpi-lbl">Judge Model</div>'
                     f'<div class="kpi-val" style="font-size:11px">{model_name}</div></div>'
                 )
-                judge_html = f'<h3>LLM Judge (7 Dimensions)</h3><div class="kpis">{judge_kpis}</div>'
+                judge_html = f'<h3>LLM Judge</h3><div class="kpis">{judge_kpis}</div>'
         except Exception:
             pass
 
@@ -2406,11 +2440,17 @@ def _build_history_trend(results_dir: Any, current_file: Any = None) -> str:
         )
     if not rows:
         return ""
+    _fr, _lr = summ.get("first_run"), summ.get("last_run")
+    _range = (f'<p style="font-size:11px;color:#9ca3af;margin:0 0 6px">'
+              f'{_esc(str(_fr))} &rarr; {_esc(str(_lr))} · first &rarr; last score per Gate. '
+              f'This "first" run may differ from the RCA baseline below.</p>'
+              if _fr and _lr else "")
     return (
         '<div class="gate-section" id="history-trend" style="border-left-color:#0ea5e9">'
         f'<h2 style="color:#1e2030">Trend '
         f'<span style="font-size:13px;color:#6b7280">'
         f'(last {summ["n_runs"]} runs in this directory)</span></h2>'
+        f'{_range}'
         '<table class="mtable"><tbody>' + rows + '</tbody></table>'
         '</div>'
     )
@@ -2770,8 +2810,12 @@ def _build_slice_analysis(tasks: list[Any] | None,
                 sig = r.get("significant")
                 col = ("#dc2626" if d < 0 else "#059669") if sig else "#6b7280"
                 tag = " *" if sig else ""
+                dci = r.get("tcr_delta_ci_pp")   # already in pp
+                ci_txt = (f' <span style="color:#9ca3af;font-weight:400">'
+                          f'CI [{dci[0]:+.0f}, {dci[1]:+.0f}]</span>'
+                          if isinstance(dci, (list, tuple)) and len(dci) == 2 else "")
                 delta_cell = (f'<td style="color:{col};font-weight:600;white-space:nowrap">'
-                              f'{d:+.1f}pp{tag}</td>')
+                              f'{d:+.1f}pp{tag}{ci_txt}</td>')
         body += (
             f'<tr><td style="font-weight:600">{_esc(r.get("task_type", "—"))}</td>'
             f'<td style="text-align:right">{r.get("n", 0)}</td>'
@@ -2992,6 +3036,47 @@ def _build_change_attribution(ca: dict[str, Any] | None) -> str:
     )
 
 
+_TOC_LABELS = {
+    "narrative": "Summary", "exec-summary": "Verdict",
+    "gate-a": "A", "gate-b": "B", "gate-c": "C", "gate-d": "D",
+    "gate-e": "E", "gate-f": "F", "gate-g": "G",
+    "advanced": "Advanced", "operational-signals": "Anomalies",
+    "slice-analysis": "Slices", "evaluator-reliability": "Evaluator trust",
+    "review-queue": "Review queue", "security-findings": "Security",
+    "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
+    "failure-cases": "Failures", "recommendations": "Recommendations",
+    "change-attribution": "Change", "diagnosis": "RCA",
+    "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
+}
+
+
+def _build_toc(full_html: str) -> str:
+    """A compact sticky in-page nav — 23 sections is a lot to scroll through."""
+    ids = re.findall(r'<div class="gate-section"[^>]*id="([a-z-]+)"', full_html)
+    seen, links = set(), []
+    for sid in ids:
+        if sid in seen:
+            continue
+        seen.add(sid)
+        label = _TOC_LABELS.get(sid, sid.replace("-", " ").title())
+        links.append(
+            f'<a href="#{sid}" style="color:#475569;text-decoration:none;'
+            f'padding:2px 8px;border-radius:6px;white-space:nowrap;font-size:12px">'
+            f'{_esc(label)}</a>'
+        )
+    if len(links) < 4:
+        return ""
+    return (
+        '<div style="position:sticky;top:0;z-index:20;background:#fffffff2;'
+        'backdrop-filter:blur(4px);border:1px solid #e5e7eb;border-radius:10px;'
+        'padding:8px 10px;margin:0 0 24px;display:flex;flex-wrap:wrap;gap:2px 4px;'
+        'box-shadow:0 1px 3px rgba(0,0,0,.06)">'
+        '<span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:'
+        'uppercase;letter-spacing:.5px;padding:2px 4px">Jump to</span>'
+        + "".join(links) + '</div>'
+    )
+
+
 def _build_narrative_banner(narrative: str) -> str:
     """P17: the plain-English "what happened / what to do / how confident"
     sentences at the very top of the report — pasteable into a release ticket."""
@@ -3010,7 +3095,8 @@ def _build_narrative_banner(narrative: str) -> str:
 
 def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | None,
                              tcr: float, acc: float, total_tasks: int,
-                             ci: dict[str, Any] | None = None) -> str:
+                             ci: dict[str, Any] | None = None,
+                             verdict_obj: dict[str, Any] | None = None) -> str:
     """배포 준비도 한 줄 판정 + 확신도 배지 + 최우선 병목 + 다음 액션 1·2·3.
 
     새 판정 로직 없음 — Gate status와 rca.diagnose()의 component_shortfalls를
@@ -3059,28 +3145,56 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
 
     ordered = fails + warns
     actions = []
-    try:
-        from agent_evaluator.ontology.metric_registry import component_guidance_for
-    except Exception:
-        component_guidance_for = lambda _f: None  # noqa: E731
-    for k, _st, sc in ordered[:3]:
-        sf = shortfalls_by_gate.get(k) or []
-        if sf:
-            top = sf[0]
-            fld = str(top.get("field", "")).replace("avg_", "").replace("_", " ")
-            act = component_guidance_for(top.get("field", "")) or ""
-            hp = (f"{top['health'] * 100:.0f}%"
-                  if isinstance(top.get("health"), (int, float)) else "")
-            actions.append(
-                f'<li><strong>Gate {k}</strong> — fix <em>{_esc(fld)}</em>'
-                f'{f" ({hp})" if hp else ""}'
-                f'{f": {_esc(act)}" if act else ""}</li>'
-            )
-        else:
-            sc_s = f" (score {sc:.2f})" if isinstance(sc, (int, float)) else ""
-            actions.append(
-                f'<li><strong>Gate {k}</strong>{sc_s} — see the Gate {k} section below.</li>'
-            )
+    _v_actions = (verdict_obj or {}).get("next_actions") or []
+    if _v_actions:
+        # single source of truth — same next_actions the narrative uses (includes
+        # a security-finding action and a low-sample flag, see insights._verdict_section)
+        for a in _v_actions[:4]:
+            _g = a.get("gate")
+            _fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
+            _act = (a.get("action") or "").rstrip(".")
+            _hp = (f" ({a['health'] * 100:.0f}%)"
+                   if isinstance(a.get("health"), (int, float)) else "")
+            _tag = ""
+            if a.get("security"):
+                _tag = ' <span style="color:#dc2626;font-weight:700">SECURITY</span>'
+            elif a.get("low_sample"):
+                _tag = ' <span style="color:#9ca3af">(low sample — confirm first)</span>'
+            _lead = f'<strong>Gate {_g}</strong>' if _g else '<strong>Action</strong>'
+            if a.get("security"):
+                # a security action is a directive, not a "fix <component>"
+                _mid = f' — {_esc(_act)}' if _act else ''
+                _tail = ''
+            elif _fld:
+                _mid = f' — fix <em>{_esc(_fld)}</em>{_hp}'
+                _tail = f': {_esc(_act)}' if _act else ''
+            else:
+                _mid = f' — {_esc(_act)}' if _act else ''
+                _tail = ''
+            actions.append(f'<li>{_lead}{_tag}{_mid}{_tail}</li>')
+    else:
+        try:
+            from agent_evaluator.ontology.metric_registry import component_guidance_for
+        except Exception:
+            component_guidance_for = lambda _f: None  # noqa: E731
+        for k, _st, sc in ordered[:3]:
+            sf = shortfalls_by_gate.get(k) or []
+            if sf:
+                top = sf[0]
+                fld = str(top.get("field", "")).replace("avg_", "").replace("_", " ")
+                act = component_guidance_for(top.get("field", "")) or ""
+                hp = (f"{top['health'] * 100:.0f}%"
+                      if isinstance(top.get("health"), (int, float)) else "")
+                actions.append(
+                    f'<li><strong>Gate {k}</strong> — fix <em>{_esc(fld)}</em>'
+                    f'{f" ({hp})" if hp else ""}'
+                    f'{f": {_esc(act)}" if act else ""}</li>'
+                )
+            else:
+                sc_s = f" (score {sc:.2f})" if isinstance(sc, (int, float)) else ""
+                actions.append(
+                    f'<li><strong>Gate {k}</strong>{sc_s} — see the Gate {k} section below.</li>'
+                )
     actions_html = (
         f'<p style="margin:10px 0 4px;font-size:13px;font-weight:600;color:#374151">'
         f'Next actions (priority order):</p>'
@@ -3088,28 +3202,31 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         if actions else ""
     )
 
-    # P5: 판정 확신도 배지.
+    # P5: 판정 확신도 배지. verdict_obj가 있으면 그 값을 쓴다(insights와 동일 —
+    # judge_trust 강등 등 반영). 없으면 기존처럼 여기서 재계산.
     conf_html = ""
     try:
-        from agent_evaluator.utils.confidence import verdict_confidence
+        level = (verdict_obj or {}).get("confidence")
+        reasons = (verdict_obj or {}).get("confidence_reasons") or []
+        if level is None:
+            from agent_evaluator.utils.confidence import verdict_confidence
 
-        _drv = fails or warns   # 확신도를 좌우하는 주 Gate
-        _ncomp = None
-        _margin = None
-        if _drv:
-            _gk, _st, _sc = _drv[0]
-            _sf = shortfalls_by_gate.get(_gk)
-            if _sf is not None:
-                _ncomp = len(_sf)
-            if isinstance(_sc, (int, float)):
-                # warn/fail Gate 임계값은 status에서 유도 불가 → pass 기준 0.8 근사.
-                _margin = float(_sc) - 0.8
-        level, reasons = verdict_confidence(
-            n_tasks=total_tasks,
-            tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
-            n_gate_components=_ncomp,
-            margin_to_threshold=_margin,
-        )
+            _drv = fails or warns   # 확신도를 좌우하는 주 Gate
+            _ncomp = None
+            _margin = None
+            if _drv:
+                _gk, _st, _sc = _drv[0]
+                _sf = shortfalls_by_gate.get(_gk)
+                if _sf is not None:
+                    _ncomp = len(_sf)
+                if isinstance(_sc, (int, float)):
+                    _margin = float(_sc) - 0.8
+            level, reasons = verdict_confidence(
+                n_tasks=total_tasks,
+                tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+                n_gate_components=_ncomp,
+                margin_to_threshold=_margin,
+            )
         _cc = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444"}[level]
         _why = f" — {_esc('; '.join(reasons))}" if reasons else ""
         conf_html = (
@@ -3281,6 +3398,13 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             _shortfalls = shortfalls_by_gate.get(key) or []
             _ncomp = len(_shortfalls)
 
+            # components measured below their minimum sample size — flag them so a
+            # recommendation on a shaky metric is visible as such.
+            _low_samp = {
+                str(_w).split(":", 1)[0].strip().lower()
+                for _w in (gdata.get("details") or {}).get("insufficient_data_warnings") or []
+            }
+
             # 이 Gate에서 가장 낮은 컴포넌트 2개 → 구체 조치.
             comp_html = ""
             comp_items = []
@@ -3290,7 +3414,10 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                 _act = component_guidance_for(_fld) or _diag_native_rule_guidance(_fld)
                 _hp = f"{_health * 100:.0f}%" if isinstance(_health, (int, float)) else "—"
                 _label_txt = _esc(_fld.replace("avg_", "").replace("_", " "))
-                _bits = (f'<li><strong>{_label_txt}</strong> ({_hp})'
+                _fld_norm = str(_fld).replace("avg_", "").strip().lower()
+                _ls = (' <span style="color:#9ca3af">(low sample — confirm first)</span>'
+                       if _fld_norm in _low_samp else '')
+                _bits = (f'<li><strong>{_label_txt}</strong> ({_hp}){_ls}'
                          + (f' — {_esc(_act)}' if _act else '') + '</li>')
                 comp_items.append(_bits)
             if comp_items:
@@ -3964,8 +4091,9 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         pass
 
     _tasks_list = list(getattr(monitor, "tasks", []) or [])
-    # report.to_dict() (monitor path) carries no tasks[] and no evaluators.security —
-    # graft both so the insight layer (narrative / security_findings / …) sees them.
+    # report.to_dict() (monitor path) carries no tasks[] / evaluators.security /
+    # pricing — graft them so the insight layer (narrative / security_findings /
+    # cost_economics / …) works from the live monitor exactly as from a saved file.
     _ins_input: dict[str, Any] = dict(current_dict) if isinstance(current_dict, dict) else {}
     if not _ins_input.get("tasks"):
         _ins_input["tasks"] = _review_dict_tasks(_tasks_list)
@@ -3975,6 +4103,11 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
             _ins_input.setdefault("evaluators", {})["security"] = _sec
     except Exception:
         pass
+    if not _ins_input.get("pricing"):
+        _pricing = getattr(getattr(monitor, "token_tracker", None), "pricing", None) \
+            or getattr(monitor, "pricing", None)
+        if isinstance(_pricing, dict) and _pricing:
+            _ins_input["pricing"] = _pricing
     _narrative = ""
     _insights_obj: dict[str, Any] = {}
     try:
@@ -4024,12 +4157,12 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
-        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
+        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, current_dict),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, _ins_input),
         _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
@@ -4053,6 +4186,9 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
+    _toc = _build_toc(''.join(x for x in parts if isinstance(x, str)))
+    if _toc:
+        parts.insert(2, _toc)
     return ''.join(parts)
 
 
@@ -4236,12 +4372,12 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
-        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
+        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, current_dict),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, _ins_input),
         _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
@@ -4265,6 +4401,9 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
+    _toc = _build_toc(''.join(x for x in parts if isinstance(x, str)))
+    if _toc:
+        parts.insert(2, _toc)
     return ''.join(parts)
 
 

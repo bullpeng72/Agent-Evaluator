@@ -30,6 +30,29 @@ from agent_evaluator.quick_eval import _compute_gate_regressions, _normalize_gat
 
 _NON_NUMERIC_DETAIL_KEYS = frozenset({"insufficient_data_warnings"})
 
+# SPEC-041: config constants and pre-penalty intermediates are not "metrics that
+# moved" — they must not appear in top_detail_deltas (e.g. gate_c_tcr_weight
+# showing up with delta 0.0 in the regression table). Same intent as
+# _SHORTFALL_EXCLUDE_* in this module, applied to the regression-mode path too.
+_DETAIL_EXCLUDE_KEYS = frozenset({
+    "perf_score_pre_sla_penalty", "gate_a_tcr_weight", "gate_b_loop_weight",
+    "gate_c_tcr_weight", "tasks_with_ifr",
+})
+_DETAIL_EXCLUDE_SUFFIXES = ("_weight", "_penalty")
+_DETAIL_EXCLUDE_PREFIXES = ("gate_a_", "gate_b_", "gate_c_", "gate_d_", "gate_e_",
+                            "gate_f_", "gate_g_")
+
+
+def _is_excluded_detail_key(key: str) -> bool:
+    if key in _NON_NUMERIC_DETAIL_KEYS or key in _DETAIL_EXCLUDE_KEYS:
+        return True
+    if any(key.endswith(s) for s in _DETAIL_EXCLUDE_SUFFIXES):
+        return True
+    # a "gate_x_*" key is a scoring knob, not a measured detail — but keep the
+    # common measured fields that legitimately start with a gate letter (none do
+    # today; the guard is here so an accidental future collision is visible).
+    return any(key.startswith(p) for p in _DETAIL_EXCLUDE_PREFIXES)
+
 
 def _extract_harness_groups(report: dict[str, Any] | None) -> dict[str, Any]:
     if not report:
@@ -87,7 +110,7 @@ def _numeric_detail_deltas(
     keys = set(current_details.keys())
     if baseline_details:
         keys |= set(baseline_details.keys())
-    keys -= _NON_NUMERIC_DETAIL_KEYS
+    keys = {k for k in keys if not _is_excluded_detail_key(k)}
 
     deltas: list[dict[str, Any]] = []
     for key in keys:
