@@ -2867,6 +2867,22 @@ _GATE_FULL = {
 }
 
 
+def _build_narrative_banner(narrative: str) -> str:
+    """P17: the plain-English "what happened / what to do / how confident"
+    sentences at the very top of the report — pasteable into a release ticket."""
+    if not narrative or not narrative.strip():
+        return ""
+    return (
+        '<div class="gate-section" id="narrative" '
+        'style="border-left-color:#1e2030;background:#f8fafc">'
+        '<p style="font-size:14px;line-height:1.65;color:#1e2030;margin:0">'
+        f'{_esc(narrative.strip())}</p>'
+        '<p style="font-size:11px;color:#9ca3af;margin:6px 0 0">'
+        'Auto-generated summary — see the sections below for the evidence.</p>'
+        '</div>'
+    )
+
+
 def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | None,
                              tcr: float, acc: float, total_tasks: int,
                              ci: dict[str, Any] | None = None) -> str:
@@ -3823,6 +3839,19 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         pass
 
     _tasks_list = list(getattr(monitor, "tasks", []) or [])
+    _narrative = ""
+    try:
+        from agent_evaluator.reporting.insights import build_insights as _build_insights
+        # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
+        # task dicts on so the insight narrative sees real task data.
+        _ins_input = current_dict
+        if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
+            _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
+        _narrative = (_build_insights(
+            _ins_input, baseline, recommendation_log_path=recommendation_log_path,
+        ) or {}).get("narrative", "")
+    except Exception:
+        pass
     _res_dir = getattr(monitor, "output_dir", None)
     _cur_file = None
     failure_cases_html = ""
@@ -3861,6 +3890,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
     parts = [
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
+        _build_narrative_banner(_narrative),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
@@ -4031,6 +4061,19 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
     _tasks_list = list(getattr(rf, "tasks", []) or [])
     _cur_file = getattr(rf, "path", None)
     _res_dir = str(Path(_cur_file).parent) if _cur_file else None
+    _narrative = ""
+    try:
+        from agent_evaluator.reporting.insights import build_insights as _build_insights
+        # report.to_dict() (monitor path) carries no tasks[] — graft the normalized
+        # task dicts on so the insight narrative sees real task data.
+        _ins_input = current_dict
+        if not (isinstance(current_dict, dict) and current_dict.get("tasks")):
+            _ins_input = {**(current_dict or {}), "tasks": _review_dict_tasks(_tasks_list)}
+        _narrative = (_build_insights(
+            _ins_input, baseline, recommendation_log_path=recommendation_log_path,
+        ) or {}).get("narrative", "")
+    except Exception:
+        pass
     failure_cases_html = ""
     try:
         failure_cases_html = _build_failure_cases(
@@ -4055,6 +4098,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
     parts = [
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
+        _build_narrative_banner(_narrative),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),

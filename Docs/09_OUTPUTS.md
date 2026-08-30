@@ -53,7 +53,7 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | **결과 JSON** | `.json` 파일 | `monitor.save_to_file()` / `QuickEval.save()` | 도구·CI·로더 | L1–L6 (전부, 기계 판독 — `extra_metrics.insights`) |
 | **단일 HTML 리포트** | self-contained `.html` | `save_to_file()`가 `.json`과 함께 자동 생성 / 대시보드 Export | 개발자·QM | L2–L6 |
 | **비교 HTML 리포트** | self-contained `.html` | 대시보드 File Compare → Export / `/html/compare` | 개발자·QM | L2–L3 델타 + per-task 회귀/개선 |
-| **`agent-eval gate`** | 터미널 표 + exit code + JUnit XML | CI 파이프라인 / 수동 | CI·QM | L3–L4 (+`--explain` 시 L5·L6 요약) |
+| **`agent-eval gate`** | 터미널 표 + exit code + JUnit XML | CI 파이프라인 / 수동 | CI·QM | L3–L4 + **"Summary" 자연어 내러티브**(SPEC-041 P17) (+`--explain` 시 L5·L6 요약) |
 | **`agent-eval diagnose`** | 터미널 (RCA 3단계) | 수동 (실패 원인 파고들 때) | 개발자 | L5 (+baseline 시 L5 회귀 귀속) |
 | **`agent-eval abtest`** | 터미널 (통계 유의성) | 수동 (v1 vs v2 비교) | 개발자·QM | L2 통계 (Welch/mSPRT/FDR) |
 | **`agent-eval trend`** | 터미널 (slope 추세) | CI / 수동 (여러 run 시계열) | QM·CI | L2 추세 (+회귀 시 git diff) |
@@ -113,7 +113,8 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | # | 섹션 (`id`) | 계층 | 내용 | 조건 |
 |---|-------------|------|------|------|
 | 0 | 헤더 | L2 | 날짜 · 태스크 수 · 버전 · TCR/Accuracy `(95% CI …)` · Latency · Gate A–G 배지 | 항상 |
-| 1 | **Executive Summary** (`exec-summary`) | **L6** | 배포 준비도 한 줄 판정 (`❌ Not deployment-ready` / `⚠️ Deploy with caution` / `✅ Deployment-ready`) + **`HIGH/MEDIUM/LOW CONFIDENCE` 배지**(표본 수·CI 폭·측정 컴포넌트 수·임계값 여유) + 병목 Gate + **Next actions 1·2·3** (fail 먼저, 각 Gate 최약 컴포넌트 + 조치) | 항상 |
+| 0b | **Narrative** (`narrative`) | **L6** | 배포 준비도 + 최약 병목 + 리뷰 큐 + 평가기 신뢰도 + 비용 투사를 2~4문장 영어로 (SPEC-041 P17). `build_insights(narrator=…)`로 LLM 작성 대체 가능 | narrative 있을 때 |
+| 1 | **Executive Summary** (`exec-summary`) | **L6** | 배포 준비도 한 줄 판정 (`❌ Not deployment-ready` / `⚠️ Deploy with caution` / `✅ Deployment-ready`) + **`HIGH/MEDIUM/LOW CONFIDENCE` 배지**(표본 수·CI 폭·측정 컴포넌트 수·임계값 여유·**평가기 신뢰도 P14**) + 병목 Gate + **Next actions 1·2·3** (fail 먼저, 각 Gate 최약 컴포넌트 + 조치) | 항상 |
 | 2 | Scorecard | L3 | Gate A–G 카드 (score bar + status 배지) | 항상 |
 | 3 | Gate A–G 상세 (`gate-a`…`gate-g`) | L3 | **Score Breakdown** (산식 + 컴포넌트별 raw value/기여도/note) + KPI + 상세 표. 측정 컴포넌트 ≤2 & score<90이면 "대표성 낮음" 경고. **전 Gate `insufficient_data_warnings`**(표본 부족 컴포넌트) 노출. **Gate D**: **Latency Budget** (SPEC-041 P7) — model/tool/network/unattributed 스택바 + `Bottleneck: <component>`; **Cost Efficiency** (SPEC-041 P16) — 성공 태스크당 비용(× cost/task) · 실패 낭비 · 재시도 burn · 10만 콜 투사 | 항상 (미측정 항목은 `⚙️ Not Configured` / `📉 Insufficient Data` / `➖ Not Applicable` 배너) |
 | 4 | Advanced Metrics (`advanced`) | L2 | DeepEval · Ragas · 멀티턴 대화 세션 | 데이터 있을 때 |

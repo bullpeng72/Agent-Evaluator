@@ -856,6 +856,8 @@ review_queue{n_items, by_priority{high, medium, low}, items[]{task_id, priority,
 cost_economics{total_cost_usd, cost_source, cost_per_task_usd, cost_per_successful_task_usd, wasted_cost_usd,
 wasted_cost_pct, retry_cost_usd, retry_cost_pct, projection{calls, total_usd, wasted_usd}}|null
 (SPEC-041 P16 — 성공 태스크당 비용·실패/재시도 낭비·10만 콜 투사. per-task 토큰×pricing, 없으면 집계 균등분할),
+narrative: str (SPEC-041 P17 — 배포 준비도 판정 + 최약 병목 + 리뷰/신뢰도 + 비용 투사를 2~4문장 영어로.
+`build_insights(narrator=<callable>)`로 LLM 작성 대체 가능, 실패 시 결정적 템플릿 폴백),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -925,6 +927,14 @@ needs_human_review:True}` 골든 케이스로 `GoldenSetBuilder.merge_to_golden(
 (= total / _effective_fail 아닌 태스크 수) · **wasted_cost**(실패 태스크 비용 합) · **retry_cost**
 (attempts>1 태스크의 `cost×(attempts-1)/attempts`) · **projection**(10만 콜 total/wasted USD). 대시보드
 Improve 탭 패널. `_build_gate_d`에 `current` 인자 추가.
+
+**SPEC-041 P17 (자연어 내러티브)** — `reporting/insights.py::_narrative_section` — 조립된 `insights`
+dict에서 verdict 문구·confidence·next_actions[0](최약 컴포넌트+조치)·review_queue·evaluator_trust·
+cost_economics.projection을 2~4문장 영어로 합성(`_narrative_from_template`, 결정적). `build_insights(...,
+narrator=Callable[[insights_dict], str])`로 LLM 작성 대체 — narrator가 raise/non-str이면 템플릿 폴백.
+`out["narrative"]`. `comprehensive_report.py::_build_narrative_banner`(리포트 최상단 `narrative` 섹션,
+헤더 다음), `cli/gate.py::_print_narrative`(`agent-eval gate` 표 다음 "Summary"). monitor 경로는
+`report.to_dict()`에 tasks[]가 없어 `_review_dict_tasks(_tasks_list)`를 graft해서 넘긴다.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

@@ -496,6 +496,64 @@ class TestCostEconomics:
         assert build_insights(rpt)["cost_economics"] is None
 
 
+class TestNarrative:
+    def _failing_report(self):
+        tasks = [
+            {"task_id": f"t{i}", "task_type": "qa", "success": i % 3 != 0,
+             "question": "q", "response": "r", "ground_truth": "gt",
+             "accuracy_score": 0.9 if i % 3 != 0 else 0.2,
+             "completion_score": 1.0 if i % 3 != 0 else 0.1,
+             "tokens_used": {"input": 900, "output": 500, "total": 1400}}
+            for i in range(18)
+        ]
+        rpt = _report(
+            {"A": {"score": 0.45, "status": "fail", "gate": "fail",
+                   "details": {"tcr_pct": 45.0, "avg_subtask_completion": 0.35}}},
+            tasks,
+        )
+        rpt["pricing"] = {"input": 0.003, "output": 0.015}
+        return rpt
+
+    def test_template_narrative_is_present_and_factual(self):
+        n = build_insights(self._failing_report())["narrative"]
+        assert n.startswith("Not deployment-ready")
+        assert "Gate A" in n
+        assert "Confidence is" in n
+        assert "100,000 calls" in n
+
+    def test_ready_report_has_short_positive_narrative(self):
+        rpt = _report(
+            {"A": {"score": 0.95, "status": "pass", "gate": "pass", "details": {}}},
+            [{"task_id": f"t{i}", "task_type": "qa", "success": True,
+              "accuracy_score": 0.95, "completion_score": 1.0} for i in range(30)],
+        )
+        n = build_insights(rpt)["narrative"]
+        assert n.startswith("Deployment-ready")
+
+    def test_narrator_callable_overrides_template(self):
+        n = build_insights(
+            self._failing_report(), narrator=lambda d: "LLM-written summary.",
+        )["narrative"]
+        assert n == "LLM-written summary."
+
+    def test_narrator_gets_insights_without_narrative_key(self):
+        seen = {}
+
+        def _narr(d):
+            seen["keys"] = set(d.keys())
+            return "ok"
+
+        build_insights(self._failing_report(), narrator=_narr)
+        assert "verdict" in seen["keys"]
+        assert "narrative" not in seen["keys"]
+
+    def test_broken_narrator_falls_back_to_template(self):
+        n = build_insights(
+            self._failing_report(), narrator=lambda d: 1 / 0,
+        )["narrative"]
+        assert n.startswith("Not deployment-ready")
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

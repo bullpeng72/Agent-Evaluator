@@ -1143,6 +1143,97 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Narrative (P17) — the 2-4 plain-English sentences a QA lead pastes into a
+# release ticket. Deterministic template by default; a `narrator` callable can
+# replace it with an LLM-written version (falls back to the template on error).
+# ---------------------------------------------------------------------------
+_NARRATIVE_VERDICT_PHRASE = {
+    "not_ready": "Not deployment-ready",
+    "caution": "Deploy with caution",
+    "ready": "Deployment-ready",
+    "unknown": "No deployment verdict (no Harness Gate data)",
+}
+
+
+def _narrative_from_template(ins: dict[str, Any]) -> str:
+    v = ins.get("verdict") or {}
+    parts: list[str] = []
+
+    phrase = _NARRATIVE_VERDICT_PHRASE.get(v.get("level"), "Evaluation complete")
+    head = v.get("headline") or ""
+    conf = v.get("confidence")
+    s1 = f"{phrase}"
+    if head and v.get("level") in ("not_ready", "caution"):
+        s1 += f": {head[0].lower() + head[1:]}"
+    if conf:
+        why = (v.get("confidence_reasons") or [])
+        s1 += f". Confidence is {conf.upper()}"
+        if why:
+            s1 += f" ({why[0]})"
+    parts.append(s1 + ".")
+
+    acts = v.get("next_actions") or []
+    if acts:
+        a = acts[0]
+        fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
+        act_txt = (a.get("action") or "").rstrip(".")
+        if fld:
+            hp = ""
+            if isinstance(a.get("health"), (int, float)):
+                hp = f" ({a['health'] * 100:.0f}%)"
+            s2 = f"The biggest measured shortfall is {fld}{hp} in Gate {a.get('gate')}"
+            if act_txt:
+                s2 += f" — {act_txt[0].lower() + act_txt[1:]}"
+            parts.append(s2 + ".")
+
+    rq = ins.get("review_queue") or {}
+    et = ins.get("evaluator_trust") or {}
+    extras: list[str] = []
+    if rq.get("n_items"):
+        hi = (rq.get("by_priority") or {}).get("high", 0)
+        extras.append(
+            f"{rq['n_items']} task(s) are flagged for human review"
+            + (f" ({hi} high-priority)" if hi else "")
+        )
+    if et.get("trust_level") in ("low", "medium"):
+        extras.append(
+            f"the LLM judge has {et['trust_level']} reliability for this run"
+        )
+    if extras:
+        parts.append(extras[0][0].upper() + extras[0][1:] + (
+            f"; {extras[1]}." if len(extras) > 1 else "."
+        ))
+
+    ce = ins.get("cost_economics") or {}
+    proj = ce.get("projection") or {}
+    if proj.get("total_usd"):
+        s = f"At {proj.get('calls', 100000):,} calls this configuration costs " \
+            f"about ${proj['total_usd']:,.0f}"
+        if proj.get("wasted_usd"):
+            s += f", of which about ${proj['wasted_usd']:,.0f} is wasted on failed tasks"
+        parts.append(s + ".")
+
+    return " ".join(parts)
+
+
+def _narrative_section(ins: dict[str, Any], narrator: Any = None) -> str:
+    template = ""
+    try:
+        template = _narrative_from_template(ins)
+    except Exception:  # pragma: no cover - defensive
+        template = ""
+    if narrator is None:
+        return template
+    try:
+        written = narrator({k: v for k, v in ins.items() if k != "narrative"})
+        if isinstance(written, str) and written.strip():
+            return written.strip()
+    except Exception:  # pragma: no cover - narrator is user code
+        pass
+    return template
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -1153,6 +1244,7 @@ def build_insights(
     recommendation_log_path: str | Path | None = None,
     with_experiment_metadata: bool = False,
     repo_path: str | Path = ".",
+    narrator: Any = None,
 ) -> dict[str, Any]:
     """Compute the machine-readable insight object for a result JSON.
 
@@ -1234,6 +1326,7 @@ def build_insights(
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
+    out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     return out
 
 

@@ -698,6 +698,26 @@ def _print_rca_explain(data: dict[str, Any]) -> None:
     print()
 
 
+def _print_narrative(data: dict[str, Any]) -> None:
+    """Print the plain-English insight narrative (SPEC-041 P17) — the 2-4
+    sentences a QA lead pastes into a release ticket. Silent on any failure."""
+    try:
+        from agent_evaluator.reporting.insights import build_insights
+
+        narrative = (build_insights(data) or {}).get("narrative", "")
+    except Exception:
+        return
+    if not narrative or not narrative.strip():
+        return
+    print()
+    print(f"  {B}Summary{R}")
+    import textwrap
+
+    for line in textwrap.wrap(narrative.strip(), width=88):
+        print(f"  {line}")
+    print(f"  {_SEP}")
+
+
 def _print_table(
     gate_results: list[dict[str, Any]],
     result_path: str,
@@ -1043,6 +1063,9 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # ── 출력 ────────────────────────────────────────────────────────────────
     _print_table(gate_results, str(result_file), regressions if regressions else None, composite_result)
+
+    # ── Plain-English summary (SPEC-041 P17) ────────────────────────────────
+    _print_narrative(data)
 
     # ── RCA 요약 (SPEC-041 P2.2) ────────────────────────────────────────────
     # 실패(임계값/복합/Gate임계값/회귀/골든셋) 시 기본 표시, --explain은 항상, --no-explain은 억제.
