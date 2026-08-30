@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -2286,6 +2287,119 @@ def _task_context(t: Any) -> str:
     return getattr(t, "context", "") or ""
 
 
+def _spark_svg(values: list[float], *, lo: float = 0.0, hi: float = 1.0,
+               w: int = 110, h: int = 22, color: str = "#6366f1") -> str:
+    """Tiny inline SVG sparkline for a 0–1 series."""
+    pts = [v for v in values if isinstance(v, (int, float))]
+    if len(pts) < 2:
+        return ""
+    span = (hi - lo) or 1.0
+    step = w / (len(pts) - 1)
+    coords = " ".join(
+        f"{i * step:.1f},{h - (min(max(v, lo), hi) - lo) / span * (h - 2) - 1:.1f}"
+        for i, v in enumerate(pts)
+    )
+    last = pts[-1]
+    cy = h - (min(max(last, lo), hi) - lo) / span * (h - 2) - 1
+    return (
+        f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
+        f'style="vertical-align:middle">'
+        f'<polyline points="{coords}" fill="none" stroke="{color}" stroke-width="1.5"/>'
+        f'<circle cx="{(len(pts) - 1) * step:.1f}" cy="{cy:.1f}" r="2" fill="{color}"/>'
+        f'</svg>'
+    )
+
+
+def _build_history_trend(results_dir: Any, current_file: Any = None) -> str:
+    """P13: scan sibling result files → per-Gate sparkline + "down N runs in a
+    row" badge. A single report is point-in-time; this adds the direction."""
+    if not results_dir:
+        return ""
+    try:
+        from agent_evaluator.reporting.history import scan_history, trend_summary
+
+        hist = scan_history(results_dir, exclude=current_file)
+        summ = trend_summary(hist)
+    except Exception:
+        return ""
+    if summ.get("n_runs", 0) < 3:
+        return ""   # need a few runs before a trend is meaningful
+
+    rows = ""
+    for g in "ABCDEFG":
+        gs = (summ.get("gates") or {}).get(g)
+        if not gs:
+            continue
+        series = [r["gate_scores"].get(g) for r in hist]
+        series = [s for s in series if isinstance(s, (int, float))]
+        slope = gs["slope"]
+        dec = gs["consecutive_decline"]
+        col = "#dc2626" if slope < -0.02 else ("#059669" if slope > 0.02 else "#6b7280")
+        badge = ""
+        if dec >= 2:
+            badge = (f'<span style="background:#fee2e2;color:#b91c1c;font-size:11px;'
+                     f'font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px">'
+                     f'↓ {dec} runs in a row</span>')
+        rows += (
+            f'<tr><td style="font-weight:600">Gate {g}</td>'
+            f'<td>{_spark_svg(series, color=col)}</td>'
+            f'<td style="white-space:nowrap;font-size:12px">{gs["first"]:.2f} → '
+            f'<strong>{gs["last"]:.2f}</strong> '
+            f'<span style="color:{col}">({slope:+.2f})</span>{badge}</td></tr>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<div class="gate-section" id="history-trend" style="border-left-color:#0ea5e9">'
+        f'<h2 style="color:#1e2030">Trend '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'(last {summ["n_runs"]} runs in this directory)</span></h2>'
+        '<table class="mtable"><tbody>' + rows + '</tbody></table>'
+        '</div>'
+    )
+
+
+def _build_change_ledger(results_dir: Any) -> str:
+    """P13: recommendation_outcomes.jsonl as a browsable "which change moved
+    which Gate" table — the static-report counterpart of the dashboard's
+    Recommendation Outcome History."""
+    if not results_dir:
+        return ""
+    try:
+        from agent_evaluator.reporting.history import load_change_ledger
+
+        recs = load_change_ledger(results_dir)
+    except Exception:
+        return ""
+    if not recs:
+        return ""
+    rows = ""
+    for r in recs:
+        verd = str(r.get("verdict") or "")
+        col = {"confirmed": "#059669", "refuted": "#dc2626"}.get(verd, "#6b7280")
+        d = r.get("gate_delta")
+        d_s = f'{d:+.3f}' if isinstance(d, (int, float)) else "—"
+        rows += (
+            f'<tr><td style="font-size:11px;color:#6b7280;white-space:nowrap">'
+            f'{_esc(str(r.get("recorded_at") or "")[:19].replace("T", " "))}</td>'
+            f'<td>{_esc(_clip(str(r.get("recommendation_id") or r.get("note") or "—"), 60))}</td>'
+            f'<td style="white-space:nowrap">{_esc(str(r.get("target_gate") or "—"))}</td>'
+            f'<td style="color:{col};font-weight:600">{_esc(verd or "—")}</td>'
+            f'<td style="text-align:right;white-space:nowrap">{d_s}</td>'
+            f'<td style="font-size:11px;color:#6b7280">{_esc(_clip(str(r.get("note") or ""), 80))}</td></tr>'
+        )
+    return (
+        '<div class="gate-section" id="change-ledger" style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">Change Ledger '
+        '<span style="font-size:13px;color:#6b7280">(recorded improvement outcomes)</span></h2>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Recorded</th><th>Change</th><th>Gate</th><th>Verdict</th>'
+        '<th>Δ score</th><th>Note</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+        '</div>'
+    )
+
+
 def _build_eval_set_quality(tasks: list[Any] | None,
                             baseline: dict[str, Any] | None,
                             harness_groups: dict[str, Any]) -> str:
@@ -3475,6 +3589,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         pass
 
     _tasks_list = list(getattr(monitor, "tasks", []) or [])
+    _res_dir = getattr(monitor, "output_dir", None)
+    _cur_file = None
     failure_cases_html = ""
     try:
         failure_cases_html = _build_failure_cases(
@@ -3530,6 +3646,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
         diagnosis_html,
+        _build_history_trend(_res_dir, _cur_file),
+        _build_change_ledger(_res_dir),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
@@ -3675,6 +3793,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         pass
 
     _tasks_list = list(getattr(rf, "tasks", []) or [])
+    _cur_file = getattr(rf, "path", None)
+    _res_dir = str(Path(_cur_file).parent) if _cur_file else None
     failure_cases_html = ""
     try:
         failure_cases_html = _build_failure_cases(
@@ -3718,6 +3838,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
         diagnosis_html,
+        _build_history_trend(_res_dir, _cur_file),
+        _build_change_ledger(_res_dir),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]

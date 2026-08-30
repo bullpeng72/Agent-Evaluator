@@ -705,6 +705,12 @@ agent_evaluator/
 ├── reporting/                # 출력 표면 전체 지도·정보 계층(L1~L6)·역할별 워크플로우는
 │                             #  docs/09_OUTPUTS.md에 정리(결과 JSON·HTML 리포트·CLI·대시보드·
 │                             #  AI 런타임 출력). 새 출력 섹션/필드를 추가하면 그 문서도 갱신.
+│   ├── history.py            # scan_history(results_dir, *, limit=20, exclude=None) — 형제 결과 JSON을
+│   │                          #  훑어 [{file, timestamp, tcr, gate_scores, overall}] (시간순). trend_summary()
+│   │                          #  는 per-Gate first/last/slope + consecutive_decline(최신부터 연속 하락 수).
+│   │                          #  load_change_ledger()는 recommendation_outcomes.jsonl을 최신순 리스트로.
+│   │                          #  순수 stdlib, 나쁜 파일은 건너뜀. comprehensive_report의 Trend/Change
+│   │                          #  Ledger 섹션(SPEC-041 P13)이 소비.
 │   ├── insights.py           # build_insights(current, baseline=None, *, recommendation_log_path=None)
 │   │                          #  — 머신 판독 인사이트 계층(L5/L6)을 JSON 직렬화 가능한 한 객체로.
 │   │                          #  rca.diagnose()·utils.confidence·ontology.metric_registry·
@@ -868,6 +874,13 @@ grounding→프롬프트/temperature, generation→few-shot/검증}, unsupported
 task_type 5:1 이상 불균형 / <20 태스크) · suspicious_ground_truth(baseline 필요 — 같은 task가 두 run 모두
 acc<0.35에 |Δ|<0.05로 실패 → 라벨/질문 의심, gt 토큰<3이면 "very short" 힌트). 리포트 섹션
 `eval-set-quality`, 대시보드 Improve 탭 패널.
+
+**SPEC-041 P13 (종단 뷰)** — `reporting/history.py` + `comprehensive_report.py::_build_history_trend` /
+`_build_change_ledger`: 단일 정적 리포트는 point-in-time이라 "Gate D가 3 run 연속 하락"을 못 말한다.
+같은 디렉터리의 형제 결과 JSON을 훑어 per-Gate 인라인 SVG 스파크라인(`_spark_svg`) + first→last(slope) +
+"↓ N runs in a row" 배지(consecutive_decline≥2), 그리고 recommendation_outcomes.jsonl을 "어느 변경이 어느
+Gate를 움직였나" 표로. 리포트 섹션 `history-trend`·`change-ledger`(≥3 run일 때만). monitor 경로는
+`monitor.output_dir`, rf 경로는 `Path(rf.path).parent`에서 디렉터리 도출.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
