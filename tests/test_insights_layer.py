@@ -157,6 +157,36 @@ class TestRecommendations:
         assert build_insights(rpt)["recommendations"] == []
 
 
+class TestLatencyBudget:
+    def test_aggregates_span_attribution_and_modal_bottleneck(self):
+        def _t(tid, model_ms, tool_ms):
+            d = _task(tid, ok=False)
+            d["extra"] = {"latency_attribution": {
+                "model_ms": model_ms, "tool_ms": tool_ms, "network_ms": 10.0,
+                "unattributed_ms": 0.0, "model_ratio": model_ms / (model_ms + tool_ms + 10),
+                "tool_ratio": tool_ms / (model_ms + tool_ms + 10),
+                "bottleneck": "model" if model_ms >= tool_ms else "tool",
+            }}
+            return d
+
+        rpt = _report(
+            {"D": {"score": 0.5, "status": "warn", "gate": "warn", "details": {}}},
+            [_t("a", 1400, 300), _t("b", 1200, 400), _t("c", 200, 900)],
+        )
+        lb = build_insights(rpt)["latency_budget"]
+        assert lb["n_tasks"] == 3
+        assert lb["bottleneck"] == "model"          # 2 of 3
+        assert lb["bottleneck_share"] == pytest.approx(2 / 3, abs=0.01)
+        assert lb["model_ms"] == pytest.approx((1400 + 1200 + 200) / 3, abs=0.1)
+
+    def test_none_when_no_attribution_data(self):
+        rpt = _report(
+            {"D": {"score": 0.5, "status": "warn", "gate": "warn", "details": {}}},
+            [_task("t1", ok=False)],
+        )
+        assert build_insights(rpt)["latency_budget"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

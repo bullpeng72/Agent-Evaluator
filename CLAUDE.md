@@ -826,8 +826,17 @@ guidance, config_hint}, top_detail_deltas[]}, failure_clusters[]{signature, task
 example_task_ids}, failure_lineage{regressed, persistent, new, fixed}|null, recommendations[]{gate, status,
 label, guidance, shortfalls[], code_snippet, experiment{predicted_gate_delta, recommended_tasks, command}|null,
 past_outcomes{confirmed, refuted, avg_delta}|null, baseline_verdict{verdict, delta}|null},
+latency_budget{n_tasks, tool_ms, model_ms, network_ms, unattributed_ms, *_ratio, bottleneck, bottleneck_share}|null
+(SPEC-041 P7 — eval_latency_attribution의 per-task span 분해를 평균낸 것, 모달 bottleneck),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
+
+**SPEC-041 P7 (궤적 가시성)** — `reporting/comprehensive_report.py`:
+`_build_latency_budget(tasks, p95)`(Gate D 섹션) — "P95 4.0s"를 model/tool/network/unattributed 스택바 +
+"Bottleneck: model" 한 줄로 분해. `insights.aggregate_latency_attribution()` 재사용.
+`_build_trajectory(case)`(실패 케이스 표의 각 행에 `<details>`) — `tool_calls`→`chain_steps`→`agent_interactions`
+순으로 step→tool→인자/출력 요약→✓/✗ + 스텝별 duration/토큰. 스텝 데이터 없는 태스크(순수 QA)는 "".
+`_norm_task_for_case`가 tool_calls/chain_steps/agent_interactions도 담는다. `_build_gate_d`가 `tasks` 인자 추가.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

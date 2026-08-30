@@ -97,6 +97,58 @@ def _task_reason(t: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Latency attribution (P7) — aggregate the per-task span breakdown that
+# gate_g_observability.eval_latency_attribution() computes but only exposes as a
+# single 0-1 score. This turns "P95 = 4.0s" into "2.1s model + 1.3s tool + 0.6s
+# unattributed; bottleneck = model".
+# ---------------------------------------------------------------------------
+
+_ATTR_COMPONENTS = ("tool", "model", "network", "unattributed")
+
+
+def aggregate_latency_attribution(
+    attr_dicts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Mean the per-task ``latency_attribution`` dicts and pick the modal bottleneck.
+
+    Each input dict is the output of ``eval_latency_attribution`` (keys
+    ``tool_ms``, ``model_ms``, ``tool_ratio`` … ``bottleneck``). Returns ``None``
+    when no task carried attribution data.
+    """
+    rows = [d for d in attr_dicts if isinstance(d, dict)]
+    if not rows:
+        return None
+    n = len(rows)
+    out: dict[str, Any] = {"n_tasks": n}
+    for comp in _ATTR_COMPONENTS:
+        ms_vals = [_safe_float(d.get(f"{comp}_ms"), 0.0) or 0.0 for d in rows]
+        ratio_vals = [_safe_float(d.get(f"{comp}_ratio"), None) for d in rows]
+        ratio_vals = [r for r in ratio_vals if r is not None]
+        out[f"{comp}_ms"] = round(sum(ms_vals) / n, 2)
+        if ratio_vals:
+            out[f"{comp}_ratio"] = round(sum(ratio_vals) / len(ratio_vals), 4)
+    counts: dict[str, int] = defaultdict(int)
+    for d in rows:
+        b = str(d.get("bottleneck") or "").strip()
+        if b:
+            counts[b] += 1
+    if counts:
+        bottleneck, hits = max(counts.items(), key=lambda kv: kv[1])
+        out["bottleneck"] = bottleneck
+        out["bottleneck_share"] = round(hits / n, 4)
+    return out
+
+
+def _extract_task_attr(t: dict[str, Any]) -> dict[str, Any] | None:
+    extra = t.get("extra")
+    if isinstance(extra, dict):
+        la = extra.get("latency_attribution")
+        if isinstance(la, dict):
+            return la
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Sections
 # ---------------------------------------------------------------------------
 
@@ -566,6 +618,12 @@ def build_insights(
             _recommendations_section, hg, diagnosis,
             recommendation_log_path=recommendation_log_path,
             baseline=baseline, current=current, default=[],
+        ),
+        "latency_budget": _safe(
+            lambda: aggregate_latency_attribution(
+                [a for a in (_extract_task_attr(t) for t in tasks) if a is not None]
+            ),
+            default=None,
         ),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),

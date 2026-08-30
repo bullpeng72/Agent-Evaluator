@@ -6665,6 +6665,17 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.latency_budget && improveResult.insights.latency_budget.bottleneck">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">Latency budget</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px" x-text="'Mean span attribution over '+improveResult.insights.latency_budget.n_tasks+' task(s).'"></div>
+              <div style="font-size:12px;line-height:1.8">
+                <span x-text="'Model '+(improveResult.insights.latency_budget.model_ms||0).toFixed(0)+'ms · Tool '+(improveResult.insights.latency_budget.tool_ms||0).toFixed(0)+'ms · Network '+(improveResult.insights.latency_budget.network_ms||0).toFixed(0)+'ms · Unattributed '+(improveResult.insights.latency_budget.unattributed_ms||0).toFixed(0)+'ms'"></span>
+              </div>
+              <div style="font-size:13px;font-weight:600;margin-top:4px" x-text="'Bottleneck: '+improveResult.insights.latency_budget.bottleneck+(improveResult.insights.latency_budget.bottleneck_share!=null?(' — top component in '+(improveResult.insights.latency_budget.bottleneck_share*100).toFixed(0)+'% of tasks'):'')"></div>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.recommendations && improveResult.insights.recommendations.length">
             <div style="margin-bottom:14px">
               <div style="font-weight:700;margin-bottom:8px">🔧 Prescriptive recommendations</div>

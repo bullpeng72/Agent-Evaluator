@@ -1121,7 +1121,78 @@ def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict
 # Gate D — Performance Contract
 # ---------------------------------------------------------------------------
 
-def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict) -> str:
+def _task_latency_attribution(t: Any) -> dict[str, Any] | None:
+    """Pull the per-task ``latency_attribution`` dict from a TaskResult / TaskRecord."""
+    raw = getattr(t, "raw", None)
+    extra = raw.get("extra") if isinstance(raw, dict) else getattr(t, "extra", None)
+    if isinstance(extra, dict):
+        la = extra.get("latency_attribution")
+        if isinstance(la, dict):
+            return la
+    return None
+
+
+def _build_latency_budget(tasks: list[Any] | None, p95: Any) -> str:
+    """P7: turn "P95 = 4.0s" into a where-does-the-time-go stacked bar.
+
+    Aggregates the per-task span breakdown that ``eval_latency_attribution``
+    computes (model_ms / tool_ms / network_ms / unattributed_ms + bottleneck) —
+    the Gate G score alone never told the reader *which* component to optimise.
+    """
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import aggregate_latency_attribution
+
+        agg = aggregate_latency_attribution(
+            [a for a in (_task_latency_attribution(t) for t in tasks) if a is not None]
+        )
+    except Exception:
+        agg = None
+    if not agg:
+        return ""
+
+    parts = [
+        ("Model", agg.get("model_ms", 0.0), "#6366f1"),
+        ("Tool", agg.get("tool_ms", 0.0), "#f59e0b"),
+        ("Network", agg.get("network_ms", 0.0), "#10b981"),
+        ("Unattributed", agg.get("unattributed_ms", 0.0), "#9ca3af"),
+    ]
+    total = sum(v for _, v, _ in parts) or 1.0
+    segs = "".join(
+        f'<div style="width:{v / total * 100:.1f}%;background:{col}" '
+        f'title="{lbl}: {v:.0f}ms ({v / total * 100:.0f}%)"></div>'
+        for lbl, v, col in parts if v > 0
+    )
+    legend = " · ".join(
+        f'<span style="color:{col};font-weight:600">■</span> {lbl} '
+        f'{v:.0f}ms ({v / total * 100:.0f}%)'
+        for lbl, v, col in parts if v > 0
+    )
+    bn = agg.get("bottleneck")
+    bn_line = ""
+    if bn:
+        share = agg.get("bottleneck_share")
+        bn_line = (
+            f'<p style="font-size:13px;margin:6px 0 0"><strong>Bottleneck: '
+            f'{_esc(str(bn))}</strong>'
+            + (f' — top component in {share * 100:.0f}% of tasks' if isinstance(share, (int, float)) else "")
+            + '</p>'
+        )
+    n = agg.get("n_tasks", 0)
+    return (
+        '<h3 style="margin-top:14px">Latency Budget '
+        f'<span style="font-size:12px;color:#6b7280;font-weight:400">'
+        f'(mean attribution over {n} task(s) with span data)</span></h3>'
+        '<div style="display:flex;height:20px;border-radius:4px;overflow:hidden;'
+        f'margin:6px 0">{segs}</div>'
+        f'<p style="font-size:12px;color:#4b5563;margin:0">{legend}</p>'
+        f'{bn_line}'
+    )
+
+
+def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
+                  tasks: list[Any] | None = None) -> str:
     color = _GATE_COLORS["D"]
     gate_status = (harness_d.get("gate") or harness_d.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1147,6 +1218,7 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict) -> st
             f'<div class="kpi"><div class="kpi-lbl">P99</div><div class="kpi-val">{_sec(latency_stats.get("p99"))}</div></div>'
         )
         lat_html = f'<h3>Latency Analysis</h3><div class="kpis">{lat_kpis}</div>'
+    lat_html += _build_latency_budget(tasks, latency_stats.get("p95") if latency_stats else None)
 
     # Token & cost KPIs
     tok_html = ""
@@ -1741,7 +1813,102 @@ def _norm_task_for_case(t: Any) -> dict[str, Any]:
         "partial_reason": get("partial_reason") or "",
         "errors": [str(e) for e in errors][:3],
         "judge_overall": _safe_float(j_overall, None),
+        "tool_calls": get("tool_calls") or [],
+        "chain_steps": get("chain_steps") or [],
+        "agent_interactions": get("agent_interactions") or [],
     }
+
+
+_TRAJ_MAX_STEPS = 12
+
+
+def _traj_summarize(v: Any, n: int = 80) -> str:
+    if isinstance(v, (dict, list)):
+        try:
+            v = json.dumps(v, ensure_ascii=False, default=str)
+        except Exception:
+            v = str(v)
+    return _clip(str(v), n)
+
+
+def _build_trajectory(case: dict[str, Any]) -> str:
+    """P7: per-step execution trace for a failure case — step → tool → in/out →
+    outcome. Uses tool_calls, then chain_steps, then agent_interactions. Returns
+    "" when the task carried no step data (common for plain QA)."""
+    tcs = case.get("tool_calls") or []
+    steps = case.get("chain_steps") or []
+    inter = case.get("agent_interactions") or []
+    rows = ""
+    kind = ""
+    if tcs:
+        kind = "tool calls"
+        for i, c in enumerate(tcs[:_TRAJ_MAX_STEPS], 1):
+            if not isinstance(c, dict):
+                rows += f'<tr><td>{i}</td><td colspan="3">{_traj_summarize(c)}</td></tr>'
+                continue
+            name = c.get("tool_name") or c.get("tool") or c.get("name") or "—"
+            args = c.get("parameters") or c.get("arguments") or c.get("input") or c.get("args")
+            outp = c.get("output") or c.get("result") or c.get("response") or c.get("error") or ""
+            ok = c.get("success", True)
+            dur = c.get("duration") or c.get("duration_ms") or c.get("latency_ms")
+            toks = c.get("tokens") or c.get("tokens_used") or c.get("total_tokens")
+            meta = []
+            if isinstance(dur, (int, float)):
+                meta.append(f'{dur:.0f}ms' if dur >= 1 else f'{dur * 1000:.0f}µs')
+            if isinstance(toks, (int, float)):
+                meta.append(f'{int(toks)} tok')
+            elif isinstance(toks, dict) and toks.get("total"):
+                meta.append(f'{int(toks["total"])} tok')
+            meta_s = f' <span style="color:#9ca3af">({" · ".join(meta)})</span>' if meta else ""
+            oc = "#10b981" if ok else "#ef4444"
+            rows += (
+                f'<tr>'
+                f'<td style="color:#9ca3af">{i}</td>'
+                f'<td style="font-weight:600;white-space:nowrap">{_esc(str(name))}'
+                f'<span style="color:{oc}">{" ✓" if ok else " ✗"}</span>{meta_s}</td>'
+                f'<td style="font-size:11px;color:#6b7280">{_traj_summarize(args)}</td>'
+                f'<td style="font-size:11px;color:#374151">→ {_traj_summarize(outp)}</td>'
+                f'</tr>'
+            )
+    elif steps:
+        kind = "chain steps"
+        for i, s in enumerate(steps[:_TRAJ_MAX_STEPS], 1):
+            if isinstance(s, dict):
+                label = s.get("name") or s.get("step") or s.get("action") or s.get("type") or "step"
+                detail = s.get("output") or s.get("input") or s.get("detail") or s
+            else:
+                label, detail = "step", s
+            rows += (
+                f'<tr><td style="color:#9ca3af">{i}</td>'
+                f'<td style="font-weight:600;white-space:nowrap">{_esc(str(label))}</td>'
+                f'<td colspan="2" style="font-size:11px;color:#374151">{_traj_summarize(detail, 140)}</td></tr>'
+            )
+    elif inter:
+        kind = "agent interactions"
+        for i, s in enumerate(inter[:_TRAJ_MAX_STEPS], 1):
+            if isinstance(s, dict):
+                frm = s.get("from") or s.get("from_agent") or s.get("sender") or "?"
+                to = s.get("to") or s.get("to_agent") or s.get("receiver") or "?"
+                msg = s.get("message") or s.get("content") or s.get("action") or s
+            else:
+                frm, to, msg = "?", "?", s
+            rows += (
+                f'<tr><td style="color:#9ca3af">{i}</td>'
+                f'<td style="font-weight:600;white-space:nowrap">{_esc(str(frm))} → {_esc(str(to))}</td>'
+                f'<td colspan="2" style="font-size:11px;color:#374151">{_traj_summarize(msg, 140)}</td></tr>'
+            )
+    if not rows:
+        return ""
+    total = len(tcs or steps or inter)
+    more = (f'<tr><td></td><td colspan="3" style="color:#9ca3af;font-size:11px">'
+            f'… {total - _TRAJ_MAX_STEPS} more step(s)</td></tr>'
+            if total > _TRAJ_MAX_STEPS else "")
+    return (
+        f'<details style="margin-top:6px"><summary style="cursor:pointer;font-size:11px;'
+        f'color:#6366f1">▸ Trajectory ({total} {kind})</summary>'
+        f'<table class="mtable" style="margin-top:4px;font-size:12px"><tbody>{rows}{more}</tbody></table>'
+        f'</details>'
+    )
 
 
 def _safe_float(v: Any, default: Any) -> Any:
@@ -1966,12 +2133,13 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
                   f'expected: {gt}</div>' if gt else "")
         type_row = (f'<br><span style="font-size:10px;color:#9ca3af">{_esc(c["task_type"])}</span>'
                     if c["task_type"] else "")
+        traj = _build_trajectory(c)
         rows += (
             f'<tr>'
             f'<td style="vertical-align:top;white-space:nowrap">{badge}<br>'
             f'<span style="font-size:11px;color:#6b7280">{_esc(c["task_id"])}</span>{type_row}</td>'
             f'<td style="vertical-align:top">{q}'
-            f'<div style="font-size:12px;color:#374151;margin-top:4px">→ {r}</div>{gt_row}</td>'
+            f'<div style="font-size:12px;color:#374151;margin-top:4px">→ {r}</div>{gt_row}{traj}</td>'
             f'<td style="vertical-align:top;white-space:nowrap;font-size:12px">'
             f'C {comp}<br>A {acc}</td>'
             f'<td style="vertical-align:top;color:{sev_col};font-size:12px;font-weight:600">'
@@ -3087,7 +3255,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list),
         _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
@@ -3273,7 +3441,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list),
         _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),

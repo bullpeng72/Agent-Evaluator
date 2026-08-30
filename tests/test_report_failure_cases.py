@@ -394,3 +394,53 @@ class TestImprovementLoopClosure:
         html = generate_comprehensive_html_report(m)
         seg = html[html.find('id="recommendations"'):html.find('id="diagnosis"')]
         assert "Run it as an experiment" in seg
+
+
+class TestTrajectoryAndLatencyBudget:
+    """P7 — per-step trajectory in failure cases + latency-budget breakdown."""
+
+    def test_trajectory_renders_tool_calls_for_failure(self):
+        from agent_evaluator.reporting.comprehensive_report import _build_trajectory
+        case = {
+            "tool_calls": [
+                {"tool_name": "retrieve", "parameters": {"q": "x"}, "output": "3 docs",
+                 "success": True, "duration": 320},
+                {"tool_name": "generate", "parameters": {}, "output": "wrong",
+                 "success": False, "duration": 1400, "tokens": {"total": 110}},
+            ],
+            "chain_steps": [], "agent_interactions": [],
+        }
+        html = _build_trajectory(case)
+        assert "Trajectory (2 tool calls)" in html
+        assert "retrieve" in html and "generate" in html
+        assert "320ms" in html and "110 tok" in html
+        assert " ✗" in html  # failed step marked
+
+    def test_trajectory_empty_without_step_data(self):
+        from agent_evaluator.reporting.comprehensive_report import _build_trajectory
+        empty = {"tool_calls": [], "chain_steps": [], "agent_interactions": []}
+        assert _build_trajectory(empty) == ""
+
+    def test_latency_budget_section_in_report(self):
+        from agent_evaluator.core.trackers.base import TaskResult
+        from agent_evaluator.reporting.comprehensive_report import (
+            generate_comprehensive_html_report,
+        )
+
+        m = PerformanceMonitor(output_dir="/tmp")
+        for i in range(8):
+            m.record_task(TaskResult(
+                task_id=f"t{i}", task_type="rag", success=True,
+                completion_score=1.0, accuracy_score=0.9, execution_time=1.7,
+                tokens_used={"total": 150}, tool_calls=[], attempts=1, errors=[],
+                question="q", response="a", ground_truth="a",
+                extra={"latency_attribution": {
+                    "tool_ms": 300.0, "model_ms": 1400.0, "network_ms": 20.0,
+                    "unattributed_ms": 0.0, "tool_ratio": 0.17, "model_ratio": 0.82,
+                    "network_ratio": 0.01, "unattributed_ratio": 0.0,
+                    "bottleneck": "model"},
+                },
+            ))
+        html = generate_comprehensive_html_report(m)
+        assert "Latency Budget" in html
+        assert "Bottleneck: model" in html
