@@ -225,6 +225,55 @@
       }
     },
 
+    "metadata_slices": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["dimension", "slices"],
+        "properties": {
+          "dimension": { "type": "string" },
+          "slices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["value", "n"],
+              "properties": {
+                "value": { "type": "string" },
+                "n": { "type": "integer" },
+                "tcr_pct": { "type": "number" },
+                "tcr_ci_pct": { "$ref": "#/$defs/pair" },
+                "accuracy_pct": { "type": "number" },
+                "baseline_tcr_pct": { "type": "number" },
+                "tcr_delta_pp": { "type": "number" },
+                "tcr_delta_ci_pp": { "$ref": "#/$defs/pair" },
+                "significant": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "sample_guidance": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_tasks": { "type": "integer" },
+        "tcr_ci_halfwidth_pp": { "type": "number" },
+        "target_halfwidth_pp": { "type": "number" },
+        "recommended_n": { "type": "integer" },
+        "additional_tasks": { "type": "integer" },
+        "message": { "type": "string" }
+      }
+    },
+
+    "reproducibility_manifest": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+
     "cost_economics": {
       "type": ["object", "null"],
       "additionalProperties": true,

@@ -72,6 +72,7 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
         "hallucination": None,
         "llm_judge_overall": None,
         "total_cost": None,
+        "cost_per_task": None,
     }
 
     # -- TCR --
@@ -149,6 +150,11 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             metrics["total_cost"] = float(cost_raw)
         except (TypeError, ValueError):
             pass
+
+    # -- 태스크당 비용 (SPEC-041 P28 SLO gate) --
+    _n_tasks = len(data.get("tasks") or [])
+    if metrics["total_cost"] is not None and _n_tasks > 0:
+        metrics["cost_per_task"] = metrics["total_cost"] / _n_tasks
 
     return metrics
 
@@ -342,6 +348,7 @@ _GATE_DEFS: list[tuple[str, str, str, str, str]] = [
     ("p95_latency",     "P95 Latency",          "p95_latency",    "max",  "s"),
     ("hallucination",   "Hallucination Rate",   "hallucination",  "max",  "%"),
     ("llm_judge_overall", "LLM Judge (Overall)", "llm_judge",    "min",  "/5"),
+    ("cost_per_task",    "Cost / task",          "max_cost_per_task", "max", "$"),
 ]
 
 

@@ -297,6 +297,11 @@ class PerformanceMonitor:
         # 순수 메타데이터 — 점수 계산에는 관여하지 않는다.
         prompt_text: str | None = None,
         config_snapshot: dict[str, Any] | None = None,
+        # SPEC-041 P28: 완전 재현 매니페스트용 (선택). model_params는 디코딩 파라미터
+        # (temperature/top_p/seed 등), dataset_ref는 평가셋 식별자/해시. 지정하면
+        # lineage.reproducibility_manifest에 실린다 — 순수 메타데이터.
+        model_params: dict[str, Any] | None = None,
+        dataset_ref: str | None = None,
         # SPEC-004: 옵트인 스트리밍 리텐션 모드 — 기본값 "full"은 기존 동작과 100% 동일.
         retention_mode: Literal["full", "windowed"] = "full",
         window_size: int = 10000,
@@ -515,6 +520,8 @@ class PerformanceMonitor:
         self._iteration_note = iteration_note
         self._prompt_text = prompt_text
         self._config_snapshot = config_snapshot
+        self._model_params = model_params
+        self._dataset_ref = dataset_ref
         try:
             from importlib.metadata import version as _pkg_version_lookup
             self._sdk_version: str | None = _pkg_version_lookup("agent-evaluator")
@@ -3074,6 +3081,7 @@ class PerformanceMonitor:
             "prompt_version": self._prompt_version,
             "agent_version": self._agent_version,
             **_lineage_prompt,
+            "reproducibility_manifest": self._build_reproducibility_manifest(),
             # SPEC-029: agent_version="auto"의 불투명한 dirty-hash에 사람이 읽을 수 있는
             # 한 줄 메모를 붙인다 — 새 계산 없이 생성자 인자를 그대로 실어 보낸다.
             "iteration_note": self._iteration_note,
@@ -3082,6 +3090,57 @@ class PerformanceMonitor:
             # 없으면(self.llm_judge is None) 판정 자체가 무의미하므로 False로 규약.
             "judge_same_as_execution_model": self._judge_same_as_execution_model,
         }
+
+    def _build_reproducibility_manifest(self) -> dict[str, Any]:
+        """SPEC-041 P28: everything needed to reproduce this run's *evaluation*
+        (not the agent) in one place — model + decoding params, the eval-set
+        reference, a hash of the evaluator configuration, and the versions of the
+        libraries that did the scoring. All best-effort; missing pieces are
+        simply omitted."""
+        import hashlib
+
+        man: dict[str, Any] = {}
+        if getattr(self, "model_name", None):
+            man["model_name"] = self.model_name
+        if self._model_params:
+            man["model_params"] = self._model_params
+        if self._dataset_ref:
+            man["dataset_ref"] = self._dataset_ref
+        if self.llm_judge is not None:
+            man["judge_model"] = getattr(self.llm_judge, "model", None)
+            man["judge_sample_rate"] = getattr(self.llm_judge, "sample_rate", None)
+
+        # evaluator-config fingerprint: the flags/weights that change how scores
+        # are computed. Sorted + JSON so the hash is stable across runs.
+        _cfg = {
+            k: getattr(self, k, None)
+            for k in (
+                "enable_hallucination_detection", "enable_security_metrics",
+                "enable_llm_judge", "enable_anomaly_detection",
+                "gate_a_tcr_weight", "gate_c_tcr_weight", "gate_b_loop_weight",
+                "use_semantic_hallucination", "use_korean_tokenizer",
+            )
+        }
+        _cfg = {k: v for k, v in _cfg.items() if v is not None}
+        if _cfg:
+            man["evaluator_config"] = _cfg
+            man["evaluator_config_hash"] = hashlib.sha1(  # noqa: S324
+                json.dumps(_cfg, sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()[:16]
+
+        deps: dict[str, str] = {"agent_evaluator": str(self._sdk_version)}
+        try:
+            from importlib.metadata import PackageNotFoundError, version
+
+            for _pkg in ("anthropic", "openai", "deepeval", "ragas", "numpy", "pandas"):
+                try:
+                    deps[_pkg] = version(_pkg)
+                except PackageNotFoundError:
+                    continue
+        except Exception:  # pragma: no cover - defensive
+            pass
+        man["dependency_versions"] = deps
+        return man
 
     def generate_report(self, force_recompute: bool = False) -> EvaluationReport:
         """Generate comprehensive evaluation report.

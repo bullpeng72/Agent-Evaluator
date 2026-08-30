@@ -900,6 +900,52 @@ def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _sample_guidance_section(
+    ci: dict[str, Any], *, target_halfwidth_pp: float = 5.0,
+) -> dict[str, Any] | None:
+    """P28: "what to test next" — how many more tasks would tighten the TCR
+    confidence interval to ``±target_halfwidth_pp``. Uses the same
+    ``required_n_for_halfwidth`` the experiment blocks use, surfaced for the run
+    as a whole. ``None`` when the CI is already at/below target or unmeasurable."""
+    n = int(ci.get("n_tasks") or 0)
+    hw = ci.get("tcr_ci_halfwidth")
+    tcr_pct = ci.get("tcr_pct")
+    if not n or hw is None or tcr_pct is None:
+        return None
+    hw_pp = round(float(hw) * 100.0, 2)
+    if hw_pp <= target_halfwidth_pp:
+        return {
+            "n_tasks": n, "tcr_ci_halfwidth_pp": hw_pp,
+            "target_halfwidth_pp": target_halfwidth_pp,
+            "additional_tasks": 0,
+            "message": (
+                f"TCR CI is ±{hw_pp:.1f}pp on {n} tasks — already within "
+                f"±{target_halfwidth_pp:.0f}pp. No more tasks needed for precision."
+            ),
+        }
+    try:
+        from agent_evaluator.utils.confidence import required_n_for_halfwidth
+
+        rec_n = required_n_for_halfwidth(
+            max(0.01, min(0.99, float(tcr_pct) / 100.0)),
+            target_halfwidth_pp / 100.0,
+        )
+    except Exception:  # pragma: no cover - defensive
+        return None
+    add = max(0, rec_n - n)
+    return {
+        "n_tasks": n,
+        "tcr_ci_halfwidth_pp": hw_pp,
+        "target_halfwidth_pp": target_halfwidth_pp,
+        "recommended_n": rec_n,
+        "additional_tasks": add,
+        "message": (
+            f"TCR CI is ±{hw_pp:.1f}pp on {n} tasks; about {rec_n} tasks "
+            f"(+{add}) would tighten it to ±{target_halfwidth_pp:.0f}pp."
+        ),
+    }
+
+
 def _eval_set_quality_section(
     tasks: list[dict[str, Any]],
     baseline: dict[str, Any] | None,
@@ -1007,10 +1053,6 @@ def _slice_analysis_section(
     """
     if not tasks:
         return []
-    try:
-        from agent_evaluator.utils.confidence import bootstrap_diff_ci, bootstrap_mean_ci
-    except Exception:  # pragma: no cover - defensive
-        return []
 
     def _by_type(ts: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         out: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -1025,36 +1067,136 @@ def _slice_analysis_section(
 
     rows: list[dict[str, Any]] = []
     for ttype, members in sorted(cur_by.items(), key=lambda kv: -len(kv[1])):
-        comps = [
-            c for c in (_safe_float(m.get("completion_score")) for m in members)
-            if c is not None
-        ]
-        accs = [
-            a for a in (_safe_float(m.get("accuracy_score")) for m in members)
-            if a is not None
-        ]
-        row: dict[str, Any] = {"task_type": ttype, "n": len(members)}
-        if comps:
-            row["tcr_pct"] = round(sum(comps) / len(comps) * 100.0, 2)
-            lo, hi = bootstrap_mean_ci(comps)
-            row["tcr_ci_pct"] = [round(lo * 100, 2), round(hi * 100, 2)]
-        if accs:
-            row["accuracy_pct"] = round(sum(accs) / len(accs) * 100.0, 2)
-        base_members = base_by.get(ttype) or []
-        if base_members:
-            b_comps = [
-                c for c in (_safe_float(m.get("completion_score")) for m in base_members)
-                if c is not None
-            ]
-            if b_comps and comps:
-                row["baseline_tcr_pct"] = round(sum(b_comps) / len(b_comps) * 100.0, 2)
-                row["tcr_delta_pp"] = round(row["tcr_pct"] - row["baseline_tcr_pct"], 2)
-                dci = bootstrap_diff_ci(comps, b_comps)
-                if dci is not None:
-                    row["tcr_delta_ci_pp"] = [round(dci[0] * 100, 2), round(dci[1] * 100, 2)]
-                    row["significant"] = dci[0] > 0 or dci[1] < 0
+        row = _slice_stats(members, base_by.get(ttype) or [])
+        row = {"task_type": ttype, **row}
         rows.append(row)
     return rows
+
+
+def _slice_stats(
+    members: list[dict[str, Any]], base_members: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """TCR/accuracy + CI for one slice, plus the vs-baseline delta + two-sample
+    bootstrap significance when ``base_members`` is non-empty. Shared by
+    ``_slice_analysis_section`` (by task_type) and ``_metadata_slices_section``
+    (by an ``extra`` key)."""
+    from agent_evaluator.utils.confidence import bootstrap_diff_ci, bootstrap_mean_ci
+
+    comps = [
+        c for c in (_safe_float(m.get("completion_score")) for m in members)
+        if c is not None
+    ]
+    accs = [
+        a for a in (_safe_float(m.get("accuracy_score")) for m in members)
+        if a is not None
+    ]
+    row: dict[str, Any] = {"n": len(members)}
+    if comps:
+        row["tcr_pct"] = round(sum(comps) / len(comps) * 100.0, 2)
+        lo, hi = bootstrap_mean_ci(comps)
+        row["tcr_ci_pct"] = [round(lo * 100, 2), round(hi * 100, 2)]
+    if accs:
+        row["accuracy_pct"] = round(sum(accs) / len(accs) * 100.0, 2)
+    if base_members:
+        b_comps = [
+            c for c in (_safe_float(m.get("completion_score")) for m in base_members)
+            if c is not None
+        ]
+        if b_comps and comps:
+            row["baseline_tcr_pct"] = round(sum(b_comps) / len(b_comps) * 100.0, 2)
+            row["tcr_delta_pp"] = round(row["tcr_pct"] - row["baseline_tcr_pct"], 2)
+            dci = bootstrap_diff_ci(comps, b_comps)
+            if dci is not None:
+                row["tcr_delta_ci_pp"] = [round(dci[0] * 100, 2), round(dci[1] * 100, 2)]
+                row["significant"] = dci[0] > 0 or dci[1] < 0
+    return row
+
+
+def _task_extra(t: dict[str, Any]) -> dict[str, Any]:
+    e = t.get("extra")
+    return e if isinstance(e, dict) else {}
+
+
+def _metadata_slices_section(
+    tasks: list[dict[str, Any]],
+    baseline: dict[str, Any] | None,
+    *,
+    max_dims: int = 4,
+    max_values: int = 8,
+    min_coverage: float = 0.6,
+) -> list[dict[str, Any]] | None:
+    """P28: the same per-slice TCR/accuracy/Δ analysis as ``slice_analysis`` but
+    keyed on scalar ``extra`` metadata (model, prompt_variant, difficulty, …),
+    not just ``task_type``. Auto-discovers usable keys: scalar values, present on
+    ≥ ``min_coverage`` of tasks, 2..``max_values`` distinct values, and not a
+    1:1 restatement of ``task_type``."""
+    if not tasks or len(tasks) < 4:
+        return None
+    n = len(tasks)
+    key_values: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for t in tasks:
+        for k, v in _task_extra(t).items():
+            if isinstance(v, (str, bool, int)):   # scalar, not float/dict/list
+                sv = str(v)
+                if len(sv) <= 40:
+                    key_values[k][sv] += 1
+
+    candidates: list[tuple[str, int]] = []
+    for k, counts in key_values.items():
+        covered = sum(counts.values())
+        if covered < min_coverage * n or not (2 <= len(counts) <= max_values):
+            continue
+        if _one_to_one(tasks, k):   # would just restate slice_analysis
+            continue
+        candidates.append((k, covered))
+
+    candidates.sort(key=lambda kv: -kv[1])
+    if not candidates:
+        return None
+
+    base_tasks = (
+        [t for t in (baseline.get("tasks") or []) if isinstance(t, dict)]
+        if baseline else []
+    )
+    out: list[dict[str, Any]] = []
+    for key, _cov in candidates[:max_dims]:
+        cur_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for t in tasks:
+            ex = _task_extra(t)
+            if key in ex:
+                cur_by[str(ex[key])].append(t)
+        base_by: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for t in base_tasks:
+            ex = _task_extra(t)
+            if key in ex:
+                base_by[str(ex[key])].append(t)
+        slices = []
+        for val, members in sorted(cur_by.items(), key=lambda kv: -len(kv[1])):
+            slices.append({"value": val, **_slice_stats(members, base_by.get(val) or [])})
+        if len(slices) >= 2:
+            out.append({"dimension": f"extra.{key}", "slices": slices})
+    return out or None
+
+
+def _one_to_one(tasks: list[dict[str, Any]], key: str) -> bool:
+    """True when ``extra[key]`` and ``task_type`` partition the tasks identically
+    (a bijection) — slicing by such a key would just reproduce ``slice_analysis``.
+    Requires the mapping to be one-to-one in *both* directions."""
+    fwd: dict[str, set] = defaultdict(set)   # key value -> task_types
+    rev: dict[str, set] = defaultdict(set)   # task_type -> key values
+    for t in tasks:
+        ex = _task_extra(t)
+        if key in ex:
+            kv = str(ex[key])
+            tt = str(t.get("task_type") or "—")
+            fwd[kv].add(tt)
+            rev[tt].add(kv)
+    if len(fwd) < 2:
+        return False
+    return (
+        all(len(v) == 1 for v in fwd.values())
+        and all(len(v) == 1 for v in rev.values())
+    )
 
 
 def _gate_findings_section(diagnosis: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -2225,6 +2367,8 @@ def build_insights(
         ),
         "rag_localization": rag_loc,
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
+        "metadata_slices": _safe(_metadata_slices_section, tasks, baseline, default=None),
+        "sample_guidance": _safe(_sample_guidance_section, ci, default=None),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
@@ -2242,6 +2386,11 @@ def build_insights(
             _cohort_comparison_section,
             _labelled_cohort(current, cohort), cohort_metric, default=None,
         ) if cohort else None,
+        "reproducibility_manifest": _safe(
+            lambda: ((current.get("extra_metrics") or {}).get("lineage") or {})
+            .get("reproducibility_manifest"),
+            default=None,
+        ),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),

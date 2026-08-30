@@ -936,6 +936,13 @@ def main() -> None:
         help="Minimum LLM Judge overall score (0–5)",
     )
     gate_p.add_argument(
+        "--max-cost-per-task", type=float, metavar="USD", dest="max_cost_per_task",
+        help=(
+            "Maximum average cost per task in USD (total_cost / task count) — "
+            "a cost SLO gate (SPEC-041 P28)."
+        ),
+    )
+    gate_p.add_argument(
         "--fail-on-regression", type=float, metavar="PCT", dest="fail_on_regression",
         help="Allowed regression vs baseline (%%) — returns exit code 2 if exceeded",
     )

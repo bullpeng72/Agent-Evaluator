@@ -31,6 +31,7 @@ agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline
 agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3
 agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regression   # exit 4 if a task passed before & fails now (SPEC-041 P26)
+agent-eval gate result.json --max-cost-per-task 0.05       # cost SLO gate: fail if total_cost / task count exceeds $0.05 (SPEC-041 P28)
 agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X  # exit 4 on HIGH review items; post narrative+regressions+cohort winner
 agent-eval diagnose result.json --baseline baseline.json   # Gate regression RCA (not a CI gate, informational only)
 agent-eval abtest v1.json v2.json --metric accuracy_score   # statistical A/B (Welch's t-test), not a CI gate
@@ -356,6 +357,10 @@ agent_evaluator/
 │   │   │                  #  iteration_note — agent_version="auto"의 불투명한 dirty-hash
 │   │   │                  #  태그에 사람이 읽을 수 있는 한 줄 메모를 붙임. _build_lineage()가
 │   │   │                  #  extra_metrics.lineage.iteration_note로 그대로 실어 보냄(새 계산 없음)
+│   │   │                  #  _build_reproducibility_manifest()(SPEC-041 P28) — model_params/
+│   │   │                  #  dataset_ref 생성자 인자 + model_name·judge_model·evaluator_config
+│   │   │                  #  (+sha1 해시)·dependency_versions(importlib.metadata)를 조립해
+│   │   │                  #  lineage.reproducibility_manifest로 실음. 전부 best-effort, 순수 메타
 │   │   ├── conversation.py# ConversationSession, ConversationMetrics, ConversationTurn
 │   │   └── feedback.py    # ImplicitFeedbackTracker
 │   ├── monitor_context.py # evaluation_session · hybrid_evaluation_session · async_evaluation_session
@@ -911,6 +916,13 @@ experiments[]{experiment_id, hypothesis, target_gate, target_field, predicted, a
 note}|null (SPEC-041 P27 — `build_insights(experiments_log_path=)` 시 `.aoo/experiments.jsonl`의
 등록 가설. baseline 있으면 open 가설을 score(predicted vs actual → confirmed/partially_confirmed/
 refuted/inconclusive), 없으면 pending. resolved 가설은 저장된 verdict 그대로. 로그 없으면 null),
+metadata_slices[]{dimension: "extra.<key>", slices[]{value, n, tcr_pct, tcr_ci_pct, accuracy_pct,
+baseline_tcr_pct?, tcr_delta_pp?, significant?}}|null (SPEC-041 P28 — task의 스칼라 `extra` 메타데이터
+(model/prompt_variant/difficulty…)로 자동 슬라이스. task_type과 1:1인 키는 제외. 태스크 <4개면 null),
+sample_guidance{n_tasks, tcr_ci_halfwidth_pp, target_halfwidth_pp, recommended_n?, additional_tasks,
+message}|null (SPEC-041 P28 — "TCR CI를 ±5pp로 좁히려면 태스크 몇 개 더". `required_n_for_halfwidth` 재사용),
+reproducibility_manifest{model_name, model_params, judge_model, dataset_ref, evaluator_config,
+evaluator_config_hash, dependency_versions}|null (SPEC-041 P28 — `lineage.reproducibility_manifest` 패스스루),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
 스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
 `build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
@@ -1051,6 +1063,26 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P28 (인사이트 전달 로드맵 마무리)** — 4개 독립 추가.
+(1) **메타데이터 슬라이싱** — `reporting/insights.py::_metadata_slices_section(tasks, baseline)` —
+`slice_analysis`(task_type 전용)를 task의 스칼라 `extra` 키(model/prompt_variant/difficulty…)로
+확장. `_slice_stats()`(TCR/accuracy/CI + baseline Δ + 부트스트랩 유의성)를 두 섹션이 공유하도록
+`_slice_analysis_section` 리팩터. 자동 발견: 스칼라 값·≥60% 커버리지·2~8개 distinct·task_type과
+bijection 아님(`_one_to_one` 양방향 검사). `insights.metadata_slices`. 리포트 `_build_metadata_slices`
+섹션 `metadata-slices`.
+(2) **"다음에 뭘 테스트" 가이드** — `_sample_guidance_section(ci)` — `metric_confidence`의 TCR CI
+half-width가 ±5pp보다 크면 `required_n_for_halfwidth`로 권장 표본 수 + 추가 태스크 수 계산.
+`insights.sample_guidance`. 리포트 `_build_sample_guidance` 섹션 `sample-guidance`.
+(3) **재현성 매니페스트** — `PerformanceMonitor(model_params=, dataset_ref=)` 신설 + `monitor.py::
+_build_reproducibility_manifest()` — model_name·model_params(temperature/top_p/seed)·judge_model·
+dataset_ref·evaluator_config(점수 계산 플래그/가중치)+그 sha1 해시·dependency_versions(importlib.
+metadata로 anthropic/openai/deepeval/ragas/numpy/pandas). `lineage.reproducibility_manifest`에 실림,
+`insights.reproducibility_manifest`로 패스스루. 리포트 `_build_reproducibility_manifest` 섹션
+`reproducibility`.
+(4) **비용 SLO 게이트** — `agent-eval gate --max-cost-per-task USD` — `_load_metrics`가
+`cost_per_task = total_cost / task 수` 계산, `_GATE_DEFS`에 `cost_per_task`(direction "max") 추가 →
+기존 `_check_gates`/exit-code 경로로 자동 흐름(초과 시 exit 1).
 
 **SPEC-041 P27 (개선 실험 레지스트리)** — `agent-eval experiment {register,list,score}`
 (`cli/experiment.py`, `cli/main.py` 위임) + `rca/experiments.py`(§rca/ 참고). "Gate A의
@@ -1321,7 +1353,7 @@ auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
-prompt_version, agent_version, iteration_note, prompt_text, config_snapshot
+prompt_version, agent_version, iteration_note, prompt_text, config_snapshot, model_params, dataset_ref
 retention_mode, window_size
 storage_backend
 enable_pii_redaction, pii_redaction_categories

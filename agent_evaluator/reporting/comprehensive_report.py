@@ -2965,6 +2965,112 @@ def _build_slice_analysis(tasks: list[Any] | None,
     )
 
 
+def _build_metadata_slices(ms: list[dict[str, Any]] | None) -> str:
+    """P28: the same per-slice TCR/Δ table as Per-Slice Breakdown, but keyed on
+    scalar `extra` metadata (model, prompt_variant, difficulty…) auto-discovered
+    from the tasks — not just task_type."""
+    if not ms:
+        return ""
+    blocks = ""
+    for dim in ms:
+        slices = dim.get("slices") or []
+        if len(slices) < 2:
+            continue
+        has_base = any("tcr_delta_pp" in s for s in slices)
+        body = ""
+        for s in slices:
+            tcr = s.get("tcr_pct")
+            ci = s.get("tcr_ci_pct")
+            acc = s.get("accuracy_pct")
+            tcr_cell = "—"
+            if tcr is not None:
+                ci_s = (f' <span style="color:#9ca3af">({ci[0]:.0f}–{ci[1]:.0f})</span>'
+                        if ci else "")
+                tcr_cell = f'{tcr:.1f}%{ci_s}'
+            acc_cell = f'{acc:.1f}%' if acc is not None else "—"
+            delta_cell = ""
+            if has_base:
+                d = s.get("tcr_delta_pp")
+                if d is None:
+                    delta_cell = '<td style="color:#9ca3af">—</td>'
+                else:
+                    sig = s.get("significant")
+                    col = ("#dc2626" if d < 0 else "#059669") if sig else "#6b7280"
+                    tag = " *" if sig else ""
+                    delta_cell = (f'<td style="color:{col};font-weight:600;'
+                                  f'white-space:nowrap">{d:+.1f}pp{tag}</td>')
+            body += (
+                f'<tr><td style="font-weight:600">{_esc(str(s.get("value", "—")))}</td>'
+                f'<td style="text-align:right">{s.get("n", 0)}</td>'
+                f'<td style="text-align:right;white-space:nowrap">{tcr_cell}</td>'
+                f'<td style="text-align:right">{acc_cell}</td>{delta_cell}</tr>'
+            )
+        head = ('<th>Value</th><th>N</th><th>TCR (95% CI)</th><th>Accuracy</th>'
+                + ('<th>Δ vs baseline</th>' if has_base else ''))
+        blocks += (
+            f'<h3 style="margin:12px 0 4px;font-size:14px">'
+            f'<code>{_esc(str(dim.get("dimension", "")))}</code></h3>'
+            f'<table class="mtable"><thead><tr>{head}</tr></thead>'
+            f'<tbody>{body}</tbody></table>'
+        )
+    if not blocks:
+        return ""
+    return (
+        '<div class="gate-section" id="metadata-slices" style="border-left-color:#6366f1">'
+        '<h2 style="color:#1e2030">Metadata Slices</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'Per-slice TCR/accuracy keyed on <code>extra</code> metadata attached to '
+        'each task — e.g. which model or prompt variant produced it.</p>'
+        f'{blocks}</div>'
+    )
+
+
+def _build_sample_guidance(sg: dict[str, Any] | None) -> str:
+    """P28: "what to test next" — how many more tasks tighten the TCR CI."""
+    if not sg or not sg.get("message"):
+        return ""
+    add = sg.get("additional_tasks", 0)
+    col = "#059669" if add == 0 else "#b45309"
+    return (
+        '<div class="gate-section" id="sample-guidance" style="border-left-color:#0891b2">'
+        '<h2 style="color:#1e2030">What to Test Next</h2>'
+        f'<p style="font-size:13px;color:{col};font-weight:600;margin:0">'
+        f'{_esc(str(sg["message"]))}</p></div>'
+    )
+
+
+def _build_reproducibility_manifest(man: dict[str, Any] | None) -> str:
+    """P28: the model/decoding params, eval-set ref, evaluator-config hash and
+    library versions needed to reproduce this run's scoring."""
+    if not man:
+        return ""
+    rows = ""
+    def _row(label: str, val: Any) -> str:
+        if val is None or val == "" or val == {}:
+            return ""
+        if isinstance(val, dict):
+            val = " · ".join(f"{k}={v}" for k, v in val.items())
+        return (f'<tr><td style="font-weight:600;white-space:nowrap;padding-right:12px">'
+                f'{_esc(label)}</td><td style="font-family:monospace;font-size:12px">'
+                f'{_esc(str(val))}</td></tr>')
+    rows += _row("Model", man.get("model_name"))
+    rows += _row("Model params", man.get("model_params"))
+    rows += _row("Judge model", man.get("judge_model"))
+    rows += _row("Dataset", man.get("dataset_ref"))
+    rows += _row("Evaluator config", man.get("evaluator_config"))
+    rows += _row("Evaluator config hash", man.get("evaluator_config_hash"))
+    rows += _row("Dependency versions", man.get("dependency_versions"))
+    if not rows:
+        return ""
+    return (
+        '<div class="gate-section" id="reproducibility" style="border-left-color:#64748b">'
+        '<h2 style="color:#1e2030">Reproducibility Manifest</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">Everything needed to '
+        'reproduce this run&rsquo;s <em>evaluation</em> (not the agent).</p>'
+        f'<table class="mtable"><tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _task_extra(t: Any) -> dict:
     raw = getattr(t, "raw", None)
     v = raw.get("extra") if isinstance(raw, dict) else getattr(t, "extra", None)
@@ -3365,7 +3471,9 @@ _TOC_LABELS = {
     "gate-a": "A", "gate-b": "B", "gate-c": "C", "gate-d": "D",
     "gate-e": "E", "gate-f": "F", "gate-g": "G",
     "advanced": "Advanced", "operational-signals": "Anomalies",
-    "slice-analysis": "Slices", "evaluator-reliability": "Evaluator trust",
+    "slice-analysis": "Slices", "metadata-slices": "Metadata slices",
+    "sample-guidance": "Test next", "reproducibility": "Reproducibility",
+    "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "recommendations": "Recommendations",
@@ -4526,6 +4634,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_metadata_slices(_insights_obj.get("metadata_slices")),
+        _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
@@ -4540,6 +4650,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
+        _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
@@ -4748,6 +4859,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_metadata_slices(_insights_obj.get("metadata_slices")),
+        _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
@@ -4762,6 +4875,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
+        _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
