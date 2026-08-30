@@ -828,6 +828,8 @@ label, guidance, shortfalls[], code_snippet, experiment{predicted_gate_delta, re
 past_outcomes{confirmed, refuted, avg_delta}|null, baseline_verdict{verdict, delta}|null},
 latency_budget{n_tasks, tool_ms, model_ms, network_ms, unattributed_ms, *_ratio, bottleneck, bottleneck_share}|null
 (SPEC-041 P7 — eval_latency_attribution의 per-task span 분해를 평균낸 것, 모달 bottleneck),
+rag_localization{n_rag_tasks, by_class, dominant_failure, remediation_by_class, unsupported_claim_examples}|null
+(SPEC-041 P11 — RAG 실패를 retrieval/grounding/generation으로 분류),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -837,6 +839,15 @@ shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적
 `_build_trajectory(case)`(실패 케이스 표의 각 행에 `<details>`) — `tool_calls`→`chain_steps`→`agent_interactions`
 순으로 step→tool→인자/출력 요약→✓/✗ + 스텝별 duration/토큰. 스텝 데이터 없는 태스크(순수 QA)는 "".
 `_norm_task_for_case`가 tool_calls/chain_steps/agent_interactions도 담는다. `_build_gate_d`가 `tasks` 인자 추가.
+
+**SPEC-041 P11 (RAG 국소화)** — `reporting/insights.py`: `classify_rag_failure(response, context, ground_truth,
+accuracy, faithfulness)` — retrieved context 있는 태스크를 `retrieval_miss`(정답 정보가 애초에 검색 안 됨:
+gt↔context 토큰 오버랩<0.40) / `grounding_miss`(검색됐는데 응답이 무시: unsupported 문장 비율>0.50 또는
+faithfulness<0.6) / `generation_error`(검색·근거 OK인데 여전히 오답) / `ok`로 분류. 결정적, 의존성 없음
+(공백 토큰화 + 소형 영어 stopword, ML 재실행 아님 — HOTL "후보 지침"). `rag_localization(tasks)`가 집계 →
+`insights.rag_localization{n_rag_tasks, by_class, dominant_failure, remediation_by_class{retrieval→top_k/re-rank,
+grounding→프롬프트/temperature, generation→few-shot/검증}, unsupported_claim_examples[]}`. 리포트:
+`_build_rag_localization(tasks)`(실패 케이스 섹션 안), 대시보드 Improve 탭 패널.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

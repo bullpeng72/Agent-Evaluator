@@ -6676,6 +6676,29 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.rag_localization && improveResult.insights.rag_localization.dominant_failure">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">RAG failure localization</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px" x-text="improveResult.insights.rag_localization.n_rag_tasks+' task(s) with retrieved context · dominant: '+improveResult.insights.rag_localization.dominant_failure"></div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Failure type</th><th style="text-align:right;padding:4px">Count</th><th style="text-align:left;padding:4px">What to change</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(fix, klass) in improveResult.insights.rag_localization.remediation_by_class" :key="klass">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:600" x-text="klass.replace(/_/g,' ')"></td>
+                        <td style="padding:4px;text-align:right" x-text="improveResult.insights.rag_localization.by_class[klass]||0"></td>
+                        <td style="padding:4px;color:var(--text2)" x-text="fix"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.recommendations && improveResult.insights.recommendations.length">
             <div style="margin-bottom:14px">
               <div style="font-weight:700;margin-bottom:8px">🔧 Prescriptive recommendations</div>

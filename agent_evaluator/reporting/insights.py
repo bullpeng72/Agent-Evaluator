@@ -149,6 +149,166 @@ def _extract_task_attr(t: dict[str, Any]) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# RAG failure localization (P11) — split a RAG failure into
+#   retrieval_miss   : the info needed to answer was never retrieved
+#   grounding_miss    : it WAS retrieved, but the answer ignores / contradicts it
+#   generation_error  : retrieved + grounded, but still wrong (reasoning / format)
+# because the fix is completely different per class (top_k/re-rank vs prompt vs
+# decoding). Coarse, deterministic, dependency-free — whitespace tokenization,
+# not a re-run of the ML detector.
+# ---------------------------------------------------------------------------
+_RE_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+_RAG_SUPPORT_THRESHOLD = 0.30      # sentence-in-context overlap below this = unsupported
+_RAG_RECALL_MISS = 0.40           # gt-in-context overlap below this = retrieval miss
+_RAG_UNSUPPORTED_MAX = 0.50       # unsupported-sentence ratio above this = not grounded
+_RAG_MIN_SENTENCE_WORDS = 5
+
+# Function words carry no grounding signal — a short vague sentence would otherwise
+# score as "supported" just from "the / was / for" overlapping the context. Small
+# English-leaning list (this is a coarse overlap heuristic, not the ML detector).
+_RAG_STOPWORDS = frozenset(
+    "a an the of to in on at by for and or but is are was were be been being it its "
+    "this that these those i we you he she they them his her their our your as with "
+    "from into about over under out up down off than then so no not do does did "
+    "have has had will would can could should may might must if else when while "
+    "which who whom whose what where why how all any both each few more most other "
+    "some such only own same too very can just".split()
+)
+
+_RAG_REMEDIATION = {
+    "retrieval_miss": (
+        "The passage needed to answer was not in the retrieved context. Raise top_k, "
+        "add a re-ranker, improve chunking/embeddings, or widen the query."
+    ),
+    "grounding_miss": (
+        "The context contained the answer but the response ignored or contradicted it. "
+        "Tighten the prompt ('answer only from the context, cite the passage'), lower "
+        "temperature, or add a self-check / citation step."
+    ),
+    "generation_error": (
+        "Context was retrieved and the answer stayed on it, but the result is still "
+        "wrong — a reasoning or formatting error. Add few-shot examples, a verification "
+        "step, or a stronger model for this task type."
+    ),
+}
+
+
+def _wtok(text: Any) -> set[str]:
+    """Content-word token set — lowercased, stopwords dropped, keeps digits."""
+    return {
+        w.lower() for w in _RE_WORD.findall(str(text or ""))
+        if w.lower() not in _RAG_STOPWORDS
+    }
+
+
+def _raw_wordcount(text: Any) -> int:
+    return len(_RE_WORD.findall(str(text or "")))
+
+
+def _overlap(a: set[str], b: set[str]) -> float:
+    return (len(a & b) / len(a)) if a else 0.0
+
+
+def classify_rag_failure(
+    *,
+    response: str,
+    context: str,
+    ground_truth: str = "",
+    accuracy: float | None = None,
+    faithfulness: float | None = None,
+) -> dict[str, Any] | None:
+    """Classify one (RAG) task. Returns ``None`` when there is no retrieved
+    context (not a RAG task). ``klass`` is ``ok`` when the task looks correct."""
+    if not context or not str(context).strip():
+        return None
+    ctx_tok = _wtok(context)
+    gt_tok = _wtok(ground_truth)
+    recall = _overlap(gt_tok, ctx_tok) if gt_tok else None
+
+    sentences = [s.strip() for s in re.split(r"[.\n]", str(response or "")) if s.strip()]
+    long_sents = [s for s in sentences if _raw_wordcount(s) >= _RAG_MIN_SENTENCE_WORDS]
+    unsupported = [
+        s for s in long_sents
+        if _wtok(s) and _overlap(_wtok(s), ctx_tok) < _RAG_SUPPORT_THRESHOLD
+    ]
+    unsupported_ratio = (len(unsupported) / len(long_sents)) if long_sents else 0.0
+
+    grounded = unsupported_ratio <= _RAG_UNSUPPORTED_MAX
+    if faithfulness is not None:
+        grounded = grounded and faithfulness >= 0.6
+
+    correct = accuracy is None or accuracy >= 0.7
+    if correct:
+        klass = "ok"
+    elif recall is not None and recall < _RAG_RECALL_MISS:
+        klass = "retrieval_miss"
+    elif not grounded:
+        klass = "grounding_miss"
+    else:
+        klass = "generation_error"
+    return {
+        "klass": klass,
+        "context_recall": round(recall, 3) if recall is not None else None,
+        "unsupported_ratio": round(unsupported_ratio, 3),
+        "unsupported_claims": [s[:160] for s in unsupported[:3]],
+    }
+
+
+def _task_faithfulness(t: dict[str, Any]) -> float | None:
+    j = t.get("llm_judge")
+    if isinstance(j, dict) and not j.get("skipped"):
+        f = (j.get("scores") or {}).get("faithfulness")
+        if isinstance(f, (int, float)):
+            return float(f) / 5.0 if f > 1.0 else float(f)
+    extra = t.get("extra")
+    if isinstance(extra, dict):
+        for k in ("faithfulness", "ragas_faithfulness"):
+            v = extra.get(k)
+            if isinstance(v, (int, float)):
+                return float(v)
+    return None
+
+
+def rag_localization(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Aggregate ``classify_rag_failure`` over every task that has retrieved
+    context. ``None`` when no task is a RAG task."""
+    by_class: dict[str, int] = defaultdict(int)
+    examples: list[dict[str, Any]] = []
+    n_rag = 0
+    for t in tasks:
+        res = classify_rag_failure(
+            response=t.get("response") or "",
+            context=t.get("context") or "",
+            ground_truth=t.get("ground_truth") or "",
+            accuracy=_safe_float(t.get("accuracy_score")),
+            faithfulness=_task_faithfulness(t),
+        )
+        if res is None:
+            continue
+        n_rag += 1
+        by_class[res["klass"]] += 1
+        if res["klass"] != "ok" and res["unsupported_claims"] and len(examples) < 10:
+            examples.append({
+                "task_id": str(t.get("task_id") or "—"),
+                "klass": res["klass"],
+                "context_recall": res["context_recall"],
+                "unsupported_claims": res["unsupported_claims"],
+            })
+    if n_rag == 0:
+        return None
+    failing = {k: v for k, v in by_class.items() if k != "ok"}
+    return {
+        "n_rag_tasks": n_rag,
+        "by_class": dict(by_class),
+        "dominant_failure": (max(failing, key=failing.get) if failing else None),
+        "remediation_by_class": {
+            k: _RAG_REMEDIATION[k] for k in failing if k in _RAG_REMEDIATION
+        },
+        "unsupported_claim_examples": examples,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Sections
 # ---------------------------------------------------------------------------
 
@@ -625,6 +785,7 @@ def build_insights(
             ),
             default=None,
         ),
+        "rag_localization": _safe(rag_localization, tasks, default=None),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),

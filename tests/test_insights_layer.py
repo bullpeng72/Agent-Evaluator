@@ -187,6 +187,83 @@ class TestLatencyBudget:
         assert build_insights(rpt)["latency_budget"] is None
 
 
+class TestRagLocalization:
+    _CTX = (
+        "The 2023 annual report states total revenue was 4.2 billion USD across all "
+        "regions and net profit was 800 million USD for the fiscal year."
+    )
+
+    def test_retrieval_miss_when_answer_not_in_context(self):
+        from agent_evaluator.reporting.insights import classify_rag_failure
+        res = classify_rag_failure(
+            response="The headquarters moved to Berlin in 2019 according to the filing.",
+            context="Weather patterns in the Pacific shift with the El Nino cycle every few years.",
+            ground_truth="The company headquarters is located in Berlin, Germany since 2019.",
+            accuracy=0.1,
+        )
+        assert res["klass"] == "retrieval_miss"
+
+    def test_grounding_miss_when_context_ignored(self):
+        from agent_evaluator.reporting.insights import classify_rag_failure
+        res = classify_rag_failure(
+            response="I believe the total was around fifty thousand dollars for everything.",
+            context=self._CTX,
+            ground_truth="Total revenue in 2023 was 4.2 billion USD across all regions.",
+            accuracy=0.2,
+        )
+        assert res["klass"] == "grounding_miss"
+        assert res["unsupported_claims"]
+
+    def test_generation_error_when_grounded_but_wrong(self):
+        from agent_evaluator.reporting.insights import classify_rag_failure
+        res = classify_rag_failure(
+            response=(
+                "Per the 2023 annual report total revenue across all regions "
+                "was 4.2 billion USD."
+            ),
+            context=self._CTX,
+            ground_truth="Total revenue in 2023 was 4.2 billion USD across all regions.",
+            accuracy=0.45,
+        )
+        assert res["klass"] == "generation_error"
+
+    def test_none_when_no_context(self):
+        from agent_evaluator.reporting.insights import classify_rag_failure
+        assert classify_rag_failure(
+            response="x", context="", ground_truth="y", accuracy=0.1,
+        ) is None
+
+    def test_aggregate_reports_dominant_and_remediation(self):
+        def _rt(tid, resp, acc, ok):
+            return {
+                "task_id": tid, "response": resp, "context": self._CTX,
+                "ground_truth": "Revenue was 4.2 billion USD.",
+                "accuracy_score": acc, "success": ok,
+                "completion_score": 1.0 if ok else 0.2, "task_type": "rag",
+            }
+
+        rpt = _report(
+            {"C": {"score": 0.5, "status": "warn", "gate": "warn", "details": {}}},
+            [
+                _rt("a", "around fifty thousand dollars i think total maybe", 0.2, False),
+                _rt("b", "maybe about a hundred thousand dollars overall that year", 0.2, False),
+                _rt("c", "Total revenue was 4.2 billion USD across all regions.", 0.95, True),
+            ],
+        )
+        loc = build_insights(rpt)["rag_localization"]
+        assert loc["n_rag_tasks"] == 3
+        assert loc["by_class"]["ok"] == 1
+        assert loc["dominant_failure"] == "grounding_miss"
+        assert "grounding_miss" in loc["remediation_by_class"]
+
+    def test_none_without_rag_tasks(self):
+        rpt = _report(
+            {"A": {"score": 0.4, "status": "fail", "gate": "fail", "details": {"tcr_pct": 40.0}}},
+            [_task("t1", ok=False)],
+        )
+        assert build_insights(rpt)["rag_localization"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

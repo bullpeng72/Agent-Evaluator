@@ -2170,6 +2170,11 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         lineage_html = _build_failure_lineage(cases, baseline)
     except Exception:
         pass
+    rag_html = ""
+    try:
+        rag_html = _build_rag_localization(tasks)
+    except Exception:
+        pass
 
     return (
         '<div class="gate-section" id="failure-cases" style="border-left-color:#ef4444">'
@@ -2177,6 +2182,7 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         f'<span style="font-size:13px;color:#6b7280">'
         f'(showing {len(worst)} of {heading_n})</span></h2>'
         f'{lineage_html}'
+        f'{rag_html}'
         f'{clusters_html}'
         '<h3 style="margin:4px 0 6px">Worst cases</h3>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 12px">'
@@ -2187,6 +2193,102 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         f'</tr></thead><tbody>{rows}</tbody></table>{more}'
         '</div>'
     )
+
+
+_RAG_CLASS_LABEL = {
+    "retrieval_miss": ("Retrieval miss", "#dc2626"),
+    "grounding_miss": ("Grounding miss", "#d97706"),
+    "generation_error": ("Generation error", "#7c3aed"),
+    "ok": ("Answered OK", "#059669"),
+}
+
+
+def _build_rag_localization(tasks: list[Any] | None) -> str:
+    """P11: split RAG failures into retrieval-miss / grounding-miss / generation-error.
+
+    The fix differs completely per class (top_k/re-rank vs prompt vs decoding), so
+    an aggregate faithfulness/recall number alone never told the reader which lever
+    to pull. Reuses ``insights.rag_localization`` (coarse, deterministic, no ML).
+    """
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import rag_localization
+
+        norm = [_norm_task_for_case(t) for t in tasks]
+        loc = rag_localization([
+            {
+                "task_id": c["task_id"], "response": c["response"],
+                "context": _task_context(t), "ground_truth": c["ground_truth"],
+                "accuracy_score": c["accuracy_score"],
+                "llm_judge": getattr(t, "llm_judge", None) if not isinstance(
+                    getattr(t, "raw", None), dict) else (t.raw or {}).get("llm_judge"),
+                "extra": _task_extra(t),
+            }
+            for t, c in zip(tasks, norm)
+        ])
+    except Exception:
+        loc = None
+    if not loc or loc.get("n_rag_tasks", 0) == 0:
+        return ""
+    by = loc.get("by_class") or {}
+    failing = {k: v for k, v in by.items() if k != "ok"}
+    if not failing:
+        return ""
+
+    rows = ""
+    for klass in ("retrieval_miss", "grounding_miss", "generation_error"):
+        n = by.get(klass, 0)
+        if not n:
+            continue
+        lbl, col = _RAG_CLASS_LABEL[klass]
+        fix = (loc.get("remediation_by_class") or {}).get(klass, "")
+        rows += (
+            f'<tr><td style="font-weight:600;color:{col};white-space:nowrap">{lbl}</td>'
+            f'<td style="text-align:right;white-space:nowrap">{n}</td>'
+            f'<td style="font-size:12px;color:#4b5563">{_esc(fix)}</td></tr>'
+        )
+    ex = ""
+    for e in (loc.get("unsupported_claim_examples") or [])[:5]:
+        lbl, col = _RAG_CLASS_LABEL.get(e.get("klass", ""), ("", "#6b7280"))
+        claims = "; ".join(_esc(_clip(s, 100)) for s in e.get("unsupported_claims") or [])
+        cr = e.get("context_recall")
+        cr_s = f' · recall {cr:.2f}' if isinstance(cr, (int, float)) else ""
+        ex += (
+            f'<div style="font-size:11px;color:#6b7280;margin:2px 0">'
+            f'<span style="color:{col};font-weight:600">[{lbl}]</span> '
+            f'<span style="color:#9ca3af">{_esc(e.get("task_id", ""))}{cr_s}</span> '
+            f'— unsupported: {claims}</div>'
+        )
+    dominant = loc.get("dominant_failure")
+    dom_s = ""
+    if dominant:
+        lbl, col = _RAG_CLASS_LABEL.get(dominant, ("", ""))
+        dom_s = (f'<p style="font-size:13px;margin:0 0 6px"><strong>Dominant RAG failure: '
+                 f'<span style="color:{col}">{lbl}</span></strong> — fix this class first.</p>')
+    return (
+        '<h3 style="margin:10px 0 6px">RAG failure localization '
+        f'<span style="font-size:12px;color:#6b7280;font-weight:400">'
+        f'({loc["n_rag_tasks"]} task(s) with retrieved context)</span></h3>'
+        f'{dom_s}'
+        '<table class="mtable"><thead><tr>'
+        '<th>Failure type</th><th>Count</th><th>What to change</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+        + (f'<div style="margin-top:6px">{ex}</div>' if ex else "")
+    )
+
+
+def _task_context(t: Any) -> str:
+    raw = getattr(t, "raw", None)
+    if isinstance(raw, dict):
+        return raw.get("context") or ""
+    return getattr(t, "context", "") or ""
+
+
+def _task_extra(t: Any) -> dict:
+    raw = getattr(t, "raw", None)
+    v = raw.get("extra") if isinstance(raw, dict) else getattr(t, "extra", None)
+    return v if isinstance(v, dict) else {}
 
 
 # ---------------------------------------------------------------------------
