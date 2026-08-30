@@ -381,7 +381,7 @@ class TestWithRecommendFixMcpRegistration:
 
         assert code == 0
         err = capsys.readouterr().err
-        assert "실패" in err
+        assert "failed" in err
         assert "some claude error" in err
 
     def test_timeout_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
@@ -394,7 +394,7 @@ class TestWithRecommendFixMcpRegistration:
         code = claude_cli.cmd_claude(_ns(with_violation_search=True))
 
         assert code == 0
-        assert "시간 초과" in capsys.readouterr().err
+        assert "timed out" in capsys.readouterr().err
 
     def test_already_exists_is_reported_as_no_change_not_a_warning(
         self, tmp_path, monkeypatch, capsys,
@@ -412,7 +412,7 @@ class TestWithRecommendFixMcpRegistration:
         assert code == 0
         out, err = capsys.readouterr()
         assert "already registered" in out
-        assert "실패" not in err
+        assert "failed" not in err
         assert "mcp add" not in err
 
 

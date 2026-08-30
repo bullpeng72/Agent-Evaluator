@@ -259,7 +259,7 @@ For Agent Evaluator integration (decorator):
         result = await team.run(task=question)
         return result.messages[-1].content
 
-Note: autogen-agentchat >= 0.4.0 (async-first API) 권장."""
+Note: autogen-agentchat >= 0.4.0 (async-first API) recommended."""
     }
 
     return instructions.get(framework.lower(), f"Unknown framework: {framework}")

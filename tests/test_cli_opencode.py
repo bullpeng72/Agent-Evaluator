@@ -280,7 +280,7 @@ class TestWithRecommendFixMcpRegistration:
 
         assert code == 0
         err = capsys.readouterr().err
-        assert "실패" in err
+        assert "failed" in err
         assert "some opencode error" in err
 
     def test_timeout_warns_but_still_succeeds(self, tmp_path, monkeypatch, capsys):
@@ -293,7 +293,7 @@ class TestWithRecommendFixMcpRegistration:
         code = opencode_cli.cmd_opencode(_ns(with_violation_search=True))
 
         assert code == 0
-        assert "시간 초과" in capsys.readouterr().err
+        assert "timed out" in capsys.readouterr().err
 
 
 class TestMissingHooksCheck:
@@ -384,7 +384,7 @@ class TestOpencodeAlreadyExistsMcp:
         assert code == 0
         out, err = capsys.readouterr()
         assert "already registered" in out
-        assert "실패" not in err
+        assert "failed" not in err
 
 
 class TestOpencodeUpgrade:

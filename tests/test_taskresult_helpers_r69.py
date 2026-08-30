@@ -444,7 +444,7 @@ class TestCreateTaskresultFromExecution:
             execution_time=0.5,
         )
         assert task.partial_reason is not None
-        assert "길이" in task.partial_reason
+        assert "short" in task.partial_reason
 
     def test_partial_reason_error_message(self):
         task = create_taskresult_from_execution(
@@ -549,7 +549,7 @@ class TestSimpleHelpers:
 
     def test_simulate_no_match(self):
         result = simulate_agent_response("unknown question xyz", {"capital": "Seoul"})
-        assert "찾을 수 없습니다" in result["answer"]
+        assert "not found" in result["answer"].lower()
         assert result["latency"] == 0.5
 
     def test_calculate_percentage_score(self):

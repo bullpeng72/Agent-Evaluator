@@ -2512,7 +2512,7 @@ def _safe_adapter_call(
 
 
 def _extract_vllm_metadata(raw: Any) -> EvalMetadata | None:
-    """F4: vLLM OpenAI-호환 API 응답에서 메타데이터 추출.
+    """F4: vLLM OpenAI-compatible API 응답에서 메타데이터 추출.
 
     vLLM은 OpenAI 호환 API를 제공하므로 choices[0].message.tool_calls + usage.total_tokens 패턴 사용.
     RequestOutput (native vLLM) 응답도 지원.
@@ -2870,7 +2870,7 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": None,
         "extracts": [],
         "async_supported": True,
-        "description": "네이티브 Python 반환값 — 어댑터 없음 (자동 감지 대상)",
+        "description": "Native Python return value — no adapter (auto-detected)",
     },
     "langchain": {
         "name": "LangChain",
@@ -2884,14 +2884,14 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": "langchain",
         "extracts": ["state_transitions", "graph_traversal", "tool_calls", "chain_steps"],
         "async_supported": True,
-        "description": "LangGraph invoke — messages → state_transitions + graph_traversal; ToolMessage/AIMessage → chain_steps; __metadata__ 지원",
+        "description": "LangGraph invoke — messages → state_transitions + graph_traversal; ToolMessage/AIMessage → chain_steps",
     },
     "crewai": {
         "name": "CrewAI",
         "extras": "crewai",
         "extracts": ["agent_interactions"],
         "async_supported": False,
-        "description": "CrewAI kickoff — tasks_output → agent_interactions; output_pydantic/output_format/pydantic 필드 지원",
+        "description": "CrewAI kickoff — tasks_output → agent_interactions; output_pydantic/output_format supported",
     },
     "autogen": {
         "name": "AutoGen",
@@ -2905,14 +2905,14 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": "dspy",
         "extracts": ["chain_steps", "tokens_used"],
         "async_supported": False,
-        "description": "DSPy Prediction — _completions → chain_steps; LM history 전체 multi-step 추출 지원",
+        "description": "DSPy Prediction — _completions → chain_steps; full multi-step extraction from LM history supported",
     },
     "pydanticai": {
         "name": "PydanticAI",
         "extras": "pydanticai",
         "extracts": ["chain_steps", "tokens_used"],
         "async_supported": True,
-        "description": "PydanticAI RunResult — .all_messages() 우선 → chain_steps; ToolCallPart/ToolReturnPart 세분화",
+        "description": "PydanticAI RunResult — .all_messages() first → chain_steps; ToolCallPart/ToolReturnPart broken out",
     },
     "anthropic": {
         "name": "Anthropic",
@@ -2940,14 +2940,14 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": "llm",
         "extracts": ["chain_steps"],
         "async_supported": True,
-        "description": "LlamaIndex Response — source_nodes → chain_steps + metadata 토큰 추출",
+        "description": "LlamaIndex Response — source_nodes → chain_steps + token extraction from metadata",
     },
     "haystack": {
         "name": "Haystack",
         "extras": "llm",
         "extracts": ["chain_steps"],
         "async_supported": True,
-        "description": "Haystack Pipeline — 컴포넌트 출력 dict → chain_steps",
+        "description": "Haystack Pipeline — component output dict → chain_steps",
     },
     "vertexai": {
         "name": "Vertex AI",
@@ -2968,42 +2968,42 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Cohere SDK — tool_calls + meta.tokens; streaming finish_reason 감지",
+        "description": "Cohere SDK — tool_calls + meta.tokens; streaming finish_reason detected",
     },
     "groq": {
         "name": "Groq",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Groq SDK (OpenAI 호환) — tool_calls + usage; cache_creation/read_tokens (v0.9+)",
+        "description": "Groq SDK (OpenAI-compatible) — tool_calls + usage; cache_creation/read_tokens (v0.9+)",
     },
     "mistral": {
         "name": "Mistral AI",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Mistral AI SDK — tool_calls + usage; function_call 구버전 호환",
+        "description": "Mistral AI SDK — tool_calls + usage; legacy function_call compatibility",
     },
     "bedrock": {
         "name": "AWS Bedrock",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Bedrock Converse API — model_id 기반 분기: Titan/Mistral on Bedrock/Claude",
+        "description": "Bedrock Converse API — branch by model_id: Titan/Mistral on Bedrock/Claude",
     },
     "smolagents": {
         "name": "HuggingFace smolagents",
         "extras": "llm",
         "extracts": ["tool_calls", "chain_steps"],
         "async_supported": False,
-        "description": "smolagents ToolCall 스텝 — 성공/실패 여부 + 입력값 정규화",
+        "description": "smolagents ToolCall steps — success/failure + input normalization",
     },
     "semantic_kernel": {
         "name": "Semantic Kernel",
         "extras": "llm",
         "extracts": ["chain_steps", "tokens_used"],
         "async_supported": True,
-        "description": "Semantic Kernel — inner_content 에서 OpenAI/Anthropic 백엔드 토큰 자동 추출",
+        "description": "Semantic Kernel — auto token extraction from inner_content for the OpenAI/Anthropic backend",
     },
     # F4: 신규 어댑터
     "vllm": {
@@ -3011,35 +3011,35 @@ _FRAMEWORK_ADAPTER_META: dict[str, dict[str, Any]] = {
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "vLLM OpenAI-호환 API — choices[0].message.tool_calls + usage.total_tokens",
+        "description": "vLLM OpenAI-compatible API — choices[0].message.tool_calls + usage.total_tokens",
     },
     "huggingface": {
         "name": "HuggingFace",
         "extras": "llm",
         "extracts": ["chain_steps", "tool_calls"],
         "async_supported": False,
-        "description": "HuggingFace pipeline()/Agent — generated_text chain_steps; tool_calls/actions 추출",
+        "description": "HuggingFace pipeline()/Agent — generated_text chain_steps; tool_calls/actions extracted",
     },
     "openai_agents": {
         "name": "OpenAI Agents SDK",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "OpenAI Agents SDK (Swarm 후속 공식 SDK) — Runner.run() RunResult.new_items의 ToolCallItem → tool_calls; raw_responses[].usage 합산 → tokens_used",
+        "description": "OpenAI Agents SDK (the official successor to Swarm) — ToolCallItem in Runner.run() RunResult.new_items → tool_calls; raw_responses[].usage summed → tokens_used",
     },
     "google_adk": {
         "name": "Google ADK",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Google Agent Development Kit — Event.get_function_calls() → tool_calls; Event.usage_metadata(gemini와 동일 필드) → tokens_used. 세션 마지막 Event를 반환해야 함",
+        "description": "Google Agent Development Kit — Event.get_function_calls() → tool_calls; Event.usage_metadata (same fields as gemini) → tokens_used. Must return the last Event of the session",
     },
     "claude_agent_sdk": {
         "name": "Claude Agent SDK",
         "extras": "llm",
         "extracts": ["tool_calls", "tokens_used"],
         "async_supported": True,
-        "description": "Claude Agent SDK (구 Claude Code SDK) — AssistantMessage.content의 ToolUseBlock → tool_calls; ResultMessage.usage/total_cost_usd → tokens_used/extra",
+        "description": "Claude Agent SDK (formerly Claude Code SDK) — ToolUseBlock in AssistantMessage.content → tool_calls; ResultMessage.usage/total_cost_usd → tokens_used/extra",
     },
 }
 
@@ -3450,7 +3450,7 @@ def _make_alert_on_record(
                     pass
                 else:  # "log" (기본)
                     logger.warning(
-                        "alert_rule '%s' 콜백 예외 (태스크 기록은 계속됨): %s",
+                        "alert_rule '%s' callback exception (task recording continues): %s",
                         getattr(rule, "name", repr(rule)),
                         _alert_exc,
                     )
@@ -3636,7 +3636,7 @@ async def _process_async_judge_targets(targets: list[tuple]) -> None:
         try:
             _judge_result = await _lj.ajudge(task_id=_tid, question=_q, response=_r, context=_ctx)
         except Exception as exc:
-            logger.debug("SPEC-006: ajudge() 처리 실패 (무시): %s", exc)
+            logger.debug("SPEC-006: ajudge() processing failed (ignored): %s", exc)
             return
         if not _judge_result:
             return
@@ -3656,7 +3656,7 @@ async def _process_async_judge_targets(targets: list[tuple]) -> None:
                         _invalidate_judge()
                     break
         except Exception as exc:
-            logger.debug("SPEC-006: ajudge() 결과 반영 실패 (무시): %s", exc)
+            logger.debug("SPEC-006: applying the ajudge() result failed (ignored): %s", exc)
 
     await asyncio.gather(*(_one(*t) for t in targets))
 
@@ -4223,11 +4223,11 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
             _ov_forbidden = _sc_forbidden & _ar_forbidden
             if _ov_allowed or _ov_forbidden:
                 logger.warning(
-                    "ScopeConfig(Gate B)와 AgentRoleConfig(Gate F)에 동일한 tool 목록이 중복 정의되어 "
-                    "같은 위반이 Gate B와 Gate F 양쪽에 페널티로 반영됩니다. "
-                    "allowed 중복: %s / forbidden 중복: %s",
-                    sorted(_ov_allowed) or "없음",
-                    sorted(_ov_forbidden) or "없음",
+                    "ScopeConfig(Gate B) and AgentRoleConfig(Gate F) define the same tool list, so "
+                    "so the same violation is penalized in both Gate B and Gate F. "
+                    "allowed overlap: %s / forbidden overlap: %s",
+                    sorted(_ov_allowed) or "none",
+                    sorted(_ov_forbidden) or "none",
                 )
 
         if context_retention is not None:
@@ -4472,8 +4472,8 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
                     # B-55: 묵음 스킵 → debug 로그로 진단 가능하게. context_window 키가 extra에 없어
                     # Gate B에 미기여하는 이유를 사용자가 파악하기 어려우므로 명시적으로 기록.
                     logger.debug(
-                        "ContextWindowConfig: task_id=%s 토큰 수=0 — context_window 평가 생략 "
-                        "(Gate B 미기여). tokens_used를 EvalMetadata로 전달하면 평가가 활성화됩니다.",
+                        "ContextWindowConfig: task_id=%s token count=0 — skipping context_window evaluation "
+                        "(no Gate B contribution). Pass tokens_used via EvalMetadata to enable evaluation.",
                         getattr(task_result, "task_id", "unknown"),
                     )
             except Exception as _e:
@@ -4514,7 +4514,7 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
                     task_result = dataclasses.replace(task_result, extra=_pm_extra)
                     logger.debug("MetricPlugin result applied: %s", list(_plugin_scores.keys()))
         except Exception as _pr2_exc:
-            logger.debug("PluginRegistry MetricPlugin 실행 실패 (무시): %s", _pr2_exc)
+            logger.debug("PluginRegistry MetricPlugin execution failed (ignored): %s", _pr2_exc)
 
         # H1: LLM Judge가 이 호출에서 활성화될지 미리 계산 (try/finally 이후 back-propagation용)
         _judge_will_be_active = enable_llm_judge or (
@@ -4576,7 +4576,7 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
                             logger.debug("LLM Judge lazy init: model=%s", _m.llm_judge.model)
                             _llm_judge_restored.append((_m, None, True))  # was_lazy=True
                         except Exception as _lj_exc:
-                            logger.debug("LLM Judge lazy init 실패: %s", _lj_exc)
+                            logger.debug("LLM Judge lazy init failed: %s", _lj_exc)
                             _m.enable_llm_judge = False
                     else:
                         _orig_judge_model = getattr(_m, "_judge_model", None)
@@ -4842,13 +4842,13 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
             try:
                 on_error(task_result)
             except Exception as e:
-                logger.warning("on_error 콜백 실패: %s", e)  # L3: warn not debug
+                logger.warning("on_error callback failed: %s", e)  # L3: warn not debug
 
         return task_result  # Gap AM: 호출자가 수집할 수 있도록 반환
 
     except Exception as exc:
         logger.debug(
-            "_build_and_record 실패 (평가 생략, 원본 실행 결과는 정상): %s", exc
+            "_build_and_record failed (evaluation skipped; the wrapped call's result is fine): %s", exc
         )
         return None  # Gap AM
 
@@ -4956,13 +4956,13 @@ def register_preset(name: str, config: dict[str, Any]) -> None:
         def agent(question, ground_truth=""): ...
     """
     if not name or not isinstance(name, str):
-        raise ValueError("register_preset: name은 비어 있지 않은 문자열이어야 합니다")
+        raise ValueError("register_preset: name must be a non-empty string")
     if not isinstance(config, dict):
-        raise ValueError("register_preset: config는 dict여야 합니다")
+        raise ValueError("register_preset: config must be a dict")
     if name in AGENT_EVAL_PRESETS:
         import warnings as _warnings_w
         _warnings_w.warn(
-            f"register_preset: '{name}' preset이 이미 존재합니다. 덮어씁니다.",
+            f"register_preset: preset '{name}' already exists — overwriting.",
             UserWarning,
             stacklevel=2,
         )
@@ -5307,9 +5307,9 @@ def agent_eval(
             import warnings
             _valid_presets = list(AGENT_EVAL_PRESETS.keys())
             warnings.warn(
-                f"알 수 없는 preset: '{preset}'.\n"
-                f"  사용 가능한 preset: {_valid_presets}\n"
-                f"  예시: @agent_eval(monitor, preset='production')",
+                f"Unknown preset: '{preset}'.\n"
+                f"  available presets: {_valid_presets}\n"
+                f"  example: @agent_eval(monitor, preset='production')",
                 UserWarning,
                 stacklevel=2,
             )
@@ -5435,10 +5435,10 @@ def agent_eval(
                     try:
                         _mon = monitor if not isinstance(monitor, list) else monitor[0]
                         _mon.save_to_file("auto_save")
-                        logger.debug("flush_every=%d 조건 충족 — 'auto_save' 저장", flush_every)
+                        logger.debug("flush_every=%d condition met — saving 'auto_save'", flush_every)
                     except Exception as _fe:
                         _flush_counter[0] -= 1  # M6: roll back counter so next call retries
-                        logger.debug("flush_every 저장 실패 (무시): %s", _fe)
+                        logger.debug("flush_every save failed (ignored): %s", _fe)
 
         # on_record에 _maybe_flush 연결 (Gap H: 반환값 보존)
         _orig_on_record = _effective_on_record
@@ -5448,7 +5448,7 @@ def agent_eval(
                 try:
                     _ret = _orig_on_record(task_result)
                 except Exception as e:
-                    logger.debug("on_record 실패 (무시): %s", e)
+                    logger.debug("on_record failed (ignored): %s", e)
             _maybe_flush(task_result)
             return _ret  # Gap H: 반환값 전달 → _build_and_record 에서 교체 여부 판단
         _effective_on_record = _combined_on_record
@@ -5462,8 +5462,8 @@ def agent_eval(
             if _eval_active.get(False):
                 import warnings as _warnings_f
                 _warnings_f.warn(
-                    "agent_eval: 이미 평가 데코레이터 내부에서 호출됩니다. "
-                    "이중 데코레이터(@langchain_eval + @agent_eval 등)는 태스크를 2번 기록할 수 있습니다.",
+                    "agent_eval: already called inside an evaluation decorator. "
+                    "Double decorators (e.g. @langchain_eval + @agent_eval) can record a task twice.",
                     UserWarning,
                     stacklevel=3,
                 )
@@ -5474,8 +5474,8 @@ def agent_eval(
             if _current_depth > MAX_NESTING_DEPTH:
                 import warnings as _warnings_m2
                 _warnings_m2.warn(
-                    f"agent_eval 중첩 깊이 {_current_depth}가 MAX_NESTING_DEPTH={MAX_NESTING_DEPTH}를 초과합니다. "
-                    "재귀 호출 또는 과도한 데코레이터 중첩을 확인하세요.",
+                    f"agent_eval nesting depth {_current_depth} exceeds MAX_NESTING_DEPTH={MAX_NESTING_DEPTH}. "
+                    "Check for recursion or excessive decorator nesting.",
                     ResourceWarning,
                     stacklevel=3,
                 )
@@ -5510,7 +5510,7 @@ def agent_eval(
                 try:
                     _state_before = _state_fn()
                 except Exception as _se:
-                    logger.debug("StateConsistencyConfig state_fn (before) 실패 (무시): %s", _se)
+                    logger.debug("StateConsistencyConfig state_fn (before) failed (ignored): %s", _se)
             # ReproducibilityConfig: 응답 목록 (추가 실행 후 채움)
             _repro_responses: list[str] | None = None
 
@@ -5571,7 +5571,7 @@ def agent_eval(
                     try:
                         _state_after = _state_fn()
                     except Exception as _se:
-                        logger.debug("StateConsistencyConfig state_fn (after) 실패 (무시): %s", _se)
+                        logger.debug("StateConsistencyConfig state_fn (after) failed (ignored): %s", _se)
                 # ReproducibilityConfig: 추가 실행 수집
                 if reproducibility is not None and not has_error:
                     _repro_responses = [str(caller_result) if caller_result is not None else ""]
@@ -5583,7 +5583,7 @@ def agent_eval(
                                 _ex_resp, _ = _split_raw(_ex_raw)
                                 _repro_responses.append(str(_ex_resp) if _ex_resp is not None else "")
                             except Exception as _re:
-                                logger.debug("reproducibility 추가 실행 실패 (무시): %s", _re)
+                                logger.debug("reproducibility extra run failed (ignored): %s", _re)
                                 _repro_responses.append("")
                     # skip_side_effects=True: 추가 실행 skip → run_count=1, score=1.0 반환
                 return caller_result
@@ -5697,7 +5697,7 @@ def agent_eval(
                                 _lt.track_ttft(task_id, ttft_seconds,
                                                task_type=_task_type_str)
                             except Exception as _ttft_e:
-                                logger.debug("ttft track_ttft 실패 (무시): %s", _ttft_e)
+                                logger.debug("ttft track_ttft failed (ignored): %s", _ttft_e)
                             break
 
         @functools.wraps(func)
@@ -5739,7 +5739,7 @@ def agent_eval(
                 try:
                     _async_state_before = _async_state_fn()
                 except Exception as _se:
-                    logger.debug("StateConsistencyConfig state_fn async (before) 실패 (무시): %s", _se)
+                    logger.debug("StateConsistencyConfig state_fn async (before) failed (ignored): %s", _se)
             # SPEC-039 REQ-2: ReproducibilityConfig: 응답 목록 (추가 실행 후 채움) — sync
             # wrapper와 동일한 필드. 이전에는 async에 이 로직이 아예 없어
             # reproducibility_responses=None이 하드코딩돼 있었고 async 에이전트에서
@@ -5796,7 +5796,7 @@ def agent_eval(
                     try:
                         _async_state_after = _async_state_fn()
                     except Exception as _se:
-                        logger.debug("StateConsistencyConfig state_fn async (after) 실패 (무시): %s", _se)
+                        logger.debug("StateConsistencyConfig state_fn async (after) failed (ignored): %s", _se)
                 # SPEC-039 REQ-2: ReproducibilityConfig: 추가 실행 수집 (async) — sync
                 # wrapper(위 `caller_result, _ = _split_raw(raw)  # EvalMetadata 분리` 직후)와
                 # 동일한 로직, `func(*args, **kwargs)` 대신 `await func(*args, **kwargs)`만 다르다.
@@ -5813,7 +5813,7 @@ def agent_eval(
                                 )
                             except Exception as _re:
                                 logger.debug(
-                                    "reproducibility 추가 실행 실패 (async, 무시): %s", _re
+                                    "reproducibility extra run failed (async, ignored): %s", _re
                                 )
                                 _repro_responses.append("")
                     # skip_side_effects=True: 추가 실행 skip → run_count=1, score=1.0 반환
@@ -6174,8 +6174,8 @@ def agent_eval(
         # 항목 B: generator 함수에 timeout 지정 시 UserWarning 발행
         if timeout is not None and (inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func)):
             _timeout_msg = (
-                f"agent_eval: timeout={timeout}은 generator 함수에 적용되지 않습니다. "
-                "streaming 함수의 timeout은 수동으로 구현하세요."
+                f"agent_eval: timeout={timeout} does not apply to generator functions. "
+                "Implement the timeout for streaming functions manually."
             )
             import warnings as _warnings_b
             _warnings_b.warn(_timeout_msg, UserWarning, stacklevel=3)
@@ -6190,9 +6190,9 @@ def agent_eval(
             inspect.isgeneratorfunction(func) or inspect.isasyncgenfunction(func)
         ):
             _retry_gen_msg = (
-                "agent_eval: retry=RetryConfig(...)는 generator/스트리밍 함수에 적용되지 않습니다 "
-                "(재시도 없이 그대로 실행됩니다). 이미 호출자에게 전달된 청크를 재시도 시점에 "
-                "어떻게 처리할지가 정의되지 않아 지원하지 않습니다."
+                "agent_eval: retry=RetryConfig(...) does not apply to generator/streaming functions "
+                "(it runs as-is with no retry). How to handle chunks already yielded to the caller "
+                "at retry time is undefined, so this is not supported."
             )
             import warnings as _warnings_c
             _warnings_c.warn(_retry_gen_msg, UserWarning, stacklevel=3)
@@ -6290,7 +6290,7 @@ def flush_conversation(session_id: str) -> bool:
         entry = _CONV_SESSIONS.pop(session_id, None)
 
     if entry is None:
-        logger.debug("flush_conversation: 세션 '%s' 없음 (이미 flush 됐거나 미생성)", session_id)
+        logger.debug("flush_conversation: session '%s' not found (already flushed or never created)", session_id)
         return False
 
     _do_flush(entry)
@@ -6309,7 +6309,7 @@ def _do_flush(entry: dict[str, Any]) -> None:
     stored_monitor = entry["monitor"]
 
     if not turns:
-        logger.debug("flush_conversation: 세션 '%s' 턴 없음 — skip", session_id)
+        logger.debug("flush_conversation: session '%s' has no turns — skip", session_id)
         return
 
     on_flush_cb: Callable | None = entry.get("on_flush")
@@ -6329,7 +6329,7 @@ def _do_flush(entry: dict[str, Any]) -> None:
             _conv_judge_was_lazy = True
             logger.debug("conversation_eval: LLM Judge lazy-init (model=%s)", stored_monitor.llm_judge.model)
         except Exception as _lj_init_exc:
-            logger.warning("conversation_eval: LLM Judge 초기화 실패 (무시): %s", _lj_init_exc)
+            logger.warning("conversation_eval: LLM Judge init failed (ignored): %s", _lj_init_exc)
             _conv_enable_llm_judge = False
 
     try:
@@ -6341,7 +6341,7 @@ def _do_flush(entry: dict[str, Any]) -> None:
                     metadata=t.get("metadata", {}),
                 )
         logger.debug(
-            "flush_conversation: 세션 '%s' flush 완료 (%d턴)", session_id, len(turns)
+            "flush_conversation: session '%s' flushed (%d turns)", session_id, len(turns)
         )
         # Gap T: session_score_fn — 세션 전체 점수 커스터마이징
         if session_score_fn_cb is not None:
@@ -6355,7 +6355,7 @@ def _do_flush(entry: dict[str, Any]) -> None:
                         if custom_score is not None:
                             metrics.overall_score = float(custom_score)
             except Exception as sf_exc:
-                logger.debug("session_score_fn 실패 (무시): %s", sf_exc)
+                logger.debug("session_score_fn failed (ignored): %s", sf_exc)
         # C: on_record 콜백 — 세션 flush 후 마지막 기록된 TaskResult에 적용
         if on_record_cb is not None:
             try:
@@ -6382,9 +6382,9 @@ def _do_flush(entry: dict[str, Any]) -> None:
                 try:
                     on_flush_cb(session_id)
                 except Exception as cb_exc:
-                    logger.debug("on_flush 콜백 실패 (무시): %s", cb_exc)
+                    logger.debug("on_flush callback failed (ignored): %s", cb_exc)
             except Exception as cb_exc:
-                logger.debug("on_flush 콜백 실패 (무시): %s", cb_exc)
+                logger.debug("on_flush callback failed (ignored): %s", cb_exc)
         # alert_rules — 세션 flush 후 마지막 기록된 TaskResult 에 적용
         _flush_alert_rules = entry.get("alert_rules")
         if _flush_alert_rules:
@@ -6395,9 +6395,9 @@ def _do_flush(entry: dict[str, Any]) -> None:
                     for rule in _flush_alert_rules:
                         rule.evaluate(last_task)
             except Exception as _ar_exc:
-                logger.debug("conversation alert_rules 실패 (무시): %s", _ar_exc)
+                logger.debug("conversation alert_rules failed (ignored): %s", _ar_exc)
     except Exception as exc:
-        logger.debug("flush_conversation: 세션 '%s' flush 실패: %s", session_id, exc)
+        logger.debug("flush_conversation: session '%s' flush failed: %s", session_id, exc)
     finally:
         # H2: lazy-init한 LLM Judge 인스턴스 제거 (monitor 원상 복원)
         if _conv_judge_was_lazy:
@@ -6557,10 +6557,10 @@ def conversation_eval(
     if _conv_ignored_harness:
         import warnings as _w_conv
         _w_conv.warn(
-            f"conversation_eval: {_conv_ignored_harness}는 현재 평가에 반영되지 않습니다 "
-            "(conversation_eval은 TaskResult가 아니라 ConversationSession에 기록하며, 이 "
-            "Harness Config 파라미터들을 평가하는 경로가 아직 구현돼 있지 않습니다 — "
-            "SPEC-039 REQ-5 Non-Goals). 시그니처에는 남아 있으나 실제 효과가 없습니다.",
+            f"conversation_eval: {_conv_ignored_harness} is not reflected in the current evaluation "
+            "(conversation_eval records to a ConversationSession, not a TaskResult, and the "
+            "path that evaluates these Harness Config parameters is not implemented yet — "
+            "SPEC-039 REQ-5 Non-Goals). They remain in the signature but have no effect.",
             UserWarning, stacklevel=2,
         )
 
@@ -6589,7 +6589,7 @@ def conversation_eval(
         else:
             import warnings as _w
             _w.warn(
-                f"conversation_eval: 알 수 없는 preset '{preset}'. 사용 가능: {list(AGENT_EVAL_PRESETS.keys())}",
+                f"conversation_eval: unknown preset '{preset}'. Available: {list(AGENT_EVAL_PRESETS.keys())}",
                 UserWarning, stacklevel=2,
             )
     # LLM Judge 설정 추출
@@ -6621,7 +6621,7 @@ def conversation_eval(
                 try:
                     _mon.save_to_file("auto_save")
                 except Exception as _fe:
-                    logger.debug("conversation_eval flush_every 저장 실패 (무시): %s", _fe)
+                    logger.debug("conversation_eval flush_every save failed (ignored): %s", _fe)
 
         def _load_previous_session_turns(session_id: str) -> list[dict[str, Any]]:
             """이전 세션 턴 로드 (미지원 — 항상 빈 리스트 반환)."""
@@ -6734,7 +6734,7 @@ def conversation_eval(
                     try:
                         on_session_timeout(session_id)
                     except Exception as _te:
-                        logger.debug("on_session_timeout 콜백 실패 (무시): %s", _te)
+                        logger.debug("on_session_timeout callback failed (ignored): %s", _te)
                 flush_conversation(session_id)
 
             t = threading.Timer(max_session_seconds, _on_timeout)
@@ -6779,7 +6779,7 @@ def conversation_eval(
                             ts = float(turn_score_fn(user_msg, agent_resp, metadata))
                             metadata["turn_score"] = max(0.0, min(1.0, ts))
                         except Exception as ts_exc:
-                            logger.debug("turn_score_fn 실패 (무시): %s", ts_exc)
+                            logger.debug("turn_score_fn failed (ignored): %s", ts_exc)
                     turn_count = _add_turn(session_id, user_msg, agent_resp, metadata)
                     # Gap AY: 타이머 재설정
                     with _conv_sessions_lock:
@@ -6791,16 +6791,16 @@ def conversation_eval(
                         try:
                             on_turn(session_id, user_msg, agent_resp, metadata)
                         except Exception as ot_exc:
-                            logger.debug("on_turn 콜백 실패 (무시): %s", ot_exc)
+                            logger.debug("on_turn callback failed (ignored): %s", ot_exc)
                     if max_turns is not None and turn_count >= max_turns:
                         _action = max_turns_exceeded_action or "flush"
                         if _action == "error":
                             raise ValueError(
-                                f"max_turns={max_turns} 초과: 세션 '{session_id}'"
+                                f"max_turns={max_turns} exceeded: session '{session_id}'"
                             )
                         elif _action == "warn":
                             logger.warning(
-                                "max_turns=%d 초과: 세션 '%s' (계속 진행)", max_turns, session_id
+                                "max_turns=%d exceeded: session '%s' (continuing)", max_turns, session_id
                             )
                         else:  # "flush"
                             flush_conversation(session_id)
@@ -6843,7 +6843,7 @@ def conversation_eval(
                             ts = float(turn_score_fn(user_msg, agent_resp, metadata))
                             metadata["turn_score"] = max(0.0, min(1.0, ts))
                         except Exception as ts_exc:
-                            logger.debug("turn_score_fn 실패 (무시): %s", ts_exc)
+                            logger.debug("turn_score_fn failed (ignored): %s", ts_exc)
                     turn_count = _add_turn(session_id, user_msg, agent_resp, metadata)
                     # Gap AY: 타이머 재설정
                     with _conv_sessions_lock:
@@ -6855,7 +6855,7 @@ def conversation_eval(
                         try:
                             on_turn(session_id, user_msg, agent_resp, metadata)
                         except Exception as ot_exc:
-                            logger.debug("on_turn 콜백 실패 (무시): %s", ot_exc)
+                            logger.debug("on_turn callback failed (ignored): %s", ot_exc)
                     if max_turns is not None and turn_count >= max_turns:
                         flush_conversation(session_id)
                         _maybe_flush_conv()
@@ -6899,7 +6899,7 @@ def conversation_eval(
                             ts = float(turn_score_fn(user_msg, agent_resp, metadata))
                             metadata["turn_score"] = max(0.0, min(1.0, ts))
                         except Exception as ts_exc:
-                            logger.debug("turn_score_fn 실패 (무시): %s", ts_exc)
+                            logger.debug("turn_score_fn failed (ignored): %s", ts_exc)
                     turn_count = _add_turn(session_id, user_msg, agent_resp, metadata)
                     with _conv_sessions_lock:
                         _entry = _CONV_SESSIONS.get(session_id)
@@ -6909,7 +6909,7 @@ def conversation_eval(
                         try:
                             on_turn(session_id, user_msg, agent_resp, metadata)
                         except Exception as ot_exc:
-                            logger.debug("on_turn 콜백 실패 (무시): %s", ot_exc)
+                            logger.debug("on_turn callback failed (ignored): %s", ot_exc)
                     if max_turns is not None and turn_count >= max_turns:
                         flush_conversation(session_id)
                         _maybe_flush_conv()
@@ -7073,7 +7073,7 @@ def batch_eval(
         else:
             import warnings as _w
             _w.warn(
-                f"batch_eval: 알 수 없는 preset '{preset}'. 사용 가능: {list(AGENT_EVAL_PRESETS.keys())}",
+                f"batch_eval: unknown preset '{preset}'. Available: {list(AGENT_EVAL_PRESETS.keys())}",
                 UserWarning, stacklevel=2,
             )
 
@@ -7112,13 +7112,13 @@ def batch_eval(
         if consensus is not None:
             import warnings as _w_fa
             _w_fa.warn(
-                "batch_eval에 consensus=ConsensusConfig(...)가 설정되어 있지만 "
-                "batch_eval은 각 항목에 consensus_responses를 주입하지 않으므로 "
-                "consensus 평가가 항상 건너뜁니다. "
-                "ConsensusConfig 점수는 "
-                "EvalMetadata(extra={'consensus': {'consensus_score': ...}})로 직접 계산해 "
-                "주입하거나, agent_evaluator.gates.gate_f_multiagent.evaluators."
-                "eval_consensus()를 배치 응답 목록에 직접 호출한 뒤 그 결과를 주입하세요.",
+                "batch_eval has consensus=ConsensusConfig(...) set, but "
+                "batch_eval does not inject consensus_responses per item, so "
+                "consensus evaluation is always skipped. "
+                "Compute the ConsensusConfig score yourself via "
+                "EvalMetadata(extra={'consensus': {'consensus_score': ...}}), "
+                "or call agent_evaluator.gates.gate_f_multiagent.evaluators."
+                "eval_consensus() on the batch response list and inject the result.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -7149,7 +7149,7 @@ def batch_eval(
                 try:
                     _mon.save_to_file("batch_eval_auto")
                 except Exception as _fe:
-                    logger.debug("batch_eval flush_every 저장 실패 (무시): %s", _fe)
+                    logger.debug("batch_eval flush_every save failed (ignored): %s", _fe)
 
         def _resolve_batch_args(*args, **kwargs):
             """questions / ground_truths / contexts / expected_tools_list 를 함수 인자에서 추출."""
@@ -7224,8 +7224,8 @@ def batch_eval(
             # H2: 길이 불일치 경고 — 디버깅을 돕기 위해 명시적으로 기록
             if isinstance(responses, list) and len(responses) != len(questions):
                 logger.debug(
-                    "batch_eval: questions(%d) vs responses(%d) 길이 불일치. "
-                    "responses가 부족한 항목은 빈 문자열로 처리됩니다.",
+                    "batch_eval: questions(%d) vs responses(%d) length mismatch. "
+                    "Items missing a response are treated as an empty string.",
                     len(questions), len(responses),
                 )
 
@@ -7240,7 +7240,7 @@ def batch_eval(
                     try:
                         item_task_id = str(task_id_fn(i, question, ground_truth))
                     except Exception as tid_exc:
-                        logger.debug("task_id_fn 실패 (자동 생성): %s", tid_exc)
+                        logger.debug("task_id_fn failed (auto-generating): %s", tid_exc)
                         item_task_id = f"{task_id_prefix}_{batch_uuid}_{i:03d}"
                 else:
                     item_task_id = f"{task_id_prefix}_{batch_uuid}_{i:03d}"
@@ -7332,14 +7332,14 @@ def batch_eval(
                     try:
                         on_batch_progress(i + 1, n)
                     except Exception as _pe:
-                        logger.debug("on_batch_progress 콜백 실패 (무시): %s", _pe)
+                        logger.debug("on_batch_progress callback failed (ignored): %s", _pe)
 
             # Gap AM: on_batch_complete 콜백
             if on_batch_complete is not None and batch_results:
                 try:
                     on_batch_complete(batch_results)
                 except Exception as e:
-                    logger.debug("on_batch_complete 콜백 실패: %s", e)
+                    logger.debug("on_batch_complete callback failed: %s", e)
 
             return batch_results  # A8: return task results list to wrapper
 
@@ -7404,7 +7404,7 @@ def batch_eval(
                                             _fe,
                                         )
                                     except Exception as _oie_exc:
-                                        logger.debug("on_item_error 콜백 실패 (무시): %s", _oie_exc)
+                                        logger.debug("on_item_error callback failed (ignored): %s", _oie_exc)
                 elif timeout is not None:  # Gap X: 배치 전체 timeout
                     import concurrent.futures as _futures_mod2
                     with _futures_mod2.ThreadPoolExecutor(max_workers=1) as _ex:
@@ -7445,13 +7445,13 @@ def batch_eval(
                             # 이미 실행 중인 이벤트 루프 안에서 호출된 경우(드묾) — 동시 처리를
                             # 생략하고 조용히 무시한다 (judge 결과 없이도 나머지 기록은 정상 완료됨).
                             logger.debug(
-                                "SPEC-006: concurrent_judge asyncio.run 실패 (무시): %s", _loop_exc
+                                "SPEC-006: concurrent_judge asyncio.run failed (ignored): %s", _loop_exc
                             )
                     wrapper._last_task_results = _batch_task_results or []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = _batch_task_results or []  # A8: shared holder
                     _maybe_flush_batch()
                 except Exception as rec_exc:
-                    logger.debug("batch_eval: record 실패: %s", rec_exc)
+                    logger.debug("batch_eval: record failed: %s", rec_exc)
                     wrapper._last_task_results = []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = []  # A8: shared holder reset
 
@@ -7564,7 +7564,7 @@ def batch_eval(
                                         _r,
                                     )
                                 except Exception as _oie_exc:
-                                    logger.debug("on_item_error 콜백 실패 (무시): %s", _oie_exc)
+                                    logger.debug("on_item_error callback failed (ignored): %s", _oie_exc)
                         else:
                             responses.append(_r)
                 elif timeout is not None:  # Gap X: 비동기 배치 timeout (순차)
@@ -7600,7 +7600,7 @@ def batch_eval(
                     _last_batch_results_holder[0] = _async_batch_task_results or []
                     _maybe_flush_batch()
                 except Exception as rec_exc:
-                    logger.debug("batch_eval (async): record 실패: %s", rec_exc)
+                    logger.debug("batch_eval (async): record failed: %s", rec_exc)
                     async_wrapper._last_task_results = []  # type: ignore[attr-defined]
                     _last_batch_results_holder[0] = []
 
@@ -7749,7 +7749,7 @@ class eval_context:
         if task_id is not None:
             if auto_task_id:
                 logger.warning(
-                    "auto_task_id=True가 지정됐지만 task_id=%r가 있어 task_id를 사용합니다",
+                    "auto_task_id=True was set but task_id=%r is present, so task_id is used",
                     task_id,
                 )
             self._task_id = task_id
@@ -7907,8 +7907,8 @@ class eval_context:
         if self._depth_val > MAX_NESTING_DEPTH:
             import warnings
             warnings.warn(
-                f"eval_context 중첩 깊이 {self._depth_val}가 MAX_NESTING_DEPTH={MAX_NESTING_DEPTH}를 초과했습니다. "
-                "컨텍스트 누수가 발생할 수 있습니다.",
+                f"eval_context nesting depth {self._depth_val} exceeds MAX_NESTING_DEPTH={MAX_NESTING_DEPTH}. "
+                "context may leak.",
                 ResourceWarning,
                 stacklevel=3,
             )
@@ -7987,7 +7987,7 @@ class eval_context:
                 except Exception as _ttft_exc:
                     import logging as _logging
                     _logging.getLogger(__name__).debug(
-                        "TTFT track_ttft 실패 (무시): %s", _ttft_exc)
+                        "TTFT track_ttft failed (ignored): %s", _ttft_exc)
         return False  # 예외를 억제하지 않음
 
     # --- async ---
@@ -8093,8 +8093,8 @@ class _ShortcutCallable:
         if func_or_none is not None:
             # 위치 인자가 함수가 아닌 경우 (오용 방지)
             raise TypeError(
-                f"@eval.{self._task_type} 의 첫 번째 인자는 함수여야 합니다. "
-                f"파라미터는 키워드로 전달하세요: @eval.{self._task_type}(score_fn=...)"
+                f"The first argument to @eval.{self._task_type} must be a function. "
+                f"Pass parameters as keywords: @eval.{self._task_type}(score_fn=...)"
             )
         merged = {**self._base_kwargs, **extra_kwargs}
 
@@ -8451,10 +8451,10 @@ class EvalDecorator:
             if len(self._monitor) > 1:
                 import warnings as _warnings_conv
                 _warnings_conv.warn(
-                    "EvalDecorator.conversation()은 다중 monitor 리스트를 지원하지 않습니다 "
-                    f"— {len(self._monitor)}개 중 첫 번째 monitor에만 대화 데이터가 기록되고 "
-                    "나머지는 누락됩니다. 단일 monitor로 별도 EvalDecorator를 구성하거나 "
-                    "conversation_eval()을 각 monitor에 대해 개별 호출하세요.",
+                    "EvalDecorator.conversation() does not support a list of multiple monitors "
+                    f"— only the first of {len(self._monitor)} monitors records conversation data, "
+                    "the rest are dropped. Build a separate EvalDecorator with a single monitor, or "
+                    "call conversation_eval() separately for each monitor.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -8643,7 +8643,7 @@ class EvalDecorator:
             monitor = _PM(output_dir=output_dir, enable_llm_judge=True, judge_model=model)
         except ImportError:
             # llm extras 미설치 시 judge 없이 생성 (graceful degradation)
-            logger.debug("LLMJudge 생성 실패 (llm extras 필요) — enable_llm_judge=False 로 fallback")
+            logger.debug("LLMJudge creation failed (needs the llm extras) — falling back to enable_llm_judge=False")
             monitor = _PM(output_dir=output_dir)
         return cls(monitor, **kwargs)
 

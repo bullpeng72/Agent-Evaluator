@@ -657,19 +657,19 @@ def create_taskresult_from_execution(
     # 5. partial_reason 자동 추론 (사용자가 직접 지정하지 않은 경우)
     if partial_reason is None and completion < 1.0:
         if has_error and error_message:
-            partial_reason = f"오류 발생: {error_message}"
+            partial_reason = f"error: {error_message}"
         elif not response or not response.strip():
-            partial_reason = "응답 없음"
+            partial_reason = "no response"
         elif ground_truth:
             sim = _calculate_simple_similarity(response, ground_truth)
             if completion == 0.0:
-                partial_reason = f"ground_truth 불일치 (유사도 {sim:.0%} — 임계값 미달)"
+                partial_reason = f"ground_truth mismatch (similarity {sim:.0%} — below threshold)"
             elif sim >= 0.5:
-                partial_reason = f"ground_truth 부분 일치 (유사도 {sim:.0%}, 완전 일치 미달)"
+                partial_reason = f"partial ground_truth match (similarity {sim:.0%}, not exact)"
             else:
-                partial_reason = f"ground_truth 유사도 낮음 (유사도 {sim:.0%})"
+                partial_reason = f"low ground_truth similarity (similarity {sim:.0%})"
         elif len((response or "").strip()) < 10:
-            partial_reason = f"응답 길이 부족 ({len((response or '').strip())}자)"
+            partial_reason = f"response too short ({len((response or '').strip())} chars)"
         # completion_score를 사용자가 직접 지정한 경우 — 추론 불가
         # partial_reason은 None으로 유지
 
@@ -734,7 +734,7 @@ def simulate_agent_response(question: str, responses_map: dict[str, str]) -> dic
                 "latency": 1.0 + len(answer) / 100  # 길이 기반 가짜 latency
             }
 
-    return {"answer": "답변을 찾을 수 없습니다.", "latency": 0.5}
+    return {"answer": "Answer not found.", "latency": 0.5}
 
 
 def calculate_percentage_score(score: float) -> float:
@@ -760,31 +760,31 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # 예제 1: Completion Score 계산
-    print("\n1️⃣ Completion Score 계산")
+    print("\n1️⃣ Completion Score calculation")
     score1 = calculate_completion_score("대한민국의 수도는 서울입니다", expected_min_length=5)
     print(f"   Score: {score1:.2f}")
 
     # 예제 2: Accuracy Score 계산
-    print("\n2️⃣ Accuracy Score 계산 (4가지 메트릭 조합)")
+    print("\n2️⃣ Accuracy Score calculation (4-metric blend)")
     score2 = calculate_accuracy_score("대한민국의 수도는 서울입니다", "서울")
     print(f"   Score: {score2:.3f}")
 
     # 예제 3: Token 추정
-    print("\n3️⃣ Token 추정")
+    print("\n3️⃣ Token estimation")
     text = "한국어와 영어가 섞인 텍스트입니다. This is mixed text."
     tokens = estimate_tokens(text)
     print(f"   Text: {text}")
     print(f"   Estimated Tokens: {tokens}")
 
     # 예제 4: 통합 TaskResult 생성 (시뮬레이션)
-    print("\n4️⃣ TaskResult 생성 (시뮬레이션)")
+    print("\n4️⃣ TaskResult creation (simulation)")
     print("   All fields are dynamically calculated:")
     print("   ✅ completion_score: dynamically calculated")
     print("   ✅ accuracy_score: 4 metrics combined")
     print("   ✅ tokens_used: dynamically extracted/estimated")
     print("   ✅ tool_calls: dynamically extracted")
 
-    print("\n✅ taskresult_helpers.py 준비 완료!")
+    print("\n✅ taskresult_helpers.py ready!")
     print("   Import from the examples/ directory to use.")
 
 

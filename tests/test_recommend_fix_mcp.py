@@ -36,14 +36,14 @@ class TestFormatRecommendationGateLevel:
 
     def test_invalid_gate_does_not_fabricate(self):
         text = format_recommendation("Z", None, None)
-        assert "유효한 Gate가 아닙니다" in text
+        assert "not a valid Gate" in text
         # 존재하지 않는 Gate에 대해 GATE_GUIDANCE 내용을 지어내지 않는다
         for g in GATE_GUIDANCE.values():
             assert g.guidance not in text
 
     def test_always_ends_with_hotl_disclaimer(self):
         text = format_recommendation("A", None, None)
-        assert "사람의 몫" in text or "사람이" in text
+        assert "final judgment" in text or "up to you" in text
 
 
 class TestFormatRecommendationWithMetric:
@@ -53,21 +53,21 @@ class TestFormatRecommendationWithMetric:
 
     def test_value_violates_threshold(self):
         text = format_recommendation("D", "latency", 6.2)
-        assert "위반" in text
+        assert "violated" in text
 
     def test_value_within_threshold(self):
         text = format_recommendation("D", "latency", 1.0)
-        assert "정상 범위" in text
+        assert "within range" in text
 
     def test_anomaly_suggestion_matched(self):
         # SPEC-041: canonical "error_rate" → AnomalyEvent.type "error_surge" 제안으로 연결.
         text = format_recommendation("A", "error_rate", None)
-        assert "[이상탐지 참고]" in text
+        assert "[anomaly note]" in text
         assert "Error rate has surged" in text
 
     def test_unknown_metric_says_no_specific_rule(self):
         text = format_recommendation("A", "totally_made_up_metric", None)
-        assert "세부 규칙은 없습니다" in text
+        assert "No detailed rule" in text
         # 그래도 Gate 레벨 안내는 여전히 나온다
         assert GATE_GUIDANCE["A"].label in text
 
@@ -79,7 +79,7 @@ class TestFormatRecommendationWithMetric:
 
     def test_gate_f_unmatched_metric_falls_back_to_no_rule_message(self):
         text = format_recommendation("F", "not_a_real_mast_metric", None)
-        assert "세부 규칙은 없습니다" in text
+        assert "No detailed rule" in text
 
     def test_no_metric_given_omits_metric_specific_sections(self):
         text = format_recommendation("D", None, None)
@@ -95,12 +95,12 @@ class TestFormatRecommendationMetricNameNormalization:
         # SPEC-041: hallucination_rate는 퍼센트(0-100) 규약 — 35%는 20% 임계값 초과.
         text = format_recommendation("C", "hall_rate", 35.0)
         assert "High Hallucination Risk" in text
-        assert "위반" in text
-        assert "'hall_rate' → 'hallucination_rate'" in text
+        assert "violated" in text
+        assert "interpreting 'hall_rate' as 'hallucination_rate'" in text
 
     def test_hall_rate_low_percent_is_within_range(self):
         text = format_recommendation("C", "hall_rate", 3.0)  # 3% < 20%
-        assert "정상 범위" in text
+        assert "within range" in text
 
     def test_p95_latency_ms_maps_to_latency_rule(self):
         text = format_recommendation("D", "p95_latency_ms")
@@ -118,11 +118,11 @@ class TestFormatRecommendationMetricNameNormalization:
     def test_already_canonical_name_unchanged_and_no_interpretation_note(self):
         text = format_recommendation("D", "latency")
         assert "Response Latency Improvement Needed" in text
-        assert "→ 'latency'" not in text  # 이미 canonical이라 해석 안내 없음
+        assert "interpreting 'latency'" not in text  # 이미 canonical이라 해석 안내 없음
 
     def test_truly_unknown_metric_still_says_no_rule(self):
         text = format_recommendation("B", "some_made_up_field")
-        assert "세부 규칙은 없습니다" in text
+        assert "No detailed rule" in text
 
 
 class TestBuildServer:

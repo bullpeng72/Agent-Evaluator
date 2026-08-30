@@ -169,8 +169,8 @@ def eval_state_consistency(
     # 타입 어노테이션이 Dict이지만 런타임에서 강제되지 않으므로 방어적 타입 체크 추가.
     if not isinstance(state_before, dict) or not isinstance(state_after, dict):
         logger.warning(
-            "eval_state_consistency: state_fn()이 dict가 아닌 값을 반환했습니다 "
-            "(state_before=%s, state_after=%s). 상태 일관성 평가를 건너뜁니다.",
+            "eval_state_consistency: state_fn() returned a non-dict value "
+            "(state_before=%s, state_after=%s). Skipping state-consistency evaluation.",
             type(state_before).__name__,
             type(state_after).__name__,
         )
@@ -722,8 +722,8 @@ def eval_tool_parameter_safety(tool_calls: list[Any] | None, config: Any) -> dic
                     _matched = re.search(pattern, _scan_str, re.IGNORECASE)
                 except re.error as _re_err:
                     logger.warning(
-                        "eval_tool_parameter_safety: dangerous_patterns에 유효하지 않은 정규식이 있습니다 "
-                        "— 해당 패턴을 건너뜁니다. pattern=%r, error=%s",
+                        "eval_tool_parameter_safety: dangerous_patterns contains an invalid "
+                        "regex — skipping that pattern. pattern=%r, error=%s",
                         pattern,
                         _re_err,
                     )

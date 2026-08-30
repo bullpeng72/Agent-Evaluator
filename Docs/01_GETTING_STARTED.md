@@ -347,4 +347,5 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | 대시보드 탭 상세 · Phoenix 모니터링 | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
 | Docker · 환경별 설정 · 성능 최적화 | [07_OPERATIONS.md](07_OPERATIONS.md) |
 | 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| 결과 JSON · 리포트 · CLI · 대시보드 · AI 런타임 출력 체계 | [09_OUTPUTS.md](09_OUTPUTS.md) |
 | 실행 가능 예제 파일 | [Evaluator_Examples/](../Evaluator_Examples/) |

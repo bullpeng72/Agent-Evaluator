@@ -188,7 +188,7 @@ class GoldenSetBuilder:
         """
         path = Path(dataset_path)
         if not path.exists():
-            raise FileNotFoundError(f"골든셋 파일을 찾을 수 없습니다: {dataset_path}")
+            raise FileNotFoundError(f"Golden dataset file not found: {dataset_path}")
 
         with open(path, encoding="utf-8") as f:
             raw = json.load(f)
@@ -252,10 +252,10 @@ class GoldenSetBuilder:
                 }
                 """,
                 {"input": {"name": dataset_name,
-                           "description": f"Agent Evaluator golden dataset — {len(examples)}개 케이스"}},
+                           "description": f"Agent Evaluator golden dataset — {len(examples)} cases"}},
             )
             if r_create.get("errors"):
-                raise RuntimeError(f"createDataset 오류: {r_create['errors']}")
+                raise RuntimeError(f"createDataset error: {r_create['errors']}")
             dataset_id: str | None = (
                 r_create.get("data", {})
                 .get("createDataset", {})
@@ -263,7 +263,7 @@ class GoldenSetBuilder:
                 .get("id")
             )
             if not dataset_id:
-                raise RuntimeError("dataset_id 미반환")
+                raise RuntimeError("dataset_id was not returned")
 
             # 2단계: examples 추가
             r_add = _graphql(
@@ -277,7 +277,7 @@ class GoldenSetBuilder:
                 {"input": {"datasetId": dataset_id, "examples": examples}},
             )
             if r_add.get("errors"):
-                raise RuntimeError(f"addExamplesToDataset 오류: {r_add['errors']}")
+                raise RuntimeError(f"addExamplesToDataset error: {r_add['errors']}")
 
             return dataset_id
 
@@ -286,12 +286,12 @@ class GoldenSetBuilder:
             try:
                 body = e.read().decode("utf-8", errors="replace")[:300]
             except Exception as _e:
-                logger.debug("HTTP 오류 body 읽기 실패 (무시): %s", _e)
-            raise RuntimeError(f"Phoenix GraphQL API 오류 (HTTP {e.code}): {body}") from e
+                logger.debug("failed to read HTTP error body (ignored): %s", _e)
+            raise RuntimeError(f"Phoenix GraphQL API error (HTTP {e.code}): {body}") from e
         except RuntimeError:
             raise
         except Exception as e:
-            raise RuntimeError(f"Phoenix 연결 실패: {e}") from e
+            raise RuntimeError(f"Phoenix connection failed: {e}") from e
 
     def merge_to_golden(
         self,

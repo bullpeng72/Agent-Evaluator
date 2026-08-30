@@ -213,14 +213,14 @@ def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
         )
     except FileNotFoundError:
         print(
-            f"{_Y}⚠️  {flag}: 'claude' CLI를 찾지 못해 MCP 서버 등록을 건너뜁니다. "
-            f"수동 등록: {_manual}{_R}",
+            f"{_Y}⚠️  {flag}: 'claude' CLI not found — skipping MCP server registration. "
+            f"Register manually: {_manual}{_R}",
             file=sys.stderr,
         )
         return
     except subprocess.TimeoutExpired:
         print(
-            f"{_Y}⚠️  {flag}: 'claude mcp add' 호출이 시간 초과됐습니다 — 수동으로 등록하세요.{_R}",
+            f"{_Y}⚠️  {flag}: 'claude mcp add' timed out — register it manually.{_R}",
             file=sys.stderr,
         )
         return
@@ -233,8 +233,8 @@ def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
         print(f"{_D}   MCP server already registered: {name} — nothing to change{_R}")
     else:
         print(
-            f"{_Y}⚠️  {flag}: 'claude mcp add' 실패(exit {result.returncode}) — "
-            f"수동 등록: {_manual}{_R}",
+            f"{_Y}⚠️  {flag}: 'claude mcp add' failed (exit {result.returncode}) — "
+            f"register manually: {_manual}{_R}",
             file=sys.stderr,
         )
         if result.stderr:
@@ -254,14 +254,14 @@ def _deregister_mcp_server(name: str, scope: str) -> None:
         )
     except FileNotFoundError:
         print(
-            f"{_Y}⚠️  'claude' CLI를 찾지 못해 MCP 서버 '{name}' 해제를 건너뜁니다. "
-            f"수동: claude mcp remove {name} --scope {scope}{_R}",
+            f"{_Y}⚠️  'claude' CLI not found — skipping deregistration of MCP server "
+            f"'{name}'. Manually: claude mcp remove {name} --scope {scope}{_R}",
             file=sys.stderr,
         )
         return
     except subprocess.TimeoutExpired:
         print(
-            f"{_Y}⚠️  'claude mcp remove {name}' 시간 초과 — 수동으로 해제하세요.{_R}",
+            f"{_Y}⚠️  'claude mcp remove {name}' timed out — deregister it manually.{_R}",
             file=sys.stderr,
         )
         return
@@ -273,8 +273,8 @@ def _deregister_mcp_server(name: str, scope: str) -> None:
         print(f"{_D}   MCP server not registered: {name} — nothing to remove{_R}")
     else:
         print(
-            f"{_Y}⚠️  'claude mcp remove {name}' 실패(exit {result.returncode}) — "
-            f"수동: claude mcp remove {name} --scope {scope}{_R}",
+            f"{_Y}⚠️  'claude mcp remove {name}' failed (exit {result.returncode}) — "
+            f"manually: claude mcp remove {name} --scope {scope}{_R}",
             file=sys.stderr,
         )
         if result.stderr:

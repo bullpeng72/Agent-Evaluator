@@ -115,6 +115,80 @@ def _numeric_detail_deltas(
     return deltas
 
 
+# --- component_shortfalls (baseline 없는 absolute_threshold 모드 전용) --------------
+#
+# ``top_detail_deltas``는 "baseline 대비 무엇이 가장 크게 움직였나"(회귀 원인귀속)에
+# 답하므로 baseline이 없으면 전부 delta=None이 되어 사실상 field 이름 알파벳 순
+# 나열로 퇴화한다(설정 상수 ``gate_a_tcr_weight``까지 지표인 척 올라옴). 배치 단발
+# 평가에서 진짜 답해야 하는 질문은 "지금 이 Gate 점수를 깎는 컴포넌트가 무엇인가"이고,
+# 그건 baseline 없이 현재 details만으로 답할 수 있다 — 각 컴포넌트를 0-1 health
+# (높을수록 건강)로 정규화해 낮은 순으로 세운다. 확신 있게 정규화 가능한 필드만
+# 포함하고(추측 금지), 설정 상수(_weight)·정수 카운트(_count)·회귀 비교 산출물
+# (_penalty)은 제외한다.
+_SHORTFALL_EXCLUDE_KEYS = frozenset({
+    "insufficient_data_warnings",
+    "perf_score_pre_sla_penalty",   # penalty 적용 전 점수 자체 — 레버가 아니라 중간값
+    "gate_a_tcr_weight", "gate_b_loop_weight", "gate_c_tcr_weight",
+    "tasks_with_ifr",               # IFR을 측정한 태스크 수(진단 카운터) — 0-1이지만 점수 아님
+})
+_SHORTFALL_EXCLUDE_SUFFIXES = ("_weight", "_count", "_penalty", "_n", "_total")
+_SHORTFALL_EXCLUDE_PREFIXES = ("tasks_with_", "num_", "n_", "count_")
+
+# 값이 0-1이지만 "높을수록 나쁨"인 필드 — health = 1 - v 로 뒤집는다.
+_SHORTFALL_INVERTED_FIELDS = frozenset({
+    "sla_breach_rate", "hallucination_rate", "loop_detection_rate",
+    "error_rate", "redundancy_rate", "failure_rate",
+    "privilege_escalation_rate", "chain_attack_rate",
+    "injection_rate", "leakage_rate",
+})
+
+
+def _shortfall_health(field: str, value: float) -> float | None:
+    """Gate details 필드 하나를 0-1 health(높을수록 건강)로 정규화한다.
+
+    확신 있게 해석 가능한 형태만 처리하고, 아니면 ``None``(목록에서 제외)을 돌려준다
+    — 없는 규칙을 지어내지 않는다(``canonical_metric_name()`` 철학과 동일).
+    """
+    if field.endswith("_pct"):
+        return max(0.0, min(1.0, value / 100.0))
+    if field.endswith("_latency_s") or field == "p95_latency_s":
+        return max(0.0, 1.0 - value / 10.0)          # _build_score_breakdown Gate D와 동일 10s 상한
+    if field.endswith("_latency_ms") or field.endswith("_ms"):
+        return max(0.0, 1.0 - value / 2000.0)        # _RANKING_SCALE_BY_SUFFIX와 동일 ~2s 상한
+    if field in _SHORTFALL_INVERTED_FIELDS:
+        return max(0.0, min(1.0, 1.0 - value))
+    if 0.0 <= value <= 1.0:
+        return value
+    return None
+
+
+def _component_shortfalls(current_details: dict[str, Any]) -> list[dict[str, Any]]:
+    """baseline 없이 "지금 Gate 점수를 깎는 컴포넌트"를 낮은 health 순으로 세운다.
+
+    ``top_detail_deltas``(회귀 원인귀속 — baseline 필요)와 달리 현재 절대 상태만 본다.
+    각 항목은 ``{field, value(원시 단위 보존), health(0-1 정규화)}``. 정렬은 결정적이다
+    (health 오름차순, 동점은 field 이름 오름차순).
+    """
+    out: list[dict[str, Any]] = []
+    for key, raw in current_details.items():
+        if key in _SHORTFALL_EXCLUDE_KEYS:
+            continue
+        if any(key.endswith(suf) for suf in _SHORTFALL_EXCLUDE_SUFFIXES):
+            continue
+        if any(key.startswith(pre) for pre in _SHORTFALL_EXCLUDE_PREFIXES):
+            continue
+        v = _as_number(raw)
+        if v is None:
+            continue
+        health = _shortfall_health(key, v)
+        if health is None:
+            continue
+        out.append({"field": key, "value": v, "health": health})
+    out.sort(key=lambda d: d["field"])   # 결정적 tiebreak(이름 오름차순)
+    out.sort(key=lambda d: d["health"])  # stable: 동점은 이름 오름차순 유지
+    return out
+
+
 def _check_sla_shared_cause(
     current_hg: dict[str, Any], baseline_hg: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -293,8 +367,12 @@ def diagnose(
         shared_cause_explanations, independently_investigate_gates,
         experiment_metadata}``. ``findings``의 각
         항목은 ``{gate, current_score, baseline_score, top_detail_deltas,
-        cross_references, [F만] mast_candidates}`` — "이게 원인이다"를 단정하지 않고
-        후보와 근거만 담는다. ``newly_unmeasured_gates``는 baseline엔 숫자 점수가
+        component_shortfalls, cross_references, [F만] mast_candidates}`` — "이게
+        원인이다"를 단정하지 않고 후보와 근거만 담는다. ``top_detail_deltas``는 baseline
+        대비 가장 크게 움직인 세부 지표(회귀 원인귀속 — baseline 없으면 delta=None),
+        ``component_shortfalls``는 현재 Gate 점수를 가장 크게 깎는 컴포넌트를 health
+        (0-1, 높을수록 건강) 오름차순으로 담는다(baseline 불필요 — 배치 단발 평가용).
+        ``newly_unmeasured_gates``는 baseline엔 숫자 점수가
         있었는데 current엔 없는(측정이 사라진) Gate 목록이다 — 회귀 감지 공식은
         current=None을 건너뛰므로 이 커버리지 손실이 조용히 묻히지 않게 별도로 낸다
         (baseline 없으면 항상 빈 리스트). ``shared_cause_explanations``는
@@ -357,6 +435,9 @@ def diagnose(
             "current_score": current_scores.get(gate_id),
             "baseline_score": baseline_scores.get(gate_id) if baseline_hg is not None else None,
             "top_detail_deltas": detail_deltas[:5],
+            # baseline 유무와 무관하게 채운다 — regression 모드에선 보조 신호,
+            # absolute_threshold 모드에선 (delta를 못 내므로) 주 신호.
+            "component_shortfalls": _component_shortfalls(cur_details)[:5],
             "cross_references": cross_refs,
         }
         if gate_id == "F":

@@ -667,4 +667,5 @@ agent-eval monitor --attach http://localhost:6006
 | 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
 | 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
+| 출력 체계 전체 (JSON · 리포트 · CLI · 대시보드 · AI 런타임) | [09_OUTPUTS.md](09_OUTPUTS.md) |
 | Docker · 환경별 설정 | [07_OPERATIONS.md](07_OPERATIONS.md) |

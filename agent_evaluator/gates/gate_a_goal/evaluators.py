@@ -251,7 +251,7 @@ def eval_instruction_adherence(response: str, config: Any) -> dict[str, Any]:
 
         checks["language"] = lang_ok
         if not lang_ok:
-            violations.append(f"응답 언어가 '{expected_lang}' 아님 (ko_ratio={korean_ratio:.2f}, en_ratio={latin_ratio:.2f})")
+            violations.append(f"response language is not '{expected_lang}' (ko_ratio={korean_ratio:.2f}, en_ratio={latin_ratio:.2f})")
 
     # 설정된 검사 항목이 없으면 score=None — Gate A avg_ifr 집계에서 제외
     # (eval_plan_coherence가 components 없을 때 None을 반환하는 것과 동일 패턴)
@@ -355,8 +355,8 @@ def eval_goal_alignment(
                     "keyword_overlap_advisory": False,
                 }
             logger.warning(
-                "GoalAlignmentConfig: goal_tool_map의 키워드가 질문(%r...)과 일치하지 않습니다. "
-                "keyword_overlap으로 폴백합니다. goal_tool_map 키를 질문에 맞게 조정하세요.",
+                "GoalAlignmentConfig: goal_tool_map keywords do not match the question (%r...). "
+                "Falling back to keyword_overlap. Adjust the goal_tool_map keys to fit the question.",
                 question[:40],
             )
             method = "keyword_overlap"
@@ -368,9 +368,9 @@ def eval_goal_alignment(
         if not config.goal_tool_map:
             _kw_overlap_advisory = True
             logger.debug(
-                "GoalAlignmentConfig: goal_tool_map 미설정 — keyword_overlap 방식 사용 중. "
-                "영어 약어 도구명은 질문 키워드와 겹치지 않아 false negative가 발생할 수 있습니다. "
-                "goal_tool_map={<목표키워드>: [<도구명>]} 설정을 권장합니다."
+                "GoalAlignmentConfig: goal_tool_map is unset — using the keyword_overlap method. "
+                "English abbreviated tool names may not overlap question keywords, causing "
+                "false negatives. Setting goal_tool_map={<goal keyword>: [<tool name>]} is recommended."
             )
         # 기능어 제거 후 의미 토큰만 비교 — "is_valid"의 "is"가 질문의 "is"와 false align 방지
         _q_raw = set(re.sub(r"[^\w\s]", "", question.lower()).split())
@@ -529,8 +529,8 @@ def eval_plan_coherence(
     executability_score = 1.0
     if config.check_executability and not config.available_tools:
         logger.warning(
-            "PlanConfig: check_executability=True이지만 available_tools가 비어 있어 "
-            "실행 가능성 검사를 건너뜁니다. available_tools를 지정하면 이 검사를 활성화할 수 있습니다."
+            "PlanConfig: check_executability=True but available_tools is empty, so the "
+            "executability check is skipped. Specify available_tools to enable this check."
         )
     if config.check_executability and config.available_tools:
         executable = 0
@@ -725,9 +725,9 @@ def eval_subtask_completion(
     if auto_extract and not expected_subtasks:
         if not question:
             logger.warning(
-                "SubtaskConfig(auto_extract=True): question이 비어 있어 서브태스크를 "
-                "추출할 수 없습니다. response를 소스로 쓰면 자기참조 편향이 발생하므로 "
-                "건너뜁니다. expected_subtasks를 직접 지정하거나 question을 전달하세요."
+                "SubtaskConfig(auto_extract=True): question is empty, so sub-tasks cannot be "
+                "extracted. Using response as the source causes self-reference bias, so this "
+                "is skipped. Specify expected_subtasks directly, or pass a question."
             )
         else:
             lines = question.split("\n")

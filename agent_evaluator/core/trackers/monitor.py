@@ -570,7 +570,7 @@ class PerformanceMonitor:
                     restricted_tools=self.security_config.get('restricted_tools')
                 )
             logger.info(
-                "Security metrics (Layer 1) 활성화됨 (trackers=%s)",
+                "Security metrics (Layer 1) enabled (trackers=%s)",
                 sorted(_sec_set) if _sec_set else "all",
             )
 
@@ -590,7 +590,7 @@ class PerformanceMonitor:
             if _sec_set is None or "ToolChainAttack" in _sec_set:
                 self.tool_chain_attack_detector = ToolChainAttackDetector()
             logger.info(
-                "Security metrics (Layer 2) 활성화됨 (trackers=%s)",
+                "Security metrics (Layer 2) enabled (trackers=%s)",
                 sorted(_sec_set) if _sec_set else "all",
             )
 
@@ -672,10 +672,11 @@ class PerformanceMonitor:
         if self._judge_same_as_execution_model:
             assert self.llm_judge is not None  # _judge_same_as_execution_model 계산 조건에 이미 포함됨
             warnings.warn(
-                f"PerformanceMonitor: judge_model({self.llm_judge.model!r})이 실행 model_name과 "
-                "동일합니다. 같은 모델이 자신의 출력을 채점하면 독립적인 검증이 아니라 자기평가"
-                "(self-evaluation) 편향이 생길 수 있습니다 — 특히 로컬 소형 모델에서 두드러집니다. "
-                "가능하면 judge_model에 다른 모델을 지정하세요.",
+                f"PerformanceMonitor: judge_model({self.llm_judge.model!r}) is the same as the "
+                "execution model_name. When a model scores its own output this is "
+                "self-evaluation bias, not independent verification — especially "
+                "pronounced with small local models. Specify a different model for "
+                "judge_model if possible.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -839,9 +840,9 @@ class PerformanceMonitor:
         """
         if self._retention_mode == "windowed":
             warnings.warn(
-                f"PerformanceMonitor.{api_name}(): retention_mode='windowed'이므로 "
-                f"window_size={self._window_size}를 벗어나 밀려난 과거 태스크에는 "
-                "접근할 수 없습니다. 전체 이력이 필요하면 retention_mode='full'을 사용하세요.",
+                f"PerformanceMonitor.{api_name}(): retention_mode='windowed', so past tasks "
+                f"evicted beyond window_size={self._window_size} are not accessible. "
+                "Use retention_mode='full' if you need the complete history.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -909,8 +910,8 @@ class PerformanceMonitor:
         if not os.path.exists(dataset_path):
             abs_path = os.path.abspath(dataset_path)
             raise StorageError(
-                f"Golden Dataset 파일을 찾을 수 없습니다: '{dataset_path}'\n"
-                f"절대 경로: {abs_path}"
+                f"Golden Dataset file not found: '{dataset_path}'\n"
+                f"absolute path: {abs_path}"
             )
 
         try:
@@ -924,8 +925,8 @@ class PerformanceMonitor:
                 loaded = data['qa_pairs']
             else:
                 raise StorageError(
-                    f"Golden Dataset 포맷이 올바르지 않습니다: '{dataset_path}'\n"
-                    "지원 포맷: JSON 배열 또는 {{\"qa_pairs\": [...]}}"
+                    f"Golden Dataset format is invalid: '{dataset_path}'\n"
+                    "supported formats: a JSON array or {{\"qa_pairs\": [...]}}"
                 )
 
             with self._lock:
@@ -1192,7 +1193,7 @@ class PerformanceMonitor:
         tcr_data = self.tcr_tracker.calculate_tcr()
         if 'tcr' in self._thresholds:
             comparison['tcr'] = {
-                'name': '작업 완료율 (TCR)',
+                'name': 'TCR',
                 'value': tcr_data.get('tcr', 0),
                 'threshold': self._thresholds['tcr'],
                 'status': 'pass' if tcr_data.get('tcr', 0) >= self._thresholds['tcr'] else 'fail',
@@ -1206,7 +1207,7 @@ class PerformanceMonitor:
             _acc_val = accuracy_metrics.get('overall_accuracy', 0)
             _acc_evaluated = accuracy_metrics.get('total_evaluated', 0)
             comparison['accuracy'] = {
-                'name': '정확도 (Accuracy)',
+                'name': 'Accuracy',
                 'value': _acc_val,
                 'threshold': self._thresholds['accuracy'],
                 'status': (
@@ -1222,7 +1223,7 @@ class PerformanceMonitor:
         hall_data = self.hallucination_detector.get_hallucination_rate()
         if 'hallucination' in self._thresholds:
             comparison['hallucination'] = {
-                'name': '환각 발생률 (Hallucination)',
+                'name': 'Hallucination',
                 'value': hall_data.get('overall_rate', 0),
                 'threshold': self._thresholds['hallucination'],
                 'status': 'pass' if hall_data.get('overall_rate', 0) <= self._thresholds['hallucination'] else 'fail',
@@ -1237,7 +1238,7 @@ class PerformanceMonitor:
                 and 'quality' in self._thresholds):
             avg_quality = quality_data['avg_total_score'] * _QUALITY_SCORE_TO_10_SCALE
             comparison['quality'] = {
-                'name': '응답 품질 (Quality)',
+                'name': 'Quality',
                 'value': avg_quality,
                 'threshold': self._thresholds['quality'],
                 'status': 'pass' if avg_quality >= self._thresholds['quality'] else 'fail',
@@ -1249,7 +1250,7 @@ class PerformanceMonitor:
         latency_data = self.latency_tracker.get_latency_stats()
         if latency_data and 'latency' in self._thresholds:
             comparison['latency'] = {
-                'name': '응답 시간 (Latency)',
+                'name': 'Latency',
                 'value': latency_data.get('p95', 0),
                 'threshold': self._thresholds['latency'],
                 'status': 'pass' if latency_data.get('p95', 0) <= self._thresholds['latency'] else 'fail',
@@ -1261,7 +1262,7 @@ class PerformanceMonitor:
         token_data = self.token_tracker.get_usage_stats()
         if 'cost_per_task' in self._thresholds:
             comparison['cost_per_task'] = {
-                'name': '작업당 비용 (Cost per Task)',
+                'name': 'Cost per Task',
                 'value': token_data.get('avg_cost_per_task', 0),
                 'threshold': self._thresholds['cost_per_task'],
                 'status': 'pass' if token_data.get('avg_cost_per_task', 0) <= self._thresholds['cost_per_task'] else 'fail',
@@ -1339,7 +1340,7 @@ class PerformanceMonitor:
         tool_stats = self.tool_selection_tracker.get_accuracy_stats()
         if tool_stats and 'tool_selection_accuracy' in self._thresholds:
             comparison['tool_selection_accuracy'] = {
-                'name': '도구 선택 정확도 (Tool Selection Accuracy)',
+                'name': 'Tool Selection Accuracy',
                 'value': tool_stats.get('avg_accuracy', 0),
                 'threshold': self._thresholds['tool_selection_accuracy'],
                 'status': 'pass' if tool_stats.get('avg_accuracy', 0) >= self._thresholds['tool_selection_accuracy'] else 'fail',
@@ -1353,7 +1354,7 @@ class PerformanceMonitor:
         if coord_data and 'agent_coordination' in self._thresholds:
             # coordination_score는 0-10 척도, threshold도 0-10으로 설정
             comparison['agent_coordination'] = {
-                'name': '에이전트 협업 점수 (Agent Coordination)',
+                'name': 'Agent Coordination',
                 'value': coord_data.get('overall_score', 0),
                 'threshold': self._thresholds['agent_coordination'],
                 'status': 'pass' if coord_data.get('overall_score', 0) >= self._thresholds['agent_coordination'] else 'fail',
@@ -1371,7 +1372,7 @@ class PerformanceMonitor:
         workflow_stats = self.workflow_tracker.calculate_execution_success_rate()
         if workflow_stats and 'workflow_execution' in self._thresholds:
             comparison['workflow_execution'] = {
-                'name': '워크플로우 실행 성공률 (Workflow Execution)',
+                'name': 'Workflow Execution',
                 'value': workflow_stats.get('step_success_rate', 0),
                 'threshold': self._thresholds['workflow_execution'],
                 'status': 'pass' if workflow_stats.get('step_success_rate', 0) >= self._thresholds['workflow_execution'] else 'fail',
@@ -1588,8 +1589,8 @@ class PerformanceMonitor:
         if invalid:
             detail = "; ".join(f"item[{i}] missing={missing}" for i, missing in invalid)
             raise ValidationError(
-                f"evaluate_batch() items에 필수 키가 없습니다: {detail}\n"
-                "필수 키: question, response, ground_truth"
+                f"evaluate_batch() items are missing required keys: {detail}\n"
+                "required keys: question, response, ground_truth"
             )
 
         results = []
@@ -2204,7 +2205,7 @@ class PerformanceMonitor:
                 try:
                     self.save_to_file(self._auto_save_filename)
                     logger.debug(
-                        "auto_save: %d개 기록 후 '%s' 저장 완료",
+                        "auto_save: saved '%s' after %d records",
                         self._auto_save_counter, self._auto_save_filename,
                     )
                 except Exception as _as_exc:
@@ -2604,7 +2605,7 @@ class PerformanceMonitor:
                     ("accuracy",      ann.get("accuracy"),      "ae.accuracy_score (0–1)"),
                     ("completion",    ann.get("completion"),    "ae.completion_score (0–1)"),
                     ("success",       ann.get("success"),       "1.0=pass / 0.0=fail"),
-                    ("hallucination", ann.get("hallucination"), "hallucination_score (0–1, 낮을수록 좋음)"),
+                    ("hallucination", ann.get("hallucination"), "hallucination_score (0-1, lower is better)"),
                     ("quality",       ann.get("quality"),       "response quality overall score (0–1)"),
                     ("latency_s",     ann.get("latency"),       "execution_time in seconds"),
                     ("tool_calls",    ann.get("tool_calls"),    "number of tool calls"),
@@ -2654,7 +2655,7 @@ class PerformanceMonitor:
                     )
                     with urllib.request.urlopen(req, timeout=5) as resp:
                         logger.info(
-                            "Phoenix annotations 전송 완료: %d건, HTTP %d (시도 %d/%d)",
+                            "Phoenix annotations sent: %d, HTTP %d (attempt %d/%d)",
                             len(data),
                             resp.status,
                             attempt + 1,
@@ -2670,7 +2671,7 @@ class PerformanceMonitor:
                         logger.debug("HTTP error body read failed (ignored): %s", _e)
                     last_exc = http_exc
                     logger.warning(
-                        "Phoenix annotations HTTP %d (시도 %d/%d): %s",
+                        "Phoenix annotations HTTP %d (attempt %d/%d): %s",
                         http_exc.code,
                         attempt + 1,
                         _MAX_RETRIES,
@@ -2679,7 +2680,7 @@ class PerformanceMonitor:
                 except Exception as exc:
                     last_exc = exc
                     logger.debug(
-                        "_flush_phoenix_annotations: 연결 실패 (시도 %d/%d): %s",
+                        "_flush_phoenix_annotations: connection failed (attempt %d/%d): %s",
                         attempt + 1,
                         _MAX_RETRIES,
                         exc,
@@ -2688,7 +2689,7 @@ class PerformanceMonitor:
 
             if last_exc is not None:
                 logger.warning(
-                    "Phoenix annotations 전송 최종 실패 (%d건): %s",
+                    "Phoenix annotations ultimately failed to send (%d): %s",
                     len(data),
                     last_exc,
                 )
@@ -2795,7 +2796,7 @@ class PerformanceMonitor:
                 with urllib.request.urlopen(req, timeout=5):
                     pass
                 logger.info(
-                    "Phoenix Experiment 종료: %s — TCR=%.1f%% Accuracy=%.1f%%",
+                    "Phoenix Experiment finished: %s — TCR=%.1f%% Accuracy=%.1f%%",
                     self._phoenix_experiment_name,
                     summary.get("tcr") or 0.0,
                     summary.get("accuracy") or 0.0,
@@ -3158,7 +3159,7 @@ class PerformanceMonitor:
             else:
                 extra_metrics["lineage"] = _lineage
         except Exception as _lin_exc:
-            logger.debug("lineage 조립 실패 (무시): %s", _lin_exc)
+            logger.debug("lineage assembly failed (ignored): %s", _lin_exc)
 
         report = EvaluationReport(
             period="current_session",
@@ -3205,10 +3206,10 @@ class PerformanceMonitor:
         """
         if gate_id in "ABCDEFG" and len(gate_id) == 1:
             raise ValueError(
-                f"register_gate: gate_id={gate_id!r}는 내장 Gate(A-G)의 예약어라 쓸 수 없습니다."
+                f"register_gate: gate_id={gate_id!r} is reserved for the built-in Gates (A-G)."
             )
         if gate_id in self._custom_gates:
-            raise ValueError(f"register_gate: gate_id={gate_id!r}는 이미 등록돼 있습니다.")
+            raise ValueError(f"register_gate: gate_id={gate_id!r} is already registered.")
         self._custom_gates[gate_id] = compute_fn
 
     @staticmethod
@@ -3440,8 +3441,8 @@ class PerformanceMonitor:
             except Exception as _exc:
                 import warnings as _cw
                 _cw.warn(
-                    f"register_gate({_gate_id!r}): compute_fn이 예외를 던져 이번 리포트에서 "
-                    f"제외됩니다: {_exc!r}",
+                    f"register_gate({_gate_id!r}): compute_fn raised, so it is excluded from this "
+                    f"report: {_exc!r}",
                     RuntimeWarning,
                     stacklevel=2,
                 )
@@ -5065,6 +5066,10 @@ class PerformanceMonitor:
             ]
 
         data = {
+            # SPEC-041 P4.3: 결과 JSON 스키마 버전 — 소비자(로더/CLI/외부 도구)가
+            # 필드 형태 변화에 대응할 수 있게 명시한다. harness_groups 도입/필드명
+            # 규약 변경 등 breaking change 시 major를 올린다.
+            "schema_version": "1.1",
             "tasks": [asdict(task) for task in _tasks_snapshot],
             "pricing": pricing_data,
             "model_name": self.model_name,
@@ -5139,7 +5144,7 @@ class PerformanceMonitor:
                     "detection_window": self._anomaly_detection_window,
                 }
                 logger.info(
-                    "이상 감지 완료: %d개 이상 탐지 (baseline=%d, detection=%d)",
+                    "Anomaly detection complete: %d anomalies (baseline=%d, detection=%d)",
                     len(_anomalies),
                     self._anomaly_baseline_window,
                     self._anomaly_detection_window,
@@ -5170,7 +5175,7 @@ class PerformanceMonitor:
             with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
                 if _task_count >= _STREAMING_THRESHOLD:
                     logger.debug(
-                        "save_to_file: 스트리밍 모드 사용 (%d개 태스크)", _task_count
+                        "save_to_file: using streaming mode (%d tasks)", _task_count
                     )
                     _write_json_streaming(_f, data, _serialized_tasks)
                 else:
@@ -5199,7 +5204,7 @@ class PerformanceMonitor:
                         _baseline_dict = json.load(_bf)
                 except (OSError, ValueError) as _e:
                     logger.warning(
-                        "save_to_file: baseline_path를 읽을 수 없어 무시합니다(%s): %s",
+                        "save_to_file: could not read baseline_path, ignoring (%s): %s",
                         baseline_path, _e,
                     )
             html_content = generate_comprehensive_html_report(self, baseline=_baseline_dict)
@@ -5516,7 +5521,7 @@ class PerformanceMonitor:
             import wandb  # type: ignore
         except ImportError as exc:
             raise ImportError(
-                "W&B 내보내기에는 wandb 패키지가 필요합니다: pip install wandb"
+                "W&B export requires the wandb package: pip install wandb"
             ) from exc
 
         report = self.generate_report()
@@ -5561,7 +5566,7 @@ class PerformanceMonitor:
             import mlflow  # type: ignore
         except ImportError as exc:
             raise ImportError(
-                "MLflow 내보내기에는 mlflow 패키지가 필요합니다: pip install mlflow"
+                "MLflow export requires the mlflow package: pip install mlflow"
             ) from exc
 
         if tracking_uri is not None:
@@ -6646,13 +6651,13 @@ class PerformanceMonitor:
 
         tid = tm.start_metric_calculation("tcr", "basic")
         tm.add_calculation_step(
-            tid, "collect_tasks", f"{n}개 태스크 수집",
+            tid, "collect_tasks", f"collected {n} tasks",
             {"total_tasks": n},
             {"tasks_collected": n},
             TestStepStatus.SUCCESS,
         )
         tm.add_calculation_step(
-            tid, "count_successes", f"성공 {success_count} / 전체 {n}",
+            tid, "count_successes", f"{success_count} successes / {n} total",
             {"total": n, "success": success_count},
             {"success_count": success_count, "fail_count": n - success_count},
             TestStepStatus.SUCCESS,
@@ -6677,7 +6682,7 @@ class PerformanceMonitor:
 
         tid2 = tm.start_metric_calculation("accuracy", "quality")
         tm.add_calculation_step(
-            tid2, "collect_scores", f"{len(scores)}개 태스크 정확도 점수 수집",
+            tid2, "collect_scores", f"collected accuracy scores for {len(scores)} tasks",
             {"evaluations": len(scores)},
             {"score_min": round(min(scores), 3) if scores else 0,
              "score_max": round(max(scores), 3) if scores else 0},
@@ -6685,7 +6690,7 @@ class PerformanceMonitor:
         )
         tm.add_calculation_step(
             tid2, "weighted_aggregate",
-            "Token Overlap 40% + Jaccard 30% + LCS 20% + Char 10% 가중 평균",
+            "Weighted avg: Token Overlap 40% + Jaccard 30% + LCS 20% + Char 10%",
             {"weights": {"token_overlap": 0.4, "jaccard": 0.3, "lcs": 0.2, "char": 0.1}},
             {"overall_accuracy": overall_acc},
             TestStepStatus.SUCCESS,
@@ -6703,14 +6708,14 @@ class PerformanceMonitor:
 
         tid3 = tm.start_metric_calculation("latency", "performance")
         tm.add_calculation_step(
-            tid3, "collect_times", f"{len(times)}개 실행 시간 수집",
+            tid3, "collect_times", f"collected {len(times)} execution times",
             {"task_count": len(times)},
             {"min_s": round(min(times), 3) if times else 0,
              "max_s": round(max(times), 3) if times else 0},
             TestStepStatus.SUCCESS,
         )
         tm.add_calculation_step(
-            tid3, "percentiles", "평균·p50·p95·p99 백분위수 계산",
+            tid3, "percentiles", "compute mean / p50 / p95 / p99 percentiles",
             {"values_count": len(times)},
             {"mean_s": mean_lat, "p95_s": p95_lat},
             TestStepStatus.SUCCESS,
@@ -6727,7 +6732,7 @@ class PerformanceMonitor:
 
         tid4 = tm.start_metric_calculation("token_economy", "performance")
         tm.add_calculation_step(
-            tid4, "sum_tokens", "태스크별 input/output 토큰 합산",
+            tid4, "sum_tokens", "sum input/output tokens per task",
             {"task_count": n},
             {"total_input": tok_data.get("total_input_tokens", 0),
              "total_output": tok_data.get("total_output_tokens", 0),
@@ -6735,7 +6740,7 @@ class PerformanceMonitor:
             TestStepStatus.SUCCESS,
         )
         tm.add_calculation_step(
-            tid4, "calculate_cost", "총 비용 = Σ(토큰 × 단가)",
+            tid4, "calculate_cost", "total cost = Σ(tokens × unit price)",
             {"total_tokens": total_tokens},
             {"total_cost_usd": total_cost,
              "avg_cost_per_task": round(total_cost / n, 6) if n else 0},
@@ -6755,20 +6760,20 @@ class PerformanceMonitor:
 
             tid5 = tm.start_metric_calculation("response_quality", "quality")
             tm.add_calculation_step(
-                tid5, "collect_evaluations", f"{len(q_evals)}개 응답 품질 평가 수집",
+                tid5, "collect_evaluations", f"collected {len(q_evals)} response-quality evaluations",
                 {"evaluations": len(q_evals)},
                 {"dimension_count": len(dim_scores)},
                 TestStepStatus.SUCCESS,
             )
             tm.add_calculation_step(
                 tid5, "dimension_scoring",
-                "5개 차원 채점 (relevance · completeness · accuracy · clarity · usefulness)",
+                "score 5 dimensions (relevance / completeness / accuracy / clarity / usefulness)",
                 {"dimensions": list(dim_scores.keys())},
                 {"avg_dimension_scores": {k: round(v, 3) for k, v in dim_scores.items()}},
                 TestStepStatus.SUCCESS,
             )
             tm.add_calculation_step(
-                tid5, "aggregate_quality", f"종합 품질 점수 = {avg_q}",
+                tid5, "aggregate_quality", f"overall quality score = {avg_q}",
                 {"method": "weighted_dimension_average"},
                 {"avg_quality_score": avg_q},
                 TestStepStatus.SUCCESS,

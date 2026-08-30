@@ -115,8 +115,8 @@ def compute_agreement(
     """
     if len(judge_scores) != len(human_scores):
         raise ValueError(
-            f"judge_scores(len={len(judge_scores)})와 human_scores(len={len(human_scores)})"
-            "의 길이가 다릅니다"
+            f"judge_scores (len={len(judge_scores)}) and human_scores "
+            f"(len={len(human_scores)}) have different lengths"
         )
     n = len(judge_scores)
     if n == 0:

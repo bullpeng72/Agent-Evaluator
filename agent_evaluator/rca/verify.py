@@ -59,7 +59,7 @@ def verify_recommendation_outcome(
             "after_score": after_score,
             "gate_delta": None,
             "verdict": "inconclusive",
-            "reason": "before/after 중 하나 이상에서 해당 Gate 점수를 측정할 수 없음(None).",
+            "reason": "The Gate score could not be measured (None) in before and/or after.",
             "target_field_result": None,
         }
 

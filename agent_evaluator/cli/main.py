@@ -125,7 +125,7 @@ KEY_DEFS: list[dict] = [
         "label":    "Anthropic API Key",
         "required": False,
         "extra":    "llm",
-        "used_for": "@agent_eval(framework='anthropic') · Claude 평가 (pip install 'agent-evaluator[llm]')",
+        "used_for": "@agent_eval(framework='anthropic') · Claude evaluation (pip install 'agent-evaluator[llm]')",
         "url":      "https://console.anthropic.com/settings/keys",
         "prefix":   "sk-ant-",
         "companion": [
@@ -1005,6 +1005,19 @@ def main() -> None:
         "--fail-on-golden-regression", action="store_true", dest="fail_on_golden_regression",
         help="Return exit code 3 if any --golden-set case is missing or failed.",
     )
+    gate_p.add_argument(
+        "--explain", action="store_true", dest="explain",
+        help=(
+            "On failure, print a short RCA summary — for each fail/warn Gate, the "
+            "weakest measured score components and how to address them. Informational; "
+            "does not change the exit code."
+        ),
+    )
+    gate_p.add_argument(
+        "--no-explain", action="store_false", dest="explain",
+        help="Suppress the RCA summary even on failure (quiet CI).",
+    )
+    gate_p.set_defaults(explain=None)
 
     # diagnose subcommand (Phase 4 — RCA)
     diag_p = sub.add_parser(

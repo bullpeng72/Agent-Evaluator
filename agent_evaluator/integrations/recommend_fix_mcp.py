@@ -32,7 +32,8 @@ from __future__ import annotations
 from typing import Any
 
 _GATE_NAMES = (
-    "A=목표달성, B=행동무결성, C=신뢰성, D=성능계약, E=보안경계, F=다중에이전트, G=운영관측성"
+    "A=Goal Achievement, B=Behavioral Integrity, C=Reliability, D=Performance Contract, "
+    "E=Security Boundary, F=Multi-Agent Coordination, G=Observability"
 )
 
 
@@ -65,7 +66,9 @@ def format_recommendation(
     gate_key = (gate or "").strip().upper()
     guidance = GATE_GUIDANCE.get(gate_key)
     if guidance is None:
-        return f"'{gate}'는 유효한 Gate가 아닙니다. Gate A-G 중 하나를 지정하세요 ({_GATE_NAMES})."
+        return (
+            f"'{gate}' is not a valid Gate. Specify one of Gate A-G ({_GATE_NAMES})."
+        )
 
     lines = [f"[Gate {gate_key} — {guidance.label}] {guidance.guidance}"]
 
@@ -76,29 +79,32 @@ def format_recommendation(
         # 답하던 문제를 없앤다. 정규화로 이름이 바뀌면 사용자에게 그 사실을 알린다.
         canonical = canonical_metric_name(metric)
         if canonical and canonical != metric:
-            lines.append(f"\n('{metric}' → '{canonical}'로 해석)")
+            lines.append(f"\n(interpreting '{metric}' as '{canonical}')")
         metric = canonical or metric
         matched_rule = next((r for r in NATIVE_METRIC_RULES if r.metric == metric), None)
         if matched_rule is not None:
             lines.append(f"\n[{matched_rule.title}] {matched_rule.guidance}")
             if value is not None:
-                _status = "위반" if matched_rule.is_violated(value) else "정상 범위"
+                _status = "violated" if matched_rule.is_violated(value) else "within range"
                 lines.append(
-                    f"  현재값 {value} — 임계값 {matched_rule.threshold}"
-                    f"({matched_rule.direction}) 기준 {_status}"
+                    f"  current value {value} — threshold {matched_rule.threshold}"
+                    f" ({matched_rule.direction}): {_status}"
                 )
 
         # canonical 지표명(latency/accuracy/error_rate)이나 AnomalyEvent.type
         # (latency_trend 등) 둘 다 받아 이상탐지 조치 제안을 붙인다.
         anomaly_suggestion = anomaly_suggestion_for(metric)
         if anomaly_suggestion:
-            lines.append(f"\n[이상탐지 참고] {anomaly_suggestion}")
+            lines.append(f"\n[anomaly note] {anomaly_suggestion}")
 
         mast_candidates: tuple[Any, ...] = ()
         if gate_key == "F":
             mast_candidates = mast_failure_modes_for_gate_f_metric(metric)
             if mast_candidates:
-                lines.append("\n[MAST 실패모드 후보 — Cemri et al., NeurIPS 2025, 단정 아님]")
+                lines.append(
+                    "\n[MAST failure-mode candidates — Cemri et al., NeurIPS 2025, "
+                    "not a verdict]"
+                )
                 for m in mast_candidates:
                     lines.append(
                         f"  [{m.code}] {m.name} "
@@ -107,10 +113,15 @@ def format_recommendation(
                     lines.append(f"    → {m.remediation}")
 
         if matched_rule is None and not anomaly_suggestion and not mast_candidates:
-            _no_rule_note = f"'{metric}'에 대한 세부 규칙은 없습니다 — Gate 레벨 안내만 참고하세요."
+            _no_rule_note = (
+                f"No detailed rule for '{metric}' — refer to the Gate-level guidance only."
+            )
             lines.append(f"\n({_no_rule_note})")
 
-    lines.append("\n이 안내는 후보 조치일 뿐입니다 — 실제 원인 확인과 최종 판단은 사람의 몫입니다.")
+    lines.append(
+        "\nThis is candidate guidance only — confirming the actual cause and the final "
+        "judgment are up to you."
+    )
     return "\n".join(lines)
 
 

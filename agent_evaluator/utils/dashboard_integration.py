@@ -189,19 +189,19 @@ if __name__ == "__main__":
     print("Dashboard Integration Test")
     print("=" * 70)
 
-    print("\n1. Dashboard 사용 가능 여부:")
+    print("\n1. Dashboard availability:")
     available = is_dashboard_available()
     print(f"   {'✅ Available' if available else '❌ Unavailable'}")
 
     if available:
-        print("\n2. Dashboard 저장소 경로:")
+        print("\n2. Dashboard storage path:")
         results_path = get_dashboard_storage_path("results")
         print(f"   Results: {results_path}")
 
         golden_path = get_dashboard_storage_path("golden_datasets")
         print(f"   Golden Datasets: {golden_path}")
 
-    print("\n3. 저장 경로 테스트:")
+    print("\n3. Storage path test:")
     test_path = get_save_path("test_file.json", prefer_dashboard=True)
     print(f"   Dashboard-first: {test_path}")
 

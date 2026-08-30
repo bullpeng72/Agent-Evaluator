@@ -178,8 +178,8 @@ def compute(
     # 자기 설정이 실제로 적용됐는지 알 방법이 없었다.
     if _gate_b_lw > 0.0 and _loop_score is None:
         _b_insufficient.append(
-            f"gate_b_loop_weight={_gate_b_lw}가 설정됐지만 loop_detection 데이터가 없어 "
-            "적용되지 않음(가용 지표 단순 평균으로 폴백)"
+            f"gate_b_loop_weight={_gate_b_lw} is set but there is no loop_detection data, "
+            "so it is not applied (falling back to a simple average of the available metrics)"
         )
 
     _b_s = round(float(_bint_score), 4) if _bint_score is not None else None

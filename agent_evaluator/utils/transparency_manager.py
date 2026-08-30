@@ -504,19 +504,26 @@ class TestTransparencyManager:
         # Generate warnings
         warnings = []
         if not sufficient:
-            warnings.append(f"샘플 크기가 부족합니다 ({sample_size}/{min_required}). 최소 {min_required}개 이상 권장")
+            warnings.append(
+                f"Sample size is insufficient ({sample_size}/{min_required}). "
+                f"At least {min_required} is recommended."
+            )
 
         if variance > 0.1:
-            warnings.append(f"정확도 분산이 높습니다 ({variance:.4f}). 결과의 일관성이 낮을 수 있습니다")
+            warnings.append(
+                f"Accuracy variance is high ({variance:.4f}). Results may be inconsistent."
+            )
 
         # Generate recommendations
         recommendations = []
         if not sufficient:
-            recommendations.append(f"최소 {min_required - sample_size}개 이상의 추가 평가를 수행하세요")
+            recommendations.append(
+                f"Run at least {min_required - sample_size} more evaluations."
+            )
 
         if variance > 0.1:
-            recommendations.append("평가 데이터셋의 난이도 분포를 균일하게 조정하세요")
-            recommendations.append("프롬프트 템플릿을 표준화하여 일관성을 높이세요")
+            recommendations.append("Even out the difficulty distribution of the evaluation dataset.")
+            recommendations.append("Standardize the prompt templates to improve consistency.")
 
         return {
             "sample_size": sample_size,
@@ -620,11 +627,11 @@ class TestTransparencyManager:
             degraded = sum(1 for m in comparison["metric_changes"].values() if m['change'] < 0)
 
             if improved > degraded:
-                comparison["summary"] = f"{improved}개 메트릭 개선, {degraded}개 메트릭 저하"
+                comparison["summary"] = f"{improved} metric(s) improved, {degraded} degraded"
             elif degraded > improved:
-                comparison["summary"] = f"{degraded}개 메트릭 저하, {improved}개 메트릭 개선"
+                comparison["summary"] = f"{degraded} metric(s) degraded, {improved} improved"
             else:
-                comparison["summary"] = "메트릭 변화 없음"
+                comparison["summary"] = "No metric change"
 
         return comparison
 
@@ -652,22 +659,24 @@ class TestTransparencyManager:
                 if tcr < 50:
                     anomalies.append({
                         "severity": "high",
-                        "title": "매우 낮은 작업 완료율",
-                        "description": f"TCR이 {tcr:.1f}%로 매우 낮습니다. 절반 이상의 작업이 실패하고 있습니다.",
-                        "recommendation": "실패 원인을 즉시 조사하고, 입력 데이터 품질과 모델 설정을 재검토하세요."
+                        "title": "Very low task completion rate",
+                        "description": f"TCR is {tcr:.1f}% — more than half of tasks are failing.",
+                        "recommendation": "Investigate the failure causes immediately and "
+                                          "review input-data quality and model settings."
                     })
                 elif tcr < 70:
                     warnings.append({
                         "severity": "medium",
-                        "title": "낮은 작업 완료율",
-                        "description": f"TCR이 {tcr:.1f}%입니다. 30% 이상의 작업이 실패하고 있습니다.",
-                        "recommendation": "에러 로그를 확인하고 실패 패턴을 분석하세요."
+                        "title": "Low task completion rate",
+                        "description": f"TCR is {tcr:.1f}% — over 30% of tasks are failing.",
+                        "recommendation": "Check the error logs and analyze the failure patterns."
                     })
                 elif tcr >= 95:
                     insights.append({
-                        "title": "우수한 작업 완료율",
-                        "description": f"TCR이 {tcr:.1f}%로 매우 높습니다!",
-                        "action": "현재 설정을 유지하고 다른 프로젝트에도 적용을 고려하세요."
+                        "title": "Excellent task completion rate",
+                        "description": f"TCR is {tcr:.1f}% — very high!",
+                        "action": "Keep the current setup and consider applying it to "
+                                  "other projects."
                     })
 
         except Exception as e:
@@ -824,15 +833,15 @@ class TestTransparencyManager:
         if tcr is not None and tcr < 80:
             insights.append({
                 "priority": "high",
-                "title": "작업 완료율 개선 필요",
+                "title": "Task completion rate needs improvement",
                 "category": "Performance",
-                "current_state": f"현재 TCR은 {tcr:.1f}%로 목표치(80%) 미달",
-                "action": "실패 원인을 분석하고 입력 데이터 품질 개선",
-                "expected_impact": "TCR을 80% 이상으로 향상",
+                "current_state": f"Current TCR is {tcr:.1f}%, below the target (80%)",
+                "action": "Analyze the failure causes and improve input-data quality",
+                "expected_impact": "Raise TCR above 80%",
                 "implementation": [
-                    "실패한 작업의 에러 로그 수집 및 분석",
-                    "입력 프롬프트 품질 검토",
-                    "모델 파라미터 조정 (temperature, max_tokens 등)"
+                    "Collect and analyze error logs of failed tasks",
+                    "Review input prompt quality",
+                    "Tune model parameters (temperature, max_tokens, etc.)"
                 ]
             })
 
@@ -840,15 +849,15 @@ class TestTransparencyManager:
         if avg_accuracy > 0 and avg_accuracy < 80:
             insights.append({
                 "priority": "high",
-                "title": "정확도 개선 필요",
+                "title": "Accuracy needs improvement",
                 "category": "Quality",
-                "current_state": f"평균 정확도 {avg_accuracy:.1f}%로 목표치(80%) 미달",
-                "action": "Golden Dataset 품질 개선 및 모델 평가 재검토",
-                "expected_impact": "정확도를 80% 이상으로 향상",
+                "current_state": f"Average accuracy {avg_accuracy:.1f}%, below the target (80%)",
+                "action": "Improve Golden Dataset quality and revisit model evaluation",
+                "expected_impact": "Raise accuracy above 80%",
                 "implementation": [
-                    "Golden Dataset의 기대 답변 품질 검토",
-                    "모호한 QA 쌍 수정 또는 제거",
-                    "평가 메트릭 조정 (semantic similarity threshold 등)"
+                    "Review the expected-answer quality in the Golden Dataset",
+                    "Fix or remove ambiguous QA pairs",
+                    "Tune evaluation metrics (semantic similarity threshold, etc.)"
                 ]
             })
 
@@ -856,15 +865,15 @@ class TestTransparencyManager:
         if quality_evaluated == 0 and total_tasks > 0:
             insights.append({
                 "priority": "medium",
-                "title": "품질 평가 활성화 권장",
+                "title": "Enabling quality evaluation is recommended",
                 "category": "Data Quality",
-                "current_state": "현재 품질 평가가 수행되지 않음",
-                "action": "quality_evaluator를 사용하여 응답 품질 평가",
-                "expected_impact": "더 상세한 품질 인사이트 확보",
+                "current_state": "Quality evaluation is not currently running",
+                "action": "Use quality_evaluator to evaluate response quality",
+                "expected_impact": "Gain more detailed quality insights",
                 "implementation": [
-                    "monitor.quality_evaluator.evaluate_response() 호출 추가",
-                    "각 응답에 대해 completeness, relevance, clarity 평가",
-                    "품질 메트릭을 대시보드에서 모니터링"
+                    "Add monitor.quality_evaluator.evaluate_response() calls",
+                    "Evaluate completeness, relevance, clarity per response",
+                    "Monitor quality metrics on the dashboard"
                 ]
             })
 
@@ -872,15 +881,15 @@ class TestTransparencyManager:
         if tcr is not None and tcr >= 90 and avg_accuracy >= 85:
             insights.append({
                 "priority": "low",
-                "title": "우수한 성능 유지 중",
+                "title": "Sustaining excellent performance",
                 "category": "Success",
-                "current_state": f"TCR {tcr:.1f}%, 정확도 {avg_accuracy:.1f}%로 목표 초과 달성",
-                "action": "현재 설정 및 프로세스를 문서화하고 다른 프로젝트에 적용",
-                "expected_impact": "모범 사례 확산 및 전체 품질 향상",
+                "current_state": f"TCR {tcr:.1f}%, accuracy {avg_accuracy:.1f}% — target exceeded",
+                "action": "Document the current setup and process and apply it to other projects",
+                "expected_impact": "Spread best practices and improve overall quality",
                 "implementation": [
-                    "현재 설정 및 프롬프트를 문서화",
-                    "Golden Dataset을 템플릿으로 공유",
-                    "정기적인 모니터링으로 품질 유지"
+                    "Document the current settings and prompts",
+                    "Share the Golden Dataset as a template",
+                    "Sustain quality with regular monitoring"
                 ]
             })
 

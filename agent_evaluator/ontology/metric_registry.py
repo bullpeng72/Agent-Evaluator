@@ -126,6 +126,292 @@ def evaluate_native_metric_rules(
     return [rule for rule in NATIVE_METRIC_RULES if rule.is_violated(values.get(rule.metric))]
 
 
+# Gate details 세부 컴포넌트(``harness_groups[X].details``의 필드 / ``rca.diagnose()``의
+# ``component_shortfalls[].field``)별 구체 조치. ``GATE_GUIDANCE``(Gate 단위 1줄)와
+# ``NATIVE_METRIC_RULES``(절대 임계값 4개)의 틈 — "Gate D가 낮다"가 아니라 "budget_score가
+# 낮다"는 수준의 조치를 담는다. 소비처: ``reporting/comprehensive_report._build_recommendations()``·
+# ``cli/diagnose.py``·``cli/gate.py``·``recommend_fix`` MCP. 키는 canonical 필드명
+# (avg_ 접두 제거, ``canonical_metric_name()``과 같은 어휘).
+COMPONENT_GUIDANCE: dict[str, str] = {
+    # Gate A
+    "subtask_completion": (
+        "Only some of the required sub-tasks were completed. Have the prompt list the "
+        "steps explicitly, and use SubtaskConfig to verify each step individually."
+    ),
+    "instruction_adherence": (
+        "Some instructions were not followed. Tighten "
+        "InstructionConfig.required_keywords / forbidden_keywords to pinpoint the violation."
+    ),
+    "goal_alignment": (
+        "Tool calls diverge from the goal. Define the expected tools/order with "
+        "GoalAlignmentConfig; for non-tool agents set ignore_no_tool_tasks=False."
+    ),
+    "plan_coherence": (
+        "Plan steps contradict each other or are out of order. Check plan-vs-execution "
+        "alignment with PlanConfig."
+    ),
+    "context_retention": (
+        "Information from earlier turns is being lost. Add a context-summarization step "
+        "or adjust the ContextRetentionConfig threshold."
+    ),
+    "knowledge_retention": (
+        "Provided facts are not reflected in the answer. Include the retrieved/injected "
+        "knowledge explicitly in the answer-generation prompt."
+    ),
+    "quality_relevance_completeness": (
+        "Response relevance/completeness is low. Strengthen the response-format "
+        "instructions and provide examples."
+    ),
+    "accuracy": (
+        "Accuracy against ground truth is low. Review RAG context quality or the "
+        "ground_truth setup."
+    ),
+    # Gate B
+    "loop_detection": (
+        "The same tool call is repeating. Instruct the prompt to change approach on "
+        "failure, and tune LoopDetectionConfig.consecutive_repeat_threshold."
+    ),
+    "state_consistency": (
+        "The agent updates state inconsistently. Consolidate state changes into a "
+        "single point."
+    ),
+    "scope_score": (
+        "The agent accessed a tool/path outside the allowed scope. Redefine "
+        "ScopeConfig.allowed_tools / forbidden_tools."
+    ),
+    "tool_parameter_safety": (
+        "Dangerous tool arguments were detected. Review "
+        "ToolParameterSafetyConfig.dangerous_patterns and exclude file-body tools via "
+        "scope_tool_names."
+    ),
+    "context_window": (
+        "The context window is used inefficiently. Trim and summarize unnecessary history."
+    ),
+    "deadlock": (
+        "An agent-to-agent / tool-to-tool deadlock occurred. Check the wait "
+        "relationships with DeadlockConfig."
+    ),
+    # Gate C
+    "sla_breach": (
+        "The SLA response time was exceeded. Set SLAConfig.p95_ms realistically and "
+        "profile the slowest sub-step."
+    ),
+    "fault_tolerance": (
+        "The agent does not recover from external errors. Define retries/fallbacks with "
+        "RetryConfig / FaultToleranceConfig."
+    ),
+    "reproducibility": (
+        "The same input yields different outputs. Lower the temperature or fix the seed."
+    ),
+    "degradation": (
+        "No graceful degradation on partial failure. Provide a fallback path for the "
+        "failing tool."
+    ),
+    "retry_consistency": (
+        "Results shift on every retry. Make the retry prompt deterministic."
+    ),
+    "idempotency": (
+        "Running the same operation twice accumulates side effects. Add an idempotency "
+        "key to write operations."
+    ),
+    # Gate D
+    "budget_score": (
+        "The resource budget (tokens/time/cost) is exceeded. Revisit the "
+        "ResourceBudgetConfig limits and cut unnecessary tool calls/context."
+    ),
+    "cost_predictability": (
+        "Per-task cost varies widely. Keep context length consistent and isolate "
+        "outlier cases."
+    ),
+    "efficiency_ratio": (
+        "Output per tool call is low. Remove redundant calls and adjust the "
+        "EfficiencyConfig reference cost."
+    ),
+    "ttft_variability": (
+        "Time-to-first-token varies a lot. Look into streaming warm-up / connection reuse."
+    ),
+    "p95_latency": (
+        "P95 latency is near the contract ceiling. Consider parallelization, caching, or "
+        "a lighter model."
+    ),
+    # Gate E
+    "threat_severity": (
+        "High-severity threats were detected. Harden ThreatSeverityConfig and input "
+        "validation."
+    ),
+    "compliance": (
+        "Compliance (PII/policy) violations exist. Review ComplianceConfig rules and "
+        "output masking."
+    ),
+    "threat_response": (
+        "Response after threat detection (block/escalate) is insufficient. Define "
+        "ThreatResponseConfig."
+    ),
+    # Gate F
+    "consensus": (
+        "Inter-agent consensus rate is low. Revisit ConsensusConfig.consensus_method "
+        "and role assignment."
+    ),
+    "propagation": (
+        "Information-propagation accuracy is low. Fix the inter-agent message schema."
+    ),
+    "role_adherence": (
+        "Agents step outside their roles. Narrow each role's allowed actions with "
+        "AgentRoleConfig."
+    ),
+    "conflict_resolution": (
+        "Conflict-resolution rate is low. Define arbitration rules with "
+        "ConflictResolutionConfig (also check Gate B deadlock)."
+    ),
+    # Gate G
+    "tool_coverage": (
+        "Tool-call success rate is low. Check the argument schema/permissions of the "
+        "failing tools."
+    ),
+    "explainability": (
+        "The reasoning process is not exposed. Set "
+        "ExplainabilityConfig.min_reasoning_length."
+    ),
+    "observability_score": (
+        "Internal state is not observable. Record state snapshots with ObservabilityConfig."
+    ),
+    "error_diagnosis": (
+        "Error-diagnosis information is insufficient. Attach cause and context to errors."
+    ),
+    "latency_attribution": (
+        "The latency source cannot be pinpointed. Turn on per-segment instrumentation "
+        "with LatencyAttributionConfig."
+    ),
+}
+
+
+def component_guidance_for(field: str | None) -> str | None:
+    """Gate details 컴포넌트 필드명 → 구체 조치 문구. 매칭 없으면 ``None``.
+
+    ``canonical_metric_name()``과 같은 정규화(avg_ 접두 + ``_rate``/``_score``/``_pct``/
+    ``_count``/``_ms``/``_s`` 접미사 제거)를 적용한 뒤 ``COMPONENT_GUIDANCE``를 조회한다.
+    """
+    if not field:
+        return None
+    f = field.strip()
+    if f in COMPONENT_GUIDANCE:
+        return COMPONENT_GUIDANCE[f]
+    if f.startswith("avg_"):
+        f = f[4:]
+    if f in COMPONENT_GUIDANCE:                       # avg_ 만 벗기면 맞는 키(budget_score 등)
+        return COMPONENT_GUIDANCE[f]
+    for _suf in ("_rate", "_pct", "_count", "_ms", "_s", "_accuracy", "_compliance", "_score"):
+        if f.endswith(_suf):
+            cand = f[: -len(_suf)]
+            if cand in COMPONENT_GUIDANCE:
+                return COMPONENT_GUIDANCE[cand]
+    return None
+
+
+# P8.1: 컴포넌트 → 코드 레벨 처방. ``@agent_eval`` 데코레이터 슬롯 이름 + Config 클래스 +
+# 손볼 만한 필드 예시. 산문 조치(COMPONENT_GUIDANCE)가 "SubtaskConfig로 검증하세요"라면
+# 이건 붙여넣을 수 있는 스니펫을 만든다. 소비: comprehensive_report._build_recommendations.
+_COMPONENT_CONFIG_HINT: dict[str, dict[str, str]] = {
+    # Gate A
+    "subtask_completion": {"slot": "subtask_tracking", "config": "SubtaskConfig",
+                           "example": "min_subtasks=3, require_all=True"},
+    "instruction_adherence": {"slot": "instructions", "config": "InstructionConfig",
+                              "example": 'required_keywords=["..."], fail_on_violation=True'},
+    "goal_alignment": {"slot": "goal_alignment", "config": "GoalAlignmentConfig",
+                       "example": "expected_tools=[...], ignore_no_tool_tasks=False"},
+    "plan_coherence": {"slot": "plan_tracking", "config": "PlanConfig",
+                       "example": "require_plan=True, max_replan=2"},
+    "context_retention": {"slot": "context_retention", "config": "ContextRetentionConfig",
+                          "example": "min_retention_rate=0.8"},
+    "knowledge_retention": {"slot": "knowledge_retention", "config": "KnowledgeRetentionConfig",
+                            "example": "required_facts=[...]"},
+    # Gate B
+    "loop_detection": {"slot": "loop_detection", "config": "LoopDetectionConfig",
+                       "example": "consecutive_repeat_threshold=3, on_loop_detected='fail'"},
+    "state_consistency": {"slot": "state_consistency", "config": "StateConsistencyConfig",
+                          "example": "check_monotonic=True"},
+    "scope_score": {"slot": "scope", "config": "ScopeConfig",
+                    "example": 'allowed_tools=["..."], forbidden_tools=["WebFetch"]'},
+    "tool_parameter_safety": {
+        "slot": "tool_parameter_safety", "config": "ToolParameterSafetyConfig",
+        "example": "scope_tool_names=['Bash'], max_argument_length=100000",
+    },
+    "context_window": {"slot": "context_window", "config": "ContextWindowConfig",
+                       "example": "max_context_tokens=8000"},
+    "deadlock": {"slot": "deadlock", "config": "DeadlockConfig",
+                 "example": "fail_on_deadlock=True"},
+    # Gate C
+    "sla_breach": {"slot": "sla", "config": "SLAConfig", "example": "p95_ms=3000"},
+    "fault_tolerance": {"slot": "fault_tolerance", "config": "FaultToleranceConfig",
+                        "example": "expected_recovery_rate=0.9"},
+    "reproducibility": {"slot": "reproducibility", "config": "ReproducibilityConfig",
+                        "example": "runs=3, max_variance=0.05"},
+    "degradation": {"slot": "graceful_degradation", "config": "GracefulDegradationConfig",
+                    "example": "require_fallback=True"},
+    "retry_consistency": {"slot": "retry_consistency", "config": "RetryConsistencyConfig",
+                          "example": "max_drift=0.1"},
+    "idempotency": {"slot": "idempotency", "config": "IdempotencyConfig",
+                    "example": "check_side_effects=True"},
+    # Gate D
+    "budget_score": {"slot": "resource_budget", "config": "ResourceBudgetConfig",
+                     "example": "max_tokens_per_task=4000, max_cost_usd=0.05"},
+    "efficiency_ratio": {"slot": "efficiency", "config": "EfficiencyConfig",
+                         "example": "target_cost_per_completion=0.02"},
+    "p95_latency": {"slot": "sla", "config": "SLAConfig", "example": "p95_ms=3000"},
+    # cost_predictability / ttft_variability는 데코레이터 슬롯이 아니라
+    # PerformanceMonitor(cost_predictability_config=..., ttft_variability_config=...)
+    # 인자라 코드 스니펫을 생성하지 않는다(잘못된 스니펫보다 없는 게 낫다) —
+    # COMPONENT_GUIDANCE 산문 조치는 그대로 제공된다.
+    # Gate E
+    "threat_severity": {"slot": "threat_severity", "config": "ThreatSeverityConfig",
+                        "example": "max_cvss=4.0"},
+    "compliance": {"slot": "compliance", "config": "ComplianceConfig",
+                   "example": 'frameworks=["pii"]'},
+    "threat_response": {"slot": "threat_response", "config": "ThreatResponseConfig",
+                        "example": "require_block_on_critical=True"},
+    # Gate F
+    "consensus": {"slot": "consensus", "config": "ConsensusConfig",
+                  "example": "consensus_method='majority'"},
+    "propagation": {"slot": "propagation", "config": "PropagationConfig",
+                    "example": "min_accuracy=0.9"},
+    "role_adherence": {"slot": "agent_role", "config": "AgentRoleConfig",
+                       "example": "roles={...}"},
+    "conflict_resolution": {"slot": "conflict_resolution", "config": "ConflictResolutionConfig",
+                            "example": "require_resolution=True"},
+    # Gate G
+    "explainability": {"slot": "explainability", "config": "ExplainabilityConfig",
+                       "example": "min_reasoning_length=20"},
+    "observability_score": {"slot": "observability", "config": "ObservabilityConfig",
+                            "example": "check_trace_continuity=True"},
+    "error_diagnosis": {"slot": "error_diagnosis", "config": "ErrorDiagnosisConfig",
+                        "example": "require_cause=True"},
+    "latency_attribution": {"slot": "latency_attribution", "config": "LatencyAttributionConfig",
+                            "example": "require_span_breakdown=True"},
+}
+
+
+def config_hint_for(field: str | None) -> dict[str, str] | None:
+    """컴포넌트 필드명 → ``{slot, config, example}`` 코드 레벨 처방. 매칭 없으면 ``None``.
+
+    ``component_guidance_for()``와 동일한 정규화(avg_ 접두/접미사 제거)를 적용한다.
+    """
+    if not field:
+        return None
+    f = field.strip()
+    if f in _COMPONENT_CONFIG_HINT:
+        return _COMPONENT_CONFIG_HINT[f]
+    if f.startswith("avg_"):
+        f = f[4:]
+    if f in _COMPONENT_CONFIG_HINT:
+        return _COMPONENT_CONFIG_HINT[f]
+    for _suf in ("_rate", "_pct", "_count", "_ms", "_s", "_accuracy", "_compliance", "_score"):
+        if f.endswith(_suf):
+            cand = f[: -len(_suf)]
+            if cand in _COMPONENT_CONFIG_HINT:
+                return _COMPONENT_CONFIG_HINT[cand]
+    return None
+
+
 # AnomalyDetector가 내는 이벤트 유형(``AnomalyEvent.type``)별 조치 제안.
 # SPEC-041: Phase 2 통합 때 이 dict가 잘못 옮겨졌다 — 실제 이벤트 유형은
 # latency_trend/accuracy_drift/token_spike/error_surge/feedback_negativity/

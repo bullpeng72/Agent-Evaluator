@@ -263,6 +263,42 @@ class TestHandleSessionEnd:
         assert result["ok"] is True
         assert not session_file.exists()
         assert not blocked_file.exists()
+        # SPEC-041 P2.1: SessionEnd가 사용자에게 보여줄 요약을 systemMessage로 반환한다.
+        assert "systemMessage" in result
+        msg = result["systemMessage"]
+        assert "LiveGuardrail session summary" in msg
+        assert "Gate B" in msg and "Gate E" in msg
+        assert "blocked before execution" in msg  # blocked_file에 1건 넣었음
+
+    def test_summary_reports_no_violations_for_clean_session(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            json.dumps({"output_dir": str(tmp_path / "r")})
+        )
+        hook._append_json_list(
+            hook._session_file(state_dir, "clean"),
+            {"tool_name": "Bash", "parameters": {"command": "ls"}, "output": None},
+        )
+        result = hook.handle_session_end({"session_id": "clean", "reason": "clear"}, state_dir)
+        assert result["ok"] is True
+        assert "no Gate B/E violations detected" in result["systemMessage"]
+
+    def test_no_system_message_when_batch_save_fails(self, tmp_path, monkeypatch):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            json.dumps({"output_dir": str(tmp_path)})
+        )
+        hook._append_json_list(
+            hook._session_file(state_dir, "s1"),
+            {"tool_name": "Bash", "parameters": {}, "output": None},
+        )
+        monkeypatch.setattr(
+            hook, "record_and_save",
+            lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        result = hook.handle_session_end({"session_id": "s1", "reason": "clear"}, state_dir)
+        assert result["ok"] is False
+        assert "systemMessage" not in result
 
     def test_cleanup_does_not_error_when_files_absent(self, tmp_path):
         state_dir = _state_dir(tmp_path)

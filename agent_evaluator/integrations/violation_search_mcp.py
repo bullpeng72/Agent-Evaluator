@@ -48,6 +48,23 @@ def _default_db_path() -> str:
     return os.path.join(output_dir, _DEFAULT_DB_FILENAME)
 
 
+# SPEC-041 P3.2: 위반 요약 텍스트에서 감지되는 키워드 → (Gate, recommend_fix metric).
+# search_violations 결과를 찾은 뒤 "그래서 뭘 고쳐야?"로 이어지도록 recommend_fix 힌트를
+# 붙이기 위한 것 — 두 MCP 도구(search_violations ↔ recommend_fix)를 체이닝한다.
+_VIOLATION_TO_GATE_METRIC: tuple[tuple[str, str, str], ...] = (
+    ("loop_detection", "B", "loop_detection"),
+    ("consecutive_repeat", "B", "loop_detection"),
+    ("deadlock", "B", "deadlock"),
+    ("scope", "B", "scope_score"),
+    ("tool_parameter_safety", "B", "tool_parameter_safety"),
+    ("dangerous", "B", "tool_parameter_safety"),
+    ("tool_authorization", "E", "threat_severity"),
+    ("privilege_escalation", "E", "threat_severity"),
+    ("tool_chain_attack", "E", "threat_severity"),
+    ("protected write", "E", "threat_severity"),
+)
+
+
 def format_results(results: list[dict[str, Any]]) -> str:
     """(REQ-4) REQ-3의 구조화 검색 결과를 사람이 읽기 쉬운 문자열로 변환한다.
 
@@ -58,18 +75,31 @@ def format_results(results: list[dict[str, Any]]) -> str:
     Returns:
         결과가 없으면 명시적으로 "없다"고 말하는 문장(모델이 결과를 지어내지
         않도록) — 결과가 있으면 관련도 순으로 번호를 매긴 사람이 읽을 수 있는 목록.
+        결과에서 위반 유형이 식별되면 이어서 호출할 ``recommend_fix`` 힌트를 덧붙인다.
     """
     if not results:
-        return "일치하는 과거 위반 이력이 없습니다."
-    lines = ["과거 위반 이력 검색 결과:"]
+        return "No matching past violation history found."
+    lines = ["Past violation history — search results:"]
     for i, r in enumerate(results, start=1):
         # SPEC-030 REQ-5: include_blocked=True 결과에만 "blocked" 키가 있다 —
         # 관찰 모드(위반 기록만, 실행은 됨)와 완전 차단(실행 자체가 막힘)을
         # 모델이 혼동하지 않도록 접두어로 명확히 구분한다.
-        _prefix = "[차단됨] " if r.get("blocked") else "[관찰됨] " if "blocked" in r else ""
+        _prefix = "[BLOCKED] " if r.get("blocked") else "[OBSERVED] " if "blocked" in r else ""
         lines.append(
             f"{i}. {_prefix}[{r.get('timestamp')}] task_id={r.get('task_id')} "
             f"(task_type={r.get('task_type')}, success={r.get('success')}): {r.get('summary')}"
+        )
+
+    # 가장 흔한 위반 유형 하나를 골라 recommend_fix 힌트로 연결한다.
+    _blob = " ".join(str(r.get("summary") or "") for r in results).lower()
+    _hit = next(
+        ((g, m) for kw, g, m in _VIOLATION_TO_GATE_METRIC if kw in _blob), None
+    )
+    if _hit:
+        _g, _m = _hit
+        lines.append(
+            f"\nTo see how to address this, call the recommend_fix "
+            f"(gate=\"{_g}\", metric=\"{_m}\") tool."
         )
     return "\n".join(lines)
 

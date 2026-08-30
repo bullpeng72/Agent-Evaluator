@@ -114,14 +114,14 @@ def _register_mcp_server(name: str, module: str, flag: str) -> None:
         )
     except FileNotFoundError:
         print(
-            f"{_Y}⚠️  {flag}: 'opencode' CLI를 찾지 못해 MCP 서버 등록을 건너뜁니다. "
-            f"수동 등록: {_manual}{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode' CLI not found — skipping MCP server registration. "
+            f"Register manually: {_manual}{_R}",
             file=sys.stderr,
         )
         return
     except subprocess.TimeoutExpired:
         print(
-            f"{_Y}⚠️  {flag}: 'opencode mcp add' 시간 초과 — 수동으로 등록하세요.{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode mcp add' timed out — register it manually.{_R}",
             file=sys.stderr,
         )
         return
@@ -133,8 +133,8 @@ def _register_mcp_server(name: str, module: str, flag: str) -> None:
         print(f"{_D}   MCP server already registered: {name} — nothing to change{_R}")
     else:
         print(
-            f"{_Y}⚠️  {flag}: 'opencode mcp add' 실패(exit {result.returncode}) — "
-            f"수동 등록: {_manual}{_R}",
+            f"{_Y}⚠️  {flag}: 'opencode mcp add' failed (exit {result.returncode}) — "
+            f"register manually: {_manual}{_R}",
             file=sys.stderr,
         )
         if result.stderr:

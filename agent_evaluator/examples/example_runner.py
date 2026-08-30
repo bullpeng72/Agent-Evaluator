@@ -72,7 +72,7 @@ class ExampleRunner:
             True if all prerequisites are met, False otherwise
         """
         print("=" * 70)
-        print("🔍 환경 확인")
+        print("🔍 Environment check")
         print("=" * 70)
 
         # Check API key if required
@@ -81,30 +81,30 @@ class ExampleRunner:
             api_key = os.getenv("OPENAI_API_KEY")
 
             if not api_key:
-                print("\n❌ OpenAI API 키가 설정되지 않았습니다.")
-                print("\n설정 방법:")
-                print('   .env 파일에 추가: OPENAI_API_KEY="your-key-here"')
-                print('   또는 환경 변수: export OPENAI_API_KEY="your-key-here"')
+                print("\n❌ OPENAI_API_KEY is not set.")
+                print("\nHow to set it:")
+                print('   Add to a .env file: OPENAI_API_KEY="your-key-here"')
+                print('   Or an env var: export OPENAI_API_KEY="your-key-here"')
                 return False
 
-            print(f"✅ OpenAI API 키 확인됨: {api_key[:10]}...")
+            print(f"✅ OPENAI_API_KEY found: {api_key[:10]}...")
 
         # Check required libraries
         missing_libs = []
         for lib in self.required_libs:
             try:
                 __import__(lib)
-                print(f"✅ {lib} 설치됨")
+                print(f"✅ {lib} installed")
             except ImportError:
                 missing_libs.append(lib)
-                print(f"❌ {lib} 설치 필요")
+                print(f"❌ {lib} not installed")
 
         if missing_libs:
-            print("\n❌ 다음 라이브러리를 설치하세요:")
+            print("\n❌ Install the following libraries:")
             print(f"   pip install {' '.join(missing_libs)}")
             return False
 
-        print("\n✅ 모든 종속성 확인 완료!")
+        print("\n✅ All dependencies OK!")
         return True
 
     def print_header(self) -> None:
@@ -131,21 +131,21 @@ class ExampleRunner:
 
         monitor.save_to_file(filename)
 
-        print(f"\n✅ 저장 완료: {filename}")
-        print(f"   위치: {monitor.output_dir / filename}")
+        print(f"\n✅ Saved: {filename}")
+        print(f"   Location: {monitor.output_dir / filename}")
 
         # Dashboard instructions
         print("\n" + "=" * 70)
-        print("🎉 예제 완료!")
+        print("🎉 Example complete!")
         print("=" * 70)
 
-        print("\n📊 대시보드에서 결과 확인하기:")
+        print("\n📊 View the results on the dashboard:")
         print("-" * 70)
-        print("1. 대시보드 실행:")
+        print("1. Start the dashboard:")
         print("   agent-eval serve")
         print("")
-        print("2. 파일 선택:")
-        print(f"   {filename} 선택")
+        print("2. Select the file:")
+        print(f"   select {filename}")
         print("")
 
     def run(self, main_func: Callable) -> None:
@@ -158,7 +158,7 @@ class ExampleRunner:
         self.print_header()
 
         if not self.check_environment():
-            print("\n⚠️ 환경 설정 후 다시 실행하세요.")
+            print("\n⚠️ Set up the environment, then run again.")
             return
 
         try:

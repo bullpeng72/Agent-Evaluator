@@ -48,7 +48,7 @@ agent-eval claude install --with-recommend-fix             # + register recommen
 agent-eval claude upgrade                                 # refresh hooks/matchers + deep-merge NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
 agent-eval claude doctor                                  # verify the install works: static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
 agent-eval claude uninstall                               # remove our hooks from settings.json + deregister MCP + delete session state (run BEFORE pip uninstall; --keep-config/--purge/--dry-run/--yes)
-agent-eval trend results/ --fail-on-regression            # trend analysis
+agent-eval trend results/ --fail-on-regression            # trend analysis (회귀 시 첫/마지막 run의 lineage.git_commit 사이 코드 diff 자동 첨부, --repo-path)
 agent-eval trend results/ --output-json trend.json
 agent-eval claims add src/ --developer auto                # open a .aoo/claims.jsonl scope claim
 agent-eval claims list                                     # show active claims
@@ -117,6 +117,13 @@ agent_evaluator/
 │   ├── shared_metrics.py  # RunningAverage 등 7개 running-aggregate 원시 타입 + Gate별 8개 SharedAgg 클래스
 │   ├── live_guardrail.py  # LiveVerdict · LiveGuardrail — 배치 Gate와 동일한 Behavioral/Security
 │   │                       #  체크를 실행 전 단일 tool call 단위로 동기 호출
+│   │                       #  LiveVerdict.remediation(SPEC-041 P1.3) — block=True이고 미지정이면
+│   │                       #  __post_init__이 reason에서 자동 도출한다(_derive_remediation:
+│   │                       #  reason 접두어→COMPONENT_GUIDANCE 키 매핑 + "반복 말고 접근 바꿔라 +
+│   │                       #  recommend_fix/search_violations MCP 써라" 꼬리말). block=False면 항상
+│   │                       #  None. dataclasses.asdict로 stdio 브리지·Claude 훅
+│   │                       #  (permissionDecisionReason)·OpenCode 에러 메시지에 그대로 실려 나가
+│   │                       #  "무엇이 막혔나"에 더해 "그래서 뭘 하라"를 에이전트에 전달한다.
 │   │                       #  record_blocked_attempt() — check_before_tool_call()이 block=True를
 │   │                       #  반환한 시도를 호출자가 명시적으로 감사 이력(blocked_violations)에 기록
 │   │                       #  record_tool_call(output=...) — success/exit_code/stdout/stderr
@@ -364,6 +371,15 @@ agent_evaluator/
 │   │                       #  잘못 배정되는 영구 데스싱크를 피한다. id 없으면 응답에도 안 붙음
 │   │                       #  (구 호출자 100% 호환). 프로토콜은 여전히 "1요청→1응답, 순서 보존".
 │   ├── opencode_plugin/agent-evaluator.ts  # OpenCode tool.execute.before/after 훅 → stdio 브리지.
+│   │                       #  SPEC-041 P1.3: LiveVerdict.remediation(Python이 채움)을 차단
+│   │                       #  Error 메시지 끝에 "\n→ "로 덧붙이고, synthetic transcript 요약도
+│   │                       #  search_violations + recommend_fix 두 MCP 도구를 모두 안내한다.
+│   │                       #  SPEC-041 P2.4: circuit breaker 이식(Claude 훅과 대칭) —
+│   │                       #  GuardrailSession.consecutiveBlocks/circuitTripped. 연속
+│   │                       #  CIRCUIT_BREAKER_AFTER(기본 5, config의 circuit_breaker_after로
+│   │                       #  오버라이드, init 브리지엔 안 넘김)회 차단 시 sticky하게 관찰 전용
+│   │                       #  전환(recordBlocked는 계속, throw는 안 함). tool.execute.after의
+│   │                       #  성공 실행이 consecutiveBlocks를 0으로 리셋.
 │   │                       #  SPEC-041: tool.execute.before/after·GuardrailSession(stdio 콜백·
 │   │                       #  stdin write·process error/exit)를 전부 try/catch로 감싸 브리지가
 │   │                       #  죽거나 비-JSON을 뱉어도 fail-open(도구 통과) — 과거엔 예외가
@@ -416,6 +432,11 @@ agent_evaluator/
 │   │                       #  guardrail_config.json → cwd 상위로 walk-up → ~/.claude/.agent-
 │   │                       #  evaluator/guardrail_config.json → DEFAULT_GUARDRAIL_CONFIG.
 │   │                       #  과거엔 <cwd>만 봐서 `claude install --global` 설정이 무시됐다.
+│   │                       #  SPEC-041 P2.1: handle_session_end가 _session_end_summary()로
+│   │                       #  한 문단 요약(Gate B/E 점수 + 위반 종류 + 차단 건수 + 리포트 경로)을
+│   │                       #  만들어 result["systemMessage"]로 반환한다(배치 저장 성공 시에만).
+│   │                       #  OpenCode의 synthetic transcript 요약과 대칭 — 그전엔 Claude는
+│   │                       #  SessionEnd가 디스크에만 남기고 아무 요약도 안 냈다.
 │   │                       #  SPEC-041: _session_config()가 첫 PreToolUse에서 해석한 설정을
 │   │                       #  sessions/<id>.config.json에 고정한다 — 훅이 호출마다 별도
 │   │                       #  프로세스라, 세션 도중 config 파일이 바뀌면 PreToolUse들이 서로
@@ -444,6 +465,9 @@ agent_evaluator/
 │   │                       #  run()은 int 반환 — PreToolUse deny면 JSON(permissionDecision=deny)
 │   │                       #  + exit 2 + stderr 사유를 함께 낸다(구버전/다른 하네스가 JSON을
 │   │                       #  파싱 안 해도 차단이 먹도록). __main__은 sys.exit(run()).
+│   │                       #  SPEC-041 P1.3: deny 시 permissionDecisionReason에 verdict.reason
+│   │                       #  + "\n→ " + verdict.remediation(조치 지침)을 함께 싣는다.
+│   │                       #  circuit breaker systemMessage는 기존대로.
 │   │                       #  서브에이전트(Task) tool 호출은 부모 session_id로 오되 payload에
 │   │                       #  agent_id가 있으면 PostToolUse가 세션 이력에 그대로 남긴다(리포트용).
 │   │                       #  DEFAULT dangerous_patterns에 파이프-투-셸 `\|\s*(sh|bash|zsh|ksh)\b`
@@ -452,6 +476,9 @@ agent_evaluator/
 │   │                       #  (옵트인 `pip install "agent-evaluator[mcp]"`) — opencode mcp add로 등록
 │   │                       #  include_blocked=True로 호출하면 완전 차단된("관찰"이 아닌) 이력까지
 │   │                       #  함께 검색, [차단됨]/[관찰됨] 접두어로 구분
+│   │                       #  SPEC-041 P3.2: format_results가 결과 요약에서 위반 유형을 감지하면
+│   │                       #  (_VIOLATION_TO_GATE_METRIC) 끝에 `recommend_fix(gate=…, metric=…)`
+│   │                       #  호출 힌트를 붙인다 — 두 MCP 도구를 체이닝(찾기→고치기).
 │   ├── recommend_fix_mcp.py      # recommend_fix(gate, metric=None, value=None) 도구 1개를
 │   │                       #  노출하는 stdio MCP 서버(옵트인, violation_search_mcp.py와 나란히
 │   │                       #  등록) — ontology.metric_registry(GATE_GUIDANCE/NATIVE_METRIC_RULES/
@@ -496,6 +523,18 @@ agent_evaluator/
 │                          #  anomaly_suggestion_for(name) — name이 AnomalyEvent.type
 │                          #  ("latency_trend")이든 canonical 지표명("latency")이든 받아 제안
 │                          #  반환(_METRIC_TO_ANOMALY_TYPE로 후자를 매핑). 안 맞으면 None.
+│                          #  COMPONENT_GUIDANCE + component_guidance_for(field)(SPEC-041 P1.2) —
+│                          #  GATE_GUIDANCE(Gate 1줄)와 NATIVE_METRIC_RULES(절대 임계값 4개)의 틈:
+│                          #  Gate details 세부 컴포넌트(subtask_completion/budget_score/
+│                          #  loop_detection…, ~36개)별 구체 조치. 키는 canonical 필드명
+│                          #  (avg_ 접두 + _rate/_score/_pct/_ms/_s 접미사 벗겨 조회). 소비:
+│                          #  _build_recommendations(diagnosis=)·live_guardrail._derive_remediation·
+│                          #  cli/gate(_print_rca_explain)·recommend_fix_mcp.
+│                          #  _COMPONENT_CONFIG_HINT + config_hint_for(field)(SPEC-041 P8.1) —
+│                          #  컴포넌트→{slot, config, example}. 붙여넣을 수 있는 @agent_eval
+│                          #  데코레이터 스니펫 생성용(산문 조치의 코드 레벨 짝). cost_predictability/
+│                          #  ttft_variability는 데코레이터 슬롯이 아니라 PerformanceMonitor 인자라
+│                          #  일부러 제외(잘못된 스니펫보다 없는 게 낫다).
 │                          # mast_taxonomy.py — MAST(Cemri et al., NeurIPS 2025, arXiv:2503.13657)
 │                          #  14개 실패모드 원문 시드 데이터, Gate F(다중 에이전트) 전용.
 │                          #  rca.diagnose()가 Gate F 감지 시 related_gate_f_metric으로 후보를
@@ -531,6 +570,10 @@ agent_evaluator/
 │                          #  MCP add "already exists"는 이제 실패가 아니라 "nothing to change"로 출력.
 │                          # gate --baseline-version/--golden-set/--fail-on-golden-regression:
 │                          #  버전별 독립 baseline + 골든셋 회귀 게이트(exit 3)
+│                          # gate --explain/--no-explain(SPEC-041 P2.2) — 실패 시
+│                          #  _print_rca_explain(data): rca.diagnose() + component_guidance_for()로
+│                          #  fail/warn Gate마다 최약 컴포넌트 2개 + 조치를 CI 로그에 3줄 출력.
+│                          #  기본은 실패 시 자동, --explain 항상, --no-explain 억제. exit code 불변.
 ├── cli/claude.py          # claude install [--global/--force/--with-violation-search/
 │                          #  --with-recommend-fix] — .claude/settings.json(또는 --global 시
 │                          #  ~/.claude/settings.json)에 PreToolUse/PostToolUse/SessionEnd 훅을
@@ -600,7 +643,10 @@ agent_evaluator/
 │                          #  출력 레이어(새 판정 로직 없음). CI 게이트 아님 — 항상 exit 0
 │                          #  (결과 파일을 못 읽을 때만 exit 1), pass/fail 판정하지 않고
 │                          #  후보 원인·근거만 출력(HOTL). --show-diff로 lineage.git_commit
-│                          #  기반 실제 git diff까지 연결(§rca/ 참고)
+│                          #  기반 실제 git diff까지 연결(§rca/ 참고).
+│                          #  baseline 없이 호출하면(absolute_threshold) delta 표 대신
+│                          #  finding["component_shortfalls"](약한 스코어 컴포넌트 우선 +
+│                          #  NATIVE_METRIC_RULES 처방)를 출력한다 — §rca/ 참고
 ├── cli/abtest.py          # abtest — QuickEval.ab_test()/ab_test_nway()/ab_test_sequential()을
 │                          #  감싸는 얇은 터미널 레이어(새 통계 로직 없음). CI 게이트 아님 —
 │                          #  유의성/효과크기/표본경고만 출력, pass/fail 판정 없음. 결과 JSON
@@ -633,6 +679,18 @@ agent_evaluator/
 │                          #  공유 공식)가 current=None을 조용히 건너뛰므로, Config 실수로 빼서
 │                          #  Gate가 통째로 사라지는 커버리지 손실을 별도 신호로 낸다. CLI가
 │                          #  ⚠ 경고로 출력.
+│                          #  finding["component_shortfalls"] — baseline 없는 absolute_threshold
+│                          #  모드에선 top_detail_deltas가 전부 delta=None이라 field 이름
+│                          #  알파벳 나열로 퇴화한다(설정 상수 gate_a_tcr_weight까지 지표인 척
+│                          #  올라옴). component_shortfalls는 현재 details만으로 "지금 이 Gate
+│                          #  점수를 깎는 컴포넌트"를 health(0-1, _shortfall_health로 정규화,
+│                          #  높을수록 건강) 오름차순으로 답한다 — _weight(설정 상수)·_count·
+│                          #  _penalty 접미사와 perf_score_pre_sla_penalty 제외, 확신 있게
+│                          #  정규화 가능한 필드만 포함(추측 금지). regression 모드에서도 채우되
+│                          #  거긴 보조 신호. cli/diagnose.py·comprehensive_report._build_diagnosis()가
+│                          #  absolute 모드에서 이걸로 렌더(Baseline/Delta 열 대신 Component/
+│                          #  Current/Health, GATE_GUIDANCE + NATIVE_METRIC_RULES 처방 첨부,
+│                          #  섹션 제목도 "Gate Failure Diagnosis"로 바뀜).
 │                          # experiment_metadata.py — derive_experiment_metadata(): 두 리포트의
 │                          #  extra_metrics.lineage.git_commit을 대조해 순수 git 명령만으로 코드
 │                          #  diff 해석 — gh CLI/GitHub API 미의존. SPEC-041: changed_files는
@@ -644,17 +702,68 @@ agent_evaluator/
 │                          # recommendation_tracking.py — record_/load_/summarize_
 │                          #  recommendation_outcomes(): .aoo/claims.jsonl과 동일한 append-only
 │                          #  JSONL 패턴으로 조치 이력 기록
-├── reporting/
+├── reporting/                # 출력 표면 전체 지도·정보 계층(L1~L6)·역할별 워크플로우는
+│                             #  docs/09_OUTPUTS.md에 정리(결과 JSON·HTML 리포트·CLI·대시보드·
+│                             #  AI 런타임 출력). 새 출력 섹션/필드를 추가하면 그 문서도 갱신.
 │   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
 │                          #  (agent-eval gate 저장/대시보드 export_html 공용).
 │                          #  generate_comparison_html_report(compare_result) —
 │                          #  compare_results()의 반환 dict를 그대로 렌더링(새 비교 로직 없음).
+│                          #  _build_failure_cases(tasks)(SPEC-041 P1.1) — 두 진입점 모두
+│                          #  worst-N 실패/저점 태스크를 question→response 요약 + score(C/A) +
+│                          #  "likely reason"(partial_reason→errors[0]→저점 사유)으로 표에 낸다.
+│                          #  실패 태스크 우선, 없으면 _is_low(acc<0.7 or comp<0.4 or judge<6)만,
+│                          #  전부 건강하면 섹션 생략. 지금까지 집계값만 보이던 리포트에 "어느
+│                          #  태스크가 왜"를 추가(개선 착수의 전제). monitor.tasks / rf.tasks에서.
+│                          #  _build_executive_summary(SPEC-041 P3.1) — 리포트 최상단(헤더 다음):
+│                          #  배포 준비도 한 줄 판정(fail→❌ / warn→⚠️ / pass→✅) + 병목 Gate +
+│                          #  "Next actions" 1·2·3(fail 먼저, 각 Gate의 component_shortfalls[0] +
+│                          #  조치). 새 판정 없음 — Gate status·diagnosis 재배열.
+│                          #  _build_operational_signals(SPEC-041 P3.4) — AnomalyDetector 결과
+│                          #  (monitor 경로는 enable_anomaly_detection 시 즉석 scan, rf 경로는
+│                          #  rf.raw["anomaly_data"])를 type/severity/detail/value + anomaly_
+│                          #  suggestion_for() 조치 표로. 그전엔 이상탐지는 대시보드에만 있었다.
+│                          #  _build_recommendations(..., diagnosis=)(SPEC-041 P1.2) — 진입점이
+│                          #  rca.diagnose()를 1회 계산해 넘기면, 각 fail/warn Gate rec에
+│                          #  finding["component_shortfalls"] 상위 2개 + component_guidance_for()
+│                          #  조치를 "Biggest measured shortfalls"로 덧붙인다(Gate 1줄 일반론 →
+│                          #  측정된 병목 지목). diagnosis=None이면 기존 동작.
+│                          #  P5(통계적 정직성): _metric_ci_data(tasks)가 per-task
+│                          #  completion/accuracy_score로 TCR/Accuracy 95% 부트스트랩 CI를
+│                          #  구해 헤더·Executive Summary·Conclusion에 표시. Exec Summary에
+│                          #  utils.confidence.verdict_confidence() 기반 HIGH/MEDIUM/LOW
+│                          #  CONFIDENCE 배지(표본 수·CI 폭·측정 컴포넌트 수·임계값 여유).
+│                          #  _build_score_breakdown이 전 Gate에 대해 insufficient_data_warnings를
+│                          #  렌더(전엔 Gate D만). Conclusion Grade에 확신도 병기.
+│                          #  P6(실패 인텔리전스): _build_failure_cases가 표 위에 (1)
+│                          #  _build_failure_clusters — 실패를 (_reason_signature × task_type)로
+│                          #  군집화해 count·영향도(~%p) 순 (2) _build_failure_lineage —
+│                          #  baseline tasks[]와 대조해 📉Regressed/♻️Persistent/🆕New/✅Fixed.
+│                          #  _effective_fail(): success 플래그 + acc<0.7/comp<0.4 기준.
+│                          #  P8(개선 루프 폐쇄): _rec_code_snippet(config_hint_for) 붙여넣을
+│                          #  @agent_eval 스니펫 · _rec_past_outcomes(recommendation_log_path,
+│                          #  gate) "이전에 뭐가 통했나"(confirmed/refuted/avg Δ) ·
+│                          #  _rec_experiment_block 예측 델타+권장 표본+abtest 명령 ·
+│                          #  _rec_baseline_verdict(verify_recommendation_outcome) baseline 대비
+│                          #  confirmed/refuted. _build_recommendations(recommendation_log_path=,
+│                          #  baseline=, current=)로 주입.
 │                          #  _build_diagnosis()는 rca.diagnose() 출력의 newly_unmeasured_gates도
 │                          #  경고로 렌더링한다(SPEC-041, CLI cli/diagnose.py와 동일) — 커버리지
 │                          #  손실이 있으면 "no detection" 안심 메시지를 안 띄운다.
+│                          #  detection_mode로 분기: regression_vs_baseline(baseline 전달)이면
+│                          #  기존 Metric/Baseline/Current/Delta 표 + "Gate RCA Diagnosis
+│                          #  (Improve)" 제목 그대로. absolute_threshold(배치 단발, baseline
+│                          #  없음)이면 가짜 n/a 열 대신 finding["component_shortfalls"]로
+│                          #  Component/Current/Health 표(약한 컴포넌트 우선) + GATE_GUIDANCE
+│                          #  + NATIVE_METRIC_RULES 처방을 렌더하고 제목도 "Gate Failure
+│                          #  Diagnosis"로 바꾼다(§rca/ component_shortfalls 참고).
 │                          #  _build_recommendations()의 hallucination_rate는 퍼센트(0-100)를
 │                          #  NATIVE_METRIC_RULES(threshold 20.0)에 그대로 넘긴다(§ontology 참고).
+│                          #  P4.1: _build_score_breakdown이 측정 컴포넌트 ≤2 & score<90이면
+│                          #  "이 점수는 대표성이 낮다"(만점 항목이 문제를 희석할 수 있음) 경고.
+│                          #  P4.2: _not_tested(reason, kind=) — kind로 config(⚙️ Not Configured)/
+│                          #  data(📉 Insufficient Data)/n/a(➖ Not Applicable)/generic 구분.
 └── serve/
     ├── server.py          # FastAPI dashboard (111 routes). SPEC-041: create_app이
     │                      #  results_dir를 Path로 강제 — str로 호출해도 라우터의
@@ -666,6 +775,10 @@ agent_evaluator/
     │                      #  드롭다운·⚖️ Pairwise Judge 서브탭·📄 Export HTML 버튼
     │                      #  Metric Comparison 표 상단에 agent_version/iteration_note
     │                      #  메타데이터 행 — 새 API 호출 없이 이미 로드된 compareData에서 직접 렌더링
+    │                      #  SPEC-041 P2.3: Improve 탭 finding 카드 — baseline 있으면 기존
+    │                      #  top_detail_deltas(Baseline/Current/Δ) 표, baseline 없으면
+    │                      #  component_shortfalls(Component/Current/Health, 약한 순) 표를 렌더.
+    │                      #  정적 HTML 리포트/`agent-eval diagnose`와 동일한 rca.diagnose() 필드.
     └── routers/           # alerts · anomaly · config · conversation · cost · data · diagnose
                            # export · feedback · golden · stream · transparency · webhook
                            # data.py: list_results(prompt_version=/agent_version=)·
@@ -691,6 +804,7 @@ agent_evaluator/
 | G — Observability (4) | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig |
 
 Gate A–G results stored under `extra_metrics.harness_groups` in JSON result files.
+결과 JSON 최상위에 `schema_version`("1.1", SPEC-041 P4.3) — 소비자가 필드 형태 변화에 대응하도록. breaking change 시 major 증가.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
@@ -954,6 +1068,17 @@ threat_response, context_window, latency_attribution
 - **NaN handling:** `pd.isna()` check before pandas statistical calculations
 - **API keys:** always `os.getenv()`, never hardcode
 - **`enable_*` flags:** expensive operations (hallucination, security) default to `False`
+- **Output-message language (SPEC-041):** every message Agent-Evaluator *emits at runtime*
+  is **English** — CLI stdout/stderr, HTML report text, `logger.*` / `warnings.warn` /
+  exception messages, MCP tool return strings, LiveGuardrail block/remediation text,
+  hook messages, dashboard API `detail`/`message`, and any auto-generated
+  `partial_reason` / recommendation / alert / insight text. **Exceptions (stay as-is):**
+  (a) the *evaluated agent's own content* — task question/response/ground_truth, mock
+  responses in demo helpers; (b) Korean-text-processing internals — particle/stopword
+  sets and regexes in `gate_a_goal`/`gate_e_security`/`gate_f_multiagent`/`conversation`
+  evaluators, the Korean RAG dataset generators (`datasets/`, `serve/routers/golden.py`,
+  `korean_rag_*`); (c) source-only text — docstrings, `# comments`, `configs.py` field
+  help. New user-facing strings must be written in English.
 
 ---
 
@@ -988,6 +1113,8 @@ pytest  # configured in pyproject.toml (testpaths, cov)
 ```
 
 Note: `agent_evaluator/utils/transparency_manager.py` contains `TestTransparencyManager` — a **production class**, not a test file.
+
+`agent_evaluator/utils/confidence.py` (SPEC-041 P5) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `required_n_for_halfwidth` · `verdict_confidence`. 소비: `reporting/comprehensive_report.py`.
 
 ---
 

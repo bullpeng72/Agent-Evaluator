@@ -2171,8 +2171,8 @@ class TestEvalDecoratorConversationMonitorList:
             dec.conversation()
             user_warnings = [x for x in w if issubclass(x.category, UserWarning)]
             assert len(user_warnings) == 1
-            assert "첫 번째 monitor" in str(user_warnings[0].message)
-            assert "2개" in str(user_warnings[0].message)
+            assert "only the first of" in str(user_warnings[0].message)
+            assert "of 2 monitors" in str(user_warnings[0].message)
 
     def test_single_element_list_no_warning(self):
         """길이 1인 리스트는 다른 monitor가 없으니 경고 대상이 아니다."""

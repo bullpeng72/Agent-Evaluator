@@ -268,9 +268,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 .htable td{padding:5px 10px;font-size:12px;border-bottom:1px solid #f3f4f6;color:#374151}
 .htable tr:last-child td{border-bottom:none}
 
-/* Inactive banner (Harness Config 미활성) */
+/* Inactive banner (Harness Config not active) */
 .inactive-banner{background:#f9fafb;border:1px dashed #d1d5db;border-radius:8px;padding:12px 16px;font-size:12px;color:#9ca3af;margin:8px 0}
-/* Not-tested banner (데이터 미수집) */
+/* Not-tested banner (data not collected) */
 .not-tested{background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;font-size:12px;color:#6b7280;margin:8px 0;display:flex;align-items:flex-start;gap:8px}
 .not-tested strong{color:#374151;white-space:nowrap}
 
@@ -320,10 +320,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 # Not-tested notice helper
 # ---------------------------------------------------------------------------
 
-def _not_tested(reason: str = "") -> str:
-    """데이터가 수집되지 않은 섹션에 표시하는 '테스트되지 않음' 배너."""
+# P4.2: "측정 안 됨"을 3가지로 구분한다 — 설정을 안 한 것(config)인지, 설정은 했는데
+# 샘플이 부족한 것(data)인지, 이 에이전트 유형엔 애초에 해당 없는 것(n/a)인지에 따라
+# 사용자가 취할 행동이 다르다("Config를 켜라" vs "더 돌려라" vs "무시해도 됨").
+_MEASURE_LABEL = {
+    "config": ("⚙️", "Not Configured"),
+    "data": ("📉", "Insufficient Data"),
+    "n/a": ("➖", "Not Applicable"),
+    "generic": ("🔍", "Not Measured"),
+}
+
+
+def _not_tested(reason: str = "", kind: str = "generic") -> str:
+    """데이터가 수집되지 않은 섹션에 표시하는 배너.
+
+    Args:
+        reason: 배너 본문.
+        kind: ``"config"``(설정 안 함) / ``"data"``(샘플 부족) / ``"n/a"``(해당 없음)
+            / ``"generic"``(기본). 라벨과 아이콘을 바꾼다.
+    """
+    icon, label = _MEASURE_LABEL.get(kind, _MEASURE_LABEL["generic"])
     msg = reason or "This item has not been tested."
-    return f'<div class="not-tested">🔍 <strong>Not Measured</strong>&nbsp;{msg}</div>'
+    return f'<div class="not-tested">{icon} <strong>{label}</strong>&nbsp;{msg}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -511,7 +529,7 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         else:
             _add("Faithfulness", None, None,
                  formula_label="llm_faithfulness/5 or 1−hallucination_rate",
-                 note="LLMJudgeConfig 또는 enable_hallucination_detection=True 필요")
+                 note="Requires LLMJudgeConfig or enable_hallucination_detection=True")
             formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, [faithfulness] )"
 
     elif gate_key == "D":
@@ -674,12 +692,44 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
     else:
         terms = " + ".join(f"{v:.3f}" for v in included_vals)
         comp_expr = f"( {terms} ) ÷ {len(included_vals)}"
+    # P4.1: 측정된 컴포넌트가 2개 이하면 점수 대표성이 낮다 — 특히 그중 하나가
+    # 만점(예: 데이터 없어 1.0으로 채워진 항목)이면 실제 문제를 희석할 수 있다.
+    rep_warn = ""
+    if len(included_vals) <= 2 and score_pct < 90:
+        _hi = sum(1 for v in included_vals if v >= 0.99)
+        _extra = (" One or more are at 100% (often a not-measured item defaulting high), "
+                  "which can mask a real weakness." if _hi else "")
+        rep_warn = (
+            f'<div style="font-size:11px;color:#92400e;background:#fffbeb;'
+            f'border-left:3px solid #f59e0b;border-radius:4px;padding:6px 10px;margin-top:4px">'
+            f'⚠️ Only {len(included_vals)} score component(s) measured — this Gate score '
+            f'may not be representative.{_extra} Enable more of this Gate\'s Configs '
+            f'for a fuller picture.'
+            f'</div>'
+        )
+    # P5: 표본 부족 경고 — 모든 Gate에 대해(전엔 Gate D만). base.py::_min_sample_warning이
+    # details.insufficient_data_warnings에 넣은 문자열을 그대로 노출한다.
+    insuf = details.get("insufficient_data_warnings")
+    insuf_html = ""
+    if insuf:
+        _items = "".join(f"<li>{_esc(str(w))}</li>" for w in insuf if w)
+        if _items:
+            insuf_html = (
+                f'<div style="font-size:11px;color:#92400e;background:#fffbeb;'
+                f'border-left:3px solid #f59e0b;border-radius:4px;padding:6px 10px;margin-top:4px">'
+                f'📉 <strong>Insufficient data</strong> — some components fell below '
+                f'their minimum sample size:'
+                f'<ul style="margin:4px 0 0 16px">{_items}</ul></div>'
+            )
+
     result_html = (
         f'<div class="bd-result">'
         f'Gate {gate_key} Score&nbsp;=&nbsp;{comp_expr}&nbsp;=&nbsp;'
         f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
         f'&nbsp;<span style="font-size:11px;color:#6b7280">({len(included_vals)} component(s) averaged)</span>'
         f'</div>'
+        f'{rep_warn}'
+        f'{insuf_html}'
     )
 
     rows_html = "".join(rows)
@@ -1001,7 +1051,7 @@ def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict
                 faith_pct = float(_faith_val) * 20  # 0-5 → 0-100
                 score_badge = (
                     ' <span style="font-size:11px;background:#d1fae5;color:#065f46;'
-                    'padding:1px 6px;border-radius:4px;vertical-align:middle">★ Gate C 점수 반영</span>'
+                    'padding:1px 6px;border-radius:4px;vertical-align:middle">★ in Gate C score</span>'
                     if _faith_used_for_score else ""
                 )
                 faith_html = (
@@ -1031,7 +1081,8 @@ def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict
         hall_html = (
             '<h3>Hallucination Detection</h3>'
             + _not_tested("Hallucination detection is not enabled — "
-                          "measure it with <code>enable_hallucination_detection=True</code>.")
+                          "measure it with <code>enable_hallucination_detection=True</code>.",
+                          kind="config")
         )
     else:
         hall_rate = float(hallucination_data.get("overall_rate") or 0)
@@ -1152,24 +1203,14 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict) -> st
     elif not details:
         harness_block = '<div class="inactive-banner">⚙️ Harness Config inactive — pass SLAConfig · EfficiencyConfig to your decorator to enable detailed metrics.</div>'
 
+    # insufficient_data_warnings는 이제 _build_score_breakdown()이 전 Gate 공통으로
+    # 렌더한다(P5) — Gate D 전용 중복 블록 제거.
     breakdown = _build_score_breakdown("D", harness_d)
-
-    # insufficient_data_warnings notice
-    insuf = (harness_d.get("details") or {}).get("insufficient_data_warnings")
-    insuf_html = ""
-    if insuf:
-        warn_items = "".join(f"<li style='margin:2px 0'>{w}</li>" for w in insuf)
-        insuf_html = (
-            f'<div class="ibox warn" style="font-size:12px;margin-bottom:12px">'
-            f'<strong>Insufficient Data Warnings</strong>'
-            f'<ul style="margin:6px 0 0 16px;line-height:1.8">{warn_items}</ul></div>'
-        )
 
     return (
         f'<div class="gate-section" id="gate-d" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">Performance Contract</span>&nbsp;{badge}</h2>'
         f'{breakdown}'
-        f'{insuf_html}'
         f'{lat_html}'
         f'{tok_html}'
         f'{harness_block}'
@@ -1354,7 +1395,8 @@ def _build_security_kpis(input_sec: dict, output_leak: dict, tool_auth: dict,
         return (
             '<h3>Security Metrics</h3>'
             + _not_tested("Security metrics are not enabled — "
-                          "measure them with <code>enable_security_metrics=True</code>.")
+                          "measure them with <code>enable_security_metrics=True</code>.",
+                          kind="config")
         )
     return f'<h3>Security Metrics</h3><div class="kpis">{"".join(kpi_parts)}</div>'
 
@@ -1374,7 +1416,7 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
         coord_html = (
             '<h3>Coordination / Workflow</h3>'
             + _not_tested("No multi-agent execution data — "
-                          "agent collaboration tasks have not run.")
+                          "agent collaboration tasks have not run.", kind="n/a")
         )
     if has_agentic:
         kpi_parts = []
@@ -1453,7 +1495,8 @@ def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
         judge_html = (
             '<h3>LLM Judge</h3>'
             + _not_tested("LLM Judge is not enabled — "
-                          "measure with <code>enable_llm_judge=True</code> or <code>LLMJudgeConfig</code>.")
+                          "measure with <code>enable_llm_judge=True</code> or <code>LLMJudgeConfig</code>.",
+                          kind="config")
         )
     if llm_judge_data:
         try:
@@ -1484,7 +1527,8 @@ def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
             if judged_count == 0:
                 judge_html = (
                     '<h3>LLM Judge</h3>'
-                    + _not_tested("No LLM Judge results — check the sample rate (<code>judge_sample_rate</code>).")
+                    + _not_tested("No LLM Judge results — check the sample rate (<code>judge_sample_rate</code>).",
+                                  kind="data")
                 )
             if judged_count > 0:
                 def _judge_val(v):
@@ -1660,15 +1704,647 @@ def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
 
 
 # ---------------------------------------------------------------------------
-# Recommendations
+# Failure / low-score case table (P1.1)
 # ---------------------------------------------------------------------------
+#
+# 단일 리포트는 지금까지 집계값만 보여줬다 — "TCR 50%"는 알려주지만 *어떤* 태스크가
+# *왜* 실패했는지는 JSON을 직접 파싱해야만 알 수 있었다. 개선 착수를 막는 가장 큰
+# 정보 공백이라, worst-N 케이스를 question/response 요약 + 실패 사유와 함께 표로 낸다.
+
+_CASE_TEXT_MAX = 180
+
+
+def _norm_task_for_case(t: Any) -> dict[str, Any]:
+    """TaskResult(monitor 경로) 또는 TaskRecord(rf 경로)를 케이스 표용 dict로 정규화."""
+    raw = getattr(t, "raw", None)
+    if isinstance(raw, dict):                       # loader.TaskRecord
+        src = raw
+        get = src.get
+    else:                                           # core.TaskResult
+        src = t
+        get = lambda k, d=None: getattr(src, k, d)  # noqa: E731
+    judge = get("llm_judge") or {}
+    j_overall = None
+    if isinstance(judge, dict) and not judge.get("skipped"):
+        j_overall = (judge.get("scores") or {}).get("overall")
+    errors = get("errors") or []
+    return {
+        "task_id": get("task_id") or "—",
+        "task_type": get("task_type") or "",
+        "success": bool(get("success", False)),
+        "completion_score": _safe_float(get("completion_score"), None),
+        "accuracy_score": _safe_float(get("accuracy_score"), None),
+        "execution_time": _safe_float(get("execution_time"), None),
+        "question": get("question") or "",
+        "response": get("response") or "",
+        "ground_truth": get("ground_truth") or "",
+        "partial_reason": get("partial_reason") or "",
+        "errors": [str(e) for e in errors][:3],
+        "judge_overall": _safe_float(j_overall, None),
+    }
+
+
+def _safe_float(v: Any, default: Any) -> Any:
+    try:
+        return float(v) if v is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _case_severity(c: dict[str, Any]) -> float:
+    """정렬 키 — 낮을수록 심각(먼저 표시). 실패는 항상 상단."""
+    comp = c["completion_score"] if c["completion_score"] is not None else 1.0
+    acc = c["accuracy_score"] if c["accuracy_score"] is not None else 1.0
+    base = min(comp, acc)
+    return base - (1.0 if not c["success"] else 0.0)   # 실패면 -1 shift → 항상 앞
+
+
+def _case_reason(c: dict[str, Any]) -> str:
+    """이 태스크가 왜 저점/실패인지 한 줄로."""
+    if c["partial_reason"]:
+        return c["partial_reason"]
+    if c["errors"]:
+        return f"error: {c['errors'][0]}"
+    bits = []
+    if c["completion_score"] is not None and c["completion_score"] < 0.75:
+        bits.append(f"incomplete ({c['completion_score'] * 100:.0f}%)")
+    if c["accuracy_score"] is not None and c["accuracy_score"] < 0.7:
+        bits.append(f"low accuracy ({c['accuracy_score'] * 100:.0f}%)")
+    if c["judge_overall"] is not None and c["judge_overall"] < 6:
+        bits.append(f"judge {c['judge_overall']:.1f}/10")
+    return " · ".join(bits) or ("failed" if not c["success"] else "below target")
+
+
+def _clip(s: str, n: int = _CASE_TEXT_MAX) -> str:
+    s = " ".join(str(s).split())
+    return _esc(s if len(s) <= n else s[: n - 1] + "…")
+
+
+# P6.1: normalize a failure reason to a "theme" — strip numbers/paths/specifics so the
+# same kind of failure clusters together.
+#   "low ground_truth similarity (similarity 0%)"  → "low ground_truth similarity"
+#   "incomplete (60%) · low accuracy (32%)" → "incomplete · low accuracy"
+#   "error: TimeoutError: request to ... timed out"  → "error: TimeoutError"
+_RE_NUM_PAREN = re.compile(r"\s*\(\s*[^)]*\d[^)]*\)")
+_RE_NUM = re.compile(r"\b\d[\d.,%/:s]*\b")
+_RE_ERR = re.compile(r"^error:\s*([A-Za-z_][A-Za-z0-9_.]*)")
+
+
+def _reason_signature(reason: str) -> str:
+    r = (reason or "").strip()
+    if not r:
+        return "unspecified"
+    m = _RE_ERR.match(r)
+    if m:
+        return f"error: {m.group(1)}"
+    r = _RE_NUM_PAREN.sub("", r)
+    r = _RE_NUM.sub("", r).strip()
+    r = re.sub(r"\s{2,}", " ", r).strip(" ·-–—")
+    return r or "unspecified"
+
+
+def _build_failure_clusters(cases: list[dict[str, Any]], total_tasks: int) -> str:
+    """실패/저점 케이스를 (사유 테마 × task_type)으로 군집화해 영향도 순으로 낸다.
+
+    나열(_build_failure_cases의 표)과 달리 "9개 실패가 사실 2개 테마"임을 드러낸다.
+    영향도 = 해당 테마 케이스 수 / 전체 태스크 수 (그 테마를 고치면 회복 가능한 상한).
+    """
+    if not cases or total_tasks <= 0:
+        return ""
+    from collections import defaultdict
+
+    buckets: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
+    for c in cases:
+        buckets[(_reason_signature(_case_reason(c)), c["task_type"] or "—")].append(c)
+    if len(buckets) < 2 and len(cases) < 3:
+        return ""   # 군집화가 의미 없을 만큼 적음
+
+    ranked = sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    rows = ""
+    for (sig, ttype), members in ranked[:8]:
+        n = len(members)
+        impact = n / total_tasks * 100.0
+        rep = members[0]
+        rep_q = _clip(rep["question"], 90) or "—"
+        rows += (
+            f'<tr>'
+            f'<td style="font-weight:600">{_esc(sig)}</td>'
+            f'<td style="white-space:nowrap">{_esc(ttype)}</td>'
+            f'<td style="white-space:nowrap;text-align:right">{n} '
+            f'<span style="color:#6b7280">(~{impact:.0f}%p)</span></td>'
+            f'<td style="font-size:11px;color:#6b7280">e.g. {rep_q} '
+            f'<span style="color:#9ca3af">[{_esc(rep["task_id"])}]</span></td>'
+            f'</tr>'
+        )
+    return (
+        '<h3 style="margin:4px 0 6px">Failure themes '
+        '<span style="font-size:12px;color:#6b7280;font-weight:400">'
+        '(fix the top theme first — "~%p" = max TCR recoverable)</span></h3>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Theme</th><th>Task type</th><th>Count</th><th>Example</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+    )
+
+
+def _effective_fail(*, success: Any, accuracy: Any, completion: Any) -> bool:
+    """success 플래그만으로는 accuracy 실패를 못 잡으므로(create_taskresult가 완료
+    기준으로만 success를 매김), _is_low와 같은 기준으로 "사실상 실패"를 판정한다."""
+    if not bool(success):
+        return True
+    a = _safe_float(accuracy, None)
+    c = _safe_float(completion, None)
+    if a is not None and a < 0.7:
+        return True
+    return c is not None and c < 0.4
+
+
+def _extract_task_outcomes(report: dict[str, Any] | None) -> dict[str, bool]:
+    """결과 JSON dict → {task_id: effective_fail(bool)}. baseline 대조용."""
+    if not report:
+        return {}
+    out: dict[str, bool] = {}
+    for t in report.get("tasks") or []:
+        if isinstance(t, dict) and t.get("task_id"):
+            out[str(t["task_id"])] = _effective_fail(
+                success=t.get("success", False),
+                accuracy=t.get("accuracy_score"),
+                completion=t.get("completion_score"),
+            )
+    return out
+
+
+def _build_failure_lineage(cases: list[dict[str, Any]],
+                           baseline: dict[str, Any] | None) -> str:
+    """baseline 결과와 대조해 실패 집합의 변화(신규/지속/해결/회귀)를 낸다."""
+    base_fail_map = _extract_task_outcomes(baseline)
+    if not base_fail_map:
+        return ""
+    cur_fail = {
+        c["task_id"] for c in cases
+        if _effective_fail(success=c["success"], accuracy=c["accuracy_score"],
+                           completion=c["completion_score"])
+    }
+    base_fail = {tid for tid, failed in base_fail_map.items() if failed}
+    base_pass = {tid for tid, failed in base_fail_map.items() if not failed}
+
+    regressed = sorted(cur_fail & base_pass)          # 지난번 통과 → 이번 실패
+    new_untracked = sorted(cur_fail - set(base_fail_map))  # baseline에 없던 태스크가 실패
+    persistent = sorted(cur_fail & base_fail)
+    fixed = sorted(base_fail - cur_fail)              # 지난번 실패 → 이번 통과(또는 사라짐)
+
+    def _chips(label: str, ids: list[str], color: str) -> str:
+        if not ids:
+            return ""
+        shown = ", ".join(_esc(i) for i in ids[:8])
+        more = f" +{len(ids) - 8}" if len(ids) > 8 else ""
+        return (f'<p style="font-size:12px;margin:3px 0"><span style="color:{color};'
+                f'font-weight:700">{label} ({len(ids)})</span> '
+                f'<span style="color:#6b7280">{shown}{more}</span></p>')
+
+    body = (
+        _chips("📉 Regressed", regressed, "#dc2626")
+        + _chips("♻️ Persistent", persistent, "#92400e")
+        + _chips("🆕 New (not in baseline)", new_untracked, "#6b7280")
+        + _chips("✅ Fixed since baseline", fixed, "#059669")
+    )
+    if not body:
+        return ""
+    return (
+        '<h3 style="margin:4px 0 6px">Failure set vs baseline</h3>'
+        + body
+        + ('<p style="font-size:11px;color:#9ca3af;margin-top:4px">'
+           'Regressed tasks (passed before, fail now) are the highest-priority fix.</p>'
+           if regressed else "")
+    )
+
+
+def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
+                         total_tasks: int | None = None,
+                         baseline: dict[str, Any] | None = None) -> str:
+    """실패/저점 태스크를 (1) 테마 군집 (2) baseline 대비 변화 (3) worst-N 표로 렌더링."""
+    if not tasks:
+        return ""
+    cases = [_norm_task_for_case(t) for t in tasks]
+    scored = sorted(cases, key=_case_severity)
+    failed_n = sum(1 for c in cases if not c["success"])
+
+    def _is_low(c: dict[str, Any]) -> bool:
+        # accuracy는 신뢰할 만한 신호. completion_score는 명시적 completion_fn 없이
+        # 0.5로 떨어지는 경우가 많아, 0.4 미만일 때만 저점으로 본다(자동 0.5는 제외).
+        acc = c["accuracy_score"]
+        comp = c["completion_score"]
+        if acc is not None and acc < 0.7:
+            return True
+        if comp is not None and comp < 0.4:
+            return True
+        j = c["judge_overall"]
+        return j is not None and j < 6.0
+
+    # 실패 태스크가 있으면 그것들 우선. 없고 저점 태스크도 없으면 섹션 생략 —
+    # 잘 통과한 리포트에 케이스 목록을 억지로 만들지 않는다.
+    if failed_n == 0:
+        low = [c for c in scored if _is_low(c)]
+        if not low:
+            return ""
+        worst = low[:limit]
+    else:
+        worst = [c for c in scored if not c["success"]][:limit]
+    if not worst:
+        return ""
+
+    rows = ""
+    for c in worst:
+        comp = "—" if c["completion_score"] is None else f"{c['completion_score'] * 100:.0f}%"
+        acc = "—" if c["accuracy_score"] is None else f"{c['accuracy_score'] * 100:.0f}%"
+        sev_col = "#ef4444" if not c["success"] else "#f59e0b"
+        badge = ('<span class="badge badge-fail">FAIL</span>' if not c["success"]
+                 else '<span class="badge badge-warn">LOW</span>')
+        q = _clip(c["question"]) or '<span style="color:#9ca3af">—</span>'
+        r = _clip(c["response"]) or '<span style="color:#9ca3af">—</span>'
+        gt = _clip(c["ground_truth"], 120)
+        gt_row = (f'<div style="font-size:11px;color:#6b7280;margin-top:3px">'
+                  f'expected: {gt}</div>' if gt else "")
+        type_row = (f'<br><span style="font-size:10px;color:#9ca3af">{_esc(c["task_type"])}</span>'
+                    if c["task_type"] else "")
+        rows += (
+            f'<tr>'
+            f'<td style="vertical-align:top;white-space:nowrap">{badge}<br>'
+            f'<span style="font-size:11px;color:#6b7280">{_esc(c["task_id"])}</span>{type_row}</td>'
+            f'<td style="vertical-align:top">{q}'
+            f'<div style="font-size:12px;color:#374151;margin-top:4px">→ {r}</div>{gt_row}</td>'
+            f'<td style="vertical-align:top;white-space:nowrap;font-size:12px">'
+            f'C {comp}<br>A {acc}</td>'
+            f'<td style="vertical-align:top;color:{sev_col};font-size:12px;font-weight:600">'
+            f'{_esc(_case_reason(c))}</td>'
+            f'</tr>'
+        )
+
+    total_pool = failed_n if failed_n else sum(1 for c in scored if _is_low(c))
+    more = ""
+    if total_pool > len(worst):
+        _kind = "failed" if failed_n else "low-scoring"
+        more = (f'<p style="font-size:12px;color:#6b7280;margin:8px 0 0">'
+                f'… and {total_pool - len(worst)} more {_kind} task(s). '
+                f'Open the JSON result file or dashboard for the full list.</p>')
+    heading_n = total_pool
+    label = "Failed" if failed_n else "Lowest-scoring"
+
+    # P6: 표 위에 (1) 테마 군집 (2) baseline 대비 변화.
+    _pool = [c for c in scored if not c["success"]] if failed_n else [c for c in scored if _is_low(c)]
+    _total = total_tasks if total_tasks and total_tasks > 0 else len(cases)
+    clusters_html = ""
+    lineage_html = ""
+    try:
+        clusters_html = _build_failure_clusters(_pool, _total)
+    except Exception:
+        pass
+    try:
+        lineage_html = _build_failure_lineage(cases, baseline)
+    except Exception:
+        pass
+
+    return (
+        '<div class="gate-section" id="failure-cases" style="border-left-color:#ef4444">'
+        f'<h2 style="color:#ef4444">🧪 {label} Cases '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'(showing {len(worst)} of {heading_n})</span></h2>'
+        f'{lineage_html}'
+        f'{clusters_html}'
+        '<h3 style="margin:4px 0 6px">Worst cases</h3>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 12px">'
+        'Failures before low-scorers, then by min(completion, accuracy). '
+        'C = completion score · A = accuracy score.</p>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Status</th><th>Question → Response</th><th>Score</th><th>Likely reason</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>{more}'
+        '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Operational signals (P3.4) — AnomalyDetector 결과를 리포트에 노출
+# ---------------------------------------------------------------------------
+
+def _build_operational_signals(anomaly_data: dict[str, Any] | None) -> str:
+    """AnomalyDetector 스캔 결과(``anomaly_data``)를 한 섹션으로 렌더링한다.
+
+    지금까지 이상 탐지 결과는 대시보드에만 있고 정적 리포트에는 없었다 —
+    ``enable_anomaly_detection=True``로 측정했으면 리포트에도 보여준다.
+    """
+    if not anomaly_data:
+        return ""
+    anomalies = anomaly_data.get("anomalies") or []
+    if not anomalies:
+        return (
+            '<div class="gate-section" id="operational-signals" style="border-left-color:#10b981">'
+            '<h2 style="color:#1e2030">Operational Signals</h2>'
+            '<div class="ibox ok"><p>Anomaly detection ran — no anomalies detected '
+            f'(baseline window {anomaly_data.get("baseline_window", "?")}, '
+            f'detection window {anomaly_data.get("detection_window", "?")}).</p></div>'
+            '</div>'
+        )
+    try:
+        from agent_evaluator.ontology.metric_registry import anomaly_suggestion_for
+    except Exception:
+        anomaly_suggestion_for = lambda _t: None  # noqa: E731
+
+    rows = ""
+    for a in anomalies:
+        sev = str(a.get("severity", "")).lower()
+        sev_col = "#ef4444" if sev == "critical" else "#f59e0b"
+        sug = a.get("explanation") or anomaly_suggestion_for(a.get("type")) or ""
+        rows += (
+            f'<tr>'
+            f'<td style="white-space:nowrap"><span style="color:{sev_col};font-weight:700">'
+            f'{_esc(a.get("type", "?"))}</span><br>'
+            f'<span style="font-size:10px;color:#9ca3af">{_esc(sev or "—")}</span></td>'
+            f'<td style="font-size:12px">{_esc(a.get("detail", ""))}</td>'
+            f'<td style="white-space:nowrap;font-size:12px">{_num(a.get("value"), ".3f")} '
+            f'<span style="color:#9ca3af">vs {_num(a.get("threshold"), ".3f")}</span></td>'
+            f'<td style="font-size:12px;color:#4b5563">{_esc(sug)}</td>'
+            f'</tr>'
+        )
+    return (
+        '<div class="gate-section" id="operational-signals" style="border-left-color:#f59e0b">'
+        f'<h2 style="color:#1e2030">Operational Signals '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'({len(anomalies)} anomaly signal(s))</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 12px">'
+        'AnomalyDetector compared the recent window against the baseline window. '
+        'These are drift/spike signals, not Gate verdicts.</p>'
+        '<table class="mtable"><thead><tr>'
+        '<th>Signal</th><th>Detail</th><th>Value</th><th>Suggested action</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>'
+        '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Executive summary (P3.1) — 리포트 맨 위 30초 판정
+# ---------------------------------------------------------------------------
+
+_GATE_FULL = {
+    "A": "Goal Achievement", "B": "Behavioral Integrity", "C": "Reliability",
+    "D": "Performance Contract", "E": "Security Boundary",
+    "F": "Multi-Agent Coordination", "G": "Observability",
+}
+
+
+def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | None,
+                             tcr: float, acc: float, total_tasks: int,
+                             ci: dict[str, Any] | None = None) -> str:
+    """배포 준비도 한 줄 판정 + 확신도 배지 + 최우선 병목 + 다음 액션 1·2·3.
+
+    새 판정 로직 없음 — Gate status와 rca.diagnose()의 component_shortfalls를
+    우선순위(fail 먼저, 그다음 낮은 점수 순)로 재배열해 서술로 옮긴다. 확신도(P5)는
+    utils.confidence.verdict_confidence()에 표본 수·TCR CI 폭·측정 컴포넌트 수·임계값
+    여유를 넘겨 산출한다.
+    """
+    ci = ci or {}
+    gate_rows = []
+    for k in "ABCDEFG":
+        g = harness_groups.get(k)
+        if not isinstance(g, dict):
+            continue
+        st = (g.get("gate") or g.get("status") or "").lower()
+        sc = g.get("score")
+        if st in ("fail", "warn", "pass"):
+            gate_rows.append((k, st, sc))
+
+    fails = [r for r in gate_rows if r[1] == "fail"]
+    warns = [r for r in gate_rows if r[1] == "warn"]
+
+    if fails:
+        verdict = "❌ Not deployment-ready"
+        vcolor = "#ef4444"
+        detail = f"{len(fails)} Gate(s) failing: " + ", ".join(
+            f"{k} ({_GATE_FULL[k]})" for k, _, _ in fails)
+    elif warns:
+        verdict = "⚠️ Deploy with caution"
+        vcolor = "#f59e0b"
+        detail = f"{len(warns)} Gate(s) below target: " + ", ".join(
+            f"{k} ({_GATE_FULL[k]})" for k, _, _ in warns)
+    elif gate_rows:
+        verdict = "✅ Deployment-ready"
+        vcolor = "#10b981"
+        detail = f"All {len(gate_rows)} measured Gates pass."
+    else:
+        verdict = "ℹ️ No Harness Gate data"
+        vcolor = "#6b7280"
+        detail = "Pass Harness Config to the decorator/monitor to get a gate verdict."
+
+    # 다음 액션 — fail 게이트 먼저, 각 게이트에서 가장 약한 컴포넌트 + 조치.
+    shortfalls_by_gate: dict[str, list] = {}
+    if diagnosis:
+        for f in diagnosis.get("findings") or []:
+            shortfalls_by_gate[f.get("gate")] = f.get("component_shortfalls") or []
+
+    ordered = fails + warns
+    actions = []
+    try:
+        from agent_evaluator.ontology.metric_registry import component_guidance_for
+    except Exception:
+        component_guidance_for = lambda _f: None  # noqa: E731
+    for k, _st, sc in ordered[:3]:
+        sf = shortfalls_by_gate.get(k) or []
+        if sf:
+            top = sf[0]
+            fld = str(top.get("field", "")).replace("avg_", "").replace("_", " ")
+            act = component_guidance_for(top.get("field", "")) or ""
+            hp = (f"{top['health'] * 100:.0f}%"
+                  if isinstance(top.get("health"), (int, float)) else "")
+            actions.append(
+                f'<li><strong>Gate {k}</strong> — fix <em>{_esc(fld)}</em>'
+                f'{f" ({hp})" if hp else ""}'
+                f'{f": {_esc(act)}" if act else ""}</li>'
+            )
+        else:
+            sc_s = f" (score {sc:.2f})" if isinstance(sc, (int, float)) else ""
+            actions.append(
+                f'<li><strong>Gate {k}</strong>{sc_s} — see the Gate {k} section below.</li>'
+            )
+    actions_html = (
+        f'<p style="margin:10px 0 4px;font-size:13px;font-weight:600;color:#374151">'
+        f'Next actions (priority order):</p>'
+        f'<ol style="margin:0 0 0 20px;font-size:13px;line-height:1.8">{"".join(actions)}</ol>'
+        if actions else ""
+    )
+
+    # P5: 판정 확신도 배지.
+    conf_html = ""
+    try:
+        from agent_evaluator.utils.confidence import verdict_confidence
+
+        _drv = fails or warns   # 확신도를 좌우하는 주 Gate
+        _ncomp = None
+        _margin = None
+        if _drv:
+            _gk, _st, _sc = _drv[0]
+            _sf = shortfalls_by_gate.get(_gk)
+            if _sf is not None:
+                _ncomp = len(_sf)
+            if isinstance(_sc, (int, float)):
+                # warn/fail Gate 임계값은 status에서 유도 불가 → pass 기준 0.8 근사.
+                _margin = float(_sc) - 0.8
+        level, reasons = verdict_confidence(
+            n_tasks=total_tasks,
+            tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+            n_gate_components=_ncomp,
+            margin_to_threshold=_margin,
+        )
+        _cc = {"high": "#10b981", "medium": "#f59e0b", "low": "#ef4444"}[level]
+        _why = f" — {_esc('; '.join(reasons))}" if reasons else ""
+        conf_html = (
+            f'<p style="font-size:12px;margin-top:6px">'
+            f'<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
+            f'font-weight:700;background:{_cc}22;color:{_cc};border:1px solid {_cc}66">'
+            f'{level.upper()} CONFIDENCE</span>'
+            f'<span style="color:#6b7280">{_why}</span></p>'
+        )
+    except Exception:
+        pass
+
+    _tcr_ci = _fmt_ci_pct(ci.get("tcr_ci"))
+    return (
+        '<div class="gate-section" id="exec-summary" '
+        f'style="border-left-color:{vcolor};background:#fff">'
+        '<h2 style="color:#1e2030;margin-bottom:8px">Executive Summary</h2>'
+        f'<p style="font-size:16px;font-weight:800;color:{vcolor};margin-bottom:2px">{verdict}</p>'
+        f'<p style="font-size:13px;color:#4b5563">{_esc(detail)}</p>'
+        f'{conf_html}'
+        f'<p style="font-size:12px;color:#6b7280;margin-top:4px">'
+        f'{total_tasks} tasks · TCR {tcr:.1f}%{_tcr_ci} · Accuracy {acc:.1f}%</p>'
+        f'{actions_html}'
+        '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Recommendations (P8 — 개선 루프 폐쇄)
+# ---------------------------------------------------------------------------
+
+def _rec_code_snippet(field: str, health: Any) -> str:
+    """컴포넌트 → 붙여넣을 수 있는 @agent_eval 데코레이터 스니펫 (P8.1)."""
+    try:
+        from agent_evaluator.ontology.metric_registry import config_hint_for
+    except Exception:
+        return ""
+    h = config_hint_for(field)
+    if not h:
+        return ""
+    cur = ""
+    if isinstance(health, (int, float)):
+        cur = f"  # current: {health * 100:.0f}% health"
+    code = (
+        f"from agent_evaluator import {h['config']}\n\n"
+        f"@agent_eval(monitor, task_type=...,\n"
+        f"    {h['slot']}={h['config']}({h['example']}),{cur}\n"
+        f")\n"
+        f"def your_agent(...): ..."
+    )
+    return (
+        '<pre style="background:#0f172a;color:#e2e8f0;font-size:11px;line-height:1.5;'
+        'padding:10px 12px;border-radius:6px;overflow-x:auto;margin:6px 0">'
+        f'{_esc(code)}</pre>'
+    )
+
+
+def _rec_past_outcomes(recommendation_log_path: Any, gate: str) -> str:
+    """이 Gate에 대한 과거 조치 이력 요약 (P8.2) — "이전에 뭐가 통했나"."""
+    if recommendation_log_path is None:
+        return ""
+    try:
+        from agent_evaluator.rca.recommendation_tracking import load_recommendation_outcomes
+
+        outs = load_recommendation_outcomes(recommendation_log_path, target_gate=gate)
+    except Exception:
+        return ""
+    if not outs:
+        return ""
+    conf = [o for o in outs if o.get("verdict") == "confirmed"]
+    ref = [o for o in outs if o.get("verdict") == "refuted"]
+    deltas = [o.get("gate_delta") for o in conf if isinstance(o.get("gate_delta"), (int, float))]
+    avg_d = (sum(deltas) / len(deltas)) if deltas else None
+    last = outs[-1]
+    _note = _esc((last.get("note") or last.get("recommendation_id") or "")[:80])
+    avg_s = f", avg Δ +{avg_d:.3f}" if avg_d else ""
+    return (
+        f'<p style="margin:6px 0 0;font-size:11px;color:#6b7280">'
+        f'📈 Past changes to Gate {gate}: {len(conf)} confirmed / {len(ref)} refuted '
+        f'/ {len(outs)} total{avg_s}. Last: “{_note}”.</p>'
+    )
+
+
+def _rec_experiment_block(gate: str, field: str, health: Any, n_components: int) -> str:
+    """A/B 실험 제안 (P8.3) — 예측 델타 + 권장 표본 수 + 실행 명령."""
+    if not isinstance(health, (int, float)) or n_components <= 0:
+        return ""
+    target = 0.85
+    if health >= target:
+        return ""
+    predicted = (target - health) / max(n_components, 1)
+    try:
+        from agent_evaluator.utils.confidence import required_n_for_halfwidth
+
+        need_n = required_n_for_halfwidth(0.5, max(predicted / 2.0, 0.02))
+    except Exception:
+        need_n = 40
+    fld = field.replace("avg_", "").replace("_", " ")
+    return (
+        f'<p style="margin:6px 0 0;font-size:12px;color:#4b5563">'
+        f'🧪 <strong>Run it as an experiment</strong>: if <em>{_esc(fld)}</em> reaches '
+        f'{target * 100:.0f}%, Gate {gate} ≈ +{predicted:.2f} '
+        f'(rough; ~{need_n} tasks recommended to confirm). '
+        f'<code>agent-eval abtest before.json after.json --sequential</code></p>'
+    )
+
+
+def _rec_baseline_verdict(baseline: dict[str, Any] | None, current: dict[str, Any] | None,
+                          gate: str) -> str:
+    """baseline이 있으면 이 Gate의 변화를 confirmed/refuted/inconclusive로 (P8.4)."""
+    if not baseline or not current:
+        return ""
+    try:
+        from agent_evaluator.rca.verify import verify_recommendation_outcome
+
+        v = verify_recommendation_outcome(baseline, current, target_gate=gate)
+    except Exception:
+        return ""
+    d = v.get("gate_delta")
+    verd = v.get("verdict")
+    if d is None or verd == "inconclusive":
+        return ""
+    col = "#059669" if verd == "confirmed" else "#dc2626"
+    arrow = "▲" if d > 0 else "▼"
+    return (
+        f'<p style="margin:4px 0 0;font-size:11px;color:{col};font-weight:600">'
+        f'{arrow} Since baseline: {v.get("before_score"):.3f} → {v.get("after_score"):.3f} '
+        f'(Δ {d:+.3f}) — {verd}</p>'
+    )
+
 
 def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              hall_rate: float, latency: float,
-                             quality_metrics: dict) -> str:
-    from agent_evaluator.ontology.metric_registry import GATE_GUIDANCE, evaluate_native_metric_rules
+                             quality_metrics: dict,
+                             diagnosis: dict[str, Any] | None = None,
+                             *,
+                             recommendation_log_path: Any = None,
+                             baseline: dict[str, Any] | None = None,
+                             current: dict[str, Any] | None = None) -> str:
+    from agent_evaluator.ontology.metric_registry import (
+        GATE_GUIDANCE,
+        component_guidance_for,
+        evaluate_native_metric_rules,
+    )
 
     recs = []
+
+    # diagnosis(rca.diagnose() 반환값)의 findings에서 Gate별 최악 컴포넌트를 뽑아둔다 —
+    # Gate 단위 일반론 대신 "측정된 이 컴포넌트가 병목"이라고 구체적으로 짚기 위해서.
+    shortfalls_by_gate: dict[str, list] = {}
+    if diagnosis:
+        for _f in diagnosis.get("findings") or []:
+            shortfalls_by_gate[_f.get("gate")] = _f.get("component_shortfalls") or []
 
     # Gate-based FAIL/WARN recommendations — 지식(라벨+안내문)은 ontology.metric_registry에서.
     for key in "ABCDEFG":
@@ -1683,10 +2359,49 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             priority_class = "priority-high" if gate_status == "fail" else "priority-medium"
             badge_cls = "badge-fail" if gate_status == "fail" else "badge-warn"
             badge_label = "FAIL" if gate_status == "fail" else "WARN"
+
+            _shortfalls = shortfalls_by_gate.get(key) or []
+            _ncomp = len(_shortfalls)
+
+            # 이 Gate에서 가장 낮은 컴포넌트 2개 → 구체 조치.
+            comp_html = ""
+            comp_items = []
+            for _s in _shortfalls[:2]:
+                _fld = _s.get("field", "")
+                _health = _s.get("health")
+                _act = component_guidance_for(_fld) or _diag_native_rule_guidance(_fld)
+                _hp = f"{_health * 100:.0f}%" if isinstance(_health, (int, float)) else "—"
+                _label_txt = _esc(_fld.replace("avg_", "").replace("_", " "))
+                _bits = (f'<li><strong>{_label_txt}</strong> ({_hp})'
+                         + (f' — {_esc(_act)}' if _act else '') + '</li>')
+                comp_items.append(_bits)
+            if comp_items:
+                comp_html = (
+                    '<p style="margin:8px 0 2px;font-size:12px;color:#6b7280">'
+                    'Biggest measured shortfalls:</p>'
+                    f'<ul style="margin:0 0 0 18px;font-size:13px;line-height:1.7">'
+                    f'{"".join(comp_items)}</ul>'
+                    '<p style="margin:6px 0 0;font-size:11px;color:#9ca3af">'
+                    'See the Gate Failure / RCA Diagnosis section below for the full ranking.</p>'
+                )
+
+            # P8: 최악 컴포넌트 기준으로 코드 스니펫·과거 이력·실험 제안·baseline 변화.
+            _top_fld = _shortfalls[0].get("field", "") if _shortfalls else ""
+            _top_h = _shortfalls[0].get("health") if _shortfalls else None
+            code_html = _rec_code_snippet(_top_fld, _top_h) if _top_fld else ""
+            past_html = _rec_past_outcomes(recommendation_log_path, key)
+            exp_html = _rec_experiment_block(key, _top_fld, _top_h, _ncomp) if _top_fld else ""
+            base_html = _rec_baseline_verdict(baseline, current, key)
+
             recs.append(
                 f'<div class="rec {priority_class}">'
                 f'<strong><span class="badge {badge_cls}">{badge_label}</span> Gate {key} — {label}</strong>'
+                f'{base_html}'
                 f'<p>{guide}</p>'
+                f'{comp_html}'
+                f'{code_html}'
+                f'{exp_html}'
+                f'{past_html}'
                 f'</div>'
             )
 
@@ -1722,6 +2437,35 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
 # 호출 패턴 재사용).
 # ---------------------------------------------------------------------------
 
+def _diag_fmt_value(field: str, v: float) -> str:
+    """component_shortfalls의 원시 값을 필드 단위에 맞춰 사람이 읽을 문자열로."""
+    if field.endswith("_pct"):
+        return f"{v:.1f}%"
+    if field.endswith("_s"):
+        return f"{v:.3f}s"
+    if field.endswith("_ms"):
+        return f"{v:.0f}ms"
+    if 0.0 <= v <= 1.0:
+        return f"{v:.3f}"
+    return f"{v:.2f}"
+
+
+def _diag_native_rule_guidance(field: str) -> str:
+    """Gate details 필드명 → NATIVE_METRIC_RULES 처방 문구(매칭 규칙 없으면 "")."""
+    try:
+        from agent_evaluator.ontology.metric_registry import (
+            NATIVE_METRIC_RULES,
+            canonical_metric_name,
+        )
+        canon = canonical_metric_name(field)
+        for rule in NATIVE_METRIC_RULES:
+            if rule.metric == canon:
+                return rule.guidance
+    except Exception:
+        pass
+    return ""
+
+
 def _build_diagnosis(
     current_dict: dict[str, Any],
     baseline_dict: dict[str, Any] | None = None,
@@ -1749,6 +2493,7 @@ def _build_diagnosis(
         )
 
     blocks: list[str] = []
+    _is_absolute = result["detection_mode"] == "absolute_threshold"
 
     mode_label = {
         "regression_vs_baseline": "Regression-based detection (vs baseline)",
@@ -1757,6 +2502,15 @@ def _build_diagnosis(
     blocks.append(
         f'<p style="color:#6b7280;margin:0 0 12px">Detection mode: {_esc(mode_label)}</p>'
     )
+    if _is_absolute:
+        blocks.append(
+            '<p style="color:#6b7280;margin:0 0 12px;font-size:13px">'
+            'This is a single batch evaluation (no baseline), so there is nothing to '
+            'diff against. The table below instead ranks each detected Gate\'s measured '
+            'score components from weakest to strongest — that is what is holding the '
+            'Gate back right now. Run a baseline comparison for regression attribution '
+            '(baseline vs current delta).</p>'
+        )
 
     if result.get("multi_gate_note"):
         blocks.append(
@@ -1790,22 +2544,61 @@ def _build_diagnosis(
         base = finding["baseline_score"]
         cur_str = f"{cur:.4f}" if cur is not None else "n/a"
         base_str = f" (baseline {base:.4f})" if base is not None else ""
-        rows = []
-        for d in finding["top_detail_deltas"]:
-            delta = d["delta"]
-            delta_str = f"{delta:+.4f}" if delta is not None else "n/a"
-            delta_color = "#dc2626" if (delta is not None and delta < 0) else "#16a34a"
-            b_str = f"{d['baseline']:.4f}" if d["baseline"] is not None else "n/a"
-            c_str = f"{d['current']:.4f}" if d["current"] is not None else "n/a"
-            rows.append(
-                f'<tr><td>{_esc(d["field"])}</td><td>{b_str}</td><td>{c_str}</td>'
-                f'<td style="color:{delta_color}">{delta_str}</td></tr>'
+
+        guidance_html = ""
+        if _is_absolute:
+            # baseline이 없으므로 delta 대신 "지금 점수를 깎는 컴포넌트"를 약한 순으로.
+            sf = finding.get("component_shortfalls") or []
+            if sf:
+                sf_rows = "".join(
+                    f'<tr><td>{_esc(s["field"])}</td>'
+                    f'<td>{_diag_fmt_value(s["field"], s["value"])}</td>'
+                    f'<td style="color:{_score_color(s["health"] * 100)}">'
+                    f'{s["health"] * 100:.1f}%</td></tr>'
+                    for s in sf
+                )
+                table = (
+                    '<table class="mtable"><thead><tr><th>Component</th>'
+                    '<th>Current</th><th>Health</th></tr></thead>'
+                    f'<tbody>{sf_rows}</tbody></table>'
+                )
+            else:
+                table = ('<p style="color:#9ca3af">No interpretable score components '
+                         'recorded for this Gate</p>')
+            _bits: list[str] = []
+            try:
+                from agent_evaluator.ontology.metric_registry import GATE_GUIDANCE
+                _gg = GATE_GUIDANCE.get(gate)
+                if _gg is not None:
+                    _bits.append(_esc(_gg.guidance))
+            except Exception:
+                pass
+            for _s in sf[:3]:
+                _rule_g = _diag_native_rule_guidance(_s["field"])
+                if _rule_g and _esc(_rule_g) not in _bits:
+                    _bits.append(_esc(_rule_g))
+            if _bits:
+                guidance_html = "".join(
+                    f'<p style="margin:8px 0 0;color:#4b5563">→ {b}</p>' for b in _bits
+                )
+        else:
+            rows = []
+            for d in finding["top_detail_deltas"]:
+                delta = d["delta"]
+                delta_str = f"{delta:+.4f}" if delta is not None else "n/a"
+                delta_color = "#dc2626" if (delta is not None and delta < 0) else "#16a34a"
+                b_str = f"{d['baseline']:.4f}" if d["baseline"] is not None else "n/a"
+                c_str = f"{d['current']:.4f}" if d["current"] is not None else "n/a"
+                rows.append(
+                    f'<tr><td>{_esc(d["field"])}</td><td>{b_str}</td><td>{c_str}</td>'
+                    f'<td style="color:{delta_color}">{delta_str}</td></tr>'
+                )
+            table = (
+                '<table class="mtable"><thead><tr><th>Metric</th><th>Baseline</th>'
+                f'<th>Current</th><th>Delta</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
+                if rows else '<p style="color:#9ca3af">No comparable detail metrics</p>'
             )
-        table = (
-            '<table class="mtable"><thead><tr><th>Metric</th><th>Baseline</th>'
-            f'<th>Current</th><th>Delta</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
-            if rows else '<p style="color:#9ca3af">No comparable detail metrics</p>'
-        )
+
         refs_html = ""
         refs = finding.get("cross_references") or []
         if refs:
@@ -1833,9 +2626,14 @@ def _build_diagnosis(
                 '<p style="margin:8px 0 4px;color:#6b7280">MAST candidate failure modes '
                 '(Cemri et al., NeurIPS 2025 — not a conclusion):</p>' + cards
             )
+        _score_caption = (
+            ' <span style="color:#6b7280;font-weight:400">(weakest score components first)</span>'
+            if _is_absolute else ""
+        )
         blocks.append(
             f'<div class="rec priority-high"><strong>Gate {_esc(gate)}</strong> — '
-            f'score {cur_str}{base_str}{table}{refs_html}{mast_html}</div>'
+            f'score {cur_str}{base_str}{_score_caption}'
+            f'{table}{guidance_html}{refs_html}{mast_html}</div>'
         )
 
     outcomes_html = ""
@@ -1859,9 +2657,13 @@ def _build_diagnosis(
                 f'<th>Δ</th><th>Note</th></tr></thead><tbody>{outcome_rows}</tbody></table>'
             )
 
+    _section_title = (
+        "🔍 Gate Failure Diagnosis" if _is_absolute
+        else "🔍 Gate RCA Diagnosis (Improve)"
+    )
     return (
         '<div class="gate-section" id="diagnosis" style="border-left-color:#0ea5e9">'
-        '<h2 style="color:#0ea5e9">🔍 Gate RCA Diagnosis (Improve)</h2>'
+        f'<h2 style="color:#0ea5e9">{_section_title}</h2>'
         + ''.join(blocks)
         + outcomes_html
         + '<p style="color:#9ca3af;font-size:12px;margin-top:12px">'
@@ -1876,11 +2678,13 @@ def _build_diagnosis(
 # ---------------------------------------------------------------------------
 
 def _build_conclusion(total_tasks: int, tcr: float, acc: float,
-                       hall_rate: float, harness_groups: dict) -> str:
+                       hall_rate: float, harness_groups: dict,
+                       ci: dict[str, Any] | None = None) -> str:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
         _ver = "0.8.2"
+    ci = ci or {}
 
     pass_count = sum(
         1 for key in "ABCDEFG"
@@ -1898,14 +2702,38 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
             "B (Good)" if tcr >= 80 and acc >= 70 else \
             "C (Fair)" if tcr >= 70 else "D (Needs Improvement)"
 
+    # P5: Grade 확신도 — 표본 수 + TCR CI 폭 기준. CI 폭이 넓거나 표본이 적으면
+    # Grade 경계가 CI 안에 걸쳐 있을 수 있으므로 사용자에게 고지한다.
+    _conf = ""
+    try:
+        from agent_evaluator.utils.confidence import verdict_confidence
+
+        _lvl, _rs = verdict_confidence(
+            n_tasks=total_tasks, tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+        )
+        _cc = {"high": "#065f46", "medium": "#92400e", "low": "#991b1b"}[_lvl]
+        _tail = f" ({_esc('; '.join(_rs))})" if _rs else ""
+        _conf = f' <span style="color:{_cc};font-weight:600">— {_lvl} confidence{_tail}</span>'
+    except Exception:
+        pass
+
+    _ci_line = ""
+    if ci.get("tcr_ci"):
+        _ci_line = (f'<p style="font-size:12px;color:#6b7280">'
+                    f'TCR 95% CI: {ci["tcr_ci"][0]:.1f}–{ci["tcr_ci"][1]:.1f}%'
+                    + (f' · Accuracy 95% CI: {ci["acc_ci"][0]:.1f}–{ci["acc_ci"][1]:.1f}%'
+                       if ci.get("acc_ci") else "")
+                    + '</p>')
+
     return (
         f'<div class="gate-section" id="conclusion" style="border-left-color:#374151">'
         f'<h2 style="color:#374151">Conclusion</h2>'
         f'<div class="ibox ok">'
-        f'<p><strong>Grade:</strong> {grade}</p>'
+        f'<p><strong>Grade:</strong> {grade}{_conf}</p>'
         f'<p><strong>Total Tasks:</strong> {total_tasks}</p>'
         f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>Accuracy:</strong> {_num(acc, ".1f")}% | '
         f'<strong>Hallucination Rate:</strong> {hall_rate:.1f}%</p>'
+        f'{_ci_line}'
         f'{"<p><strong>Harness Gate:</strong> " + str(pass_count) + "/" + str(total_active) + " PASS</p>" if total_active > 0 else ""}'
         f'</div>'
         f'<div class="footer">'
@@ -1919,12 +2747,57 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
 # Header
 # ---------------------------------------------------------------------------
 
+# P5: per-task score 리스트에서 TCR/Accuracy의 95% 부트스트랩 CI를 계산한다.
+# 소비: 헤더 표시 + Executive Summary 확신도 배지 + Conclusion Grade.
+def _metric_ci_data(tasks: list[Any]) -> dict[str, Any]:
+    if not tasks:
+        return {}
+    comps: list[float] = []
+    accs: list[float] = []
+    for t in tasks:
+        raw = getattr(t, "raw", None)
+        src = raw if isinstance(raw, dict) else None
+
+        def _get(key: str, _t: Any = t, _s: Any = src) -> Any:
+            return _s.get(key) if _s is not None else getattr(_t, key, None)
+
+        c = _safe_float(_get("completion_score"), None)
+        a = _safe_float(_get("accuracy_score"), None)
+        if c is not None:
+            comps.append(c)
+        if a is not None:
+            accs.append(a)
+    out: dict[str, Any] = {"n": len(tasks)}
+    try:
+        from agent_evaluator.utils.confidence import bootstrap_mean_ci
+
+        if comps:
+            lo, hi = bootstrap_mean_ci(comps)
+            out["tcr_ci"] = (lo * 100.0, hi * 100.0)
+            out["tcr_ci_halfwidth"] = (hi - lo) / 2.0
+        if accs:
+            lo, hi = bootstrap_mean_ci(accs)
+            out["acc_ci"] = (lo * 100.0, hi * 100.0)
+    except Exception:
+        pass
+    return out
+
+
+def _fmt_ci_pct(ci: Any) -> str:
+    if not ci or len(ci) != 2:
+        return ""
+    return (f' <span style="font-weight:400;opacity:.75">'
+            f'(95% CI {ci[0]:.0f}–{ci[1]:.0f}%)</span>')
+
+
 def _build_header(total_tasks: int, tcr: float, acc: float,
-                  latency: float, harness_groups: dict) -> str:
+                  latency: float, harness_groups: dict,
+                  ci: dict[str, Any] | None = None) -> str:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
         _ver = "0.8.2"
+    ci = ci or {}
 
     gate_badges = ""
     for key in "ABCDEFG":
@@ -1946,8 +2819,10 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
         f'<span>📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
         f'<span>📋 {total_tasks} tasks</span>'
         f'<span>🔖 v{_ver}</span>'
-        f'<span>TCR: <strong>{_num(tcr, ".1f")}%</strong></span>'
-        f'<span>Accuracy: <strong>{_num(acc, ".1f")}%</strong></span>'
+        f'<span>TCR: <strong>{_num(tcr, ".1f")}%</strong>'
+        f'{_fmt_ci_pct(ci.get("tcr_ci"))}</span>'
+        f'<span>Accuracy: <strong>{_num(acc, ".1f")}%</strong>'
+        f'{_fmt_ci_pct(ci.get("acc_ci"))}</span>'
         f'<span>Latency: <strong>{_num(latency, ".2f")}s</strong></span>'
         f'</div>'
         f'{gate_badges_div}'
@@ -2143,20 +3018,71 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
     has_conversation = bool(conversation_sessions)
 
     # Gate RCA 진단 — baseline 없이도 절대 임계값 기반으로 동작(rca.diagnose() 참고).
-    diagnosis_html = ""
+    # diagnosis dict를 한 번 계산해 Recommendations(구체 조치)와 진단 섹션이 공유한다.
+    current_dict: dict[str, Any] = {}
     try:
         current_dict = report.to_dict()
+    except Exception:
+        pass
+    try:
         recommendation_log_path = monitor.output_dir / "recommendation_outcomes.jsonl"
+    except Exception:
+        recommendation_log_path = None
+
+    diagnosis_html = ""
+    diag_result: dict[str, Any] | None = None
+    try:
         diagnosis_html = _build_diagnosis(
             current_dict, baseline, recommendation_log_path=recommendation_log_path,
         )
+    except Exception:
+        pass
+    try:
+        # 컴포넌트 shortfall은 항상 절대 상태 기준(baseline 유무와 무관하게 "지금 이 Gate를
+        # 끄는 컴포넌트가 무엇인가"). 진단 섹션은 별도로 baseline 회귀 모드를 쓴다.
+        from agent_evaluator.rca import diagnose as _diagnose
+        diag_result = _diagnose(current_dict, None)
+    except Exception:
+        pass
+
+    _tasks_list = list(getattr(monitor, "tasks", []) or [])
+    failure_cases_html = ""
+    try:
+        failure_cases_html = _build_failure_cases(
+            _tasks_list, total_tasks=total_tasks, baseline=baseline,
+        )
+    except Exception:
+        pass
+
+    ci_data: dict[str, Any] = {}
+    try:
+        ci_data = _metric_ci_data(_tasks_list)
+    except Exception:
+        pass
+
+    operational_html = ""
+    try:
+        _adata = None
+        if getattr(monitor, "enable_anomaly_detection", False):
+            from agent_evaluator.anomaly import AnomalyDetector
+            _det = AnomalyDetector(
+                baseline_window=getattr(monitor, "_anomaly_baseline_window", 100),
+                detection_window=getattr(monitor, "_anomaly_detection_window", 20),
+            )
+            _adata = {
+                "anomalies": [a.to_dict() for a in _det.scan(monitor)],
+                "baseline_window": getattr(monitor, "_anomaly_baseline_window", 100),
+                "detection_window": getattr(monitor, "_anomaly_detection_window", 20),
+            }
+        operational_html = _build_operational_signals(_adata)
     except Exception:
         pass
 
     # Build HTML
     parts = [
         _build_css(),
-        _build_header(total_tasks, tcr, acc, latency, harness_groups),
+        _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
+        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
@@ -2166,9 +3092,14 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
-        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        operational_html,
+        failure_cases_html,
+        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
+                               diagnosis=diag_result,
+                               recommendation_log_path=recommendation_log_path,
+                               baseline=baseline, current=current_dict),
         diagnosis_html,
-        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
+        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
     return ''.join(parts)
@@ -2290,19 +3221,54 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
     conversation_sessions: list = rf.conversation_sessions if has_conversation else []
 
     # Gate RCA 진단 — baseline 없이도 절대 임계값 기반으로 동작(rca.diagnose() 참고).
-    diagnosis_html = ""
     try:
         recommendation_log_path = rf.path.parent / "recommendation_outcomes.jsonl"
+    except Exception:
+        recommendation_log_path = None
+    current_dict = rf.raw or {}
+
+    diagnosis_html = ""
+    diag_result: dict[str, Any] | None = None
+    try:
         diagnosis_html = _build_diagnosis(
-            rf.raw, baseline, recommendation_log_path=recommendation_log_path,
+            current_dict, baseline, recommendation_log_path=recommendation_log_path,
         )
+    except Exception:
+        pass
+    try:
+        # 컴포넌트 shortfall은 항상 절대 상태 기준(baseline 유무와 무관하게 "지금 이 Gate를
+        # 끄는 컴포넌트가 무엇인가"). 진단 섹션은 별도로 baseline 회귀 모드를 쓴다.
+        from agent_evaluator.rca import diagnose as _diagnose
+        diag_result = _diagnose(current_dict, None)
+    except Exception:
+        pass
+
+    _tasks_list = list(getattr(rf, "tasks", []) or [])
+    failure_cases_html = ""
+    try:
+        failure_cases_html = _build_failure_cases(
+            _tasks_list, total_tasks=total_tasks, baseline=baseline,
+        )
+    except Exception:
+        pass
+
+    ci_data: dict[str, Any] = {}
+    try:
+        ci_data = _metric_ci_data(_tasks_list)
+    except Exception:
+        pass
+
+    operational_html = ""
+    try:
+        operational_html = _build_operational_signals((rf.raw or {}).get("anomaly_data"))
     except Exception:
         pass
 
     # Build HTML
     parts = [
         _build_css(),
-        _build_header(total_tasks, tcr, acc, latency, harness_groups),
+        _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
+        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
@@ -2312,9 +3278,14 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
-        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        operational_html,
+        failure_cases_html,
+        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
+                               diagnosis=diag_result,
+                               recommendation_log_path=recommendation_log_path,
+                               baseline=baseline, current=current_dict),
         diagnosis_html,
-        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
+        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
     return ''.join(parts)

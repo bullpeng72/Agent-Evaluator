@@ -848,10 +848,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             g_eval = advanced_summary['g_eval_score'].get('mean', 0.0)
             if g_eval < 0.7:
                 recommendations.append({
-                    "area": "G-Eval 품질 개선",
-                    "issue": f"G-Eval 평균 점수: {g_eval:.2f} (권장: 0.7 이상)",
-                    "suggestion": "품질 기준 명확화, 프롬프트 개선, 출력 구조화",
-                    "impact": "전반적인 응답 품질 향상"
+                    "area": "G-Eval quality improvement",
+                    "issue": f"G-Eval mean score: {g_eval:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Clarify quality criteria, improve the prompt, structure the output",
+                    "impact": "Better overall response quality"
                 })
 
         # Hallucination Score 권장사항 (높을수록 좋음 - 환각이 없음을 의미)
@@ -859,10 +859,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             hall_score = advanced_summary['hallucination_score']['mean']
             if hall_score < 0.7:
                 recommendations.append({
-                    "area": "환각 감소 (컨텍스트 일치도 향상)",
-                    "issue": f"평균 환각 없음 점수: {hall_score:.2f} (권장: 0.7 이상)",
-                    "suggestion": "Temperature 낮추기, 컨텍스트 강화, 사실 확인 단계 추가, RAG 검색 품질 개선",
-                    "impact": "컨텍스트에 충실한 응답으로 신뢰도 향상"
+                    "area": "Reduce hallucination (better context consistency)",
+                    "issue": f"Mean hallucination-free score: {hall_score:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Lower temperature, strengthen context, add a fact-check step, improve RAG retrieval quality",
+                    "impact": "Higher trust via context-faithful responses"
                 })
 
         # Toxicity Score 권장사항 (낮을수록 좋음)
@@ -870,10 +870,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             tox_score = advanced_summary['toxicity_score']['mean']
             if tox_score > 0.3:
                 recommendations.append({
-                    "area": "독성 콘텐츠 감소",
-                    "issue": f"평균 독성 점수: {tox_score:.2f} (권장: 0.3 이하)",
-                    "suggestion": "Safety System Message 추가, 출력 필터링, 콘텐츠 검수 강화",
-                    "impact": "안전하고 적절한 응답 생성"
+                    "area": "Reduce toxic content",
+                    "issue": f"Mean toxicity score: {tox_score:.2f} (recommended: <= 0.3)",
+                    "suggestion": "Add a safety system message, filter output, strengthen content review",
+                    "impact": "Safe and appropriate responses"
                 })
 
         # Bias Score 권장사항 (낮을수록 좋음)
@@ -881,10 +881,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             bias_score = advanced_summary['bias_score']['mean']
             if bias_score > 0.3:
                 recommendations.append({
-                    "area": "편향 감소",
-                    "issue": f"평균 편향 점수: {bias_score:.2f} (권장: 0.3 이하)",
-                    "suggestion": "공정성 가이드라인 적용, 다양한 예제 사용, 편향 제거 프롬프트",
-                    "impact": "공정하고 균형 잡힌 응답 생성"
+                    "area": "Reduce bias",
+                    "issue": f"Mean bias score: {bias_score:.2f} (recommended: <= 0.3)",
+                    "suggestion": "Apply fairness guidelines, use diverse examples, add a debiasing prompt",
+                    "impact": "Fair and balanced responses"
                 })
 
         # Answer Relevancy 권장사항 (높을수록 좋음)
@@ -892,10 +892,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             relevancy = advanced_summary['answer_relevancy_score']['mean']
             if relevancy < 0.7:
                 recommendations.append({
-                    "area": "답변 관련성 개선",
-                    "issue": f"평균 답변 관련성: {relevancy:.2f} (권장: 0.7 이상)",
-                    "suggestion": "질문 분석 강화, 불필요한 정보 제거, 답변 포커스 개선",
-                    "impact": "질문에 정확히 대응하는 답변 생성"
+                    "area": "Improve answer relevancy",
+                    "issue": f"Mean answer relevancy: {relevancy:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Strengthen question analysis, remove unnecessary information, sharpen answer focus",
+                    "impact": "Answers that respond precisely to the question"
                 })
 
         # RAGAS Faithfulness 권장사항
@@ -903,10 +903,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             faithfulness = advanced_summary['ragas_faithfulness']['mean']
             if faithfulness < 0.7:
                 recommendations.append({
-                    "area": "RAG 충실도 개선",
-                    "issue": f"평균 충실도: {faithfulness:.2f} (권장: 0.7 이상)",
-                    "suggestion": "검색된 컨텍스트만 사용하도록 강제, 인용 추가, 주장 검증",
-                    "impact": "컨텍스트 기반의 정확한 RAG 응답"
+                    "area": "Improve RAG faithfulness",
+                    "issue": f"Mean faithfulness: {faithfulness:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Force use of retrieved context only, add citations, verify claims",
+                    "impact": "Accurate, context-grounded RAG responses"
                 })
 
         # RAGAS Context Precision 권장사항
@@ -914,10 +914,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             precision = advanced_summary['ragas_context_precision']['mean']
             if precision < 0.7:
                 recommendations.append({
-                    "area": "RAG 컨텍스트 정밀도 개선",
-                    "issue": f"평균 컨텍스트 정밀도: {precision:.2f} (권장: 0.7 이상)",
-                    "suggestion": "검색 쿼리 최적화, Re-ranking 추가, 메타데이터 필터링",
-                    "impact": "관련 정보만 검색하여 노이즈 감소"
+                    "area": "Improve RAG context precision",
+                    "issue": f"Mean context precision: {precision:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Optimize the search query, add re-ranking, filter by metadata",
+                    "impact": "Less noise by retrieving only relevant information"
                 })
 
         # RAGAS Context Recall 권장사항
@@ -925,10 +925,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             recall = advanced_summary['ragas_context_recall']['mean']
             if recall < 0.7:
                 recommendations.append({
-                    "area": "RAG 컨텍스트 재현율 개선",
-                    "issue": f"평균 컨텍스트 재현율: {recall:.2f} (권장: 0.7 이상)",
-                    "suggestion": "Top-K 증가, 하이브리드 검색(키워드+의미), 쿼리 확장",
-                    "impact": "필요한 정보를 모두 검색하여 완전한 답변"
+                    "area": "Improve RAG context recall",
+                    "issue": f"Mean context recall: {recall:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Increase Top-K, use hybrid search (keyword + semantic), expand the query",
+                    "impact": "Complete answers by retrieving all needed information"
                 })
 
         # RAGAS Answer Relevancy 권장사항 (높을수록 좋음)
@@ -936,10 +936,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             ragas_relevancy = advanced_summary['ragas_answer_relevancy']['mean']
             if ragas_relevancy < 0.7:
                 recommendations.append({
-                    "area": "RAG 답변 관련성 개선",
-                    "issue": f"평균 RAGAS 답변 관련성: {ragas_relevancy:.2f} (권장: 0.7 이상)",
-                    "suggestion": "질문 이해 개선, 검색-생성 정렬 강화, 프롬프트에 질문 재강조",
-                    "impact": "RAG 시스템에서 질문에 직접 관련된 답변 생성"
+                    "area": "Improve RAG answer relevancy",
+                    "issue": f"Mean RAGAS answer relevancy: {ragas_relevancy:.2f} (recommended: >= 0.7)",
+                    "suggestion": "Improve question understanding, tighten retrieval-generation alignment, restate the question in the prompt",
+                    "impact": "Answers directly relevant to the question from the RAG system"
                 })
 
         # RAGAS Overall Score 권장사항
@@ -947,10 +947,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             overall = advanced_summary['ragas_overall_score']['mean']
             if overall < 0.6:
                 recommendations.append({
-                    "area": "RAG 시스템 전반 개선",
-                    "issue": f"RAGAS 종합 점수: {overall:.2f} (권장: 0.6 이상)",
-                    "suggestion": "RAG 파이프라인 전체 재검토, 임베딩 모델 업그레이드, 청킹 전략 개선",
-                    "impact": "RAG 시스템의 전반적인 성능 향상"
+                    "area": "Overall RAG system improvement",
+                    "issue": f"RAGAS overall score: {overall:.2f} (recommended: >= 0.6)",
+                    "suggestion": "Review the whole RAG pipeline, upgrade the embedding model, improve the chunking strategy",
+                    "impact": "Better overall RAG system performance"
                 })
 
         return recommendations

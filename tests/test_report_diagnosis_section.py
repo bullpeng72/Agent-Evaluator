@@ -127,7 +127,10 @@ class TestEntryPointsIncludeDiagnosisSection:
         ))
         html = generate_comprehensive_html_report(monitor)
         assert 'id="diagnosis"' in html
-        assert "Gate RCA Diagnosis" in html
+        # 배치 단발(baseline 없음) → "Gate Failure Diagnosis"로 렌더된다.
+        # baseline을 준 회귀 경로에서만 "Gate RCA Diagnosis (Improve)" 제목을 쓴다.
+        assert "Diagnosis" in html
+        assert "Gate Failure Diagnosis" in html
 
     def test_generate_html_from_result_file_includes_diagnosis(self, tmp_path):
         from agent_evaluator.serve.loader import load_results
@@ -238,3 +241,49 @@ class TestSaveToFileBaselinePlumbing:
 
         html = (tmp_path / "qe_current.html").read_text(encoding="utf-8")
         assert "Regression-based detection" in html
+
+
+class TestAbsoluteModeFailureDiagnosis:
+    """배치 단발(baseline 없음) 리포트에서 진단 섹션이 가짜 Baseline/Delta 열 대신
+    component_shortfalls(약한 컴포넌트 우선) + 처방을 렌더링한다."""
+
+    def _warn(self, score, **details):
+        return {"score": score, "status": "warn", "gate": "warn", "details": details}
+
+    def test_title_is_failure_diagnosis_not_rca(self):
+        cur = _harness_groups(A=self._warn(0.6, tcr_pct=50.0, avg_subtask_completion=0.25))
+        html = _build_diagnosis(cur)
+        assert "Gate Failure Diagnosis" in html
+        assert "Gate RCA Diagnosis (Improve)" not in html
+
+    def test_no_baseline_or_delta_columns(self):
+        cur = _harness_groups(A=self._warn(0.6, tcr_pct=50.0, avg_subtask_completion=0.25))
+        html = _build_diagnosis(cur)
+        assert "<th>Component</th>" in html
+        assert "<th>Health</th>" in html
+        assert "<th>Baseline</th>" not in html
+        assert "<th>Delta</th>" not in html
+
+    def test_config_constant_not_shown_as_metric(self):
+        cur = _harness_groups(A=self._warn(
+            0.6, tcr_pct=50.0, avg_subtask_completion=0.25, gate_a_tcr_weight=0.4,
+        ))
+        html = _build_diagnosis(cur)
+        assert "gate_a_tcr_weight" not in html
+        assert "avg_subtask_completion" in html
+
+    def test_guidance_line_rendered(self):
+        cur = _harness_groups(A=self._warn(0.6, tcr_pct=50.0, avg_subtask_completion=0.25))
+        html = _build_diagnosis(cur)
+        assert "→" in html  # GateGuidance / native-rule 처방 화살표
+        assert "InstructionConfig" in html  # GATE_GUIDANCE["A"] 문구
+
+    def test_regression_mode_still_uses_baseline_columns(self):
+        base = _harness_groups(A={"score": 0.9, "status": "pass", "gate": "pass",
+                                  "details": {"avg_subtask_completion": 0.9}})
+        cur = _harness_groups(A={"score": 0.3, "status": "fail", "gate": "fail",
+                                 "details": {"avg_subtask_completion": 0.2}})
+        html = _build_diagnosis(cur, base)
+        assert "Gate RCA Diagnosis (Improve)" in html
+        assert "<th>Baseline</th>" in html
+        assert "<th>Delta</th>" in html

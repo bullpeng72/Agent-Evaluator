@@ -74,7 +74,7 @@ def eval_fault_tolerance(
                     allowed = expected_fallbacks[failed_name]
                     if next_name not in allowed:
                         wrong_fallbacks.append(
-                            f"{failed_name}→{next_name} (허용: {allowed})"
+                            f"{failed_name}→{next_name} (allowed: {allowed})"
                         )
                         # 잘못된 폴백은 복구 실패로 처리
                         continue
@@ -136,8 +136,8 @@ def compute_reproducibility_score(
     if measure not in _VALID_MEASURES:
         import warnings as _w
         _w.warn(
-            f"compute_reproducibility_score: measure={measure!r}는 유효하지 않습니다. "
-            f"유효한 값: {sorted(_VALID_MEASURES)}. 'token_f1'로 폴백합니다.",
+            f"compute_reproducibility_score: measure={measure!r} is not valid. "
+            f"Valid values: {sorted(_VALID_MEASURES)}. Falling back to 'token_f1'.",
             UserWarning,
             stacklevel=2,
         )
@@ -147,13 +147,13 @@ def compute_reproducibility_score(
     if run_count < 2:
         if run_count == 0:
             logger.warning(
-                "compute_reproducibility_score: responses 리스트가 비어 있습니다. "
-                "score=1.0 반환 — 재현성 측정이 실행되지 않았습니다."
+                "compute_reproducibility_score: responses list is empty. "
+                "Returning score=1.0 — reproducibility was not actually measured."
             )
         elif run_count == 1:
             logger.warning(
-                "compute_reproducibility_score: run_count=1이면 재현성을 측정할 수 없습니다. "
-                "ReproducibilityConfig(runs=2) 이상으로 설정하세요. score=1.0 반환."
+                "compute_reproducibility_score: reproducibility cannot be measured with "
+                "run_count=1. Set ReproducibilityConfig(runs=2) or higher. Returning score=1.0."
             )
         return {"score": 1.0, "variance": 0.0, "pairwise_scores": [], "run_count": run_count}
 

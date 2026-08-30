@@ -41,13 +41,14 @@ def _send_with_retry(handler: Any, event: AlertEvent, max_retries: int = 3) -> b
         except Exception as e:
             if attempt >= max_retries:
                 logger.warning(
-                    "AlertEngine: handler.send() 최종 실패 — 규칙 '%s', %d회 재시도 소진: %s",
+                    "AlertEngine: handler.send() ultimately failed — rule '%s', "
+                    "exhausted %d retries: %s",
                     event.rule_name, max_retries, e,
                 )
                 return False
             delay = 2 ** attempt  # 1s, 2s, 4s, ...
             logger.debug(
-                "AlertEngine: handler.send() 실패 — %ds 대기 후 재시도 (%d/%d): %s",
+                "AlertEngine: handler.send() failed — retrying after %ds (%d/%d): %s",
                 delay, attempt + 1, max_retries, e,
             )
             time.sleep(delay)
@@ -287,14 +288,14 @@ class AlertEngine:
                 try:
                     message = rule.message_fn(evaluator)
                 except Exception:
-                    message = f"규칙 [{rule.name}] 조건 충족"
+                    message = f"Rule [{rule.name}] condition met"
             else:
                 message = (
                     f"[{rule.severity.upper()}] {rule.name}\n"
-                    f"5분 TCR: {stats.get('tcr', 0)}% | "
-                    f"P95 지연: {stats.get('p95_latency', 0)}s | "
-                    f"오류율: {stats.get('error_rate', 0)}%\n"
-                    f"발화 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S KST')}"
+                    f"5-min TCR: {stats.get('tcr', 0)}% | "
+                    f"P95 latency: {stats.get('p95_latency', 0)}s | "
+                    f"error rate: {stats.get('error_rate', 0)}%\n"
+                    f"fired at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
             event = AlertEvent(
                 rule_name=rule.name,

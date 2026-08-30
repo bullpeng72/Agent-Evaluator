@@ -72,15 +72,71 @@ from agent_evaluator.gates.team_concurrency import (
     resolve_owner,
 )
 
+_REMEDIATION_KIND_MAP: tuple[tuple[str, str], ...] = (
+    # reason 접두어(부분 일치) → COMPONENT_GUIDANCE 키
+    ("loop_detection", "loop_detection"),
+    ("deadlock", "deadlock"),
+    ("scope violation", "scope_score"),
+    ("dangerous tool parameters", "tool_parameter_safety"),
+    ("tool_authorization", "scope_score"),
+    ("privilege_escalation", "threat_severity"),
+    ("tool_chain_attack", "threat_severity"),
+    ("protected write path", "threat_severity"),
+    ("branch", "scope_score"),
+    ("team scope", "scope_score"),
+)
+
+_REMEDIATION_TAIL = (
+    " Do not repeat the identical call — change your approach. Use the recommend_fix / "
+    "search_violations MCP tools to check past blocks and fixes for this kind of issue."
+)
+
+
+def _derive_remediation(gate: str | None, reason: str | None) -> str | None:
+    """차단 사유에서 에이전트가 바로 실행할 수 있는 조치 문구를 만든다.
+
+    ``ontology.metric_registry.COMPONENT_GUIDANCE``(개발자용 조치 지식)를 재사용하되,
+    끝에 "반복하지 말고 접근을 바꿔라 + MCP 도구를 써라"를 붙여 에이전트가 다음 행동을
+    고를 수 있게 한다. 새 판정/지식이 아니라 기존 지식의 재포장이다.
+    """
+    if not reason:
+        return None
+    r = reason.lower()
+    key = next((k for pre, k in _REMEDIATION_KIND_MAP if pre in r), None)
+    base = ""
+    if key:
+        try:
+            from agent_evaluator.ontology.metric_registry import component_guidance_for
+
+            base = component_guidance_for(key) or ""
+        except Exception:
+            base = ""
+    if not base:
+        base = f"This tool call was blocked by a Gate {gate or '?'} rule violation."
+    return base + _REMEDIATION_TAIL
+
 
 @dataclasses.dataclass
 class LiveVerdict:
-    """``LiveGuardrail.check_before_tool_call()``의 반환값 (SPEC-019 Interface)."""
+    """``LiveGuardrail.check_before_tool_call()``의 반환값 (SPEC-019 Interface).
+
+    ``remediation``(SPEC-041): ``block=True``이고 미지정이면 ``__post_init__``이
+    ``reason``에서 자동 도출한다 — 차단 메시지가 "무엇이 막혔나"에 더해 "그래서 뭘
+    하라"까지 담게 하려는 것. 명시적으로 넘기면 그 값을 그대로 쓴다. ``block=False``면
+    항상 ``None``. ``dataclasses.asdict``로 stdio 브리지·훅에 그대로 실려 나간다.
+    """
 
     block: bool
     gate: str | None = None  # "B" | "E" | None
     reason: str | None = None
     detail: dict[str, Any] = dataclasses.field(default_factory=dict)
+    remediation: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.block and not self.remediation:
+            self.remediation = _derive_remediation(self.gate, self.reason)
+        elif not self.block:
+            self.remediation = None
 
 
 class LiveGuardrail:
@@ -1123,9 +1179,9 @@ def tool_guard(
             if ctx is not None:
                 return ctx
             _msg = (
-                f"tool_guard({_name!r}): 활성 live_guardrail_session()이 없습니다 — "
-                "가드 없이 원본 함수를 그대로 실행합니다. 이 호출이 반드시 검사돼야 "
-                "한다면 tool_guard(fail_closed=True)를 쓰세요."
+                f"tool_guard({_name!r}): no active live_guardrail_session() — running the "
+                "wrapped function unguarded. If this call must be checked, use "
+                "tool_guard(fail_closed=True)."
             )
             if fail_closed:
                 raise RuntimeError(_msg)

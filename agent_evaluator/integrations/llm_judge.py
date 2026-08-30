@@ -484,9 +484,9 @@ class LLMJudge:
             if self._consecutive_errors >= self._max_consecutive_errors:
                 self._disabled_reason = f"auto_disabled_after_{self._consecutive_errors}_errors"
                 warnings.warn(
-                    f"LLMJudge: {self._consecutive_errors}회 연속 오류로 자동 비활성화됨. "
-                    f"마지막 오류: {result['error']!r}. "
-                    "API 키·네트워크를 확인하거나 judge.reset_errors()를 호출해 재활성화하세요.",
+                    f"LLMJudge: auto-disabled after {self._consecutive_errors} consecutive errors. "
+                    f"Last error: {result['error']!r}. "
+                    "Check the API key / network, or call judge.reset_errors() to re-enable.",
                     RuntimeWarning,
                     stacklevel=2,
                 )
@@ -580,9 +580,9 @@ class LLMJudge:
             if self._consecutive_errors >= self._max_consecutive_errors:
                 self._disabled_reason = f"auto_disabled_after_{self._consecutive_errors}_errors"
                 warnings.warn(
-                    f"LLMJudge: {self._consecutive_errors}회 연속 오류로 자동 비활성화됨. "
-                    f"마지막 오류: {result['error']!r}. "
-                    "API 키·네트워크를 확인하거나 judge.reset_errors()를 호출해 재활성화하세요.",
+                    f"LLMJudge: auto-disabled after {self._consecutive_errors} consecutive errors. "
+                    f"Last error: {result['error']!r}. "
+                    "Check the API key / network, or call judge.reset_errors() to re-enable.",
                     RuntimeWarning,
                     stacklevel=2,
                 )
@@ -675,7 +675,7 @@ class LLMJudge:
                     raise
                 delay = 2 ** attempt  # 1s, 2s, 4s, ...
                 logger.warning(
-                    "LLMJudge: rate limit 감지 — %ds 대기 후 재시도 (%d/%d)",
+                    "LLMJudge: rate limit detected — retrying after %ds (%d/%d)",
                     delay, attempt + 1, self.max_retries,
                 )
                 time.sleep(delay)
@@ -841,7 +841,7 @@ class LLMJudge:
                     or result.get("id")
                 )
                 logger.info(
-                    "Phoenix Prompts 등록 완료: %s (id=%s)", prompt_name, prompt_id
+                    "Phoenix Prompts registration complete: %s (id=%s)", prompt_name, prompt_id
                 )
                 return prompt_id
         except urllib.error.HTTPError as e:

@@ -187,6 +187,7 @@ Full version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evalu
 | [`Docs/06_OBSERVABILITY.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/06_OBSERVABILITY.md) | Dashboard, alerts, anomaly detection |
 | [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/07_OPERATIONS.md) | Production deployment, monitoring |
 | [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/08_API_REFERENCE.md) | Full public API reference |
+| [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
 | [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | Real-time guardrail, OpenCode + Ollama integration |
 | [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | Real-time guardrail via native Claude Code CLI hooks |
 | [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md) | OpenCode vs Claude Code integration — detailed comparison |

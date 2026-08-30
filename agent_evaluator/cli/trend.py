@@ -476,10 +476,53 @@ def cmd_trend(args: argparse.Namespace) -> int:
 
     _print_report(report, args.slope_threshold, fail_on_regression=args.fail_on_regression)
 
+    # SPEC-041 P3.3: 회귀가 감지됐고 첫/마지막 run에 git commit lineage가 있으면,
+    # 그 사이 실제 코드 변경(파일·커밋)을 붙인다 — "무엇이 바뀌었나"를 metric-space
+    # 발견과 연결한다(rca.derive_experiment_metadata, 순수 git 명령만 사용).
+    if report.any_regression and len(report.runs) >= 2:
+        _print_experiment_diff(
+            report.runs[0].path, report.runs[-1].path,
+            repo_path=getattr(args, "repo_path", ".") or ".",
+        )
+
     if args.fail_on_regression and report.any_regression:
         return 1
 
     return 0
+
+
+def _print_experiment_diff(first_path: str, last_path: str, *, repo_path: str) -> None:
+    """첫/마지막 결과 파일의 lineage.git_commit 사이 실제 git diff를 출력한다.
+
+    커밋 정보가 없거나 저장소를 못 찾으면 조용히 아무것도 출력하지 않는다.
+    """
+    try:
+        from agent_evaluator.rca.experiment_metadata import derive_experiment_metadata
+
+        with open(first_path, encoding="utf-8") as f:
+            before = json.load(f)
+        with open(last_path, encoding="utf-8") as f:
+            after = json.load(f)
+    except (OSError, json.JSONDecodeError, ImportError):
+        return
+    try:
+        meta = derive_experiment_metadata(before, after, repo_path=repo_path)
+    except Exception:
+        return
+    if meta is None:
+        return
+    print(f"  {B}Code changes between first and last run "
+          f"(git {meta.from_commit}..{meta.to_commit}){R}")
+    if meta.diff_stat_summary:
+        print(f"  {D}{meta.diff_stat_summary}{R}")
+    for fp in meta.changed_files[:10]:
+        print(f"    {D}- {fp}{R}")
+    if len(meta.changed_files) > 10:
+        print(f"    {D}... and {len(meta.changed_files) - 10} more{R}")
+    for c in meta.commits_between[:8]:
+        print(f"    {c.sha}  {D}{c.date} {c.author}{R} — {c.subject}")
+    print(f"  {_SEP}")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -555,4 +598,14 @@ def build_trend_subparser(sub: argparse._SubParsersAction) -> None:  # type: ign
         dest="output_json",
         metavar="PATH",
         help="Save analysis results to a JSON file",
+    )
+    p.add_argument(
+        "--repo-path",
+        default=".",
+        dest="repo_path",
+        metavar="PATH",
+        help=(
+            "Git repository to resolve code changes from when a regression is detected "
+            "(uses the first/last run's lineage.git_commit). Default: current directory."
+        ),
     )

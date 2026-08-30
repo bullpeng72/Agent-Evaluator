@@ -429,3 +429,62 @@ class TestExperimentMetadataIntegration:
         import json
 
         json.dumps(result, ensure_ascii=False)  # CLI --json 경로 조건 — 예외 없이 직렬화돼야 함
+
+
+class TestComponentShortfalls:
+    """SPEC: baseline 없는 absolute_threshold 모드에서 top_detail_deltas는 전부
+    delta=None이라 알파벳 나열로 퇴화한다. component_shortfalls는 현재 details만으로
+    "지금 Gate 점수를 깎는 컴포넌트"를 health 오름차순으로 답한다."""
+
+    def _warn_gate(self, score, **details):
+        return {"score": score, "status": "warn", "gate": "warn", "details": details}
+
+    def test_present_in_every_finding_both_modes(self):
+        cur = _report({"A": self._warn_gate(0.6, avg_accuracy=0.8, tcr_pct=50.0)})
+        assert "component_shortfalls" in diagnose(cur)["findings"][0]
+        base = _report({"A": _gate(0.9, avg_accuracy=0.95, tcr_pct=90.0)})
+        assert "component_shortfalls" in diagnose(cur, base)["findings"][0]
+
+    def test_ranked_by_health_ascending(self):
+        cur = _report({"D": self._warn_gate(
+            0.57, avg_budget_score=0.6768, avg_cost_predictability=0.7872,
+            p95_latency_s=3.0172,
+        )})
+        sf = diagnose(cur)["findings"][0]["component_shortfalls"]
+        fields = [s["field"] for s in sf]
+        assert fields == ["avg_budget_score", "p95_latency_s", "avg_cost_predictability"]
+        # p95_latency_s: 1 - 3.0172/10 = 0.698, 원시 값은 초 단위 그대로 보존
+        p95 = next(s for s in sf if s["field"] == "p95_latency_s")
+        assert p95["value"] == 3.0172
+        assert abs(p95["health"] - 0.69828) < 1e-4
+
+    def test_config_constants_and_penalties_excluded(self):
+        cur = _report({"A": self._warn_gate(
+            0.6, avg_subtask_completion=0.25, gate_a_tcr_weight=0.4,
+            tcr_pct=50.0, perf_score_pre_sla_penalty=0.6, sla_budget_penalty=0.0,
+            loop_count=3,
+        )})
+        fields = {s["field"] for s in diagnose(cur)["findings"][0]["component_shortfalls"]}
+        assert "gate_a_tcr_weight" not in fields
+        assert "perf_score_pre_sla_penalty" not in fields
+        assert "sla_budget_penalty" not in fields
+        assert "loop_count" not in fields
+        assert {"avg_subtask_completion", "tcr_pct"} <= fields
+
+    def test_inverted_rate_field_health(self):
+        cur = _report({"C": self._warn_gate(0.5, sla_breach_rate=0.4)})
+        sf = diagnose(cur)["findings"][0]["component_shortfalls"]
+        breach = next(s for s in sf if s["field"] == "sla_breach_rate")
+        assert breach["value"] == 0.4          # 원시 값 보존
+        assert abs(breach["health"] - 0.6) < 1e-9  # 1 - 0.4
+
+    def test_uninterpretable_field_dropped(self):
+        cur = _report({"A": self._warn_gate(0.6, some_raw_counter=8123.0, tcr_pct=50.0)})
+        fields = {s["field"] for s in diagnose(cur)["findings"][0]["component_shortfalls"]}
+        assert "some_raw_counter" not in fields
+        assert "tcr_pct" in fields
+
+    def test_deterministic_ordering_on_ties(self):
+        cur = _report({"A": self._warn_gate(0.5, avg_x=0.5, avg_a=0.5, avg_m=0.5)})
+        fields = [s["field"] for s in diagnose(cur)["findings"][0]["component_shortfalls"]]
+        assert fields == ["avg_a", "avg_m", "avg_x"]

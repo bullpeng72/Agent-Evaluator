@@ -376,11 +376,14 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
             "systemMessage": _msg,
         }
 
+    _deny_reason = verdict.reason or "blocked by LiveGuardrail"
+    if getattr(verdict, "remediation", None):
+        _deny_reason = f"{_deny_reason}\n→ {verdict.remediation}"
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": verdict.reason or "blocked by LiveGuardrail",
+            "permissionDecisionReason": _deny_reason,
         },
     }
 
@@ -422,11 +425,69 @@ def handle_post_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, 
     return {}
 
 
+def _session_end_summary(
+    snapshot: dict[str, Any], blocked: list[dict[str, Any]],
+    result: dict[str, Any],
+) -> str:
+    """SessionEnd에서 사용자에게 보여줄 한 문단 요약을 만든다 (SPEC-041 P2.1).
+
+    OpenCode 플러그인의 ``summarizeGuardrailResult``와 같은 구조 — 지금까지 Claude
+    쪽은 SessionEnd가 배치 리포트를 디스크에만 남기고 아무 요약도 내지 않아
+    OpenCode(synthetic transcript)와 비대칭이었다.
+    """
+    b = result.get("gate_b_score")
+    e = result.get("gate_e_score")
+    parts = [
+        "[agent-evaluator] LiveGuardrail session summary — "
+        f"Gate B {b if b is not None else 'n/a'} · Gate E {e if e is not None else 'n/a'}"
+    ]
+    lines: list[str] = []
+    loop = snapshot.get("loop_detection") or {}
+    if loop.get("detected"):
+        lines.append(f"loop_detection: {loop.get('loop_type')} on \"{loop.get('loop_tool')}\"")
+    dl = snapshot.get("deadlock") or {}
+    if dl.get("deadlock_detected"):
+        lines.append(f"deadlock: {dl.get('deadlock_type')}")
+    sc = snapshot.get("scope") or {}
+    if sc.get("in_scope") is False:
+        lines.append(f"scope violation: {sc.get('violations')}")
+    tps = snapshot.get("tool_parameter_safety") or {}
+    if tps.get("dangerous_calls"):
+        lines.append(f"dangerous tool parameters: {len(tps['dangerous_calls'])}")
+    ta = snapshot.get("tool_authorization") or {}
+    if ta.get("total_violations"):
+        lines.append(f"tool_authorization violations: {ta['total_violations']}")
+    pe = snapshot.get("privilege_escalation") or {}
+    if pe.get("escalation_detected"):
+        lines.append(
+            f"privilege_escalation: {pe.get('initial_privilege')} -> {pe.get('max_privilege')}"
+        )
+    tc = snapshot.get("tool_chain_attack") or {}
+    if tc.get("is_suspicious_chain"):
+        lines.append(f"tool_chain_attack: {tc.get('attack_patterns_detected')}")
+
+    if blocked:
+        enforced = sum(1 for x in blocked if x.get("enforced", True))
+        lines.append(
+            f"{len(blocked)} tool call(s) blocked before execution "
+            f"({enforced} enforced) — see search_violations / recommend_fix"
+        )
+    if not lines:
+        lines.append("no Gate B/E violations detected")
+    if result.get("ok") and result.get("saved_to"):
+        lines.append(f"report: {result['saved_to']}")
+    elif not result.get("ok"):
+        lines.append(f"(batch report save failed: {result.get('error')})")
+    parts.append(" · ".join(lines))
+    return "\n".join(parts)
+
+
 def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, Any]:
     session_id = payload["session_id"]
     session_file = _session_file(state_dir, session_id)
     blocked_file = _blocked_file(state_dir, session_id)
     result: dict[str, Any] = {"ok": False}
+    summary_msg = ""
     try:
         config = dict(_session_config(state_dir, session_id, create=False))
         output_dir = config.pop("output_dir", "results/claude_code_live_guardrail")
@@ -434,7 +495,8 @@ def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, An
 
         guardrail = build_guardrail(config)
         _replay(guardrail, session_id, _load_json_list(session_file))
-        for blocked in _load_json_list(blocked_file):
+        blocked_records = _load_json_list(blocked_file)
+        for blocked in blocked_records:
             guardrail.record_blocked_attempt(
                 session_id, blocked.get("tool_name", ""),
                 LiveVerdict(block=True, gate=blocked.get("gate"), reason=blocked.get("reason")),
@@ -447,6 +509,12 @@ def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, An
             "question": "<claude code session>",
             "response": f"<claude code session: {payload.get('reason', 'unknown')}>",
         })
+        try:
+            summary_msg = _session_end_summary(
+                guardrail.snapshot(), blocked_records, result,
+            )
+        except Exception:
+            summary_msg = ""
     except Exception as exc:
         # SPEC-041: 배치 저장이 실패해도(권한·sqlite 락 등) 세션 상태 파일은 반드시
         # 정리한다 — 안 그러면 sessions/ 에 고아 파일이 세션마다 쌓인다.
@@ -456,6 +524,8 @@ def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, An
         blocked_file.unlink(missing_ok=True)
         _circuit_file(state_dir, session_id).unlink(missing_ok=True)
         _session_config_file(state_dir, session_id).unlink(missing_ok=True)
+    if summary_msg:
+        result = {**result, "systemMessage": summary_msg}
     return result
 
 

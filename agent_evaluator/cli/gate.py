@@ -652,6 +652,52 @@ def _print_composite_gate(
     return passed
 
 
+def _print_rca_explain(data: dict[str, Any]) -> None:
+    """실패 시 짧은 RCA 요약 — fail/warn Gate마다 가장 약한 컴포넌트 2개 + 조치.
+
+    ``agent_evaluator.rca.diagnose()`` + ``ontology.metric_registry``의 기존 지식만
+    읽는다(새 판정 로직 없음). ``agent-eval diagnose``의 축약판으로, CI 로그에서
+    바로 "무엇을 봐야 하는지"를 알 수 있게 한다.
+    """
+    try:
+        from agent_evaluator.ontology.metric_registry import (
+            component_guidance_for,
+        )
+        from agent_evaluator.rca import diagnose
+    except Exception:
+        return
+    try:
+        result = diagnose(data)
+    except Exception:
+        return
+    findings = result.get("findings") or []
+    if not findings:
+        return
+
+    print()
+    print(f"  {B}Why it failed — RCA summary{R}  {D}(agent-eval diagnose for full detail){R}")
+    if result.get("multi_gate_note"):
+        print(f"  {D}{result['multi_gate_note']}{R}")
+    for f in findings:
+        gate = f.get("gate")
+        cur = f.get("current_score")
+        cur_s = f"{cur:.3f}" if isinstance(cur, (int, float)) else "n/a"
+        print(f"  {Y}Gate {gate}{R} (score {cur_s}) — weakest components:")
+        shortfalls = f.get("component_shortfalls") or []
+        if not shortfalls:
+            print(f"    {D}(no interpretable score components){R}")
+        for s in shortfalls[:2]:
+            fld = s.get("field", "")
+            health = s.get("health")
+            hp = f"{health * 100:.0f}%" if isinstance(health, (int, float)) else "—"
+            act = component_guidance_for(fld) or ""
+            print(f"    {RD}• {fld}{R} ({hp})")
+            if act:
+                print(f"      {D}→ {act}{R}")
+    print(f"  {_SEP}")
+    print()
+
+
 def _print_table(
     gate_results: list[dict[str, Any]],
     result_path: str,
@@ -932,7 +978,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             gate_threshold_violations.append(f"Gate {gate_id}: {reason}")
 
         if gate_threshold_violations:
-            print(f"\n{RD}Gate 임계값 미달:{R}", file=sys.stderr)
+            print(f"\n{RD}Gate threshold not met:{R}", file=sys.stderr)
             for v in gate_threshold_violations:
                 print(f"  {RD}✗ {v}{R}", file=sys.stderr)
 
@@ -997,6 +1043,24 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # ── 출력 ────────────────────────────────────────────────────────────────
     _print_table(gate_results, str(result_file), regressions if regressions else None, composite_result)
+
+    # ── RCA 요약 (SPEC-041 P2.2) ────────────────────────────────────────────
+    # 실패(임계값/복합/Gate임계값/회귀/골든셋) 시 기본 표시, --explain은 항상, --no-explain은 억제.
+    _active_gates = [g for g in gate_results if g["active"]]
+    _will_fail = (
+        any(not g["passed"] for g in _active_gates)
+        or bool(regressions)
+        or bool(gate_threshold_violations)
+        or bool(golden_regressions and getattr(args, "fail_on_golden_regression", False))
+        or (
+            composite_result is not None
+            and composite_result.get("composite") is not None
+            and composite_result["composite"] < composite_result["min_score"]
+        )
+    )
+    _explain = getattr(args, "explain", None)
+    if _explain is True or (_explain is None and _will_fail):
+        _print_rca_explain(data)
 
     # ── JUnit XML ───────────────────────────────────────────────────────────
     junit_xml_path = getattr(args, "junit_xml", None)

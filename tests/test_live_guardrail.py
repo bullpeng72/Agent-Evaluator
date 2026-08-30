@@ -661,6 +661,54 @@ class TestLiveVerdictDefaults:
         assert v.gate is None
         assert v.reason is None
         assert v.detail == {}
+        assert v.remediation is None
+
+
+class TestLiveVerdictRemediation:
+    """SPEC-041 P1.3: 차단 verdict는 "무엇이 막혔나"에 더해 "그래서 뭘 하라"까지 담는다."""
+
+    def test_non_blocking_verdict_has_no_remediation(self):
+        v = LiveVerdict(block=False, reason="loop_detection: ...")
+        assert v.remediation is None
+
+    def test_loop_block_gets_remediation_from_ontology(self):
+        v = LiveVerdict(block=True, gate="B",
+                        reason="loop_detection: ['consecutive_repeat'] (tool='Bash' ...)")
+        assert v.remediation
+        assert "LoopDetectionConfig" in v.remediation           # COMPONENT_GUIDANCE 재사용
+        assert "recommend_fix" in v.remediation                  # MCP 도구 이름 노출 (ollama 대응)
+        assert "search_violations" in v.remediation
+
+    def test_scope_block_gets_remediation(self):
+        v = LiveVerdict(block=True, gate="E", reason="scope violation: ['forbidden:WebFetch']")
+        assert v.remediation and "ScopeConfig" in v.remediation
+
+    def test_explicit_remediation_is_preserved(self):
+        v = LiveVerdict(block=True, gate="B", reason="x", remediation="custom text")
+        assert v.remediation == "custom text"
+
+    def test_unknown_reason_still_gets_generic_remediation(self):
+        v = LiveVerdict(block=True, gate="B", reason="something novel")
+        assert v.remediation and "recommend_fix" in v.remediation
+
+    def test_flows_through_asdict_for_stdio_bridge(self):
+        import dataclasses
+
+        v = LiveVerdict(block=True, gate="B", reason="deadlock: mutual_wait")
+        d = dataclasses.asdict(v)
+        assert "remediation" in d and d["remediation"]
+
+    def test_check_before_tool_call_populates_remediation(self):
+        guardrail = LiveGuardrail(
+            loop_detection=LoopDetectionConfig(
+                consecutive_repeat_threshold=3, on_loop_detected="fail",
+            ),
+        )
+        for _ in range(2):
+            guardrail.record_tool_call("t", "Bash", {"command": "ls"})
+        verdict = guardrail.check_before_tool_call("t", "Bash", {"command": "ls"})
+        assert verdict.block is True
+        assert verdict.remediation and "recommend_fix" in verdict.remediation
 
 
 class TestRecordBlockedAttempt:

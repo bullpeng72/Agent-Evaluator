@@ -75,9 +75,9 @@ def eval_observability(
     if check_continuity and tc_count > 0:
         if otel_spans is None:
             logger.warning(
-                "ObservabilityConfig: check_trace_continuity=True이지만 extra에 "
-                "'otel_spans' 또는 'span_count'가 없습니다. trace_coverage=0.0으로 처리됩니다. "
-                "EvalMetadata(extra={'otel_spans': N}) 또는 'span_count'를 설정하세요."
+                "ObservabilityConfig: check_trace_continuity=True but neither 'otel_spans' "
+                "nor 'span_count' is in extra. Treating trace_coverage as 0.0. Set "
+                "EvalMetadata(extra={'otel_spans': N}) or 'span_count'."
             )
         span_count = max(0, int(float(otel_spans or 0)))
         trace_coverage = min(1.0, span_count / tc_count) if tc_count > 0 else 1.0

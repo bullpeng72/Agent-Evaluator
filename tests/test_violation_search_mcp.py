@@ -54,7 +54,7 @@ class TestFormatResults:
     def test_empty_results_says_no_match_explicitly(self):
         """결과가 없을 때 모델이 결과를 지어내지 않도록 명시적으로 "없다"고 말한다."""
         text = format_results([])
-        assert "없" in text  # "일치하는 과거 위반 이력이 없습니다."
+        assert "No matching" in text
 
     def test_non_empty_results_include_task_id_and_summary(self):
         results = [{
@@ -74,8 +74,8 @@ class TestFormatResults:
             "timestamp": "2026-07-05T00:00:00", "task_type": "tool_use", "success": False,
         }]
         text = format_results(results)
-        assert "[차단됨]" not in text
-        assert "[관찰됨]" not in text
+        assert "[BLOCKED]" not in text
+        assert "[OBSERVED]" not in text
 
     def test_blocked_true_gets_blocked_prefix(self):
         results = [{
@@ -84,7 +84,7 @@ class TestFormatResults:
             "blocked": True,
         }]
         text = format_results(results)
-        assert "[차단됨]" in text
+        assert "[BLOCKED]" in text
 
     def test_blocked_false_gets_observed_prefix(self):
         results = [{
@@ -93,7 +93,7 @@ class TestFormatResults:
             "blocked": False,
         }]
         text = format_results(results)
-        assert "[관찰됨]" in text
+        assert "[OBSERVED]" in text
 
 
 class TestDefaultDbPath:
@@ -136,7 +136,7 @@ class TestSearchViolationsToolEndToEnd:
 
         server = build_server(db_path)
         content, _ = await server.call_tool("search_violations", {"query": "kubernetes"})
-        assert "없" in content[0].text
+        assert "No matching" in content[0].text
 
     @pytest.mark.asyncio
     async def test_default_db_path_used_when_none_given(self, tmp_path, monkeypatch):
@@ -160,4 +160,4 @@ class TestSearchViolationsToolEndToEnd:
         content, _ = await server.call_tool("search_violations", {"query": "dangerous"})
         text = content[0].text
         assert "session-blocked" in text
-        assert "[차단됨]" in text
+        assert "[BLOCKED]" in text

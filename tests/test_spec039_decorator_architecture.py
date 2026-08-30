@@ -160,7 +160,7 @@ class TestReq1UnknownPresetWarningUnaffected:
 
     def test_agent_eval_unknown_preset_warns(self, tmp_path):
         monitor = PerformanceMonitor(output_dir=str(tmp_path))
-        with pytest.warns(UserWarning, match="알 수 없는 preset"):
+        with pytest.warns(UserWarning, match="Unknown preset"):
             @agent_eval(monitor, task_type="qa", preset="_does_not_exist")
             def agent(question, ground_truth=""):
                 return "answer"
@@ -320,7 +320,7 @@ class TestReq5ConversationEvalDeadHarnessConfigWarning:
             def chat(question, session_id="s1"):
                 return "reply"
 
-            _msgs = [str(x.message) for x in w if "반영되지 않습니다" in str(x.message)]
+            _msgs = [str(x.message) for x in w if "not reflected in the current evaluation" in str(x.message)]
             assert len(_msgs) == 1
             for _name in ("sla", "instructions", "scope"):
                 assert _name in _msgs[0]
@@ -335,7 +335,7 @@ class TestReq5ConversationEvalDeadHarnessConfigWarning:
             def chat(question, session_id="s1"):
                 return "reply"
 
-            assert not any("반영되지 않습니다" in str(x.message) for x in w)
+            assert not any("not reflected in the current evaluation" in str(x.message) for x in w)
 
     def test_llm_judge_not_flagged(self, tmp_path):
         """llm_judge는 실제로 동작하는 파라미터이므로 이 경고 대상이 아니다."""
@@ -349,7 +349,7 @@ class TestReq5ConversationEvalDeadHarnessConfigWarning:
             def chat(question, session_id="s1"):
                 return "reply"
 
-            assert not any("반영되지 않습니다" in str(x.message) for x in w)
+            assert not any("not reflected in the current evaluation" in str(x.message) for x in w)
 
 
 def _harness_config_param_names(fn):

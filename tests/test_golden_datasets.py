@@ -408,7 +408,7 @@ class TestEvaluateBatch:
 class TestLoadGoldenDataset:
     def test_file_not_found_raises_storage_error(self):
         mon = _make_monitor()
-        with pytest.raises(StorageError, match="찾을 수 없습니다"):
+        with pytest.raises(StorageError, match="not found"):
             mon.load_golden_dataset("/nonexistent/path/dataset.json")
 
     def test_load_list_format(self, tmp_path):
@@ -446,7 +446,7 @@ class TestLoadGoldenDataset:
         f.write_text(json.dumps({"other_key": []}), encoding="utf-8")
 
         mon = _make_monitor()
-        with pytest.raises(StorageError, match="포맷"):
+        with pytest.raises(StorageError, match="format is invalid"):
             mon.load_golden_dataset(str(f))
 
     def test_cached_in_golden_datasets(self, tmp_path):

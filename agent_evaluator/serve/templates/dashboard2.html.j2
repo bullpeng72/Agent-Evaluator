@@ -6524,7 +6524,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </template>
           </div>
 
-          <template x-if="finding.top_detail_deltas && finding.top_detail_deltas.length">
+          <template x-if="finding.top_detail_deltas && finding.top_detail_deltas.length && finding.baseline_score!=null">
             <div style="overflow-x:auto;margin-bottom:8px">
             <table style="width:100%;border-collapse:collapse;font-size:12px">
               <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
@@ -6540,6 +6540,33 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
                     <td style="padding:4px;text-align:right"
                         :style="d.delta<0?'color:var(--red)':(d.delta>0?'color:var(--green)':'')"
                         x-text="d.delta!=null?(d.delta>0?'+':'')+d.delta.toFixed(4):'—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            </div>
+          </template>
+
+          <!-- SPEC-041 P2.3: baseline이 없으면(배치 단발) delta 대신 component_shortfalls
+               (지금 이 Gate 점수를 깎는 컴포넌트, health 낮은 순)을 보여준다 — 정적
+               HTML 리포트/`agent-eval diagnose`와 같은 데이터. -->
+          <template x-if="finding.baseline_score==null && finding.component_shortfalls && finding.component_shortfalls.length">
+            <div style="overflow-x:auto;margin-bottom:8px">
+            <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Weakest score components (what is holding this Gate back):</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                <th style="text-align:left;padding:4px">Component</th>
+                <th style="text-align:right;padding:4px">Current</th>
+                <th style="text-align:right;padding:4px">Health</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="s in finding.component_shortfalls" :key="s.field">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:4px" x-text="s.field"></td>
+                    <td style="padding:4px;text-align:right" x-text="s.value!=null?s.value.toFixed(3):'—'"></td>
+                    <td style="padding:4px;text-align:right"
+                        :style="s.health<0.5?'color:var(--red)':(s.health<0.7?'color:var(--yellow)':'color:var(--green)')"
+                        x-text="s.health!=null?(s.health*100).toFixed(0)+'%':'—'"></td>
                   </tr>
                 </template>
               </tbody>

@@ -51,28 +51,78 @@ def _fmt_delta_value(v: float | None) -> str:
     return f"{v:.4f}" if v is not None else "n/a"
 
 
-def _print_finding(finding: dict[str, Any]) -> None:
+def _fmt_component_value(field: str, v: float) -> str:
+    """component_shortfalls의 원시 값을 필드 단위에 맞춰 표시(HTML 리포트와 동일 규약)."""
+    if field.endswith("_pct"):
+        return f"{v:.1f}%"
+    if field.endswith("_s"):
+        return f"{v:.3f}s"
+    if field.endswith("_ms"):
+        return f"{v:.0f}ms"
+    if 0.0 <= v <= 1.0:
+        return f"{v:.3f}"
+    return f"{v:.2f}"
+
+
+def _native_rule_guidance(field: str) -> str:
+    """Gate details 필드명 → NATIVE_METRIC_RULES 처방 문구(매칭 규칙 없으면 "")."""
+    try:
+        from agent_evaluator.ontology.metric_registry import (
+            NATIVE_METRIC_RULES,
+            canonical_metric_name,
+        )
+        canon = canonical_metric_name(field)
+        for rule in NATIVE_METRIC_RULES:
+            if rule.metric == canon:
+                return rule.guidance
+    except Exception:
+        pass
+    return ""
+
+
+def _print_finding(finding: dict[str, Any], *, absolute_mode: bool = False) -> None:
     gate = finding["gate"]
     cur = _fmt_score(finding["current_score"])
     base = finding["baseline_score"]
     base_str = f" (baseline {_fmt_score(base)})" if base is not None else ""
     print(f"\n{B}Gate {gate}{R} — score {cur}{base_str}")
 
-    deltas = finding["top_detail_deltas"]
-    if not deltas:
-        print(f"  {D}(no comparable detail metrics){R}")
+    if absolute_mode:
+        # baseline이 없으면 delta를 못 내므로(전부 "no baseline"), 대신 "지금 이 Gate
+        # 점수를 깎는 컴포넌트"를 약한 순으로 보여준다(rca.diagnose의 component_shortfalls).
+        shortfalls = finding.get("component_shortfalls") or []
+        if not shortfalls:
+            print(f"  {D}(no interpretable score components recorded){R}")
+        else:
+            print(f"  {D}Weakest score components (what is holding Gate {gate} back):{R}")
+            for s in shortfalls[:5]:
+                health = s["health"] * 100.0
+                _color = RD if health < 50 else (Y if health < 70 else G)
+                _val = _fmt_component_value(s["field"], s["value"])
+                print(f"    {s['field']:<34} {_val:<12} "
+                      f"health {_color}{health:5.1f}%{R}")
+            _seen: set[str] = set()
+            for _s in shortfalls[:3]:
+                _rule_g = _native_rule_guidance(_s["field"])
+                if _rule_g and _rule_g not in _seen:
+                    _seen.add(_rule_g)
+                    print(f"    {D}→ {_rule_g}{R}")
     else:
-        print(f"  {D}Detail metric changes (step 2 — attribution, largest absolute first):{R}")
-        for d in deltas[:5]:
-            delta = d["delta"]
-            if delta is None:
-                _sign_str = f"{D}(no baseline){R}"
-            else:
-                _color = RD if delta < 0 else G
-                _sign_str = f"{_color}{delta:+.4f}{R}"
-            _base_str = _fmt_delta_value(d["baseline"])
-            _cur_str = _fmt_delta_value(d["current"])
-            print(f"    {d['field']:<32} {_base_str} -> {_cur_str}  {_sign_str}")
+        deltas = finding["top_detail_deltas"]
+        if not deltas:
+            print(f"  {D}(no comparable detail metrics){R}")
+        else:
+            print(f"  {D}Detail metric changes (step 2 — attribution, largest absolute first):{R}")
+            for d in deltas[:5]:
+                delta = d["delta"]
+                if delta is None:
+                    _sign_str = f"{D}(no baseline){R}"
+                else:
+                    _color = RD if delta < 0 else G
+                    _sign_str = f"{_color}{delta:+.4f}{R}"
+                _base_str = _fmt_delta_value(d["baseline"])
+                _cur_str = _fmt_delta_value(d["current"])
+                print(f"    {d['field']:<32} {_base_str} -> {_cur_str}  {_sign_str}")
 
     refs = finding["cross_references"]
     if refs:
@@ -158,8 +208,14 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
             f"sla_budget_penalty={check['sla_budget_penalty']}{R}"
         )
 
+    _absolute_mode = result["detection_mode"] == "absolute_threshold"
+    if _absolute_mode:
+        print(
+            f"{D}No baseline given — ranking each detected Gate's measured score "
+            f"components from weakest to strongest instead of a baseline delta.{R}"
+        )
     for finding in result["findings"]:
-        _print_finding(finding)
+        _print_finding(finding, absolute_mode=_absolute_mode)
 
     exp_meta = result.get("experiment_metadata")
     if exp_meta:

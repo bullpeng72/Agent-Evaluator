@@ -184,10 +184,10 @@ def eval_consensus(
         # agent_weights 키가 실제 names와 하나도 일치하지 않으면 경고 (사실상 majority 동작)
         if not any(n in agent_weights for n in names):
             logger.warning(
-                "eval_consensus: method='weighted'이지만 agent_weights 키 %s가 "
-                "agent_names %s와 일치하지 않아 모든 가중치가 1.0으로 폴백됩니다. "
-                "ConsensusConfig(agent_weights={'<name>': weight}) 에서 키를 "
-                "agent_names와 동일하게 설정하세요.",
+                "eval_consensus: method='weighted' but agent_weights keys %s do not match "
+                "agent_names %s, so every weight falls back to 1.0. In "
+                "ConsensusConfig(agent_weights={'<name>': weight}), make the keys identical "
+                "to agent_names.",
                 list(agent_weights.keys()), names,
             )
         _w_agree = 0.0

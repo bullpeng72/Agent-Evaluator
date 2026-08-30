@@ -186,7 +186,21 @@ function resolveGuardrailConfig(): GuardrailInitConfig {
   return GUARDRAIL_CONFIG
 }
 
-const EFFECTIVE_GUARDRAIL_CONFIG: GuardrailInitConfig = resolveGuardrailConfig()
+const _RESOLVED_GUARDRAIL_CONFIG = resolveGuardrailConfig() as Record<string, unknown>
+
+// SPEC-041 P2.4: Claude 훅의 circuit_breaker_after와 대칭 — 한 세션에서 연속 N회
+// 차단되면 남은 세션 동안 관찰 전용(위반은 계속 감사, 실행은 통과)으로 전환한다.
+// 지속 차단은 공격보다 오설정일 확률이 압도적이라, 무기한 락아웃 대신 크게 경고하고
+// 통과시킨다. init 브리지에 넘길 값이 아니므로(LiveGuardrail 생성자 인자 아님) 여기서
+// 분리한다. 0/null이면 끈다.
+const CIRCUIT_BREAKER_AFTER: number = (() => {
+  const v = _RESOLVED_GUARDRAIL_CONFIG.circuit_breaker_after
+  return typeof v === "number" && v >= 0 ? v : 5
+})()
+delete _RESOLVED_GUARDRAIL_CONFIG.circuit_breaker_after
+
+const EFFECTIVE_GUARDRAIL_CONFIG: GuardrailInitConfig =
+  _RESOLVED_GUARDRAIL_CONFIG as GuardrailInitConfig
 
 // 기본값 "__AGENT_EVALUATOR_PYTHON_DEFAULT__"는 `agent-eval opencode install`이 설치
 // 시점의 인터프리터 절대경로로 치환한다(이 번들 원본에는 리터럴 플레이스홀더로 남는다).
@@ -201,6 +215,10 @@ interface LiveVerdict {
   gate: "B" | "E" | null
   reason: string | null
   detail: Record<string, unknown>
+  // SPEC-041: 차단 시 Python LiveVerdict.__post_init__이 채우는 조치 문구
+  // (dataclasses.asdict로 stdio 브리지를 그대로 통과). "무엇이 막혔나"에 더해
+  // "그래서 뭘 하라"까지 다음 턴 컨텍스트에 노출해 로컬 모델의 자가 교정을 돕는다.
+  remediation?: string | null
 }
 
 // SPEC-031 REQ-3: record_tool_call(output=...)에 실어 보낼 실행 결과. success/exit_code는
@@ -297,6 +315,11 @@ class GuardrailSession {
   // SPEC-041: 직전에 transcript로 알린 위반/차단 건수 — session.idle이 턴마다 오므로,
   // 새 위반이 생겼을 때만 synthetic 요약을 transcript에 덧붙여 컨텍스트 부풀림을 막는다.
   reportedViolationCount = 0
+  // SPEC-041 P2.4: circuit breaker 상태 (Claude 훅의 sessions/<id>.circuit.json과 대칭).
+  // consecutiveBlocks는 성공 실행(record) 시 0으로 리셋, circuitTripped는 한 번 켜지면
+  // 세션 끝까지 유지(sticky). tripped면 tool.execute.before가 throw하지 않고 통과시킨다.
+  consecutiveBlocks = 0
+  circuitTripped = false
 
   constructor() {
     this.proc = spawn(PYTHON_BIN, ["-m", "agent_evaluator.integrations.live_guardrail_stdio"], {
@@ -525,7 +548,11 @@ function summarizeGuardrailResult(
     // 자율 호출을 신뢰할 수 있음을 라이브 검증으로 확인했다(2026-07-05, ctx skill
     // 재검증 — 언급 없이는 스킵/MCP 도구를 전혀 안 씀). 이 문구를 transcript 자체에
     // 심어 다음 세션의 컨텍스트에 도구 이름을 자연스럽게 노출시켜 이 제약을 완화한다.
-    lines.push("- 다음 세션에서 유사한 시도를 하기 전에 search_violations 도구로 이 사유를 검색해 확인하라.")
+    lines.push(
+      "- Before repeating a similar attempt: use the search_violations tool to check the " +
+        "past block history for this reason, and the recommend_fix tool for how to " +
+        "address the relevant Gate/metric.",
+    )
   }
   if (!report.ok) {
     lines.push(`- (batch report save failed: ${report.error})`)
@@ -614,15 +641,41 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
       }
       if (verdict.block) {
         // SPEC-030 REQ-6: 이 시도를 실제로 실행하지 않기로 확정하는 지점 —
-        // 에러를 던지기 전에 감사 이력에 기록한다.
+        // 에러를 던지기 전에 감사 이력에 기록한다. (circuit tripped여도 감사는 계속.)
+        const session = getOrCreateSession(sessionId)
         try {
-          await getOrCreateSession(sessionId).recordBlocked(sessionId, input.tool, verdict)
+          await session.recordBlocked(sessionId, input.tool, verdict)
         } catch (err) {
           console.error(`[agent-evaluator] recordBlocked failed: ${err}`)
         }
+
+        // SPEC-041 P2.4: circuit breaker — 연속 차단이 임계값에 도달하면 남은 세션
+        // 동안 관찰 전용으로 전환한다(Claude 훅과 대칭). tripped면 throw하지 않고 통과.
+        session.consecutiveBlocks += 1
+        if (
+          !session.circuitTripped &&
+          CIRCUIT_BREAKER_AFTER > 0 &&
+          session.consecutiveBlocks >= CIRCUIT_BREAKER_AFTER
+        ) {
+          session.circuitTripped = true
+        }
+        if (session.circuitTripped) {
+          console.error(
+            `[agent-evaluator] circuit breaker tripped — ${session.consecutiveBlocks} ` +
+              `consecutive blocks in session ${sessionId} (most recent: ${verdict.reason}). ` +
+              `Observe-only for the rest of the session: violations are still recorded but no ` +
+              `longer enforced. This almost always means agent-evaluator.config.json is ` +
+              `miscalibrated — fix it and start a new session.`,
+          )
+          return
+        }
+
         // 이 에러 메시지가 다음 턴 컨텍스트에 노출되어 로컬 모델(qwen-code 등)의
         // 자가 교정 신호가 된다 — SPEC-019 Context 참조.
-        throw new Error(`[agent-evaluator] blocked by Gate ${verdict.gate}: ${verdict.reason}`)
+        const _rem = verdict.remediation ? `\n→ ${verdict.remediation}` : ""
+        throw new Error(
+          `[agent-evaluator] blocked by Gate ${verdict.gate}: ${verdict.reason}${_rem}`,
+        )
       }
     },
 
@@ -635,6 +688,9 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
       try {
         const sessionId = input.sessionID
         const session = getOrCreateSession(sessionId)
+        // SPEC-041 P2.4: 도구가 실제로 실행된 지점 → 연속 차단 카운터 리셋
+        // (circuitTripped는 sticky라 유지). Claude 훅 PostToolUse와 동일.
+        session.consecutiveBlocks = 0
         await session.record(sessionId, input.tool, input.args, extractToolExecutionOutput(output))
       } catch (err) {
         console.error(`[agent-evaluator] tool.execute.after record failed: ${err}`)

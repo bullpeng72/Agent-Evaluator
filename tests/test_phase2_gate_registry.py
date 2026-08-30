@@ -40,13 +40,13 @@ def _custom_cost_gate(tasks, min_samples_default):
 class TestRegisterGateValidation:
     def test_reserved_builtin_id_rejected(self):
         m = PerformanceMonitor()
-        with pytest.raises(ValueError, match="예약어"):
+        with pytest.raises(ValueError, match="reserved for the built-in Gates"):
             m.register_gate("A", _custom_cost_gate)
 
     def test_duplicate_registration_rejected(self):
         m = PerformanceMonitor()
         m.register_gate("COST", _custom_cost_gate)
-        with pytest.raises(ValueError, match="이미 등록"):
+        with pytest.raises(ValueError, match="already registered"):
             m.register_gate("COST", _custom_cost_gate)
 
     def test_multi_char_id_allowed(self):
