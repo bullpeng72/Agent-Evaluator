@@ -9,6 +9,7 @@ agent-eval gate — CI/CD 품질 게이팅 명령어.
     1 — 임계값 기준 미달
     2 — 이전 버전 대비 회귀 감지 (--fail-on-regression 사용 시)
     3 — 골든셋 회귀 감지 (--golden-set + --fail-on-golden-regression 사용 시, SPEC-025 REQ-6)
+    4 — 케이스 회귀 / 리뷰 큐 초과 (--fail-on-case-regression / --max-review-high, SPEC-041 P26)
 """
 
 from __future__ import annotations
@@ -718,6 +719,43 @@ def _print_narrative(data: dict[str, Any]) -> None:
     print(f"  {_SEP}")
 
 
+def _compute_gate_insights(
+    data: dict[str, Any], args: argparse.Namespace, baseline_path: Path | None,
+) -> dict[str, Any] | None:
+    """SPEC-041 P26: build the ``insights`` object for the case-regression /
+    review-queue gate and the ``--notify`` payload.
+
+    Case-level lineage needs a full baseline *result* JSON (with ``tasks[]``),
+    which the summary ``--baseline`` file does not carry. Order of preference:
+    ``--baseline-result`` → ``--baseline`` / the resolved baseline path when that
+    file itself carries ``tasks[]``. Returns ``None`` only on total failure;
+    ``failure_lineage`` stays ``None`` inside the dict when no baseline result
+    was found (the caller warns for ``--fail-on-case-regression``)."""
+    baseline_result: dict[str, Any] | None = None
+    candidates: list[Path] = []
+    br_path = getattr(args, "baseline_result", None)
+    if br_path:
+        candidates.append(Path(br_path))
+    if baseline_path is not None:
+        candidates.append(Path(baseline_path))
+    for cand in candidates:
+        try:
+            if cand.is_file():
+                with open(cand, encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict) and loaded.get("tasks"):
+                    baseline_result = loaded
+                    break
+        except (json.JSONDecodeError, OSError):
+            continue
+    try:
+        from agent_evaluator.reporting.insights import build_insights
+
+        return build_insights(data, baseline_result)
+    except Exception:
+        return None
+
+
 def _print_table(
     gate_results: list[dict[str, Any]],
     result_path: str,
@@ -881,7 +919,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
         args: argparse.Namespace — CLI 인수.
 
     Returns:
-        종료 코드 (0=통과, 1=기준 미달, 2=회귀 감지, 3=골든셋 회귀 감지).
+        종료 코드 (0=통과, 1=기준 미달, 2=회귀 감지, 3=골든셋 회귀 감지,
+        4=케이스 회귀/리뷰 큐 초과).
 
     Example:
         # argparse.Namespace를 직접 생성해 호출하는 경우
@@ -1091,28 +1130,93 @@ def cmd_gate(args: argparse.Namespace) -> int:
         _write_junit_xml(gate_results, regressions or None, Path(junit_xml_path))
         print(f"{D}JUnit XML: {junit_xml_path}{R}")
 
+    # ── 케이스 회귀 / 리뷰 큐 게이트 + 알림 (SPEC-041 P26) ──────────────────
+    case_regression_fail = False
+    review_high_fail = False
+    _p26_insights: dict[str, Any] | None = None
+    _fail_on_case = getattr(args, "fail_on_case_regression", False)
+    _max_review_high = getattr(args, "max_review_high", None)
+    _notify_targets = getattr(args, "notify", None) or []
+    if _fail_on_case or _max_review_high is not None or _notify_targets:
+        _p26_insights = _compute_gate_insights(data, args, baseline_path)
+        _lineage = (_p26_insights or {}).get("failure_lineage")
+        _regressed = (_lineage or {}).get("regressed") or []
+        if _fail_on_case:
+            if _lineage is None:
+                print(
+                    f"{Y}⚠  --fail-on-case-regression needs a baseline result "
+                    f"(--baseline-result PATH, or a --baseline file that carries "
+                    f"tasks[]) — skipping case-regression check.{R}",
+                    file=sys.stderr,
+                )
+            elif _regressed:
+                case_regression_fail = True
+                print(
+                    f"\n{RD}{B}Case-level regressions ({len(_regressed)}):{R}",
+                    file=sys.stderr,
+                )
+                for _tid in _regressed[:20]:
+                    print(
+                        f"  {RD}✗ {_tid} — passed in baseline, fails now{R}",
+                        file=sys.stderr,
+                    )
+        if _max_review_high is not None:
+            _high = int(
+                (((_p26_insights or {}).get("review_queue") or {}).get("by_priority") or {})
+                .get("high", 0)
+            )
+            if _high > _max_review_high:
+                review_high_fail = True
+                print(
+                    f"\n{RD}HIGH-priority human-review items: {_high} "
+                    f"(max allowed {_max_review_high}){R}",
+                    file=sys.stderr,
+                )
+
     # ── 종료 코드 결정 ───────────────────────────────────────────────────────
     # SPEC-025 REQ-6: --fail-on-golden-regression이 지정된 경우에만 골든셋 회귀가
     # 종료 코드에 반영된다(플래그 없이 --golden-set만 주면 위에서 이미 보고는 하되
     # 통과/실패 판정에는 영향을 주지 않는다 — 다른 옵트인 체크들과 동일한 관례).
     if getattr(args, "fail_on_golden_regression", False) and golden_regressions:
-        return 3
+        exit_code = 3
+    elif case_regression_fail or review_high_fail:
+        exit_code = 4
+    elif regressions:
+        exit_code = 2
+    elif any(not g["passed"] for g in gate_results if g["active"]):
+        exit_code = 1
+    elif (
+        composite_result is not None
+        and composite_result.get("composite") is not None
+        and composite_result["composite"] < composite_result["min_score"]
+    ):
+        exit_code = 1
+    elif gate_threshold_violations:
+        exit_code = 1
+    else:
+        exit_code = 0
 
-    if regressions:
-        return 2
+    # ── 알림 발송 (SPEC-041 P26) — 종료 코드에는 영향 없음 ──────────────────
+    if _notify_targets:
+        if _p26_insights is None:
+            _p26_insights = _compute_gate_insights(data, args, baseline_path)
+        try:
+            from agent_evaluator.alerts import dispatch_gate_result
 
-    active_gates = [g for g in gate_results if g["active"]]
-    if any(not g["passed"] for g in active_gates):
-        return 1
+            _rows = dispatch_gate_result(
+                list(_notify_targets), _p26_insights or {},
+                passed=(exit_code == 0), result_file=str(result_file),
+                exit_code=exit_code,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            _rows = [{"target": t, "ok": False, "error": str(exc)} for t in _notify_targets]
+        for _row in _rows:
+            if _row["ok"]:
+                print(f"{G}✅ Notified {_row['target']}{R}")
+            else:
+                print(
+                    f"{Y}⚠  Notification to {_row['target']} failed: {_row['error']}{R}",
+                    file=sys.stderr,
+                )
 
-    # 복합 게이트 실패
-    if composite_result is not None:
-        composite = composite_result.get("composite")
-        if composite is not None and composite < composite_result["min_score"]:
-            return 1
-
-    # Gate별 임계값 위반
-    if gate_threshold_violations:
-        return 1
-
-    return 0
+    return exit_code

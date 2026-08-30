@@ -1018,6 +1018,39 @@ def main() -> None:
         help="Suppress the RCA summary even on failure (quiet CI).",
     )
     gate_p.set_defaults(explain=None)
+    gate_p.add_argument(
+        "--baseline-result", metavar="PATH", dest="baseline_result",
+        help=(
+            "Full prior result JSON (with tasks[]) for case-level regression "
+            "lineage and --notify context. Distinct from --baseline, which is a "
+            "metrics/gate-score summary. If omitted, --baseline is reused when "
+            "that file itself carries tasks[]."
+        ),
+    )
+    gate_p.add_argument(
+        "--fail-on-case-regression", action="store_true", dest="fail_on_case_regression",
+        help=(
+            "Return exit code 4 if any task passed in the baseline result but "
+            "fails now (insights.failure_lineage.regressed). Needs --baseline-result."
+        ),
+    )
+    gate_p.add_argument(
+        "--max-review-high", type=int, metavar="N", dest="max_review_high",
+        help=(
+            "Return exit code 4 if the human-review queue has more than N "
+            "HIGH-priority items (insights.review_queue.by_priority.high)."
+        ),
+    )
+    gate_p.add_argument(
+        "--notify", action="append", metavar="TARGET", dest="notify",
+        help=(
+            "Send the gate result (narrative + regressed cases + cohort winner) "
+            "to a target: slack://<webhook-host/path>, webhook://<host/path>, or a "
+            "raw http(s):// URL. 'slack://' / 'webhook://' with an empty body fall "
+            "back to $SLACK_WEBHOOK / $ALERT_WEBHOOK_URL. Repeatable. Delivery "
+            "failures are reported but never change the exit code."
+        ),
+    )
 
     # diagnose subcommand (Phase 4 — RCA)
     diag_p = sub.add_parser(

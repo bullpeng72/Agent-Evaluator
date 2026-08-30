@@ -187,8 +187,9 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | 1 | 임계값 미달 / 복합 점수 미달 / Gate 임계값 위반 |
 | 2 | baseline 대비 회귀 (`--fail-on-regression`) |
 | 3 | 골든셋 회귀 (`--golden-set --fail-on-golden-regression`) |
+| 4 | 케이스 회귀 / 리뷰 큐 초과 (SPEC-041 P26) — `--fail-on-case-regression`(baseline에선 통과했는데 지금 실패하는 task; `--baseline-result` full result JSON 필요) 또는 `--max-review-high N`(`insights.review_queue.by_priority.high > N`). 우선순위: golden(3) > case/review(4) > regression(2). |
 
-`--junit-xml PATH` → CI 시스템 통합용 XML. 상세: [05_QUALITY_GATE](05_QUALITY_GATE.md).
+`--junit-xml PATH` → CI 시스템 통합용 XML. `--notify slack://… / webhook://… / https://…`(반복 가능, SPEC-041 P26) → 종료 코드 확정 후 `insights.narrative` + `failure_lineage.regressed` + `cohort_comparison.winner`를 Slack/webhook으로 발송(`alerts.dispatch_gate_result()`; 전송 실패는 보고만, 종료 코드 불변). 상세: [05_QUALITY_GATE](05_QUALITY_GATE.md).
 
 ### `agent-eval diagnose` — Gate 회귀 원인진단 (RCA)
 

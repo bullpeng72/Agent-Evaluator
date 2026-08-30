@@ -389,3 +389,125 @@ class AlertEngine:
 
             fired.append(event)
         return fired
+
+
+# ---------------------------------------------------------------------------
+# Gate-result notification (SPEC-041 P26) — one-shot, no rules/cooldown. Sends
+# `agent-eval gate`'s narrative + regressed cases + cohort winner to Slack /
+# webhook targets. Kept a module function (not an AlertEngine method) because a
+# CI gate run is stateless and short-lived.
+# ---------------------------------------------------------------------------
+
+def build_gate_result_message(
+    insights: dict[str, Any],
+    *,
+    passed: bool,
+    result_file: str = "",
+    exit_code: int | None = None,
+) -> str:
+    """Human-readable gate-result summary from a ``build_insights()`` dict."""
+    lines: list[str] = []
+    verdict = "PASSED" if passed else "FAILED"
+    head = f"Agent-Evaluator gate {verdict}"
+    if result_file:
+        head += f" — {result_file}"
+    if exit_code is not None:
+        head += f" (exit {exit_code})"
+    lines.append(head)
+
+    narrative = (insights or {}).get("narrative") or ""
+    if narrative:
+        lines.append("")
+        lines.append(str(narrative).strip())
+
+    regressed = ((insights or {}).get("failure_lineage") or {}).get("regressed") or []
+    if regressed:
+        shown = ", ".join(str(t) for t in regressed[:10])
+        more = f" (+{len(regressed) - 10} more)" if len(regressed) > 10 else ""
+        lines.append("")
+        lines.append(f"Regressed cases ({len(regressed)}): {shown}{more}")
+
+    winner = ((insights or {}).get("cohort_comparison") or {}).get("winner")
+    if isinstance(winner, dict):
+        lines.append("")
+        if winner.get("label"):
+            lines.append(
+                f"Cohort winner: {winner['label']} — {winner.get('reason', '')}".rstrip(" —")
+            )
+        elif winner.get("reason"):
+            lines.append(f"Cohort comparison: {winner['reason']}")
+
+    return "\n".join(lines)
+
+
+def _handler_for_target(target: str) -> Any:
+    """Resolve a ``slack://`` / ``webhook://`` / ``http(s)://`` target string to
+    a handler instance. ``slack://`` and ``webhook://`` are rewritten to
+    ``https://``; an empty body falls back to ``SLACK_WEBHOOK`` /
+    ``ALERT_WEBHOOK_URL``. Returns ``None`` when nothing usable is configured."""
+    import os
+
+    from .handlers import SlackHandler, WebhookHandler
+
+    t = (target or "").strip()
+    if not t:
+        return None
+    if t.startswith("slack://"):
+        rest = t[len("slack://"):]
+        url = (
+            f"https://{rest}" if rest and rest not in ("env", "-")
+            else os.getenv("SLACK_WEBHOOK", "")
+        )
+        return SlackHandler(webhook_url=url) if url else None
+    if t.startswith("webhook://"):
+        rest = t[len("webhook://"):]
+        url = (
+            f"https://{rest}" if rest and rest not in ("env", "-")
+            else os.getenv("ALERT_WEBHOOK_URL", "")
+        )
+        return WebhookHandler(url=url) if url else None
+    if t.startswith(("http://", "https://")):
+        if "hooks.slack.com" in t:
+            return SlackHandler(webhook_url=t)
+        return WebhookHandler(url=t)
+    return None
+
+
+def dispatch_gate_result(
+    targets: list[str] | str,
+    insights: dict[str, Any],
+    *,
+    passed: bool,
+    result_file: str = "",
+    exit_code: int | None = None,
+    max_retries: int = 2,
+) -> list[dict[str, Any]]:
+    """Send one gate-result notification per target. Never raises — returns a
+    per-target ``{"target", "ok", "error"}`` list so the caller (``cli/gate.py``)
+    can report delivery without failing the build on a notification error."""
+    if isinstance(targets, str):
+        targets = [targets]
+    message = build_gate_result_message(
+        insights, passed=passed, result_file=result_file, exit_code=exit_code,
+    )
+    event = AlertEvent(
+        rule_name="gate_result",
+        severity="warning" if passed else "critical",
+        message=message,
+        value={"passed": passed, "exit_code": exit_code, "result_file": result_file},
+    )
+    out: list[dict[str, Any]] = []
+    for target in targets:
+        row: dict[str, Any] = {"target": target, "ok": False, "error": None}
+        try:
+            handler = _handler_for_target(target)
+            if handler is None:
+                row["error"] = "unrecognised or unconfigured target"
+            else:
+                row["ok"] = _send_with_retry(handler, event, max_retries=max_retries)
+                if not row["ok"]:
+                    row["error"] = "handler.send() failed after retries"
+        except Exception as exc:  # pragma: no cover - defensive
+            row["error"] = str(exc)
+        out.append(row)
+    return out

@@ -30,6 +30,8 @@ agent-eval dashboard                                      # FastAPI dashboard (p
 agent-eval gate result.json --tcr 85 --accuracy 70        # CI/CD quality gating
 agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   # per-version baseline
 agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3
+agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regression   # exit 4 if a task passed before & fails now (SPEC-041 P26)
+agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X  # exit 4 on HIGH review items; post narrative+regressions+cohort winner
 agent-eval diagnose result.json --baseline baseline.json   # Gate regression RCA (not a CI gate, informational only)
 agent-eval abtest v1.json v2.json --metric accuracy_score   # statistical A/B (Welch's t-test), not a CI gate
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference (safe to peek)
@@ -551,6 +553,14 @@ agent_evaluator/
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler
 │                          # dispatch_anomaly_events() — AnomalyEvent를 type별 캐시된
 │                          #  AlertRule(self._anomaly_rules, evaluate()의 self._rules와 분리)로 발송
+│                          # dispatch_gate_result(targets, insights, *, passed, ...)(SPEC-041 P26) —
+│                          #  룰/쿨다운 없는 1회성. build_gate_result_message()가 insights의
+│                          #  narrative + failure_lineage.regressed + cohort_comparison.winner를
+│                          #  한 AlertEvent로 조립, _handler_for_target()이 slack://·webhook://·
+│                          #  raw http(s):// 를 핸들러로 해석(빈 본문은 $SLACK_WEBHOOK/
+│                          #  $ALERT_WEBHOOK_URL 폴백). 절대 raise 안 함 — per-target {ok,error}
+│                          #  리스트 반환, `agent-eval gate --notify`가 소비(전송 실패는
+│                          #  보고만, 종료 코드 불변)
 ├── storage/               # sqlite_backend.py — save_tasks_to_db · load_tasks_from_db
 │                          # (PerformanceMonitor(storage_backend="sqlite") 옵트인 대안, 기본값 "json")
 │                          # violation_search(FTS5) + search_violations() —
@@ -581,6 +591,14 @@ agent_evaluator/
 │                          #  _print_rca_explain(data): rca.diagnose() + component_guidance_for()로
 │                          #  fail/warn Gate마다 최약 컴포넌트 2개 + 조치를 CI 로그에 3줄 출력.
 │                          #  기본은 실패 시 자동, --explain 항상, --no-explain 억제. exit code 불변.
+│                          # gate --fail-on-case-regression/--baseline-result/--max-review-high/
+│                          #  --notify(SPEC-041 P26) — _compute_gate_insights()가 full baseline
+│                          #  *result* JSON(--baseline-result, 없으면 tasks[] 있는 --baseline)로
+│                          #  build_insights() 계산. failure_lineage.regressed 비어있지 않으면
+│                          #  exit 4(--fail-on-case-regression), review_queue.by_priority.high >
+│                          #  N이면 exit 4(--max-review-high N). exit 4는 golden(3) 다음,
+│                          #  regression(2)보다 우선. --notify(반복 가능)는 종료 코드 확정 후
+│                          #  alerts.dispatch_gate_result()로 발송(전송 실패 보고만, 코드 불변).
 ├── cli/claude.py          # claude install [--global/--force/--with-violation-search/
 │                          #  --with-recommend-fix] — .claude/settings.json(또는 --global 시
 │                          #  ~/.claude/settings.json)에 PreToolUse/PostToolUse/SessionEnd 훅을
@@ -1014,6 +1032,20 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P26 (케이스 회귀 게이트 + 알림)** — `agent-eval gate`에 옵트인 exit 4 체크 2개 +
+`--notify` 추가. `cli/gate.py::_compute_gate_insights(data, args, baseline_path)` — full baseline
+*result* JSON(`--baseline-result`, 없으면 `tasks[]`를 담은 `--baseline`/해석된 baseline 경로)으로
+`build_insights(current, baseline_result)` 1회 계산(총 실패 시 None, baseline result 없으면 dict
+안 `failure_lineage`만 None). `--fail-on-case-regression` → `failure_lineage.regressed`(baseline에선
+통과했는데 지금 실패하는 task_id)가 비어있지 않으면 exit 4(baseline result 없으면 경고 후 스킵).
+`--max-review-high N` → `review_queue.by_priority.high > N`이면 exit 4. 종료 코드 우선순위:
+golden(3) > case/review(4) > regression(2) > gate fail/composite/threshold(1) > 0. `--notify TARGET`
+(반복 가능) — 종료 코드 확정 후 `alerts.dispatch_gate_result(targets, insights, passed=, result_file=,
+exit_code=)` 호출: `build_gate_result_message()`가 narrative + regressed + cohort winner를 조립,
+`slack://`·`webhook://`(→`https://`, 빈 본문은 `$SLACK_WEBHOOK`/`$ALERT_WEBHOOK_URL`)·raw
+http(s):// 를 핸들러로. 전송 실패는 stderr 보고만, 종료 코드 불변. `alerts/__init__.py`가
+`dispatch_gate_result`/`build_gate_result_message` export.
 
 **SPEC-041 P25 (스팬 타임라인·워터폴 트레이스)** — `reporting/insights.py::parse_span_timeline(items)`
 신설(순수 함수) — 평면 스텝 리스트(`tool_calls`/`chain_steps`/`agent_interactions`)에 타이밍이 있으면
