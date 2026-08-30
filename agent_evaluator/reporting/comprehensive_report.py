@@ -2995,6 +2995,85 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
     )
 
 
+def _build_cohort_comparison(cc: dict[str, Any] | None) -> str:
+    """P22: 3+ versions side by side — per-version TCR + Gate scores, per-task_type
+    winner, FDR-adjusted pairwise significance, and a 'pick the winner' call."""
+    if not cc or not cc.get("versions"):
+        return ""
+    vs = cc["versions"]
+    metric = cc.get("metric", "tcr").upper()
+
+    vrows = ""
+    for v in vs:
+        gs = v.get("gate_scores") or {}
+        gs_txt = " · ".join(f"{g} {gs[g]:.2f}" for g in "ABCDEFG" if g in gs) or "—"
+        tcr = v.get("tcr_pct")
+        vrows += (
+            f'<tr><td style="font-weight:600">{_esc(v.get("label", "?"))}</td>'
+            f'<td style="text-align:right">{v.get("n_tasks", 0)}</td>'
+            f'<td style="text-align:right">{tcr:.1f}%</td>' if tcr is not None else
+            f'<tr><td style="font-weight:600">{_esc(v.get("label", "?"))}</td>'
+            f'<td style="text-align:right">{v.get("n_tasks", 0)}</td><td>—</td>'
+        )
+        vrows += f'<td style="font-size:11px;color:#6b7280">{_esc(gs_txt)}</td></tr>'
+
+    prows = ""
+    for e in cc.get("pairwise") or []:
+        sig = e.get("significant_fdr")
+        col = "#059669" if sig else "#6b7280"
+        ci = e.get("ci_pp")
+        ci_s = f' CI [{ci[0]:+.0f}, {ci[1]:+.0f}]' if isinstance(ci, (list, tuple)) else ""
+        pf = e.get("p_value_fdr")
+        prows += (
+            f'<tr><td>{_esc(e.get("a", ""))} vs {_esc(e.get("b", ""))}</td>'
+            f'<td style="text-align:right;color:{col};font-weight:600">'
+            f'{e.get("delta_pp", 0):+.1f}pp{ci_s}</td>'
+            f'<td style="text-align:right">{pf if pf is not None else "—"}'
+            f'{" *" if sig else ""}</td></tr>'
+        )
+
+    btrows = ""
+    for r in cc.get("by_task_type") or []:
+        cells = "".join(
+            f'<td style="text-align:right{";font-weight:700;color:#059669" if k == r.get("winner") else ""}">'
+            f'{(f"{v:.0f}%" if v is not None else "—")}</td>'
+            for k, v in (r.get("scores") or {}).items()
+        )
+        btrows += (f'<tr><td style="font-weight:600">{_esc(r.get("task_type", "—"))}</td>'
+                   f'{cells}</tr>')
+    bt_head = "".join(f'<th style="text-align:right">{_esc(v["label"])}</th>' for v in vs)
+
+    w = cc.get("winner") or {}
+    if w.get("label"):
+        w_html = (f'<p style="font-size:14px;font-weight:700;color:#059669;margin:8px 0 0">'
+                  f'🏆 Winner: {_esc(w["label"])}</p>'
+                  f'<p style="font-size:12px;color:#6b7280;margin:2px 0 0">{_esc(w.get("reason", ""))}</p>')
+    elif w:
+        w_html = (f'<p style="font-size:13px;font-weight:600;color:#d97706;margin:8px 0 0">'
+                  f'No clear winner</p>'
+                  f'<p style="font-size:12px;color:#6b7280;margin:2px 0 0">{_esc(w.get("reason", ""))}</p>')
+    else:
+        w_html = ""
+
+    return (
+        '<div class="gate-section" id="cohort-comparison" style="border-left-color:#0ea5e9">'
+        f'<h2 style="color:#1e2030">Version Comparison '
+        f'<span style="font-size:13px;color:#6b7280">({cc.get("n_versions", len(vs))} versions '
+        f'· metric: {metric})</span></h2>'
+        '<table class="mtable"><thead><tr><th>Version</th><th>N</th>'
+        f'<th>{metric}</th><th>Gate scores</th></tr></thead><tbody>{vrows}</tbody></table>'
+        '<h3 style="margin:12px 0 4px">Per task type</h3>'
+        f'<table class="mtable"><thead><tr><th>Task type</th>{bt_head}</tr></thead>'
+        f'<tbody>{btrows}</tbody></table>'
+        '<h3 style="margin:12px 0 4px">Pairwise (Benjamini-Hochberg FDR)</h3>'
+        '<table class="mtable"><thead><tr><th>Pair</th><th>Δ (95% CI)</th>'
+        f'<th>p (FDR)</th></tr></thead><tbody>{prows}</tbody></table>'
+        '<p style="font-size:11px;color:#9ca3af;margin:4px 0 0">'
+        '* = significant after FDR correction across all pairs.</p>'
+        f'{w_html}</div>'
+    )
+
+
 def _build_change_attribution(ca: dict[str, Any] | None) -> str:
     """P18: tie the metric move to the specific prompt / config / code change
     between this run and its baseline."""
@@ -3045,7 +3124,7 @@ _TOC_LABELS = {
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "recommendations": "Recommendations",
-    "change-attribution": "Change", "diagnosis": "RCA",
+    "cohort-comparison": "Versions", "change-attribution": "Change", "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
 }
 
@@ -3879,7 +3958,8 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
 # generate_comprehensive_html_report(monitor)
 # ---------------------------------------------------------------------------
 
-def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None = None) -> str:
+def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None = None,
+                                       cohort: list[dict[str, Any]] | None = None) -> str:
     """Generate Harness Gate A–G 중심 종합 HTML 리포트.
 
     Args:
@@ -4114,6 +4194,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
+            cohort=cohort,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -4179,6 +4260,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
@@ -4196,7 +4278,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
 # generate_html_from_result_file(rf)  — Dashboard export router용
 # ---------------------------------------------------------------------------
 
-def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -> str:
+def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
+                                   cohort: list[dict[str, Any]] | None = None) -> str:
     """ResultFile 객체에서 Harness Gate A–G 중심 HTML 리포트를 생성한다.
 
     Args:
@@ -4343,6 +4426,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         from agent_evaluator.reporting.insights import build_insights as _build_insights
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
+            cohort=cohort,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -4394,6 +4478,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict),
+        _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),

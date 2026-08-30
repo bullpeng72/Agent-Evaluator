@@ -861,6 +861,10 @@ narrative: str (SPEC-041 P17 — 배포 준비도 판정 + 최약 병목 + 리�
 change_attribution{prompt_changed, prompt_diff{similarity, added[], removed[]}, config_changed,
 config_diff{changed_keys}, git{from_commit, to_commit}, largest_gate_move{gate, delta}, note}|null
 (SPEC-041 P18 — baseline 필요. 두 run의 lineage.prompt_text/config_snapshot diff + 최대 Gate 이동),
+cohort_comparison{metric, n_versions, versions[]{label, n_tasks, tcr_pct, gate_scores, overall},
+pairwise[]{a, b, delta_pp, p_value, p_value_fdr, significant_fdr, ci_pp}, by_task_type[]{task_type,
+winner, scores}, winner{label, reason}|null}|null (SPEC-041 P22 — `build_insights(cohort=[dict,…])` 시.
+N-버전 비교 + Benjamini-Hochberg FDR + 슬라이스별 승자 + "승자 지목"),
 security_findings[]{task_id, tracker, threat_type, severity, cwe, detail}|null (SPEC-041 P19 — 5개 보안
 트래커의 per-task 위협 상세, severity 순, CWE 매핑),
 nondeterminism[]{task_id, reproducibility_score, run_count, variance, sample_responses[]}|null
@@ -992,6 +996,16 @@ privilege_escalation_detector/tool_chain_attack_detector) 레코드를 훑어 �
   (내러티브와 단일 소스). confidence도 `verdict_obj`에서(judge_trust 강등 반영).
 - **`_build_toc()`** — 23개 섹션용 스티키 in-page 네비(C3). `_build_history_trend`에 first/last run
   라벨(C5), `_build_slice_analysis`에 delta CI(C6), review_queue 2차 정렬 `-len(reasons)`(C4).
+
+**SPEC-041 P22 (N-버전 코호트 비교)** — `utils/confidence.py::welch_t_p(a, b)` — stdlib Welch t-검정
+정규근사 p-value(scipy 무의존). `reporting/insights.py::_cohort_comparison_section(labelled, metric)` —
+`quick_eval._benjamini_hochberg` + `bootstrap_diff_ci` 재사용: per-version {label(lineage.agent_version/
+prompt_version), n, tcr_pct, gate_scores} · 모든 unordered 쌍의 delta/p/FDR-보정 p/CI · task_type별 승자 ·
+overall winner(최고 TCR이고 2위 대비 리드가 FDR 유의하면 지목, 아니면 "not significant — collect more
+tasks"). `build_insights(current, *, cohort=[dict,…], cohort_metric="tcr")` — 비교 집합 = `[current]+cohort`,
+라벨 중복은 `#2` 접미. `insights.cohort_comparison`(cohort 미지정 시 None). 리포트 `_build_cohort_comparison`
+섹션 `cohort-comparison`(version 표 + task_type 표 + pairwise FDR 표 + 승자), `generate_*` 두 진입점에
+`cohort` 인자. serve `/api/diagnose/{id}?cohort_ids=a,b,c`, 대시보드 Improve 탭 multi-select + 패널.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
@@ -1301,7 +1315,7 @@ pytest  # configured in pyproject.toml (testpaths, cov)
 
 Note: `agent_evaluator/utils/transparency_manager.py` contains `TestTransparencyManager` — a **production class**, not a test file.
 
-`agent_evaluator/utils/confidence.py` (SPEC-041 P5·P10·P14) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `bootstrap_diff_ci`(P10, 두-표본 평균차 CI) · `required_n_for_halfwidth` · `mde_two_proportions`(P10, 80% 검정력 최소 탐지 효과) · `verdict_confidence`(P14: `judge_trust` 인자 추가 — 평가기 신뢰도 low/medium이면 확신도를 그 등급으로 강등). 소비: `reporting/comprehensive_report.py` · `reporting/insights.py` · `cli/abtest.py`.
+`agent_evaluator/utils/confidence.py` (SPEC-041 P5·P10·P14·P22) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `bootstrap_diff_ci`(P10) · `welch_t_p`(P22, Welch t-검정 정규근사 p-value, scipy 무의존) · `required_n_for_halfwidth` · `mde_two_proportions`(P10) · `verdict_confidence`(P14: `judge_trust` 인자). 소비: `reporting/comprehensive_report.py` · `reporting/insights.py` · `cli/abtest.py`.
 
 ---
 

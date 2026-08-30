@@ -296,6 +296,47 @@
       }
     },
 
+    "cohort_comparison": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "metric": { "type": "string" },
+        "n_versions": { "type": "integer" },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "label": { "type": "string" },
+              "n_tasks": { "type": "integer" },
+              "tcr_pct": { "type": ["number", "null"] },
+              "gate_scores": { "type": "object" },
+              "overall": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "pairwise": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "a": { "type": "string" },
+              "b": { "type": "string" },
+              "delta_pp": { "type": "number" },
+              "p_value": { "type": ["number", "null"] },
+              "p_value_fdr": { "type": ["number", "null"] },
+              "significant_fdr": { "type": "boolean" },
+              "ci_pp": { "type": ["array", "null"] }
+            }
+          }
+        },
+        "by_task_type": { "type": "array" },
+        "winner": { "type": ["object", "null"] }
+      }
+    },
+
     "change_attribution": {
       "type": ["object", "null"],
       "additionalProperties": true,

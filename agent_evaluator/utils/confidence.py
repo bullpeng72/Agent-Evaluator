@@ -101,6 +101,32 @@ def bootstrap_diff_ci(
     return (diffs[lo_i], diffs[hi_i])
 
 
+def welch_t_p(a: Sequence[float], b: Sequence[float]) -> float | None:
+    """Two-sided p-value for ``mean(a) != mean(b)`` — Welch's t-test with a
+    normal approximation to the reference distribution (stdlib only, no scipy).
+
+    For the sample sizes typical of an eval run the normal approximation to the
+    t-distribution is close enough to rank / FDR-adjust pairwise comparisons.
+    Returns ``None`` when either group has < 2 values or zero pooled variance.
+    """
+    av = [float(v) for v in a if v is not None]
+    bv = [float(v) for v in b if v is not None]
+    na, nb = len(av), len(bv)
+    if na < 2 or nb < 2:
+        return None
+    ma = sum(av) / na
+    mb = sum(bv) / nb
+    va = sum((x - ma) ** 2 for x in av) / (na - 1)
+    vb = sum((x - mb) ** 2 for x in bv) / (nb - 1)
+    se2 = va / na + vb / nb
+    if se2 <= 0:
+        return 0.0 if ma != mb else 1.0
+    t = (ma - mb) / math.sqrt(se2)
+    # two-sided p under N(0,1): 2 * (1 - Phi(|t|))
+    phi = 0.5 * (1.0 + math.erf(abs(t) / math.sqrt(2.0)))
+    return max(0.0, min(1.0, 2.0 * (1.0 - phi)))
+
+
 def required_n_for_halfwidth(p: float, target_halfwidth: float, z: float = _Z_95) -> int:
     """비율 ``p``를 ±``target_halfwidth``(둘 다 0–1 스케일)로 추정하는 데 필요한
     대략적 표본 수 (정규근사: ``n ≈ z² p(1-p) / h²``)."""

@@ -6482,6 +6482,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
     <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer">
       <input type="checkbox" x-model="improveShowDiff"> Show git diff
     </label>
+    <label style="font-size:12px;color:var(--text2)">Compare versions:</label>
+    <select class="btn" multiple size="3" style="padding:4px 8px;font-size:12px;min-width:140px" x-model="improveCohortIds">
+      <template x-for="f in files" :key="'c'+f.id">
+        <option :value="f.id" x-text="f.name||f.id"></option>
+      </template>
+    </select>
     <button class="btn" @click="loadImproveDiagnosis()" :disabled="!improveCurrentId"
             style="margin-left:auto">Diagnose</button>
   </div>
@@ -6896,6 +6902,44 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
                 </div>
               </template>
             </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="improveResult.insights && improveResult.insights.cohort_comparison">
+        <div style="border:1px solid var(--border);border-left:4px solid #0ea5e9;border-radius:8px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700" x-text="'Version comparison ('+improveResult.insights.cohort_comparison.n_versions+' versions · '+improveResult.insights.cohort_comparison.metric.toUpperCase()+')'"></div>
+          <div style="overflow-x:auto;margin-top:6px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                <th style="text-align:left;padding:4px">Version</th><th style="text-align:right;padding:4px">N</th><th style="text-align:right;padding:4px">TCR</th>
+              </tr></thead>
+              <tbody>
+                <template x-for="v in improveResult.insights.cohort_comparison.versions" :key="v.label">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:4px;font-weight:600" x-text="v.label"></td>
+                    <td style="padding:4px;text-align:right" x-text="v.n_tasks"></td>
+                    <td style="padding:4px;text-align:right" x-text="v.tcr_pct!=null?v.tcr_pct.toFixed(1)+'%':'—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <template x-if="improveResult.insights.cohort_comparison.pairwise && improveResult.insights.cohort_comparison.pairwise.length">
+            <div style="font-size:12px;margin-top:6px">
+              <template x-for="(e, i) in improveResult.insights.cohort_comparison.pairwise" :key="i">
+                <div :style="e.significant_fdr?'color:var(--green);font-weight:600':'color:var(--text2)'"
+                     x-text="e.a+' vs '+e.b+': '+(e.delta_pp>0?'+':'')+e.delta_pp+'pp'+(e.p_value_fdr!=null?(' · p(FDR) '+e.p_value_fdr):'')+(e.significant_fdr?' *':'')"></div>
+              </template>
+            </div>
+          </template>
+          <template x-if="improveResult.insights.cohort_comparison.winner">
+            <div style="font-size:13px;font-weight:700;margin-top:6px"
+                 :style="improveResult.insights.cohort_comparison.winner.label?'color:var(--green)':'color:var(--yellow)'"
+                 x-text="(improveResult.insights.cohort_comparison.winner.label?('🏆 Winner: '+improveResult.insights.cohort_comparison.winner.label):'No clear winner')"></div>
+          </template>
+          <template x-if="improveResult.insights.cohort_comparison.winner">
+            <div style="font-size:11px;color:var(--text2)" x-text="improveResult.insights.cohort_comparison.winner.reason"></div>
           </template>
         </div>
       </template>
@@ -10710,7 +10754,7 @@ function app2() {
     compareGroupBy: '', compareGroupLoading: false, compareGroupTotal: 0,
     comparePairwise: null, comparePairwiseLoading: false,
     /* improve — Phase 8: Gate RCA & recommendation outcome history */
-    improveCurrentId: '', improveBaselineId: '', improveShowDiff: false,
+    improveCurrentId: '', improveBaselineId: '', improveShowDiff: false, improveCohortIds: [],
     improveResult: null, improveLoading: false, improveError: null,
     improveRecommendations: null,
     /* regression */
@@ -11631,6 +11675,8 @@ function app2() {
         const params = new URLSearchParams();
         if (this.improveBaselineId) params.set('baseline_id', this.improveBaselineId);
         if (this.improveShowDiff) params.set('show_diff', 'true');
+        if (this.improveCohortIds && this.improveCohortIds.length)
+          params.set('cohort_ids', this.improveCohortIds.filter(x => x !== this.improveCurrentId).join(','));
         const r = await fetch(`/api/diagnose/${this.improveCurrentId}?${params.toString()}`);
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));

@@ -38,6 +38,10 @@ def get_diagnosis(
     ),
     regression_threshold: float = Query(0.1, description="Allowed regression vs baseline (0-1)"),
     show_diff: bool = Query(False, description="Resolve git commit range via lineage.git_commit"),
+    cohort_ids: Optional[str] = Query(  # noqa: UP045
+        None, description="Comma-separated result file ids for an N-version comparison "
+                          "(SPEC-041 P22 — insights.cohort_comparison)",
+    ),
 ) -> Dict[str, Any]:  # noqa: UP006
     """``agent-eval diagnose``와 동일한 판정을 대시보드용 JSON으로 반환한다.
 
@@ -80,12 +84,22 @@ def get_diagnosis(
 
         from agent_evaluator.reporting.insights import build_insights
 
+        _cohort = None
+        if cohort_ids:
+            _cohort = []
+            for cid in (c.strip() for c in cohort_ids.split(",") if c.strip()):
+                _crf = rs.by_id(cid)
+                if _crf is None:
+                    raise HTTPException(status_code=404, detail=f"Cohort file not found: {cid}")
+                _cohort.append(_crf.raw)
+
         _rec_log = Path(_repo_path) / "recommendation_outcomes.jsonl"
         result["insights"] = build_insights(
             rf.raw, baseline_raw,
             recommendation_log_path=(_rec_log if _rec_log.exists() else None),
             with_experiment_metadata=show_diff,
             repo_path=_repo_path,
+            cohort=_cohort,
         )
     except Exception:  # keep the diagnosis usable even if insight assembly fails
         result["insights"] = None

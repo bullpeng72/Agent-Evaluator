@@ -1325,6 +1325,159 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Cohort comparison (P22) — the report / insights only ever compared one result
+# to one optional baseline. World-class tooling puts 3+ versions side by side,
+# per task_type, with multiple-comparison-safe significance and a "pick the
+# winner" call. Reuses quick_eval._benjamini_hochberg + utils.confidence.
+# ---------------------------------------------------------------------------
+
+def _version_label(report: dict[str, Any] | None, fallback: str) -> str:
+    lin = _lineage(report)
+    for k in ("agent_version", "prompt_version"):
+        v = lin.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return fallback
+
+
+def _per_task_metric(report: dict[str, Any] | None, metric: str) -> list[float]:
+    key = "completion_score" if metric == "tcr" else "accuracy_score"
+    out = []
+    for t in ((report or {}).get("tasks") or []):
+        if isinstance(t, dict):
+            v = _safe_float(t.get(key))
+            if v is not None:
+                out.append(v)
+    return out
+
+
+def _by_type_metric(report: dict[str, Any] | None, metric: str) -> dict[str, list[float]]:
+    key = "completion_score" if metric == "tcr" else "accuracy_score"
+    out: dict[str, list[float]] = defaultdict(list)
+    for t in ((report or {}).get("tasks") or []):
+        if isinstance(t, dict):
+            v = _safe_float(t.get(key))
+            if v is not None:
+                out[str(t.get("task_type") or "—")].append(v)
+    return out
+
+
+def _labelled_cohort(
+    current: dict[str, Any], cohort: list[dict[str, Any]] | None,
+) -> list[tuple[str, dict[str, Any]]]:
+    """[(label, report), …] for [current] + cohort — de-dupes labels."""
+    out: list[tuple[str, dict[str, Any]]] = []
+    used: set[str] = set()
+    for idx, rep in enumerate([current, *(cohort or [])]):
+        base = _version_label(rep, "current" if idx == 0 else f"v{idx + 1}")
+        lbl, n = base, 2
+        while lbl in used:
+            lbl = f"{base}#{n}"
+            n += 1
+        used.add(lbl)
+        out.append((lbl, rep))
+    return out
+
+
+def _cohort_comparison_section(
+    labelled: list[tuple[str, dict[str, Any]]],
+    metric: str = "tcr",
+) -> dict[str, Any] | None:
+    """``labelled`` = [(label, result_dict), …] with >= 2 entries."""
+    if len(labelled) < 2:
+        return None
+    try:
+        from agent_evaluator.quick_eval import _benjamini_hochberg
+        from agent_evaluator.utils.confidence import bootstrap_diff_ci, welch_t_p
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+    versions: list[dict[str, Any]] = []
+    arrays: dict[str, list[float]] = {}
+    by_type: dict[str, dict[str, list[float]]] = {}
+    for label, rep in labelled:
+        hg = _harness_groups(rep)
+        vals = _per_task_metric(rep, metric)
+        arrays[label] = vals
+        by_type[label] = _by_type_metric(rep, metric)
+        versions.append({
+            "label": label,
+            "n_tasks": len([t for t in (rep.get("tasks") or []) if isinstance(t, dict)]),
+            "tcr_pct": round(sum(vals) / len(vals) * 100.0, 2) if vals else None,
+            "gate_scores": {
+                g: (hg.get(g) or {}).get("score") for g in "ABCDEFG"
+                if isinstance((hg.get(g) or {}).get("score"), (int, float))
+            },
+            "overall": (hg.get("overall") or {}).get("score"),
+        })
+
+    # pairwise (all unordered pairs), FDR-adjusted
+    pairs = [(i, j) for i in range(len(labelled)) for j in range(i + 1, len(labelled))]
+    raw_p: list[float | None] = []
+    pw: list[dict[str, Any]] = []
+    for i, j in pairs:
+        la, lb = labelled[i][0], labelled[j][0]
+        a, b = arrays[la], arrays[lb]
+        p = welch_t_p(a, b)
+        raw_p.append(p)
+        ma = (sum(a) / len(a)) if a else 0.0
+        mb = (sum(b) / len(b)) if b else 0.0
+        dci = bootstrap_diff_ci(a, b)
+        pw.append({
+            "a": la, "b": lb,
+            "delta_pp": round((ma - mb) * 100.0, 2),
+            "p_value": round(p, 5) if p is not None else None,
+            "ci_pp": [round(dci[0] * 100, 1), round(dci[1] * 100, 1)] if dci else None,
+        })
+    adj = _benjamini_hochberg(raw_p)
+    for entry, q in zip(pw, adj):
+        entry["p_value_fdr"] = round(q, 5) if q is not None else None
+        entry["significant_fdr"] = (q is not None and q < 0.05)
+
+    # per-task_type winner
+    all_types = sorted({tt for bt in by_type.values() for tt in bt})
+    by_task_type = []
+    for tt in all_types:
+        scores = {
+            lbl: (round(sum(bt[tt]) / len(bt[tt]) * 100.0, 1) if bt.get(tt) else None)
+            for lbl, bt in by_type.items()
+        }
+        ranked = [(k, v) for k, v in scores.items() if v is not None]
+        winner = max(ranked, key=lambda kv: kv[1])[0] if ranked else None
+        by_task_type.append({"task_type": tt, "winner": winner, "scores": scores})
+
+    # overall winner: highest TCR whose lead over the runner-up is FDR-significant
+    ranked = sorted(
+        [(v["label"], v["tcr_pct"]) for v in versions if v["tcr_pct"] is not None],
+        key=lambda kv: -kv[1],
+    )
+    winner = None
+    if len(ranked) >= 2:
+        top, second = ranked[0], ranked[1]
+        sig = any(
+            e["significant_fdr"] and {e["a"], e["b"]} == {top[0], second[0]}
+            for e in pw
+        )
+        if sig:
+            winner = {"label": top[0],
+                      "reason": f"highest {metric.upper()} ({top[1]:.1f}%) and the lead "
+                                f"over {second[0]} is significant after FDR correction"}
+        else:
+            winner = {"label": None,
+                      "reason": f"{top[0]} has the highest {metric.upper()} but its lead "
+                                f"over {second[0]} is not significant — collect more tasks"}
+
+    return {
+        "metric": metric,
+        "n_versions": len(labelled),
+        "versions": versions,
+        "pairwise": pw,
+        "by_task_type": by_task_type,
+        "winner": winner,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Change attribution (P18) — tie a metric move to the specific thing that
 # changed. experiment_metadata already gives the git file/commit diff; this adds
 # the system-prompt / config text diff (when the run stashed it in lineage) and
@@ -1554,6 +1707,8 @@ def build_insights(
     with_experiment_metadata: bool = False,
     repo_path: str | Path = ".",
     narrator: Any = None,
+    cohort: list[dict[str, Any]] | None = None,
+    cohort_metric: str = "tcr",
 ) -> dict[str, Any]:
     """Compute the machine-readable insight object for a result JSON.
 
@@ -1639,6 +1794,10 @@ def build_insights(
         "change_attribution": _safe(
             _change_attribution_section, current, baseline, diagnosis, default=None,
         ),
+        "cohort_comparison": _safe(
+            _cohort_comparison_section,
+            _labelled_cohort(current, cohort), cohort_metric, default=None,
+        ) if cohort else None,
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
