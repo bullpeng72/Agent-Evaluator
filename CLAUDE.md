@@ -356,8 +356,14 @@ agent_evaluator/
 ├── integrations/
 │   ├── llm_judge.py       # LLMJudge (native) · judge_pairwise() — A/B 응답 맞대결
 │   │                       #  (swap-check로 포지션 편향 완화), self.pairwise_results에 별도 축적
+│   │                       #  self_consistency(task, k=3) (SPEC-041 P14) — 같은 입력 k회 채점해
+│   │                       #  judge가 자기 자신과 얼마나 일치하는지({overall_stdev, agreement}).
+│   │                       #  _call_judge 직접 호출로 sample_rate 게이트 우회(judge_pairwise와 동일).
 │   ├── llm_judge_calibration.py  # LLMJudgeCalibration — judge-vs-human 골든셋 일치도
-│   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현)
+│   │                       #  (MAE · Pearson · Cohen's weighted kappa, scikit-learn 무의존 자체 구현).
+│   │                       #  compute_agreement()는 SPEC-041 P14의 evaluator_trust에서도 재사용.
+│   │                       #  run() 결과를 result JSON의 extra_metrics.judge_calibration에 넣으면
+│   │                       #  build_insights()가 evaluator_trust로 자동 노출
 │   ├── live_guardrail_stdio.py   # LiveGuardrail용 범용 stdio 브리지 (non-Python 호출자용)
 │   │                       #  build_guardrail이 받는 키: 4개 Config + tracker 3종 +
 │   │                       #  max_tool_output_chars/live_loop_window/live_loop_blocking_types/
@@ -841,6 +847,9 @@ tcr_delta_ci_pp?, significant?} (SPEC-041 P10 — per-task_type CI, baseline 있
 eval_set_quality{n_tasks, task_type_histogram, near_duplicate_clusters[]{question, task_ids, count},
 coverage_warnings[], suspicious_ground_truth[]{task_id, reason}}|null (SPEC-041 P12 — 평가셋 커버리지·균형·
 근접중복·Gate 미실행 경고·baseline 대비 동일 실패 라벨 의심),
+evaluator_trust{judge_vs_heuristic{n_comparable, agreement_rate, mean_abs_diff, disagreements[]},
+judge_calibration|null, judge_self_consistency|null, trust_level: high|medium|low, trust_reasons[]}|null
+(SPEC-041 P14 — 평가기 신뢰도. trust_level=low/medium면 verdict.confidence를 같은 등급으로 강등),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -881,6 +890,16 @@ acc<0.35에 |Δ|<0.05로 실패 → 라벨/질문 의심, gt 토큰<3이면 "ver
 "↓ N runs in a row" 배지(consecutive_decline≥2), 그리고 recommendation_outcomes.jsonl을 "어느 변경이 어느
 Gate를 움직였나" 표로. 리포트 섹션 `history-trend`·`change-ledger`(≥3 run일 때만). monitor 경로는
 `monitor.output_dir`, rf 경로는 `Path(rf.path).parent`에서 디렉터리 도출.
+
+**SPEC-041 P14 (평가기 신뢰도)** — `reporting/insights.py::_evaluator_trust_section` +
+`comprehensive_report.py::_build_evaluator_reliability`: (a) **judge_vs_heuristic** — 태스크별
+LLM judge `scores.overall`(/10 정규화)와 `AccuracyEvaluator` `accuracy_score`의 일치율·mean |Δ|·
+불일치 태스크 목록 (|Δ|>0.40). (b) **judge_calibration** — `extra_metrics.judge_calibration`
+(파이프라인이 `LLMJudgeCalibration.run()` 결과를 넣었을 때)의 MAE/Cohen κ. (c) **judge_self_consistency**
+— `extra_metrics.judge_self_consistency`(`LLMJudge.self_consistency()` 결과)의 agreement.
+셋을 종합해 `trust_level` high/medium/low(최저 등급 승) → `verdict_confidence(judge_trust=...)`로
+배포 준비도 확신도 강등. judge 데이터 자체가 없으면 `evaluator_trust=None`. 리포트 섹션
+`evaluator-reliability`, 대시보드 Improve 탭 패널.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
@@ -1190,7 +1209,7 @@ pytest  # configured in pyproject.toml (testpaths, cov)
 
 Note: `agent_evaluator/utils/transparency_manager.py` contains `TestTransparencyManager` — a **production class**, not a test file.
 
-`agent_evaluator/utils/confidence.py` (SPEC-041 P5·P10) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `bootstrap_diff_ci`(P10, 두-표본 평균차 CI) · `required_n_for_halfwidth` · `mde_two_proportions`(P10, 80% 검정력 최소 탐지 효과) · `verdict_confidence`. 소비: `reporting/comprehensive_report.py` · `reporting/insights.py` · `cli/abtest.py`.
+`agent_evaluator/utils/confidence.py` (SPEC-041 P5·P10·P14) — 단일 run 지표의 신뢰구간·표본 적정성·판정 확신도 순수 함수(stdlib만, numpy 무의존, seed 고정 결정적): `wilson_interval` · `bootstrap_mean_ci` · `bootstrap_diff_ci`(P10, 두-표본 평균차 CI) · `required_n_for_halfwidth` · `mde_two_proportions`(P10, 80% 검정력 최소 탐지 효과) · `verdict_confidence`(P14: `judge_trust` 인자 추가 — 평가기 신뢰도 low/medium이면 확신도를 그 등급으로 강등). 소비: `reporting/comprehensive_report.py` · `reporting/insights.py` · `cli/abtest.py`.
 
 ---
 

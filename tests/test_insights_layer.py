@@ -338,6 +338,61 @@ class TestEvalSetQuality:
         assert build_insights({})["eval_set_quality"] is None
 
 
+class TestEvaluatorTrust:
+    def _judge_task(self, tid, judge_overall, acc):
+        return {
+            "task_id": tid, "accuracy_score": acc,
+            "llm_judge": {"skipped": False, "scores": {"overall": judge_overall}},
+        }
+
+    def test_none_without_any_judge_data(self):
+        rpt = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(10)],
+        )
+        assert build_insights(rpt)["evaluator_trust"] is None
+
+    def test_judge_heuristic_disagreement_lowers_trust_and_confidence(self):
+        tasks = [
+            self._judge_task(f"t{i}", 9.0 if i % 2 == 0 else 2.0, 0.2 if i % 2 == 0 else 0.9)
+            for i in range(12)
+        ]
+        rpt = _report(
+            {"A": {"score": 0.55, "status": "fail", "gate": "fail",
+                   "details": {"tcr_pct": 55.0, "avg_subtask_completion": 0.4}}},
+            tasks,
+        )
+        ins = build_insights(rpt)
+        et = ins["evaluator_trust"]
+        assert et["trust_level"] == "low"
+        assert et["judge_vs_heuristic"]["agreement_rate"] == 0.0
+        assert et["judge_vs_heuristic"]["disagreements"]
+        assert ins["verdict"]["confidence"] == "low"
+        assert any("evaluator" in r.lower() for r in ins["verdict"]["confidence_reasons"])
+
+    def test_agreeing_judge_keeps_trust_high(self):
+        tasks = [self._judge_task(f"t{i}", 8.5, 0.85) for i in range(20)]
+        rpt = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}}, tasks,
+        )
+        et = build_insights(rpt)["evaluator_trust"]
+        assert et["trust_level"] == "high"
+        assert et["judge_vs_heuristic"]["agreement_rate"] == 1.0
+
+    def test_stashed_calibration_is_surfaced(self):
+        tasks = [self._judge_task(f"t{i}", 8.0, 0.8) for i in range(15)]
+        rpt = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}}, tasks,
+        )
+        rpt["extra_metrics"]["judge_calibration"] = {
+            "dimensions": {"overall": {"n": 20, "mean_absolute_error": 2.1,
+                                       "cohen_kappa_quadratic": 0.2}},
+        }
+        et = build_insights(rpt)["evaluator_trust"]
+        assert et["judge_calibration"] is not None
+        assert et["trust_level"] == "low"          # kappa 0.2 < 0.4
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

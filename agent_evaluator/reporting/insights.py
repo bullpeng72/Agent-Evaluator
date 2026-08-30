@@ -149,6 +149,110 @@ def _extract_task_attr(t: dict[str, Any]) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Evaluator trust (P14) — "how much can I trust the numbers?"
+#
+# Every L2-L6 figure that involves the LLM judge inherits the judge's error. This
+# surfaces three signals so the reader (and verdict_confidence) can react:
+#   judge_vs_heuristic     : do the LLM judge and the token-overlap AccuracyEvaluator
+#                            agree per task? systematic disagreement => one of them
+#                            is wrong for this task type.
+#   judge_calibration      : judge-vs-human agreement (MAE / Cohen's kappa) — only
+#                            when a calibration run stashed it in extra_metrics.
+#   judge_self_consistency : judge-vs-itself on identical input — only when a
+#                            self-consistency run stashed it in extra_metrics.
+# ---------------------------------------------------------------------------
+_TRUST_DISAGREE_THRESHOLD = 0.40   # |judge_norm - accuracy| above this = a disagreement
+_TRUST_AGREE_BAND = 0.25           # within this = the pair "agrees"
+
+
+def _evaluator_trust_section(
+    tasks: list[dict[str, Any]], current: dict[str, Any],
+) -> dict[str, Any] | None:
+    em = (current.get("extra_metrics") or {}) if isinstance(current, dict) else {}
+
+    pairs: list[tuple[str, float, float]] = []
+    for t in tasks:
+        j = t.get("llm_judge")
+        if not isinstance(j, dict) or j.get("skipped"):
+            continue
+        ov = (j.get("scores") or {}).get("overall")
+        acc = _safe_float(t.get("accuracy_score"))
+        if not isinstance(ov, (int, float)) or acc is None:
+            continue
+        pairs.append((str(t.get("task_id") or "—"), float(ov) / 10.0, acc))
+
+    jvh: dict[str, Any] | None = None
+    if pairs:
+        diffs = [abs(jn - ac) for _, jn, ac in pairs]
+        disagreements = sorted(
+            (
+                {"task_id": tid, "judge": round(jn, 3), "heuristic": round(ac, 3),
+                 "diff": round(abs(jn - ac), 3)}
+                for tid, jn, ac in pairs
+                if abs(jn - ac) > _TRUST_DISAGREE_THRESHOLD
+            ),
+            key=lambda d: -d["diff"],
+        )
+        jvh = {
+            "n_comparable": len(pairs),
+            "agreement_rate": round(sum(1 for d in diffs if d <= _TRUST_AGREE_BAND) / len(diffs), 3),
+            "mean_abs_diff": round(sum(diffs) / len(diffs), 3),
+            "disagreements": disagreements[:10],
+        }
+
+    calib = em.get("judge_calibration") if isinstance(em.get("judge_calibration"), dict) else None
+    sc = em.get("judge_self_consistency")
+    sc = sc if isinstance(sc, dict) else None
+
+    if jvh is None and calib is None and sc is None:
+        return None
+
+    # roll up to a trust level (lowest wins), with reasons
+    level = "high"
+    reasons: list[str] = []
+
+    def _demote(to: str, why: str) -> None:
+        nonlocal level
+        order = {"high": 2, "medium": 1, "low": 0}
+        if order[to] < order[level]:
+            level = to
+        reasons.append(why)
+
+    if jvh is not None:
+        if jvh["agreement_rate"] < 0.5:
+            _demote("low", f"LLM judge and heuristic scorer agree on only "
+                           f"{jvh['agreement_rate'] * 100:.0f}% of tasks")
+        elif jvh["agreement_rate"] < 0.7:
+            _demote("medium", f"judge/heuristic agreement is "
+                              f"{jvh['agreement_rate'] * 100:.0f}%")
+    if calib is not None:
+        kappas = [
+            v.get("cohen_kappa_quadratic")
+            for v in (calib.get("dimensions") or {}).values()
+            if isinstance(v, dict) and isinstance(v.get("cohen_kappa_quadratic"), (int, float))
+        ]
+        if kappas:
+            worst = min(kappas)
+            if worst < 0.4:
+                _demote("low", f"judge-vs-human Cohen's kappa as low as {worst:.2f}")
+            elif worst < 0.6:
+                _demote("medium", f"judge-vs-human Cohen's kappa {worst:.2f}")
+    if sc is not None and isinstance(sc.get("agreement"), (int, float)):
+        if sc["agreement"] < 0.6:
+            _demote("low", f"judge self-consistency only {sc['agreement'] * 100:.0f}%")
+        elif sc["agreement"] < 0.8:
+            _demote("medium", f"judge self-consistency {sc['agreement'] * 100:.0f}%")
+
+    return {
+        "judge_vs_heuristic": jvh,
+        "judge_calibration": calib,
+        "judge_self_consistency": sc,
+        "trust_level": level,
+        "trust_reasons": reasons,
+    }
+
+
+# ---------------------------------------------------------------------------
 # RAG failure localization (P11) — split a RAG failure into
 #   retrieval_miss   : the info needed to answer was never retrieved
 #   grounding_miss    : it WAS retrieved, but the answer ignores / contradicts it
@@ -329,6 +433,7 @@ def _verdict_section(
     diagnosis: dict[str, Any] | None,
     ci: dict[str, Any],
     n_tasks: int,
+    evaluator_trust: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     fails, warns, passes = [], [], []
     for k in "ABCDEFG":
@@ -410,6 +515,7 @@ def _verdict_section(
             tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
             n_gate_components=ncomp,
             margin_to_threshold=margin,
+            judge_trust=(evaluator_trust or {}).get("trust_level"),
         )
     except Exception:  # pragma: no cover - defensive
         pass
@@ -919,11 +1025,16 @@ def build_insights(
     except Exception:  # pragma: no cover - defensive
         ci = {"n_tasks": total_tasks}
 
+    evaluator_trust = _safe(_evaluator_trust_section, tasks, current, default=None)
+
     out: dict[str, Any] = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
         "detection_mode": (diagnosis or {}).get("detection_mode", "absolute_threshold"),
-        "verdict": _safe(_verdict_section, hg, diagnosis, ci, total_tasks, default={}),
+        "verdict": _safe(
+            _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust, default={},
+        ),
         "metric_confidence": ci,
+        "evaluator_trust": evaluator_trust,
         "gate_findings": _safe(_gate_findings_section, diagnosis, default=[]),
         "failure_clusters": _safe(
             _failure_clusters_section, tasks, total_tasks, default=[],

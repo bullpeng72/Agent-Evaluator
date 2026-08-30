@@ -626,3 +626,46 @@ class TestJudgeIntegrationFlow:
         results1 = [judge1._rng.random() for _ in range(10)]
         results2 = [judge2._rng.random() for _ in range(10)]
         assert results1 == results2
+
+
+class TestSelfConsistency:
+    """SPEC-041 P14 — LLMJudge.self_consistency()."""
+
+    def _judge(self, overalls):
+        j = LLMJudge(model="gpt-4o-mini", sample_rate=1.0, seed=0)
+        seq = iter(overalls)
+        j._call_judge = lambda *a, **kw: {
+            "task_id": "t", "skipped": False,
+            "scores": {"overall": next(seq)}, "model": "gpt-4o-mini", "cost_usd": 0.0,
+        }
+        return j
+
+    def test_perfect_self_consistency(self):
+        r = self._judge([7.0, 7.0, 7.0]).self_consistency("t", "Q", "A", k=3)
+        assert r["agreement"] == 1.0
+        assert r["overall_stdev"] == 0.0
+        assert r["k"] == 3
+
+    def test_noisy_judge_low_agreement(self):
+        r = self._judge([2.0, 6.0, 9.0]).self_consistency("t", "Q", "A", k=3)
+        assert r["agreement"] < 1.0
+        assert r["overall_range"] == pytest.approx(7.0)
+
+    def test_k_below_two_raises(self):
+        with pytest.raises(ValueError, match="k must be >= 2"):
+            self._judge([5.0]).self_consistency("t", "Q", "A", k=1)
+
+    def test_error_from_call_judge_is_reported(self):
+        j = LLMJudge(model="gpt-4o-mini", sample_rate=1.0, seed=0)
+        j._call_judge = lambda *a, **kw: {"error": "boom", "scores": None}
+        r = j.self_consistency("t", "Q", "A", k=3)
+        assert r["error"] == "boom"
+
+    def test_bypasses_sampling_gate(self):
+        # sample_rate 0 would skip judge(), but self_consistency must still run
+        j = LLMJudge(model="gpt-4o-mini", sample_rate=0.0, seed=0)
+        j._call_judge = lambda *a, **kw: {
+            "skipped": False, "scores": {"overall": 5.0}, "cost_usd": 0.0,
+        }
+        r = j.self_consistency("t", "Q", "A", k=2)
+        assert r["k"] == 2

@@ -147,6 +147,7 @@ def verdict_confidence(
     tcr_ci_halfwidth: float | None = None,
     n_gate_components: int | None = None,
     margin_to_threshold: float | None = None,
+    judge_trust: str | None = None,
 ) -> tuple[str, list[str]]:
     """판정 전반의 확신도를 ``"high"`` / ``"medium"`` / ``"low"``로 종합한다.
 
@@ -157,6 +158,10 @@ def verdict_confidence(
         tcr_ci_halfwidth: TCR 95% CI 반폭(0–1 스케일). 없으면 이 신호 무시.
         n_gate_components: fail/warn Gate 판정에 실제로 들어간 측정 컴포넌트 수.
         margin_to_threshold: Gate 점수 − 임계값(0–1). |margin|<0.05면 경계선 판정.
+        judge_trust: 평가기(LLM judge) 신뢰도 ``"high"``/``"medium"``/``"low"``
+            (SPEC-041 P14, ``insights.evaluator_trust.trust_level``). judge가
+            휴리스틱과 불일치하거나·비보정·비일관이면 그 위에 쌓은 판정도 그만큼만
+            믿을 수 있으므로 확신도를 같은 등급으로 끌어내린다. 없으면 이 신호 무시.
 
     Returns:
         ``(level, reasons)`` — ``reasons``는 등급을 끌어내린 요인 문자열만.
@@ -189,5 +194,10 @@ def verdict_confidence(
 
     if margin_to_threshold is not None and abs(margin_to_threshold) < 0.05:
         _demote("medium", "score is within 5% of the pass/fail threshold")
+
+    if judge_trust == "low":
+        _demote("low", "the evaluator (LLM judge) is unreliable for this run")
+    elif judge_trust == "medium":
+        _demote("medium", "the evaluator (LLM judge) has limited reliability for this run")
 
     return level, reasons

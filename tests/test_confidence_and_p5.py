@@ -67,6 +67,20 @@ class TestRequiredN:
         assert required_n_for_halfwidth(0.5, 0.05) >= required_n_for_halfwidth(0.9, 0.05)
 
 
+class TestJudgeTrustDemotion:
+    def test_low_judge_trust_forces_low(self):
+        level, reasons = verdict_confidence(n_tasks=500, judge_trust="low")
+        assert level == "low"
+        assert any("evaluator" in r for r in reasons)
+
+    def test_medium_judge_trust_caps_at_medium(self):
+        level, _ = verdict_confidence(n_tasks=500, judge_trust="medium")
+        assert level == "medium"
+
+    def test_none_judge_trust_is_ignored(self):
+        assert verdict_confidence(n_tasks=500)[0] == "high"
+
+
 class TestMdeTwoProportions:
     def test_smaller_sample_larger_mde(self):
         assert mde_two_proportions(20, 20, 0.5) > mde_two_proportions(400, 400, 0.5)

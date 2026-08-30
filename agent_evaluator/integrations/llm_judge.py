@@ -509,6 +509,70 @@ class LLMJudge:
         self._disabled_reason = None
         logger.info("LLMJudge: error counter reset — judge re-enabled")
 
+    def self_consistency(
+        self,
+        task_id: str,
+        question: str,
+        response: str,
+        context: str | None = None,
+        *,
+        k: int = 3,
+    ) -> dict[str, Any]:
+        """Score the same (question, response) ``k`` times and report how much the
+        judge agrees with itself (SPEC-041 P14).
+
+        A judge that returns a wide spread on identical input is a noisy
+        instrument — every metric built on it inherits that noise. This does not
+        change the scoring logic; it just calls ``_call_judge`` repeatedly
+        (bypassing the ``sample_rate`` gate, like ``judge_pairwise``) and
+        summarises the ``overall`` scores.
+
+        Args:
+            task_id / question / response / context: same as :meth:`judge`.
+            k: number of repeat scorings (``>= 2``).
+
+        Returns:
+            ``{"task_id", "k", "overall_scores", "overall_mean", "overall_stdev",
+            "overall_range", "agreement", "skipped"|"error"}``. ``agreement`` is
+            the fraction of run pairs whose ``overall`` values fall within 1.0 of
+            each other (0–10 scale) — 1.0 means perfectly self-consistent.
+        """
+        if k < 2:
+            raise ValueError(f"self_consistency: k must be >= 2, got {k}")
+        if self._disabled_reason is not None:
+            return {"task_id": task_id, "skipped": True, "reason": self._disabled_reason}
+        if not self._check_budget():
+            return {"task_id": task_id, "skipped": True, "reason": "budget_exceeded"}
+
+        overalls: list[float] = []
+        for _ in range(k):
+            r = self._call_judge(task_id, question, response, context)
+            if r.get("error"):
+                return {"task_id": task_id, "error": r["error"], "k": k}
+            ov = (r.get("scores") or {}).get("overall")
+            if isinstance(ov, (int, float)):
+                overalls.append(float(ov))
+        if len(overalls) < 2:
+            return {"task_id": task_id, "skipped": True, "reason": "insufficient_scores", "k": k}
+
+        mean = sum(overalls) / len(overalls)
+        var = sum((x - mean) ** 2 for x in overalls) / len(overalls)
+        pairs = [
+            (overalls[i], overalls[j])
+            for i in range(len(overalls))
+            for j in range(i + 1, len(overalls))
+        ]
+        agree = sum(1 for a, b in pairs if abs(a - b) <= 1.0) / len(pairs)
+        return {
+            "task_id": task_id,
+            "k": len(overalls),
+            "overall_scores": [round(x, 3) for x in overalls],
+            "overall_mean": round(mean, 3),
+            "overall_stdev": round(var ** 0.5, 3),
+            "overall_range": round(max(overalls) - min(overalls), 3),
+            "agreement": round(agree, 3),
+        }
+
     def judge_pairwise(
         self,
         question: str,

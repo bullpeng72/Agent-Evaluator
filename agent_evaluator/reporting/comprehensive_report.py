@@ -2400,6 +2400,107 @@ def _build_change_ledger(results_dir: Any) -> str:
     )
 
 
+def _build_evaluator_reliability(tasks: list[Any] | None,
+                                 current: dict[str, Any] | None) -> str:
+    """P14: how much can the reader trust the numbers? Surfaces judge-vs-heuristic
+    agreement, and judge calibration / self-consistency when a run stashed them."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import _evaluator_trust_section
+
+        norm = [_norm_task_for_case(t) for t in tasks]
+        et = _evaluator_trust_section(
+            [
+                {"task_id": c["task_id"], "accuracy_score": c["accuracy_score"],
+                 "llm_judge": (t.raw.get("llm_judge") if isinstance(getattr(t, "raw", None), dict)
+                               else getattr(t, "llm_judge", None))}
+                for t, c in zip(tasks, norm)
+            ],
+            current or {},
+        )
+    except Exception:
+        et = None
+    if not et:
+        return ""
+
+    lvl = et.get("trust_level", "high")
+    col = {"high": "#059669", "medium": "#d97706", "low": "#dc2626"}.get(lvl, "#6b7280")
+    reasons = et.get("trust_reasons") or []
+    reason_html = ""
+    if reasons:
+        reason_html = (
+            '<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7;color:#4b5563">'
+            + "".join(f"<li>{_esc(r)}</li>" for r in reasons) + "</ul>"
+        )
+
+    jvh = et.get("judge_vs_heuristic")
+    jvh_html = ""
+    if jvh:
+        dis = jvh.get("disagreements") or []
+        dis_rows = "".join(
+            f'<tr><td>{_esc(d.get("task_id", ""))}</td>'
+            f'<td style="text-align:right">{d.get("judge", 0):.2f}</td>'
+            f'<td style="text-align:right">{d.get("heuristic", 0):.2f}</td>'
+            f'<td style="text-align:right;color:#dc2626">{d.get("diff", 0):.2f}</td></tr>'
+            for d in dis[:8]
+        )
+        dis_tbl = (
+            '<table class="mtable" style="margin-top:4px"><thead><tr>'
+            '<th>Task</th><th>Judge</th><th>Heuristic</th><th>|Δ|</th>'
+            f'</tr></thead><tbody>{dis_rows}</tbody></table>' if dis_rows else ""
+        )
+        jvh_html = (
+            f'<p style="font-size:12px;margin:8px 0 0;color:#4b5563">'
+            f'LLM judge vs token-overlap scorer over {jvh["n_comparable"]} task(s): '
+            f'<strong>{jvh["agreement_rate"] * 100:.0f}%</strong> agree '
+            f'(mean |Δ| {jvh["mean_abs_diff"]:.2f}).</p>{dis_tbl}'
+        )
+
+    calib = et.get("judge_calibration")
+    calib_html = ""
+    if isinstance(calib, dict) and calib.get("dimensions"):
+        rows = ""
+        for dim, v in (calib["dimensions"] or {}).items():
+            if not isinstance(v, dict) or not v.get("n"):
+                continue
+            rows += (
+                f'<tr><td>{_esc(dim)}</td>'
+                f'<td style="text-align:right">{v.get("mean_absolute_error", "—")}</td>'
+                f'<td style="text-align:right">{v.get("cohen_kappa_quadratic", "—")}</td>'
+                f'<td style="text-align:right">{v.get("n", 0)}</td></tr>'
+            )
+        if rows:
+            calib_html = (
+                '<p style="font-size:12px;margin:10px 0 2px;color:#4b5563">'
+                'Judge vs human golden labels:</p>'
+                '<table class="mtable"><thead><tr>'
+                '<th>Dimension</th><th>MAE</th><th>Cohen κ (quad)</th><th>n</th>'
+                f'</tr></thead><tbody>{rows}</tbody></table>'
+            )
+
+    sc = et.get("judge_self_consistency")
+    sc_html = ""
+    if isinstance(sc, dict) and isinstance(sc.get("agreement"), (int, float)):
+        sc_html = (
+            f'<p style="font-size:12px;margin:10px 0 0;color:#4b5563">'
+            f'Judge self-consistency (k={sc.get("k", "?")}): '
+            f'<strong>{sc["agreement"] * 100:.0f}%</strong> of repeat-scoring pairs '
+            f'within 1.0 (stdev {sc.get("overall_stdev", "?")}).</p>'
+        )
+
+    return (
+        '<div class="gate-section" id="evaluator-reliability" style="border-left-color:#0891b2">'
+        '<h2 style="color:#1e2030">Evaluator Reliability</h2>'
+        f'<p style="font-size:14px;font-weight:700;color:{col}">Evaluator trust: {lvl.upper()}</p>'
+        '<p style="color:#6b7280;font-size:13px;margin:2px 0 0">'
+        'Every metric that uses the LLM judge inherits its error. '
+        'A low trust level demotes the deployment-readiness confidence.</p>'
+        f'{reason_html}{jvh_html}{calib_html}{sc_html}'
+        '</div>'
+    )
+
+
 def _build_eval_set_quality(tasks: list[Any] | None,
                             baseline: dict[str, Any] | None,
                             harness_groups: dict[str, Any]) -> str:
@@ -3639,6 +3740,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_evaluator_reliability(_tasks_list, current_dict),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -3831,6 +3933,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_evaluator_reliability(_tasks_list, current_dict),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
