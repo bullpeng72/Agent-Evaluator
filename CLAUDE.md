@@ -853,6 +853,9 @@ judge_calibration|null, judge_self_consistency|null, trust_level: high|medium|lo
 (SPEC-041 P14 — 평가기 신뢰도. trust_level=low/medium면 verdict.confidence를 같은 등급으로 강등),
 review_queue{n_items, by_priority{high, medium, low}, items[]{task_id, priority, reasons[]}}|null
 (SPEC-041 P15 — HITL 트리아지: judge↔휴리스틱 불일치·suspicious 라벨·회귀 실패·경계선 점수를 우선순위로),
+cost_economics{total_cost_usd, cost_source, cost_per_task_usd, cost_per_successful_task_usd, wasted_cost_usd,
+wasted_cost_pct, retry_cost_usd, retry_cost_pct, projection{calls, total_usd, wasted_usd}}|null
+(SPEC-041 P16 — 성공 태스크당 비용·실패/재시도 낭비·10만 콜 투사. per-task 토큰×pricing, 없으면 집계 균등분할),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -914,6 +917,14 @@ judge↔휴리스틱 불일치(high) · suspicious ground_truth(high) · baselin
 태스크를 `tasks[]`에서 찾아 `{question, ground_truth, context, source_task_id, review_reasons,
 needs_human_review:True}` 골든 케이스로 `GoldenSetBuilder.merge_to_golden()`. 실패→회귀테스트 루프를 닫는다.
 (주의: `--tag`이 golden version — top-level `--version`(store_true)과 충돌 피하려 `dest="promote_version"`.)
+
+**SPEC-041 P16 (비용 경제성)** — `reporting/insights.py::_cost_economics_section` +
+`comprehensive_report.py::_build_cost_economics`(Gate D 섹션 "Cost Efficiency"): per-task 비용 =
+`tokens_used.input/1000×pricing.input + output/1000×pricing.output`(또는 `extra.cost_usd`), 없으면
+`efficiency_metrics.tokens.total_cost` 균등분할(`cost_source`로 구분). **cost_per_successful_task**
+(= total / _effective_fail 아닌 태스크 수) · **wasted_cost**(실패 태스크 비용 합) · **retry_cost**
+(attempts>1 태스크의 `cost×(attempts-1)/attempts`) · **projection**(10만 콜 total/wasted USD). 대시보드
+Improve 탭 패널. `_build_gate_d`에 `current` 인자 추가.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

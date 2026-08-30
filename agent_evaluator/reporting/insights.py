@@ -149,6 +149,96 @@ def _extract_task_attr(t: dict[str, Any]) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Cost economics (P16) — the number that actually matters is cost per *successful*
+# task, plus how much is being burned on failures and retries, plus what that
+# projects to at scale. Gate D only ever showed total / per-task cost.
+# ---------------------------------------------------------------------------
+_PROJECTION_CALLS = 100_000
+
+
+def _task_token_cost(t: dict[str, Any], p_in: float | None, p_out: float | None) -> float | None:
+    """Per-task USD cost from token counts + pricing (per-1k-token rates), or the
+    task's own ``extra.cost_usd`` / ``llm_judge.cost_usd`` if present."""
+    extra = t.get("extra")
+    if isinstance(extra, dict) and isinstance(extra.get("cost_usd"), (int, float)):
+        return float(extra["cost_usd"])
+    tu = t.get("tokens_used")
+    if isinstance(tu, dict) and p_in is not None:
+        i = _safe_float(tu.get("input"), 0.0) or 0.0
+        o = _safe_float(tu.get("output"), 0.0) or 0.0
+        if i or o:
+            return i / 1000.0 * p_in + o / 1000.0 * (p_out if p_out is not None else p_in)
+    return None
+
+
+def _cost_economics_section(
+    tasks: list[dict[str, Any]], current: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not tasks:
+        return None
+    pricing = (current.get("pricing") or {}) if isinstance(current, dict) else {}
+    p_in = _safe_float(pricing.get("input"))
+    p_out = _safe_float(pricing.get("output"))
+
+    per_task = [_task_token_cost(t, p_in, p_out) for t in tasks]
+    have_per_task = any(c is not None for c in per_task)
+
+    agg_total = None
+    em = (current.get("efficiency_metrics") or {}) if isinstance(current, dict) else {}
+    tok = em.get("tokens") if isinstance(em.get("tokens"), dict) else {}
+    if isinstance(tok.get("total_cost"), (int, float)):
+        agg_total = float(tok["total_cost"])
+
+    n = len(tasks)
+    if have_per_task:
+        costs = [c if c is not None else 0.0 for c in per_task]
+        total_cost = sum(costs)
+    elif agg_total and agg_total > 0:
+        total_cost = agg_total
+        costs = [agg_total / n] * n           # uniform fallback
+    else:
+        return None
+    if total_cost <= 0:
+        return None
+
+    failed = [
+        i for i, t in enumerate(tasks)
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    n_success = n - len(failed)
+    wasted = sum(costs[i] for i in failed)
+
+    retry_cost = 0.0
+    for i, t in enumerate(tasks):
+        a = t.get("attempts")
+        if isinstance(a, int) and a > 1:
+            retry_cost += costs[i] * (a - 1) / a   # fraction attributable to retries
+
+    cost_per_task = total_cost / n
+    return {
+        "total_cost_usd": round(total_cost, 6),
+        "cost_source": "per_task_tokens" if have_per_task else "aggregate_uniform_split",
+        "n_tasks": n,
+        "n_successful": n_success,
+        "cost_per_task_usd": round(cost_per_task, 6),
+        "cost_per_successful_task_usd": (
+            round(total_cost / n_success, 6) if n_success else None
+        ),
+        "wasted_cost_usd": round(wasted, 6),
+        "wasted_cost_pct": round(wasted / total_cost * 100.0, 1),
+        "retry_cost_usd": round(retry_cost, 6),
+        "retry_cost_pct": round(retry_cost / total_cost * 100.0, 1),
+        "projection": {
+            "calls": _PROJECTION_CALLS,
+            "total_usd": round(cost_per_task * _PROJECTION_CALLS, 2),
+            "wasted_usd": round(wasted / n * _PROJECTION_CALLS, 2),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Evaluator trust (P14) — "how much can I trust the numbers?"
 #
 # Every L2-L6 figure that involves the LLM judge inherits the judge's error. This
@@ -1138,6 +1228,7 @@ def build_insights(
         ),
         "rag_localization": _safe(rag_localization, tasks, default=None),
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
+        "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "eval_set_quality": eval_set_quality,
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),

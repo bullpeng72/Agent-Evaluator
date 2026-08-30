@@ -445,6 +445,57 @@ class TestReviewQueue:
         assert build_insights(rpt)["review_queue"] is None
 
 
+class TestCostEconomics:
+    def _ct(self, tid, ok, tokens=(800, 400), attempts=1):
+        return {
+            "task_id": tid, "task_type": "qa", "success": ok,
+            "accuracy_score": 0.9 if ok else 0.2, "completion_score": 1.0 if ok else 0.0,
+            "attempts": attempts,
+            "tokens_used": {"input": tokens[0], "output": tokens[1],
+                            "total": sum(tokens)},
+        }
+
+    def test_cost_per_success_and_waste_and_projection(self):
+        tasks = [self._ct(f"t{i}", i % 3 != 0, attempts=2 if i % 4 == 0 else 1)
+                 for i in range(12)]
+        rpt = _report(
+            {"D": {"score": 0.6, "status": "warn", "gate": "warn", "details": {}}}, tasks,
+        )
+        rpt["pricing"] = {"input": 0.003, "output": 0.015}
+        ce = build_insights(rpt)["cost_economics"]
+        assert ce["cost_source"] == "per_task_tokens"
+        assert ce["n_successful"] == 8
+        # per task: 0.8*0.003 + 0.4*0.015 = 0.0084
+        assert ce["cost_per_task_usd"] == pytest.approx(0.0084, abs=1e-4)
+        assert ce["cost_per_successful_task_usd"] > ce["cost_per_task_usd"]
+        assert ce["wasted_cost_pct"] == pytest.approx(33.3, abs=0.5)   # 4 of 12
+        assert ce["retry_cost_pct"] > 0
+        assert ce["projection"]["calls"] == 100000
+        assert ce["projection"]["total_usd"] == pytest.approx(840.0, abs=1.0)
+
+    def test_uniform_split_fallback_from_aggregate(self):
+        tasks = [
+            {"task_id": f"t{i}", "task_type": "qa", "success": i % 2 == 0,
+             "accuracy_score": 0.9 if i % 2 == 0 else 0.2, "completion_score": 1.0}
+            for i in range(10)
+        ]
+        rpt = _report(
+            {"D": {"score": 0.6, "status": "warn", "gate": "warn", "details": {}}}, tasks,
+        )
+        rpt["efficiency_metrics"] = {"tokens": {"total_cost": 1.0}}
+        ce = build_insights(rpt)["cost_economics"]
+        assert ce["cost_source"] == "aggregate_uniform_split"
+        assert ce["total_cost_usd"] == 1.0
+        assert ce["wasted_cost_pct"] == pytest.approx(50.0, abs=0.1)
+
+    def test_none_without_any_cost_data(self):
+        rpt = _report(
+            {"D": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(10)],
+        )
+        assert build_insights(rpt)["cost_economics"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

@@ -1194,7 +1194,8 @@ def _build_latency_budget(tasks: list[Any] | None, p95: Any) -> str:
 
 
 def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
-                  tasks: list[Any] | None = None) -> str:
+                  tasks: list[Any] | None = None,
+                  current: dict[str, Any] | None = None) -> str:
     color = _GATE_COLORS["D"]
     gate_status = (harness_d.get("gate") or harness_d.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1281,14 +1282,70 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
     # 렌더한다(P5) — Gate D 전용 중복 블록 제거.
     breakdown = _build_score_breakdown("D", harness_d)
 
+    cost_html = _build_cost_economics(tasks, current, token_stats)
+
     return (
         f'<div class="gate-section" id="gate-d" style="border-left-color:{color}">'
         f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">Performance Contract</span>&nbsp;{badge}</h2>'
         f'{breakdown}'
         f'{lat_html}'
         f'{tok_html}'
+        f'{cost_html}'
         f'{harness_block}'
         f'</div>'
+    )
+
+
+def _build_cost_economics(tasks: list[Any] | None, current: dict[str, Any] | None,
+                          token_stats: dict | None) -> str:
+    """P16: cost per *successful* task + waste + retry burn + scale projection."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import _cost_economics_section
+
+        cur = current
+        if not (cur and (cur.get("pricing") or cur.get("efficiency_metrics"))):
+            cur = {"pricing": {}, "efficiency_metrics": {"tokens": token_stats or {}}}
+        ce = _cost_economics_section(_review_dict_tasks(tasks), cur)
+    except Exception:
+        ce = None
+    if not ce:
+        return ""
+
+    def _usd(v: Any) -> str:
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            return "—"
+        if fv == 0:
+            return "$0"
+        return "$" + (f"{fv:.6f}".rstrip("0").rstrip(".") if fv < 0.01 else f"{fv:.4f}")
+
+    cps = ce.get("cost_per_successful_task_usd")
+    cpt = ce.get("cost_per_task_usd")
+    penalty = ""
+    if isinstance(cps, (int, float)) and isinstance(cpt, (int, float)) and cpt > 0:
+        penalty = f' <span style="color:#6b7280">({cps / cpt:.1f}x cost/task)</span>'
+    proj = ce.get("projection") or {}
+    wasted_val = f'{_usd(ce.get("wasted_cost_usd"))} ({ce.get("wasted_cost_pct")}%)'
+    retry_val = f'{_usd(ce.get("retry_cost_usd"))} ({ce.get("retry_cost_pct")}%)'
+    proj_calls = proj.get("calls", 100000)
+    proj_val = (f'{_usd(proj.get("total_usd"))} '
+                f'(of which {_usd(proj.get("wasted_usd"))} wasted)')
+    rows = (
+        _metric_row("Cost per successful task", _usd(cps) + penalty)
+        + _metric_row("Wasted on failed tasks", wasted_val)
+        + _metric_row("Retry burn", retry_val)
+        + _metric_row(f"Projected at {proj_calls:,} calls", proj_val)
+    )
+    note = ("" if ce.get("cost_source") == "per_task_tokens"
+            else '<p style="font-size:11px;color:#9ca3af;margin:2px 0 0">'
+                 'Per-task token costs unavailable — figures use a uniform split of '
+                 'the aggregate cost.</p>')
+    return (
+        '<h3 style="margin-top:14px">Cost Efficiency</h3>'
+        f'<table class="mtable"><tbody>{rows}</tbody></table>{note}'
     )
 
 
@@ -3809,7 +3866,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, current_dict),
         _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
@@ -4003,7 +4060,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
         _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, current_dict),
         _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
         _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
         _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
