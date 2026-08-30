@@ -3323,8 +3323,14 @@ def _build_experiments(exps: list[dict[str, Any]] | None) -> str:
         pred_s = f"{pred:+.3f}" if isinstance(pred, (int, float)) else "—"
         act_s = f"{act:+.3f}" if isinstance(act, (int, float)) else "—"
         note = _esc(str(e.get("note") or ""))
+        # the dedicated Predicted Δ column already shows the number — keep the
+        # Hypothesis cell to just the target so it doesn't read as a duplicate.
+        tgt = f"Gate {e.get('target_gate', '?')}"
+        if e.get("target_field"):
+            tgt += f" · {e['target_field']}"
+        label = tgt if e.get("target_gate") else str(e.get("hypothesis", ""))
         rows += (
-            f'<tr><td>{_esc(str(e.get("hypothesis", "")))}</td>'
+            f'<tr><td>{_esc(label)}</td>'
             f'<td style="text-align:right;font-variant-numeric:tabular-nums">{pred_s}</td>'
             f'<td style="text-align:right;font-variant-numeric:tabular-nums">{act_s}</td>'
             f'<td style="color:{col};font-weight:700">{lbl}</td>'
@@ -3467,7 +3473,7 @@ def _build_change_attribution(ca: dict[str, Any] | None) -> str:
 
 
 _TOC_LABELS = {
-    "narrative": "Summary", "exec-summary": "Verdict",
+    "narrative": "Summary", "exec-summary": "Verdict", "path-to-green": "Path to Green",
     "gate-a": "A", "gate-b": "B", "gate-c": "C", "gate-d": "D",
     "gate-e": "E", "gate-f": "F", "gate-g": "G",
     "advanced": "Advanced", "operational-signals": "Anomalies",
@@ -3522,6 +3528,86 @@ def _build_narrative_banner(narrative: str) -> str:
         f'{_esc(narrative.strip())}</p>'
         '<p style="font-size:11px;color:#9ca3af;margin:6px 0 0">'
         'Auto-generated summary — see the sections below for the evidence.</p>'
+        '</div>'
+    )
+
+
+def _build_readiness(rd: dict[str, Any] | None) -> str:
+    """P29: quantified distance to a passing verdict + an impact-ordered fix
+    plan with a deterministic TCR projection. Sits right under the verdict."""
+    if not rd or (not rd.get("gaps") and not rd.get("fix_plan")):
+        return ""
+    tgt = rd.get("target_gate_score", 0.7)
+
+    gap_rows = ""
+    for g in rd.get("gaps") or []:
+        sc = g.get("score")
+        gap = g.get("gap")
+        after = g.get("projected_score_after_plan")
+        col = "#dc2626" if g.get("blocking") else "#b45309"
+        sc_cell = f'{sc:.2f}' if isinstance(sc, (int, float)) else "—"
+        gap_cell = f'{gap:+.2f}' if isinstance(gap, (int, float)) else "—"
+        after_cell = (
+            f'~{after:.2f}<span style="color:#9ca3af;font-weight:400"> (est.)</span>'
+            if isinstance(after, (int, float)) else "—"
+        )
+        gname = _esc(g.get("gate_name", ""))
+        gap_rows += (
+            f'<tr><td style="font-weight:600">Gate {g.get("gate")} '
+            f'<span style="color:#6b7280;font-weight:400">{gname}</span></td>'
+            f'<td style="text-align:right;color:{col};font-weight:700">{sc_cell}</td>'
+            f'<td style="text-align:right;color:#6b7280">{tgt:.2f}</td>'
+            f'<td style="text-align:right;color:{col};font-weight:700">{gap_cell}</td>'
+            f'<td style="text-align:right;color:#059669">{after_cell}</td></tr>'
+        )
+
+    plan_rows = ""
+    for it in rd.get("fix_plan") or []:
+        gates = ", ".join(it.get("targets_gates") or []) or "—"
+        plan_rows += (
+            f'<tr><td style="text-align:center;color:#6b7280">{it.get("rank")}</td>'
+            f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}'
+            f'</div><div style="font-size:11px;color:#6b7280">{_esc(it.get("effort_hint", ""))}'
+            f'</div></td>'
+            f'<td style="text-align:right;white-space:nowrap">{it.get("count")} task(s)'
+            f'<div style="font-size:11px;color:#9ca3af">{it.get("impact_pct")}% of set</div></td>'
+            f'<td style="text-align:center;font-size:11px;color:#6b7280">{_esc(gates)}</td>'
+            f'<td style="text-align:right;white-space:nowrap;'
+            f'font-variant-numeric:tabular-nums">{it.get("projected_tcr_after_pct")}%'
+            f'<div style="font-size:11px;color:#059669">'
+            f'+{it.get("cumulative_tcr_gain_pp")}pp cum.</div></td></tr>'
+        )
+
+    pr = rd.get("projected_ready_after") or {}
+    n = pr.get("ready_after_n_items")
+    verdict_line = (
+        f'<span style="color:#059669;font-weight:700">Projected: closing the top '
+        f'{n} cluster(s) clears every failing gate.</span> '
+        if n else
+        '<span style="color:#b45309;font-weight:700">Projected: the fix plan alone '
+        'does not clear every failing gate.</span> '
+    )
+    cur_tcr = rd.get("current_tcr_pct")
+    cur_line = f'Current TCR {cur_tcr:.1f}%. ' if isinstance(cur_tcr, (int, float)) else ""
+
+    return (
+        '<div class="gate-section" id="path-to-green" style="border-left-color:#dc2626">'
+        '<h2 style="color:#1e2030">Path to Green</h2>'
+        '<h3 style="margin:6px 0 4px">Gate gaps</h3>'
+        '<table class="mtable"><thead><tr><th>Gate</th><th>Now</th><th>Target</th>'
+        '<th>Gap</th><th>After plan</th></tr></thead>'
+        f'<tbody>{gap_rows}</tbody></table>'
+        + (
+            '<h3 style="margin:14px 0 4px">Fix plan — clusters by TCR impact</h3>'
+            '<table class="mtable"><thead><tr><th>#</th><th>Failure cluster / where to look</th>'
+            '<th>Size</th><th>Helps</th><th>Projected TCR</th></tr></thead>'
+            f'<tbody>{plan_rows}</tbody></table>' if plan_rows else ""
+        )
+        + f'<p style="font-size:13px;margin:10px 0 0">{cur_line}{verdict_line}'
+        f'<span style="color:#6b7280">{_esc(pr.get("note", ""))}</span></p>'
+        '<p style="font-size:11px;color:#9ca3af;margin:4px 0 0">'
+        'Projection is first-order — it assumes each cluster&rsquo;s tasks then pass '
+        'and nothing else changes. Use it to sequence work, not as a guarantee.</p>'
         '</div>'
     )
 
@@ -4623,6 +4709,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
+        _build_readiness(_insights_obj.get("readiness")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
@@ -4848,6 +4935,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
+        _build_readiness(_insights_obj.get("readiness")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),

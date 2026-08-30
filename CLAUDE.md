@@ -873,7 +873,14 @@ JSON 직렬화 가능한 한 객체로 재구성한다(새 판정 로직 없음,
 `recommendation_outcomes.jsonl` 자동 픽업), `serve/routers/diagnose.py`의 `/api/diagnose/{id}`도
 `result["insights"]`로 반환(대시보드 Improve 탭이 소비). 스키마:
 `{schema_version, detection_mode, verdict{level: not_ready|caution|ready|unknown, headline, failing_gates,
-warning_gates, confidence, confidence_reasons, next_actions[]}, metric_confidence{n_tasks, tcr_pct, tcr_ci_pct,
+warning_gates, confidence, confidence_reasons, next_actions[]},
+readiness{target_gate_score(=0.7), current_tcr_pct, current_accuracy_pct, gaps[]{gate, gate_name, score,
+target, gap, blocking, projected_score_after_plan?, estimate?}, fix_plan[]{rank, signature, task_type, count,
+impact_pct, example_task_ids, effort_hint, targets_gates[], projected_tcr_after_pct, projected_accuracy_after_pct,
+cumulative_tcr_gain_pp}, projected_ready_after{ready_after_n_items, remaining_structural_blockers[], note}}|null
+(SPEC-041 P29 — "green까지의 경로": 게이트별 pass 라인(0.7)까지의 정량 갭 + 실패군집을 TCR 영향 순으로
+정렬한 수정 계획 + 결정적 투영. 실패/경고 게이트도 실패군집도 없으면 null),
+metric_confidence{n_tasks, tcr_pct, tcr_ci_pct,
 accuracy_pct, accuracy_ci_pct}, gate_findings[]{gate, score, component_shortfalls[]{field, value, health,
 guidance, config_hint}, top_detail_deltas[]}, failure_clusters[]{signature, task_type, count, impact_pct,
 example_task_ids}, failure_lineage{regressed, persistent, new, fixed}|null, recommendations[]{gate, status,
@@ -1063,6 +1070,17 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P29 (green까지의 경로)** — `reporting/insights.py::_readiness_section(tasks, harness_groups)` →
+`insights.readiness`. `gaps[]` = fail/warn 게이트별 `{score, target(0.7=gates/base.py `_status` warn 라인),
+gap, blocking, projected_score_after_plan(A/C만, estimate)}`. `fix_plan[]` = 실패군집(전체 멤버십으로
+재계산, `_failure_clusters_section`의 잘린 example_task_ids 대신)을 크기순 정렬, 각 항목에 결정적 투영
+`projected_tcr_after_pct`(해당 군집까지 fix 시 완료율 정확 재계산)·`cumulative_tcr_gain_pp`·
+`effort_hint`+`targets_gates`(`_fix_effort_hint`: reason 시그니처 키워드→처방/게이트 매핑).
+`projected_ready_after` = TCR-driven 블로커(A/C)가 몇 개 fix 후 target을 넘는지 + B/D/E/F/G는
+`remaining_structural_blockers`로 분리("task 결과로 안 움직임"). 투영은 1차 근사(군집 태스크가 pass로
+바뀌고 나머지 불변 가정) — 순서 잡기용이지 보장 아님. 리포트 `_build_readiness()` 섹션 `path-to-green`
+(verdict 바로 아래), 대시보드 Improve 탭 패널. fail/warn 게이트도 실패군집도 없으면 None.
 
 **SPEC-041 P28 (인사이트 전달 로드맵 마무리)** — 4개 독립 추가.
 (1) **메타데이터 슬라이싱** — `reporting/insights.py::_metadata_slices_section(tasks, baseline)` —

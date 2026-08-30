@@ -875,6 +875,185 @@ def _verdict_section(
     }
 
 
+# ---------------------------------------------------------------------------
+# Path to green (P29) — the verdict says "not ready"; this quantifies the gap
+# to each gate's pass line and orders the failure clusters into a fix plan with
+# a deterministic projection of "close these N and Gate A reaches ~0.74".
+# ---------------------------------------------------------------------------
+
+# score >= 0.7 is the built-in gate "pass" line (gates/base.py::_status warn=0.7).
+# A CI run may set a stricter custom threshold; this is the SDK default target.
+_READINESS_TARGET = 0.7
+_TCR_DRIVEN_GATES = ("A", "C")
+
+
+def _fix_effort_hint(sig: str) -> tuple[str, list[str]]:
+    """(effort hint, gates the fix most likely moves) from a reason signature."""
+    s = (sig or "").lower()
+    if s.startswith("error:") or "timeout" in s or "exceeded" in s:
+        return ("Reliability / infra — review retry and timeout handling "
+                "(FaultToleranceConfig, RetryConfig).", ["C", "D"])
+    if ("not grounded" in s or "contradict" in s or "retrieved context" in s
+            or "hallucin" in s or "unsupported" in s):
+        return ("Retrieval or grounding — re-rank or raise top_k, and tighten "
+                "the 'answer only from context' instruction.", ["A", "C", "G"])
+    if ("part of" in s or "multi-step" in s or "incomplete" in s
+            or "remaining steps" in s or "steps" in s):
+        return ("Task decomposition — add SubtaskConfig so each step is "
+                "verified before the next.", ["A"])
+    if ("loop" in s or "repeat" in s or "scope" in s or "unauthorized" in s
+            or "injection" in s or "ignore previous" in s):
+        return ("Guardrail config — LoopDetectionConfig / ScopeConfig / "
+                "ToolParameterSafetyConfig.", ["B", "E"])
+    return ("Review the worst-case examples in this cluster to find the shared "
+            "root cause.", ["A"])
+
+
+def _readiness_section(
+    tasks: list[dict[str, Any]],
+    harness_groups: dict[str, Any],
+) -> dict[str, Any] | None:
+    """P29: quantified distance to a passing verdict + an impact-ordered fix
+    plan with a deterministic projection. ``None`` when there is nothing to
+    plan (no failing/warning gate and no failure cluster)."""
+    fails, warns = [], []
+    for k in "ABCDEFG":
+        st = _gate_status(harness_groups.get(k))
+        if st == "fail":
+            fails.append(k)
+        elif st == "warn":
+            warns.append(k)
+    if not tasks:
+        return None
+
+    # --- current outcome rates (exact per-task means) ----------------------
+    comps = [c for c in (_safe_float(t.get("completion_score")) for t in tasks) if c is not None]
+    accs = [a for a in (_safe_float(t.get("accuracy_score")) for t in tasks) if a is not None]
+    cur_tcr = (sum(comps) / len(comps)) if comps else None
+    cur_acc = (sum(accs) / len(accs)) if accs else None
+    pass_accs = [
+        _safe_float(t.get("accuracy_score"))
+        for t in tasks
+        if not _effective_fail(success=t.get("success", False),
+                               accuracy=t.get("accuracy_score"),
+                               completion=t.get("completion_score"))
+    ]
+    pass_accs = [a for a in pass_accs if a is not None]
+    passing_acc = (sum(pass_accs) / len(pass_accs)) if pass_accs else 0.85
+
+    # --- failure clusters, full membership (not the truncated public list) -
+    pool = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    buckets: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
+    for t in pool:
+        buckets[(_reason_signature(_task_reason(t)), t.get("task_type") or "—")].append(t)
+    ranked = sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+
+    if not fails and not warns and not ranked:
+        return None
+
+    total = len(tasks)
+    fixed_ids: set[str] = set()
+    fix_plan: list[dict[str, Any]] = []
+    for rank, ((sig, ttype), members) in enumerate(ranked[:8], 1):
+        for m in members:
+            if m.get("task_id"):
+                fixed_ids.add(str(m["task_id"]))
+        proj_tcr = sum(
+            1.0 if str(t.get("task_id")) in fixed_ids
+            else (_safe_float(t.get("completion_score")) or 0.0)
+            for t in tasks
+        ) / total
+        proj_acc = sum(
+            passing_acc if str(t.get("task_id")) in fixed_ids
+            else (_safe_float(t.get("accuracy_score")) or 0.0)
+            for t in tasks
+        ) / total
+        hint, tgt_gates = _fix_effort_hint(sig)
+        fix_plan.append({
+            "rank": rank,
+            "signature": sig,
+            "task_type": ttype,
+            "count": len(members),
+            "impact_pct": round(len(members) / total * 100.0, 1),
+            "example_task_ids": [str(m.get("task_id")) for m in members[:5] if m.get("task_id")],
+            "effort_hint": hint,
+            "targets_gates": tgt_gates,
+            "projected_tcr_after_pct": round(proj_tcr * 100.0, 1),
+            "projected_accuracy_after_pct": round(proj_acc * 100.0, 1),
+            "cumulative_tcr_gain_pp": round((proj_tcr - (cur_tcr or 0.0)) * 100.0, 1),
+        })
+
+    final_gain = (
+        (fix_plan[-1]["projected_tcr_after_pct"] / 100.0 - (cur_tcr or 0.0))
+        if fix_plan else 0.0
+    )
+
+    gaps: list[dict[str, Any]] = []
+    for k in fails + warns:
+        g = harness_groups.get(k) or {}
+        score = _safe_float(g.get("score"))
+        row: dict[str, Any] = {
+            "gate": k,
+            "gate_name": _GATE_FULL.get(k, k),
+            "score": None if score is None else round(score, 3),
+            "target": _READINESS_TARGET,
+            "gap": None if score is None else round(_READINESS_TARGET - score, 3),
+            "blocking": k in fails,
+        }
+        if score is not None and k in _TCR_DRIVEN_GATES:
+            row["projected_score_after_plan"] = round(min(1.0, score + final_gain), 3)
+            row["estimate"] = True
+        gaps.append(row)
+
+    # smallest N fixes after which every TCR-driven blocking gate clears target
+    tcr_blockers = [k for k in fails if k in _TCR_DRIVEN_GATES]
+    other_blockers = [k for k in fails if k not in _TCR_DRIVEN_GATES]
+    ready_after: int | None = None
+    if tcr_blockers and fix_plan:
+        for item in fix_plan:
+            gain = item["projected_tcr_after_pct"] / 100.0 - (cur_tcr or 0.0)
+            if all(
+                (_safe_float((harness_groups.get(k) or {}).get("score")) or 0.0) + gain
+                >= _READINESS_TARGET
+                for k in tcr_blockers
+            ):
+                ready_after = item["rank"]
+                break
+
+    if not tcr_blockers and not other_blockers:
+        note = ("No gate is failing outright; the fix plan is ordered by how much "
+                "TCR each cluster is costing you.")
+    elif ready_after is not None and not other_blockers:
+        note = (f"Closing the top {ready_after} cluster(s) is projected to clear "
+                f"every failing gate (estimate — assumes those tasks then pass and "
+                f"nothing else moves).")
+    elif other_blockers:
+        note = ("Gate(s) " + ", ".join(f"{k} ({_GATE_FULL.get(k, k)})" for k in other_blockers)
+                + " are not driven by task outcomes — the fix plan will not close "
+                "them. Address them from their own Gate section.")
+    else:
+        note = ("The fix plan does not fully close the failing TCR-driven gate(s) "
+                "on its own — more or deeper fixes are needed.")
+
+    return {
+        "target_gate_score": _READINESS_TARGET,
+        "current_tcr_pct": None if cur_tcr is None else round(cur_tcr * 100.0, 1),
+        "current_accuracy_pct": None if cur_acc is None else round(cur_acc * 100.0, 1),
+        "gaps": gaps,
+        "fix_plan": fix_plan,
+        "projected_ready_after": {
+            "ready_after_n_items": ready_after,
+            "remaining_structural_blockers": other_blockers,
+            "note": note,
+        },
+    }
+
+
 def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {"n_tasks": len(tasks)}
     comps = [_safe_float(t.get("completion_score")) for t in tasks]
@@ -2342,6 +2521,7 @@ def build_insights(
             _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust,
             security_findings, default={},
         ),
+        "readiness": _safe(_readiness_section, tasks, hg, default=None),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
         "review_queue": _safe(

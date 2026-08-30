@@ -6634,6 +6634,42 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="improveResult.insights.readiness && (improveResult.insights.readiness.gaps.length || improveResult.insights.readiness.fix_plan.length)">
+            <div style="border:1px solid var(--border);border-left:4px solid var(--red);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700">Path to green</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Quantified gap to each gate&rsquo;s pass line, then failure clusters ordered by projected TCR impact.</div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Gate</th><th style="text-align:right;padding:4px">Now</th><th style="text-align:right;padding:4px">Target</th><th style="text-align:right;padding:4px">Gap</th><th style="text-align:right;padding:4px">After plan</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(g, i) in improveResult.insights.readiness.gaps" :key="i">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:600" x-text="'Gate '+g.gate+' — '+(g.gate_name||'')"></td>
+                        <td style="padding:4px;text-align:right;font-weight:700" :style="g.blocking?'color:var(--red)':'color:var(--yellow)'" x-text="g.score!=null?g.score.toFixed(2):'—'"></td>
+                        <td style="padding:4px;text-align:right;color:var(--text2)" x-text="g.target.toFixed(2)"></td>
+                        <td style="padding:4px;text-align:right;font-weight:700" :style="g.blocking?'color:var(--red)':'color:var(--yellow)'" x-text="g.gap!=null?(g.gap>=0?'+':'')+g.gap.toFixed(2):'—'"></td>
+                        <td style="padding:4px;text-align:right;color:var(--green)" x-text="g.projected_score_after_plan!=null?('~'+g.projected_score_after_plan.toFixed(2)+' est.'):'—'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <template x-if="improveResult.insights.readiness.fix_plan.length">
+                <ol style="margin:8px 0 0 18px;font-size:12px;line-height:1.6">
+                  <template x-for="(it, i) in improveResult.insights.readiness.fix_plan" :key="i">
+                    <li><strong x-text="it.signature"></strong>
+                      <span style="color:var(--text2)" x-text="' — '+it.count+' task(s), '+it.impact_pct+'% of set → projected TCR '+it.projected_tcr_after_pct+'% (+'+it.cumulative_tcr_gain_pp+'pp cum.)'"></span>
+                      <div style="color:var(--text2);font-size:11px" x-text="it.effort_hint"></div>
+                    </li>
+                  </template>
+                </ol>
+              </template>
+              <div style="font-size:12px;margin-top:8px" x-text="improveResult.insights.readiness.projected_ready_after.note"></div>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.review_queue && improveResult.insights.review_queue.items.length">
             <div style="border:1px solid var(--border);border-left:4px solid #7c3aed;border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700" x-text="'Human review queue ('+improveResult.insights.review_queue.by_priority.high+' high · '+improveResult.insights.review_queue.by_priority.medium+' medium)'"></div>

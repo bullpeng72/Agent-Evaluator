@@ -39,6 +39,64 @@
       }
     },
 
+    "readiness": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "target_gate_score": { "type": "number" },
+        "current_tcr_pct": { "type": ["number", "null"] },
+        "current_accuracy_pct": { "type": ["number", "null"] },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["gate"],
+            "properties": {
+              "gate": { "type": "string" },
+              "gate_name": { "type": "string" },
+              "score": { "type": ["number", "null"] },
+              "target": { "type": "number" },
+              "gap": { "type": ["number", "null"] },
+              "blocking": { "type": "boolean" },
+              "projected_score_after_plan": { "type": "number" },
+              "estimate": { "type": "boolean" }
+            }
+          }
+        },
+        "fix_plan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["rank", "signature", "count"],
+            "properties": {
+              "rank": { "type": "integer" },
+              "signature": { "type": "string" },
+              "task_type": { "type": "string" },
+              "count": { "type": "integer" },
+              "impact_pct": { "type": "number" },
+              "example_task_ids": { "type": "array", "items": { "type": "string" } },
+              "effort_hint": { "type": "string" },
+              "targets_gates": { "type": "array", "items": { "type": "string" } },
+              "projected_tcr_after_pct": { "type": "number" },
+              "projected_accuracy_after_pct": { "type": "number" },
+              "cumulative_tcr_gain_pp": { "type": "number" }
+            }
+          }
+        },
+        "projected_ready_after": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "ready_after_n_items": { "type": ["integer", "null"] },
+            "remaining_structural_blockers": { "type": "array", "items": { "type": "string" } },
+            "note": { "type": "string" }
+          }
+        }
+      }
+    },
+
     "metric_confidence": {
       "type": "object",
       "additionalProperties": true,
