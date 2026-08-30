@@ -832,12 +832,13 @@ def _verdict_section(
             })
         else:
             g = harness_groups.get(k) or {}
+            _sc = _safe_float(g.get("score"))
+            _sc_s = f"{_sc:.2f}" if _sc is not None else "n/a"
             next_actions.append({
                 "gate": k,
                 "field": None,
                 "health": None,
-                "action": f"See the Gate {k} section (score "
-                          f"{g.get('score')}).",
+                "action": f"See the Gate {k} section (score {_sc_s}).",
             })
 
     conf_level: str | None = None
@@ -1012,9 +1013,14 @@ def _readiness_section(
             row["estimate"] = True
         gaps.append(row)
 
-    # smallest N fixes after which every TCR-driven blocking gate clears target
-    tcr_blockers = [k for k in fails if k in _TCR_DRIVEN_GATES]
-    other_blockers = [k for k in fails if k not in _TCR_DRIVEN_GATES]
+    # Every below-target gate is a candidate for the plan to lift. Split into the
+    # ones task outcomes actually move (A/C) and the rest (latency/cost/safety).
+    below = fails + warns
+    tcr_blockers = [k for k in below if k in _TCR_DRIVEN_GATES]
+    other_blockers = [k for k in below if k not in _TCR_DRIVEN_GATES]
+    _only_warn = not fails
+
+    # smallest N fixes after which every TCR-driven below-target gate reaches target
     ready_after: int | None = None
     if tcr_blockers and fix_plan:
         for item in fix_plan:
@@ -1027,20 +1033,29 @@ def _readiness_section(
                 ready_after = item["rank"]
                 break
 
+    _word = "warning" if _only_warn else "failing"
     if not tcr_blockers and not other_blockers:
-        note = ("No gate is failing outright; the fix plan is ordered by how much "
-                "TCR each cluster is costing you.")
+        note = ("No gate is below target; the fix plan is ordered by how much TCR "
+                "each cluster is costing you.")
     elif ready_after is not None and not other_blockers:
-        note = (f"Closing the top {ready_after} cluster(s) is projected to clear "
-                f"every failing gate (estimate — assumes those tasks then pass and "
-                f"nothing else moves).")
+        note = (f"Closing the top {ready_after} cluster(s) is projected to bring "
+                f"every {_word} gate to target (estimate — assumes those tasks "
+                f"then pass and nothing else moves).")
     elif other_blockers:
-        note = ("Gate(s) " + ", ".join(f"{k} ({_GATE_FULL.get(k, k)})" for k in other_blockers)
-                + " are not driven by task outcomes — the fix plan will not close "
-                "them. Address them from their own Gate section.")
+        _head = (
+            f"Closing the top {ready_after} cluster(s) is projected to bring the "
+            f"TCR-driven gate(s) to target. "
+            if (ready_after is not None and tcr_blockers) else
+            ("The fix plan will not fully bring the TCR-driven gate(s) to target "
+             "on its own. " if tcr_blockers else "")
+        )
+        note = (_head + "Gate(s) "
+                + ", ".join(f"{k} ({_GATE_FULL.get(k, k)})" for k in other_blockers)
+                + " are not driven by task outcomes — the fix plan will not move "
+                "them; address them from their own Gate section.")
     else:
-        note = ("The fix plan does not fully close the failing TCR-driven gate(s) "
-                "on its own — more or deeper fixes are needed.")
+        note = (f"The fix plan does not fully bring the {_word} TCR-driven gate(s) "
+                f"to target on its own — more or deeper fixes are needed.")
 
     return {
         "target_gate_score": _READINESS_TARGET,
@@ -2148,20 +2163,27 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
             prev_agent = agent
 
         if len(turns) >= 2:
-            first_u = _wtok(turns[0].get("user") or "")
-            last_u = _wtok(turns[-1].get("user") or "")
+            user_toks = [_wtok(t.get("user") or "") for t in turns]
+            first_u, last_u = user_toks[0], user_toks[-1]
+            # P35: compare the last turn against *every* earlier user turn, not
+            # just the first — a follow-up ("how long until the money arrives?")
+            # can share no keywords with the opener yet stay on topic.
+            prior_union: set[str] = set().union(*user_toks[:-1]) if first_u else set()
+            ov_prior = _overlap(last_u, prior_union) if prior_union else 1.0
             ov_fl = _overlap(last_u, first_u) if first_u else 1.0
             tc = _safe_float((s.get("metrics") or {}).get("topic_coherence"))
-            # ignore a trailing "ok thanks / bye" — only a substantive last turn
-            # counts as drift.
             substantive_last = len(last_u) >= 4
-            if (substantive_last and ov_fl < _CONV_DRIFT_OVERLAP) or (tc is not None and tc < 0.4):
+            # Drift only when the last turn is off-topic vs the whole history
+            # AND the session's own coherence metric agrees (or is unavailable).
+            off_topic = substantive_last and ov_prior < _CONV_DRIFT_OVERLAP
+            incoherent = tc is None or tc < 0.5
+            if off_topic and incoherent:
                 drift.append({
                     "session_id": s.get("session_id"),
                     "first_last_topic_overlap": round(ov_fl, 3),
-                    "reason": ("the last user turn barely overlaps the first "
-                               "(topic drifted) " if ov_fl < _CONV_DRIFT_OVERLAP
-                               else "low topic_coherence"),
+                    "prior_overlap": round(ov_prior, 3),
+                    "reason": ("the last user turn shares almost no content with "
+                               "any earlier turn (topic drifted)"),
                 })
 
     traj = []
@@ -2430,7 +2452,9 @@ def _trace_diffs_section(
         hits = [(lbl, idx[tid]) for lbl, idx in prior_idxs if tid in idx]
         if not hits:
             continue
-        first_lbl, pt = hits[0]
+        # P35: diff against the *nearest* prior version (last cohort entry),
+        # not the oldest — "what changed" means the most recent step.
+        prior_lbl, pt = hits[-1]
         c_acc = _safe_float(ct.get("accuracy_score"), 0.0) or 0.0
         p_acc = _safe_float(pt.get("accuracy_score"), 0.0) or 0.0
         c_comp = _safe_float(ct.get("completion_score"), 0.0) or 0.0
@@ -2482,7 +2506,7 @@ def _trace_diffs_section(
         out.append({
             "task_id": tid,
             "question": str(ct.get("question") or "")[:160],
-            "compared": [first_lbl, cur_label],
+            "compared": [prior_lbl, cur_label],
             "verdict": verdict,
             "score_delta": {"completion": round(comp_d, 3), "accuracy": round(acc_d, 3)},
             "response_diff": {
@@ -2927,15 +2951,26 @@ def _narrative_audit_section(
         round(v) for v in (mc.get("tcr_pct"), mc.get("accuracy_pct"))
         if isinstance(v, (int, float))
     }
+    # Only a % that the narrative *attributes to* TCR / accuracy / completion is
+    # a checkable claim — component-health scores, "% of failures", cost shares
+    # etc. are legitimately different numbers, so a bare "40%" is not evidence
+    # of over-claiming (P35: this check used to false-positive on the always-
+    # clean template).
     for m in _RE_PCT.finditer(text):
         try:
             val = round(float(m.group(1)))
         except ValueError:
             continue
-        if 0 <= val <= 100 and backed and all(abs(val - b) > 3 for b in backed):
+        window = low[max(0, m.start() - 40):m.end() + 12]
+        about_headline = any(
+            w in window for w in ("tcr", "accuracy", "accurate",
+                                  "completion rate", "task completion", "pass rate")
+        )
+        if about_headline and 0 <= val <= 100 and backed \
+                and all(abs(val - b) > 3 for b in backed):
             adjustments.append(
-                f"cites {m.group(0)} which does not match the measured "
-                f"TCR/accuracy ({', '.join(f'{b}%' for b in sorted(backed))})"
+                f"cites {m.group(0)} as a headline metric, but the measured "
+                f"TCR/accuracy is {', '.join(f'{b}%' for b in sorted(backed))}"
             )
             break
 
@@ -3052,11 +3087,25 @@ def _briefs_section(ins: dict[str, Any]) -> dict[str, Any] | None:
                 f"Investigate the {sf['severity']} {sf.get('threat_type')} on "
                 f"task {sf.get('task_id')} before anything else."
             )
-    for it in fp[:4]:
+    # merge fix-plan rows that share a signature (they only differ by task_type)
+    _merged: dict[str, dict[str, Any]] = {}
+    _order: list[str] = []
+    for it in fp:
+        sig = str(it.get("signature") or "")
+        if sig not in _merged:
+            _merged[sig] = {"count": 0, "hint": it.get("effort_hint", ""),
+                            "types": set(), "tcr": it.get("projected_tcr_after_pct")}
+            _order.append(sig)
+        _merged[sig]["count"] += int(it.get("count") or 0)
+        _merged[sig]["tcr"] = it.get("projected_tcr_after_pct")  # last (deepest) projection
+        if it.get("task_type") and it["task_type"] != "—":
+            _merged[sig]["types"].add(str(it["task_type"]))
+    for sig in _order[:4]:
+        mg = _merged[sig]
+        _tt = f" ({', '.join(sorted(mg['types']))})" if mg["types"] else ""
         eng.append(
-            f"{it.get('signature')} ({it.get('count')} task(s)) — "
-            f"{it.get('effort_hint')} "
-            f"[projected TCR → {it.get('projected_tcr_after_pct')}%]"
+            f"{sig}{_tt} — {mg['count']} task(s) — {mg['hint']} "
+            f"[projected TCR → {mg['tcr']}%]"
         )
     for rec in (ins.get("recommendations") or []):
         snip = rec.get("code_snippet")

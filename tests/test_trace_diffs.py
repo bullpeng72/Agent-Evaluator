@@ -56,7 +56,7 @@ class TestTraceDiffsSection:
         assert td is not None
         row = next(d for d in td if d["task_id"] == "t1")
         assert row["verdict"] == "regressed"
-        assert row["compared"] == ["v1", "v3"]
+        assert row["compared"] == ["v2", "v3"]  # nearest prior, not oldest (P35)
         assert row["score_delta"]["accuracy"] < 0
 
     def test_response_and_trajectory_diff(self):

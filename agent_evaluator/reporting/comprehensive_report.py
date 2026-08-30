@@ -2710,6 +2710,11 @@ def _review_dict_tasks(tasks: list[Any]) -> list[dict[str, Any]]:
             "success": c["success"], "question": c["question"],
             "response": c["response"], "ground_truth": c["ground_truth"],
             "accuracy_score": c["accuracy_score"], "completion_score": c["completion_score"],
+            # SPEC-041 P35: carry the failure reason so the insights sections
+            # (_task_reason -> failure_clusters / readiness.fix_plan /
+            # failure_segments / failure_triggers) get the real signature, not
+            # the generic "incomplete · low accuracy" fallback.
+            "partial_reason": c["partial_reason"], "errors": c["errors"],
             "tool_calls": c["tool_calls"], "agent_interactions": c["agent_interactions"],
             "context": _task_context(t), "extra": _task_extra(t),
             "attempts": getattr(t, "attempts", None) if not isinstance(getattr(t, "raw", None), dict)
@@ -3350,7 +3355,8 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
     if drift:
         items = "".join(
             f'<li><strong>{_esc(str(d.get("session_id")))}</strong> — {_esc(d.get("reason", ""))} '
-            f'(first↔last overlap {d.get("first_last_topic_overlap")})</li>' for d in drift
+            f'(overlap with earlier turns '
+            f'{d.get("prior_overlap", d.get("first_last_topic_overlap"))})</li>' for d in drift
         )
         drift_html = ('<p style="font-size:12px;color:#6b7280;margin:8px 0 2px">'
                       'Goal drift (session went off-topic):</p>'
@@ -3438,6 +3444,37 @@ _TD_VERDICT_STYLE = {
 }
 
 
+_PRETTY_FIELD = {
+    "tcr_pct": "TCR", "tcr": "TCR", "accuracy": "accuracy",
+    "hall_rate": "hallucination rate", "hallucination_rate": "hallucination rate",
+    "p95_latency_s": "P95 latency", "p95_latency_ms": "P95 latency",
+    "llm_faithfulness": "faithfulness", "sla_breach_rate": "SLA breach rate",
+    "quality_relevance_completeness": "response relevance/completeness",
+    "subtask_completion": "subtask completion", "instruction_adherence": "instruction adherence",
+    "reproducibility": "reproducibility", "cost_predictability": "cost predictability",
+}
+
+
+def _pretty_field(fld: Any) -> str:
+    """P35: a readable label for a Gate details field name — 'tcr_pct' -> 'TCR'."""
+    s = str(fld or "").strip()
+    key = s.replace("avg_", "").strip().lower()
+    if key in _PRETTY_FIELD:
+        return _PRETTY_FIELD[key]
+    return key.replace("_", " ")
+
+
+def _td_resp_summary(rd: dict[str, Any]) -> str:
+    """P35: readable response-diff summary — "0% unchanged" reads as a double
+    negative."""
+    sim = (rd.get("similarity") or 0.0) * 100
+    if sim <= 2:
+        return "Response fully rewritten"
+    if sim >= 98:
+        return "Response essentially unchanged"
+    return f"Response {sim:.0f}% similar"
+
+
 def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
     """P32: for a task that moved between cohort versions, show WHAT changed —
     the response text diff and the trajectory step diff, not just the average."""
@@ -3494,8 +3531,7 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
             f'<table class="mtable" style="font-size:12px;margin:4px 0"><thead><tr>'
             f'<th>Version</th><th>C</th><th>A</th><th>OK</th><th>Response</th>'
             f'</tr></thead><tbody>{pv_rows}</tbody></table>'
-            f'<div style="font-size:11px;color:#6b7280">Response '
-            f'{rd.get("similarity", 0) * 100:.0f}% unchanged'
+            f'<div style="font-size:11px;color:#6b7280">{_td_resp_summary(rd)}'
             + (f' · <span style="color:#059669">added:</span> {added}' if added else "")
             + (f' · <span style="color:#dc2626">removed:</span> {removed}' if removed else "")
             + f'</div>{traj_line}</div>'
@@ -3825,9 +3861,12 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
     plan_rows = ""
     for it in rd.get("fix_plan") or []:
         gates = ", ".join(it.get("targets_gates") or []) or "—"
+        _tt = it.get("task_type")
+        _tt_s = (f' <span style="color:#9ca3af;font-weight:400">· {_esc(str(_tt))}</span>'
+                 if _tt and _tt != "—" else "")
         plan_rows += (
             f'<tr><td style="text-align:center;color:#6b7280">{it.get("rank")}</td>'
-            f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}'
+            f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}{_tt_s}'
             f'</div><div style="font-size:11px;color:#6b7280">{_esc(it.get("effort_hint", ""))}'
             f'</div></td>'
             f'<td style="text-align:right;white-space:nowrap">{it.get("count")} task(s)'
@@ -3841,12 +3880,9 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
 
     pr = rd.get("projected_ready_after") or {}
     n = pr.get("ready_after_n_items")
+    _note_col = "#059669" if n else "#b45309"
     verdict_line = (
-        f'<span style="color:#059669;font-weight:700">Projected: closing the top '
-        f'{n} cluster(s) clears every failing gate.</span> '
-        if n else
-        '<span style="color:#b45309;font-weight:700">Projected: the fix plan alone '
-        'does not clear every failing gate.</span> '
+        f'<span style="color:{_note_col};font-weight:700">Projected:</span> '
     )
     cur_tcr = rd.get("current_tcr_pct")
     cur_line = f'Current TCR {cur_tcr:.1f}%. ' if isinstance(cur_tcr, (int, float)) else ""
@@ -3931,7 +3967,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         # a security-finding action and a low-sample flag, see insights._verdict_section)
         for a in _v_actions[:4]:
             _g = a.get("gate")
-            _fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
+            _fld = _pretty_field(a.get("field"))
             _act = (a.get("action") or "").rstrip(".")
             _hp = (f" ({a['health'] * 100:.0f}%)"
                    if isinstance(a.get("health"), (int, float)) else "")
@@ -3961,7 +3997,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
             sf = shortfalls_by_gate.get(k) or []
             if sf:
                 top = sf[0]
-                fld = str(top.get("field", "")).replace("avg_", "").replace("_", " ")
+                fld = _pretty_field(top.get("field", ""))
                 act = component_guidance_for(top.get("field", "")) or ""
                 hp = (f"{top['health'] * 100:.0f}%"
                       if isinstance(top.get("health"), (int, float)) else "")
@@ -4427,9 +4463,15 @@ def _build_diagnosis(
                     f'<p style="margin:8px 0 0;color:#4b5563">→ {b}</p>' for b in _bits
                 )
         else:
-            rows = []
+            rows, newly_measured = [], []
             for d in finding["top_detail_deltas"]:
                 delta = d["delta"]
+                # P35: a row with no baseline value isn't a regression — it's a
+                # metric that started being measured this run. Split it out.
+                if d["baseline"] is None and delta is None:
+                    if d["current"] is not None:
+                        newly_measured.append((d["field"], d["current"]))
+                    continue
                 delta_str = f"{delta:+.4f}" if delta is not None else "n/a"
                 delta_color = "#dc2626" if (delta is not None and delta < 0) else "#16a34a"
                 b_str = f"{d['baseline']:.4f}" if d["baseline"] is not None else "n/a"
@@ -4443,6 +4485,13 @@ def _build_diagnosis(
                 f'<th>Current</th><th>Delta</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
                 if rows else '<p style="color:#9ca3af">No comparable detail metrics</p>'
             )
+            if newly_measured:
+                table += (
+                    '<p style="font-size:12px;color:#6b7280;margin:6px 0 0">'
+                    'Newly measured this run (no baseline to compare): '
+                    + ", ".join(f"{_esc(str(f))} {v:.3f}" for f, v in newly_measured)
+                    + "</p>"
+                )
 
         refs_html = ""
         refs = finding.get("cross_references") or []

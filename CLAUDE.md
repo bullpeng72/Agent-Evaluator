@@ -1110,6 +1110,33 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
 
+**SPEC-041 P35 (round-5 예시 리포트 감사 수정)** — 8건.
+- **B1**: `comprehensive_report._review_dict_tasks`가 `partial_reason`/`errors`를 안 실어
+  monitor 경로의 `insights.failure_clusters`/`readiness.fix_plan`/`failure_segments.dominant_reason`/
+  `failure_triggers`가 전부 generic "incomplete · low accuracy" 시그니처로 퇴화(HTML의
+  `_build_failure_clusters`는 `_norm_task_for_case` 직통이라 정상이었음 — 두 채널 불일치). 두 키 추가.
+- **B2**: `_narrative_audit_section`의 `_RE_PCT`가 컴포넌트 health % ("relevance completeness (40%)")를
+  TCR/accuracy 주장으로 오탐 → 항상-clean이어야 할 템플릿에 빨간 박스. 이제 % 앞뒤 40자에
+  "tcr"/"accuracy"/"completion rate" 등이 있을 때만 검사.
+- **B3**: `_conversation_section` goal-drift가 첫↔마지막 user 턴 오버랩만으로 발화 → 같은 주제의
+  후속 질문("돈 언제 들어와요?")이 키워드 안 겹쳐 healthy 세션 오탐. 이제 (마지막 턴 vs *모든* 이전
+  user 턴 union 오버랩 < 0.15) AND (topic_coherence 없거나 < 0.5) 둘 다 필요. `prior_overlap` 필드 추가.
+- **B4**: `_trace_diffs_section`이 `hits[0]`(가장 오래된 cohort)와 diff → `hits[-1]`(가장 가까운 이전
+  버전). `compared`/`first_lbl`→`prior_lbl`.
+- **B5**: trace-diff "Response 0% unchanged"(이중부정) → `_td_resp_summary()`: ≤2% "fully rewritten",
+  ≥98% "essentially unchanged", 그 외 "X% similar".
+- **B6**: `_readiness_section`이 fail 게이트만 blocker로 봐서, 전부 warn인 run에서
+  `_build_readiness`가 "does not clear every failing gate"라는 모순 문구 출력. 이제 `below = fails +
+  warns`를 A/C(TCR-driven) vs 나머지로 나누고 `_only_warn` 분기, note를 "bring every warning gate to
+  target"류로. verdict_line은 note 중복 제거하고 색만.
+- **B7**: exec-summary next-action 폴백이 `(score 0.6372)` 미반올림 → `.2f`. 필드명 `tcr pct` →
+  `_pretty_field()`(`_PRETTY_FIELD` 맵) → "TCR".
+- **I1**: `_build_readiness` fix-plan 행에 `task_type` 표시, `_briefs_section` engineer 리스트는
+  같은 시그니처 행을 count 합산 + task_type 병합.
+- **I2**: `_build_diagnosis` regression 델타 표에서 baseline=None & delta=None 행(= 이번 run에 새로
+  측정 시작된 지표)을 표 밖 "Newly measured this run" 문장으로 분리.
+전체 4531 통과. `test_p35_report_qa_fixes.py`(12) + 기존 테스트 4건 문구 갱신.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

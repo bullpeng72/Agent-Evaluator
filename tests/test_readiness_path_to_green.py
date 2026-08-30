@@ -100,7 +100,7 @@ class TestReadinessSection:
         pr = rd["projected_ready_after"]
         assert pr["ready_after_n_items"] is not None
         assert pr["remaining_structural_blockers"] == []
-        assert "clear every failing gate" in pr["note"]
+        assert "bring every failing gate to target" in pr["note"]
 
 
 class TestFixEffortHint:

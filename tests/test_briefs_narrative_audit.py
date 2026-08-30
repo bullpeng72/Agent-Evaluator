@@ -93,7 +93,17 @@ class TestNarrativeAudit:
         assert na["clean"] is False
         joined = " ".join(na["adjustments"])
         assert "ready to ship" in joined
-        assert "does not match" in joined or "baseline" in joined
+        assert "headline metric" in joined or "baseline" in joined
+
+    def test_component_health_percent_is_not_flagged(self):
+        # P35: a bare "40%" that is NOT attributed to TCR/accuracy must not trip
+        # the audit — component-health scores are legitimately different numbers.
+        def calm(_d):
+            return ("Gate A is below target. The biggest measured shortfall is "
+                    "response relevance/completeness (40%). Confidence is LOW.")
+
+        na = build_insights(_failing_report(), narrator=calm)["narrative_audit"]
+        assert not any("headline metric" in a for a in na["adjustments"])
 
     def test_low_confidence_not_hedged_is_flagged(self):
         def terse(_d):
