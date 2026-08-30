@@ -463,7 +463,7 @@ class TestGateEFormulaConsistency:
         html = _build_score_breakdown("E", gate_e)
         # HTML에서 "component(s) averaged" 텍스트 내 숫자 추출
         import re
-        m = re.search(r"\((\d+) component\(s\) averaged\)", html)
+        m = re.search(r"\((\d+) component\(s\) (?:averaged|measured)\)", html)
         if m:
             n_components = int(m.group(1))
             # 실제 score * n_components ≈ included_vals의 합이어야 함

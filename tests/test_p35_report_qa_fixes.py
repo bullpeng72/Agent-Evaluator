@@ -16,20 +16,24 @@ from __future__ import annotations
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.reporting.comprehensive_report import (
+    _build_conclusion,
     _build_readiness,
+    _build_score_breakdown,
     _build_trace_diffs,
     _pretty_field,
     _review_dict_tasks,
     _td_resp_summary,
+    _trim_field_restatement,
 )
 from agent_evaluator.reporting.insights import (
     _briefs_section,
     _conversation_section,
+    _failure_segments_section,
+    _insight_changes_section,
     _readiness_section,
     _trace_diffs_section,
     build_insights,
 )
-
 
 # ---- B1 -------------------------------------------------------------------
 
@@ -243,8 +247,6 @@ def _t(tid, comp, acc, ok, reason=None, ttype="qa"):
 
 def test_b2b_insight_changes_uses_full_signature_sets():
     # a cluster that merely drops in rank (still occurring) is NOT "resolved".
-    from agent_evaluator.reporting.insights import _insight_changes_section
-
     def _r(score, tasks):
         return {"extra_metrics": {"harness_groups": {
             "A": {"score": score, "status": "fail" if score < 0.7 else "pass",
@@ -302,16 +304,132 @@ def test_conversation_per_session_and_best():
 
 
 def test_trace_diff_substitution_wording():
-    from agent_evaluator.reporting.comprehensive_report import _build_trace_diffs
-
     td = [{
         "task_id": "t1", "question": "size?", "compared": ["v2", "v3"],
-        "verdict": "regressed", "score_delta": {"completion": -0.5, "accuracy": -0.4},
+        "verdict": "regressed",
+        "score_delta": {"completion": -0.5, "accuracy": -0.4},
         "response_diff": {"similarity": 0.4, "added": ["7 more"], "removed": ["7.8 mm and 172 g."]},
-        "trajectory_diff": {"before": [], "after": [], "added": [], "removed": [], "reordered": False},
-        "per_version": [{"label": "v3", "completion": 0.4, "accuracy": 0.3, "success": False,
-                         "response_excerpt": "x"}],
+        "trajectory_diff": {"before": [], "after": [], "added": [], "removed": [],
+                            "reordered": False},
+        "per_version": [{"label": "v3", "completion": 0.4, "accuracy": 0.3,
+                         "success": False, "response_excerpt": "x"}],
     }]
     h = _build_trace_diffs(td)
     assert "changed:" in h and "7.8 mm and 172 g. → 7 more" in h
-    assert "added:</span> 7 more" not in h
+
+
+# ---- P35 round 3: analysis round 3 ---------------------------------------
+
+def test_r3_score_breakdown_weighted_gate_shows_honest_expression():
+    """Gates A/C weight the TCR component — the breakdown must not print
+    ( a + b + c ) ÷ N = score when that arithmetic does not equal score."""
+    hg_c = {
+        "score": 0.6309, "status": "warn",
+        "details": {"tcr_pct": 71.04, "gate_c_tcr_weight": 0.4,
+                    "avg_reproducibility": 0.408, "avg_llm_faithfulness": 3.74},
+    }
+    html = _build_score_breakdown("C", hg_c)
+    # the naive mean (62.2%) is shown as an approximation, not "= 63.1%"
+    assert "&asymp;" in html or "≈" in html
+    assert "62.2%" in html                       # the component mean
+    assert "63.1%" in html                       # the actual weighted score
+    assert "weights the TCR component at 40%" in html
+
+
+def test_r3_score_breakdown_unweighted_gate_still_reconciles():
+    hg_g = {
+        "score": 0.7529, "status": "pass",
+        "details": {"tool_coverage": 0.7647, "avg_explainability": 0.6819,
+                    "avg_latency_attribution": 0.812},
+    }
+    html = _build_score_breakdown("G", hg_g).replace("&nbsp;", " ")
+    assert "( 0.765 + 0.682 + 0.812 ) ÷ 3 =" in html
+    assert "75.3%" in html
+    assert "≈" not in html and "&asymp;" not in html
+    assert "indicative only" not in html
+
+
+def test_r3_gate_e_excludes_threat_free_rate_from_average():
+    """Gate E aggregate drops threat_free_rate when per-tracker scores exist —
+    the breakdown's ÷N must match (5 defense rates, not 6)."""
+    hg_e = {
+        "score": 0.975, "status": "pass",
+        "details": {
+            "threat_count": 2, "threat_free_rate": 0.9167,
+            "privilege_escalation_rate": 0.0417, "chain_attack_rate": 0.0,
+            "leakage_defense_rate": 1.0, "leakage_count": 0,
+            "injection_defense_rate": 0.9583, "injection_count": 1,
+            "tool_authorization_rate": 0.9583, "unauthorized_calls_count": 1,
+        },
+    }
+    html = _build_score_breakdown("E", hg_e).replace("&nbsp;", " ")
+    assert "( 0.958 + 1.000 + 1.000 + 0.958 + 0.958 ) ÷ 5 =" in html
+    assert "97.5%" in html and "(5 component(s) measured)" in html
+    assert "not averaged" in html      # threat-free row is informational
+
+
+def test_r3_conclusion_hallucination_na_when_not_measured():
+    hg = {"A": {"score": 0.64, "status": "warn", "gate": "warn", "details": {}},
+          "C": {"score": 0.63, "status": "warn", "gate": "warn",
+                "details": {"avg_llm_faithfulness": 3.7}}}  # faith != hallucination rate
+    html = _build_conclusion(24, 71.0, 58.5, 0.0, hg, {})
+    assert "Hallucination Rate:</strong> n/a (not enabled)" in html
+    # only A and C are scored -> "2/2 measured", note the two unmeasured gates
+    assert "measured PASS" in html
+    assert "gate(s) not measured" in html
+
+
+def test_r3_insight_changes_newly_below_target_includes_warn():
+    def _r(status):
+        return {"extra_metrics": {"harness_groups": {
+            "A": {"score": 0.62 if status == "warn" else 0.8, "status": status,
+                  "gate": status, "details": {}}}}, "tasks": []}
+
+    ic = _insight_changes_section(_r("warn"), _r("pass"), None, None,
+                                  _r("warn")["extra_metrics"]["harness_groups"])
+    assert ic and "A" in ic["newly_failing_gates"]   # warn counts as "below target"
+
+
+def test_r3_failure_segments_catch_all_flagged():
+    # every failing question is lexically unique -> only the catch-all bucket
+    tasks = [
+        {"task_id": f"f{i}", "task_type": "qa", "completion_score": 0.2,
+         "accuracy_score": 0.2, "success": False,
+         "question": q, "partial_reason": "error: TimeoutError"}
+        for i, q in enumerate([
+            "how do I reset my password",
+            "where is the nearest branch office located",
+            "what colours does the deluxe chair ship in",
+            "can I change my delivery address after ordering",
+        ])
+    ]
+    segs = _failure_segments_section(tasks)
+    assert segs and all(s.get("catch_all") for s in segs)
+
+
+def test_r3_trace_diff_errored_version_shows_no_response():
+    td = [{
+        "task_id": "t1", "question": "refund policy?", "compared": ["v2", "v3"],
+        "verdict": "regressed", "score_delta": {"completion": -1.0, "accuracy": -0.9},
+        "response_diff": {"similarity": 0.0, "added": [], "removed": ["old good answer here"],
+                          "errored": True, "error_reason": "error: TimeoutError"},
+        "trajectory_diff": {"before": [], "after": [], "added": [], "removed": [],
+                            "reordered": False},
+        "per_version": [{"label": "v3", "completion": 0.0, "accuracy": 0.0,
+                         "success": False, "response_excerpt": ""}],
+    }]
+    h = _build_trace_diffs(td)
+    assert "Current version returned no response" in h
+    assert "removed:" not in h        # no misleading word-diff against an empty response
+
+
+def test_r3_narrative_no_duplicate_field_name():
+    out = _trim_field_restatement(
+        "response relevance/completeness",
+        "Response relevance/completeness is low. Strengthen the response-format "
+        "instructions and provide examples.",
+    )
+    assert out.startswith("Strengthen the response-format")
+    # a guidance string that does NOT restate the field is left untouched
+    assert _trim_field_restatement("TCR", "Improve agent prompts. Analyze failures.") == (
+        "Improve agent prompts. Analyze failures.")

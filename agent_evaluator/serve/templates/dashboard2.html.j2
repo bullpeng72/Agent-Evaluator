@@ -6672,7 +6672,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
                 <div style="font-size:12px" x-text="'🔀 Verdict: '+improveResult.insights.insight_changes.verdict_change.from+' → '+improveResult.insights.insight_changes.verdict_change.to"></div>
               </template>
               <template x-if="(improveResult.insights.insight_changes.newly_failing_gates||[]).length">
-                <div style="font-size:12px;color:var(--red)" x-text="'📉 Newly failing gates: '+improveResult.insights.insight_changes.newly_failing_gates.join(', ')"></div>
+                <div style="font-size:12px;color:var(--red)" x-text="'📉 Newly below target: '+improveResult.insights.insight_changes.newly_failing_gates.join(', ')"></div>
               </template>
               <template x-if="(improveResult.insights.insight_changes.new_clusters||[]).length">
                 <div style="font-size:12px;color:var(--red)" x-text="'🆕 New failure clusters: '+improveResult.insights.insight_changes.new_clusters.join('; ')"></div>

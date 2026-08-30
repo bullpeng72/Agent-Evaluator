@@ -370,7 +370,8 @@ class TestImprovementLoopClosure:
         )
         html = _rec_past_outcomes(p, "A")
         assert "1 confirmed / 1 refuted / 2 total" in html
-        assert "avg Δ +0.150" in html
+        # avg Δ is over confirmed changes only — the label must say so
+        assert "confirmed changes averaged Δ +0.150" in html
 
     def test_past_outcomes_empty_without_log(self):
         from agent_evaluator.reporting.comprehensive_report import _rec_past_outcomes
@@ -381,8 +382,8 @@ class TestImprovementLoopClosure:
         base = {"extra_metrics": {"harness_groups": {"A": {"score": 0.5}}}}
         up = {"extra_metrics": {"harness_groups": {"A": {"score": 0.72}}}}
         down = {"extra_metrics": {"harness_groups": {"A": {"score": 0.3}}}}
-        assert "confirmed" in _rec_baseline_verdict(base, up, "A")
-        assert "refuted" in _rec_baseline_verdict(base, down, "A")
+        assert "improved vs baseline" in _rec_baseline_verdict(base, up, "A")
+        assert "regressed vs baseline" in _rec_baseline_verdict(base, down, "A")
         assert _rec_baseline_verdict(None, up, "A") == ""
 
     def test_full_report_recommendations_carry_p8(self):

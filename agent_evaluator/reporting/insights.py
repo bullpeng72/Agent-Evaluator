@@ -956,7 +956,21 @@ def _readiness_section(
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for t in pool:
         buckets[_reason_signature(_task_reason(t))].append(t)
-    ranked = sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    # Order by *projected TCR recovery* if that cluster's tasks flipped to passing —
+    # not by raw size. A 3-task cluster of accuracy-only failures (completion already
+    # ~1.0) recovers almost no TCR and must not outrank a 3-task cluster of timeouts.
+    _tot = max(1, len(tasks))
+
+    def _standalone_tcr_gain(members: list[dict[str, Any]]) -> float:
+        return sum(
+            max(0.0, 1.0 - (_safe_float(m.get("completion_score")) or 0.0))
+            for m in members
+        ) / _tot
+
+    ranked = sorted(
+        buckets.items(),
+        key=lambda kv: (-_standalone_tcr_gain(kv[1]), -len(kv[1]), kv[0]),
+    )
 
     if not fails and not warns and not ranked:
         return None
@@ -1599,6 +1613,7 @@ def _failure_segments_section(
             "impact_pct": round(len(grp) / total * 100.0, 1),
             "dominant_reason": reasons.most_common(1)[0][0] if reasons else "unspecified",
             "example_question": example[:160],
+            "catch_all": False,
         })
     segments.sort(key=lambda s: -s["n"])
     segments = segments[:_SEG_MAX]
@@ -1620,6 +1635,7 @@ def _failure_segments_section(
             "impact_pct": round(len(leftovers) / total * 100.0, 1),
             "dominant_reason": by_reason.most_common(1)[0][0] if by_reason else "mixed",
             "example_question": lo_example[:160],
+            "catch_all": True,
         })
     return segments or None
 
@@ -2491,6 +2507,13 @@ def _trace_diffs_section(
         rc = str(ct.get("response") or "")
         w_p, w_c = rp.split(), rc.split()
         sm = difflib.SequenceMatcher(None, w_p, w_c)
+        # A regressed version that returned nothing (timeout / runtime error) — a bare
+        # "removed: <old answer>" word-diff is misleading; flag it so the renderer can
+        # say "no response" instead.
+        _cur_reason = _task_reason(ct)
+        _cur_errored = (not rc.strip()) and (
+            bool(ct.get("errors")) or str(_cur_reason).lower().startswith("error:")
+        )
 
         steps_p, steps_c = _trace_step_names(pt), _trace_step_names(ct)
         traj = {
@@ -2536,6 +2559,8 @@ def _trace_diffs_section(
                 "similarity": round(sm.ratio(), 3),
                 "added": _word_runs(sm, "b", w_c),
                 "removed": _word_runs(sm, "a", w_p),
+                "errored": _cur_errored,
+                "error_reason": str(_cur_reason) if _cur_errored else None,
             },
             "trajectory_diff": traj,
             "per_version": per_version,
@@ -2652,8 +2677,11 @@ def _insight_changes_section(
     cur_lvl, base_lvl = _lvl(harness_groups), _lvl(base_hg)
     verdict_change = {"from": base_lvl, "to": cur_lvl} if cur_lvl != base_lvl else None
 
-    cur_fail = {k for k in "ABCDEFG" if _gate_status(harness_groups.get(k)) == "fail"}
-    base_fail = {k for k in "ABCDEFG" if _gate_status(base_hg.get(k)) == "fail"}
+    # "below target" = the report's fail-OR-warn framing (score < 0.7), not just the
+    # hard-fail line (< 0.5) — otherwise a gate sliding from pass to warn is silent.
+    _below = {"fail", "warn"}
+    cur_fail = {k for k in "ABCDEFG" if _gate_status(harness_groups.get(k)) in _below}
+    base_fail = {k for k in "ABCDEFG" if _gate_status(base_hg.get(k)) in _below}
     newly_failing_gates = sorted(cur_fail - base_fail)
     newly_passing_gates = sorted(base_fail - cur_fail)
 
@@ -2896,6 +2924,13 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
         except Exception:
             fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
         act_txt = (a.get("action") or "").rstrip(".")
+        # Guidance strings often open by restating the field ("Response
+        # relevance/completeness is low. Strengthen …") — drop that clause so the
+        # sentence doesn't say the field name twice back-to-back.
+        if act_txt and fld and ". " in act_txt:
+            _first, _rest = act_txt.split(". ", 1)
+            if _first.lower().startswith(fld.lower()) and _rest.strip():
+                act_txt = _rest.strip()
         if fld:
             hp = ""
             if isinstance(a.get("health"), (int, float)):
@@ -3105,12 +3140,35 @@ def _briefs_section(ins: dict[str, Any]) -> dict[str, Any] | None:
                if n_dis else "")
             + "."
         )
-    if segs:
-        s0 = segs[0]
+    _real_seg = next((s for s in segs if not s.get("catch_all")), None)
+    if _real_seg:
         qa_bits.append(
-            f"The biggest failure cluster is \"{s0.get('label')}\" "
-            f"({s0.get('n')} task(s), {s0.get('share_of_failures_pct')}% of failures)."
+            f"The biggest failure topic is \"{_real_seg.get('label')}\" "
+            f"({_real_seg.get('n')} task(s), "
+            f"{_real_seg.get('share_of_failures_pct')}% of failures)."
         )
+    else:
+        # No shared question topic — fall back to the prioritised root-cause cluster.
+        # Prefer readiness.fix_plan[0] so this matches the Path-to-Green ordering.
+        _fp = (ins.get("readiness") or {}).get("fix_plan") or []
+        _fc = ins.get("failure_clusters") or []
+        if _fp:
+            c0 = _fp[0]
+            qa_bits.append(
+                f"Failures don't share a topic — the top root-cause cluster is "
+                f"\"{c0.get('signature')}\" ({c0.get('count')} task(s))."
+            )
+        elif _fc:
+            c0 = _fc[0]
+            qa_bits.append(
+                f"Failures don't share a topic — the largest root-cause cluster is "
+                f"\"{c0.get('signature') or c0.get('label')}\" "
+                f"({c0.get('count') or c0.get('n')} task(s))."
+            )
+        elif segs:
+            qa_bits.append(
+                "The failing tasks span unrelated topics — no dominant cluster."
+            )
     for w in (fr.get("warnings") or [])[:2]:
         qa_bits.append(w)
     if not qa_bits:

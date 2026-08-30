@@ -450,10 +450,11 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
     included_vals: list = []
 
     def _add(label: str, raw_str: str | None, contrib: float | None,
-              formula_label: str = "", always: bool = False, note: str = "") -> None:
+              formula_label: str = "", always: bool = False, note: str = "",
+              in_avg: bool = True) -> None:
         formula_parts.append(formula_label or label)
         rows.append(_bd_row(label, raw_str, contrib, always=always, note=note))
-        if contrib is not None:
+        if contrib is not None and in_avg:
             included_vals.append(contrib)
 
     def _fmt_ratio(v: Any) -> str | None:
@@ -491,12 +492,17 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         acc_a = details.get("avg_accuracy")
         if acc_a is not None:
             _add("Accuracy Score (AccuracyEvaluator)", _fmt_ratio(acc_a), acc_a,
-                 formula_label="avg_accuracy")
+                 formula_label="avg_accuracy",
+                 note="blended into the TCR component (0.6×TCR + 0.4×accuracy)")
         else:
             _add("Accuracy Score (AccuracyEvaluator)", None, None,
                  formula_label="avg_accuracy",
                  note="No accuracy evaluations recorded")
-        formula_str = "avg( TCR/100, avg_IFR, avg_goal_alignment, avg_plan_coherence, avg_subtask_completion, avg_context_retention, avg_knowledge_retention, avg_accuracy )"
+        qrc_a = details.get("avg_quality_relevance_completeness")
+        if qrc_a is not None:
+            _add("Response Relevance/Completeness", _fmt_ratio(qrc_a), qrc_a,
+                 formula_label="avg_quality_relevance_completeness")
+        formula_str = "gate_a_tcr_weight × (0.6×TCR + 0.4×accuracy) + (1 − weight) × avg( avg_IFR, avg_goal_alignment, avg_plan_coherence, avg_subtask_completion, avg_context_retention, avg_knowledge_retention, avg_quality_relevance_completeness )"
 
     elif gate_key == "B":
         loop = details.get("loop_detection_rate")
@@ -552,17 +558,18 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
             c_faith_c = max(0.0, min(1.0, float(llm_faith_c) / 5.0))
             _add("LLM Faithfulness (faith/5) ★", f"{float(llm_faith_c):.2f}/5", c_faith_c,
                  formula_label="avg_llm_faithfulness/5")
-            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, avg_llm_faithfulness/5 )"
+            _c_rest = "1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, avg_llm_faithfulness/5"
         elif hall_c is not None:
             c_hall_c = max(0.0, 1.0 - float(hall_c))
             _add("Hallucination Faithfulness (1 − rate)", _fmt_pct(hall_c, scale=100.0), c_hall_c,
                  formula_label="1−hallucination_rate")
-            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, 1−hallucination_rate )"
+            _c_rest = "1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, 1−hallucination_rate"
         else:
             _add("Faithfulness", None, None,
                  formula_label="llm_faithfulness/5 or 1−hallucination_rate",
                  note="Requires LLMJudgeConfig or enable_hallucination_detection=True")
-            formula_str = "avg( TCR/100, 1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, [faithfulness] )"
+            _c_rest = "1−sla_breach_rate, avg_fault_tolerance, avg_reproducibility, avg_degradation, avg_retry_consistency, avg_idempotency, [faithfulness]"
+        formula_str = f"gate_c_tcr_weight × TCR/100 + (1 − weight) × avg( {_c_rest} )"
 
     elif gate_key == "D":
         p95 = details.get("p95_latency_s")
@@ -591,7 +598,7 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         else:
             _add("Efficiency Ratio", None, None,
                  formula_label="avg_efficiency_ratio×1000",
-                 note="No tool calls / EfficiencyConfig not set")
+                 note="EfficiencyConfig not set")
         for dk, lbl, fl in [
             ("avg_budget_score", "Resource Budget Score", "avg_budget_score"),
             ("ttft_variability_score", "TTFT Variability Score", "ttft_variability_score"),
@@ -608,11 +615,19 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         if tfr is None:
             tfr = 1.0 if threat_count == 0 else None
         note_threat = "" if threat_count == 0 else _count_noun(threat_count, "threat") + " detected"
+        # The aggregate only folds threat_free_rate into the average when there are
+        # NO per-tracker defense scores (otherwise the same events are double-counted).
+        # Render the row for context but keep it out of the mean; re-add below if it
+        # turns out to be the only signal.
+        _tf_note = "not averaged when per-tracker scores exist"
+        if note_threat:
+            _tf_note = f"{note_threat}; {_tf_note}"
         _add("Threat-Free Rate (1 − threats/total)",
              f"{float(tfr):.3f}" if tfr is not None else _count_noun(threat_count, "threat"),
              tfr,
              formula_label="1−threat_rate", always=True,
-             note=note_threat)
+             note=_tf_note,
+             in_avg=False)
         cvss = details.get("avg_cvss_weighted_score")
         if cvss is not None:
             c_cvss = max(0.0, 1.0 - float(cvss) / 10.0)
@@ -665,8 +680,11 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         tr = details.get("avg_threat_response")
         _add("Threat Response Score", _fmt_ratio(tr), tr,
              formula_label="avg_threat_response")
+        # threat_free_rate is the sole component only when no per-tracker score landed.
+        if not included_vals and tfr is not None:
+            included_vals.append(float(tfr))
         formula_str = (
-            "avg( 1−threat_rate, [1−cvss/10], [compliance], "
+            "avg( [1−threat_rate only if no per-tracker score], [1−cvss/10], [compliance], "
             "[1−priv_esc_rate], [1−chain_rate], "
             "[1−leakage_rate], [1−injection_rate], [1−unauth_rate], [threat_response] )"
         )
@@ -719,11 +737,26 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
     # Result line
     score_pct = float(score) * 100
     score_col = "#10b981" if score_pct >= 80 else ("#f59e0b" if score_pct >= 60 else "#ef4444")
+    _naive = sum(included_vals) / len(included_vals)
     if len(included_vals) == 1:
         comp_expr = f"{included_vals[0]:.3f}"
     else:
         terms = " + ".join(f"{v:.3f}" for v in included_vals)
         comp_expr = f"( {terms} ) ÷ {len(included_vals)}"
+    # Gates A and C weight the TCR component (gate_x_tcr_weight) rather than taking a
+    # plain mean, so the expression above is only indicative — never assert it equals
+    # the score when it does not. Reconciles for B/D/E/G (true unweighted means).
+    _tcr_w = details.get(f"gate_{gate_key.lower()}_tcr_weight")
+    _weighted_note = ""
+    _reconciles = abs(_naive - float(score)) <= 0.002
+    if not _reconciles and _tcr_w is not None:
+        _blend = " and blended with accuracy" if gate_key == "A" else ""
+        _weighted_note = (
+            f'<div style="font-size:11px;color:#6b7280;margin-top:4px">'
+            f'The component mean above is indicative only — Gate {gate_key} weights the '
+            f'TCR component at {float(_tcr_w):.0%} of the score{_blend}; the other '
+            f'components share the remaining {1 - float(_tcr_w):.0%}.</div>'
+        )
     # P4.1: 측정된 컴포넌트가 2개 이하면 점수 대표성이 낮다 — 특히 그중 하나가
     # 만점(예: 데이터 없어 1.0으로 채워진 항목)이면 실제 문제를 희석할 수 있다.
     rep_warn = ""
@@ -754,12 +787,23 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
                 f'<ul style="margin:4px 0 0 16px">{_items}</ul></div>'
             )
 
+    if _reconciles or _tcr_w is None:
+        _result_line = (
+            f'Gate {gate_key} Score&nbsp;=&nbsp;{comp_expr}&nbsp;=&nbsp;'
+            f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
+        )
+    else:
+        _result_line = (
+            f'{comp_expr}&nbsp;&asymp;&nbsp;{_naive * 100:.1f}%'
+            f'&nbsp;&nbsp;·&nbsp;&nbsp;Gate {gate_key} Score&nbsp;=&nbsp;'
+            f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
+        )
     result_html = (
         f'<div class="bd-result">'
-        f'Gate {gate_key} Score&nbsp;=&nbsp;{comp_expr}&nbsp;=&nbsp;'
-        f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
-        f'&nbsp;<span style="font-size:11px;color:#6b7280">({len(included_vals)} component(s) averaged)</span>'
+        f'{_result_line}'
+        f'&nbsp;<span style="font-size:11px;color:#6b7280">({len(included_vals)} component(s) measured)</span>'
         f'</div>'
+        f'{_weighted_note}'
         f'{rep_warn}'
         f'{insuf_html}'
     )
@@ -1775,8 +1819,9 @@ def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
     if not has_advanced and not has_rag and not has_conversation:
         return ""
 
-    parts = ['<div class="gate-section" id="advanced" style="border-left-color:#6366f1">'
-             '<h2 style="color:#6366f1">Advanced Metrics</h2>']
+    _HEADER = ('<div class="gate-section" id="advanced" style="border-left-color:#6366f1">'
+               '<h2 style="color:#6366f1">Advanced Metrics</h2>')
+    parts = [_HEADER]
 
     # DeepEval
     if has_advanced and adv_metrics:
@@ -1864,6 +1909,8 @@ def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
                 f'<tbody>{rows}</tbody></table>'
             )
 
+    if len(parts) == 1:          # header only — nothing measured, don't emit an orphan heading
+        return ""
     parts.append('</div>')
     return ''.join(parts)
 
@@ -2448,9 +2495,19 @@ def _build_failure_segments(tasks: list[Any] | None) -> str:
         return ""
 
     seg_html = ""
-    if segs:
+    _real_segs = [s for s in (segs or []) if not s.get("catch_all")]
+    if segs and not _real_segs:
+        # Only the catch-all bucket clustered — a one-liner, not a single-row table.
+        _ca = segs[0]
+        seg_html = (
+            '<h3 style="margin:4px 0 6px">Failure segments</h3>'
+            f'<p style="font-size:12px;color:#6b7280;margin:0">The {_ca.get("n", 0)} '
+            'failing questions span unrelated topics — no dominant lexical cluster. '
+            'Use the root-cause clusters in Path to Green instead.</p>'
+        )
+    elif _real_segs:
         rows = ""
-        for s in segs:
+        for s in _real_segs:
             reason = _esc(s.get("dominant_reason", ""))
             ex = _esc(_clip(s.get("example_question", ""), 110))
             rows += (
@@ -2962,12 +3019,19 @@ def _build_eval_set_quality(tasks: list[Any] | None,
             'Suspicious ground truth / questions:</p>'
             f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7;color:#7c2d12">{rows}</ul>'
         )
+    clean_html = ""
+    if not (warnings or dups or susp):
+        clean_html = (
+            '<p style="margin:8px 0 0;font-size:12px;color:#059669">'
+            '✓ No coverage, balance, near-duplicate, or suspicious-label issues '
+            'detected in this eval set.</p>'
+        )
     return (
         '<div class="gate-section" id="eval-set-quality" style="border-left-color:#8b5cf6">'
         '<h2 style="color:#1e2030">Eval-Set Quality</h2>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 8px">'
         'A verdict is only as good as the set it is measured on.</p>'
-        f'{hist_bar}{warn_html}{dup_html}{susp_html}'
+        f'{hist_bar}{warn_html}{dup_html}{susp_html}{clean_html}'
         '</div>'
     )
 
@@ -3367,13 +3431,14 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
                 f'<td style="text-align:right;color:{col};font-weight:700">'
                 f'{osc if osc is not None else "—"}</td>'
                 f'<td style="text-align:right">{ps.get("context_retention", "—")}</td>'
-                f'<td style="text-align:right">{ps.get("topic_coherence", "—")}</td>'
                 f'<td style="text-align:right">{ps.get("nonanswer_turns", 0)}</td></tr>'
             )
+        # Topic coherence is deliberately omitted — the lexical heuristic behind it
+        # (see insights.py, P35) is unreliable for same-topic follow-ups.
         sess_html = (
             '<h3 style="margin:14px 0 4px">Per session</h3>'
             '<table class="mtable"><thead><tr><th>Session</th><th>Turns</th>'
-            '<th>Score</th><th>Ctx retention</th><th>Topic coherence</th>'
+            '<th>Score</th><th>Ctx retention</th>'
             '<th>Non-answer turns</th></tr></thead>'
             f'<tbody>{srows}</tbody></table>'
         )
@@ -3468,9 +3533,25 @@ def _pretty_field(fld: Any) -> str:
         return str(fld or "").replace("avg_", "").replace("_", " ").strip()
 
 
+def _trim_field_restatement(field_label: str, action: str) -> str:
+    """P35 r3: guidance strings often open by restating the component name
+    ("Response relevance/completeness is low. Strengthen …"). When that clause is
+    about to sit right after the same label, drop it so the name isn't said twice."""
+    act = (action or "").strip()
+    if field_label and act and ". " in act:
+        first, rest = act.split(". ", 1)
+        if first.lower().startswith(field_label.lower().rstrip(".")) and rest.strip():
+            return rest.strip()
+    return act
+
+
 def _td_resp_summary(rd: dict[str, Any]) -> str:
     """P35: readable response-diff summary — "0% unchanged" reads as a double
     negative."""
+    if rd.get("errored"):
+        reason = str(rd.get("error_reason") or "").strip()
+        return ("Current version returned no response"
+                + (f" ({_esc(reason)})" if reason else ""))
     sim = (rd.get("similarity") or 0.0) * 100
     if sim <= 2:
         return "Response fully rewritten"
@@ -3511,6 +3592,9 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
 
         _add_runs = list(rd.get("added") or [])[:5]
         _rem_runs = list(rd.get("removed") or [])[:5]
+        if rd.get("errored"):
+            # nothing to word-diff against an empty response — the summary line says it
+            _add_runs = _rem_runs = []
         # P35: one short removed-run + one short added-run reads better as a
         # substitution ("7.8 mm and 172 g. → 7 (the remaining steps…)") than as
         # separate "added 7 / removed 7.8 mm…".
@@ -3816,9 +3900,9 @@ def _build_insight_changes(ic: dict[str, Any] | None) -> str:
         rows += _line("🔀", "Verdict", f"{vc.get('from')} → {vc.get('to')}",
                       "#dc2626" if vc.get("to") == "not_ready" else "#059669")
     if ic.get("newly_failing_gates"):
-        rows += _line("📉", "Newly failing gates", ", ".join(ic["newly_failing_gates"]), "#dc2626")
+        rows += _line("📉", "Newly below target", ", ".join(ic["newly_failing_gates"]), "#dc2626")
     if ic.get("newly_passing_gates"):
-        rows += _line("✅", "Newly passing gates", ", ".join(ic["newly_passing_gates"]), "#059669")
+        rows += _line("✅", "Newly at target", ", ".join(ic["newly_passing_gates"]), "#059669")
     tc = ic.get("trust_change")
     if tc:
         rows += _line("⚖️", "Evaluator trust", f"{tc.get('from')} → {tc.get('to')}",
@@ -3987,7 +4071,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         for a in _v_actions[:4]:
             _g = a.get("gate")
             _fld = _pretty_field(a.get("field"))
-            _act = (a.get("action") or "").rstrip(".")
+            _act = _trim_field_restatement(_fld, a.get("action") or "").rstrip(".")
             _hp = (f" ({a['health'] * 100:.0f}%)"
                    if isinstance(a.get("health"), (int, float)) else "")
             _tag = ""
@@ -4017,7 +4101,8 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
             if sf:
                 top = sf[0]
                 fld = _pretty_field(top.get("field", ""))
-                act = component_guidance_for(top.get("field", "")) or ""
+                act = _trim_field_restatement(
+                    fld, component_guidance_for(top.get("field", "")) or "")
                 hp = (f"{top['health'] * 100:.0f}%"
                       if isinstance(top.get("health"), (int, float)) else "")
                 actions.append(
@@ -4075,6 +4160,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         pass
 
     _tcr_ci = _fmt_ci_pct(ci.get("tcr_ci"))
+    _acc_ci = _fmt_ci_pct(ci.get("acc_ci"))
     return (
         '<div class="gate-section" id="exec-summary" '
         f'style="border-left-color:{vcolor};background:#fff">'
@@ -4083,7 +4169,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         f'<p style="font-size:13px;color:#4b5563">{_esc(detail)}</p>'
         f'{conf_html}'
         f'<p style="font-size:12px;color:#6b7280;margin-top:4px">'
-        f'{total_tasks} tasks · TCR {tcr:.1f}%{_tcr_ci} · Accuracy {acc:.1f}%</p>'
+        f'{total_tasks} tasks · TCR {tcr:.1f}%{_tcr_ci} · Accuracy {acc:.1f}%{_acc_ci}</p>'
         f'{actions_html}'
         '</div>'
     )
@@ -4137,7 +4223,7 @@ def _rec_past_outcomes(recommendation_log_path: Any, gate: str) -> str:
     avg_d = (sum(deltas) / len(deltas)) if deltas else None
     last = outs[-1]
     _note = _esc((last.get("note") or last.get("recommendation_id") or "")[:80])
-    avg_s = f", avg Δ +{avg_d:.3f}" if avg_d else ""
+    avg_s = f", confirmed changes averaged Δ {avg_d:+.3f}" if avg_d is not None else ""
     return (
         f'<p style="margin:6px 0 0;font-size:11px;color:#6b7280">'
         f'📈 Past changes to Gate {gate}: {len(conf)} confirmed / {len(ref)} refuted '
@@ -4206,10 +4292,11 @@ def _rec_baseline_verdict(baseline: dict[str, Any] | None, current: dict[str, An
         return ""
     col = "#059669" if verd == "confirmed" else "#dc2626"
     arrow = "▲" if d > 0 else "▼"
+    _phrase = "improved vs baseline" if d > 0 else "regressed vs baseline"
     return (
         f'<p style="margin:4px 0 0;font-size:11px;color:{col};font-weight:600">'
         f'{arrow} Since baseline: {v.get("before_score"):.3f} → {v.get("after_score"):.3f} '
-        f'(Δ {d:+.3f}) — {verd}</p>'
+        f'(Δ {d:+.3f}) — {_phrase}</p>'
     )
 
 
@@ -4266,9 +4353,11 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             for _s in _shortfalls[:2]:
                 _fld = _s.get("field", "")
                 _health = _s.get("health")
-                _act = component_guidance_for(_fld) or _diag_native_rule_guidance(_fld)
                 _hp = f"{_health * 100:.0f}%" if isinstance(_health, (int, float)) else "—"
                 _label_txt = _esc(_pretty_field(_fld))
+                _act = _trim_field_restatement(
+                    _pretty_field(_fld),
+                    component_guidance_for(_fld) or _diag_native_rule_guidance(_fld) or "")
                 _fld_norm = str(_fld).replace("avg_", "").strip().lower()
                 _ls = (' <span style="color:#9ca3af">(low sample — confirm first)</span>'
                        if _fld_norm in _low_samp else '')
@@ -4604,11 +4693,25 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
         if isinstance(harness_groups.get(key), dict)
         and (harness_groups[key].get("gate") or harness_groups[key].get("status") or "").lower() == "pass"
     )
-    total_active = sum(
-        1 for key in "ABCDEFG"
+    # Only count gates that actually produced a score — an un-configured gate (B, F
+    # with no data) is "n/a", not a failure, so "2/7" would understate the result.
+    _scored = [
+        key for key in "ABCDEFG"
         if isinstance(harness_groups.get(key), dict)
-        and (harness_groups[key].get("gate") or harness_groups[key].get("status") or "")
+        and harness_groups[key].get("score") is not None
+    ]
+    total_active = len(_scored)
+    _n_unscored = 7 - total_active
+
+    # Was the hallucination RATE actually measured? Gate C/G store it only when
+    # HallucinationDetector ran. LLM-judge faithfulness feeds the Gate score but is
+    # a different signal — it does not make "Hallucination Rate: 0.0%" true.
+    _hall_measured = any(
+        isinstance(harness_groups.get(k), dict)
+        and (harness_groups[k].get("details") or {}).get("hallucination_rate") is not None
+        for k in ("C", "G")
     )
+    _hall_str = f"{hall_rate:.1f}%" if _hall_measured else "n/a (not enabled)"
 
     grade = "S (Outstanding)" if tcr >= 95 and acc >= 90 else \
             "A (Excellent)" if tcr >= 90 and acc >= 85 else \
@@ -4638,6 +4741,18 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
                        if ci.get("acc_ci") else "")
                     + '</p>')
 
+    _gate_line = ""
+    if total_active > 0:
+        _unscored_note = (
+            f' <span style="font-size:12px;color:#6b7280">'
+            f'({_n_unscored} gate(s) not measured)</span>'
+            if _n_unscored else ""
+        )
+        _gate_line = (
+            f'<p><strong>Harness Gate:</strong> {pass_count}/{total_active} '
+            f'measured PASS{_unscored_note}</p>'
+        )
+
     return (
         f'<div class="gate-section" id="conclusion" style="border-left-color:#374151">'
         f'<h2 style="color:#374151">Conclusion</h2>'
@@ -4645,9 +4760,9 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
         f'<p><strong>Grade:</strong> {grade}{_conf}</p>'
         f'<p><strong>Total Tasks:</strong> {total_tasks}</p>'
         f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>Accuracy:</strong> {_num(acc, ".1f")}% | '
-        f'<strong>Hallucination Rate:</strong> {hall_rate:.1f}%</p>'
+        f'<strong>Hallucination Rate:</strong> {_hall_str}</p>'
         f'{_ci_line}'
-        f'{"<p><strong>Harness Gate:</strong> " + str(pass_count) + "/" + str(total_active) + " PASS</p>" if total_active > 0 else ""}'
+        f'{_gate_line}'
         f'</div>'
         f'<div class="footer">'
         f'<p>Generated by <strong>Agent Evaluator v{_ver}</strong> &nbsp;|&nbsp; {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'

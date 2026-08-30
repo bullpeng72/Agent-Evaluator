@@ -1159,6 +1159,54 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
   "Per session" 표. trace-diff에서 짧은 removed-run 1개 + added-run 1개는 "changed: X → Y"로.
 전체 4534 통과. `test_p35_report_qa_fixes.py`(15).
 
+**P35 round 3 (세 번째 감사) — 12건:**
+- **B1 (게이트 점수 산출식 정합)**: `_build_score_breakdown`이 `( a+b+c ) ÷ N = <score>`를
+  출력해 독자 검산을 유도하는데, TCR-가중(A·C) 또는 컴포넌트 누락(A) / 초과(E) 게이트에선
+  이 산술이 배지 점수와 안 맞았다(A 69.2%≠63.9%, C 62.2%≠63.1%, E 96.5%≠97.5%). 이제
+  `_naive`와 `score`가 0.2pp 넘게 벌어지면 `( a+b+c ) ÷ N ≈ M% · Gate X Score = SCORE%` +
+  "TCR 컴포넌트를 {w:.0%}로 가중" 주석. D·G는 진짜 단순평균이라 기존 형식 유지. "component(s)
+  averaged"→"measured".
+- **B2**: Gate A 분해표에 `avg_quality_relevance_completeness` 행 추가(점수엔 들어가는데
+  표엔 없었다). Accuracy 행 note에 "TCR 컴포넌트에 블렌딩(0.6×TCR + 0.4×accuracy)" 명시.
+  formula_str도 실제 가중식으로 교체.
+- **B3 (E threat-free 제외)**: aggregate의 `_include_sec_raw`(per-tracker 점수 있으면
+  `_sec_score_raw` 제외)를 리포트도 미러 — threat-free 행은 `in_avg=False`(정보용), 다른
+  컴포넌트가 하나도 없을 때만 재편입. `_add(..., in_avg=)` 파라미터 신설.
+- **B3′ (fix-plan 정렬)**: `_readiness_section`의 `ranked`가 count 내림차순이라 "clusters by
+  TCR impact" 라벨과 불일치(정확도 실패 클러스터가 TCR 회복 큰 timeout 클러스터보다 위).
+  이제 `_standalone_tcr_gain`(멤버들의 1−completion 합 / total) 내림차순으로 정렬.
+- **B4 (catch-all 세그먼트)**: `_failure_segments_section` 항목에 `catch_all` 플래그(실제
+  토픽 클러스터 False, "other (no shared topic)" True). `_briefs_section` QA 문장은 catch_all이
+  유일하면 `readiness.fix_plan[0]`(없으면 `failure_clusters[0]`) 시그니처를 인용. 리포트
+  `_build_failure_segments`는 catch_all만이면 1행 표 대신 한 줄 안내.
+- **B5**: `_rec_past_outcomes` "avg Δ +0.160"이 confirmed-only 평균인데 "N total" 뒤에 붙어
+  오해 → "confirmed changes averaged Δ {:+.3f}"로 명시(음수 부호도 정상 처리).
+- **C1**: Gate D efficiency note "No tool calls / EfficiencyConfig not set" → 툴 호출이
+  있는데도 뜨던 오해 제거, "EfficiencyConfig not set"만.
+- **C3**: `_rec_baseline_verdict`의 "Since baseline … (Δ -0.207) — refuted"가 델타 자체가
+  반증된 것처럼 읽힘 → "improved/regressed vs baseline".
+- **C4**: 리포트 per-session 표에서 "Topic coherence" 열 제거(P35 r1이 신뢰 불가로 판정한
+  지표 — bare 컬럼으로 재노출하던 것). `sessions[].topic_coherence` 데이터는 유지.
+- **C5**: `_insight_changes_section`의 `newly_failing_gates`가 hard-fail(<0.5)만 잡아 pass→warn
+  전이를 놓침 → "below target"(fail OR warn, <0.7)으로 확장. 라벨도 "Newly below target".
+- **N1**: Conclusion "Hallucination Rate: 0.0%"가 미측정(`summary.hallucination_rate` null)일 때도
+  0.0%로 렌더 → Gate C/G details에 실제 `hallucination_rate`가 있을 때만 수치, 아니면
+  "n/a (not enabled)". faithfulness는 대체 신호라 측정 근거로 안 침.
+- **N2**: `_build_advanced_section`이 본문 0줄이어도 "Advanced Metrics" 헤더 + 좌측 레일 +
+  TOC 항목을 남기던 것 → 본문 없으면 "" 반환.
+- **N3**: Conclusion "Harness Gate: 2/7 PASS"가 미측정 B·F를 실패로 카운트 → "2/5 measured
+  PASS (2 gate(s) not measured)".
+- **N4**: Exec Summary가 TCR CI만 보이고 Accuracy CI는 Conclusion에만 → Exec Summary에도 병기.
+- **P2**: eval-set-quality가 경고 없으면 히스토그램 3줄만 떠서 렌더 글리치처럼 보임 →
+  "✓ No coverage/balance/near-duplicate/suspicious-label issues detected" 한 줄 추가.
+- **P4**: trace-diff에서 회귀 버전이 무응답(timeout/error)이면 `response_diff.errored`/
+  `error_reason` 플래그 → "removed: <옛 답>" bare 워드 diff 대신 "Current version returned
+  no response (error: …)".
+- **P5**: narrative/exec-summary/recommendations의 "shortfall is X — X is low. …"에서 필드명이
+  대시 양옆에 두 번 나오던 것 → `_trim_field_restatement()`가 guidance 첫 문장이 필드명 재진술이면
+  잘라냄.
+전체 4542 통과. `test_p35_report_qa_fixes.py`(+8 = 23).
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

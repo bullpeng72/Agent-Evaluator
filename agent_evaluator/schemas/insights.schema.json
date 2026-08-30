@@ -265,7 +265,8 @@
           "share_of_failures_pct": { "type": "number" },
           "impact_pct": { "type": "number" },
           "dominant_reason": { "type": "string" },
-          "example_question": { "type": "string" }
+          "example_question": { "type": "string" },
+          "catch_all": { "type": "boolean" }
         }
       }
     },
