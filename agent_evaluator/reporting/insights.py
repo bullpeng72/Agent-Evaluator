@@ -21,8 +21,9 @@ evidence — nothing asserts "this is the cause".
 """
 from __future__ import annotations
 
+import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -1454,6 +1455,190 @@ def _failure_clusters_section(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Semantic failure segmentation + trigger localization (P30).
+# `_failure_clusters_section` groups by (reason signature x task_type) — surface
+# level. This clusters the failing *questions* by lexical topic so the report can
+# say "the agent fails on multi-entity comparison questions", and pins each
+# failure to the retrieved passage or tool step that most likely caused it.
+# Pure stdlib: binary TF-IDF + greedy cosine grouping (small N, deterministic).
+# ---------------------------------------------------------------------------
+
+_SEG_MIN_FAILURES = 4
+_SEG_SIM = 0.22             # cosine >= this -> same topic segment
+_SEG_MIN_MEMBERS = 2
+_SEG_MAX = 6
+
+
+def _tfidf_vectors(
+    docs: list[tuple[str, set[str]]],
+) -> tuple[dict[str, dict[str, float]], dict[str, float]]:
+    n = len(docs)
+    df: Counter = Counter()
+    for _tid, toks in docs:
+        df.update(toks)
+    idf = {
+        term: math.log((1.0 + n) / (1.0 + c)) + 1.0
+        for term, c in df.items()
+        if c < n  # a term in every failing question does not discriminate
+    }
+    vecs: dict[str, dict[str, float]] = {}
+    for tid, toks in docs:
+        v = {t: idf[t] for t in toks if t in idf}
+        norm = math.sqrt(sum(w * w for w in v.values())) or 1.0
+        vecs[tid] = {t: w / norm for t, w in v.items()}
+    return vecs, idf
+
+
+def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
+    if len(a) > len(b):
+        a, b = b, a
+    return sum(w * b.get(t, 0.0) for t, w in a.items())
+
+
+def _failure_segments_section(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    fails = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    if len(fails) < _SEG_MIN_FAILURES:
+        return None
+    docs = [
+        (str(t.get("task_id") or f"#{i}"), _wtok(t.get("question")))
+        for i, t in enumerate(fails)
+    ]
+    docs = [(tid, toks) for tid, toks in docs if len(toks) >= 2]
+    if len(docs) < _SEG_MIN_FAILURES:
+        return None
+    by_id = {str(t.get("task_id") or f"#{i}"): t for i, t in enumerate(fails)}
+    vecs, idf = _tfidf_vectors(docs)
+
+    # greedy grouping seeded by the most distinctive question first
+    order = sorted(docs, key=lambda d: -sum(vecs[d[0]].values()))
+    assigned: set[str] = set()
+    groups: list[list[str]] = []
+    for tid, _toks in order:
+        if tid in assigned:
+            continue
+        grp = [tid]
+        assigned.add(tid)
+        for other, _ot in order:
+            if other in assigned:
+                continue
+            if _cosine(vecs[tid], vecs[other]) >= _SEG_SIM:
+                grp.append(other)
+                assigned.add(other)
+        groups.append(grp)
+
+    total = len(tasks)
+    n_fail = len(fails)
+    segments: list[dict[str, Any]] = []
+    leftovers: list[str] = []
+    for grp in groups:
+        if len(grp) < _SEG_MIN_MEMBERS:
+            leftovers.extend(grp)
+            continue
+        term_mass: Counter = Counter()
+        for tid in grp:
+            for term, w in vecs[tid].items():
+                term_mass[term] += w
+        kw = [t for t, _ in term_mass.most_common(5)]
+        members = [by_id[tid] for tid in grp if tid in by_id]
+        reasons = Counter(_reason_signature(_task_reason(m)) for m in members)
+        example = min(
+            (str(m.get("question") or "") for m in members if m.get("question")),
+            key=len, default="",
+        )
+        segments.append({
+            "label": " · ".join(kw[:3]) or "misc",
+            "keywords": kw,
+            "task_ids": grp,
+            "n": len(grp),
+            "share_of_failures_pct": round(len(grp) / n_fail * 100.0, 1),
+            "impact_pct": round(len(grp) / total * 100.0, 1),
+            "dominant_reason": reasons.most_common(1)[0][0] if reasons else "unspecified",
+            "example_question": example[:160],
+        })
+    segments.sort(key=lambda s: -s["n"])
+    segments = segments[:_SEG_MAX]
+    if not segments:
+        return None
+    if len(leftovers) >= _SEG_MIN_MEMBERS:
+        segments.append({
+            "label": "other (no shared topic)",
+            "keywords": [],
+            "task_ids": leftovers,
+            "n": len(leftovers),
+            "share_of_failures_pct": round(len(leftovers) / n_fail * 100.0, 1),
+            "impact_pct": round(len(leftovers) / total * 100.0, 1),
+            "dominant_reason": "mixed",
+            "example_question": "",
+        })
+    return segments
+
+
+_TRIG_LIMIT = 12
+
+
+def _ctx_chunks(context: Any) -> list[str]:
+    if isinstance(context, list):
+        return [str(c) for c in context if str(c).strip()]
+    text = str(context or "")
+    parts = re.split(r"\n{2,}|(?<=[.!?])\s+(?=[A-Z0-9])", text)
+    return [p.strip() for p in parts if len(p.strip()) >= 15]
+
+
+def _failure_triggers_section(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    fails = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    fails.sort(key=lambda t: _safe_float(t.get("accuracy_score"), 1.0) or 1.0)
+    out: list[dict[str, Any]] = []
+    for t in fails[:_TRIG_LIMIT]:
+        tid = str(t.get("task_id") or "—")
+        reason = _reason_signature(_task_reason(t))
+        tcs = [s for s in (t.get("tool_calls") or []) if isinstance(s, dict)]
+        bad_step = next(
+            ((k, s) for k, s in enumerate(tcs, 1) if s.get("success") is False), None
+        )
+        chunks = _ctx_chunks(t.get("context"))
+        gt_tok = _wtok(t.get("ground_truth"))
+        kind = detail = ""
+        if chunks and gt_tok:
+            best = max((_overlap(gt_tok, _wtok(c)) for c in chunks), default=0.0)
+            if best < _RAG_RECALL_MISS:
+                kind = "retrieval_gap"
+                detail = (f"No retrieved passage covers the expected answer well "
+                          f"(best ground-truth overlap {best * 100:.0f}%).")
+            elif any(w in reason for w in ("ground", "context", "contradict", "hallucin")):
+                resp_tok = _wtok(t.get("response"))
+                misleading = max(chunks, key=lambda c: _overlap(_wtok(c), resp_tok))
+                kind = "grounding"
+                detail = (f"The response tracks a passage that does not answer the "
+                          f"question: “{misleading[:120]}”")
+        if not kind and bad_step:
+            k, s = bad_step
+            name = s.get("tool_name") or s.get("tool") or s.get("name") or "?"
+            o = s.get("error") or s.get("output") or s.get("result") or ""
+            kind = "tool_failure"
+            detail = f"Step {k} ({name}) failed: {str(o)[:120]}"
+        if not kind and reason.startswith("error:"):
+            kind = "runtime_error"
+            detail = reason
+        if kind:
+            out.append({"task_id": tid, "kind": kind, "detail": detail})
+    return out or None
+
+
 def _failure_lineage_section(
     tasks: list[dict[str, Any]], baseline: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -2533,6 +2718,8 @@ def build_insights(
         "failure_clusters": _safe(
             _failure_clusters_section, tasks, total_tasks, default=[],
         ),
+        "failure_segments": _safe(_failure_segments_section, tasks, default=None),
+        "failure_triggers": _safe(_failure_triggers_section, tasks, default=None),
         "failure_lineage": failure_lineage,
         "recommendations": _safe(
             _recommendations_section, hg, diagnosis,

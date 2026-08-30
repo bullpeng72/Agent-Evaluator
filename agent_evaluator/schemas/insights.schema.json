@@ -205,6 +205,39 @@
       }
     },
 
+    "failure_segments": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["label", "task_ids", "n"],
+        "properties": {
+          "label": { "type": "string" },
+          "keywords": { "type": "array", "items": { "type": "string" } },
+          "task_ids": { "type": "array", "items": { "type": "string" } },
+          "n": { "type": "integer" },
+          "share_of_failures_pct": { "type": "number" },
+          "impact_pct": { "type": "number" },
+          "dominant_reason": { "type": "string" },
+          "example_question": { "type": "string" }
+        }
+      }
+    },
+
+    "failure_triggers": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["task_id", "kind"],
+        "properties": {
+          "task_id": { "type": "string" },
+          "kind": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+
     "failure_lineage": {
       "type": ["object", "null"],
       "additionalProperties": true,

@@ -883,7 +883,13 @@ cumulative_tcr_gain_pp}, projected_ready_after{ready_after_n_items, remaining_st
 metric_confidence{n_tasks, tcr_pct, tcr_ci_pct,
 accuracy_pct, accuracy_ci_pct}, gate_findings[]{gate, score, component_shortfalls[]{field, value, health,
 guidance, config_hint}, top_detail_deltas[]}, failure_clusters[]{signature, task_type, count, impact_pct,
-example_task_ids}, failure_lineage{regressed, persistent, new, fixed}|null, recommendations[]{gate, status,
+example_task_ids},
+failure_segments[]{label, keywords[], task_ids[], n, share_of_failures_pct, impact_pct, dominant_reason,
+example_question}|null (SPEC-041 P30 — 실패 *질문*을 어휘 토픽으로 군집화, binary TF-IDF + greedy cosine,
+stdlib. `(reason×type)` 군집이 못 잡는 "특정 입력 패턴"),
+failure_triggers[]{task_id, kind(retrieval_gap|grounding|tool_failure|runtime_error), detail}|null
+(SPEC-041 P30 — worst-N 실패를 유발한 검색 청크/도구 스텝에 국소화),
+failure_lineage{regressed, persistent, new, fixed}|null, recommendations[]{gate, status,
 label, guidance, shortfalls[], code_snippet, experiment{predicted_gate_delta, recommended_tasks, command}|null,
 past_outcomes{confirmed, refuted, avg_delta}|null, baseline_verdict{verdict, delta}|null},
 latency_budget{n_tasks, tool_ms, model_ms, network_ms, unattributed_ms, *_ratio, bottleneck, bottleneck_share}|null
@@ -1070,6 +1076,19 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P30 (의미 기반 실패 세그먼트 + 트리거 국소화)** — `reporting/insights.py`:
+`_failure_segments_section(tasks)` — 실패 태스크의 *질문*을 어휘 토픽으로 군집화. `_tfidf_vectors`
+(binary TF-IDF, df==N 항 제외, L2 정규화) + `_cosine` + greedy 그룹화(가장 distinctive 질문부터
+seed, cosine≥`_SEG_SIM`=0.22). `_wtok`/`_RAG_STOPWORDS` 재사용. 각 세그먼트: label(상위 3 키워드)·
+keywords·task_ids·n·share_of_failures_pct·impact_pct·dominant_reason(`_reason_signature` 최빈)·
+example_question. 결정적(seed 순서 고정). 실패 <4개 또는 내용어 부족이면 None. `_failure_triggers_section`
+— worst-N 실패마다 `_ctx_chunks`(context를 문단/문장 분할)로 gt-오버랩 최저 청크 확인 → `retrieval_gap`
+(best<`_RAG_RECALL_MISS`) / `grounding`(reason에 ground/context/contradict + 응답이 다른 청크 추종) /
+`tool_failure`(첫 success=False 스텝) / `runtime_error`(reason이 `error:`). 리포트
+`_build_failure_segments()` — failure-cases 섹션 안에 "Failure segments" 표 + "Likely triggers" 리스트.
+대시보드 Improve 탭 패널. `_review_dict_tasks`는 TaskResult 속성 접근이라 리포트 경로는 실제 객체 필요
+(plain dict은 insights 섹션에서만 동작).
 
 **SPEC-041 P29 (green까지의 경로)** — `reporting/insights.py::_readiness_section(tasks, harness_groups)` →
 `insights.readiness`. `gaps[]` = fail/warn 게이트별 `{score, target(0.7=gates/base.py `_status` warn 라인),

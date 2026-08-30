@@ -6831,6 +6831,42 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
             </div>
           </template>
 
+          <template x-if="(improveResult.insights.failure_segments && improveResult.insights.failure_segments.length) || (improveResult.insights.failure_triggers && improveResult.insights.failure_triggers.length)">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">Failure segments &amp; triggers</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Failing questions grouped by topic, and the passage or tool step that most likely caused each failure.</div>
+              <template x-if="improveResult.insights.failure_segments && improveResult.insights.failure_segments.length">
+                <div style="overflow-x:auto;margin-bottom:8px">
+                  <table style="width:100%;border-collapse:collapse;font-size:12px">
+                    <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                      <th style="text-align:left;padding:4px">Topic</th><th style="text-align:right;padding:4px">Size</th>
+                      <th style="text-align:left;padding:4px">Common reason</th><th style="text-align:left;padding:4px">Example</th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="(s, i) in improveResult.insights.failure_segments" :key="i">
+                        <tr style="border-bottom:1px solid var(--border)">
+                          <td style="padding:4px;font-weight:600" x-text="s.label"></td>
+                          <td style="padding:4px;text-align:right;white-space:nowrap" x-text="s.n+' ('+s.share_of_failures_pct+'%)'"></td>
+                          <td style="padding:4px;font-size:11px;color:var(--text2)" x-text="s.dominant_reason"></td>
+                          <td style="padding:4px;font-size:11px;color:var(--text2)" x-text="s.example_question"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+              <template x-if="improveResult.insights.failure_triggers && improveResult.insights.failure_triggers.length">
+                <ul style="margin:4px 0 0 18px;font-size:12px;line-height:1.6">
+                  <template x-for="(t, i) in improveResult.insights.failure_triggers" :key="i">
+                    <li><strong x-text="t.task_id"></strong>
+                      <span style="font-weight:700;color:var(--yellow)" x-text="' ['+t.kind+'] '"></span>
+                      <span style="color:var(--text2)" x-text="t.detail"></span></li>
+                  </template>
+                </ul>
+              </template>
+            </div>
+          </template>
+
           <template x-if="improveResult.insights.security_findings && improveResult.insights.security_findings.length">
             <div style="border:1px solid var(--border);border-left:4px solid var(--red);border-radius:8px;padding:14px;margin-bottom:14px">
               <div style="font-weight:700" x-text="'Security findings ('+improveResult.insights.security_findings.length+' — most severe first)'"></div>

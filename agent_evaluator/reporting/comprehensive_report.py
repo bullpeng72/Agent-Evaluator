@@ -2393,6 +2393,11 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         rag_html = _build_rag_localization(tasks)
     except Exception:
         pass
+    segments_html = ""
+    try:
+        segments_html = _build_failure_segments(tasks)
+    except Exception:
+        pass
 
     return (
         '<div class="gate-section" id="failure-cases" style="border-left-color:#ef4444">'
@@ -2401,6 +2406,7 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         f'(showing {len(worst)} of {heading_n})</span></h2>'
         f'{lineage_html}'
         f'{rag_html}'
+        f'{segments_html}'
         f'{clusters_html}'
         '<h3 style="margin:4px 0 6px">Worst cases</h3>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 12px">'
@@ -2411,6 +2417,77 @@ def _build_failure_cases(tasks: list[Any], *, limit: int = 12,
         f'</tr></thead><tbody>{rows}</tbody></table>{more}'
         '</div>'
     )
+
+
+_TRIG_LABEL = {
+    "retrieval_gap": ("Retrieval gap", "#dc2626"),
+    "grounding": ("Grounding", "#d97706"),
+    "tool_failure": ("Tool failure", "#7c3aed"),
+    "runtime_error": ("Runtime error", "#b91c1c"),
+}
+
+
+def _build_failure_segments(tasks: list[Any] | None) -> str:
+    """P30: cluster failing questions by lexical topic ("fails on multi-entity
+    comparison questions") and pin each failure to the retrieved passage or tool
+    step that most likely caused it."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import (
+            _failure_segments_section,
+            _failure_triggers_section,
+        )
+
+        norm = _review_dict_tasks(tasks)
+        segs = _failure_segments_section(norm)
+        trigs = _failure_triggers_section(norm)
+    except Exception:
+        segs = trigs = None
+    if not segs and not trigs:
+        return ""
+
+    seg_html = ""
+    if segs:
+        rows = ""
+        for s in segs:
+            reason = _esc(s.get("dominant_reason", ""))
+            ex = _esc(_clip(s.get("example_question", ""), 110))
+            rows += (
+                f'<tr><td style="font-weight:600">{_esc(s.get("label", ""))}</td>'
+                f'<td style="text-align:right">{s.get("n", 0)}'
+                f'<div style="font-size:11px;color:#9ca3af">'
+                f'{s.get("share_of_failures_pct")}% of failures</div></td>'
+                f'<td style="font-size:11px;color:#6b7280">{reason}</td>'
+                f'<td style="font-size:11px;color:#374151">{ex}</td></tr>'
+            )
+        seg_html = (
+            '<h3 style="margin:4px 0 6px">Failure segments '
+            '<span style="font-size:12px;color:#6b7280">'
+            '&mdash; failing questions grouped by topic</span></h3>'
+            '<table class="mtable"><thead><tr><th>Topic</th><th>Size</th>'
+            '<th>Common reason</th><th>Example question</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+
+    trig_html = ""
+    if trigs:
+        items = ""
+        for tr in trigs:
+            lbl, col = _TRIG_LABEL.get(tr.get("kind", ""), (tr.get("kind", ""), "#6b7280"))
+            items += (
+                f'<li><strong>{_esc(str(tr.get("task_id", "")))}</strong> '
+                f'<span style="color:{col};font-weight:700">[{_esc(lbl)}]</span> '
+                f'<span style="color:#374151">{_esc(_clip(tr.get("detail", ""), 170))}</span></li>'
+            )
+        trig_html = (
+            '<h3 style="margin:14px 0 6px">Likely triggers '
+            '<span style="font-size:12px;color:#6b7280">— the passage or step that most '
+            'likely caused each failure</span></h3>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{items}</ul>'
+        )
+
+    return seg_html + trig_html
 
 
 _RAG_CLASS_LABEL = {
