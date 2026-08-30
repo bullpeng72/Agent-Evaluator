@@ -32,6 +32,7 @@ agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10   
 agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression  # golden-set gate, exit 3
 agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regression   # exit 4 if a task passed before & fails now (SPEC-041 P26)
 agent-eval gate result.json --max-cost-per-task 0.05       # cost SLO gate: fail if total_cost / task count exceeds $0.05 (SPEC-041 P28)
+agent-eval gate result.json --digest                       # also print PM / QA / engineer briefs after the table (SPEC-041 P34)
 agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X  # exit 4 on HIGH review items; post narrative+regressions+cohort winner
 agent-eval diagnose result.json --baseline baseline.json   # Gate regression RCA (not a CI gate, informational only)
 agent-eval abtest v1.json v2.json --metric accuracy_score   # statistical A/B (Welch's t-test), not a CI gate
@@ -923,6 +924,13 @@ wasted_cost_pct, retry_cost_usd, retry_cost_pct, projection{calls, total_usd, wa
 (SPEC-041 P16 — 성공 태스크당 비용·실패/재시도 낭비·10만 콜 투사. per-task 토큰×pricing, 없으면 집계 균등분할),
 narrative: str (SPEC-041 P17 — 배포 준비도 판정 + 최약 병목 + 리뷰/신뢰도 + 비용 투사를 2~4문장 영어로.
 `build_insights(narrator=<callable>)`로 LLM 작성 대체 가능, 실패 시 결정적 템플릿 폴백),
+narrative_audit{claims_checked, clean, adjustments[]}|null (SPEC-041 P34 — narrative의 정량 주장을
+구조화 숫자와 대조: verdict≠ready인데 "is deployment-ready" · TCR/accuracy와 >3pp 다른 % 인용 ·
+baseline 없는데 "improvement/regression" · confidence=low인데 미언급. 결정적 템플릿은 항상 clean),
+briefs{pm: str, qa: str, engineer: [str]}|null (SPEC-041 P34 — 같은 run을 3개 청중용으로 결정적 합성:
+PM 한 줄(ship/hold + 노력 + 리스크 + confidence), QA 문단(review_queue + evaluator_trust + 최대
+failure_segment + freshness 경고), engineer 체크리스트(critical 보안 먼저 + readiness.fix_plan 항목별
+effort_hint + 코드 스니펫 안내). verdict unknown이고 failure_clusters도 없으면 null),
 change_attribution{prompt_changed, prompt_diff{similarity, added[], removed[]}, config_changed,
 config_diff{changed_keys}, git{from_commit, to_commit}, largest_gate_move{gate, delta}, note}|null
 (SPEC-041 P18 — baseline 필요. 두 run의 lineage.prompt_text/config_snapshot diff + 최대 Gate 이동),
@@ -1101,6 +1109,17 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
 때만), worst_session}`. 리포트 `_build_conversation` 섹션 `conversation`(턴별 표 + context_ref 스파크라인 +
 degradation 경고 + drift 목록), 대시보드 Improve 탭 패널. monitor 경로는 `_ins_input`에
 `conversation_sessions`도 graft(`report.to_dict()`에 없음).
+
+**SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
+`_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
+review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적
+합성. `_narrative_audit_section(narrative, ins)` → `insights.narrative_audit{claims_checked, clean,
+adjustments[]}` — `_READY_PHRASES`(affirmative만, "not deployment-ready" 미매치)·`_RE_PCT`(±3pp)·
+baseline 유무·confidence=low 미언급 체크. narrator가 준 텍스트를 재작성하진 않고 flag만. `out["narrative"]`
+계산 직후 `out["narrative_audit"]`·`out["briefs"]` 추가(narrator 반영). 리포트 `_build_briefs()` 섹션
+`briefs`(readiness 다음, 3열 그리드) + `_build_narrative_audit_note()`(narrative 배너 다음, dirty일 때만
+빨간 박스). 대시보드 Improve 탭 패널 2개. `agent-eval gate --digest` → `_print_digest(data)`가 PM/QA/
+engineer 브리프를 표 다음 출력.
 
 **SPEC-041 P33 (인사이트 메타-diff + 신선도)** — `reporting/insights.py`:
 `_insight_changes_section(current, baseline, security_findings, evaluator_trust, failure_clusters,

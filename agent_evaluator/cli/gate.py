@@ -726,6 +726,39 @@ def _print_narrative(data: dict[str, Any]) -> None:
     print(f"  {_SEP}")
 
 
+def _print_digest(data: dict[str, Any]) -> None:
+    """SPEC-041 P34: the audience-targeted briefs (PM / QA / engineer) after the
+    gate table. Silent on any failure."""
+    import textwrap
+
+    try:
+        from agent_evaluator.reporting.insights import build_insights
+
+        briefs = (build_insights(data) or {}).get("briefs") or {}
+    except Exception:
+        return
+    if not briefs:
+        return
+    print()
+    print(f"  {B}Briefs{R}")
+    for label, key in (("PM", "pm"), ("QA", "qa")):
+        val = briefs.get(key)
+        if not val:
+            continue
+        wrapped = textwrap.wrap(str(val).strip(), width=84)
+        if wrapped:
+            print(f"  {D}{label}:{R} {wrapped[0]}")
+            for ln in wrapped[1:]:
+                print(f"      {ln}")
+    eng = briefs.get("engineer") or []
+    if eng:
+        print(f"  {D}Engineer:{R}")
+        for i, step in enumerate(eng, 1):
+            for j, ln in enumerate(textwrap.wrap(str(step), width=80)):
+                print(f"    {i if j == 0 else ' '}. {ln}" if j == 0 else f"       {ln}")
+    print(f"  {_SEP}")
+
+
 def _compute_gate_insights(
     data: dict[str, Any], args: argparse.Namespace, baseline_path: Path | None,
 ) -> dict[str, Any] | None:
@@ -1112,6 +1145,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
     # ── Plain-English summary (SPEC-041 P17) ────────────────────────────────
     _print_narrative(data)
+
+    # ── Audience briefs (SPEC-041 P34) ─────────────────────────────────────
+    if getattr(args, "digest", False):
+        _print_digest(data)
 
     # ── RCA 요약 (SPEC-041 P2.2) ────────────────────────────────────────────
     # 실패(임계값/복합/Gate임계값/회귀/골든셋) 시 기본 표시, --explain은 항상, --no-explain은 억제.

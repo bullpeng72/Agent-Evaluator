@@ -10,6 +10,24 @@
     "schema_version": { "type": "string" },
     "detection_mode": { "enum": ["absolute_threshold", "regression_vs_baseline"] },
     "narrative": { "type": "string" },
+    "narrative_audit": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "claims_checked": { "type": "boolean" },
+        "clean": { "type": "boolean" },
+        "adjustments": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "briefs": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "pm": { "type": "string" },
+        "qa": { "type": "string" },
+        "engineer": { "type": "array", "items": { "type": "string" } }
+      }
+    },
 
     "verdict": {
       "type": "object",

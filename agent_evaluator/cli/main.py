@@ -1027,6 +1027,13 @@ def main() -> None:
     )
     gate_p.set_defaults(explain=None)
     gate_p.add_argument(
+        "--digest", action="store_true", dest="digest",
+        help=(
+            "Also print the audience-targeted briefs (PM one-liner / QA "
+            "paragraph / engineer checklist) after the gate table (SPEC-041 P34)."
+        ),
+    )
+    gate_p.add_argument(
         "--baseline-result", metavar="PATH", dest="baseline_result",
         help=(
             "Full prior result JSON (with tasks[]) for case-level regression "

@@ -3628,6 +3628,7 @@ def _build_change_attribution(ca: dict[str, Any] | None) -> str:
 
 _TOC_LABELS = {
     "narrative": "Summary", "exec-summary": "Verdict", "path-to-green": "Path to Green",
+    "briefs": "Briefs",
     "gate-a": "A", "gate-b": "B", "gate-c": "C", "gate-d": "D",
     "gate-e": "E", "gate-f": "F", "gate-g": "G",
     "advanced": "Advanced", "operational-signals": "Anomalies",
@@ -3685,6 +3686,46 @@ def _build_narrative_banner(narrative: str) -> str:
         '<p style="font-size:11px;color:#9ca3af;margin:6px 0 0">'
         'Auto-generated summary — see the sections below for the evidence.</p>'
         '</div>'
+    )
+
+
+def _build_briefs(briefs: dict[str, Any] | None) -> str:
+    """P34: the same run summarised for three audiences — a PM one-liner, a QA
+    paragraph, an engineer checklist."""
+    if not briefs or not (briefs.get("pm") or briefs.get("qa") or briefs.get("engineer")):
+        return ""
+    eng = "".join(f"<li>{_esc(str(x))}</li>" for x in briefs.get("engineer") or [])
+    return (
+        '<div class="gate-section" id="briefs" style="border-left-color:#6366f1">'
+        '<h2 style="color:#1e2030">Briefs by Audience</h2>'
+        '<div style="display:grid;gap:14px;'
+        'grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">'
+        f'<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:.5px;color:#6b7280">For a PM</div>'
+        f'<p style="font-size:13px;margin:4px 0 0">{_esc(briefs.get("pm", ""))}</p></div>'
+        f'<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:.5px;color:#6b7280">For QA</div>'
+        f'<p style="font-size:13px;margin:4px 0 0">{_esc(briefs.get("qa", ""))}</p></div>'
+        f'<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:.5px;color:#6b7280">For the engineer</div>'
+        f'<ol style="font-size:12px;margin:4px 0 0 16px;line-height:1.6">{eng}</ol></div>'
+        '</div></div>'
+    )
+
+
+def _build_narrative_audit_note(na: dict[str, Any] | None) -> str:
+    """P34: a warning appended when the narrative makes a claim the structured
+    numbers don't back (an over-claiming LLM narrator)."""
+    if not na or na.get("clean") or not na.get("adjustments"):
+        return ""
+    items = "".join(f"<li>{_esc(a)}</li>" for a in na["adjustments"])
+    return (
+        '<div style="margin-top:8px;padding:8px 10px;background:#fef2f2;'
+        'border:1px solid #fca5a5;border-radius:6px">'
+        '<div style="font-size:11px;font-weight:700;color:#991b1b">'
+        '⚠ The summary above overstates the evidence:</div>'
+        f'<ul style="margin:4px 0 0 16px;font-size:11px;color:#991b1b;line-height:1.5">'
+        f'{items}</ul></div>'
     )
 
 
@@ -4924,9 +4965,11 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
+        _build_narrative_audit_note(_insights_obj.get("narrative_audit")),
         _build_freshness_banner(_insights_obj.get("freshness")),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_readiness(_insights_obj.get("readiness")),
+        _build_briefs(_insights_obj.get("briefs")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
@@ -5153,9 +5196,11 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_css(),
         _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
         _build_narrative_banner(_narrative),
+        _build_narrative_audit_note(_insights_obj.get("narrative_audit")),
         _build_freshness_banner(_insights_obj.get("freshness")),
         _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
         _build_readiness(_insights_obj.get("readiness")),
+        _build_briefs(_insights_obj.get("briefs")),
         _build_scorecard(harness_groups),
         _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
         _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),

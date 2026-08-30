@@ -2883,6 +2883,188 @@ def _narrative_section(ins: dict[str, Any], narrator: Any = None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Audience-targeted briefs + narrative claim audit (P34). One `narrative` string
+# serves everyone badly; `briefs` gives a PM one-liner, a QA paragraph and an
+# engineer checklist, all synthesised deterministically from the assembled
+# insights. `narrative_audit` checks that the narrative's quantitative claims
+# are backed by the structured numbers (catches an over-claiming LLM narrator).
+# ---------------------------------------------------------------------------
+
+# affirmative ship claims — phrased so a negation ("not deployment-ready",
+# "is not ready to ship") does not match.
+_READY_PHRASES = ("is deployment-ready", "is ready to ship", "is ready to deploy",
+                  "ready to ship it", "safe to deploy", "good to ship",
+                  "clear to ship", "cleared for deployment")
+_RE_PCT = re.compile(r"(\d{1,3}(?:\.\d)?)\s?%")
+
+
+def _narrative_audit_section(
+    narrative: str, ins: dict[str, Any],
+) -> dict[str, Any] | None:
+    text = str(narrative or "")
+    if not text.strip():
+        return None
+    adjustments: list[str] = []
+    low = text.lower()
+
+    verdict = (ins.get("verdict") or {}).get("level")
+    if verdict and verdict != "ready" and any(p in low for p in _READY_PHRASES):
+        adjustments.append(
+            f"claims the agent is ready to ship, but the verdict is '{verdict}'"
+        )
+
+    mc = ins.get("metric_confidence") or {}
+    backed = {
+        round(v) for v in (mc.get("tcr_pct"), mc.get("accuracy_pct"))
+        if isinstance(v, (int, float))
+    }
+    for m in _RE_PCT.finditer(text):
+        try:
+            val = round(float(m.group(1)))
+        except ValueError:
+            continue
+        if 0 <= val <= 100 and backed and all(abs(val - b) > 3 for b in backed):
+            adjustments.append(
+                f"cites {m.group(0)} which does not match the measured "
+                f"TCR/accuracy ({', '.join(f'{b}%' for b in sorted(backed))})"
+            )
+            break
+
+    if ("improv" in low or "regress" in low or "since the baseline" in low) \
+            and ins.get("failure_lineage") is None and not ins.get("insight_changes"):
+        adjustments.append(
+            "talks about change vs a baseline, but no baseline was provided"
+        )
+
+    conf = (ins.get("verdict") or {}).get("confidence")
+    hedged = any(w in low for w in ("confidence", "wide ci", "few task", "only",
+                                    "preliminary", "small sample"))
+    if conf == "low" and not hedged:
+        adjustments.append(
+            "does not mention that confidence is LOW for this run"
+        )
+
+    return {
+        "claims_checked": True,
+        "clean": not adjustments,
+        "adjustments": adjustments,
+    }
+
+
+def _brief_effort(fix_plan: list[dict[str, Any]] | None) -> str:
+    n = len(fix_plan or [])
+    if not n:
+        return "small"
+    if n <= 2:
+        return "roughly 1 focused change"
+    if n <= 4:
+        return "a few changes"
+    return "several changes"
+
+
+def _briefs_section(ins: dict[str, Any]) -> dict[str, Any] | None:
+    v = ins.get("verdict") or {}
+    level = v.get("level", "unknown")
+    if level == "unknown" and not ins.get("failure_clusters"):
+        return None
+    rd = ins.get("readiness") or {}
+    fp = rd.get("fix_plan") or []
+    rq = ins.get("review_queue") or {}
+    et = ins.get("evaluator_trust") or {}
+    fr = ins.get("freshness") or {}
+    segs = ins.get("failure_segments") or []
+    conf = v.get("confidence")
+
+    # ---- PM: ship / hold + effort + one risk ----------------------------
+    verb = {"ready": "Ship", "caution": "Ship with caution", "not_ready": "Hold"}.get(
+        level, "Unclear"
+    )
+    pm_bits = [f"{verb}."]
+    if level != "ready" and v.get("failing_gates"):
+        gate = v["failing_gates"][0]
+        g = next((x for x in rd.get("gaps") or [] if x.get("gate") == gate), None)
+        if g and g.get("score") is not None:
+            pm_bits.append(
+                f"Gate {gate} is failing ({g['score']:.2f} vs {g.get('target', 0.7)})."
+            )
+        else:
+            pm_bits.append(f"Gate {gate} is failing.")
+    pr = rd.get("projected_ready_after") or {}
+    if pr.get("ready_after_n_items"):
+        pm_bits.append(
+            f"Closing the top {pr['ready_after_n_items']} failure cluster(s) is "
+            f"projected to clear it — {_brief_effort(fp)}."
+        )
+    elif pr.get("remaining_structural_blockers"):
+        pm_bits.append(
+            f"Blocked on Gate(s) {', '.join(pr['remaining_structural_blockers'])} "
+            f"that task fixes won't move."
+        )
+    if conf:
+        pm_bits.append(f"Verdict confidence: {conf.upper()}.")
+    pm = " ".join(pm_bits)
+
+    # ---- QA: what to review -------------------------------------------------
+    qa_bits: list[str] = []
+    bp = rq.get("by_priority") or {}
+    if rq.get("n_items"):
+        qa_bits.append(
+            f"Review the {rq['n_items']} queued task(s) "
+            f"({bp.get('high', 0)} high-priority) first — "
+            f"`agent-eval dataset promote` turns the confirmed ones into golden cases."
+        )
+    if et.get("trust_level") in ("low", "medium"):
+        jvh = et.get("judge_vs_heuristic") or {}
+        n_dis = len(jvh.get("disagreements") or [])
+        qa_bits.append(
+            f"The LLM judge has {et['trust_level']} reliability here"
+            + (f" — it disagrees with the heuristic on {n_dis} task(s); spot-check them"
+               if n_dis else "")
+            + "."
+        )
+    if segs:
+        s0 = segs[0]
+        qa_bits.append(
+            f"The biggest failure cluster is \"{s0.get('label')}\" "
+            f"({s0.get('n')} task(s), {s0.get('share_of_failures_pct')}% of failures)."
+        )
+    for w in (fr.get("warnings") or [])[:2]:
+        qa_bits.append(w)
+    if not qa_bits:
+        qa_bits.append("Nothing stands out for manual review — the automated "
+                       "signals agree and the eval set looks healthy.")
+    qa = " ".join(qa_bits)
+
+    # ---- Engineer: ordered checklist -------------------------------------
+    eng: list[str] = []
+    for sf in (ins.get("security_findings") or [])[:1]:
+        if sf.get("severity") in ("critical", "high"):
+            eng.append(
+                f"Investigate the {sf['severity']} {sf.get('threat_type')} on "
+                f"task {sf.get('task_id')} before anything else."
+            )
+    for it in fp[:4]:
+        eng.append(
+            f"{it.get('signature')} ({it.get('count')} task(s)) — "
+            f"{it.get('effort_hint')} "
+            f"[projected TCR → {it.get('projected_tcr_after_pct')}%]"
+        )
+    for rec in (ins.get("recommendations") or []):
+        snip = rec.get("code_snippet")
+        if snip:
+            eng.append(
+                f"Gate {rec.get('gate')}: paste the @agent_eval snippet from the "
+                f"Recommendations section."
+            )
+            break
+    if not eng:
+        eng.append("No blocking fixes — see the Recommendations section for "
+                   "incremental improvements.")
+
+    return {"pm": pm, "qa": qa, "engineer": eng}
+
+
+# ---------------------------------------------------------------------------
 # Registered experiments (P27) — falsifiable "I expect Gate X's <field> to move
 # +N" hypotheses from `.aoo/experiments.jsonl`. When a baseline is available the
 # open ones are scored (predicted vs actual); resolved ones carry their stored
@@ -3092,6 +3274,11 @@ def build_insights(
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
+    out["narrative_audit"] = _safe(
+        _narrative_audit_section, out.get("narrative", ""), out,
+        default=None,
+    )
+    out["briefs"] = _safe(_briefs_section, out, default=None)
     return out
 
 
