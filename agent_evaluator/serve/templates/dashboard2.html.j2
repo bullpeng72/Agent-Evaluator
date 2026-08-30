@@ -6599,6 +6599,115 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         </div>
       </template>
 
+      <!-- ═══ SPEC-041 P9: machine-readable insight layer (verdict / failure clusters /
+           lineage / prescriptive recommendations) — parity with the static HTML report. ═══ -->
+      <template x-if="improveResult.insights">
+        <div>
+          <template x-if="improveResult.insights.verdict && improveResult.insights.verdict.level!=='unknown'">
+            <div style="border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:14px;margin-bottom:14px"
+                 :style="improveResult.insights.verdict.level==='not_ready'?'border-left-color:var(--red)':(improveResult.insights.verdict.level==='caution'?'border-left-color:var(--yellow)':'border-left-color:var(--green)')">
+              <div style="font-weight:800;font-size:14px"
+                   :style="improveResult.insights.verdict.level==='not_ready'?'color:var(--red)':(improveResult.insights.verdict.level==='caution'?'color:var(--yellow)':'color:var(--green)')"
+                   x-text="improveResult.insights.verdict.level==='not_ready'?'❌ Not deployment-ready':(improveResult.insights.verdict.level==='caution'?'⚠️ Deploy with caution':'✅ Deployment-ready')"></div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px" x-text="improveResult.insights.verdict.headline"></div>
+              <template x-if="improveResult.insights.verdict.confidence">
+                <div style="font-size:11px;margin-top:6px">
+                  <span style="display:inline-block;padding:1px 8px;border-radius:10px;font-weight:700"
+                        :style="improveResult.insights.verdict.confidence==='high'?'background:#10b98122;color:var(--green)':(improveResult.insights.verdict.confidence==='medium'?'background:#f59e0b22;color:var(--yellow)':'background:#ef444422;color:var(--red)')"
+                        x-text="improveResult.insights.verdict.confidence.toUpperCase()+' CONFIDENCE'"></span>
+                  <span style="color:var(--text2)" x-text="improveResult.insights.verdict.confidence_reasons && improveResult.insights.verdict.confidence_reasons.length?(' — '+improveResult.insights.verdict.confidence_reasons.join('; ')):''"></span>
+                </div>
+              </template>
+              <template x-if="improveResult.insights.verdict.next_actions && improveResult.insights.verdict.next_actions.length">
+                <ol style="margin:8px 0 0 18px;font-size:12px;line-height:1.7">
+                  <template x-for="(a, i) in improveResult.insights.verdict.next_actions" :key="i">
+                    <li><strong x-text="'Gate '+a.gate"></strong><span x-text="a.field?(' — fix '+a.field.replace(/^avg_/,'').replace(/_/g,' ')):''"></span><span x-text="a.action?(': '+a.action):''"></span></li>
+                  </template>
+                </ol>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="improveResult.insights.failure_lineage && (improveResult.insights.failure_lineage.regressed.length||improveResult.insights.failure_lineage.fixed.length||improveResult.insights.failure_lineage.persistent.length)">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:6px">Failure set vs baseline</div>
+              <div style="font-size:12px;line-height:1.8">
+                <div x-show="improveResult.insights.failure_lineage.regressed.length"><span style="color:var(--red);font-weight:700" x-text="'📉 Regressed ('+improveResult.insights.failure_lineage.regressed.length+')'"></span> <span style="color:var(--text2)" x-text="improveResult.insights.failure_lineage.regressed.slice(0,8).join(', ')"></span></div>
+                <div x-show="improveResult.insights.failure_lineage.persistent.length"><span style="color:var(--yellow);font-weight:700" x-text="'♻️ Persistent ('+improveResult.insights.failure_lineage.persistent.length+')'"></span> <span style="color:var(--text2)" x-text="improveResult.insights.failure_lineage.persistent.slice(0,8).join(', ')"></span></div>
+                <div x-show="improveResult.insights.failure_lineage.new.length"><span style="color:var(--text2);font-weight:700" x-text="'🆕 New ('+improveResult.insights.failure_lineage.new.length+')'"></span> <span style="color:var(--text2)" x-text="improveResult.insights.failure_lineage.new.slice(0,8).join(', ')"></span></div>
+                <div x-show="improveResult.insights.failure_lineage.fixed.length"><span style="color:var(--green);font-weight:700" x-text="'✅ Fixed ('+improveResult.insights.failure_lineage.fixed.length+')'"></span> <span style="color:var(--text2)" x-text="improveResult.insights.failure_lineage.fixed.slice(0,8).join(', ')"></span></div>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="improveResult.insights.failure_clusters && improveResult.insights.failure_clusters.length">
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:2px">Failure themes</div>
+              <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Fix the top theme first — "~%p" = max TCR recoverable.</div>
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                    <th style="text-align:left;padding:4px">Theme</th><th style="text-align:left;padding:4px">Task type</th>
+                    <th style="text-align:right;padding:4px">Count</th><th style="text-align:left;padding:4px">Examples</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(c, i) in improveResult.insights.failure_clusters" :key="i">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:4px;font-weight:600" x-text="c.signature"></td>
+                        <td style="padding:4px;white-space:nowrap" x-text="c.task_type"></td>
+                        <td style="padding:4px;text-align:right;white-space:nowrap" x-text="c.count+' (~'+c.impact_pct+'%p)'"></td>
+                        <td style="padding:4px;font-size:11px;color:var(--text2)" x-text="(c.example_task_ids||[]).join(', ')"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="improveResult.insights.recommendations && improveResult.insights.recommendations.length">
+            <div style="margin-bottom:14px">
+              <div style="font-weight:700;margin-bottom:8px">🔧 Prescriptive recommendations</div>
+              <template x-for="rec in improveResult.insights.recommendations" :key="rec.gate">
+                <div style="border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:12px;margin-bottom:10px"
+                     :style="rec.status==='fail'?'border-left-color:var(--red)':'border-left-color:var(--yellow)'">
+                  <div style="font-weight:700">
+                    <span x-text="(rec.status==='fail'?'FAIL':'WARN')+' · Gate '+rec.gate+' — '+rec.label"></span>
+                  </div>
+                  <template x-if="rec.baseline_verdict">
+                    <div style="font-size:11px;font-weight:600;margin-top:3px"
+                         :style="rec.baseline_verdict.verdict==='confirmed'?'color:var(--green)':'color:var(--red)'"
+                         x-text="(rec.baseline_verdict.delta>0?'▲':'▼')+' Since baseline: '+rec.baseline_verdict.before_score.toFixed(3)+' → '+rec.baseline_verdict.after_score.toFixed(3)+' (Δ '+(rec.baseline_verdict.delta>0?'+':'')+rec.baseline_verdict.delta.toFixed(3)+') — '+rec.baseline_verdict.verdict"></div>
+                  </template>
+                  <div style="font-size:12px;color:var(--text2);margin-top:4px" x-text="rec.guidance"></div>
+                  <template x-if="rec.shortfalls && rec.shortfalls.length">
+                    <ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.6">
+                      <template x-for="(s, i) in rec.shortfalls" :key="i">
+                        <li><strong x-text="(s.field||'').replace(/^avg_/,'').replace(/_/g,' ')"></strong><span x-text="s.health!=null?(' ('+(s.health*100).toFixed(0)+'%)'):''"></span><span x-text="s.guidance?(' — '+s.guidance):''"></span></li>
+                      </template>
+                    </ul>
+                  </template>
+                  <template x-if="rec.code_snippet">
+                    <pre style="background:#0f172a;color:#e2e8f0;font-size:11px;line-height:1.5;padding:10px 12px;border-radius:6px;overflow-x:auto;margin:8px 0 0" x-text="rec.code_snippet"></pre>
+                  </template>
+                  <template x-if="rec.experiment">
+                    <div style="font-size:12px;color:var(--text2);margin-top:6px">
+                      🧪 <strong>Run it as an experiment</strong>:
+                      <span x-text="'if '+rec.experiment.field.replace(/^avg_/,'').replace(/_/g,' ')+' reaches '+(rec.experiment.target_health*100).toFixed(0)+'%, Gate '+rec.gate+' ≈ +'+rec.experiment.predicted_gate_delta.toFixed(2)+' (rough; ~'+rec.experiment.recommended_tasks+' tasks recommended).'"></span>
+                      <code x-text="rec.experiment.command"></code>
+                    </div>
+                  </template>
+                  <template x-if="rec.past_outcomes">
+                    <div style="font-size:11px;color:var(--text2);margin-top:6px"
+                         x-text="'📈 Past changes to Gate '+rec.gate+': '+rec.past_outcomes.confirmed+' confirmed / '+rec.past_outcomes.refuted+' refuted / '+rec.past_outcomes.total+' total'+(rec.past_outcomes.avg_delta?(', avg Δ +'+rec.past_outcomes.avg_delta.toFixed(3)):'')+'.'"></div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
       <template x-if="improveResult.experiment_metadata">
         <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
           <div style="font-weight:700;margin-bottom:6px">

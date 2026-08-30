@@ -5163,6 +5163,28 @@ class PerformanceMonitor:
             if hasattr(tt, "value"):
                 task["task_type"] = tt.value
 
+        # SPEC-041 P9: machine-readable insight layer (L5/L6 of Docs/09_OUTPUTS.md).
+        # The deploy verdict / confidence / failure clusters / component shortfalls /
+        # prescriptive recommendations existed only in the HTML report + CLI text —
+        # embed the same interpretation as data so the dashboard, CI and automation
+        # can consume it. No baseline here (absolute-threshold mode); a sibling
+        # recommendation_outcomes.jsonl in output_dir is picked up automatically.
+        try:
+            from ...reporting.insights import build_insights
+
+            _rec_log = self.output_dir / "recommendation_outcomes.jsonl"
+            _insights = build_insights(
+                data, None,
+                recommendation_log_path=(_rec_log if _rec_log.exists() else None),
+            )
+            _em = data.get("extra_metrics")
+            if not isinstance(_em, dict):
+                _em = {}
+                data["extra_metrics"] = _em
+            _em["insights"] = _insights
+        except Exception as _ins_exc:  # never block the save on insight computation
+            logger.warning("insight layer generation failed (JSON save is fine): %s", _ins_exc)
+
         # R: 태스크 수가 임계값 이상이면 스트리밍 직렬화 모드 사용 (메모리 효율)
         _serialized_tasks: list = data["tasks"]
         _task_count = len(_serialized_tasks)

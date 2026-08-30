@@ -61,14 +61,35 @@ def get_diagnosis(
             raise HTTPException(status_code=404, detail=f"Baseline file not found: {baseline_id}")
         baseline_raw = baseline_rf.raw
 
+    _repo_path = str(getattr(request.app.state, "results_dir", "."))
     result = diagnose(
         rf.raw, baseline_raw,
         regression_threshold=regression_threshold,
         with_experiment_metadata=show_diff,
-        repo_path=str(getattr(request.app.state, "results_dir", ".")),
+        repo_path=_repo_path,
     )
     result["file_id"] = file_id
     result["baseline_id"] = baseline_id
+
+    # SPEC-041 P9: attach the machine-readable insight layer (verdict / confidence /
+    # failure clusters / prescriptive recommendations) so the "Improve" tab can
+    # render the same L5/L6 content the static HTML report shows — not just the raw
+    # rca.diagnose() findings.
+    try:
+        from pathlib import Path
+
+        from agent_evaluator.reporting.insights import build_insights
+
+        _rec_log = Path(_repo_path) / "recommendation_outcomes.jsonl"
+        result["insights"] = build_insights(
+            rf.raw, baseline_raw,
+            recommendation_log_path=(_rec_log if _rec_log.exists() else None),
+            with_experiment_metadata=show_diff,
+            repo_path=_repo_path,
+        )
+    except Exception:  # keep the diagnosis usable even if insight assembly fails
+        result["insights"] = None
+
     return result
 
 

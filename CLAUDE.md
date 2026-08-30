@@ -705,6 +705,13 @@ agent_evaluator/
 ├── reporting/                # 출력 표면 전체 지도·정보 계층(L1~L6)·역할별 워크플로우는
 │                             #  docs/09_OUTPUTS.md에 정리(결과 JSON·HTML 리포트·CLI·대시보드·
 │                             #  AI 런타임 출력). 새 출력 섹션/필드를 추가하면 그 문서도 갱신.
+│   ├── insights.py           # build_insights(current, baseline=None, *, recommendation_log_path=None)
+│   │                          #  — 머신 판독 인사이트 계층(L5/L6)을 JSON 직렬화 가능한 한 객체로.
+│   │                          #  rca.diagnose()·utils.confidence·ontology.metric_registry·
+│   │                          #  rca.recommendation_tracking/verify 재사용, 새 판정 없음, 절대
+│   │                          #  raise 안 함. monitor.save_to_file()가 extra_metrics.insights로
+│   │                          #  자동 첨부, serve/routers/diagnose.py가 result["insights"]로 반환.
+│   │                          #  스키마·필드는 §"Harness Gate Config Groups" 아래 참조.
 │   └── comprehensive_report.py  # generate_comprehensive_html_report(monitor)·
 │                          #  generate_html_from_result_file(rf) — 단일 결과 HTML 리포트
 │                          #  (agent-eval gate 저장/대시보드 export_html 공용).
@@ -805,6 +812,22 @@ agent_evaluator/
 
 Gate A–G results stored under `extra_metrics.harness_groups` in JSON result files.
 결과 JSON 최상위에 `schema_version`("1.1", SPEC-041 P4.3) — 소비자가 필드 형태 변화에 대응하도록. breaking change 시 major 증가.
+
+**`extra_metrics.insights`** (SPEC-041 P9) — 머신 판독 인사이트 계층(L5/L6). `reporting/insights.py::build_insights()`가
+`rca.diagnose()`·`utils.confidence`·`ontology.metric_registry`·`rca.recommendation_tracking`/`verify`의 출력을
+JSON 직렬화 가능한 한 객체로 재구성한다(새 판정 로직 없음, 절대 raise 안 함 — 실패 섹션은 비거나 생략).
+`monitor.save_to_file()`가 저장 시 자동 첨부(baseline 없는 absolute 모드, output_dir의
+`recommendation_outcomes.jsonl` 자동 픽업), `serve/routers/diagnose.py`의 `/api/diagnose/{id}`도
+`result["insights"]`로 반환(대시보드 Improve 탭이 소비). 스키마:
+`{schema_version, detection_mode, verdict{level: not_ready|caution|ready|unknown, headline, failing_gates,
+warning_gates, confidence, confidence_reasons, next_actions[]}, metric_confidence{n_tasks, tcr_pct, tcr_ci_pct,
+accuracy_pct, accuracy_ci_pct}, gate_findings[]{gate, score, component_shortfalls[]{field, value, health,
+guidance, config_hint}, top_detail_deltas[]}, failure_clusters[]{signature, task_type, count, impact_pct,
+example_task_ids}, failure_lineage{regressed, persistent, new, fixed}|null, recommendations[]{gate, status,
+label, guidance, shortfalls[], code_snippet, experiment{predicted_gate_delta, recommended_tasks, command}|null,
+past_outcomes{confirmed, refuted, avg_delta}|null, baseline_verdict{verdict, delta}|null},
+shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
+`_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 

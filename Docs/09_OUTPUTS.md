@@ -50,7 +50,7 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 
 | 표면 | 형식 | 생성 시점 | 대상 | 노출 계층 |
 |------|------|-----------|------|-----------|
-| **결과 JSON** | `.json` 파일 | `monitor.save_to_file()` / `QuickEval.save()` | 도구·CI·로더 | L1–L5 (전부, 기계 판독) |
+| **결과 JSON** | `.json` 파일 | `monitor.save_to_file()` / `QuickEval.save()` | 도구·CI·로더 | L1–L6 (전부, 기계 판독 — `extra_metrics.insights`) |
 | **단일 HTML 리포트** | self-contained `.html` | `save_to_file()`가 `.json`과 함께 자동 생성 / 대시보드 Export | 개발자·QM | L2–L6 |
 | **비교 HTML 리포트** | self-contained `.html` | 대시보드 File Compare → Export / `/html/compare` | 개발자·QM | L2–L3 델타 + per-task 회귀/개선 |
 | **`agent-eval gate`** | 터미널 표 + exit code + JUnit XML | CI 파이프라인 / 수동 | CI·QM | L3–L4 (+`--explain` 시 L5·L6 요약) |
@@ -85,6 +85,7 @@ Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 �
 | `evaluators` | L1 | 각 evaluator의 원본 평가 배열 (재현/재로드용) |
 | `extra_metrics.harness_groups` | **L3** | Gate A–G + `overall`. 각 Gate: `{name, score, status, gate, details}` — `details`에 산식 컴포넌트 (`tcr_pct`, `avg_subtask_completion`, `sla_breach_rate`, …) |
 | `extra_metrics.lineage` | — | `git_commit · agent_version · prompt_version · iteration_note` (버전 추적, `agent_version="auto"` 시 자동) |
+| `extra_metrics.insights` | **L5–L6** | 머신 판독 인사이트 계층 (SPEC-041 P9) — `reporting/insights.py::build_insights()`가 `rca.diagnose()`·`utils.confidence`·`ontology.metric_registry` 출력을 한 객체로. `{schema_version, verdict{level, headline, confidence, next_actions[]}, metric_confidence{tcr_ci_pct, …}, gate_findings[]{component_shortfalls[]{field, health, guidance, config_hint}}, failure_clusters[]{signature, task_type, count, impact_pct}, failure_lineage{regressed, persistent, new, fixed}, recommendations[]{code_snippet, experiment{predicted_gate_delta, recommended_tasks, command}, past_outcomes, baseline_verdict}}`. 대시보드 Improve 탭·`/api/diagnose/{id}`가 소비. 정적 HTML 리포트는 자체 헬퍼로 같은 내용 렌더 (콘텐츠 동등) |
 | `recommendations` / `alerts` | L6 / — | 리포트 생성용 힌트 · 발화된 알림 |
 | `anomaly_data` | L6 | `enable_anomaly_detection=True`일 때만. `{anomalies[], baseline_window, detection_window}` |
 | `conversation_sessions` / `feedback` / `pricing` / `model_name` / `timestamp` | L1–L2 | 멀티턴 · 암묵 피드백 · 가격표 · 메타 |
@@ -214,7 +215,7 @@ CI 게이트 아님. 파일 2개 → Welch's t-test (`--sequential` 시 mSPRT al
 | **에이전틱** | Tool Calls · Coordination · Workflow · Retry | L2 |
 | **보안** | Security (L1/L2 트래커) · Violations 검색(FTS5) | L2 |
 | **비교** | File Compare (group_by · Pairwise Judge · 📄 Export HTML) | L2–L3 델타 |
-| **🔧 Improve** | Gate RCA (`rca.diagnose()`) · baseline 없으면 `component_shortfalls`(Component/Current/Health) 표 · 추천 적용 이력(confirmed/refuted/inconclusive) | **L5–L6** |
+| **🔧 Improve** | Gate RCA (`rca.diagnose()`) · baseline 없으면 `component_shortfalls`(Component/Current/Health) 표 · **배포 준비도 판정 + 확신도** · **실패 테마 군집 / baseline 대비 실패 집합** · **처방 카드**(붙여넣을 코드 스니펫 · 실험 제안 · 과거 이력 · baseline 대비 confirmed/refuted) · 추천 적용 이력 | **L5–L6** (`insights` 객체) |
 | **운영** | Anomaly · Alerts · Cost · Config · Transparency | L2·L6 |
 
 탭별 상세 + 활성화 조건: [06_OBSERVABILITY](06_OBSERVABILITY.md) §3–4.
@@ -273,7 +274,7 @@ Claude vs OpenCode 차이: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_CODE.md)
 
 | 표면 | L1 원천 | L2 집계 | L3 Gate | L4 판정 | L5 진단 | L6 처방 |
 |------|:--:|:--:|:--:|:--:|:--:|:--:|
-| 결과 JSON | ● | ● | ● | ○ | ◐¹ | ◐² |
+| 결과 JSON | ● | ● | ● | ◐¹ | ● | ● |
 | 단일 HTML 리포트 | ◐³ | ● | ● | ◐⁴ | ● | ● |
 | 비교 HTML 리포트 | ◐ | ● | ◐ | ○ | ○ | ○ |
 | `agent-eval gate` | ○ | ◐ | ● | ● | ◐⁵ | ◐⁵ |
@@ -286,7 +287,7 @@ Claude vs OpenCode 차이: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_CODE.md)
 | `search_violations` | ◐ | ○ | ○ | ○ | ◐ | ◐⁷ |
 | `recommend_fix` | ○ | ○ | ○ | ○ | ○ | ● |
 
-1. `harness_groups[X].details` 원시값으로 재계산 가능 · 2. `recommendations`/`anomaly_data` 힌트만 · 3. 실패/저점 케이스 테이블 · 4. baseline 전달 시 회귀 표시 · 5. `--explain` 또는 실패 시 자동 · 6. 회귀 시 git diff · 7. `recommend_fix` 호출 힌트
+1. `extra_metrics.insights.verdict` (배포 준비도 한 줄 판정 + 확신도) · 2·3. `extra_metrics.insights` (verdict·gate_findings·failure_clusters·recommendations — L5/L6 전체가 SPEC-041 P9부터 기계 판독 가능) · 4. baseline 전달 시 회귀 표시 · 5. `--explain` 또는 실패 시 자동 · 6. 회귀 시 git diff · 7. `recommend_fix` 호출 힌트
 
 ---
 
