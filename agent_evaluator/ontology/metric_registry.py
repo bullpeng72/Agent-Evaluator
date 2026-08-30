@@ -543,6 +543,46 @@ def canonical_metric_name(metric: str | None) -> str | None:
     return m
 
 
+# SPEC-041 P35: a human-readable label for a Gate ``details`` field name — used
+# by the narrative, exec-summary and recommendations so they don't print raw
+# "tcr pct" / "p95 latency s".
+_PRETTY_FIELD: dict[str, str] = {
+    "tcr_pct": "TCR", "tcr": "TCR", "accuracy": "accuracy",
+    "hall_rate": "hallucination rate", "hallucination_rate": "hallucination rate",
+    "p95_latency_s": "P95 latency", "p95_latency_ms": "P95 latency",
+    "llm_faithfulness": "faithfulness", "sla_breach_rate": "SLA breach rate",
+    "quality_relevance_completeness": "response relevance/completeness",
+    "subtask_completion": "subtask completion",
+    "instruction_adherence": "instruction adherence",
+    "goal_alignment": "goal alignment", "plan_coherence": "plan coherence",
+    "context_retention": "context retention",
+    "knowledge_retention": "knowledge retention",
+    "reproducibility": "reproducibility", "fault_tolerance": "fault tolerance",
+    "graceful_degradation": "graceful degradation",
+    "retry_consistency": "retry consistency", "idempotency": "idempotency",
+    "cost_predictability": "cost predictability",
+    "ttft_variability": "TTFT variability", "budget_score": "resource budget",
+    "efficiency_ratio": "efficiency ratio", "tool_coverage": "tool coverage",
+    "explainability": "explainability", "error_diagnosis": "error diagnosis",
+    "latency_attribution": "latency attribution",
+    "observability_score": "observability",
+}
+
+
+def pretty_metric_name(field: str | None) -> str:
+    """'tcr_pct' -> 'TCR', 'avg_quality_relevance_completeness' -> 'response
+    relevance/completeness'. Unknown -> the name with underscores spaced."""
+    s = str(field or "").strip()
+    key = s[4:] if s.startswith("avg_") else s
+    key = key.strip().lower()
+    if key in _PRETTY_FIELD:
+        return _PRETTY_FIELD[key]
+    canon = canonical_metric_name(key)
+    if canon and canon in _PRETTY_FIELD:
+        return _PRETTY_FIELD[canon]
+    return key.replace("_", " ")
+
+
 # storage/sqlite_backend.py::_summarize_violations()가 FTS5 색인 대상으로 삼는
 # 위반 유형 7종. 새 Gate B/E 체크가 추가되면 여기도 같이 갱신해야 한다 — 이 상수를
 # 옮기지 않고 그 자리에 그대로 뒀다면 "추가는 했는데 여기 갱신을 깜빡하는" 실수가

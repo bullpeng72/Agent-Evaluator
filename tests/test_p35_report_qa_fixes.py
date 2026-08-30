@@ -165,24 +165,33 @@ def test_b7_verdict_fallback_action_rounds_score():
 
 # ---- I1 ----------------------------------------------------------------
 
-def test_i1_engineer_brief_merges_same_signature():
-    ins = {
+def test_i1_readiness_merges_signature_across_task_types():
+    # P35b: _readiness_section produces ONE fix-plan row per signature; the
+    # engineer brief just formats it (no second merge).
+    tasks = ([{"task_id": f"p{i}", "task_type": "qa", "completion_score": 1.0,
+               "accuracy_score": 0.9, "success": True} for i in range(10)]
+             + [{"task_id": f"to_qa{i}", "task_type": "qa", "completion_score": 0.0,
+                 "accuracy_score": 0.0, "success": False,
+                 "partial_reason": "error: TimeoutError"} for i in range(2)]
+             + [{"task_id": f"to_ir{i}", "task_type": "information_retrieval",
+                 "completion_score": 0.0, "accuracy_score": 0.0, "success": False,
+                 "partial_reason": "error: TimeoutError"} for i in range(2)])
+    rd = _readiness_section(tasks, {"A": {"score": 0.55, "status": "fail",
+                                          "gate": "fail", "details": {}}})
+    to_rows = [r for r in rd["fix_plan"] if r["signature"] == "error: TimeoutError"]
+    assert len(to_rows) == 1
+    assert to_rows[0]["count"] == 4
+    assert set(to_rows[0]["task_types"]) == {"qa", "information_retrieval"}
+
+    br = _briefs_section({
         "verdict": {"level": "not_ready", "failing_gates": ["A"], "confidence": "medium"},
-        "readiness": {"fix_plan": [
-            {"rank": 1, "signature": "only part of a multi-step answer completed",
-             "task_type": "qa", "count": 3, "effort_hint": "add SubtaskConfig",
-             "projected_tcr_after_pct": 80.0},
-            {"rank": 2, "signature": "only part of a multi-step answer completed",
-             "task_type": "information_retrieval", "count": 2, "effort_hint": "add SubtaskConfig",
-             "projected_tcr_after_pct": 90.0},
-        ], "projected_ready_after": {}},
-        "review_queue": {}, "evaluator_trust": {}, "failure_segments": [],
-        "recommendations": [], "security_findings": [], "freshness": {},
-    }
-    br = _briefs_section(ins)
-    eng = [e for e in br["engineer"] if "multi-step" in e]
+        "readiness": rd, "review_queue": {}, "evaluator_trust": {},
+        "failure_segments": [], "recommendations": [], "security_findings": [],
+        "freshness": {},
+    })
+    eng = [e for e in br["engineer"] if "TimeoutError" in e]
     assert len(eng) == 1
-    assert "5 task(s)" in eng[0]  # 3 + 2 merged
+    assert "4 task(s)" in eng[0]
     assert "qa" in eng[0] and "information_retrieval" in eng[0]
 
 
@@ -220,3 +229,89 @@ def test_i2_diagnosis_splits_newly_measured():
     assert "avg_llm_faithfulness" in html or "avg_reproducibility" in html
     # the newly-measured metric is not rendered as a "n/a | n/a" delta row
     assert "n/a</td><td>3.74" not in html.replace(" ", "")
+
+
+# ---- P35b: analysis round 2 -------------------------------------------------
+
+def _t(tid, comp, acc, ok, reason=None, ttype="qa"):
+    d = {"task_id": tid, "task_type": ttype, "completion_score": comp,
+         "accuracy_score": acc, "success": ok, "question": f"q {tid}"}
+    if reason:
+        d["partial_reason"] = reason
+    return d
+
+
+def test_b2b_insight_changes_uses_full_signature_sets():
+    # a cluster that merely drops in rank (still occurring) is NOT "resolved".
+    from agent_evaluator.reporting.insights import _insight_changes_section
+
+    def _r(score, tasks):
+        return {"extra_metrics": {"harness_groups": {
+            "A": {"score": score, "status": "fail" if score < 0.7 else "pass",
+                  "gate": "fail" if score < 0.7 else "pass", "details": {}}}},
+            "tasks": tasks}
+
+    base = _r(0.8,
+              [_t(f"p{i}", 1.0, 0.9, True) for i in range(10)]
+              + [_t("ms", 0.3, 0.3, False, "only part of a multi-step answer completed")]
+              + [_t(f"to{i}", 0.0, 0.0, False, "error: TimeoutError") for i in range(6)])
+    cur = _r(0.55,
+             [_t(f"p{i}", 1.0, 0.9, True) for i in range(10)]
+             + [_t(f"to{i}", 0.0, 0.0, False, "error: TimeoutError") for i in range(6)]
+             + [_t("grd", 0.5, 0.2, False, "answer not grounded in the retrieved context")])
+    ic = _insight_changes_section(cur, base, None, None,
+                                  cur["extra_metrics"]["harness_groups"])
+    assert "only part of a multi-step answer completed" in ic["resolved_clusters"]
+    assert "answer not grounded in the retrieved context" in ic["new_clusters"]
+    assert "error: TimeoutError" not in ic["resolved_clusters"]
+
+
+def test_b3_readiness_note_shows_projected_scores():
+    tasks = ([_t(f"p{i}", 1.0, 0.9, True) for i in range(10)]
+             + [_t(f"f{i}", 0.3, 0.2, False,
+                   "answer not grounded in the retrieved context") for i in range(6)])
+    hg = {"A": {"score": 0.58, "status": "fail", "gate": "fail", "details": {}},
+          "D": {"score": 0.62, "status": "warn", "gate": "warn", "details": {}}}
+    rd = _readiness_section(tasks, hg)
+    pr = rd["projected_ready_after"]
+    assert "projected_gate_scores" in pr and "A" in pr["projected_gate_scores"]
+    assert "plan_fixes_projected" in pr
+    assert f"Gate A ~{pr['projected_gate_scores']['A']:.2f}" in pr["note"]
+    # the gap row's projected score reflects the recommended fix count, not all
+    a_gap = next(g for g in rd["gaps"] if g["gate"] == "A")
+    assert a_gap.get("after_plan_fixes") == pr["plan_fixes_projected"]
+
+
+def test_conversation_per_session_and_best():
+    from agent_evaluator.reporting.insights import _conversation_section
+
+    def _s(sid, ov):
+        return {"session_id": sid, "turn_count": 2,
+                "turns": [{"turn_index": 0, "user": "hi", "agent": "hello there friend",
+                           "timestamp": "t", "metadata": {}},
+                          {"turn_index": 1, "user": "ok", "agent": "you are welcome",
+                           "timestamp": "t", "metadata": {}}],
+                "metrics": {"overall_score": ov, "context_retention": ov,
+                            "topic_coherence": ov, "progressive_depth": ov,
+                            "session_completion": ov}}
+
+    cv = _conversation_section({"conversation_sessions": [_s("lo", 0.2), _s("hi", 0.9)]})
+    assert [s["session_id"] for s in cv["sessions"]] == ["lo", "hi"]  # worst first
+    assert cv["best_session"]["session_id"] == "hi"
+    assert cv["worst_session"]["session_id"] == "lo"
+
+
+def test_trace_diff_substitution_wording():
+    from agent_evaluator.reporting.comprehensive_report import _build_trace_diffs
+
+    td = [{
+        "task_id": "t1", "question": "size?", "compared": ["v2", "v3"],
+        "verdict": "regressed", "score_delta": {"completion": -0.5, "accuracy": -0.4},
+        "response_diff": {"similarity": 0.4, "added": ["7 more"], "removed": ["7.8 mm and 172 g."]},
+        "trajectory_diff": {"before": [], "after": [], "added": [], "removed": [], "reordered": False},
+        "per_version": [{"label": "v3", "completion": 0.4, "accuracy": 0.3, "success": False,
+                         "response_excerpt": "x"}],
+    }]
+    h = _build_trace_diffs(td)
+    assert "changed:" in h and "7.8 mm and 172 g. → 7 more" in h
+    assert "added:</span> 7 more" not in h

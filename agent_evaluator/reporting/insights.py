@@ -944,16 +944,18 @@ def _readiness_section(
     pass_accs = [a for a in pass_accs if a is not None]
     passing_acc = (sum(pass_accs) / len(pass_accs)) if pass_accs else 0.85
 
-    # --- failure clusters, full membership (not the truncated public list) -
+    # --- failure clusters by signature (P35: one row per root cause; the
+    # per-task_type split was noise — the effort hint and target gates are
+    # identical per signature, so task_type is just a sub-label).
     pool = [
         t for t in tasks
         if _effective_fail(success=t.get("success", False),
                            accuracy=t.get("accuracy_score"),
                            completion=t.get("completion_score"))
     ]
-    buckets: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for t in pool:
-        buckets[(_reason_signature(_task_reason(t)), t.get("task_type") or "—")].append(t)
+        buckets[_reason_signature(_task_reason(t))].append(t)
     ranked = sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))
 
     if not fails and not warns and not ranked:
@@ -962,7 +964,7 @@ def _readiness_section(
     total = len(tasks)
     fixed_ids: set[str] = set()
     fix_plan: list[dict[str, Any]] = []
-    for rank, ((sig, ttype), members) in enumerate(ranked[:8], 1):
+    for rank, (sig, members) in enumerate(ranked[:8], 1):
         for m in members:
             if m.get("task_id"):
                 fixed_ids.add(str(m["task_id"]))
@@ -977,10 +979,12 @@ def _readiness_section(
             for t in tasks
         ) / total
         hint, tgt_gates = _fix_effort_hint(sig)
+        ttypes = sorted({str(m.get("task_type") or "—") for m in members} - {"—"})
         fix_plan.append({
             "rank": rank,
             "signature": sig,
-            "task_type": ttype,
+            "task_types": ttypes,
+            "task_type": ttypes[0] if len(ttypes) == 1 else None,  # back-compat
             "count": len(members),
             "impact_pct": round(len(members) / total * 100.0, 1),
             "example_task_ids": [str(m.get("task_id")) for m in members[:5] if m.get("task_id")],
@@ -991,34 +995,18 @@ def _readiness_section(
             "cumulative_tcr_gain_pp": round((proj_tcr - (cur_tcr or 0.0)) * 100.0, 1),
         })
 
-    final_gain = (
-        (fix_plan[-1]["projected_tcr_after_pct"] / 100.0 - (cur_tcr or 0.0))
-        if fix_plan else 0.0
-    )
-
-    gaps: list[dict[str, Any]] = []
-    for k in fails + warns:
-        g = harness_groups.get(k) or {}
-        score = _safe_float(g.get("score"))
-        row: dict[str, Any] = {
-            "gate": k,
-            "gate_name": _GATE_FULL.get(k, k),
-            "score": None if score is None else round(score, 3),
-            "target": _READINESS_TARGET,
-            "gap": None if score is None else round(_READINESS_TARGET - score, 3),
-            "blocking": k in fails,
-        }
-        if score is not None and k in _TCR_DRIVEN_GATES:
-            row["projected_score_after_plan"] = round(min(1.0, score + final_gain), 3)
-            row["estimate"] = True
-        gaps.append(row)
-
     # Every below-target gate is a candidate for the plan to lift. Split into the
     # ones task outcomes actually move (A/C) and the rest (latency/cost/safety).
     below = fails + warns
     tcr_blockers = [k for k in below if k in _TCR_DRIVEN_GATES]
     other_blockers = [k for k in below if k not in _TCR_DRIVEN_GATES]
     _only_warn = not fails
+
+    def _gain_at(rank: int) -> float:
+        if not fix_plan:
+            return 0.0
+        rank = max(1, min(rank, len(fix_plan)))
+        return fix_plan[rank - 1]["projected_tcr_after_pct"] / 100.0 - (cur_tcr or 0.0)
 
     # smallest N fixes after which every TCR-driven below-target gate reaches target
     ready_after: int | None = None
@@ -1033,29 +1021,60 @@ def _readiness_section(
                 ready_after = item["rank"]
                 break
 
+    # P35: project each gate at the *recommended* number of fixes (ready_after),
+    # or the full plan when the plan can't clear it — not always the full plan.
+    _plan_rank = ready_after if ready_after is not None else len(fix_plan)
+    plan_gain = _gain_at(_plan_rank)
+
+    gaps: list[dict[str, Any]] = []
+    for k in fails + warns:
+        g = harness_groups.get(k) or {}
+        score = _safe_float(g.get("score"))
+        row: dict[str, Any] = {
+            "gate": k,
+            "gate_name": _GATE_FULL.get(k, k),
+            "score": None if score is None else round(score, 3),
+            "target": _READINESS_TARGET,
+            "gap": None if score is None else round(_READINESS_TARGET - score, 3),
+            "blocking": k in fails,
+        }
+        if score is not None and k in _TCR_DRIVEN_GATES:
+            row["projected_score_after_plan"] = round(min(1.0, score + plan_gain), 3)
+            row["after_plan_fixes"] = _plan_rank
+            row["estimate"] = True
+        gaps.append(row)
+
+    # projected TCR-driven gate scores at _plan_rank, for the note
+    proj_scores = {
+        k: round(min(1.0, (_safe_float((harness_groups.get(k) or {}).get("score")) or 0.0)
+                     + plan_gain), 2)
+        for k in tcr_blockers
+    }
+    _proj_str = ", ".join(f"Gate {k} ~{v:.2f}" for k, v in proj_scores.items())
+
     _word = "warning" if _only_warn else "failing"
     if not tcr_blockers and not other_blockers:
         note = ("No gate is below target; the fix plan is ordered by how much TCR "
                 "each cluster is costing you.")
     elif ready_after is not None and not other_blockers:
         note = (f"Closing the top {ready_after} cluster(s) is projected to bring "
-                f"every {_word} gate to target (estimate — assumes those tasks "
-                f"then pass and nothing else moves).")
+                f"every {_word} gate to target ({_proj_str}; estimate — assumes "
+                f"those tasks then pass and nothing else moves).")
     elif other_blockers:
         _head = (
             f"Closing the top {ready_after} cluster(s) is projected to bring the "
-            f"TCR-driven gate(s) to target. "
+            f"TCR-driven gate(s) to target ({_proj_str}). "
             if (ready_after is not None and tcr_blockers) else
-            ("The fix plan will not fully bring the TCR-driven gate(s) to target "
-             "on its own. " if tcr_blockers else "")
+            (f"The full fix plan lifts the TCR-driven gate(s) to about "
+             f"{_proj_str}, still short of target. " if tcr_blockers else "")
         )
         note = (_head + "Gate(s) "
                 + ", ".join(f"{k} ({_GATE_FULL.get(k, k)})" for k in other_blockers)
                 + " are not driven by task outcomes — the fix plan will not move "
                 "them; address them from their own Gate section.")
     else:
-        note = (f"The fix plan does not fully bring the {_word} TCR-driven gate(s) "
-                f"to target on its own — more or deeper fixes are needed.")
+        note = (f"The full fix plan lifts the {_word} TCR-driven gate(s) to about "
+                f"{_proj_str} — still short of target, more or deeper fixes needed.")
 
     return {
         "target_gate_score": _READINESS_TARGET,
@@ -1065,6 +1084,8 @@ def _readiness_section(
         "fix_plan": fix_plan,
         "projected_ready_after": {
             "ready_after_n_items": ready_after,
+            "plan_fixes_projected": _plan_rank,
+            "projected_gate_scores": proj_scores,
             "remaining_structural_blockers": other_blockers,
             "note": note,
         },
@@ -2131,6 +2152,7 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
         lambda: {"ctx": [], "len": [], "rep": [], "nonans": []}
     )
     worst = None
+    per_session: list[dict[str, Any]] = []
 
     for s in sessions:
         turns = [t for t in s["turns"] if isinstance(t, dict)]
@@ -2143,6 +2165,19 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
         cr = _safe_float(m.get("context_retention"))
         if cr is not None:
             ctx_rets.append(cr)
+        # P35: per-session summary so the reader can see one session is fine and
+        # another isn't, instead of only the average (ConversationMetrics runs
+        # pessimistic on short Q&A).
+        _na = sum(1 for t in turns if _is_nonanswer(str(t.get("agent") or "")))
+        _tc = _safe_float(m.get("topic_coherence"))
+        per_session.append({
+            "session_id": s.get("session_id"),
+            "turns": len(turns),
+            "overall_score": None if ov is None else round(ov, 3),
+            "context_retention": None if cr is None else round(cr, 3),
+            "topic_coherence": None if _tc is None else round(_tc, 3),
+            "nonanswer_turns": _na,
+        })
 
         prior_tokens: set[str] = set()
         prev_agent = ""
@@ -2191,12 +2226,20 @@ def _conversation_section(current: dict[str, Any]) -> dict[str, Any] | None:
                 degradation_after = traj[k]["turn"] - 1
                 break
 
+    best = None
+    for ps in per_session:
+        if ps["overall_score"] is not None and (best is None or ps["overall_score"] > best[1]):
+            best = (ps["session_id"], ps["overall_score"])
+
     return {
         "n_sessions": len(sessions),
         "avg_overall_score": round(sum(overalls) / len(overalls), 3) if overalls else None,
         "avg_context_retention": round(sum(ctx_rets) / len(ctx_rets), 3) if ctx_rets else None,
+        "sessions": sorted(per_session, key=lambda p: (p["overall_score"] is None,
+                                                       p["overall_score"] or 0.0)),
         "turn_quality_trajectory": traj,
         "degradation_after_turn": degradation_after,
+        "best_session": ({"session_id": best[0], "overall_score": best[1]} if best else None),
         "worst_session": ({"session_id": worst[0], "overall_score": round(worst[1], 3)}
                           if worst else None),
     }
@@ -2560,19 +2603,30 @@ def _insight_changes_section(
     baseline: dict[str, Any] | None,
     security_findings: list[dict[str, Any]] | None,
     evaluator_trust: dict[str, Any] | None,
-    failure_clusters: list[dict[str, Any]] | None,
     harness_groups: dict[str, Any],
 ) -> dict[str, Any] | None:
     if not baseline:
         return None
     base_tasks = [t for t in (baseline.get("tasks") or []) if isinstance(t, dict)]
+    cur_tasks = [t for t in (current.get("tasks") or []) if isinstance(t, dict)]
     base_hg = _harness_groups(baseline)
 
-    b_clusters = _safe(_failure_clusters_section, base_tasks, len(base_tasks), default=[]) or []
-    cur_sigs = {c.get("signature") for c in (failure_clusters or [])}
-    base_sigs = {c.get("signature") for c in b_clusters}
-    new_clusters = sorted(s for s in cur_sigs - base_sigs if s)
-    resolved_clusters = sorted(s for s in base_sigs - cur_sigs if s)
+    # P35: compare the *full* set of failure signatures over every failing task,
+    # not the truncated top-8 failure_clusters list — a cluster that merely drops
+    # in rank was reading as "resolved".
+    def _fail_sigs(tasks: list[dict[str, Any]]) -> set[str]:
+        return {
+            _reason_signature(_task_reason(t))
+            for t in tasks
+            if _effective_fail(success=t.get("success", False),
+                               accuracy=t.get("accuracy_score"),
+                               completion=t.get("completion_score"))
+        }
+
+    cur_sigs = _fail_sigs(cur_tasks)
+    base_sigs = _fail_sigs(base_tasks)
+    new_clusters = sorted(s for s in cur_sigs - base_sigs if s and s != "unspecified")
+    resolved_clusters = sorted(s for s in base_sigs - cur_sigs if s and s != "unspecified")
 
     b_trust = _safe(_evaluator_trust_section, base_tasks, baseline, default=None) or {}
     trust_change = None
@@ -2835,7 +2889,12 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
     acts = [a for a in (v.get("next_actions") or []) if not a.get("security")]
     if acts:
         a = acts[0]
-        fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
+        try:
+            from agent_evaluator.ontology.metric_registry import pretty_metric_name
+
+            fld = pretty_metric_name(a.get("field")) if a.get("field") else ""
+        except Exception:
+            fld = str(a.get("field") or "").replace("avg_", "").replace("_", " ").strip()
         act_txt = (a.get("action") or "").rstrip(".")
         if fld:
             hp = ""
@@ -3068,24 +3127,14 @@ def _briefs_section(ins: dict[str, Any]) -> dict[str, Any] | None:
                 f"task {sf.get('task_id')} before anything else."
             )
     # merge fix-plan rows that share a signature (they only differ by task_type)
-    _merged: dict[str, dict[str, Any]] = {}
-    _order: list[str] = []
-    for it in fp:
-        sig = str(it.get("signature") or "")
-        if sig not in _merged:
-            _merged[sig] = {"count": 0, "hint": it.get("effort_hint", ""),
-                            "types": set(), "tcr": it.get("projected_tcr_after_pct")}
-            _order.append(sig)
-        _merged[sig]["count"] += int(it.get("count") or 0)
-        _merged[sig]["tcr"] = it.get("projected_tcr_after_pct")  # last (deepest) projection
-        if it.get("task_type") and it["task_type"] != "—":
-            _merged[sig]["types"].add(str(it["task_type"]))
-    for sig in _order[:4]:
-        mg = _merged[sig]
-        _tt = f" ({', '.join(sorted(mg['types']))})" if mg["types"] else ""
+    # fix_plan is already one row per signature (P35); just format it.
+    for it in fp[:4]:
+        _tts = it.get("task_types") or ([it["task_type"]] if it.get("task_type") else [])
+        _tt = f" ({', '.join(str(x) for x in _tts)})" if _tts else ""
         eng.append(
-            f"{sig}{_tt} — {mg['count']} task(s) — {mg['hint']} "
-            f"[projected TCR → {mg['tcr']}%]"
+            f"{it.get('signature')}{_tt} — {it.get('count')} task(s) — "
+            f"{it.get('effort_hint')} "
+            f"[projected TCR → {it.get('projected_tcr_after_pct')}%]"
         )
     for rec in (ins.get("recommendations") or []):
         snip = rec.get("code_snippet")
@@ -3261,7 +3310,7 @@ def build_insights(
         "failure_lineage": failure_lineage,
         "insight_changes": _safe(
             _insight_changes_section, current, baseline, security_findings,
-            evaluator_trust, fclusters, hg, default=None,
+            evaluator_trust, hg, default=None,
         ),
         "freshness": _safe(
             _freshness_section, current, baseline, eval_set_quality,

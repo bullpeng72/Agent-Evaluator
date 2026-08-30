@@ -3351,14 +3351,37 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
         dat_html = (f'<p style="font-size:13px;font-weight:700;color:#dc2626;margin:8px 0 0">'
                     f'⚠️ The agent starts losing context after turn {dat}.</p>')
     drift_html = ""   # P35: goal-drift signal removed (unreliable, see insights.py)
-    ws = cv.get("worst_session") or {}
-    ws_html = (f'<p style="font-size:12px;color:#6b7280;margin:6px 0 0">Worst session: '
-               f'<strong>{_esc(str(ws.get("session_id")))}</strong> '
-               f'(score {ws.get("overall_score")})</p>' if ws.get("session_id") else "")
+
+    # P35: per-session table — one healthy + one bad session averaged together
+    # is misleading; show them individually.
+    sess = cv.get("sessions") or []
+    sess_html = ""
+    if len(sess) > 1:
+        srows = ""
+        for ps in sess:
+            osc = ps.get("overall_score")
+            col = "#dc2626" if isinstance(osc, (int, float)) and osc < 0.4 else "#374151"
+            srows += (
+                f'<tr><td style="font-weight:600">{_esc(str(ps.get("session_id")))}</td>'
+                f'<td style="text-align:right">{ps.get("turns")}</td>'
+                f'<td style="text-align:right;color:{col};font-weight:700">'
+                f'{osc if osc is not None else "—"}</td>'
+                f'<td style="text-align:right">{ps.get("context_retention", "—")}</td>'
+                f'<td style="text-align:right">{ps.get("topic_coherence", "—")}</td>'
+                f'<td style="text-align:right">{ps.get("nonanswer_turns", 0)}</td></tr>'
+            )
+        sess_html = (
+            '<h3 style="margin:14px 0 4px">Per session</h3>'
+            '<table class="mtable"><thead><tr><th>Session</th><th>Turns</th>'
+            '<th>Score</th><th>Ctx retention</th><th>Topic coherence</th>'
+            '<th>Non-answer turns</th></tr></thead>'
+            f'<tbody>{srows}</tbody></table>'
+        )
     return (
         '<div class="gate-section" id="conversation" style="border-left-color:#8b5cf6">'
         '<h2 style="color:#1e2030">Multi-Turn Conversation</h2>'
         f'<div class="kpis">{kpis}</div>'
+        f'{sess_html}'
         f'<h3 style="margin:10px 0 4px">Per-turn context reference {spark}</h3>'
         '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">'
         'How much each agent turn reuses content from earlier turns — a decline '
@@ -3367,7 +3390,7 @@ def _build_conversation(cv: dict[str, Any] | None) -> str:
         '<th>Context ref</th><th>Avg chars</th><th>Repetition</th>'
         '<th>Non-answer</th></tr></thead>'
         f'<tbody>{rows}</tbody></table>'
-        f'{dat_html}{drift_html}{ws_html}</div>'
+        f'{dat_html}{drift_html}</div>'
     )
 
 
@@ -3434,24 +3457,15 @@ _TD_VERDICT_STYLE = {
 }
 
 
-_PRETTY_FIELD = {
-    "tcr_pct": "TCR", "tcr": "TCR", "accuracy": "accuracy",
-    "hall_rate": "hallucination rate", "hallucination_rate": "hallucination rate",
-    "p95_latency_s": "P95 latency", "p95_latency_ms": "P95 latency",
-    "llm_faithfulness": "faithfulness", "sla_breach_rate": "SLA breach rate",
-    "quality_relevance_completeness": "response relevance/completeness",
-    "subtask_completion": "subtask completion", "instruction_adherence": "instruction adherence",
-    "reproducibility": "reproducibility", "cost_predictability": "cost predictability",
-}
-
-
 def _pretty_field(fld: Any) -> str:
-    """P35: a readable label for a Gate details field name — 'tcr_pct' -> 'TCR'."""
-    s = str(fld or "").strip()
-    key = s.replace("avg_", "").strip().lower()
-    if key in _PRETTY_FIELD:
-        return _PRETTY_FIELD[key]
-    return key.replace("_", " ")
+    """P35: a readable label for a Gate details field name — 'tcr_pct' -> 'TCR'.
+    Thin wrapper over the shared ontology helper."""
+    try:
+        from agent_evaluator.ontology.metric_registry import pretty_metric_name
+
+        return pretty_metric_name(fld)
+    except Exception:
+        return str(fld or "").replace("avg_", "").replace("_", " ").strip()
 
 
 def _td_resp_summary(rd: dict[str, Any]) -> str:
@@ -3495,8 +3509,19 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
                 f'{_esc(_clip(str(v.get("response_excerpt", "")), 110))}</td></tr>'
             )
 
-        added = ", ".join(_esc(x) for x in (rd.get("added") or [])[:5])
-        removed = ", ".join(_esc(x) for x in (rd.get("removed") or [])[:5])
+        _add_runs = list(rd.get("added") or [])[:5]
+        _rem_runs = list(rd.get("removed") or [])[:5]
+        # P35: one short removed-run + one short added-run reads better as a
+        # substitution ("7.8 mm and 172 g. → 7 (the remaining steps…)") than as
+        # separate "added 7 / removed 7.8 mm…".
+        subst = ""
+        if (len(_add_runs) == 1 and len(_rem_runs) == 1
+                and len(_rem_runs[0].split()) <= 8 and len(_add_runs[0].split()) <= 8):
+            subst = (f' · <span style="color:#6b7280">changed:</span> '
+                     f'{_esc(_rem_runs[0])} → {_esc(_add_runs[0])}')
+            _add_runs = _rem_runs = []
+        added = ", ".join(_esc(x) for x in _add_runs)
+        removed = ", ".join(_esc(x) for x in _rem_runs)
         traj_line = ""
         if tj.get("added") or tj.get("removed") or tj.get("reordered"):
             bits = []
@@ -3522,6 +3547,7 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
             f'<th>Version</th><th>C</th><th>A</th><th>OK</th><th>Response</th>'
             f'</tr></thead><tbody>{pv_rows}</tbody></table>'
             f'<div style="font-size:11px;color:#6b7280">{_td_resp_summary(rd)}'
+            + subst
             + (f' · <span style="color:#059669">added:</span> {added}' if added else "")
             + (f' · <span style="color:#dc2626">removed:</span> {removed}' if removed else "")
             + f'</div>{traj_line}</div>'
@@ -3834,8 +3860,11 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
         col = "#dc2626" if g.get("blocking") else "#b45309"
         sc_cell = f'{sc:.2f}' if isinstance(sc, (int, float)) else "—"
         gap_cell = f'{gap:+.2f}' if isinstance(gap, (int, float)) else "—"
+        _nfix = g.get("after_plan_fixes")
         after_cell = (
-            f'~{after:.2f}<span style="color:#9ca3af;font-weight:400"> (est.)</span>'
+            f'~{after:.2f}<span style="color:#9ca3af;font-weight:400"> (est.'
+            + (f", {_nfix} fix{'es' if _nfix != 1 else ''}" if _nfix else "")
+            + ')</span>'
             if isinstance(after, (int, float)) else "—"
         )
         gname = _esc(g.get("gate_name", ""))
@@ -3851,9 +3880,9 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
     plan_rows = ""
     for it in rd.get("fix_plan") or []:
         gates = ", ".join(it.get("targets_gates") or []) or "—"
-        _tt = it.get("task_type")
-        _tt_s = (f' <span style="color:#9ca3af;font-weight:400">· {_esc(str(_tt))}</span>'
-                 if _tt and _tt != "—" else "")
+        _tts = it.get("task_types") or ([it["task_type"]] if it.get("task_type") else [])
+        _tt_s = (f' <span style="color:#9ca3af;font-weight:400">· '
+                 f'{_esc(", ".join(str(x) for x in _tts))}</span>' if _tts else "")
         plan_rows += (
             f'<tr><td style="text-align:center;color:#6b7280">{it.get("rank")}</td>'
             f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}{_tt_s}'
@@ -4239,7 +4268,7 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                 _health = _s.get("health")
                 _act = component_guidance_for(_fld) or _diag_native_rule_guidance(_fld)
                 _hp = f"{_health * 100:.0f}%" if isinstance(_health, (int, float)) else "—"
-                _label_txt = _esc(_fld.replace("avg_", "").replace("_", " "))
+                _label_txt = _esc(_pretty_field(_fld))
                 _fld_norm = str(_fld).replace("avg_", "").strip().lower()
                 _ls = (' <span style="color:#9ca3af">(low sample — confirm first)</span>'
                        if _fld_norm in _low_samp else '')

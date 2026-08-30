@@ -1137,7 +1137,27 @@ degradation_after_turn(turn k부터 nonanswer_rate≥0.5가 지속되고 이전�
   같은 시그니처 행을 count 합산 + task_type 병합.
 - **I2**: `_build_diagnosis` regression 델타 표에서 baseline=None & delta=None 행(= 이번 run에 새로
   측정 시작된 지표)을 표 밖 "Newly measured this run" 문장으로 분리.
-전체 4531 통과. `test_p35_report_qa_fixes.py`(12) + 기존 테스트 4건 문구 갱신.
+
+**P35 round 2 (다시 감사) — 4건 더:**
+- **B2b**: `_insight_changes_section`이 *잘린 top-8* `failure_clusters` 리스트로 diff → 순위 밖으로
+  밀린(여전히 발생 중인) 클러스터가 "resolved"로 표시. 이제 모든 `_effective_fail` 태스크의
+  `_reason_signature(_task_reason(t))` **전체 집합**을 current vs baseline 대조. `failure_clusters`
+  파라미터 제거.
+- **I1b (fix-plan 병합)**: `_readiness_section` 버킷을 `(sig, ttype)` → **`sig`만**으로 변경.
+  "error: TimeoutError"가 task_type별 3행으로 쪼개지던 것 → 1행, `task_types`(list) + `task_type`
+  (단일이면 값, 아니면 None) 병기. 엔지니어 브리프는 upstream 병합을 신뢰(자체 병합 제거).
+- **B3b (투영 일관성)**: Path-to-Green "After plan" 열이 항상 *전체 8클러스터* 투영이었는데 note는
+  "top 3면 충분"이라 숫자 불일치. `ready_after`를 gaps 계산 전에 구하고, `plan_gain`을
+  `ready_after`(없으면 전체) 시점 gain으로. gap 행에 `after_plan_fixes`, `projected_ready_after`에
+  `plan_fixes_projected`/`projected_gate_scores` 추가. note에 "(Gate A ~0.71, Gate C ~0.70)" 병기.
+- **B4b (필드명)**: `ontology.metric_registry.pretty_metric_name()` 신설(공유 `_PRETTY_FIELD` 맵) —
+  `comprehensive_report._pretty_field`가 위임, `_build_recommendations`의 "Biggest measured
+  shortfalls"와 `_narrative_from_template`의 "biggest measured shortfall" 문장도 사용. exec-summary만
+  고쳐졌던 것을 세 곳 모두로.
+- **개선**: `_conversation_section`에 `sessions[]`(per-session score/turns/ctx/coherence/nonanswer)
+  + `best_session` 추가 — healthy 세션 1개 + 나쁜 세션 1개가 평균 21%로 뭉개지던 것 → 리포트에
+  "Per session" 표. trace-diff에서 짧은 removed-run 1개 + added-run 1개는 "changed: X → Y"로.
+전체 4534 통과. `test_p35_report_qa_fixes.py`(15).
 
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/

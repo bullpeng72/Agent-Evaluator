@@ -91,7 +91,8 @@
             "properties": {
               "rank": { "type": "integer" },
               "signature": { "type": "string" },
-              "task_type": { "type": "string" },
+              "task_type": { "type": ["string", "null"] },
+              "task_types": { "type": "array", "items": { "type": "string" } },
               "count": { "type": "integer" },
               "impact_pct": { "type": "number" },
               "example_task_ids": { "type": "array", "items": { "type": "string" } },
@@ -108,6 +109,8 @@
           "additionalProperties": true,
           "properties": {
             "ready_after_n_items": { "type": ["integer", "null"] },
+            "plan_fixes_projected": { "type": "integer" },
+            "projected_gate_scores": { "type": "object" },
             "remaining_structural_blockers": { "type": "array", "items": { "type": "string" } },
             "note": { "type": "string" }
           }
@@ -554,6 +557,22 @@
         "n_sessions": { "type": "integer" },
         "avg_overall_score": { "type": ["number", "null"] },
         "avg_context_retention": { "type": ["number", "null"] },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "session_id": { "type": ["string", "null"] },
+              "turns": { "type": "integer" },
+              "overall_score": { "type": ["number", "null"] },
+              "context_retention": { "type": ["number", "null"] },
+              "topic_coherence": { "type": ["number", "null"] },
+              "nonanswer_turns": { "type": "integer" }
+            }
+          }
+        },
+        "best_session": { "type": ["object", "null"] },
         "turn_quality_trajectory": {
           "type": "array",
           "items": {
