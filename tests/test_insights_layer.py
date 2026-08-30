@@ -295,6 +295,49 @@ class TestSliceAnalysis:
         assert sl["rag"]["significant"] is True
 
 
+class TestEvalSetQuality:
+    def test_histogram_duplicates_and_unbalanced_warning(self):
+        tasks = (
+            [_task(f"q{i}", ok=True, ttype="qa") for i in range(30)]
+            + [_task("r0", ok=True, ttype="rag")]
+        )
+        for t in (tasks[0], tasks[1], tasks[2]):
+            t["question"] = "Summarize the quarterly earnings call transcript in full"
+        rpt = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}}, tasks,
+        )
+        q = build_insights(rpt)["eval_set_quality"]
+        assert q["task_type_histogram"] == {"qa": 30, "rag": 1}
+        assert any(c["count"] == 3 for c in q["near_duplicate_clusters"])
+        assert any("unbalanced" in w for w in q["coverage_warnings"])
+
+    def test_gate_f_scored_without_multiagent_tasks_warns(self):
+        rpt = _report(
+            {"F": {"score": 0.7, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(25)],
+        )
+        q = build_insights(rpt)["eval_set_quality"]
+        assert any("Gate F" in w and "agent_interactions" in w for w in q["coverage_warnings"])
+
+    def test_suspicious_ground_truth_needs_baseline(self):
+        base = _report(
+            {"A": {"score": 0.6, "status": "fail", "gate": "fail", "details": {}}},
+            [{**_task("bad", ok=False), "accuracy_score": 0.10, "ground_truth": "x"}]
+            + [_task(f"t{i}", ok=True) for i in range(20)],
+        )
+        cur = _report(
+            {"A": {"score": 0.6, "status": "fail", "gate": "fail", "details": {"tcr_pct": 60.0}}},
+            [{**_task("bad", ok=False), "accuracy_score": 0.12, "ground_truth": "x"}]
+            + [_task(f"t{i}", ok=True) for i in range(20)],
+        )
+        q = build_insights(cur, base)["eval_set_quality"]
+        ids = [s["task_id"] for s in q["suspicious_ground_truth"]]
+        assert "bad" in ids
+
+    def test_none_without_tasks(self):
+        assert build_insights({})["eval_set_quality"] is None
+
+
 class TestSaveToFileEmbedsInsights:
     def test_monitor_save_writes_extra_metrics_insights(self, tmp_path):
         from agent_evaluator import PerformanceMonitor, create_taskresult

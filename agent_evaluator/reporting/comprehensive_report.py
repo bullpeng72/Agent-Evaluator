@@ -2286,6 +2286,93 @@ def _task_context(t: Any) -> str:
     return getattr(t, "context", "") or ""
 
 
+def _build_eval_set_quality(tasks: list[Any] | None,
+                            baseline: dict[str, Any] | None,
+                            harness_groups: dict[str, Any]) -> str:
+    """P12: the eval set as a first-class object — coverage, balance,
+    near-duplicates, "is this Gate exercised at all", suspicious labels."""
+    if not tasks:
+        return ""
+    try:
+        from agent_evaluator.reporting.insights import _eval_set_quality_section
+
+        norm = [_norm_task_for_case(t) for t in tasks]
+        q = _eval_set_quality_section(
+            [
+                {
+                    "task_id": c["task_id"], "task_type": c["task_type"],
+                    "question": c["question"], "ground_truth": c["ground_truth"],
+                    "accuracy_score": c["accuracy_score"],
+                    "agent_interactions": c["agent_interactions"],
+                    "tool_calls": c["tool_calls"], "context": _task_context(t),
+                }
+                for t, c in zip(tasks, norm)
+            ],
+            baseline, harness_groups or {},
+        )
+    except Exception:
+        q = None
+    if not q:
+        return ""
+    hist = q.get("task_type_histogram") or {}
+    warnings = q.get("coverage_warnings") or []
+    dups = q.get("near_duplicate_clusters") or []
+    susp = q.get("suspicious_ground_truth") or []
+    if not (warnings or dups or susp) and len(hist) <= 1:
+        return ""   # nothing worth a section
+
+    hist_bar = ""
+    if hist:
+        total = sum(hist.values()) or 1
+        for tt, n in sorted(hist.items(), key=lambda kv: -kv[1]):
+            hist_bar += (
+                f'<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin:2px 0">'
+                f'<span style="width:90px;color:#4b5563">{_esc(tt)}</span>'
+                f'<span style="height:12px;background:#6366f1;border-radius:2px;'
+                f'width:{n / total * 240:.0f}px;min-width:2px"></span>'
+                f'<span style="color:#6b7280">{n}</span></div>'
+            )
+    warn_html = ""
+    if warnings:
+        warn_html = (
+            '<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7;color:#92400e">'
+            + "".join(f'<li>{_esc(w)}</li>' for w in warnings)
+            + '</ul>'
+        )
+    dup_html = ""
+    if dups:
+        rows = "".join(
+            f'<li>{_esc(_clip(d.get("question", ""), 90))} '
+            f'<span style="color:#9ca3af">[{_esc(", ".join(d.get("task_ids", [])))}]</span></li>'
+            for d in dups
+        )
+        dup_html = (
+            '<p style="margin:8px 0 2px;font-size:12px;color:#6b7280">'
+            f'Near-duplicate questions ({len(dups)} cluster(s)) — dedupe to avoid '
+            'over-weighting one case:</p>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{rows}</ul>'
+        )
+    susp_html = ""
+    if susp:
+        rows = "".join(
+            f'<li><strong>{_esc(s.get("task_id", ""))}</strong> — {_esc(s.get("reason", ""))}</li>'
+            for s in susp
+        )
+        susp_html = (
+            '<p style="margin:8px 0 2px;font-size:12px;color:#6b7280">'
+            'Suspicious ground truth / questions:</p>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7;color:#7c2d12">{rows}</ul>'
+        )
+    return (
+        '<div class="gate-section" id="eval-set-quality" style="border-left-color:#8b5cf6">'
+        '<h2 style="color:#1e2030">Eval-Set Quality</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 8px">'
+        'A verdict is only as good as the set it is measured on.</p>'
+        f'{hist_bar}{warn_html}{dup_html}{susp_html}'
+        '</div>'
+    )
+
+
 def _build_slice_analysis(tasks: list[Any] | None,
                           baseline: dict[str, Any] | None) -> str:
     """P10: per-task_type TCR/accuracy with CIs, and — with a baseline — the
@@ -3436,6 +3523,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
@@ -3623,6 +3711,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None) -
         _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
+        _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,

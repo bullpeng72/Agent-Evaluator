@@ -451,6 +451,103 @@ def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _eval_set_quality_section(
+    tasks: list[dict[str, Any]],
+    baseline: dict[str, Any] | None,
+    harness_groups: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Treat the eval set as a first-class object (P12): coverage / balance /
+    near-duplicates / "is this Gate even being exercised" / suspicious labels.
+
+    A verdict computed from an unbalanced or mislabelled eval set is not
+    trustworthy no matter how clean the stats are.
+    """
+    if not tasks:
+        return None
+    hist: dict[str, int] = defaultdict(int)
+    for t in tasks:
+        hist[str(t.get("task_type") or "—")] += 1
+
+    # near-duplicate questions — token Jaccard >= 0.85 (small n, O(n^2) is fine)
+    def _qtok(t: dict[str, Any]) -> set[str]:
+        return {w.lower() for w in _RE_WORD.findall(str(t.get("question") or ""))}
+
+    toks = [(str(t.get("task_id") or f"#{i}"), _qtok(t)) for i, t in enumerate(tasks)]
+    seen: set[int] = set()
+    dup_clusters: list[dict[str, Any]] = []
+    for i in range(len(toks)):
+        if i in seen or not toks[i][1]:
+            continue
+        group = [toks[i][0]]
+        for j in range(i + 1, len(toks)):
+            if j in seen or not toks[j][1]:
+                continue
+            a, b = toks[i][1], toks[j][1]
+            jac = len(a & b) / len(a | b) if (a | b) else 0.0
+            if jac >= 0.85:
+                group.append(toks[j][0])
+                seen.add(j)
+        if len(group) > 1:
+            seen.add(i)
+            q = next((str(t.get("question") or "") for t in tasks
+                      if str(t.get("task_id") or "") == group[0]), "")
+            dup_clusters.append({"question": q[:120], "task_ids": group, "count": len(group)})
+
+    # coverage cross-check — is a scored Gate actually exercised by any task?
+    warnings: list[str] = []
+    n_multi = sum(1 for t in tasks if t.get("agent_interactions"))
+    n_tools = sum(1 for t in tasks if t.get("tool_calls"))
+    if isinstance((harness_groups.get("F") or {}).get("score"), (int, float)) and n_multi == 0:
+        warnings.append(
+            "Gate F (Multi-Agent Coordination) is scored but no task carries "
+            "agent_interactions — the score reflects defaults, not this agent."
+        )
+    if isinstance((harness_groups.get("G") or {}).get("score"), (int, float)) and n_tools == 0:
+        warnings.append(
+            "Gate G tool coverage is scored but no task carries tool_calls."
+        )
+    least = min(hist.values()) if hist else 0
+    most = max(hist.values()) if hist else 0
+    if len(hist) > 1 and least > 0 and most / least >= 5:
+        warnings.append(
+            f"Task-type mix is unbalanced ({dict(hist)}) — per-slice verdicts for "
+            "the smallest cohorts are low-confidence."
+        )
+    if len(tasks) < 20:
+        warnings.append(f"Only {len(tasks)} tasks — most verdicts will be LOW confidence.")
+
+    # suspicious ground truth — needs a baseline: same task fails ~identically in
+    # both runs => the label / question is the more likely culprit than the agent.
+    suspicious: list[dict[str, Any]] = []
+    if baseline:
+        base_acc = {
+            str(t.get("task_id")): _safe_float(t.get("accuracy_score"))
+            for t in (baseline.get("tasks") or []) if isinstance(t, dict) and t.get("task_id")
+        }
+        for t in tasks:
+            tid = str(t.get("task_id") or "")
+            ca = _safe_float(t.get("accuracy_score"))
+            ba = base_acc.get(tid)
+            if ca is None or ba is None:
+                continue
+            if ca < 0.35 and ba < 0.35 and abs(ca - ba) < 0.05:
+                gt = str(t.get("ground_truth") or "")
+                hint = " (ground truth is very short)" if len(_RE_WORD.findall(gt)) < 3 else ""
+                suspicious.append({
+                    "task_id": tid,
+                    "reason": f"fails near-identically in baseline and current "
+                              f"(acc {ba:.2f} → {ca:.2f}){hint} — verify the label / question",
+                })
+
+    return {
+        "n_tasks": len(tasks),
+        "task_type_histogram": dict(hist),
+        "near_duplicate_clusters": dup_clusters[:10],
+        "coverage_warnings": warnings,
+        "suspicious_ground_truth": suspicious[:10],
+    }
+
+
 def _slice_analysis_section(
     tasks: list[dict[str, Any]], baseline: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
@@ -847,6 +944,9 @@ def build_insights(
         ),
         "rag_localization": _safe(rag_localization, tasks, default=None),
         "slice_analysis": _safe(_slice_analysis_section, tasks, baseline, default=[]),
+        "eval_set_quality": _safe(
+            _eval_set_quality_section, tasks, baseline, hg, default=None,
+        ),
         "shared_cause_explanations": (diagnosis or {}).get("shared_cause_explanations", []),
         "newly_unmeasured_gates": (diagnosis or {}).get("newly_unmeasured_gates", []),
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),

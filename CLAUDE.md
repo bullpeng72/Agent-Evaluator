@@ -832,6 +832,9 @@ rag_localization{n_rag_tasks, by_class, dominant_failure, remediation_by_class, 
 (SPEC-041 P11 — RAG 실패를 retrieval/grounding/generation으로 분류),
 slice_analysis[]{task_type, n, tcr_pct, tcr_ci_pct, accuracy_pct, baseline_tcr_pct?, tcr_delta_pp?,
 tcr_delta_ci_pp?, significant?} (SPEC-041 P10 — per-task_type CI, baseline 있으면 두-표본 부트스트랩 유의성),
+eval_set_quality{n_tasks, task_type_histogram, near_duplicate_clusters[]{question, task_ids, count},
+coverage_warnings[], suspicious_ground_truth[]{task_id, reason}}|null (SPEC-041 P12 — 평가셋 커버리지·균형·
+근접중복·Gate 미실행 경고·baseline 대비 동일 실패 라벨 의심),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`. 정적 HTML 리포트는 여전히 자체
 `_build_*` 헬퍼로 같은 내용을 렌더한다(콘텐츠 동등, `insights`는 머신 판독 채널).
 
@@ -858,6 +861,13 @@ grounding→프롬프트/temperature, generation→few-shot/검증}, unsupported
 |delta|<MDE면 "underpowered, 동등성 증거 아님" 경고. `reporting/insights.py::_slice_analysis_section` +
 `comprehensive_report.py::_build_slice_analysis` — task_type별 TCR/accuracy(+CI), baseline 있으면 per-slice
 Δ + 유의성(*) 표. "헤더 지표는 한 코호트에 몰린 회귀를 숨긴다".
+
+**SPEC-041 P12 (평가셋 품질)** — `reporting/insights.py::_eval_set_quality_section` +
+`comprehensive_report.py::_build_eval_set_quality`: task_type 히스토그램 · 근접중복 질문(질문 토큰 Jaccard≥0.85
+클러스터) · 커버리지 경고(Gate F가 점수 있는데 agent_interactions 태스크 0개 / Gate G tool_calls 0개 /
+task_type 5:1 이상 불균형 / <20 태스크) · suspicious_ground_truth(baseline 필요 — 같은 task가 두 run 모두
+acc<0.35에 |Δ|<0.05로 실패 → 라벨/질문 의심, gt 토큰<3이면 "very short" 힌트). 리포트 섹션
+`eval-set-quality`, 대시보드 Improve 탭 패널.
 
 ### Native Tracker → Gate Score Contribution (`_compute_harness_groups`)
 
