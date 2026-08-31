@@ -125,7 +125,8 @@ Passing `--golden-set` without `--fail-on-golden-regression` only reports regres
 | `--max-review-high` | `int` | **exit 4** if the number of HIGH items in `insights.review_queue` exceeds this |
 | `--notify` | `slack://...` \| `webhook://...` | after the verdict, send the narrative + regressions + cohort winner to the target channel (never raises) |
 | `--digest` | flag | also print the PM / QA / engineer briefs after the table |
-| `--target-file` | file path | use the project SLOs in `.aoo/targets.json` as thresholds ([§9.1](#9-defining-slos-and-the-closed-improvement-loop)) |
+
+If a `.aoo/targets.json` exists (written by `agent-eval target set`, see [§9.1](#9-defining-slos-and-the-closed-improvement-loop)), `agent-eval gate` loads it automatically and uses those per-gate / TCR values as the thresholds unless you pass `--gate-thresholds` / `--tcr` / `--accuracy` explicitly — no flag needed.
 
 ```bash
 agent-eval gate result.json \

@@ -11,11 +11,11 @@ Behavioral Integrity (loop detection, deadlock, scope, tool-parameter safety) an
 (tool authorization, privilege escalation, tool-chain attack) evaluators that power Gates B/E in batch
 mode, just called synchronously per tool call instead of per session.
 
-> **Prototype status**: live-tested end-to-end against a real OpenCode + local Ollama session — it
-> blocked a live file-deletion attempt mid-session and left the file intact. Design maturity is
-> still prototype-level (a process-lifecycle race on one-shot `opencode run`, no cleanup on hard
-> `kill -9`) — see [Known gotchas from live validation](#known-gotchas-from-live-opencode-validation)
-> and [Remaining prototype limitations](#remaining-prototype-limitations) below.
+> **Status**: shipped, and live-verified end-to-end against a real, separate OpenCode + local Ollama
+> session — twice in 2026-08 (`1.17.9`, then `1.18.9`) — each time it blocked a live file-deletion
+> attempt mid-session and left the file intact. Two rough edges remain (a process-lifecycle race on
+> one-shot `opencode run`, no cleanup on a hard `kill -9`) — see
+> [Known limitations](#known-limitations) below.
 
 ## Why a subprocess bridge
 
@@ -85,19 +85,20 @@ agent-eval opencode install                       # .opencode/plugin/ (project-l
 # or: agent-eval opencode install --force          # overwrite an existing install
 # or: agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
 # or: agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
+# or: agent-eval opencode install --with-ask-insights         # + register the ask_insights MCP server
 
-agent-eval opencode doctor      # verify the install works: plugin freshness + a live Python
+agent-eval opencode doctor      # verify the install actually works: plugin freshness + a live Python
                                 # stdio-bridge round-trip (init, benign->allow, dangerous->block)
 agent-eval opencode upgrade     # after a package update: re-copy the plugin .ts, never touching
                                 # your sibling agent-evaluator.config.json
 agent-eval opencode uninstall   # remove the plugin file + opencode.json mcp entries — run BEFORE `pip uninstall`
 ```
 
-`agent-eval opencode install` verifies the installed copy actually registers all three plugin hooks
+`agent-eval opencode doctor` verifies the installed copy actually registers all three plugin hooks
 (`tool.execute.before`, `tool.execute.after`, `event`) and warns if one is missing — a plugin missing
 just `tool.execute.after`, say, would still block dangerous calls in real time while silently never
 feeding data into the batch report, exactly the kind of half-working state that's hard to notice on your
-own (Harness Method Ch06 §6.2).
+own.
 
 `agent-eval opencode install` bakes the interpreter that ran the command in as the plugin's default
 `PYTHON_BIN`. Override it or the SQLite report location via env vars:
@@ -137,8 +138,8 @@ An earlier prototype only logged to `console.log`, so this feedback loop silentl
 indexes the session message history, not console output. Confirming that the installed
 `@opencode-ai/sdk` type declarations support a `noReply` option (`types.gen.d.ts`) fixed it.
 
-Note this loop only closes at `session.idle` — see [Remaining prototype
-limitations](#remaining-prototype-limitations) for what happens when a session ends abnormally instead.
+Note this loop only closes at `session.idle` — see [Known limitations](#known-limitations) for what
+happens when a session ends abnormally instead.
 
 ### Why the SQLite backend exists alongside ctx
 
@@ -168,11 +169,12 @@ exact same `PerformanceMonitor.record_task()`/`generate_report()` that `@agent_e
 The result is a normal result file — point `agent-eval gate`/`agent-eval dashboard` at
 `results/opencode_live_guardrail/` exactly as for any other run.
 
-> **Limitation**: `ToolCallAnalyzer.analyze()` treats a tool call with no `success` key as a success by
-> default. `LiveGuardrail` only knows "executed without being blocked," not the tool's actual execution
-> result (exit code, etc.), so Gate G's success rate can read more optimistically than reality. Tracking
-> per-tool execution results would need the `tool.execute.after` hook signature extended — left as
-> future work.
+> **Note**: `ToolCallAnalyzer.analyze()` treats a tool call with no `success` key as a success by
+> default. The `tool.execute.after` hook now captures each call's real result (`exit_code` / `stdout` /
+> `success`, SPEC-031) and promotes it into `TaskResult.tool_calls`, so Gate G's success rate is
+> accurate for calls that carry that data. A call whose result the plugin could not determine still
+> counts as a success — so a session where the plugin's `after` hook never fired can still read
+> optimistically.
 
 ## Blocked-attempt Slack alerts (opt-in)
 
@@ -255,6 +257,19 @@ register it manually (or for other MCP clients):
 opencode mcp add agent-evaluator-recommend-fix -- python -m agent_evaluator.integrations.recommend_fix_mcp
 ```
 
+## `ask_insights` MCP server
+
+Opt-in (same `[mcp]` extra): `agent_evaluator.integrations.ask_insights_mcp` exposes stdio MCP tools
+that query a result JSON's `extra_metrics.insights` layer with structured questions —
+`insights_summary`, `insights_readiness` (path to green), `insights_why_failed(task_id)`,
+`insights_contrast(task_id)` (the failure beside its nearest passing task), and `insights_list(filter)`.
+Where `recommend_fix` gives static per-gate advice, `ask_insights` reads *this run's* verdicts.
+`agent-eval opencode install --with-ask-insights` registers it automatically:
+
+```bash
+opencode mcp add agent-evaluator-ask-insights -- python -m agent_evaluator.integrations.ask_insights_mcp
+```
+
 ## Known gotchas from live OpenCode validation
 
 The plugin was live-tested end to end against a real OpenCode `1.17.9` + local Ollama `qwen3-coder`
@@ -283,41 +298,30 @@ opencode run --dir /path/to/project "your message" \
   --dangerously-skip-permissions < /dev/null
 ```
 
-> **Update (SPEC-041, 2026-08):** the sections below are the *original* prototype-era tuning history and
-> no longer match the shipped defaults. Current state: `dangerous_patterns` was trimmed back to
-> genuinely destructive commands only — bare `rm <file>` and `rm -f` are **no longer** blocked (only
-> `rm -rf`/`-fr`, chained `rm`, `mkfs`, `dd of=/dev/…`, fork bombs, and pipe-to-shell); the OpenCode
-> plugin's `consecutive_repeat_threshold` is 8 with `live_loop_window: 15` and a `circuit_breaker`; loop
-> identity now compares tool *name + arguments*, not just the name; and most of the "Remaining prototype
-> limitations" below (stdio pipe race, `session.idle` killing the bridge, blocked-attempt transcript
-> timing) were fixed. See `CLAUDE.md` (`gates/live_guardrail.py` notes) and `CHANGELOG.md` for the
-> authoritative current behavior.
+### Shipped defaults, and why they are what they are
 
-**`GUARDRAIL_CONFIG`'s defaults had to be tuned to OpenCode's actual tool granularity.** OpenCode routes
-every shell action through a single `"bash"` tool (there's no separate `"shell_exec"` or similar) — so a
-low `consecutive_repeat_threshold` with `on_loop_detected: "fail"` flagged a completely normal
-`ls → cat → ls` sequence as a "loop" and blocked the third call. Loop detection only compares tool
-*names* (not parameters), so any agent whose tools are coarse-grained enough to name-collide on 3
-legitimate, distinct actions in a row hits the same false positive — not an OpenCode-only problem. Because
-of that, `LoopDetectionConfig.consecutive_repeat_threshold`'s own **SDK-wide default was raised from 3 to
-6** (not just this plugin's config); `on_loop_detected` stays at its existing default (`"record"` —
-observe, don't block). Lower the threshold back down, or switch to `"fail"`, only after confirming your
-agent's tool granularity is fine enough that 3-in-a-row genuinely signals a stuck loop.
+The shipped `GUARDRAIL_CONFIG` (`opencode_plugin/agent-evaluator.ts`) — its rationale is a direct
+product of live tuning against OpenCode's coarse tool granularity, but the values changed over SPEC-041.
+The authoritative current values are in that file, `CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
+default), and `CHANGELOG.md`. As of 1.0.0:
 
-**The default dangerous-command patterns missed several `rm` bypasses, found and closed in two rounds
-of live testing:**
-1. The stock `ToolParameterSafetyConfig.dangerous_patterns` only catches semicolon-chained `rm`; a bare
-   `rm -rf`/`rm -f` call isn't matched. `ToolAuthorizationTracker` (Gate E) hardcodes a check for
-   `rm -rf`, but not `rm -f` (single flag) — a live session showed a model self-selecting `-f` over
-   `-rf` and actually deleting a file. Fixed by adding an `rm\s+-\w*f` pattern.
-2. Re-verification found that pattern still missed a bare `rm victim.txt` with **no flag at all** — a
-   natural "clean this up" request had the model call `rm <file>` with no flags, which neither Gate B
-   nor Gate E caught, and the file was actually deleted. The pattern was widened to `\brm\s+\S` to catch
-   any `rm <argument>` regardless of flags — this is what's shipped today.
-3. Because `dangerous_patterns` scans every tool call's parameters regardless of tool name, that broad
-   `rm` pattern alone would false-positive on unrelated tools (e.g. a search/memory tool whose *result
-   text* happens to mention "rm attempt blocked"). `scope_tool_names: ["bash"]` scopes the check to the
-   actual shell-execution tool to prevent that — also shipped today.
+- **`consecutive_repeat_threshold: 8`** (+ `live_loop_window: 15`, + `circuit_breaker_after: 5`).
+  OpenCode routes every shell action through a single `"bash"` tool, so name-only loop detection at a
+  low threshold false-positives on a normal `ls → cat → ls` sequence. Loop identity now compares tool
+  *name + SHA1 of sorted arguments*, not just the name — but the coarse-`"bash"` risk still argues for a
+  high threshold here. `on_loop_detected` is omitted, so the OpenCode default is `"record"` (observe,
+  don't block); the Claude Code hook default is `"fail"` because its tools are already fine-grained.
+- **`dangerous_patterns`** was trimmed to genuinely destructive commands: `rm -rf` / `-fr`,
+  semicolon-chained `rm`, `mkfs`, `dd of=/dev/…`, fork bombs, and pipe-to-shell. Bare `rm <file>` and
+  `rm -f` are **not** blocked by the pattern list (too common in normal coding), though
+  `ToolAuthorizationTracker`'s hardcoded Gate E backstop still catches `rm -rf`. This is a deliberate
+  precision/recall trade — the earlier prototype blocked bare `rm` and produced too many false
+  positives.
+- **`scope_tool_names: ["bash"]`** scopes the `dangerous_patterns` scan to the actual shell tool, so it
+  can't false-positive on an unrelated tool whose *result text* happens to mention a blocked command.
+
+The blacklist approach is still blacklist matching against known bypasses, not an allowlist — live
+testing found a model try `-rf` → `-f` → no-flag in sequence, so assume other bypasses remain possible.
 
 **Re-confirmed 2026-08-26** against OpenCode `1.18.9` + local Ollama `qwen3-coder:latest` (a fresh
 re-run, not a rerun of the original session): a real `opencode run` session was told to delete a
@@ -333,7 +337,7 @@ used `--auto --format json` with no explicit `< /dev/null` and completed cleanly
 Unclear whether that's fixed in `1.18.9` or just didn't trigger under these specific flags — not
 confirmed either way, so the stdin-close workaround above is left in place rather than removed.
 
-## Remaining prototype limitations
+## Known limitations
 
 - **Pipe-closing race on one-shot `opencode run`** (reproduced live): `session.idle` triggers
   `recordSessionReport()`, which spawns a Python subprocess and awaits its response — but `opencode run`
@@ -357,10 +361,10 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
   transcript write (`client.session.prompt()`) only happens once, at `session.idle`. If the session ends
   abnormally without ever firing `session.idle`, the ctx feedback loop is skipped entirely for that
   session.
-- **`GUARDRAIL_CONFIG`'s shipped values are a starting point, not a guarantee**: the current `rm`
-  pattern is still blacklist matching against known bypasses, not an allowlist — live testing already
-  found the model try two different bypasses (`-rf` → `-f` → no flag) in sequence, so assume other
-  bypasses of the current pattern remain possible.
+- **`GUARDRAIL_CONFIG`'s shipped values are a starting point, not a guarantee**: `dangerous_patterns`
+  is blacklist matching against known bypasses, not an allowlist (see [Shipped defaults](#shipped-defaults-and-why-they-are-what-they-are)),
+  so assume other bypasses remain possible. Treat the real-time guardrail as defense in depth, not a
+  sole control.
 
 ## Related docs
 

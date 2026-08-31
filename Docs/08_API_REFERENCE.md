@@ -1468,7 +1468,8 @@ agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regre
 agent-eval gate result.json --max-cost-per-task 0.05     # cost SLO gate: fail if total_cost / task count exceeds this (P28)
 agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X   # exit 4 on HIGH review items + post the narrative / regressions / cohort winner
 agent-eval gate result.json --digest                     # also print the PM / QA / engineer briefs after the table (P34)
-agent-eval gate result.json --target-file .aoo/targets.json   # use the project SLOs (.aoo/targets.json) as thresholds (P43)
+# note: if .aoo/targets.json exists (from `agent-eval target set`), `gate` auto-loads it as the
+# thresholds unless --gate-thresholds / --tcr / --accuracy are given explicitly (P43) — no flag
 
 # Gate-regression root-cause diagnosis (RCA — detect → attribute → cross-reference, the HOTL principle)
 agent-eval diagnose result.json

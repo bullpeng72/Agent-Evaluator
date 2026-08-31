@@ -77,6 +77,7 @@ agent-eval claude install                              # .claude/settings.json (
 # or: agent-eval claude install --force                 # reset guardrail_config.json to defaults
 # or: agent-eval claude install --with-violation-search  # + register the search_violations MCP server
 # or: agent-eval claude install --with-recommend-fix      # + register the recommend_fix MCP server
+# or: agent-eval claude install --with-ask-insights        # + register the ask_insights MCP server
 
 agent-eval claude doctor      # verify the install works: static checks + a live hook round-trip
                               # (benign->allow, dangerous->deny, batch report) + MCP handshake
@@ -203,8 +204,8 @@ item below, still unbenchmarked) or on abnormal termination (`kill -9`).
 
 - [`AOO_STACK.md`](AOO_STACK.md) — the OpenCode integration this reuses the same `LiveGuardrail` engine
   from; also documents the `tool_guard`/`live_guardrail_session()` in-process pattern, team scope claims,
-  branch guard, and the `search_violations`/`recommend_fix` MCP servers registered by `--with-*` flags
-  here too.
+  branch guard, and the `search_violations` / `recommend_fix` / `ask_insights` MCP servers registered by
+  `--with-*` flags here too.
 - [`OPENCODE_VS_CLAUDE_CODE.md`](OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations, including the live-verification evidence summarized above.
 - `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic (SPEC-019).

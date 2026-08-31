@@ -57,7 +57,7 @@ Every surface exposes some of the **6 information layers** below. The higher the
 | **`agent-eval diagnose`** | terminal (3-stage RCA) | manual (digging into a failure cause) | developers | L5 (+ L5 regression attribution with a baseline) |
 | **`agent-eval abtest`** | terminal (statistical significance) | manual (v1 vs v2) | developers · QM | L2 statistics (Welch/mSPRT/FDR) |
 | **`agent-eval trend`** | terminal (slope trend) | CI / manual (time series over runs) | QM · CI | L2 trend (+ git diff on a regression) |
-| **Dashboard** | FastAPI web UI (23 tabs / 111 routes) | `agent-eval dashboard` (port 8765) | developers · QM · governance | L1–L6 (interactive) |
+| **Dashboard** | FastAPI web UI (23 tabs) | `agent-eval dashboard` (port 8765) | developers · QM · governance | L1–L6 (interactive) |
 | **`agent-eval monitor`** | Arize Phoenix web UI | `setup_otel()` opt-in | MLOps · operations | real-time traces/spans (a separate pipeline, [06_OBSERVABILITY](06_OBSERVABILITY.md)) |
 | **LiveGuardrail block message** | hook JSON / error string | just before a tool runs (Gate B/E violation) | AI runtime | block reason + `remediation` (the action) |
 | **SessionEnd summary** | Claude `systemMessage` / OpenCode synthetic transcript | session end / every turn | AI runtime · user | Gate B/E scores + violation summary |
@@ -231,7 +231,7 @@ On a detected regression, if the first/last runs have `lineage.git_commit`, **th
 
 ## 7. Dashboard
 
-`agent-eval dashboard` → a FastAPI server (port 8765, 23 tabs / 111 routes). Polls `.json` in `results/` (15s / `--watch`).
+`agent-eval dashboard` → a FastAPI server (port 8765, 23 tabs). Polls `.json` in `results/` (15s / `--watch`).
 
 | Tab group | Main tabs | Layers |
 |-----------|-----------|--------|

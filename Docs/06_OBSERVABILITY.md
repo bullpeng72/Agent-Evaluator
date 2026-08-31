@@ -117,9 +117,10 @@ eval.save()  # creates results/quickeval.json + .html automatically
 
 ## 3. Dashboard panels — activation classification
 
-The dashboard exposes 23 top-level tabs. Below they are grouped by what it takes to populate them.
+The dashboard exposes 23 top-level tabs (plus a Harness Gate panel rendered inside the Quality /
+Reliability tabs). Below the menus are grouped by what it takes to populate them.
 
-### 🟢 Available with the decorator alone (10)
+### 🟢 Available with the decorator alone (9 tabs + the Harness Gate panel)
 
 Tabs filled automatically just by calling `save_to_file()` after applying `@agent_eval` / `@batch_eval` / `@conversation_eval`.
 
@@ -147,7 +148,7 @@ Tabs filled automatically just by calling `save_to_file()` after applying `@agen
 | 🚨 **Anomaly Detection** | `PerformanceMonitor(enable_anomaly_detection=True)` |
 | 💰 **Evaluation Cost** | token cost automatic / LLM-judge cost: `llm_judge=LLMJudgeConfig()` |
 
-### 🔵 Available regardless of the decorator (7)
+### 🔵 Available regardless of the decorator (8)
 
 | Menu | How it works |
 |------|--------------|

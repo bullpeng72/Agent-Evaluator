@@ -33,7 +33,7 @@ pip install "agent-evaluator[sdk]"
 # Run every example — sdk + deepeval/ragas/langchain
 pip install "agent-evaluator[examples]"
 
-# Real-time guardrail — OpenCode + MCP integration (search_violations · recommend_fix)
+# Real-time guardrail — OpenCode / Claude Code MCP servers (search_violations · recommend_fix · ask_insights)
 pip install "agent-evaluator[mcp]"
 
 # Framework integration (when your agent uses that framework)
