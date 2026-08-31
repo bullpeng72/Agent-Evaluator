@@ -42,6 +42,7 @@ class TestParseSpanTimeline:
 
     def test_absolute_timing_total_and_bottleneck(self):
         tl = parse_span_timeline(_ABS)
+        assert tl is not None
         assert tl["total_ms"] == 1500.0
         assert tl["n_spans"] == 4
         # retrieve (600ms self) is the single biggest self-time span
@@ -50,6 +51,7 @@ class TestParseSpanTimeline:
 
     def test_parent_nesting_gives_depth_and_self_time(self):
         tl = parse_span_timeline(_ABS)
+        assert tl is not None
         by_name = {s["name"]: s for s in tl["spans"]}
         assert by_name["retrieve"]["depth"] == 1
         assert by_name["verify"]["depth"] == 0
@@ -58,12 +60,14 @@ class TestParseSpanTimeline:
 
     def test_critical_path_covers_most_of_the_wall_clock(self):
         tl = parse_span_timeline(_ABS)
+        assert tl is not None
         cp = tl["critical_path"]
         assert "retrieve" in cp and "llm.generate" in cp
         assert "plan" not in cp  # 140ms self-time — not a time sink
 
     def test_relative_duration_layout(self):
         tl = parse_span_timeline(_DUR_MS)
+        assert tl is not None
         assert tl["total_ms"] == 1450.0
         assert tl["spans"][1]["start_ms"] == 400.0
         assert tl["spans"][2]["start_ms"] == 1300.0
@@ -72,6 +76,7 @@ class TestParseSpanTimeline:
         tl = parse_span_timeline([
             {"name": "s1", "duration": 0.4}, {"name": "s2", "duration": 1.1},
         ])
+        assert tl is not None
         assert tl["total_ms"] == 1500.0
 
     def test_millisecond_keys_are_trusted_as_is(self):
@@ -79,10 +84,12 @@ class TestParseSpanTimeline:
         tl = parse_span_timeline([
             {"name": "fast", "duration_ms": 2}, {"name": "slow", "duration_ms": 40},
         ])
+        assert tl is not None
         assert tl["total_ms"] == 42.0
 
     def test_cost_and_token_totals(self):
         tl = parse_span_timeline(_ABS)
+        assert tl is not None
         assert tl["total_tokens"] == 1220
         assert abs(tl["total_cost_usd"] - 0.012) < 1e-9
 
@@ -94,6 +101,7 @@ class TestTrajectoriesSection:
             {"task_id": "bad", "success": False, "accuracy_score": 0.2, "tool_calls": _ABS},
         ]
         sec = _trajectories_section(tasks)
+        assert sec is not None
         assert sec[0]["task_id"] == "bad"
         assert sec[0]["source"] == "tool_calls"
 
@@ -106,6 +114,7 @@ class TestTrajectoriesSection:
         sec = _trajectories_section([
             {"task_id": "t", "success": False, "chain_steps": _DUR_MS},
         ])
+        assert sec is not None
         assert sec[0]["source"] == "chain_steps"
 
 

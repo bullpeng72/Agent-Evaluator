@@ -502,6 +502,24 @@ target 있으면 그 값, 없으면 0.7)의 스윕 verdict가 ±0.05에서 달�
 안정이면 초록 한 줄 + pass-line 스윕 표(현재 행 볼드 "← current") + accuracy 스윕 표. TOC "Sensitivity".
 스키마 `threshold_sensitivity`. `test_threshold_sensitivity_p44.py`(7). 전체 4607 통과.
 
+**SPEC-041 P47 (claim 레벨 실패 설명)** — `reporting/insights.py::_failure_explanations_section(tasks,
+*, explainer=None)` → `insights.failure_explanations[]`. worst-N 실패(응답 있는 것)마다 응답을
+`_sentences`로 문장 분할 → 각 claim에 `{text, verdict, source}`:
+- **verdict** (`_claim_verdict`, NLI 없음): `contradicts_ground_truth`(공유 내용어 있고 —
+  `_has_neg`(정규식) 부정어 플립 또는 `_nums` 숫자 불일치 또는 gt 오버랩 0.18–0.55) >
+  `supported`(오버랩 ≥0.55) > `unsupported` > `unverifiable`(gt 없음).
+- **source** (`_claim_source`): claim↔`_ctx_chunks` 중 오버랩 최고 청크가 ≥0.30이면
+  `context_chunk[i]`, 아니면 tool_call 출력에 있으면 `tool_output`, 아니면 `none — hallucinated
+  or from reasoning`.
+행에 `wrong_claim`/`wrong_claim_verdict`/`wrong_claim_source`(첫 contradicts/unsupported claim) +
+`explained_by`("template"/"explainer"). `build_insights(explainer=Callable[[payload], dict|None])` —
+payload `{task_id, question, response, ground_truth, context_chunks[], template_explanation}` →
+`{claims:[…]}` 반환 시 교체(narrator/fixer 동일 패턴, 실패 시 템플릿). `out` 딕셔너리
+`failure_explanations` 추가. 리포트 `_build_failure_explanations()` 섹션 `failure-explanations`
+(failure-cases 다음): 태스크별 Claim/Verdict/Source 표(verdict 색상) + "Wrong claim" 한 줄.
+TOC "Wrong claims". 스키마 `failure_explanations`. gen_example_v2: `t_rag_3`을 `wrong_fact` 모드로
+고정(숫자 플립 → context_chunk[0] 추적 데모). `test_failure_explanations_p47.py`(10). 전체 4617 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

@@ -2474,6 +2474,63 @@ _TRIG_LABEL = {
 }
 
 
+_FE_VERDICT_STYLE = {
+    "supported": ("supported", "#059669"),
+    "contradicts_ground_truth": ("contradicts ground truth", "#dc2626"),
+    "unsupported": ("unsupported", "#d97706"),
+    "unverifiable": ("unverifiable", "#9ca3af"),
+}
+
+
+def _build_failure_explanations(fe: list[dict[str, Any]] | None) -> str:
+    """P47: for the worst failures, the specific sentence that is wrong and where
+    it came from (context chunk / tool output / hallucination)."""
+    if not fe:
+        return ""
+    blocks = ""
+    for r in fe:
+        rows = ""
+        for c in r.get("claims") or []:
+            lbl, col = _FE_VERDICT_STYLE.get(
+                c.get("verdict", ""), (c.get("verdict", ""), "#6b7280"))
+            rows += (
+                f'<tr><td style="font-size:12px;color:#374151">'
+                f'{_esc(_clip(c.get("text", ""), 160))}</td>'
+                f'<td style="white-space:nowrap;color:{col};font-weight:600;'
+                f'font-size:11px">{_esc(lbl)}</td>'
+                f'<td style="font-size:11px;color:#6b7280">{_esc(c.get("source", ""))}'
+                f'</td></tr>'
+            )
+        wc = r.get("wrong_claim")
+        wc_html = (
+            f'<p style="font-size:12px;margin:4px 0 0"><strong>Wrong claim:</strong> '
+            f'{_esc(_clip(wc, 180))} <span style="color:#9ca3af">'
+            f'({_esc(r.get("wrong_claim_verdict", ""))}, '
+            f'{_esc(r.get("wrong_claim_source", ""))})</span></p>'
+            if wc else ""
+        )
+        blocks += (
+            '<div style="border-top:1px solid #e5e7eb;padding:8px 0">'
+            f'<div style="font-size:12px"><strong>{_esc(str(r.get("task_id", "")))}</strong> '
+            f'<span style="color:#6b7280">{_esc(_clip(r.get("question", ""), 110))}</span></div>'
+            f'<div style="font-size:11px;color:#9ca3af;margin:2px 0">GT: '
+            f'{_esc(_clip(r.get("ground_truth", ""), 140))}</div>'
+            '<table class="mtable" style="font-size:12px"><thead><tr>'
+            '<th>Claim</th><th>Verdict</th><th>Source</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>{wc_html}</div>'
+        )
+    return (
+        '<div class="gate-section" id="failure-explanations" '
+        'style="border-left-color:#ef4444">'
+        '<h2 style="color:#1e2030">Claim-Level Failure Explanation</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">Each failing '
+        'response split into claims — which one is wrong, and where it came from. '
+        'Heuristic (token overlap + negation + number mismatch); candidate, not a '
+        'verdict.</p>'
+        f'{blocks}</div>'
+    )
+
+
 def _build_failure_segments(tasks: list[Any] | None) -> str:
     """P30: cluster failing questions by lexical topic ("fails on multi-entity
     comparison questions") and pin each failure to the retrieved passage or tool
@@ -4065,7 +4122,8 @@ _TOC_LABELS = {
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
-    "failure-cases": "Failures", "recommendations": "Recommendations",
+    "failure-cases": "Failures", "failure-explanations": "Wrong claims",
+    "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "insight-changes": "Insight diff",
@@ -5621,6 +5679,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
+        _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,
@@ -5863,6 +5922,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
+        _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
                                recommendation_log_path=recommendation_log_path,

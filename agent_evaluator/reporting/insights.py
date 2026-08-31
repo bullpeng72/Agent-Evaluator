@@ -2323,6 +2323,137 @@ def _failure_triggers_section(
     return out or None
 
 
+# ---------------------------------------------------------------------------
+# Claim-level failure explanation (P47) — "grounding failure" is a category;
+# this pins the *specific sentence* that is wrong and where it came from. Split
+# the response into claims, mark each supported / contradicted / unsupported vs
+# the ground truth, and trace it to a context chunk / tool output / nothing.
+# Deterministic, NLI-free (token overlap + negation + number mismatch). An
+# `explainer=` hook can substitute an LLM-backed version (like `narrator`).
+# ---------------------------------------------------------------------------
+_FE_LIMIT = 8
+_FE_SUPPORTED = 0.55        # claim↔gt overlap at/above this = supported
+_FE_SRC_MIN = 0.30         # claim↔chunk overlap at/above this = that chunk is the source
+
+
+def _sentences(text: Any) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+|\n+", str(text or "").strip())
+    return [p.strip() for p in parts if len(p.strip().split()) >= 3][:12]
+
+
+_NEG_RE = re.compile(
+    r"\b(not|no|never|cannot|none|nothing|without|unable|n't)\b|n['’]t\b", re.I,
+)
+
+
+def _has_neg(text: Any) -> bool:
+    return bool(_NEG_RE.search(str(text or "")))
+
+
+def _nums(text: Any) -> set[str]:
+    return set(re.findall(r"\d+(?:\.\d+)?", str(text or "")))
+
+
+def _claim_verdict(claim: str, gt: str) -> str:
+    ct, gtt = _wtok(claim), _wtok(gt)
+    if not gtt:
+        return "unverifiable"
+    ov = _overlap(ct, gtt)
+    shared = (ct & gtt) - _RAG_STOPWORDS
+    # Contradiction signals win even when the token overlap is high — "we do NOT
+    # ship" vs "we ship", or "5 years" vs "2 years", share most content words.
+    if shared:
+        neg_flip = _has_neg(claim) != _has_neg(gt)
+        num_flip = bool(_nums(claim)) and bool(_nums(gt)) and not (_nums(claim) & _nums(gt))
+        if neg_flip or num_flip:
+            return "contradicts_ground_truth"
+    if ov >= _FE_SUPPORTED:
+        return "supported"
+    if shared and 0.18 <= ov < _FE_SUPPORTED:
+        return "contradicts_ground_truth"
+    return "unsupported"
+
+
+def _claim_source(claim: str, chunks: list[str], tool_outputs: list[str]) -> str:
+    ct = _wtok(claim)
+    if chunks:
+        best_i, best_ov = -1, 0.0
+        for i, c in enumerate(chunks):
+            ov = _overlap(ct, _wtok(c))
+            if ov > best_ov:
+                best_i, best_ov = i, ov
+        if best_ov >= _FE_SRC_MIN:
+            return f"context_chunk[{best_i}]"
+    for o in tool_outputs:
+        if _overlap(ct, _wtok(o)) >= _FE_SRC_MIN:
+            return "tool_output"
+    return "none — hallucinated or from reasoning"
+
+
+def _failure_explanations_section(
+    tasks: list[dict[str, Any]], *, explainer: Any = None,
+) -> list[dict[str, Any]] | None:
+    fails = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+        and str(t.get("response") or "").strip()
+    ]
+    fails.sort(key=lambda t: _safe_float(t.get("accuracy_score"), 1.0) or 1.0)
+    out: list[dict[str, Any]] = []
+    for t in fails[:_FE_LIMIT]:
+        resp = str(t.get("response") or "")
+        gt = str(t.get("ground_truth") or "")
+        chunks = _ctx_chunks(t.get("context"))
+        tool_outputs = [
+            str(s.get("output") or s.get("result") or s.get("stdout") or "")
+            for s in (t.get("tool_calls") or []) if isinstance(s, dict)
+        ]
+        tool_outputs = [o for o in tool_outputs if o.strip()]
+        claims = []
+        for sent in _sentences(resp):
+            v = _claim_verdict(sent, gt)
+            claims.append({
+                "text": sent[:200],
+                "verdict": v,
+                "source": (_claim_source(sent, chunks, tool_outputs)
+                           if v != "supported" else "ground truth"),
+            })
+        if not claims:
+            continue
+        wrong = next(
+            (c for c in claims if c["verdict"] in
+             ("contradicts_ground_truth", "unsupported")), None,
+        )
+        row = {
+            "task_id": str(t.get("task_id") or "—"),
+            "question": str(t.get("question") or "")[:200],
+            "ground_truth": gt[:200],
+            "claims": claims,
+            "wrong_claim": wrong["text"] if wrong else None,
+            "wrong_claim_verdict": wrong["verdict"] if wrong else None,
+            "wrong_claim_source": wrong["source"] if wrong else None,
+            "explained_by": "template",
+        }
+        if explainer is not None:
+            try:
+                authored = explainer({
+                    "task_id": row["task_id"], "question": row["question"],
+                    "response": resp[:1500], "ground_truth": gt[:600],
+                    "context_chunks": [c[:400] for c in chunks[:8]],
+                    "template_explanation": dict(row),
+                })
+                if isinstance(authored, dict) and isinstance(authored.get("claims"), list):
+                    row["claims"] = authored["claims"][:20]
+                    row["wrong_claim"] = authored.get("wrong_claim", row["wrong_claim"])
+                    row["explained_by"] = "explainer"
+            except Exception:  # pragma: no cover - explainer is user code
+                pass
+        out.append(row)
+    return out or None
+
+
 def _failure_lineage_section(
     tasks: list[dict[str, Any]], baseline: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
@@ -4494,6 +4625,7 @@ def build_insights(
     repo_path: str | Path = ".",
     narrator: Any = None,
     fixer: Any = None,
+    explainer: Any = None,
     targets: dict[str, Any] | None = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
@@ -4513,6 +4645,9 @@ def build_insights(
         repo_path: git repo path for ``with_experiment_metadata``.
         narrator: optional ``Callable[[insights_dict], str]`` — swaps the
             deterministic ``narrative`` for LLM-authored text (template fallback).
+        explainer: optional ``Callable[[payload], dict|None]`` (SPEC-041 P47) —
+            swaps the deterministic claim-level breakdown on
+            ``failure_explanations`` for an LLM/NLI-backed one. Template fallback.
         fixer: optional ``Callable[[payload], dict|None]`` (SPEC-041 P36) — given
             ``{gate, cluster_signature, prompt_text, evidence[], template_proposal}``
             it may return a concrete ``{kind, before, after, rationale,
@@ -4582,6 +4717,9 @@ def build_insights(
         "failure_clusters": fclusters,
         "failure_segments": fsegments,
         "failure_triggers": _safe(_failure_triggers_section, tasks, default=None),
+        "failure_explanations": _safe(
+            _failure_explanations_section, tasks, explainer=explainer, default=None,
+        ),
         "failure_lineage": failure_lineage,
         "insight_changes": _safe(
             _insight_changes_section, current, baseline, security_findings,

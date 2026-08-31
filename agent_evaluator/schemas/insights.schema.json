@@ -298,6 +298,36 @@
       }
     },
 
+    "failure_explanations": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["task_id", "claims"],
+        "properties": {
+          "task_id": { "type": "string" },
+          "question": { "type": "string" },
+          "ground_truth": { "type": "string" },
+          "claims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "text": { "type": "string" },
+                "verdict": { "type": "string" },
+                "source": { "type": "string" }
+              }
+            }
+          },
+          "wrong_claim": { "type": ["string", "null"] },
+          "wrong_claim_verdict": { "type": ["string", "null"] },
+          "wrong_claim_source": { "type": ["string", "null"] },
+          "explained_by": { "enum": ["template", "explainer"] }
+        }
+      }
+    },
+
     "failure_triggers": {
       "type": ["array", "null"],
       "items": {

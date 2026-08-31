@@ -23,6 +23,7 @@ def test_load_save_roundtrip_and_coerce(tmp_path):
     save_targets({"gates": {"a": 0.85, "Z": 0.9, "E": 2.0}, "tcr_pct": 90,
                   "junk": "x"}, p)
     t = load_targets(p)
+    assert t is not None
     assert t["gates"] == {"A": 0.85}          # 'Z' dropped, E=2.0 out of range
     assert t["tcr_pct"] == 90.0
     assert "junk" not in t
@@ -33,6 +34,7 @@ def test_save_deep_merges_gates(tmp_path):
     save_targets({"gates": {"A": 0.8}}, p)
     save_targets({"gates": {"C": 0.75}, "tcr_pct": 88}, p)
     t = load_targets(p)
+    assert t is not None
     assert t["gates"] == {"A": 0.8, "C": 0.75} and t["tcr_pct"] == 88.0
 
 
@@ -125,7 +127,9 @@ def test_target_cli_set_show_clear(tmp_path, capsys):
         tcr=90.0, accuracy=None, max_cost_per_task=0.03, note="slo", path=f,
     ))
     assert rc == 0
-    assert load_targets(f)["gates"] == {"A": 0.85, "E": 0.95}
+    loaded = load_targets(f)
+    assert loaded is not None
+    assert loaded["gates"] == {"A": 0.85, "E": 0.95}
     cmd_target(argparse.Namespace(target_command="show", as_json=True, path=f))
     assert '"A": 0.85' in capsys.readouterr().out
     cmd_target(argparse.Namespace(target_command="clear", path=f))
