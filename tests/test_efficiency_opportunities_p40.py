@@ -42,6 +42,7 @@ def test_model_routing_when_cheap_variant_is_close():
     ]}]
     ce = build_insights({**cur, "tasks": tasks})["cost_economics"]
     eo = _efficiency_opportunities_section(tasks, cur, ce, ms, None)
+    assert eo is not None
     kinds = {o["kind"] for o in eo}
     assert "model_routing" in kinds
     r = next(o for o in eo if o["kind"] == "model_routing")
@@ -81,6 +82,7 @@ def test_retry_reduction_uses_cost_economics():
           {"signature": "low accuracy", "count": 2}]
     tasks = [_t(f"t{i}", 0.9, True) for i in range(10)]
     eo = _efficiency_opportunities_section(tasks, {}, ce, None, fc)
+    assert eo is not None
     r = next(o for o in eo if o["kind"] == "retry_reduction")
     assert "18%" in r["title"]
     assert "error: TimeoutError" in r["detail"]

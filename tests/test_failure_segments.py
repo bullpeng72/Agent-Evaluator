@@ -74,6 +74,7 @@ class TestFailureSegments:
 
     def test_segment_fields(self):
         segs = _failure_segments_section(_dataset())
+        assert segs is not None
         s = segs[0]
         assert s["n"] >= 2
         assert 0 < s["share_of_failures_pct"] <= 100
@@ -90,17 +91,22 @@ class TestFailureSegments:
     def test_deterministic(self):
         a = _failure_segments_section(_dataset())
         b = _failure_segments_section(_dataset())
+        assert a is not None and b is not None
         assert [s["task_ids"] for s in a] == [s["task_ids"] for s in b]
 
 
 class TestFailureTriggers:
     def test_tool_failure_pinned_to_step(self):
-        trigs = {t["task_id"]: t for t in _failure_triggers_section(_dataset())}
+        _trigs = _failure_triggers_section(_dataset())
+        assert _trigs is not None
+        trigs = {t["task_id"]: t for t in _trigs}
         assert trigs["h1"]["kind"] == "tool_failure"
         assert "order_api" in trigs["h1"]["detail"] and "Step 2" in trigs["h1"]["detail"]
 
     def test_retrieval_gap_detected(self):
-        trigs = {t["task_id"]: t for t in _failure_triggers_section(_dataset())}
+        _trigs = _failure_triggers_section(_dataset())
+        assert _trigs is not None
+        trigs = {t["task_id"]: t for t in _trigs}
         assert trigs["f1"]["kind"] in ("retrieval_gap", "grounding")
         assert trigs["f1"]["detail"]
 

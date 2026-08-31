@@ -471,6 +471,24 @@ likely 주황/blocked 초록) + compound 행 하이라이트(CRITICAL COMPOUND �
 `security_findings[].{succeeded,kind,components}` + `cwe` array 허용 + `security_posture`.
 `test_security_compound_p42.py`(7). 전체 4590 통과.
 
+**SPEC-041 P43 (사용자 정의 목표/SLO)** — `.aoo/targets.json`(`{gate_default?, gates?{A:0.85,…},
+tcr_pct?, accuracy_pct?, cost_per_task_usd?, note?}`, 모든 키 optional). 신규 `utils/targets.py`:
+`load_targets(path)`(누락/손상 시 None) · `save_targets`(shallow merge, `gates`는 deep) ·
+`gate_target(targets, gate, default=0.7)`(per-gate > gate_default > SDK 기본) · `is_user_defined()`.
+신규 `agent-eval target {set,show,clear}`(`cli/targets.py`). `build_insights(current, *,
+targets=None)` → `_verdict_section`·`_readiness_section`에 전달. verdict: SDK pass 라인은 넘지만
+사용자 바(bar)엔 못 미치는 게이트를 `below_user_target_gates`로, headline은 "below your target",
+`targets_source`("user"/"builtin")·`targets` 노출. readiness: `_gt(k)`(=per-gate 목표)로 gaps의
+`target`/`gap`, fix_plan 투영, `ready_after`·`p_ready` 부트스트랩, note 문구("your target") 전부
+재계산; `targets_source`·`per_gate_targets` 노출. `_narrative_from_template`은 verdict.headline을
+그대로 써서 자동 반영. `monitor.save_to_file()`·리포트 두 진입점·`agent-eval gate`가 CWD의
+`.aoo/targets.json`을 자동 로드. `agent-eval gate`: `--gate-thresholds` 미지정 시 targets의
+`gates`로 임계값 구성, `--tcr`/`--accuracy`/`--max-cost-per-task`/`--min-gate-score` 미지정 시
+targets에서 채움(명시 인수가 이김), "Using targets from .aoo/targets.json" 출력. 리포트
+`_build_readiness`: targets_source=user면 "Measured against your targets" 배너 + Target 열은
+per-row 값. 스키마 `verdict.{below_user_target_gates,targets_source,targets}` +
+`readiness.{targets_source,per_gate_targets}`. `test_user_targets_p43.py`(10). 전체 4600 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

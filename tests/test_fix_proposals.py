@@ -76,6 +76,7 @@ def test_validate_rejects_bad_kind():
     assert _validate_proposal("not a dict") is None
     ok = _validate_proposal({"kind": "prompt_edit", "before": "a", "after": "b",
                              "rationale": "r", "evidence_task_ids": ["x", "y"]})
+    assert ok is not None
     assert ok["kind"] == "prompt_edit" and ok["evidence_task_ids"] == ["x", "y"]
     assert ok["authored_by"] == "template"
 

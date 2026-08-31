@@ -64,6 +64,7 @@ class TestCohortComparison:
             ("v3", _rep("v3", {"qa": 0.50, "rag": 0.30})),
         ]
         cc = _cohort_comparison_section(labelled, metric="tcr")
+        assert cc is not None
         assert cc["n_versions"] == 3
         assert {v["label"] for v in cc["versions"]} == {"v1", "v2", "v3"}
         assert len(cc["pairwise"]) == 3            # 3 unordered pairs
@@ -82,6 +83,7 @@ class TestCohortComparison:
             ("low", _rep("low", {"qa": 0.30}, n_per_type=40)),
         ]
         cc = _cohort_comparison_section(labelled)
+        assert cc is not None
         assert cc["winner"]["label"] == "winner"
         assert "significant" in cc["winner"]["reason"]
 
@@ -92,6 +94,7 @@ class TestCohortComparison:
             ("c", _rep("c", {"qa": 0.40}, n_per_type=15)),
         ]
         cc = _cohort_comparison_section(labelled)
+        assert cc is not None
         assert cc["winner"]["label"] is None
         assert "not significant" in cc["winner"]["reason"]
 

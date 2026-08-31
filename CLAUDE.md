@@ -66,6 +66,11 @@ agent-eval experiment register --gate A --field avg_subtask_completion --predict
 agent-eval experiment list                                 # show open/resolved hypotheses
 agent-eval experiment score v3.json --baseline v2.json --persist  # score open hypotheses vs baseline, write verdicts back
 
+agent-eval target set --gate A=0.85 --gate E=0.95 --tcr 90        # pin project SLOs in .aoo/targets.json (SPEC-041 P43)
+agent-eval target show                                            # print current targets
+# once set: `agent-eval gate` uses them (unless --gate-thresholds given) and every
+# "below target" line in the report / insights measures against your bar, not 0.7
+
 # Quality
 pytest
 ruff check agent_evaluator/
@@ -196,11 +201,11 @@ agent_evaluator/
 Gate A–G results stored under `extra_metrics.harness_groups` in JSON result files.
 결과 JSON 최상위에 `schema_version`("1.1", SPEC-041 P4.3) — 소비자가 필드 형태 변화에 대응하도록. breaking change 시 major 증가.
 
-**`extra_metrics.insights`** — machine-readable insight layer (L5/L6). `reporting/insights.py::build_insights(current, baseline=None, *, recommendation_log_path=None, experiments_log_path=None, with_experiment_metadata=False, repo_path=".", narrator=None, fixer=None, cohort=None, cohort_metric="tcr")` re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`, the `gates/*` aggregates, `rca.recommendation_tracking`/`verify`) into one JSON-serializable dict. **No new scoring formulas. Never raises** — a section that fails to compute is omitted or `null`.
+**`extra_metrics.insights`** — machine-readable insight layer (L5/L6). `reporting/insights.py::build_insights(current, baseline=None, *, recommendation_log_path=None, experiments_log_path=None, with_experiment_metadata=False, repo_path=".", narrator=None, fixer=None, targets=None, cohort=None, cohort_metric="tcr")` re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`, the `gates/*` aggregates, `rca.recommendation_tracking`/`verify`) into one JSON-serializable dict. **No new scoring formulas. Never raises** — a section that fails to compute is omitted or `null`.
 
 - **Attached / served by:** `monitor.save_to_file()` → `extra_metrics.insights`; `serve/routers/diagnose.py` → `result["insights"]` (dashboard Improve tab); consumed by `cli/gate.py` (`--digest`, `--fail-on-case-regression`, `--max-review-high`, `--notify`). The static HTML report renders the same content via its own `_build_*` helpers (content parity — `insights` is the machine channel).
 - **Schema is the contract:** `agent_evaluator/schemas/insights.schema.json` (Draft 2020-12; every object `additionalProperties:true` for forward-compat; nullable sections typed `["object"|"array","null"]`). `tests/test_insights_schema.py` validates several scenarios. Result JSON also carries top-level `schema_version` ("1.1"); bump major on a breaking field-shape change.
-- **Hooks (opt-in, never auto-applied):** `narrator=Callable[[insights_dict], str]` replaces the deterministic `narrative`; `fixer=Callable[[payload], dict|None]` replaces the deterministic `recommendations[].proposal`. Bad return / exception → deterministic fallback.
+- **Hooks (opt-in, never auto-applied):** `narrator=Callable[[insights_dict], str]` replaces the deterministic `narrative`; `fixer=Callable[[payload], dict|None]` replaces the deterministic `recommendations[].proposal`; `targets` (dict from `utils.targets.load_targets()`, or the auto-loaded `.aoo/targets.json`) makes `verdict`/`readiness` measure against the user's per-gate/TCR bar instead of 0.7. Bad return / exception → deterministic fallback.
 
 Top-level keys (`build_insights()` output): `schema_version` · `detection_mode` · `verdict` · `narrative` · `narrative_audit` · `briefs` · `readiness` · `metric_confidence` · `evaluator_trust` · `review_queue` · `gate_findings` · `failure_clusters` · `failure_segments` · `failure_triggers` · `failure_lineage` · `regression_attribution` · `recommendations` (`[].proposal`) · `latency_budget` · `efficiency_opportunities` · `rag_localization` · `slice_analysis` · `metadata_slices` · `sample_guidance` · `reproducibility_manifest` · `cost_economics` · `calibration` · `security_findings` · `security_posture` · `score_breakdowns` · `trajectories` · `experiments` · `conversation` · `multiagent` · `eval_set_quality` · `cohort_comparison` · `trace_diffs` · `insight_changes` · `freshness` · `change_attribution` · `nondeterminism` · `shared_cause_explanations` · `newly_unmeasured_gates` · `experiment_metadata`.
 

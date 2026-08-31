@@ -18,12 +18,14 @@ def test_ece_perfect_calibration_is_zero():
     # confidence == accuracy in every bucket
     pairs = [(0.9, 1.0)] * 9 + [(0.9, 0.0)] * 1 + [(0.2, 0.0)] * 8 + [(0.2, 1.0)] * 2
     ece = expected_calibration_error(pairs)
+    assert ece is not None
     assert ece["ece"] < 0.05
 
 
 def test_ece_overconfident_is_large():
     pairs = [(0.95, 1.0 if i < 6 else 0.0) for i in range(10)]   # 95% stated, 60% real
     ece = expected_calibration_error(pairs)
+    assert ece is not None
     assert ece["ece"] > 0.3
     assert ece["mce"] >= ece["ece"]
 
@@ -40,6 +42,7 @@ def test_risk_coverage_falls_when_confidence_informative():
     # high confidence => right, low => wrong
     pairs = [(0.9, 1.0)] * 10 + [(0.3, 0.0)] * 10
     rc = risk_coverage_points(pairs)
+    assert rc is not None
     assert rc[0]["risk"] > rc[-1]["risk"]        # keeping only the confident half -> less risk
 
 
@@ -65,6 +68,7 @@ def test_overconfident_verdict_and_bins():
     tasks = [_t(f"g{i}", 0.9, conf=0.7) for i in range(5)]          # under-stated, right
     tasks += [_t(f"b{i}", 0.1, conf=0.95) for i in range(6)]        # over-stated, wrong
     cal = _calibration_section(tasks)
+    assert cal is not None
     assert cal["verdict"] == "overconfident"
     assert cal["confidence_gap"] > 0.1
     assert cal["n_with_confidence"] == 11
@@ -77,6 +81,7 @@ def test_abstention_block():
     tasks += [_t("ab1", 0.0, abstained=True, gt="proper ground truth")]
     tasks += [_t("ab2", 0.0, abstained=True, gt="x")]              # not answerable (short gt)
     cal = _calibration_section(tasks)
+    assert cal is not None
     ab = cal["abstention"]
     assert ab["n_abstained"] == 2
     assert ab["abstained_when_answerable"] == 1

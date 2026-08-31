@@ -104,6 +104,7 @@ def test_b3_goal_drift_signal_removed():
         ("How long until I see the money?", "Refunds post within 3 business days."),
     ], topic=0.1)
     cv = _conversation_section({"conversation_sessions": [healthy]})
+    assert cv is not None
     assert "goal_drift_sessions" not in cv
     # degradation_after_turn still covers "the session went bad"
     assert "degradation_after_turn" in cv
@@ -118,6 +119,7 @@ def test_b4_trace_diff_uses_nearest_prior():
                            "response": f"resp {lbl}", "completion_score": 1.0 if acc > 0.5 else 0.3,
                            "accuracy_score": acc, "success": acc > 0.5}]}
     td = _trace_diffs_section(run("v3", 0.2), [run("v1", 0.9), run("v2", 0.85)])
+    assert td is not None
     assert td[0]["compared"] == ["v2", "v3"]
 
 
@@ -142,6 +144,7 @@ def test_b6_warn_only_note_has_no_failing_wording():
           "C": {"score": 0.63, "status": "warn", "gate": "warn", "details": {}},
           "D": {"score": 0.64, "status": "warn", "gate": "warn", "details": {}}}
     rd = _readiness_section(tasks, hg)
+    assert rd is not None
     note = rd["projected_ready_after"]["note"]
     assert "failing gate" not in note
     assert "D (Performance Contract)" in note  # structural blocker called out
@@ -182,6 +185,7 @@ def test_i1_readiness_merges_signature_across_task_types():
                  "partial_reason": "error: TimeoutError"} for i in range(2)])
     rd = _readiness_section(tasks, {"A": {"score": 0.55, "status": "fail",
                                           "gate": "fail", "details": {}}})
+    assert rd is not None
     to_rows = [r for r in rd["fix_plan"] if r["signature"] == "error: TimeoutError"]
     assert len(to_rows) == 1
     assert to_rows[0]["count"] == 4
@@ -193,6 +197,7 @@ def test_i1_readiness_merges_signature_across_task_types():
         "failure_segments": [], "recommendations": [], "security_findings": [],
         "freshness": {},
     })
+    assert br is not None
     eng = [e for e in br["engineer"] if "TimeoutError" in e]
     assert len(eng) == 1
     assert "4 task(s)" in eng[0]
@@ -263,6 +268,7 @@ def test_b2b_insight_changes_uses_full_signature_sets():
              + [_t("grd", 0.5, 0.2, False, "answer not grounded in the retrieved context")])
     ic = _insight_changes_section(cur, base, None, None,
                                   cur["extra_metrics"]["harness_groups"])
+    assert ic is not None
     assert "only part of a multi-step answer completed" in ic["resolved_clusters"]
     assert "answer not grounded in the retrieved context" in ic["new_clusters"]
     assert "error: TimeoutError" not in ic["resolved_clusters"]
@@ -275,6 +281,7 @@ def test_b3_readiness_note_shows_projected_scores():
     hg = {"A": {"score": 0.58, "status": "fail", "gate": "fail", "details": {}},
           "D": {"score": 0.62, "status": "warn", "gate": "warn", "details": {}}}
     rd = _readiness_section(tasks, hg)
+    assert rd is not None
     pr = rd["projected_ready_after"]
     assert "projected_gate_scores" in pr and "A" in pr["projected_gate_scores"]
     assert "plan_fixes_projected" in pr
@@ -298,6 +305,7 @@ def test_conversation_per_session_and_best():
                             "session_completion": ov}}
 
     cv = _conversation_section({"conversation_sessions": [_s("lo", 0.2), _s("hi", 0.9)]})
+    assert cv is not None
     assert [s["session_id"] for s in cv["sessions"]] == ["lo", "hi"]  # worst first
     assert cv["best_session"]["session_id"] == "hi"
     assert cv["worst_session"]["session_id"] == "lo"

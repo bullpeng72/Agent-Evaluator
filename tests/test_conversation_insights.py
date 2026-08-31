@@ -53,6 +53,7 @@ class TestConversationSection:
 
     def test_turn_trajectory_and_context_ref_decline(self):
         cv = _conversation_section({"conversation_sessions": [_session("s1", _DEGRADING)]})
+        assert cv is not None
         traj = cv["turn_quality_trajectory"]
         assert [x["turn"] for x in traj] == [1, 2, 3, 4, 5, 6]
         # context reference is high early, low late
@@ -60,11 +61,13 @@ class TestConversationSection:
 
     def test_degradation_after_turn_detected(self):
         cv = _conversation_section({"conversation_sessions": [_session("s1", _DEGRADING)]})
+        assert cv is not None
         assert isinstance(cv["degradation_after_turn"], int)
         assert 1 <= cv["degradation_after_turn"] <= 4
 
     def test_no_degradation_for_a_healthy_session(self):
         cv = _conversation_section({"conversation_sessions": [_session("ok", _GOOD)]})
+        assert cv is not None
         assert cv["degradation_after_turn"] is None
 
     def test_goal_drift_field_removed(self):
@@ -78,12 +81,14 @@ class TestConversationSection:
                  "I cannot check live weather."),
             ], topic=0.2),
         ]})
+        assert cv is not None
         assert "goal_drift_sessions" not in cv
 
     def test_healthy_multiturn_qa_has_no_drift_noise(self):
         cv = _conversation_section({"conversation_sessions": [
             _session("clean", _GOOD, topic=0.1),
         ]})
+        assert cv is not None
         assert "goal_drift_sessions" not in cv
 
     def test_worst_session_is_lowest_overall(self):
@@ -91,6 +96,7 @@ class TestConversationSection:
             _session("hi", _GOOD, overall=0.9),
             _session("lo", _GOOD, overall=0.3),
         ]})
+        assert cv is not None
         assert cv["worst_session"]["session_id"] == "lo"
 
 

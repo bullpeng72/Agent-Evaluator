@@ -48,6 +48,7 @@ _HG = {
 class TestReadinessSection:
     def test_gaps_cover_fail_and_warn_gates(self):
         rd = _readiness_section(_tasks(), _HG)
+        assert rd is not None
         assert {g["gate"] for g in rd["gaps"]} == {"A", "C", "D"}
         a = next(g for g in rd["gaps"] if g["gate"] == "A")
         assert a["gap"] == round(0.7 - 0.58, 3)
@@ -56,6 +57,7 @@ class TestReadinessSection:
 
     def test_tcr_driven_gate_gets_projection_structural_does_not(self):
         rd = _readiness_section(_tasks(), _HG)
+        assert rd is not None
         a = next(g for g in rd["gaps"] if g["gate"] == "A")
         d = next(g for g in rd["gaps"] if g["gate"] == "D")
         assert "projected_score_after_plan" in a and a["estimate"] is True
@@ -63,6 +65,7 @@ class TestReadinessSection:
 
     def test_fix_plan_ordered_by_size_with_cumulative_projection(self):
         rd = _readiness_section(_tasks(), _HG)
+        assert rd is not None
         fp = rd["fix_plan"]
         assert [i["count"] for i in fp] == [4, 3, 1]
         assert [i["rank"] for i in fp] == [1, 2, 3]
@@ -76,6 +79,7 @@ class TestReadinessSection:
 
     def test_effort_hint_and_target_gates(self):
         rd = _readiness_section(_tasks(), _HG)
+        assert rd is not None
         ms = next(i for i in rd["fix_plan"] if "multi-step" in i["signature"])
         assert "SubtaskConfig" in ms["effort_hint"] and ms["targets_gates"] == ["A"]
         to = next(i for i in rd["fix_plan"] if i["signature"].startswith("error:"))
@@ -83,6 +87,7 @@ class TestReadinessSection:
 
     def test_structural_blocker_called_out(self):
         rd = _readiness_section(_tasks(), _HG)
+        assert rd is not None
         pr = rd["projected_ready_after"]
         assert pr["remaining_structural_blockers"] == ["D"]
         assert "not driven by task outcomes" in pr["note"]
@@ -97,6 +102,7 @@ class TestReadinessSection:
         # only Gate A fails, and the fix plan can clear it
         hg = {"A": {"score": 0.6, "status": "fail", "gate": "fail", "details": {}}}
         rd = _readiness_section(_tasks(), hg)
+        assert rd is not None
         pr = rd["projected_ready_after"]
         assert pr["ready_after_n_items"] is not None
         assert pr["remaining_structural_blockers"] == []

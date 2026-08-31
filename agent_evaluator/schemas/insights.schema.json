@@ -39,6 +39,9 @@
         "failing_gates": { "type": "array", "items": { "type": "string" } },
         "warning_gates": { "type": "array", "items": { "type": "string" } },
         "passing_gates": { "type": "array", "items": { "type": "string" } },
+        "below_user_target_gates": { "type": "array", "items": { "type": "string" } },
+        "targets_source": { "enum": ["user", "builtin"] },
+        "targets": { "type": ["object", "null"] },
         "confidence": { "type": ["string", "null"], "enum": ["high", "medium", "low", null] },
         "confidence_reasons": { "type": "array", "items": { "type": "string" } },
         "next_actions": {
@@ -62,6 +65,8 @@
       "additionalProperties": true,
       "properties": {
         "target_gate_score": { "type": "number" },
+        "targets_source": { "enum": ["user", "builtin"] },
+        "per_gate_targets": { "type": ["object", "null"] },
         "current_tcr_pct": { "type": ["number", "null"] },
         "current_accuracy_pct": { "type": ["number", "null"] },
         "gaps": {

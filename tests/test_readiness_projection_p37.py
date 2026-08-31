@@ -58,6 +58,7 @@ def test_fix_plan_rows_have_projection_vector_and_roi():
 def test_data_fix_has_higher_roi_than_grounding_for_similar_gap():
     tasks, hg = _run()
     rd = _readiness_section(tasks, hg)
+    assert rd is not None
     by_sig = {r["signature"]: r for r in rd["fix_plan"]}
     # a cheap data fix (weight 1) should out-ROI a med-effort fix per unit gap
     if "low ground_truth similarity" in by_sig and "error: TimeoutError" in by_sig:
@@ -66,7 +67,9 @@ def test_data_fix_has_higher_roi_than_grounding_for_similar_gap():
 
 def test_projected_ready_after_has_bootstrap_fields():
     tasks, hg = _run()
-    pr = _readiness_section(tasks, hg)["projected_ready_after"]
+    rd = _readiness_section(tasks, hg)
+    assert rd is not None
+    pr = rd["projected_ready_after"]
     assert "p_ready" in pr and 0.0 <= pr["p_ready"] <= 1.0
     assert pr["likely_fix_count"] is None or pr["likely_fix_count"] >= 1
 

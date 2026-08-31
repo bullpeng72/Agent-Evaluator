@@ -75,6 +75,7 @@ class TestMetadataSlices:
         cur = [_task(i, i % 2 == 0, model="gpt-a" if i < 5 else "gpt-b") for i in range(10)]
         base_tasks = [_task(i, True, model="gpt-a" if i < 5 else "gpt-b") for i in range(10)]
         ms = _metadata_slices_section(cur, {"tasks": base_tasks})
+        assert ms is not None
         model_dim = next(d for d in ms if d["dimension"] == "extra.model")
         assert any("tcr_delta_pp" in s and s["tcr_delta_pp"] < 0 for s in model_dim["slices"])
 
@@ -100,6 +101,7 @@ class TestSampleGuidance:
         sg = _sample_guidance_section(
             {"n_tasks": 12, "tcr_ci_halfwidth": 0.09, "tcr_pct": 60.0}
         )
+        assert sg is not None
         assert sg["additional_tasks"] > 0
         assert "tighten" in sg["message"]
         assert sg["recommended_n"] > 12
@@ -108,6 +110,7 @@ class TestSampleGuidance:
         sg = _sample_guidance_section(
             {"n_tasks": 500, "tcr_ci_halfwidth": 0.02, "tcr_pct": 60.0}
         )
+        assert sg is not None
         assert sg["additional_tasks"] == 0
 
     def test_none_without_ci(self):
@@ -176,9 +179,12 @@ class TestReproducibilityManifest:
     def test_manifest_hash_is_stable(self):
         from agent_evaluator import PerformanceMonitor
 
-        kw = dict(output_dir="/tmp", model_name="m")
-        a = PerformanceMonitor(**kw)._build_lineage()["reproducibility_manifest"]
-        b = PerformanceMonitor(**kw)._build_lineage()["reproducibility_manifest"]
+        a = PerformanceMonitor(output_dir="/tmp", model_name="m")._build_lineage()[
+            "reproducibility_manifest"
+        ]
+        b = PerformanceMonitor(output_dir="/tmp", model_name="m")._build_lineage()[
+            "reproducibility_manifest"
+        ]
         assert a["evaluator_config_hash"] == b["evaluator_config_hash"]
 
 

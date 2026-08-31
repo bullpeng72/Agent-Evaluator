@@ -4243,11 +4243,13 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
             if isinstance(after, (int, float)) else "—"
         )
         gname = _esc(g.get("gate_name", ""))
+        _row_tgt = g.get("target")
+        _tgt_s = f'{_row_tgt:.2f}' if isinstance(_row_tgt, (int, float)) else f'{tgt:.2f}'
         gap_rows += (
             f'<tr><td style="font-weight:600">Gate {g.get("gate")} '
             f'<span style="color:#6b7280;font-weight:400">{gname}</span></td>'
             f'<td style="text-align:right;color:{col};font-weight:700">{sc_cell}</td>'
-            f'<td style="text-align:right;color:#6b7280">{tgt:.2f}</td>'
+            f'<td style="text-align:right;color:#6b7280">{_tgt_s}</td>'
             f'<td style="text-align:right;color:{col};font-weight:700">{gap_cell}</td>'
             f'<td style="text-align:right;color:#059669">{after_cell}</td></tr>'
         )
@@ -4310,9 +4312,15 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
     cur_tcr = rd.get("current_tcr_pct")
     cur_line = f'Current TCR {cur_tcr:.1f}%. ' if isinstance(cur_tcr, (int, float)) else ""
 
+    _tgt_note = (
+        '<p style="font-size:11px;color:#6b7280;margin:0 0 6px">Measured against '
+        '<strong>your targets</strong> (.aoo/targets.json), not the built-in 0.7.</p>'
+        if rd.get("targets_source") == "user" else ""
+    )
     return (
         '<div class="gate-section" id="path-to-green" style="border-left-color:#dc2626">'
         '<h2 style="color:#1e2030">Path to Green</h2>'
+        f'{_tgt_note}'
         '<h3 style="margin:6px 0 4px">Gate gaps</h3>'
         '<table class="mtable"><thead><tr><th>Gate</th><th>Now</th><th>Target</th>'
         '<th>Gap</th><th>After plan</th></tr></thead>'
@@ -5471,9 +5479,14 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
     _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
+        try:
+            from agent_evaluator.utils.targets import load_targets
+            _targets = load_targets()      # .aoo/targets.json (SPEC-041 P43)
+        except Exception:
+            _targets = None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-            experiments_log_path=experiments_log_path, cohort=cohort,
+            experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -5721,9 +5734,14 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
     _insights_obj: dict[str, Any] = {}
     try:
         from agent_evaluator.reporting.insights import build_insights as _build_insights
+        try:
+            from agent_evaluator.utils.targets import load_targets
+            _targets = load_targets()      # .aoo/targets.json (SPEC-041 P43)
+        except Exception:
+            _targets = None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
-            experiments_log_path=experiments_log_path, cohort=cohort,
+            experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:

@@ -1125,6 +1125,7 @@ def _verdict_section(
     n_tasks: int,
     evaluator_trust: dict[str, Any] | None = None,
     security_findings: list[dict[str, Any]] | None = None,
+    targets: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     fails, warns, passes = [], [], []
     for k in "ABCDEFG":
@@ -1137,19 +1138,40 @@ def _verdict_section(
         elif st == "pass":
             passes.append(k)
 
+    # P43: gates that clear the built-in line but fall short of a stricter *user*
+    # target — a "caution", not an SDK fail.
+    _user = False
+    below_user_target: list[str] = []
+    try:
+        from agent_evaluator.utils.targets import gate_target, is_user_defined
+
+        _user = is_user_defined(targets)
+        if _user:
+            for k in "ABCDEFG":
+                if k in fails or k in warns:
+                    continue
+                sc = _safe_float((harness_groups.get(k) or {}).get("score"))
+                if sc is not None and sc < gate_target(targets, k) - 1e-9:
+                    below_user_target.append(k)
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+    _bar = " your target" if _user else " target"
     if fails:
         level = "not_ready"
         headline = f"{len(fails)} Gate(s) failing: " + ", ".join(
             f"{k} ({_GATE_FULL[k]})" for k in fails
         )
-    elif warns:
+    elif warns or below_user_target:
         level = "caution"
-        headline = f"{len(warns)} Gate(s) below target: " + ", ".join(
-            f"{k} ({_GATE_FULL[k]})" for k in warns
+        _lo = warns + below_user_target
+        headline = f"{len(_lo)} Gate(s) below{_bar}: " + ", ".join(
+            f"{k} ({_GATE_FULL[k]})" for k in _lo
         )
     elif passes:
         level = "ready"
-        headline = f"All {len(passes)} measured Gates pass."
+        headline = (f"All {len(passes)} measured Gates meet{_bar}."
+                    if _user else f"All {len(passes)} measured Gates pass.")
     else:
         level = "unknown"
         headline = "No Harness Gate data — pass Harness Config to get a verdict."
@@ -1195,7 +1217,7 @@ def _verdict_section(
             })
             break
 
-    for k in (fails + warns)[:3]:
+    for k in (fails + warns + below_user_target)[:3]:
         sf = list(shortfalls_by_gate.get(k) or [])
         # push low-sample components to the back so a solidly-measured shortfall wins
         sf.sort(key=lambda s: _is_low_sample(s.get("field", "")))
@@ -1251,6 +1273,9 @@ def _verdict_section(
         "failing_gates": fails,
         "warning_gates": warns,
         "passing_gates": passes,
+        "below_user_target_gates": below_user_target,
+        "targets_source": "user" if _user else "builtin",
+        "targets": targets if _user else None,
         "confidence": conf_level,
         "confidence_reasons": conf_reasons,
         "next_actions": next_actions,
@@ -1323,17 +1348,32 @@ _PROJ_SEED = 12345
 def _readiness_section(
     tasks: list[dict[str, Any]],
     harness_groups: dict[str, Any],
+    targets: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """P29: quantified distance to a passing verdict + an impact-ordered fix
     plan with a deterministic projection. ``None`` when there is nothing to
-    plan (no failing/warning gate and no failure cluster)."""
+    plan (no failing/warning gate and no failure cluster). P43: measures against
+    the user's per-gate target when ``targets`` is given, else the built-in 0.7."""
+    try:
+        from agent_evaluator.utils.targets import gate_target, is_user_defined
+    except Exception:  # pragma: no cover - defensive
+        gate_target = lambda _t, _k, default=_READINESS_TARGET: default  # noqa: E731
+        is_user_defined = lambda _t: False  # noqa: E731
+    _user_targets = is_user_defined(targets)
+
+    def _gt(k: str) -> float:
+        return gate_target(targets, k, _READINESS_TARGET)
+
     fails, warns = [], []
     for k in "ABCDEFG":
         st = _gate_status(harness_groups.get(k))
+        sc = _safe_float((harness_groups.get(k) or {}).get("score"))
         if st == "fail":
             fails.append(k)
         elif st == "warn":
             warns.append(k)
+        elif _user_targets and sc is not None and sc < _gt(k) - 1e-9:
+            warns.append(k)          # clears the SDK line but not the user's bar
     if not tasks:
         return None
 
@@ -1451,8 +1491,8 @@ def _readiness_section(
                 gate_moves[k] = False
 
         _gap_closed_pp = sum(
-            max(0.0, min(_READINESS_TARGET, proj_gate_scores[k])
-                - min(_READINESS_TARGET, _cur_scores[k])) * 100.0
+            max(0.0, min(_gt(k), proj_gate_scores[k])
+                - min(_gt(k), _cur_scores[k])) * 100.0
             for k in below_all if k in _TCR_DRIVEN_GATES
         )
         _eff = _effort_weight_for_sig(sig)
@@ -1497,7 +1537,7 @@ def _readiness_section(
             gain = item["projected_tcr_after_pct"] / 100.0 - (cur_tcr or 0.0)
             if all(
                 (_safe_float((harness_groups.get(k) or {}).get("score")) or 0.0) + gain
-                >= _READINESS_TARGET
+                >= _gt(k)
                 for k in tcr_blockers
             ):
                 ready_after = item["rank"]
@@ -1516,8 +1556,8 @@ def _readiness_section(
             "gate": k,
             "gate_name": _GATE_FULL.get(k, k),
             "score": None if score is None else round(score, 3),
-            "target": _READINESS_TARGET,
-            "gap": None if score is None else round(_READINESS_TARGET - score, 3),
+            "target": round(_gt(k), 3),
+            "gap": None if score is None else round(_gt(k) - score, 3),
             "blocking": k in fails,
         }
         if score is not None and k in _TCR_DRIVEN_GATES:
@@ -1547,7 +1587,7 @@ def _readiness_section(
             _hit: int | None = None
             for r in range(1, len(fix_plan) + 1):
                 _g = sum(lf for lf in lift_by_rank[r] if _rng2.random() < _p) / total
-                if all(_cur_scores[k] + _g >= _READINESS_TARGET for k in tcr_blockers):
+                if all(_cur_scores[k] + _g >= _gt(k) for k in tcr_blockers):
                     _hit = r
                     break
             _clear_ranks.append(_hit)
@@ -1557,20 +1597,21 @@ def _readiness_section(
             likely_fix_count = Counter(_hits).most_common(1)[0][0]
 
     _word = "warning" if _only_warn else "failing"
+    _tgt = "your target" if _user_targets else "target"
     if not tcr_blockers and not other_blockers:
-        note = ("No gate is below target; the fix plan is ordered by how much TCR "
+        note = (f"No gate is below {_tgt}; the fix plan is ordered by how much TCR "
                 "each cluster is costing you.")
     elif ready_after is not None and not other_blockers:
         note = (f"Closing the top {ready_after} cluster(s) is projected to bring "
-                f"every {_word} gate to target ({_proj_str}; estimate — assumes "
+                f"every {_word} gate to {_tgt} ({_proj_str}; estimate — assumes "
                 f"those tasks then pass and nothing else moves).")
     elif other_blockers:
         _head = (
             f"Closing the top {ready_after} cluster(s) is projected to bring the "
-            f"TCR-driven gate(s) to target ({_proj_str}). "
+            f"TCR-driven gate(s) to {_tgt} ({_proj_str}). "
             if (ready_after is not None and tcr_blockers) else
             (f"The full fix plan lifts the TCR-driven gate(s) to about "
-             f"{_proj_str}, still short of target. " if tcr_blockers else "")
+             f"{_proj_str}, still short of {_tgt}. " if tcr_blockers else "")
         )
         note = (_head + "Gate(s) "
                 + ", ".join(f"{k} ({_GATE_FULL.get(k, k)})" for k in other_blockers)
@@ -1578,10 +1619,14 @@ def _readiness_section(
                 "them; address them from their own Gate section.")
     else:
         note = (f"The full fix plan lifts the {_word} TCR-driven gate(s) to about "
-                f"{_proj_str} — still short of target, more or deeper fixes needed.")
+                f"{_proj_str} — still short of {_tgt}, more or deeper fixes needed.")
 
     return {
         "target_gate_score": _READINESS_TARGET,
+        "targets_source": "user" if _user_targets else "builtin",
+        "per_gate_targets": (
+            {k: round(_gt(k), 3) for k in (fails + warns)} if _user_targets else None
+        ),
         "current_tcr_pct": None if cur_tcr is None else round(cur_tcr * 100.0, 1),
         "current_accuracy_pct": None if cur_acc is None else round(cur_acc * 100.0, 1),
         "gaps": gaps,
@@ -4361,6 +4406,7 @@ def build_insights(
     repo_path: str | Path = ".",
     narrator: Any = None,
     fixer: Any = None,
+    targets: dict[str, Any] | None = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
 ) -> dict[str, Any]:
@@ -4384,6 +4430,11 @@ def build_insights(
             it may return a concrete ``{kind, before, after, rationale,
             evidence_task_ids}`` fix proposal that replaces the deterministic one
             on ``recommendations[].proposal``. Never auto-applied.
+        targets: optional user targets/SLOs (SPEC-041 P43) —
+            ``{gate_default?, gates?{A:0.85,…}, tcr_pct?, accuracy_pct?,
+            cost_per_task_usd?}`` (typically ``utils.targets.load_targets()``).
+            When set, ``verdict`` and ``readiness`` measure against this bar
+            instead of the built-in 0.7.
 
     Returns:
         A JSON-serializable dict — see ``INSIGHTS_SCHEMA_VERSION``. Never raises;
@@ -4426,9 +4477,9 @@ def build_insights(
         "detection_mode": (diagnosis or {}).get("detection_mode", "absolute_threshold"),
         "verdict": _safe(
             _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust,
-            security_findings, default={},
+            security_findings, targets, default={},
         ),
-        "readiness": _safe(_readiness_section, tasks, hg, default=None),
+        "readiness": _safe(_readiness_section, tasks, hg, targets, default=None),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
         "review_queue": _safe(

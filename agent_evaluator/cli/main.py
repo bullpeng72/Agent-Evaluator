@@ -38,6 +38,7 @@ from agent_evaluator.cli.diagnose import cmd_diagnose
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
 from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
+from agent_evaluator.cli.targets import build_target_subparser, cmd_target
 from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
 from agent_evaluator.config import (
     DEFAULTS,
@@ -1249,6 +1250,9 @@ def main() -> None:
     # experiment subcommand (SPEC-041 P27)
     build_experiment_subparser(sub)
 
+    # target subcommand (SPEC-041 P43)
+    build_target_subparser(sub)
+
     # abtest subcommand
     build_abtest_subparser(sub)
 
@@ -1275,6 +1279,7 @@ def main() -> None:
         "trend":     cmd_trend,
         "claims":    cmd_claims,
         "experiment": cmd_experiment,
+        "target":    cmd_target,
         "abtest":    cmd_abtest,
     }
 

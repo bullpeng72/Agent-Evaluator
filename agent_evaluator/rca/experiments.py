@@ -236,8 +236,8 @@ def recalibrated_delta(
         ``(delta, n_samples)`` — ``n_samples`` is how many past outcomes fed the
         blend (0 when the heuristic passed through).
     """
-    hits = [
-        e.get("actual_delta")
+    hits: list[float] = [
+        float(e["actual_delta"])
         for e in experiments
         if e.get("status") == "resolved"
         and str(e.get("target_gate")) == str(target_gate)

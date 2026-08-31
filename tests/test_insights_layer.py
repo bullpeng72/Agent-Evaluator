@@ -201,6 +201,7 @@ class TestRagLocalization:
             ground_truth="The company headquarters is located in Berlin, Germany since 2019.",
             accuracy=0.1,
         )
+        assert res is not None
         assert res["klass"] == "retrieval_miss"
 
     def test_grounding_miss_when_context_ignored(self):
@@ -211,6 +212,7 @@ class TestRagLocalization:
             ground_truth="Total revenue in 2023 was 4.2 billion USD across all regions.",
             accuracy=0.2,
         )
+        assert res is not None
         assert res["klass"] == "grounding_miss"
         assert res["unsupported_claims"]
 
@@ -225,6 +227,7 @@ class TestRagLocalization:
             ground_truth="Total revenue in 2023 was 4.2 billion USD across all regions.",
             accuracy=0.45,
         )
+        assert res is not None
         assert res["klass"] == "generation_error"
 
     def test_none_when_no_context(self):

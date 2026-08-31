@@ -83,23 +83,31 @@ class TestJudgeTrustDemotion:
 
 class TestMdeTwoProportions:
     def test_smaller_sample_larger_mde(self):
-        assert mde_two_proportions(20, 20, 0.5) > mde_two_proportions(400, 400, 0.5)
+        small = mde_two_proportions(20, 20, 0.5)
+        large = mde_two_proportions(400, 400, 0.5)
+        assert small is not None and large is not None
+        assert small > large
 
     def test_zero_sample_returns_none(self):
         assert mde_two_proportions(0, 10) is None
 
     def test_typical_small_run_is_coarse(self):
         # n=24 per arm can only reliably detect a ~40pp swing at 80% power
-        assert 0.30 < mde_two_proportions(24, 24, 0.5) < 0.55
+        mde = mde_two_proportions(24, 24, 0.5)
+        assert mde is not None
+        assert 0.30 < mde < 0.55
 
 
 class TestBootstrapDiffCI:
     def test_clear_difference_excludes_zero(self):
-        lo, hi = bootstrap_diff_ci([1.0] * 18 + [0.0] * 2, [0.0] * 18 + [1.0] * 2)
+        ci = bootstrap_diff_ci([1.0] * 18 + [0.0] * 2, [0.0] * 18 + [1.0] * 2)
+        assert ci is not None
+        lo, _hi = ci
         assert lo > 0  # a is clearly higher
 
     def test_no_difference_spans_zero(self):
         ci = bootstrap_diff_ci([1.0, 0.0] * 15, [1.0, 0.0] * 15)
+        assert ci is not None
         assert ci[0] <= 0 <= ci[1]
 
     def test_too_few_samples_returns_none(self):

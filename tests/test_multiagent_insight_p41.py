@@ -34,6 +34,7 @@ def test_per_agent_and_bottleneck():
     tasks = [_t(f"ok{i}", _crew(True)) for i in range(3)]
     tasks += [_t(f"bad{i}", _crew(False)) for i in range(3)]
     ma = _multiagent_section(tasks)
+    assert ma is not None
     assert ma["n_agents"] == 3
     ids = {pa["agent_id"] for pa in ma["per_agent"]}
     assert ids == {"supervisor", "researcher", "writer"}
@@ -45,6 +46,7 @@ def test_per_agent_and_bottleneck():
 
 def test_handoffs_and_communication_graph():
     ma = _multiagent_section([_t(f"t{i}", _crew(True)) for i in range(4)])
+    assert ma is not None
     pairs = {(h["from"], h["to"]) for h in ma["handoffs"]}
     assert ("supervisor", "researcher") in pairs
     assert ("researcher", "writer") in pairs
@@ -62,6 +64,7 @@ def test_low_retention_yields_mast_1_4():
         {"from": "c", "to": "a", "success": True, "message": "one two three four five"},
     ]
     ma = _multiagent_section([_t(f"t{i}", ai) for i in range(4)])
+    assert ma is not None
     codes = {m["code"] for m in ma["mast_candidates"]}
     assert "1.4" in codes
 
@@ -74,6 +77,7 @@ def test_ping_pong_cycle_yields_mast_1_5():
         {"from": "b", "to": "a", "success": True, "message": "need more info"},
     ]
     ma = _multiagent_section([_t(f"t{i}", ai) for i in range(4)])
+    assert ma is not None
     codes = {m["code"] for m in ma["mast_candidates"]}
     assert "1.5" in codes
 

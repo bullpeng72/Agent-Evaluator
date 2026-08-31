@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import jsonschema
 
@@ -118,7 +119,8 @@ class TestNarrativeAudit:
 
 class TestSchemaAndReport:
     def test_schema_valid(self):
-        for kwargs in ({}, {"narrator": lambda _d: "deployment-ready, TCR 99%"}):
+        cases: list[dict[str, Any]] = [{}, {"narrator": lambda _d: "deployment-ready, TCR 99%"}]
+        for kwargs in cases:
             ins = build_insights(_failing_report(), **kwargs)
             json.dumps(ins)
             schema = json.loads(

@@ -706,13 +706,13 @@ def _print_rca_explain(data: dict[str, Any]) -> None:
     print()
 
 
-def _print_narrative(data: dict[str, Any]) -> None:
+def _print_narrative(data: dict[str, Any], targets: dict[str, Any] | None = None) -> None:
     """Print the plain-English insight narrative (SPEC-041 P17) — the 2-4
     sentences a QA lead pastes into a release ticket. Silent on any failure."""
     try:
         from agent_evaluator.reporting.insights import build_insights
 
-        narrative = (build_insights(data) or {}).get("narrative", "")
+        narrative = (build_insights(data, targets=targets) or {}).get("narrative", "")
     except Exception:
         return
     if not narrative or not narrative.strip():
@@ -726,7 +726,7 @@ def _print_narrative(data: dict[str, Any]) -> None:
     print(f"  {_SEP}")
 
 
-def _print_digest(data: dict[str, Any]) -> None:
+def _print_digest(data: dict[str, Any], targets: dict[str, Any] | None = None) -> None:
     """SPEC-041 P34: the audience-targeted briefs (PM / QA / engineer) after the
     gate table. Silent on any failure."""
     import textwrap
@@ -734,7 +734,7 @@ def _print_digest(data: dict[str, Any]) -> None:
     try:
         from agent_evaluator.reporting.insights import build_insights
 
-        briefs = (build_insights(data) or {}).get("briefs") or {}
+        briefs = (build_insights(data, targets=targets) or {}).get("briefs") or {}
     except Exception:
         return
     if not briefs:
@@ -761,6 +761,7 @@ def _print_digest(data: dict[str, Any]) -> None:
 
 def _compute_gate_insights(
     data: dict[str, Any], args: argparse.Namespace, baseline_path: Path | None,
+    targets: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """SPEC-041 P26: build the ``insights`` object for the case-regression /
     review-queue gate and the ``--notify`` payload.
@@ -791,7 +792,7 @@ def _compute_gate_insights(
     try:
         from agent_evaluator.reporting.insights import build_insights
 
-        return build_insights(data, baseline_result)
+        return build_insights(data, baseline_result, targets=targets)
     except Exception:
         return None
 
@@ -992,6 +993,31 @@ def cmd_gate(args: argparse.Namespace) -> int:
         print(f"{RD}❌ Failed to parse JSON: {exc}{R}", file=sys.stderr)
         return 1
 
+    # ── 사용자 목표(.aoo/targets.json) 자동 적용 (SPEC-041 P43) ──────────────
+    # 명시적으로 준 인수가 이긴다; 안 준 것만 targets에서 채운다.
+    try:
+        from agent_evaluator.utils.targets import load_targets
+
+        _tg = load_targets(getattr(args, "targets_path", None) or ".aoo/targets.json")
+    except Exception:  # pragma: no cover - defensive
+        _tg = None
+    if _tg:
+        if getattr(args, "tcr", None) is None and _tg.get("tcr_pct") is not None:
+            args.tcr = float(_tg["tcr_pct"])
+        if getattr(args, "accuracy", None) is None and _tg.get("accuracy_pct") is not None:
+            args.accuracy = float(_tg["accuracy_pct"])
+        if (getattr(args, "max_cost_per_task", None) is None
+                and _tg.get("cost_per_task_usd") is not None):
+            args.max_cost_per_task = float(_tg["cost_per_task_usd"])
+        if not getattr(args, "gate_thresholds", None) and isinstance(_tg.get("gates"), dict):
+            args.gate_thresholds = ",".join(
+                f"{k}:{v}" for k, v in _tg["gates"].items()
+            )
+        if (getattr(args, "min_gate_score", None) is None
+                and _tg.get("gate_default") is not None):
+            args.min_gate_score = float(_tg["gate_default"])
+        print(f"  {D}Using targets from .aoo/targets.json{R}")
+
     # ── 메트릭 추출 ─────────────────────────────────────────────────────────
     metrics = _load_metrics(data)
     # SPEC-010 REQ-1: Harness Gate A-G 점수도 미리 로드해 둔다 — --save-baseline(저장)과
@@ -1144,11 +1170,11 @@ def cmd_gate(args: argparse.Namespace) -> int:
     _print_table(gate_results, str(result_file), regressions if regressions else None, composite_result)
 
     # ── Plain-English summary (SPEC-041 P17) ────────────────────────────────
-    _print_narrative(data)
+    _print_narrative(data, _tg)
 
     # ── Audience briefs (SPEC-041 P34) ─────────────────────────────────────
     if getattr(args, "digest", False):
-        _print_digest(data)
+        _print_digest(data, _tg)
 
     # ── RCA 요약 (SPEC-041 P2.2) ────────────────────────────────────────────
     # 실패(임계값/복합/Gate임계값/회귀/골든셋) 시 기본 표시, --explain은 항상, --no-explain은 억제.
@@ -1182,7 +1208,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     _max_review_high = getattr(args, "max_review_high", None)
     _notify_targets = getattr(args, "notify", None) or []
     if _fail_on_case or _max_review_high is not None or _notify_targets:
-        _p26_insights = _compute_gate_insights(data, args, baseline_path)
+        _p26_insights = _compute_gate_insights(data, args, baseline_path, _tg)
         _lineage = (_p26_insights or {}).get("failure_lineage")
         _regressed = (_lineage or {}).get("regressed") or []
         if _fail_on_case:
@@ -1243,7 +1269,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # ── 알림 발송 (SPEC-041 P26) — 종료 코드에는 영향 없음 ──────────────────
     if _notify_targets:
         if _p26_insights is None:
-            _p26_insights = _compute_gate_insights(data, args, baseline_path)
+            _p26_insights = _compute_gate_insights(data, args, baseline_path, _tg)
         try:
             from agent_evaluator.alerts import dispatch_gate_result
 

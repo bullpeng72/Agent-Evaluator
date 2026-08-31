@@ -5252,10 +5252,17 @@ class PerformanceMonitor:
 
             _rec_log = self.output_dir / "recommendation_outcomes.jsonl"
             _exp_log = Path(".aoo/experiments.jsonl")
+            try:
+                from ...utils.targets import load_targets
+
+                _targets = load_targets()          # .aoo/targets.json (SPEC-041 P43)
+            except Exception:
+                _targets = None
             _insights = build_insights(
                 data, None,
                 recommendation_log_path=(_rec_log if _rec_log.exists() else None),
                 experiments_log_path=(_exp_log if _exp_log.is_file() else None),
+                targets=_targets,
             )
             _em = data.get("extra_metrics")
             if not isinstance(_em, dict):
