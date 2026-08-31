@@ -142,6 +142,20 @@ class TestBuildInsightsValidates:
         # expensive / baseline sections are absent in partial mode
         assert "cohort_comparison" not in ins and "longitudinal" not in ins
 
+    def test_reference_frame_section(self, schema):
+        # P53 — external reference distribution
+        rpt = _report(
+            {"A": {"score": 0.72, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"t{i}", ok=i % 4 != 0) for i in range(20)],
+        )
+        ref = {"label": "support-rag",
+               "tcr_pct": {"p10": 62, "p25": 70, "p50": 78, "p75": 85, "p90": 91},
+               "gate_scores": {"A": [0.71, 0.74, 0.77, 0.80, 0.83]}}
+        ins = build_insights(rpt, reference=ref)
+        self._check(schema, ins)
+        assert ins["reference_frame"] is not None
+        assert ins["reference_frame"]["metrics"]
+
     def test_judge_robustness_section(self, schema):
         # P52 — multi-judge runs in extra_metrics.judge_runs
         rpt = _report(

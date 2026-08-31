@@ -30,6 +30,7 @@ except PackageNotFoundError:
 
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
+from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchmark
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli.experiment import build_experiment_subparser, cmd_experiment
 from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
@@ -1257,6 +1258,9 @@ def main() -> None:
     # improve subcommand (SPEC-041 P49)
     build_improve_subparser(sub)
 
+    # benchmark subcommand (SPEC-041 P53)
+    build_benchmark_subparser(sub)
+
     # abtest subcommand
     build_abtest_subparser(sub)
 
@@ -1285,6 +1289,7 @@ def main() -> None:
         "experiment": cmd_experiment,
         "target":    cmd_target,
         "improve":   cmd_improve,
+        "benchmark": cmd_benchmark,
         "abtest":    cmd_abtest,
     }
 

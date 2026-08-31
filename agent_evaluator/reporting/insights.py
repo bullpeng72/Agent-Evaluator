@@ -520,7 +520,8 @@ def _cost_economics_section(
 
     agg_total = None
     em = (current.get("efficiency_metrics") or {}) if isinstance(current, dict) else {}
-    tok = em.get("tokens") if isinstance(em.get("tokens"), dict) else {}
+    _tok = em.get("tokens")
+    tok = _tok if isinstance(_tok, dict) else {}
     if isinstance(tok.get("total_cost"), (int, float)):
         agg_total = float(tok["total_cost"])
 
@@ -682,7 +683,7 @@ def _efficiency_opportunities_section(
             nm: (sum(v) / len(v) if v else 0.0) for nm, v in span_ms.items()
         }
         # never suggest gating the single most expensive step — that's the core work
-        _core = max(_means, key=_means.get) if _means else None
+        _core = max(_means, key=lambda nm: _means[nm]) if _means else None
         _ubiq = sorted(
             (nm for nm, c in span_count.items()
              if c / n_timed >= _STEP_UBIQUITY and c >= 5 and nm != _core),
@@ -1059,7 +1060,7 @@ def _evaluator_trust_section(
                               f"{jvh['agreement_rate'] * 100:.0f}%")
     if calib is not None:
         kappas = [
-            v.get("cohen_kappa_quadratic")
+            float(v["cohen_kappa_quadratic"])
             for v in (calib.get("dimensions") or {}).values()
             if isinstance(v, dict) and isinstance(v.get("cohen_kappa_quadratic"), (int, float))
         ]
@@ -1263,7 +1264,7 @@ def _score_breakdowns_section(
             row["judge_overall"] = sc.get("overall")
             row["judge_reasoning"] = str(j.get("reasoning") or "")[:300] or None
             dims = {
-                k: sc.get(k) for k in
+                k: float(sc[k]) for k in
                 ("completeness", "relevance", "factual_consistency", "faithfulness")
                 if isinstance(sc.get(k), (int, float))
             }
@@ -1273,7 +1274,7 @@ def _score_breakdowns_section(
                 signals.update({f"judge.{k}": v / 5.0 for k, v in dims.items()})
 
         if signals:
-            row["weakest_signal"] = min(signals, key=signals.get)
+            row["weakest_signal"] = min(signals, key=lambda k: signals[k])
         out.append(row)
     return out or None
 
@@ -1333,7 +1334,7 @@ def rag_localization(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
         "n_borderline": n_borderline,
         "borderline_task_ids": borderline_task_ids[:15],
         "by_class": dict(by_class),
-        "dominant_failure": (max(failing, key=failing.get) if failing else None),
+        "dominant_failure": (max(failing, key=lambda k: failing[k]) if failing else None),
         "remediation_by_class": {
             k: _RAG_REMEDIATION[k] for k in failing if k in _RAG_REMEDIATION
         },
@@ -1996,6 +1997,127 @@ def _readiness_section(
     }
 
 
+def _reference_frame_section(
+    current: dict[str, Any],
+    harness_groups: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    reference: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """P53: where this run sits against an external reference distribution
+    (``.aoo/reference.json``) — percentile + gap to the frontier. Pure lookup,
+    no new scoring. ``None`` when no reference is configured."""
+    try:
+        from agent_evaluator.utils.reference import (
+            is_defined,
+            percentile_of,
+            reference_frontier,
+            reference_median,
+        )
+    except Exception:  # pragma: no cover - defensive
+        return None
+    if not is_defined(reference):
+        return None
+
+    comps = [_safe_float(t.get("completion_score")) for t in tasks]
+    comps = [c for c in comps if c is not None]
+    cur_tcr = (sum(comps) / len(comps) * 100.0) if comps else None
+
+    def _one(label: str, value: Any, entry: Any, *, pct_scale: bool) -> dict[str, Any] | None:
+        if not isinstance(value, (int, float)) or entry is None:
+            return None
+        med = reference_median(entry)
+        front = reference_frontier(entry)
+        pctile = percentile_of(value, entry)
+        gap = None if med is None else round(value - med, 3 if not pct_scale else 1)
+        vd = "at reference"
+        if med is not None:
+            tol = 1.0 if pct_scale else 0.01
+            vd = ("above reference" if value > med + tol
+                  else "below reference" if value < med - tol else "at reference")
+        return {
+            "metric": label,
+            "value": round(value, 3 if not pct_scale else 1),
+            "reference_median": med,
+            "reference_frontier": front,
+            "percentile": pctile,
+            "gap": gap,
+            "gap_to_frontier": None if front is None else round(value - front,
+                                                               3 if not pct_scale else 1),
+            "verdict": vd,
+        }
+
+    rows: list[dict[str, Any]] = []
+    tcr_row = _one("tcr", cur_tcr, reference.get("tcr_pct"), pct_scale=True)
+    if tcr_row:
+        rows.append(tcr_row)
+    for k in "ABCDEFG":
+        sc = _safe_float((harness_groups.get(k) or {}).get("score"))
+        ent = (reference.get("gate_scores") or {}).get(k)
+        r = _one(f"gate_{k.lower()}", sc, ent, pct_scale=False)
+        if r:
+            rows.append(r)
+    if not rows:
+        return None
+
+    below = [r["metric"] for r in rows if r["verdict"] == "below reference"]
+
+    # weakest metric relative to the reference: lowest percentile among those that
+    # have one, else the largest *relative* shortfall vs the frontier (pp and
+    # score scales are not comparable, so normalise by the frontier value).
+    def _rel_short(r: dict[str, Any]) -> float:
+        f = r.get("reference_frontier")
+        g = r.get("gap_to_frontier")
+        if not isinstance(f, (int, float)) or not isinstance(g, (int, float)) or f == 0:
+            return 0.0
+        return g / abs(f)
+
+    with_pct = [r for r in rows if isinstance(r.get("percentile"), int)]
+    weakest = None
+    if with_pct:
+        weakest = min(with_pct, key=lambda r: r["percentile"])
+    else:
+        cand = [r for r in rows if _rel_short(r) < 0]
+        weakest = min(cand, key=_rel_short) if cand else None
+
+    tcr_pctile = tcr_row.get("percentile") if tcr_row else None
+    bits = []
+    if tcr_pctile is not None:
+        bits.append(f"TCR is p{tcr_pctile} vs the "
+                    f"'{reference.get('label', 'reference')}' reference")
+    elif tcr_row and tcr_row.get("gap") is not None:
+        bits.append(f"TCR is {tcr_row['gap']:+.1f}pp vs the reference point")
+    if weakest is not None and weakest["verdict"] == "below reference":
+        wp = weakest.get("percentile")
+        wtxt = (f"{_pretty_metric_name(weakest['metric'])} is the weakest at "
+                + (f"p{wp}" if isinstance(wp, int)
+                   else f"{_rel_short(weakest) * 100:.0f}% below the frontier"))
+        bits.append(wtxt)
+    elif not below:
+        bits.append("every measured metric is at or above the reference")
+
+    return {
+        "label": reference.get("label"),
+        "source": reference.get("source"),
+        "metrics": rows,
+        "below_reference": below,
+        "furthest_from_frontier": (
+            {"metric": weakest["metric"], "percentile": weakest.get("percentile"),
+             "gap": weakest.get("gap_to_frontier"),
+             "frontier": weakest.get("reference_frontier")}
+            if weakest is not None and weakest["verdict"] == "below reference" else None
+        ),
+        "summary": "; ".join(bits) or "reference comparison unavailable",
+    }
+
+
+def _pretty_metric_name(m: str) -> str:
+    if m == "tcr":
+        return "TCR"
+    if m.startswith("gate_"):
+        return "Gate " + m.split("_", 1)[1].upper()
+    return m
+
+
 def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {"n_tasks": len(tasks)}
     comps = [_safe_float(t.get("completion_score")) for t in tasks]
@@ -2055,7 +2177,7 @@ def _running_verdict_section(
     try:
         from agent_evaluator.utils.targets import gate_target
     except Exception:  # pragma: no cover - defensive
-        def gate_target(_t: Any, _k: str, default: float = 0.7) -> float:
+        def gate_target(targets: Any, gate: str, default: float = 0.7) -> float:
             return default
 
     target_tcr = 70.0
@@ -2698,11 +2820,11 @@ def _failure_segments_section(
         if len(grp) < _SEG_MIN_MEMBERS:
             leftovers.extend(grp)
             continue
-        term_mass: Counter = Counter()
+        term_mass: dict[str, float] = defaultdict(float)
         for tid in grp:
             for term, w in vecs[tid].items():
                 term_mass[term] += w
-        kw = [t for t, _ in term_mass.most_common(5)]
+        kw = [t for t, _ in sorted(term_mass.items(), key=lambda kv: -kv[1])[:5]]
         members = [by_id[tid] for tid in grp if tid in by_id]
         reasons = Counter(_reason_signature(_task_reason(m)) for m in members)
         example = min(
@@ -3258,7 +3380,7 @@ def _past_outcomes(outs: list[dict[str, Any]]) -> dict[str, Any] | None:
     conf = [o for o in outs if o.get("verdict") == "confirmed"]
     ref = [o for o in outs if o.get("verdict") == "refuted"]
     deltas = [
-        o.get("gate_delta") for o in conf
+        float(o["gate_delta"]) for o in conf
         if isinstance(o.get("gate_delta"), (int, float))
     ]
     avg_d = round(sum(deltas) / len(deltas), 4) if deltas else None
@@ -4110,7 +4232,8 @@ def _labelled_cohort(
     """[(label, report), …] for [current] + cohort — de-dupes labels."""
     out: list[tuple[str, dict[str, Any]]] = []
     used: set[str] = set()
-    for idx, rep in enumerate([current, *(cohort or [])]):
+    reps: list[dict[str, Any]] = [current, *(cohort or [])]
+    for idx, rep in enumerate(reps):
         base = _version_label(rep, "current" if idx == 0 else f"v{idx + 1}")
         lbl, n = base, 2
         while lbl in used:
@@ -4733,7 +4856,7 @@ def _change_attribution_section(
     cur_l, base_l = _lineage(current), _lineage(baseline)
 
     prompt_changed = False
-    prompt_diff = None
+    prompt_diff: dict[str, Any] | None = None
     cp, bp = cur_l.get("prompt_text"), base_l.get("prompt_text")
     if isinstance(cp, str) and isinstance(bp, str):
         prompt_changed = cur_l.get("prompt_hash") != base_l.get("prompt_hash") or cp != bp
@@ -4741,7 +4864,7 @@ def _change_attribution_section(
             prompt_diff = _prompt_line_diff(bp, cp)
 
     config_changed = False
-    config_diff = None
+    config_diff: dict[str, Any] | None = None
     cc, bc = cur_l.get("config_snapshot"), base_l.get("config_snapshot")
     if isinstance(cc, dict) and isinstance(bc, dict):
         changed_keys = {
@@ -4773,9 +4896,11 @@ def _change_attribution_section(
     bits: list[str] = []
     if prompt_changed and prompt_diff:
         bits.append(f"the system prompt changed ({prompt_diff['similarity'] * 100:.0f}% similar)")
-    if config_changed:
+    if config_changed and config_diff:
         bits.append(f"{len(config_diff['changed_keys'])} config key(s) changed")
-    if git and not (prompt_changed or config_changed):
+    if git and isinstance(fc, str) and isinstance(tc, str) and not (
+        prompt_changed or config_changed
+    ):
         bits.append(f"code changed ({fc[:8]}..{tc[:8]})")
     move_txt = ""
     if largest_move and largest_move["gate"]:
@@ -4813,7 +4938,7 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
     v = ins.get("verdict") or {}
     parts: list[str] = []
 
-    phrase = _NARRATIVE_VERDICT_PHRASE.get(v.get("level"), "Evaluation complete")
+    phrase = _NARRATIVE_VERDICT_PHRASE.get(str(v.get("level") or ""), "Evaluation complete")
     head = v.get("headline") or ""
     conf = v.get("confidence")
     s1 = f"{phrase}"
@@ -4884,6 +5009,17 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
         parts.append(extras[0][0].upper() + extras[0][1:] + (
             f"; {extras[1]}." if len(extras) > 1 else "."
         ))
+
+    rfr = ins.get("reference_frame") or {}
+    rf_tcr = next((m for m in (rfr.get("metrics") or []) if m.get("metric") == "tcr"), None)
+    if rf_tcr and isinstance(rf_tcr.get("percentile"), int):
+        s = (f"Against the '{rfr.get('label', 'reference')}' reference, TCR sits at "
+             f"p{rf_tcr['percentile']}")
+        ff = rfr.get("furthest_from_frontier")
+        if ff and isinstance(ff.get("percentile"), int):
+            s += (f"; {_pretty_metric_name(ff['metric'])} is the weakest at "
+                  f"p{ff['percentile']}")
+        parts.append(s + ".")
 
     cal = ins.get("calibration") or {}
     if (cal.get("verdict") == "overconfident"
@@ -5289,6 +5425,7 @@ def build_insights(
     fixer: Any = None,
     explainer: Any = None,
     targets: dict[str, Any] | None = None,
+    reference: dict[str, Any] | None = None,
     history_dir: str | Path | None = None,
     current_file: str | Path | None = None,
     cohort: list[dict[str, Any]] | None = None,
@@ -5323,6 +5460,10 @@ def build_insights(
             cost_per_task_usd?}`` (typically ``utils.targets.load_targets()``).
             When set, ``verdict`` and ``readiness`` measure against this bar
             instead of the built-in 0.7.
+        reference: optional external reference distribution (SPEC-041 P53) —
+            ``utils.reference.load_reference()`` shape (``.aoo/reference.json``).
+            When set, ``reference_frame`` reports the run's percentile + gap to
+            the frontier against it.
         partial: SPEC-041 P50 — when ``True``, return only the cheap,
             baseline-free subset for a run *in progress*: a ``running_verdict``
             (Wilson-CI pass-rate vs target + a ``decisive`` early-stop flag),
@@ -5380,6 +5521,9 @@ def build_insights(
         "readiness": _safe(_readiness_section, tasks, hg, targets, default=None),
         "threshold_sensitivity": _safe(
             _threshold_sensitivity_section, hg, tasks, targets, default=None,
+        ),
+        "reference_frame": _safe(
+            _reference_frame_section, current, hg, tasks, reference, default=None,
         ),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,

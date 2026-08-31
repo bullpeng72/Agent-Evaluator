@@ -635,6 +635,32 @@ self-consistency)의 cross-model 축 보완. 스키마 `judge_robustness`. 리�
 태스크 표. TOC "Judge robustness". `test_judge_robustness_p52.py`(8) + `test_insights_schema.py` 시나리오.
 전체 4671 통과.
 
+## Round 8 — P53–P62 (8th gap analysis, user approved "순서대로 구현")
+
+8번째 정밀 분석이 찾은 4개 축의 gap: (A) 외부 기준 프레임 부재(모든 판정이 절대 임계값 또는
+자기 baseline), (B) 얕은 근본원인 taxonomy, (C) run 간 학습 부재, (D) insight 객체 수준의
+통계적 정직성. 로드맵 P53–P62, Tier 3(P54 production 대표성)는 외부 데이터 필요로 후순위.
+
+**SPEC-041 P53 (외부 기준 프레임)** — "TCR 78%가 좋은 건가?"에 앵커가 없던 문제. `utils/reference.py`
+(신규, stdlib) + `agent-eval benchmark {set,show,clear}`(`cli/benchmark.py`) → `.aoo/reference.json`.
+한 지표의 기준값은 숫자(단일 기준점) / 숫자 리스트(표본→퍼센타일 계산) / 퍼센타일 dict
+(`{p10,p25,p50,p75,p90}`) 중 하나. `benchmark set --from-results DIR`는 `scan_history`로 결과 JSON
+디렉터리를 훑어 TCR·게이트별 점수의 5점 퍼센타일 요약을 저장(자기 최고 이력 경로).
+`reporting/insights.py::_reference_frame_section(current, hg, tasks, reference)` →
+`insights.reference_frame{label, source, metrics[]{metric(tcr/gate_a..g), value, reference_median,
+reference_frontier(=p90 또는 그 점), percentile(list/dict일 때만, 0–100 보간), gap(=value−median),
+gap_to_frontier, verdict(above/at/below reference)}, below_reference[], furthest_from_frontier
+(percentile 있는 것 중 최저, 없으면 frontier 대비 상대 부족 최대), summary}`. pp 스케일(TCR)과
+score 스케일(게이트)을 섞어 정렬하지 않도록 weakest는 퍼센타일 우선, 폴백은 `gap_to_frontier/|frontier|`
+상대값. `build_insights(reference=)` 파라미터 + `monitor.save_to_file` / `cli/gate.py`(`_print_narrative`
+/`_print_digest`/`_compute_gate_insights`) / `comprehensive_report` 양 경로에서 `.aoo/reference.json`
+자동 로드(targets와 동일 패턴). 내러티브에 "Against the '<label>' reference, TCR sits at pNN; Gate X
+is the weakest at pMM" 문장 추가. 리포트 `_build_reference_frame()` 섹션 `reference-frame`
+(threshold-sensitivity 앞): 요약 + 지표별 표(This run / Percentile / Gap to median / Gap to frontier).
+TOC "Reference". 스키마 `reference_frame`. `test_reference_frame_p53.py`(12) +
+`test_insights_schema.py` 시나리오. gen_example_v2: `.aoo/reference.json`(support-rag-2026H1) 추가 —
+v3는 TCR p18 / Gate A p10로 렌더. 전체 4684 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

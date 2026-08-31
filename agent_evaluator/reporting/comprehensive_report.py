@@ -2738,7 +2738,7 @@ def _build_history_trend(results_dir: Any, current_file: Any = None) -> str:
         if not gs:
             continue
         series = [r["gate_scores"].get(g) for r in hist]
-        series = [s for s in series if isinstance(s, (int, float))]
+        series = [float(s) for s in series if isinstance(s, (int, float))]
         slope = gs["slope"]
         dec = gs["consecutive_decline"]
         col = "#dc2626" if slope < -0.02 else ("#059669" if slope > 0.02 else "#6b7280")
@@ -3789,7 +3789,7 @@ def _build_calibration(cal: dict[str, Any] | None) -> str:
             f'{p.get("coverage", 0) * 100:.0f}% cov → {p.get("risk", 0) * 100:.0f}% err'
             for p in _rc
         )
-        _sig = cal.get("confidence_signal")
+        _sig = str(cal.get("confidence_signal") or "")
         _inf_s = {
             "informative": ' <span style="color:#059669">— confidence carries '
                            'routing signal</span>',
@@ -4287,7 +4287,8 @@ _TOC_LABELS = {
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger",
-    "threshold-sensitivity": "Sensitivity", "conclusion": "Conclusion",
+    "reference-frame": "Reference", "threshold-sensitivity": "Sensitivity",
+    "conclusion": "Conclusion",
 }
 
 
@@ -4838,7 +4839,7 @@ def _rec_past_outcomes(recommendation_log_path: Any, gate: str) -> str:
         return ""
     conf = [o for o in outs if o.get("verdict") == "confirmed"]
     ref = [o for o in outs if o.get("verdict") == "refuted"]
-    deltas = [o.get("gate_delta") for o in conf if isinstance(o.get("gate_delta"), (int, float))]
+    deltas = [float(o["gate_delta"]) for o in conf if isinstance(o.get("gate_delta"), (int, float))]
     avg_d = (sum(deltas) / len(deltas)) if deltas else None
     last = outs[-1]
     _note = _esc((last.get("note") or last.get("recommendation_id") or "")[:80])
@@ -5336,6 +5337,51 @@ def _build_diagnosis(
         'HOTL — this section presents candidate causes and evidence only. '
         'The final judgment is yours.</p>'
         '</div>'
+    )
+
+
+def _build_reference_frame(rf: dict[str, Any] | None) -> str:
+    """P53: where this run sits against an external reference distribution
+    (.aoo/reference.json) — percentile + gap to the frontier."""
+    if not rf or not rf.get("metrics"):
+        return ""
+    label = rf.get("label") or "reference"
+    rows = ""
+    for m in rf["metrics"]:
+        name = m.get("metric", "")
+        disp = ("TCR" if name == "tcr"
+                else "Gate " + name.split("_", 1)[1].upper() if name.startswith("gate_")
+                else name)
+        pct = m.get("percentile")
+        pct_s = f"p{pct}" if isinstance(pct, int) else "—"
+        gap = m.get("gap")
+        is_pct = name == "tcr"
+        gap_s = ("—" if gap is None
+                 else f"{gap:+.1f}pp" if is_pct else f"{gap:+.3f}")
+        gtf = m.get("gap_to_frontier")
+        gtf_s = ("—" if gtf is None
+                 else f"{gtf:+.1f}pp" if is_pct else f"{gtf:+.3f}")
+        vc = {"above reference": "#059669", "at reference": "#6b7280",
+              "below reference": "#dc2626"}.get(m.get("verdict"), "#6b7280")
+        val = m.get("value")
+        val_s = (f"{val:.1f}%" if is_pct and isinstance(val, (int, float))
+                 else f"{val:.3f}" if isinstance(val, (int, float)) else "—")
+        rows += (
+            f'<tr><td>{_esc(disp)}</td>'
+            f'<td style="text-align:right">{val_s}</td>'
+            f'<td style="text-align:right;font-weight:700">{pct_s}</td>'
+            f'<td style="text-align:right;color:{vc}">{gap_s}</td>'
+            f'<td style="text-align:right;color:#6b7280">{gtf_s}</td></tr>'
+        )
+    src = f' <span style="color:#9ca3af">· {_esc(rf["source"])}</span>' if rf.get("source") else ""
+    return (
+        '<div class="gate-section" id="reference-frame" '
+        'style="border-left-color:#0d9488">'
+        f'<h2 style="color:#1e2030">Against the "{_esc(label)}" Reference</h2>{src}'
+        f'<p style="color:#6b7280;font-size:13px;margin:6px 0">{_esc(rf.get("summary", ""))}</p>'
+        '<table class="mtable"><thead><tr><th>Metric</th><th>This run</th>'
+        '<th>Percentile</th><th>Gap to median</th><th>Gap to frontier</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
     )
 
 
@@ -5841,10 +5887,15 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
             _targets = load_targets()      # .aoo/targets.json (SPEC-041 P43)
         except Exception:
             _targets = None
+        try:
+            from agent_evaluator.utils.reference import load_reference
+            _reference = load_reference()  # .aoo/reference.json (SPEC-041 P53)
+        except Exception:
+            _reference = None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
-            history_dir=_res_dir, current_file=_cur_file,
+            reference=_reference, history_dir=_res_dir, current_file=_cur_file,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -5934,6 +5985,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
+        _build_reference_frame(_insights_obj.get("reference_frame")),
         _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
@@ -6101,10 +6153,15 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
             _targets = load_targets()      # .aoo/targets.json (SPEC-041 P43)
         except Exception:
             _targets = None
+        try:
+            from agent_evaluator.utils.reference import load_reference
+            _reference = load_reference()  # .aoo/reference.json (SPEC-041 P53)
+        except Exception:
+            _reference = None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
-            history_dir=_res_dir, current_file=_cur_file,
+            reference=_reference, history_dir=_res_dir, current_file=_cur_file,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -6182,6 +6239,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
+        _build_reference_frame(_insights_obj.get("reference_frame")),
         _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',

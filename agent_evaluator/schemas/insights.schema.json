@@ -216,6 +216,35 @@
       }
     },
 
+    "reference_frame": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "label": { "type": ["string", "null"] },
+        "source": { "type": ["string", "null"] },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "metric": { "type": "string" },
+              "value": { "type": "number" },
+              "reference_median": { "type": ["number", "null"] },
+              "reference_frontier": { "type": ["number", "null"] },
+              "percentile": { "type": ["integer", "null"] },
+              "gap": { "type": ["number", "null"] },
+              "gap_to_frontier": { "type": ["number", "null"] },
+              "verdict": { "enum": ["above reference", "at reference", "below reference"] }
+            }
+          }
+        },
+        "below_reference": { "type": "array", "items": { "type": "string" } },
+        "furthest_from_frontier": { "type": ["object", "null"] },
+        "summary": { "type": "string" }
+      }
+    },
+
     "metric_confidence": {
       "type": "object",
       "additionalProperties": true,
