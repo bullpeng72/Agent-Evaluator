@@ -257,8 +257,10 @@ dev = [
     "jsonschema>=4.0.0",  # harness_groups 출력 계약(schemas/harness_groups.schema.json) contract test용
     # PYSEC-2026-3447: setuptools < 83.0.0 취약점 — pip-audit 차단. 빌드/venv baseline 패키지라
     # 여기서 하한을 걸어 CI(`pip install -e ".[dev]"`)가 안전한 버전을 끌어오게 한다.
-    # setuptools 81+ 는 Python 3.9+ 요구 → requires-python(3.8) 호환 위해 마커로 스코프.
-    "setuptools>=83.0.0; python_version >= '3.9'",
+    # setuptools 83.0.0+ 는 Requires-Python >=3.10 → requires-python(3.8) 호환 위해 마커로 스코프.
+    # Python 3.8/3.9 에는 83.0.0 이상이 아예 없으므로(설치 불가) 핀을 적용하지 않는다.
+    # pip-audit 는 3.11 에서만 도므로(security.yml) 커버리지 손실 없음.
+    "setuptools>=83.0.0; python_version >= '3.10'",
 ]
 
 # ────────────────────────────────────────────────────────────────────────────
