@@ -4023,6 +4023,44 @@ def _build_experiments(exps: list[dict[str, Any]] | None) -> str:
     )
 
 
+def _build_improvement_priors(ip: dict[str, Any] | None) -> str:
+    """P57: this project's track record per (gate, change-type) — folded from
+    the experiments + recommendation-outcome logs."""
+    if not ip or not ip.get("by_bucket"):
+        return ""
+    ov = ip.get("overall") or {}
+    rows = ""
+    for b in ip["by_bucket"]:
+        col, _lbl = _PRIOR_VERDICT_STYLE.get(b.get("verdict", ""), ("#6b7280", ""))
+        cr = b.get("confirm_rate")
+        cr_s = f"{cr * 100:.0f}%" if isinstance(cr, (int, float)) else "—"
+        md = b.get("mean_confirmed_delta")
+        md_s = f"{md:+.3f}" if isinstance(md, (int, float)) else "—"
+        rows += (
+            f'<tr><td>Gate {_esc(str(b.get("gate")))}</td>'
+            f'<td>{_esc(str(b.get("category", "")).replace("_", " "))}</td>'
+            f'<td style="text-align:right">{b.get("n")}</td>'
+            f'<td style="text-align:right">{b.get("confirmed")}/{b.get("refuted")}</td>'
+            f'<td style="text-align:right;color:{col};font-weight:600">{cr_s}</td>'
+            f'<td style="text-align:right">{md_s}</td>'
+            f'<td style="color:{col};font-size:12px">{_esc(b.get("verdict", ""))}</td></tr>'
+        )
+    ov_cr = ov.get("confirm_rate")
+    ov_s = f"{ov_cr * 100:.0f}%" if isinstance(ov_cr, (int, float)) else "—"
+    return (
+        '<div class="gate-section" id="improvement-priors" '
+        'style="border-left-color:#0891b2">'
+        '<h2 style="color:#1e2030">What Has Worked Here</h2>'
+        f'<p style="color:#6b7280;font-size:12px;margin:0 0 6px">{_esc(ip.get("note", ""))}. '
+        f'Overall {ov_s} of {ov.get("n_decisive", 0)} decisive change(s) confirmed. '
+        'Folded from the experiment + recommendation-outcome logs — counting, not a '
+        'ranking.</p>'
+        '<table class="mtable"><thead><tr><th>Gate</th><th>Change type</th><th>N</th>'
+        '<th>✓/✗</th><th>Confirm rate</th><th>Mean Δ</th><th>Verdict</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 _TD_VERDICT_STYLE = {
     "fixed": ("#059669", "✔ fixed"),
     "improved": ("#059669", "▲ improved"),
@@ -4330,6 +4368,7 @@ _TOC_LABELS = {
     "failure-explanations": "Wrong claims",
     "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
+    "improvement-priors": "What works",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "longitudinal": "Across runs",
     "insight-changes": "Insight diff",
@@ -5008,6 +5047,30 @@ def _rec_proposal_html(p: dict[str, Any] | None) -> str:
     )
 
 
+_PRIOR_VERDICT_STYLE = {
+    "works_well": ("#059669", "good track record"),
+    "mixed": ("#d97706", "mixed track record"),
+    "ineffective": ("#dc2626", "poor track record here"),
+    "insufficient_data": ("#6b7280", "little history"),
+}
+
+
+def _rec_prior_html(pr: dict[str, Any] | None) -> str:
+    """P57: one line on this project's track record for this change type."""
+    if not pr or not isinstance(pr, dict):
+        return ""
+    col, lbl = _PRIOR_VERDICT_STYLE.get(pr.get("verdict", ""), ("#6b7280", "history"))
+    cr = pr.get("confirm_rate")
+    cr_s = f"{cr * 100:.0f}% confirmed" if isinstance(cr, (int, float)) else "no decisive runs"
+    md = pr.get("mean_confirmed_delta")
+    md_s = f", mean Δ {md:+.2f}" if isinstance(md, (int, float)) else ""
+    cat = str(pr.get("category", "change")).replace("_", " ")
+    return (
+        f'<p style="font-size:11px;margin:6px 0 0;color:{col}">'
+        f'Track record: {cat} on this gate — {lbl} ({cr_s}{md_s}, n={pr.get("n")}).</p>'
+    )
+
+
 def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                              hall_rate: float, latency: float,
                              quality_metrics: dict,
@@ -5028,6 +5091,11 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
     _proposal_by_gate = {
         r.get("gate"): r.get("proposal")
         for r in (insights_recs or []) if r.get("proposal")
+    }
+    # P57: per-gate change-type track record (from insights.recommendations[].prior)
+    _prior_by_gate = {
+        r.get("gate"): r.get("prior")
+        for r in (insights_recs or []) if r.get("prior")
     }
 
     # diagnosis(rca.diagnose() 반환값)의 findings에서 Gate별 최악 컴포넌트를 뽑아둔다 —
@@ -5096,6 +5164,7 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             exp_html = _rec_experiment_block(key, _top_fld, _top_h, _ncomp) if _top_fld else ""
             base_html = _rec_baseline_verdict(baseline, current, key)
             proposal_html = _rec_proposal_html(_proposal_by_gate.get(key))
+            prior_html = _rec_prior_html(_prior_by_gate.get(key))
 
             recs.append(
                 f'<div class="rec {priority_class}">'
@@ -5104,6 +5173,7 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
                 f'<p>{guide}</p>'
                 f'{comp_html}'
                 f'{proposal_html}'
+                f'{prior_html}'
                 f'{code_html}'
                 f'{exp_html}'
                 f'{past_html}'
@@ -6027,6 +6097,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_multiagent(_insights_obj.get("multiagent")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
+        _build_improvement_priors(_insights_obj.get("improvement_priors")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_longitudinal(_insights_obj.get("longitudinal")),
@@ -6282,6 +6353,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_multiagent(_insights_obj.get("multiagent")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
+        _build_improvement_priors(_insights_obj.get("improvement_priors")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
         _build_longitudinal(_insights_obj.get("longitudinal")),

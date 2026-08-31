@@ -109,6 +109,7 @@ def _proposals(ins: dict, gate_filter: str | None) -> list[dict[str, Any]]:
             "target_field": field,
             "predicted_delta": exp.get("predicted_gate_delta"),
             "recommended_tasks": exp.get("recommended_tasks"),
+            "prior": rec.get("prior"),
         })
     order = {"fail": 0, "warn": 1}
     rows.sort(key=lambda r: (order.get(r.get("status"), 9), r.get("gate")))
@@ -142,6 +143,16 @@ def _print_plan(rows: list[dict[str, Any]], open_notes: set[str]) -> None:
         print(f"   why   : {D}{_clip(r['rationale'], 220)}{R}")
         if r.get("evidence_task_ids"):
             print(f"   tasks : {', '.join(r['evidence_task_ids'])}")
+        pr = r.get("prior")
+        if pr:
+            cr = pr.get("confirm_rate")
+            cr_s = f"{cr * 100:.0f}% confirmed" if isinstance(cr, (int, float)) \
+                else "no decisive runs"
+            pc = G if pr.get("verdict") == "works_well" else (
+                RD if pr.get("verdict") == "ineffective" else Y)
+            print(f"   record: {pc}{str(pr.get('category', '')).replace('_', ' ')} "
+                  f"on Gate {r['gate']} — {pr.get('verdict')} ({cr_s}, "
+                  f"n={pr.get('n')}){R}")
         print()
     print(f"{D}Next: agent-eval improve start <result.json>  "
           f"(registers experiments + writes change stubs){R}")

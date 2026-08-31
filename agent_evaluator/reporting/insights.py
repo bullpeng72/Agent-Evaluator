@@ -5394,6 +5394,67 @@ def _experiment_hypothesis(gate: str, field: Any, predicted: Any) -> str:
         return tgt
 
 
+def _improvement_priors_section(
+    recommendation_log_path: Any, experiments_log_path: Any,
+) -> dict[str, Any] | None:
+    """P57: fold ``.aoo/experiments.jsonl`` + ``recommendation_outcomes.jsonl``
+    into a per-(gate, change-category) track record — a learned prior over what
+    actually works for this project. Delegates to
+    ``rca.improvement_priors.synthesize_priors``; pure counting, no ranking."""
+    experiments: list[dict[str, Any]] = []
+    outcomes: list[dict[str, Any]] = []
+    if experiments_log_path:
+        try:
+            from agent_evaluator.rca.experiments import load_experiments
+
+            experiments = load_experiments(experiments_log_path) or []
+        except Exception:  # pragma: no cover - defensive
+            experiments = []
+    if recommendation_log_path:
+        try:
+            from agent_evaluator.rca.recommendation_tracking import (
+                load_recommendation_outcomes,
+            )
+
+            outcomes = load_recommendation_outcomes(recommendation_log_path) or []
+        except Exception:  # pragma: no cover - defensive
+            outcomes = []
+    if not experiments and not outcomes:
+        return None
+    try:
+        from agent_evaluator.rca.improvement_priors import synthesize_priors
+
+        return synthesize_priors(experiments, outcomes)
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+def _attach_priors(out: dict[str, Any]) -> None:
+    """Annotate each ``recommendations[]`` item with the matching
+    ``improvement_priors`` bucket (change type × gate) — 'this kind of change has
+    an N% track record here'."""
+    priors = out.get("improvement_priors")
+    recs = out.get("recommendations") or []
+    if not priors or not recs:
+        return
+    try:
+        from agent_evaluator.rca.improvement_priors import prior_for
+    except Exception:  # pragma: no cover - defensive
+        return
+    for rec in recs:
+        prop = rec.get("proposal") or {}
+        cat = prop.get("kind") or "other"
+        p = prior_for(priors, rec.get("gate", "?"), cat)
+        if p:
+            rec["prior"] = {
+                "category": p["category"], "n": p["n"],
+                "confirm_rate": p.get("confirm_rate"),
+                "mean_confirmed_delta": p.get("mean_confirmed_delta"),
+                "verdict": p["verdict"],
+                "scope": p.get("scope", "gate_category"),
+            }
+
+
 def _experiments_section(
     current: dict[str, Any],
     baseline: dict[str, Any] | None,
@@ -5676,6 +5737,10 @@ def build_insights(
         "experiments": _safe(
             _experiments_section, current, baseline, experiments_log_path, default=None,
         ),
+        "improvement_priors": _safe(
+            _improvement_priors_section, recommendation_log_path, experiments_log_path,
+            default=None,
+        ),
         "conversation": _safe(_conversation_section, current, default=None),
         "eval_set_quality": eval_set_quality,
         "change_attribution": _safe(
@@ -5698,6 +5763,7 @@ def build_insights(
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
     _safe(_attach_proposals, out, tasks, current, fixer, default=None)
+    _safe(_attach_priors, out, default=None)
     out["efficiency_opportunities"] = _safe(
         _efficiency_opportunities_section, tasks, current,
         out.get("cost_economics"), out.get("metadata_slices"),

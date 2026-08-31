@@ -142,6 +142,26 @@ class TestBuildInsightsValidates:
         # expensive / baseline sections are absent in partial mode
         assert "cohort_comparison" not in ins and "longitudinal" not in ins
 
+    def test_improvement_priors_section(self, schema, tmp_path):
+        # P57 — cross-run learning from the experiment + outcome logs
+        import json as _j
+        (tmp_path / "experiments.jsonl").write_text("\n".join(_j.dumps(e) for e in [
+            {"experiment_id": "e1", "status": "resolved", "target_gate": "A",
+             "note": "[improve] Gate A prompt_edit: g", "verdict": "confirmed",
+             "actual_delta": 0.08},
+            {"experiment_id": "e2", "status": "resolved", "target_gate": "A",
+             "note": "prompt rewrite", "verdict": "confirmed", "actual_delta": 0.05},
+        ]))
+        rpt = _report(
+            {"A": {"score": 0.6, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"t{i}", ok=i > 5) for i in range(15)],
+        )
+        ins = build_insights(
+            rpt, experiments_log_path=str(tmp_path / "experiments.jsonl"),
+        )
+        self._check(schema, ins)
+        assert ins["improvement_priors"] is not None
+
     def test_failure_taxonomy_section(self, schema):
         # P55 — single-agent failure taxonomy
         tasks = (

@@ -526,6 +526,7 @@
           "past_outcomes": { "type": ["object", "null"] },
           "baseline_verdict": { "type": ["object", "null"] },
           "derived_from": { "type": ["object", "null"], "additionalProperties": true },
+          "prior": { "type": ["object", "null"], "additionalProperties": true },
           "proposal": {
             "type": ["object", "null"],
             "additionalProperties": true,
@@ -743,6 +744,33 @@
           "status": { "type": "string" },
           "note": { "type": ["string", "null"] }
         }
+      }
+    },
+
+    "improvement_priors": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "by_bucket": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "gate": { "type": "string" },
+              "category": { "type": "string" },
+              "n": { "type": "integer" },
+              "confirmed": { "type": "integer" },
+              "refuted": { "type": "integer" },
+              "confirm_rate": { "type": ["number", "null"] },
+              "mean_confirmed_delta": { "type": ["number", "null"] },
+              "verdict": { "enum": ["works_well", "mixed", "ineffective", "insufficient_data"] }
+            }
+          }
+        },
+        "by_category": { "type": "object" },
+        "overall": { "type": "object" },
+        "note": { "type": "string" }
       }
     },
 

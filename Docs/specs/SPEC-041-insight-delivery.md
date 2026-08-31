@@ -681,6 +681,25 @@ out dict `failure_triggers` 뒤 배선. 리포트 `_build_failure_taxonomy()` �
 `failure_taxonomy` + `failure_triggers[].taxonomy_code`. `test_failure_taxonomy_p55.py`(17) +
 `test_insights_schema.py` 시나리오. 예시 v3는 dominant "Retrieval miss" 5/12로 렌더. 전체 4701 통과.
 
+**SPEC-041 P57 (개선 prior — run 간 학습)** — `.aoo/experiments.jsonl` + `recommendation_outcomes.jsonl`이
+쌓이기만 하고 종합이 없었다(`summarize_recommendation_outcomes`는 개수만, `recalibrated_delta`는
+단일 gate/field 2+표본 혼합). `rca/improvement_priors.py`(신규, 순수 카운팅, 랭킹 없음 —
+`rca/recommendation_tracking.py`와 같은 경계): `synthesize_priors(experiments, outcomes)` →
+`{by_bucket[]{gate, category, n, confirmed, refuted, confirm_rate, mean_confirmed_delta,
+verdict(works_well≥0.6 / ineffective≤0.25 / mixed / insufficient_data<2결정)}, by_category{}, overall{},
+note}`. `category`는 `_category_of(note)` — P49의 `[improve] Gate X kind:` 우선, 아니면 키워드 힌트
+(config/retry/timeout·ground_truth/label·prompt/instruction/few-shot), 폴백 `other`. verdict
+`confirmed`+`partially_confirmed`를 성공으로, `refuted`만 실패로 카운트(inconclusive 제외).
+`prior_for(priors, gate, category)` — bucket → category rollup → None. `reporting/insights.py::
+_improvement_priors_section(recommendation_log_path, experiments_log_path)` → `insights.
+improvement_priors`. `_attach_priors(out)`(post-dict, `_attach_proposals` 다음)가 각
+`recommendations[]`에 `prior{category, n, confirm_rate, mean_confirmed_delta, verdict, scope}` 부착
+(proposal.kind × gate 조인). 리포트 `_build_improvement_priors()` 섹션 `improvement-priors`
+(experiments 뒤) + rec 카드에 `_rec_prior_html()` 한 줄("Track record: prompt edit on this gate —
+poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 proposal별 `record:` 줄 출력.
+TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
+`test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적
