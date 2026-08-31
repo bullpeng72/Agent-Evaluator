@@ -499,6 +499,23 @@
       }
     },
 
+    "contrast_pairs": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "fail_task_id": { "type": "string" },
+          "fail_question": { "type": "string" },
+          "pass_task_id": { "type": "string" },
+          "pass_question": { "type": "string" },
+          "question_similarity": { "type": "number" },
+          "differences": { "type": "object" },
+          "likely_differentiator": { "type": "string" }
+        }
+      }
+    },
+
     "ablation_hints": {
       "type": ["array", "null"],
       "items": {

@@ -220,6 +220,42 @@ def why_failed_text(data: dict[str, Any], ins: dict[str, Any], task_id: str) -> 
     return "\n".join(lines)
 
 
+def contrast_text(data: dict[str, Any], ins: dict[str, Any], task_id: str) -> str:
+    """SPEC-041 P62: the most similar *passing* task to a failing one, and the
+    structured diff isolating the likely differentiator."""
+    rows = ins.get("contrast_pairs") or []
+    row = next((r for r in rows if str(r.get("fail_task_id")) == str(task_id)), None)
+    if row is None:
+        if not rows:
+            return ("No contrast pairs for this result (need both failing and "
+                    "similar passing tasks).")
+        return (f"No contrast pair for {task_id!r}. Available: "
+                + ", ".join(str(r.get("fail_task_id")) for r in rows))
+    d = row.get("differences") or {}
+    lines = [
+        f"Failing  {row['fail_task_id']}: {row['fail_question']}",
+        f"Passing  {row['pass_task_id']}: {row['pass_question']}  "
+        f"(question similarity {row.get('question_similarity')})",
+        f"Likely differentiator: {row.get('likely_differentiator')}",
+    ]
+    rt = d.get("retrieval")
+    if rt:
+        lines.append(
+            f"  retrieval: fail {rt.get('fail_n_chunks')} chunk(s) "
+            f"(best gt-overlap {rt.get('fail_best_gt_overlap')}), pass "
+            f"{rt.get('pass_n_chunks')} chunk(s) (best {rt.get('pass_best_gt_overlap')})"
+        )
+    if d.get("tools"):
+        lines.append(f"  tools: fail {d['tools'].get('fail')} · pass {d['tools'].get('pass')}")
+    if d.get("response"):
+        lines.append(f"  response words: fail {d['response'].get('fail_words')} · "
+                     f"pass {d['response'].get('pass_words')}")
+    if d.get("metadata"):
+        for k, (fv, pv) in d["metadata"].items():
+            lines.append(f"  metadata {k}: fail {fv} · pass {pv}")
+    return "\n".join(lines)
+
+
 def list_task_ids(data: dict[str, Any], ins: dict[str, Any], filt: str) -> str:
     from agent_evaluator.reporting.insights import _effective_fail
 
@@ -286,7 +322,7 @@ def list_task_ids(data: dict[str, Any], ins: dict[str, Any], filt: str) -> str:
 # ---------------------------------------------------------------------------
 
 def build_server() -> Any:
-    """A ``FastMCP`` server exposing the four ``insights_*`` tools."""
+    """A ``FastMCP`` server exposing the ``insights_*`` tools."""
     from mcp.server.fastmcp import FastMCP
 
     server = FastMCP("agent-evaluator-ask-insights")
@@ -315,6 +351,15 @@ def build_server() -> Any:
         whether it is flagged for human review or is non-deterministic."""
         data, ins = _insights_for(result_file)
         return why_failed_text(data, ins, task_id)
+
+    @server.tool()
+    def insights_contrast(result_file: str, task_id: str) -> str:
+        """For a failing task, the most similar *passing* task and a structured
+        diff (retrieved chunks, tool calls, response length, metadata) isolating
+        the one thing that most likely made the difference. Call with no matching
+        task_id to see which failing tasks have a contrast pair."""
+        data, ins = _insights_for(result_file)
+        return contrast_text(data, ins, task_id)
 
     @server.tool()
     def insights_list(result_file: str, filter: str, baseline_file: str = "") -> str:  # noqa: A002

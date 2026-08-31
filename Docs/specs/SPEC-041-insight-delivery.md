@@ -714,6 +714,21 @@ poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 propo
 TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
 `test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
 
+**SPEC-041 P62 (run 내 대조쌍)** — `ask_insights`는 정적 객체 조회, `trace_diffs`(P32)는 버전 간만 —
+"태스크 X는 실패, 비슷한 태스크 Y는 통과, 뭐가 달랐나"가 없었다. `reporting/insights.py::
+_contrast_pairs_section(tasks)` → `insights.contrast_pairs[]{fail_task_id, fail_question, pass_task_id,
+pass_question, question_similarity, differences{retrieval{fail_n_chunks, pass_n_chunks,
+fail_best_gt_overlap, pass_best_gt_overlap}, tools{fail[], pass[]}, response{fail_words, pass_words},
+metadata{key:[fail_val, pass_val]}}, likely_differentiator}`. 최악 실패 N개(정확도 오름차순, 최대 6)에
+대해 질문 content-word Jaccard 최대(≥0.4)인 *통과* 태스크를 짝지음. `likely_differentiator`는
+retrieval(pass의 gt-overlap이 0.2+ 높음) > tools(pass가 추가 호출) > metadata(다른 scalar extra) >
+response length 순으로 첫 번째. 결정적, 어휘 유사도만. `build_insights` out dict `failure_taxonomy`
+뒤 배선. `ask_insights_mcp.py`에 `contrast_text(data, ins, task_id)` + `insights_contrast(result_file,
+task_id)` 툴 추가(매칭 없으면 가능한 fail_task_id 목록). 리포트 `_build_contrast_pairs()` 섹션
+`contrast-pairs`(ablation-hints 뒤): fail/pass 질문 카드 + `→ likely differentiator` + 차이 목록.
+TOC "Pass vs fail". 스키마 `contrast_pairs`. `test_contrast_pairs_p62.py`(8) + `test_insights_schema.py`
+시나리오. 예시 v3는 0.4 유사도 짝이 없어 미표시(정상 — 신호 없으면 null). 전체 4763 통과.
+
 **SPEC-041 P61 (proposal → patch)** — P36 proposal은 before/after *텍스트*, P49 `improve start`는
 `.md` 스텁만 — 실제 적용 가능한 diff가 없었다. `cli/improve.py`에 `patch` 서브커맨드 추가:
 `agent-eval improve patch <result.json> --repo . [--gate X] [--prompt-file PATH] [--out DIR]`.

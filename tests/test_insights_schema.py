@@ -224,6 +224,27 @@ class TestBuildInsightsValidates:
         if ins.get("ablation_hints"):
             assert ins["ablation_hints"][0]["n_tasks"] >= 2
 
+    def test_contrast_pairs_section(self, schema):
+        # P62 — needs both failing and similar passing tasks
+        tasks = [
+            {"task_id": "f1", "task_type": "qa", "success": False,
+             "completion_score": 0.2, "accuracy_score": 0.2,
+             "question": "how do I return a laptop", "response": "no",
+             "ground_truth": "14 days", "context": ["hours are 9-5"]},
+            {"task_id": "p1", "task_type": "qa", "success": True,
+             "completion_score": 1.0, "accuracy_score": 0.95,
+             "question": "how do I return a phone", "response": "yes within 14 days",
+             "ground_truth": "14 days",
+             "context": ["returns within 14 days get a full refund"]},
+        ]
+        tasks += [_task(f"ok{i}", ok=True) for i in range(8)]
+        rpt = _report({"A": {"score": 0.6, "status": "warn", "gate": "warn",
+                             "details": {}}}, tasks)
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        if ins.get("contrast_pairs"):
+            assert ins["contrast_pairs"][0]["fail_task_id"] == "f1"
+
     def test_golden_health_section(self, schema, tmp_path):
         # P58 — golden-set health rides on a golden_set_path
         import json as _j

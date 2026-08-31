@@ -3000,6 +3000,115 @@ def _ctx_chunks(context: Any) -> list[str]:
     return [p.strip() for p in parts if len(p.strip()) >= 15]
 
 
+_CONTRAST_LIMIT = 6
+_CONTRAST_MIN_SIM = 0.4
+
+
+def _tool_names(t: dict[str, Any]) -> list[str]:
+    return [
+        str(s.get("tool_name") or s.get("tool") or s.get("name") or "?")
+        for s in (t.get("tool_calls") or []) if isinstance(s, dict)
+    ]
+
+
+def _contrast_pairs_section(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    """P62: for each worst failure, the most similar *passing* task and a
+    structured diff (retrieval / tools / response shape / metadata) isolating
+    the likely differentiator. Lexical similarity only; deterministic."""
+    fails = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    passes = [
+        t for t in tasks
+        if not _effective_fail(success=t.get("success", False),
+                               accuracy=t.get("accuracy_score"),
+                               completion=t.get("completion_score"))
+        and str(t.get("question") or "").strip()
+    ]
+    if not fails or not passes:
+        return None
+    fails.sort(key=lambda t: _safe_float(t.get("accuracy_score"), 1.0) or 1.0)
+    pass_q = [(p, _wtok(p.get("question"))) for p in passes]
+
+    rows: list[dict[str, Any]] = []
+    for f in fails[:_CONTRAST_LIMIT]:
+        fq = _wtok(f.get("question"))
+        if not fq:
+            continue
+        best_p, best_s = None, 0.0
+        for p, pq in pass_q:
+            s = _overlap(fq, pq)
+            if s > best_s:
+                best_p, best_s = p, s
+        if best_p is None or best_s < _CONTRAST_MIN_SIM:
+            continue
+
+        gt_f = _wtok(f.get("ground_truth"))
+        gt_p = _wtok(best_p.get("ground_truth"))
+        fc = _ctx_chunks(f.get("context"))
+        pc = _ctx_chunks(best_p.get("context"))
+        f_best_ov = max((_overlap(gt_f, _wtok(c)) for c in fc), default=0.0) if gt_f else None
+        p_best_ov = max((_overlap(gt_p, _wtok(c)) for c in pc), default=0.0) if gt_p else None
+
+        f_tools, p_tools = _tool_names(f), _tool_names(best_p)
+        f_len = len(str(f.get("response") or "").split())
+        p_len = len(str(best_p.get("response") or "").split())
+
+        meta_diff: dict[str, list[Any]] = {}
+        fe, pe = _task_extra(f), _task_extra(best_p)
+        for k in set(fe) | set(pe):
+            fv, pv = fe.get(k), pe.get(k)
+            if isinstance(fv, (str, bool, int)) or isinstance(pv, (str, bool, int)):
+                if str(fv) != str(pv):
+                    meta_diff[k] = [fv, pv]
+
+        diffs: dict[str, Any] = {}
+        if fc or pc:
+            diffs["retrieval"] = {
+                "fail_n_chunks": len(fc), "pass_n_chunks": len(pc),
+                "fail_best_gt_overlap": (round(f_best_ov, 2) if f_best_ov is not None
+                                         else None),
+                "pass_best_gt_overlap": (round(p_best_ov, 2) if p_best_ov is not None
+                                         else None),
+            }
+        if f_tools or p_tools:
+            diffs["tools"] = {"fail": f_tools, "pass": p_tools}
+        diffs["response"] = {"fail_words": f_len, "pass_words": p_len}
+        if meta_diff:
+            diffs["metadata"] = meta_diff
+
+        # pick the likely differentiator
+        likely = "unclear — inspect both tasks"
+        if (f_best_ov is not None and p_best_ov is not None
+                and p_best_ov - f_best_ov >= 0.2):
+            likely = ("retrieval — the passing task's context covers its answer "
+                      f"much better ({p_best_ov:.0%} vs {f_best_ov:.0%})")
+        elif set(p_tools) - set(f_tools):
+            likely = (f"tools — the passing task also called "
+                      f"{', '.join(sorted(set(p_tools) - set(f_tools)))}")
+        elif meta_diff:
+            k = next(iter(meta_diff))
+            likely = f"metadata — {k}: {meta_diff[k][0]} (fail) vs {meta_diff[k][1]} (pass)"
+        elif p_len and f_len and (f_len > 3 * p_len or p_len > 3 * f_len):
+            likely = (f"response length — fail {f_len} words vs pass {p_len}")
+
+        rows.append({
+            "fail_task_id": str(f.get("task_id") or "—"),
+            "fail_question": str(f.get("question") or "")[:200],
+            "pass_task_id": str(best_p.get("task_id") or "—"),
+            "pass_question": str(best_p.get("question") or "")[:200],
+            "question_similarity": round(best_s, 2),
+            "differences": diffs,
+            "likely_differentiator": likely,
+        })
+    return rows or None
+
+
 def _failure_triggers_section(
     tasks: list[dict[str, Any]],
 ) -> list[dict[str, Any]] | None:
@@ -6102,6 +6211,7 @@ def build_insights(
         "failure_taxonomy": _safe(
             _failure_taxonomy_section, tasks, baseline, default=None,
         ),
+        "contrast_pairs": _safe(_contrast_pairs_section, tasks, default=None),
         "failure_explanations": _safe(
             _failure_explanations_section, tasks, explainer=explainer, default=None,
         ),

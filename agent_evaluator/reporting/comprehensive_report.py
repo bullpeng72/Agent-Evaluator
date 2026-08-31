@@ -2581,6 +2581,56 @@ def _build_failure_taxonomy(ft: dict[str, Any] | None) -> str:
     )
 
 
+def _build_contrast_pairs(pairs: list[dict[str, Any]] | None) -> str:
+    """P62: each worst failure next to the most similar passing task, with the
+    structured diff that most likely explains the difference."""
+    if not pairs:
+        return ""
+    cards = ""
+    for p in pairs:
+        d = p.get("differences") or {}
+        bits = ""
+        rt = d.get("retrieval")
+        if rt:
+            bits += (
+                f'<li>retrieval: fail {rt.get("fail_n_chunks")} chunk(s) '
+                f'(best gt-overlap {rt.get("fail_best_gt_overlap")}), pass '
+                f'{rt.get("pass_n_chunks")} (best {rt.get("pass_best_gt_overlap")})</li>'
+            )
+        if d.get("tools"):
+            bits += (f'<li>tools: fail {_esc(str(d["tools"].get("fail")))} · '
+                     f'pass {_esc(str(d["tools"].get("pass")))}</li>')
+        if d.get("response"):
+            bits += (f'<li>response words: fail {d["response"].get("fail_words")} · '
+                     f'pass {d["response"].get("pass_words")}</li>')
+        for k, fv_pv in (d.get("metadata") or {}).items():
+            bits += (f'<li>metadata {_esc(k)}: fail {_esc(str(fv_pv[0]))} · '
+                     f'pass {_esc(str(fv_pv[1]))}</li>')
+        cards += (
+            '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;'
+            'margin:8px 0;background:#fff">'
+            f'<div style="font-size:12px"><span style="color:#dc2626;font-weight:700">'
+            f'✗ {_esc(p.get("fail_task_id", ""))}</span> '
+            f'{_esc(p.get("fail_question", "")[:140])}</div>'
+            f'<div style="font-size:12px;margin-top:2px"><span style="color:#059669;'
+            f'font-weight:700">✓ {_esc(p.get("pass_task_id", ""))}</span> '
+            f'{_esc(p.get("pass_question", "")[:140])} '
+            f'<span style="color:#9ca3af">(sim {p.get("question_similarity")})</span></div>'
+            f'<div style="font-size:12px;margin-top:6px;color:#7c3aed;font-weight:600">'
+            f'→ {_esc(p.get("likely_differentiator", ""))}</div>'
+            f'<ul style="margin:4px 0 0 18px;font-size:11px;color:#6b7280">{bits}</ul>'
+            '</div>'
+        )
+    return (
+        '<div class="gate-section" id="contrast-pairs" '
+        'style="border-left-color:#9333ea">'
+        '<h2 style="color:#1e2030">Failure vs Nearest Pass</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">Each worst failure '
+        'beside the most similar passing task — what differs between them.</p>'
+        f'{cards}</div>'
+    )
+
+
 def _build_ablation_hints(hints: list[dict[str, Any]] | None) -> str:
     """P56: the single prompt line / config knob most implicated in each failure
     mode, ranked by how many failures it touches."""
@@ -4521,7 +4571,7 @@ _TOC_LABELS = {
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "golden-health": "Golden set",
     "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
-    "ablation-hints": "Change first",
+    "ablation-hints": "Change first", "contrast-pairs": "Pass vs fail",
     "failure-explanations": "Wrong claims",
     "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
@@ -6250,6 +6300,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),
+        _build_contrast_pairs(_insights_obj.get("contrast_pairs")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
@@ -6510,6 +6561,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),
+        _build_contrast_pairs(_insights_obj.get("contrast_pairs")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
