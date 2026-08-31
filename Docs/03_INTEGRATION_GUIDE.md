@@ -29,15 +29,11 @@ The full decorator API reference · 24 framework integrations · comparison with
 
 The SDK's standard interface is three decorators, unified by use case.
 
-```
-┌───────────────────┬──────────────────────────────────┬─────────────────────────────┐
-│ Decorator         │ Use case                         │ One line of code            │
-├───────────────────┼──────────────────────────────────┼─────────────────────────────┤
-│ @agent_eval       │ single call (single-turn)         │ @agent_eval(monitor)        │
-│ @batch_eval       │ list-based bulk processing (batch) │ @batch_eval(monitor)        │
-│ @conversation_eval│ multi-turn conversation session   │ @conversation_eval(monitor) │
-└───────────────────┴──────────────────────────────────┴─────────────────────────────┘
-```
+| Decorator | Use case | One line of code |
+|-----------|----------|-----------------|
+| `@agent_eval` | single call (single-turn) | `@agent_eval(monitor)` |
+| `@batch_eval` | list-based bulk processing (batch) | `@batch_eval(monitor)` |
+| `@conversation_eval` | multi-turn conversation session | `@conversation_eval(monitor)` |
 
 > `QuickEval` (`eval = QuickEval()`) is a **factory tool** for configuring the decorators above more concisely.
 
