@@ -805,6 +805,7 @@ def _compute_gate_insights(
 
         return build_insights(
             data, baseline_result, targets=targets, reference=reference,
+            golden_set_path=getattr(args, "golden_set", None),
         )
     except Exception:
         return None

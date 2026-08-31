@@ -224,6 +224,23 @@ class TestBuildInsightsValidates:
         if ins.get("ablation_hints"):
             assert ins["ablation_hints"][0]["n_tasks"] >= 2
 
+    def test_golden_health_section(self, schema, tmp_path):
+        # P58 — golden-set health rides on a golden_set_path
+        import json as _j
+        gp = tmp_path / "golden.json"
+        gp.write_text(_j.dumps({"items": [
+            {"question": "track order status", "ground_truth": "use the portal"}]}))
+        rpt = _report(
+            {"A": {"score": 0.5, "status": "fail", "gate": "fail", "details": {}}},
+            [_task(f"to{i}", ok=False) for i in range(4)]
+            + [_task(f"ok{i}", ok=True) for i in range(8)],
+        )
+        for t in rpt["tasks"][:4]:
+            t["partial_reason"] = "error: TimeoutError"
+        ins = build_insights(rpt, golden_set_path=str(gp))
+        self._check(schema, ins)
+        assert ins["golden_health"] is not None
+
     def test_reference_frame_section(self, schema):
         # P53 — external reference distribution
         rpt = _report(

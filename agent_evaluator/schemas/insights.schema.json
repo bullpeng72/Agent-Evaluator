@@ -903,6 +903,33 @@
       }
     },
 
+    "golden_health": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_cases": { "type": "integer" },
+        "coverage_pct": { "type": ["number", "null"] },
+        "n_modes_considered": { "type": "integer" },
+        "uncovered_failure_modes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "code": { "type": "string" },
+              "name": { "type": "string" },
+              "n_failures": { "type": ["integer", "null"] },
+              "owner": { "type": ["string", "null"] },
+              "remediation": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "stale_cases": { "type": "array" },
+        "redundant_cases": { "type": "array" },
+        "note": { "type": "string" }
+      }
+    },
+
     "cohort_comparison": {
       "type": ["object", "null"],
       "additionalProperties": true,

@@ -714,6 +714,24 @@ poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 propo
 TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
 `test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
 
+**SPEC-041 P58 (golden-set 건강도)** — `dataset promote`는 케이스를 추가만, 오래 통과한 케이스 은퇴 ·
+현재 실패모드를 골든셋이 여전히 잡는지 · 근접중복 점검이 없었다. `datasets/golden_health.py`(신규,
+stdlib): `load_golden_cases(golden)`(bare list / `{items}` / `{cases}` / 경로 수용) +
+`assess_golden_health(golden, result_data, *, history_dir=None)` → `{n_cases, coverage_pct,
+n_modes_considered, uncovered_failure_modes[]{code, name, n_failures, owner, remediation}, stale_cases[]
+{case_index, question, current_accuracy, passed_streak, reason}, redundant_cases[]{case_index,
+duplicate_of, question}, note}`. **uncovered_failure_modes가 핵심** — P55 `failure_taxonomy.by_mode`의
+각 모드에 대해 그 모드의 실패 태스크 질문과 Jaccard≥0.5로 닮은 골든 케이스가 하나도 없으면 blind
+spot. redundant = 질문 content-word Jaccard≥0.85. stale = 현재 run에서 매칭 태스크가 accuracy≥0.9거나
+(history_dir 있으면) 연속 4+ run 통과. `agent-eval dataset health <golden> --against <result>
+[--history DIR] [--json]`(`cli/dataset.py::_cmd_health`, `main.py`에 `health` 서브파서). 결과에
+`failure_taxonomy` 없으면 `build_insights`로 즉석 계산해 주입. `build_insights(golden_set_path=)`
+파라미터 → `_golden_health_section`(post-dict, `out.failure_taxonomy` 주입)이 `insights.golden_health`
+채움. `cli/gate.py::_compute_gate_insights`가 `args.golden_set` 전달. 리포트 `_build_golden_health()`
+섹션 `golden-health`(eval-set-quality 뒤): coverage% + Blind spots + Stale/trivial + 중복 수.
+TOC "Golden set". 스키마 `golden_health`. `test_golden_health_p58.py`(11) + `test_insights_schema.py`
+시나리오. 예시 아티팩트는 golden_set_path 미전달로 이 섹션 미표시(CLI가 주 인터페이스). 전체 4745 통과.
+
 **SPEC-041 P59 (다중비교 감사)** — insight 객체는 수십 개의 암묵적 비교(모든 task_type 슬라이스,
 모든 metadata 셀, 모든 cohort 쌍)를 하는데 BH-FDR 보정은 `cohort_comparison`에만 있었다.
 `_slice_stats`에 `welch_t_p(comps, b_comps)` → `p_value` 추가(baseline 있을 때만; `slice_analysis`와

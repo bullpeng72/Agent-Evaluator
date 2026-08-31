@@ -32,15 +32,75 @@ def cmd_dataset(args: argparse.Namespace) -> int:
         return _cmd_build(args)
     if cmd == "promote":
         return _cmd_promote(args)
+    if cmd == "health":
+        return _cmd_health(args)
     # 서브커맨드 미지정 — 도움말 출력
     print(
         f"{_B}agent-eval dataset{_R} — Golden Dataset Management\n\n"
         f"  {_Y}build{_R}     Auto-extract golden set candidates from production results\n"
-        f"  {_Y}promote{_R}   Promote a result file's human-review queue into golden cases\n\n"
+        f"  {_Y}promote{_R}   Promote a result file's human-review queue into golden cases\n"
+        f"  {_Y}health{_R}    Assess a golden set against a run — mode coverage, stale cases\n\n"
         f"Usage: agent-eval dataset build --help",
         file=sys.stderr,
     )
     return 1
+
+
+def _cmd_health(args: argparse.Namespace) -> int:
+    """``agent-eval dataset health <golden.json> --against <result.json>`` (P58)."""
+    gp = Path(args.golden_file)
+    rp = Path(args.against)
+    if not gp.is_file():
+        print(f"{_RD}❌  Golden file not found: {gp}{_R}", file=sys.stderr)
+        return 1
+    if not rp.is_file():
+        print(f"{_RD}❌  Result file not found: {rp}{_R}", file=sys.stderr)
+        return 1
+    try:
+        result = json.loads(rp.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"{_RD}❌  Failed to parse result JSON: {exc}{_R}", file=sys.stderr)
+        return 1
+
+    from agent_evaluator.datasets.golden_health import assess_golden_health
+
+    # make sure the run's failure_taxonomy is available to the assessor
+    ins = (result.get("extra_metrics") or {}).get("insights")
+    if not (ins and ins.get("failure_taxonomy")):
+        try:
+            from agent_evaluator.reporting.insights import build_insights
+
+            fresh = build_insights(result) or {}
+            result.setdefault("extra_metrics", {}).setdefault("insights", {})[
+                "failure_taxonomy"] = fresh.get("failure_taxonomy")
+        except Exception:
+            pass
+
+    health = assess_golden_health(
+        str(gp), result, history_dir=getattr(args, "history", None),
+    )
+    if health is None:
+        print(f"{_RD}❌  No usable cases in {gp}{_R}", file=sys.stderr)
+        return 1
+    if getattr(args, "as_json", False):
+        print(json.dumps(health, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"\n  {_B}Golden-set health — {gp.name}{_R}")
+    print(f"  {health['note']}")
+    cp = health.get("coverage_pct")
+    if cp is not None:
+        col = _G if cp >= 80 else (_Y if cp >= 50 else _RD)
+        print(f"  Failure-mode coverage: {col}{cp:.0f}%{_R} "
+              f"({health['n_modes_considered']} mode(s) in this run)")
+    for u in health.get("uncovered_failure_modes") or []:
+        print(f"  {_RD}✗ not exercised:{_R} {u['name']} "
+              f"({u['n_failures']} failure(s), owner {u['owner']})")
+    for s in (health.get("stale_cases") or [])[:8]:
+        print(f"  {_Y}~ stale:{_R} {s['reason']} — {s['question'][:80]}")
+    for r in (health.get("redundant_cases") or [])[:8]:
+        print(f"  {_Y}~ duplicate:{_R} case {r['case_index']} ≈ case {r['duplicate_of']}")
+    return 0
 
 
 def _cmd_promote(args: argparse.Namespace) -> int:

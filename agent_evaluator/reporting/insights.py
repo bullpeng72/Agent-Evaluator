@@ -3175,6 +3175,29 @@ def _prompt_sentences(prompt_text: str) -> list[tuple[int, str]]:
     return [(i, s.strip()) for i, s in enumerate(raw) if len(s.split()) >= 3]
 
 
+def _golden_health_section(
+    golden_set_path: Any,
+    current: dict[str, Any],
+    out: dict[str, Any],
+    history_dir: Any,
+) -> dict[str, Any] | None:
+    """P58: assess the golden set (``golden_set_path``) against this run — mode
+    coverage, stale/trivial cases, near-duplicates. Delegates to
+    ``datasets.golden_health.assess_golden_health``. ``None`` without a path."""
+    if not golden_set_path:
+        return None
+    try:
+        from agent_evaluator.datasets.golden_health import assess_golden_health
+    except Exception:  # pragma: no cover - defensive
+        return None
+    # give assess_* the failure_taxonomy this run already computed
+    rd = dict(current)
+    em = dict(rd.get("extra_metrics") or {})
+    em["insights"] = {"failure_taxonomy": out.get("failure_taxonomy")}
+    rd["extra_metrics"] = em
+    return assess_golden_health(golden_set_path, rd, history_dir=history_dir)
+
+
 def _ablation_hints_section(
     tasks: list[dict[str, Any]],
     current: dict[str, Any],
@@ -5963,6 +5986,7 @@ def build_insights(
     explainer: Any = None,
     targets: dict[str, Any] | None = None,
     reference: dict[str, Any] | None = None,
+    golden_set_path: str | Path | None = None,
     history_dir: str | Path | None = None,
     current_file: str | Path | None = None,
     cohort: list[dict[str, Any]] | None = None,
@@ -6167,6 +6191,10 @@ def build_insights(
     )
     out["ablation_hints"] = _safe(
         _ablation_hints_section, tasks, current, out.get("failure_taxonomy"),
+        default=None,
+    )
+    out["golden_health"] = _safe(
+        _golden_health_section, golden_set_path, current, out, history_dir,
         default=None,
     )
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")

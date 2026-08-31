@@ -1234,6 +1234,31 @@ def main() -> None:
         help="Version tag stored in the golden dataset (default: review)",
     )
 
+    health_p = ds_sub.add_parser(
+        "health",
+        help="Assess a golden set against a run — failure-mode coverage, stale cases",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "Check whether a golden set still earns its keep against a recent run:\n"
+            "which current failure modes NO golden case exercises (the blind spot),\n"
+            "which cases are stale / trivial, and which are near-duplicates.\n"
+        ),
+        epilog=(
+            f"{B}Examples:{R}\n"
+            f"  {G}agent-eval dataset health data/golden_datasets/golden_1.json "
+            f"--against results/v3.json{R}\n"
+            f"  {G}agent-eval dataset health golden.json --against v3.json "
+            f"--history results/ --json{R}\n"
+        ),
+    )
+    health_p.add_argument("golden_file", metavar="GOLDEN_FILE",
+                          help="Golden dataset JSON (list / {items} / {cases})")
+    health_p.add_argument("--against", required=True, metavar="RESULT_FILE",
+                          help="Evaluation result JSON to assess coverage against")
+    health_p.add_argument("--history", default=None, metavar="DIR",
+                          help="Sibling-results dir — adds a passed_streak per stale case")
+    health_p.add_argument("--json", action="store_true", dest="as_json")
+
     # monitor subcommand
     build_monitor_subparser(sub)
 

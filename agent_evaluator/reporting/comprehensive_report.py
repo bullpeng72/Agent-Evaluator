@@ -3183,6 +3183,53 @@ def _build_evaluator_reliability(tasks: list[Any] | None,
     )
 
 
+def _build_golden_health(gh: dict[str, Any] | None) -> str:
+    """P58: does the golden set still earn its keep? Failure-mode coverage,
+    blind spots, stale / trivial cases, near-duplicates."""
+    if not gh:
+        return ""
+    cp = gh.get("coverage_pct")
+    cp_col = "#6b7280"
+    if isinstance(cp, (int, float)):
+        cp_col = "#059669" if cp >= 80 else ("#d97706" if cp >= 50 else "#dc2626")
+    unc = ""
+    for u in gh.get("uncovered_failure_modes") or []:
+        unc += (
+            f'<li><strong>{_esc(u.get("name", ""))}</strong> '
+            f'({u.get("n_failures")} failure(s), owner {_esc(u.get("owner", ""))}) — '
+            f'no golden case exercises this. {_esc(u.get("remediation", ""))}</li>'
+        )
+    unc_html = (
+        '<h3 style="margin:10px 0 4px;color:#dc2626">Blind spots</h3>'
+        f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.6">{unc}</ul>'
+        if unc else ""
+    )
+    stale = "".join(
+        f'<li>{_esc(s.get("reason", ""))} — {_esc(s.get("question", "")[:90])}</li>'
+        for s in (gh.get("stale_cases") or [])[:8]
+    )
+    stale_html = (
+        '<h3 style="margin:10px 0 4px">Stale / trivial cases</h3>'
+        f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.6">{stale}</ul>'
+        if stale else ""
+    )
+    dup = len(gh.get("redundant_cases") or [])
+    dup_html = (f'<p style="font-size:12px;color:#6b7280">{dup} near-duplicate '
+                f'case(s).</p>' if dup else "")
+    return (
+        '<div class="gate-section" id="golden-health" '
+        'style="border-left-color:#0d9488">'
+        '<h2 style="color:#1e2030">Golden-Set Health</h2>'
+        f'<p style="color:#6b7280;font-size:13px;margin:0 0 6px">{_esc(gh.get("note", ""))}</p>'
+        f'<p style="font-size:13px;margin:0 0 4px">Failure-mode coverage: '
+        f'<span style="color:{cp_col};font-weight:700">'
+        f'{cp if cp is not None else "—"}%</span> '
+        f'<span style="color:#9ca3af">({gh.get("n_cases")} cases, '
+        f'{gh.get("n_modes_considered")} modes in this run)</span></p>'
+        f'{unc_html}{stale_html}{dup_html}</div>'
+    )
+
+
 def _build_eval_set_quality(tasks: list[Any] | None,
                             baseline: dict[str, Any] | None,
                             harness_groups: dict[str, Any],
@@ -4472,6 +4519,7 @@ _TOC_LABELS = {
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
+    "golden-health": "Golden set",
     "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
     "ablation-hints": "Change first",
     "failure-explanations": "Wrong claims",
@@ -6198,6 +6246,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
+        _build_golden_health(_insights_obj.get("golden_health")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),
@@ -6457,6 +6506,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
+        _build_golden_health(_insights_obj.get("golden_health")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),
