@@ -22,6 +22,7 @@ HarnessEvaluationGate로 배포 판정을 자동화하는 패턴을 시연한다
     results/ch14_gate_config.json  (자동 생성 임계값)
 """
 
+import json
 import socket
 from pathlib import Path
 
@@ -288,6 +289,24 @@ print(f"  Tool Use 에이전트는 P95 10,000ms 허용 — 도구 실행 지연 
 # ===========================================================================
 # 최종 저장
 # ===========================================================================
-monitor_alert.save_to_file("ch14_thresholds")
-print("\n결과 저장 완료: results/ch14_thresholds.json")
+_tp = monitor_alert.save_to_file("ch14_thresholds")
+
+# ── 개선된 리포트: 임계값이 판정을 얼마나 좌우하는가 (threshold_sensitivity) ──
+# 위 프로파일 표는 "어떤 기준을 쓸지"를 사람이 고른다. save_to_file()이 쓴
+# extra_metrics.insights.threshold_sensitivity는 "지금 이 결과가 pass 선(0.70)을
+# 조금만 움직여도 판정이 뒤집히는가(knife-edge)"를 정량으로 보여준다.
+_ts = (json.loads(Path(_tp).read_text(encoding="utf-8"))
+       .get("extra_metrics", {}).get("insights", {}).get("threshold_sensitivity", {}))
+if _ts:
+    print("\n  ── insights.threshold_sensitivity ──")
+    print(f"  pass 선 {_ts.get('current_line')} 에서 판정: "
+          f"{_ts.get('swept_verdict_at_current_line')}")
+    print(f"  knife-edge(경계 민감): {_ts.get('knife_edge')}"
+          + (f" — {_ts['knife_edge_detail']}" if _ts.get("knife_edge_detail") else ""))
+    for _row in (_ts.get("gate_line_sweep") or [])[:5]:
+        print(f"    line {_row['line']:.2f} → 통과 {_row['gates_meeting']} "
+              f"/ 미달 {_row['gates_below']} ({_row['verdict']})")
+    print("  프로젝트 SLO를 고정하려면: agent-eval target set --tcr 88 --gate A=0.75")
+    print("    → 이후 insights.verdict가 0.70이 아니라 이 목표선으로 측정된다")
+print("\n결과 저장 완료: results/ch14_thresholds.json  (+ .html)")
 print("확인: agent-eval dashboard results/")

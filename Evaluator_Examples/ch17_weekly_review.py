@@ -27,6 +27,7 @@ summary() / compare() API 단위:
     delta["tcr"]    : 퍼센트 포인트 차이
 """
 
+import json
 import random
 import socket
 from pathlib import Path
@@ -284,6 +285,25 @@ for q, gt in [("주간 리뷰 테스트", "테스트 완료"), ("월간 집계 �
         use_korean_tokenizer=True,
     ))
 
-monitor_final.save_to_file("ch17_weekly_review")
-print("\n결과 저장 완료: results/ch17_weekly_review.json")
+_fp = monitor_final.save_to_file("ch17_weekly_review")
+
+# ── 개선된 리포트: 주간 리뷰 코멘트를 인사이트 계층에서 뽑아 쓴다 ────────────
+# 섹션 1~2가 "회귀가 있었는가"를 봤다면, save_to_file()이 쓴
+# extra_metrics.insights는 그 판정을 대상별 브리프(briefs)와 만성/재발 실패
+# 추적(longitudinal)으로 정리해 둔다 — 사람이 다시 요약할 필요가 없다.
+_ins = (json.loads(Path(_fp).read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+_br = _ins.get("briefs") or {}
+if _br:
+    print("\n  ── insights.briefs ──")
+    print(f"  PM : {_br.get('pm', '')}")
+    print(f"  QA : {_br.get('qa', '')}")
+_lg = _ins.get("longitudinal") or {}
+if _lg:
+    _rf = _lg.get("recurring_failures") or []
+    print(f"  longitudinal: 형제 run {_lg.get('runs_scanned', 0)}개 스캔 · "
+          f"재발 실패 {len(_rf)}건 · cadence={_lg.get('cadence_days')}일")
+print("  CLI: agent-eval diagnose results/ch17_weekly_review.json --baseline <지난주>.json")
+print("       agent-eval trend results/ --fail-on-regression")
+print("\n결과 저장 완료: results/ch17_weekly_review.json  (+ .html)")
 print("확인: agent-eval dashboard results/")

@@ -502,8 +502,59 @@ else:
 
 print(f"\n  → 권장: {'v2 배포 (개선 확인됨)' if not v2_fail else 'v2도 수정 필요'}")
 
-# 저장
-monitor_v1.save_to_file("ch20_deployment_v1")
-monitor_v2.save_to_file("ch20_deployment_v2")
+# 저장 — v2는 baseline_path로 v1 결과를 넘긴다. 그러면 save_to_file()이
+# 회귀 기반(baseline 대비) 모드로 HTML 리포트를 렌더하고, extra_metrics.insights도
+# 두 버전을 대조한 review_queue / briefs / regression_attribution까지 채운다.
+_v1_json = monitor_v1.save_to_file("ch20_deployment_v1")
+monitor_v2.save_to_file("ch20_deployment_v2", baseline_path=_v1_json)
 print(f"\n결과 저장: {_OUTPUT_DIR}/ch20_deployment_v1.json / ch20_deployment_v2.json")
-print("대시보드: agent-eval dashboard results/")
+
+# ===========================================================================
+# 개선된 리포트: 인사이트 계층 활용  (SPEC-041 — Docs/09_OUTPUTS.md L5/L6)
+# ===========================================================================
+# 위 "버전 비교 결과"는 손으로 Gate 점수를 대조한 것이다. 같은 판정이
+# save_to_file() 시점에 이미 기계 판독 계층(extra_metrics.insights)으로
+# 계산돼 JSON에 함께 저장돼 있다 — CI·스크립트는 이걸 그대로 읽으면 된다.
+print("\n" + "=" * 65)
+print("  개선된 리포트 — 인사이트 계층 (v2, baseline=v1)")
+print("=" * 65)
+
+_ins = (json.loads(Path(f"{_OUTPUT_DIR}/ch20_deployment_v2.json").read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+_v = _ins.get("verdict", {})
+print(f"\n  판정      : {(_v.get('level') or '?').upper()}  ·  {_v.get('headline', '')}")
+print(f"  확신도    : {(_v.get('confidence') or '?').upper()}"
+      f"  ({'; '.join(_v.get('confidence_reasons', []))})")
+print(f"  내러티브  : {_ins.get('narrative', '')}")
+
+# insights.verdict는 손으로 만든 위 "배포 결정"보다 엄격하다 — FAIL만이 아니라
+# 목표선(기본 0.70) 미달 Gate도 CAUTION으로 잡는다.
+_ready = _ins.get("readiness", {})
+_gaps = [g for g in (_ready.get("gaps") or []) if (g.get("gap") or 0) > 0]
+if _gaps:
+    print("\n  ── Path to Green (목표선까지의 정량 갭) ──")
+    for g in _gaps:
+        _proj = g.get("projected_score_after_plan")
+        _tail = f"  → 수정계획 적용 시 ≈{_proj:.2f}" if _proj else ""
+        print(f"    Gate {g['gate']} {g.get('gate_name', ''):<22} "
+              f"{g['score']:.2f} → 목표 {g['target']:.2f}{_tail}")
+for _step in (_ready.get("fix_plan") or [])[:3]:
+    print(f"    · [{_step['rank']}] {_step['signature']} ({_step['count']}건, "
+          f"영향 {_step.get('impact_pct', 0):.0f}%) → TCR ≈{_step.get('projected_tcr_after_pct')}%")
+
+_rq = _ins.get("review_queue") or {}
+if _rq.get("n_items"):
+    _hi = (_rq.get("by_priority") or {}).get("high", 0)
+    print(f"\n  리뷰 큐   : {_rq['n_items']}건 (high {_hi}) "
+          f"— 확인 후 `agent-eval dataset promote`로 골든셋 편입")
+_briefs = _ins.get("briefs") or {}
+if _briefs.get("pm"):
+    print(f"  PM 브리프 : {_briefs['pm']}")
+
+print(f"\n  HTML 리포트: {_OUTPUT_DIR}/ch20_deployment_v2.html")
+print("    └ Executive Summary · Next actions · Path to Green · 실패 케이스 궤적 ·")
+print("      Recommendations · (baseline 지정 시) 회귀/신규/수정 실패 집합 diff")
+print("  CLI 게이트 : agent-eval gate results/ch20_deployment_v2.json \\")
+print("                --baseline-result results/ch20_deployment_v1.json \\")
+print("                --fail-on-case-regression --max-review-high 0 --digest")
+print("  대시보드   : agent-eval dashboard results/   (🔧 Improve 탭)")

@@ -338,8 +338,30 @@ print(f"  평균 TCR:     {_tcr(weekly_report):.1f}%")
 print(f"  평균 Accuracy: {_acc(weekly_report):.1f}%")
 print(f"  비용 드리프트: +{cost_increase_pct:.1f}% (W1→W8)")
 
-weekly_monitor.save_to_file("ch27_cicd_weekly")
-print("\n결과 저장 완료: results/ch27_cicd_weekly.json")
+_wp = weekly_monitor.save_to_file("ch27_cicd_weekly")
+
+# ── 개선된 리포트: 대상별 브리프를 주간 리뷰 메시지로 그대로 쓴다 ────────────
+# save_to_file()이 결과 JSON에 쓴 extra_metrics.insights.briefs는 PM·QA·엔지니어
+# 각각에게 보낼 3줄 요약이다 — 주간 리뷰 코멘트/슬랙 메시지에 그대로 붙인다.
+_ins = (json.loads(Path(_wp).read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+_br = _ins.get("briefs") or {}
+if _br:
+    print("\n  ── insights.briefs (주간 리뷰용 대상별 요약) ──")
+    print(f"  PM  : {_br.get('pm', '')}")
+    print(f"  QA  : {_br.get('qa', '')}")
+    for _line in (_br.get("engineer") or [])[:3]:
+        print(f"  ENG : {_line}")
+_lg = _ins.get("longitudinal") or {}
+_rf = _lg.get("recurring_failures") or []
+if _rf:
+    print(f"  만성 실패({len(_rf)}건): "
+          + ", ".join(f"{x.get('signature')}({x.get('status')})" for x in _rf[:3]))
+print("\n  실무 주간 CI:")
+print("    agent-eval gate results/ch27_cicd_weekly.json --tcr 80 --digest \\")
+print("      --notify slack://hooks.slack.com/services/T/B/X")
+print("    agent-eval trend results/ --fail-on-regression")
+print("\n결과 저장 완료: results/ch27_cicd_weekly.json  (+ .html)")
 print("확인: agent-eval dashboard results/")
 
 print("""

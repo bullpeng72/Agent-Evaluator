@@ -27,6 +27,7 @@ HOTL 원칙(Chapter 2): diagnose()는 "후보 원인 + 근거"만 반환한다 �
     results/ch28_baseline.json, ch28_current.json
 """
 
+import json
 from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
@@ -84,7 +85,12 @@ for i in range(15):
         },
     ))
 report_current = monitor_current.generate_report()
-monitor_current.save_to_file("ch28_current")
+# baseline_path를 넘기면 save_to_file()이 회귀 기반 모드로 HTML을 렌더하고,
+# extra_metrics.insights에 regression_attribution / review_queue / shared_cause_*를
+# 함께 채운다 (섹션 7에서 읽는다).
+monitor_current.save_to_file(
+    "ch28_current", baseline_path=str(Path(_OUTPUT_DIR) / "ch28_baseline.json")
+)
 current_dict = report_current.to_dict()
 _gate_a_cur = (current_dict.get("extra_metrics") or {}).get("harness_groups", {}).get("A", {})
 print(f"  current  Gate A: score={_gate_a_cur.get('score')}  "
@@ -182,5 +188,44 @@ print("""
   대시보드에서 보려면: agent-eval dashboard results/ → 🔧 Improve 탭
 """)
 
-print("결과 저장 완료: results/ch28_baseline.json, ch28_current.json")
+# ===========================================================================
+# 섹션 7: 같은 진단이 결과 JSON에 이미 들어 있다 — extra_metrics.insights
+# ===========================================================================
+# diagnose()를 직접 호출하지 않아도, 섹션 2에서 baseline_path와 함께 저장한
+# ch28_current.json의 extra_metrics.insights에 회귀 원인귀속·리뷰 큐·대상별
+# 브리프가 기계 판독 형태로 이미 계산돼 있다. CI·에이전트는 이걸 그대로 읽는다.
+print("\n=== 섹션 7: extra_metrics.insights — 저장된 기계 판독 진단 계층 ===")
+
+_ins = (json.loads((Path(_OUTPUT_DIR) / "ch28_current.json").read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+
+_ra = _ins.get("regression_attribution")
+if _ra:
+    print(f"  regression_attribution: {json.dumps(_ra, ensure_ascii=False)[:300]}")
+else:
+    print("  regression_attribution: null "
+          "(프롬프트/Config lineage 변화가 없으면 비어 있다 — 여기선 코드 변경 없음)")
+
+_rq = _ins.get("review_queue") or {}
+if _rq.get("n_items"):
+    _bp = _rq.get("by_priority") or {}
+    print(f"  review_queue: {_rq['n_items']}건 "
+          f"(high {_bp.get('high', 0)} / medium {_bp.get('medium', 0)}) "
+          f"— `agent-eval dataset promote`로 골든 회귀 케이스 편입")
+
+_sc = _ins.get("shared_cause_explanations")
+print(f"  shared_cause_explanations: {_sc if _sc else '[] (Gate A 단일 회귀)'}")
+
+_briefs = _ins.get("briefs") or {}
+for _who in ("pm", "qa"):
+    if _briefs.get(_who):
+        print(f"  briefs.{_who}: {_briefs[_who]}")
+
+print(f"\n  회귀 기반 HTML 리포트: {_OUTPUT_DIR}/ch28_current.html")
+print("    └ Gate RCA 진단 섹션 · 📉회귀/🆕신규/✅수정 실패 집합 diff · newly_unmeasured_gates")
+print("  CLI 게이트: agent-eval gate results/ch28_current.json \\")
+print("               --baseline-result results/ch28_baseline.json \\")
+print("               --fail-on-case-regression --digest")
+
+print("\n결과 저장 완료: results/ch28_baseline.json, ch28_current.json  (+ .html)")
 print("확인: agent-eval dashboard results/")

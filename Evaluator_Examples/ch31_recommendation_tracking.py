@@ -30,6 +30,7 @@ HOTL 원칙: verdict는 confirmed/refuted/inconclusive 세 상태로만 보고�
                                               🔧 Improve 탭이 그대로 읽는 파일
 """
 
+import json
 from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
@@ -140,6 +141,22 @@ print(f"    confirmed:    {summary['confirmed']}")
 print(f"    refuted:      {summary['refuted']}")
 print(f"    inconclusive: {summary['inconclusive']}")
 print(f"  Gate별: {summary['by_gate']}")
+
+# ── 개선된 리포트: 이 로그가 결과 JSON의 인사이트로 되돌아온다 ────────────────
+# 위에서 쌓은 recommendation_outcomes.jsonl은 다음 실행부터 build_insights()가
+# extra_metrics.insights.improvement_priors((Gate,변경 카테고리)별 confirm-rate
+# 실적)와 recommendations[].prior로 되읽는다 — 순위·자동추천이 아니라, 다음
+# 조치를 사람이 판단할 때 참고하는 과거 실적 카운트다.
+_ins_after = (json.loads((Path(_OUTPUT_DIR) / "ch31_after.json").read_text(encoding="utf-8"))
+              .get("extra_metrics", {}).get("insights", {}))
+_recs = _ins_after.get("recommendations") or []
+for _r in _recs[:2]:
+    _pr = _r.get("prior")
+    print(f"  insights.recommendations[{_r.get('gate')}]: {(_r.get('guidance') or '')[:70]}")
+    if _pr:
+        print(f"    └ prior: {_pr}")
+_ipr = _ins_after.get("improvement_priors")
+print(f"  insights.improvement_priors: {_ipr if _ipr else 'null (아직 실적 표본 부족)'}")
 
 # ===========================================================================
 # 섹션 5: 대시보드 Improve 탭과의 연동

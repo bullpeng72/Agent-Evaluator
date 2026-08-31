@@ -21,6 +21,7 @@ Book Chapter 02 — Agent-Evaluator 첫 시작
     results/ch02_v1.json, ch02_v2.json  — 섹션 5
 """
 
+import json
 from pathlib import Path
 
 from agent_evaluator import (
@@ -208,6 +209,19 @@ if harness_groups:
             print(f"    Gate {g}: {score:.3f}  {icon} {status}")
 else:
     print("  (Harness Group 데이터 없음 — Config 없이 실행 시 정상)")
+
+# 개선된 리포트: 위 점수 루프를 직접 짜지 않아도, save_to_file('ch02_harness')가
+# 결과 JSON에 배포 판정을 문장으로 정리한 extra_metrics.insights를 함께 써 뒀다.
+# (insights는 저장 시점에 계산돼 JSON에만 들어간다 — generate_report()에는 없다.)
+_saved = json.loads((Path(_OUTPUT_DIR) / "ch02_harness.json").read_text(encoding="utf-8"))
+_ins = _saved.get("extra_metrics", {}).get("insights", {})
+_v = _ins.get("verdict", {})
+if _v:
+    print(f"\n  extra_metrics.insights.verdict : {(_v.get('level') or '?').upper()}"
+          f"  ·  {_v.get('headline', '')}")
+    print(f"  narrative                      : {_ins.get('narrative', '')}")
+    print("  → CI는 이 verdict.level만 보면 되고, 사람은 ch02_harness.html의")
+    print("    Executive Summary / Path to Green 순서로 읽으면 된다.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────

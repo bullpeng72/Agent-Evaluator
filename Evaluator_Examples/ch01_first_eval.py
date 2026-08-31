@@ -26,6 +26,7 @@ Book Chapter 01 — AI에이전트 평가란 무엇인가
 결과:   results/ch01_*.json  →  agent-eval dashboard results/
 """
 
+import json
 import random
 import time
 from pathlib import Path
@@ -331,6 +332,23 @@ print("  실무에서는 CLI로 자동 판정:")
 print("    agent-eval gate results/ch01_first_eval.json --tcr 80 --accuracy 70")
 print("    → 기준 미달 시 exit 1 → CI/CD 파이프라인 자동 차단")
 
+# ── 개선된 리포트: 위 판정을 기계 판독 계층에서 그대로 읽기 ───────────────────
+# save_to_file()은 결과 JSON에 extra_metrics.insights를 함께 쓴다 — 배포 판정,
+# 자연어 내러티브, 목표선까지의 수정 계획(Path to Green)이 한 객체에 들어 있다.
+_hp = monitor_s4.save_to_file("ch01_harness_eval")
+_ins = (json.loads(Path(_hp).read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+_v = _ins.get("verdict", {})
+print()
+print("  [ 같은 판정 — extra_metrics.insights (기계 판독) ]")
+print(f"  판정     : {(_v.get('level') or '?').upper()}  ·  {_v.get('headline', '')}")
+print(f"  내러티브 : {_ins.get('narrative', '')}")
+for _s in (_ins.get("readiness", {}).get("fix_plan") or [])[:2]:
+    print(f"  Path to Green [{_s['rank']}] {_s['signature']} "
+          f"({_s['count']}건) → TCR ≈{_s.get('projected_tcr_after_pct')}%")
+print(f"  HTML     : {_OUTPUT_DIR}/ch01_harness_eval.html "
+      "(Executive Summary · Path to Green · 실패 케이스)")
+
 
 # ===========================================================================
 # 최종 리포트 저장
@@ -341,8 +359,7 @@ print("=" * 62)
 
 monitor_s1.save_to_file("ch01_first_eval")
 monitor_s2.save_to_file("ch01_hallucination_eval")
-# monitor_s3은 이미 저장 완료
-monitor_s4.save_to_file("ch01_harness_eval")
+# monitor_s3은 이미 저장 완료 · monitor_s4는 위 인사이트 블록에서 저장 완료
 
 print()
 print("  저장된 파일:")

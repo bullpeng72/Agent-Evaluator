@@ -363,7 +363,7 @@ if __name__ == "__main__":
     print("Harness CI/CD 검증 시작...")
     _run_validation()
 
-    monitor.save_to_file("ch18_cicd_gate")
+    _saved_path = monitor.save_to_file("ch18_cicd_gate")
     print(f"  결과 저장: {_OUTPUT_DIR}/ch18_cicd_gate.json")
 
     report_dict = monitor.generate_report().to_dict()
@@ -377,6 +377,26 @@ if __name__ == "__main__":
     print("  ── CI/CD 모드: PASS/FAIL 판정 후 exit code 반환 ─────────────────")
 
     should_fail = _print_gate(harness)
+
+    # ── 개선된 리포트: 인사이트 계층을 CI 로그에 함께 남긴다 ────────────────
+    # save_to_file()이 이미 결과 JSON에 쓴 extra_metrics.insights를 읽어,
+    # CI 로그 한 줄에 배포 판정 + 리뷰 대기 태스크 수를 남긴다.
+    # (insights는 저장된 JSON에만 있다 — generate_report().to_dict()에는 없다.)
+    _ins = (json.loads(Path(_saved_path).read_text(encoding="utf-8"))
+            .get("extra_metrics", {}).get("insights", {})) or {}
+    _v = _ins.get("verdict", {})
+    _rq = _ins.get("review_queue") or {}
+    print()
+    print(f"  insights.verdict : {(_v.get('level') or '?').upper()}  ·  {_v.get('headline', '')}")
+    if _rq.get("n_items"):
+        print(f"  insights.review_queue : {_rq['n_items']}건 "
+              f"(high {(_rq.get('by_priority') or {}).get('high', 0)})")
+    print("  ── 실무 CI 스텝 (종료 코드별로 분리) ──────────────────────────")
+    print("    agent-eval gate results/ch18_cicd_gate.json --tcr 80 --accuracy 70 --digest")
+    print("    agent-eval gate results/ch18_cicd_gate.json \\")
+    print("      --baseline-result results/ch18_prev.json --fail-on-case-regression  # exit 4")
+    print("    agent-eval gate results/ch18_cicd_gate.json --max-review-high 0        # exit 4")
+    print(f"  HTML 리포트: {_OUTPUT_DIR}/ch18_cicd_gate.html")
 
     if should_fail:
         mode_label = " (strict)" if _STRICT_MODE else ""

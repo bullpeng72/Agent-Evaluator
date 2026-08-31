@@ -23,6 +23,7 @@ Gate A–G를 완전히 연결하고, Gate F 경고에서 실제 버그를 발�
     results/ch26_harness_full.json  (+ .html)
 """
 
+import json
 import random
 import time
 from dataclasses import dataclass, field
@@ -640,8 +641,27 @@ print(f"  TCR:      {_tcr(report_fixed):.1f}%  (이전: {_tcr(report_buggy):.1f}
 print(f"  Accuracy: {_acc(report_fixed):.1f}%  (이전: {_acc(report_buggy):.1f}%)")
 print(f"  audience_level 전파율: 100% → Gate F 0.720 → 0.950 (1줄 수정)")
 
-monitor.save_to_file("ch26_harness_full")
-print("\n결과 저장 완료: results/ch26_harness_full.json")
+_mp = monitor.save_to_file("ch26_harness_full")
+print("\n결과 저장 완료: results/ch26_harness_full.json  (+ .html)")
+
+# ── 개선된 리포트: 결과 JSON에 함께 저장된 인사이트 계층 ─────────────────────
+# 33개 Config·7개 Gate 판정을 넘어, save_to_file()은 이 실행을 진단한
+# extra_metrics.insights(~60키)를 같은 JSON에 쓴다. 아래는 그 핵심만 요약한다.
+_ins = (json.loads(Path(_mp).read_text(encoding="utf-8"))
+        .get("extra_metrics", {}).get("insights", {}))
+_v = _ins.get("verdict", {})
+print("\n  ── extra_metrics.insights (기계 판독 진단 계층) ──")
+print(f"  verdict         : {(_v.get('level') or '?').upper()}  ·  {_v.get('headline', '')}")
+print(f"  narrative       : {_ins.get('narrative', '')}")
+for _f in (_ins.get("gate_findings") or [])[:3]:
+    _cs = (_f.get("component_shortfalls") or [{}])[0]
+    _g = (_cs.get("guidance") or "").strip() or _cs.get("field", "")
+    print(f"  gate_findings[{_f.get('gate')}] score={_f.get('score', 0):.2f} : {_g}")
+_pop = [k for k, val in _ins.items() if val not in (None, [], {}, "")]
+print(f"  채워진 섹션 {len(_pop)}개: {', '.join(sorted(_pop)[:18])} …")
+print(f"  HTML 리포트     : {_OUTPUT_DIR}/ch26_harness_full.html  "
+      "(모든 섹션을 사람이 읽는 형태로 렌더)")
+print("  대시보드        : agent-eval dashboard results/   (🔧 Improve 탭)")
 print("확인: agent-eval dashboard results/")
 
 print("""
