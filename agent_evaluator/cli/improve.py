@@ -327,16 +327,146 @@ def _record_outcome(
         pass
 
 
+def _find_agent_eval_decorators(repo: Path) -> list[tuple[Path, str, str, int, str]]:
+    """AST-scan ``repo`` for functions decorated with ``@agent_eval(...)``.
+    Returns ``(file, full_source, decorator_call_source, lineno, func_name)``."""
+    import ast
+
+    hits: list[tuple[Path, str, str, int, str]] = []
+    skip = {".git", "node_modules", ".venv", "venv", "__pycache__", "build", "dist"}
+    for py in repo.rglob("*.py"):
+        if any(part in skip for part in py.parts):
+            continue
+        try:
+            src = py.read_text(encoding="utf-8")
+            tree = ast.parse(src)
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for dec in node.decorator_list:
+                call = dec if isinstance(dec, ast.Call) else None
+                fn = call.func if call else dec
+                name = (fn.attr if isinstance(fn, ast.Attribute)
+                        else fn.id if isinstance(fn, ast.Name) else "")
+                if name == "agent_eval" and call is not None:
+                    seg = ast.get_source_segment(src, call) or ""
+                    if seg:
+                        hits.append((py, src, seg, call.lineno, node.name))
+    return hits
+
+
+def _unified(before: str, after: str, path_label: str) -> str:
+    import difflib
+
+    return "".join(difflib.unified_diff(
+        before.splitlines(keepends=True), after.splitlines(keepends=True),
+        fromfile=f"a/{path_label}", tofile=f"b/{path_label}",
+    ))
+
+
+def _patch_prompt_edit(row: dict[str, Any], repo: Path, prompt_file: str | None,
+                       lineage: dict[str, Any]) -> tuple[str, str]:
+    src = prompt_file or lineage.get("prompt_source_path")
+    if not src:
+        return ("", "no prompt source — set PerformanceMonitor(prompt_source_path=…) "
+                "or pass --prompt-file; suggested text:\n" + row.get("after", ""))
+    p = (repo / src) if not Path(src).is_absolute() else Path(src)
+    if not p.is_file():
+        return ("", f"prompt file not found: {p}")
+    text = p.read_text(encoding="utf-8")
+    before_frag = (row.get("before") or "").strip()
+    after_frag = (row.get("after") or "").strip()
+    if before_frag and not before_frag.startswith("(") and before_frag in text:
+        new = text.replace(before_frag, after_frag, 1)
+    else:  # nothing to anchor on — append the new instruction
+        new = text.rstrip("\n") + "\n" + after_frag + "\n"
+    if new == text:
+        return ("", f"could not locate the anchor text in {p}")
+    return (_unified(text, new, str(src)), "")
+
+
+def _patch_config_change(row: dict[str, Any], repo: Path) -> tuple[str, str]:
+    hits = _find_agent_eval_decorators(repo)
+    if not hits:
+        return ("", "no @agent_eval(...) decorator found in the repo; add manually:\n"
+                + row.get("after", ""))
+    py, src, seg, lineno, fname = hits[0]
+    add = " ".join((row.get("after") or "").split())     # kwargs on one logical line
+    if seg.rstrip().endswith(")"):
+        head = seg.rstrip()[:-1].rstrip().rstrip(",")
+        new_seg = (f"{head},\n    # SPEC-041 improve: proposed for Gate "
+                   f"{row.get('gate')}\n    {add}\n)")
+    else:  # unexpected shape — fall back to a trailing note
+        new_seg = seg + f"  # SPEC-041 improve: {add}"
+    if new_seg == seg or seg not in src:
+        return ("", "could not rewrite the decorator call; add manually:\n"
+                + row.get("after", ""))
+    new_src = src.replace(seg, new_seg, 1)
+    try:
+        label = str(py.relative_to(repo))
+    except ValueError:
+        label = str(py)
+    return (
+        _unified(src, new_src, label),
+        f"(decorator on `{fname}` at {py.name}:{lineno})",
+    )
+
+
+def _cmd_patch(args: argparse.Namespace) -> int:
+    current = _load_result(args.result_file)
+    if current is None:
+        return 1
+    ins = _insights(current, _load_result(getattr(args, "baseline", None)))
+    rows = _proposals(ins, getattr(args, "gate", None))
+    if not rows:
+        print(f"{D}No proposals to patch.{R}")
+        return 0
+    repo = Path(getattr(args, "repo", ".") or ".")
+    lineage = ((current.get("extra_metrics") or {}).get("lineage") or {})
+    out_dir = Path(args.out) if getattr(args, "out", None) else None
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    n_diff = 0
+    for r in rows:
+        kind = r.get("kind")
+        print(f"\n{B}Gate {r['gate']} — {_KIND_LABEL.get(kind, kind)}{R}")
+        if kind == "prompt_edit":
+            diff, msg = _patch_prompt_edit(r, repo, getattr(args, "prompt_file", None),
+                                           lineage)
+        elif kind == "config_change":
+            diff, msg = _patch_config_change(r, repo)
+        else:
+            print(f"{D}  data_fix — not patchable; re-check: "
+                  f"{', '.join(r.get('evidence_task_ids') or []) or '—'}{R}")
+            continue
+        if msg:
+            print(f"{D}  {msg}{R}")
+        if diff:
+            n_diff += 1
+            if out_dir:
+                fp = out_dir / f"{r['gate']}_{kind}.patch"
+                fp.write_text(diff, encoding="utf-8")
+                print(f"{G}  wrote {fp}{R}")
+            else:
+                print(diff)
+    print(f"\n{D}{n_diff} diff(s) generated. Review and apply with "
+          f"`git apply` — nothing was written to your sources.{R}")
+    return 0
+
+
 def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
     p = sub.add_parser(
         "improve",
-        help="Closed improvement loop: plan / start / verify proposals",
+        help="Closed improvement loop: plan / start / verify / patch proposals",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Turn the insight layer's per-gate proposals into a tracked\n"
             "improvement workflow. `plan` shows them, `start` registers each as\n"
             "an experiment and writes an apply-me stub, `verify` scores the\n"
-            "prediction once a new run exists.\n"
+            "prediction once a new run exists, `patch` emits a unified diff.\n"
         ),
         epilog=(
             "Examples:\n"
@@ -344,9 +474,11 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "  agent-eval improve start results/v3.json --yes\n"
             "  agent-eval improve verify results/v4.json --baseline results/v3.json "
             "--persist\n"
+            "  agent-eval improve patch results/v3.json --repo .\n"
         ),
     )
-    isub = p.add_subparsers(dest="improve_command", metavar="{plan,start,verify}")
+    isub = p.add_subparsers(dest="improve_command",
+                            metavar="{plan,start,verify,patch}")
 
     pl = isub.add_parser("plan", help="Show the ordered improvement plan")
     pl.add_argument("result_file", help="Evaluation result JSON to plan from")
@@ -377,13 +509,26 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
     vf.add_argument("--log", default=_DEFAULT_LOG, metavar="PATH",
                     help=f"Experiments log (default: {_DEFAULT_LOG})")
 
+    pt = isub.add_parser("patch", help="Emit a unified diff for each proposal (never applies)")
+    pt.add_argument("result_file", help="Evaluation result JSON to patch from")
+    pt.add_argument("--baseline", default=None, metavar="PATH", help="Prior result JSON")
+    pt.add_argument("--gate", default=None, metavar="X", help="Only this Gate (A-G)")
+    pt.add_argument("--repo", default=".", metavar="DIR",
+                    help="Repo root to scan for @agent_eval decorators (default: .)")
+    pt.add_argument("--prompt-file", default=None, metavar="PATH", dest="prompt_file",
+                    help="System-prompt file for prompt_edit proposals "
+                         "(overrides lineage.prompt_source_path)")
+    pt.add_argument("--out", default=None, metavar="DIR",
+                    help="Write <gate>_<kind>.patch files here instead of stdout")
+
 
 def cmd_improve(args: argparse.Namespace) -> int:
-    handlers = {"plan": _cmd_plan, "start": _cmd_start, "verify": _cmd_verify}
+    handlers = {"plan": _cmd_plan, "start": _cmd_start, "verify": _cmd_verify,
+                "patch": _cmd_patch}
     cmd = getattr(args, "improve_command", None)
     handler = handlers.get(cmd) if cmd is not None else None
     if handler is None:
-        print(_err("Specify: agent-eval improve {plan,start,verify}"))
+        print(_err("Specify: agent-eval improve {plan,start,verify,patch}"))
         print(f"{D}For details: agent-eval improve --help{R}")
         return 1
     return handler(args)

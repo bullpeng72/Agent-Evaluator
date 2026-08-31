@@ -296,6 +296,10 @@ class PerformanceMonitor:
         # 대조해 "무엇이 바뀌어 어느 Gate가 움직였나"(insights.change_attribution)를 낸다.
         # 순수 메타데이터 — 점수 계산에는 관여하지 않는다.
         prompt_text: str | None = None,
+        # SPEC-041 P61: repo-relative path of the file the system prompt lives in
+        # (optional). Lets `agent-eval improve patch` emit a real unified diff of
+        # that file for a prompt_edit proposal. Pure metadata.
+        prompt_source_path: str | None = None,
         config_snapshot: dict[str, Any] | None = None,
         # SPEC-041 P28: 완전 재현 매니페스트용 (선택). model_params는 디코딩 파라미터
         # (temperature/top_p/seed 등), dataset_ref는 평가셋 식별자/해시. 지정하면
@@ -519,6 +523,7 @@ class PerformanceMonitor:
         self._agent_version = agent_version
         self._iteration_note = iteration_note
         self._prompt_text = prompt_text
+        self._prompt_source_path = prompt_source_path
         self._config_snapshot = config_snapshot
         self._model_params = model_params
         self._dataset_ref = dataset_ref
@@ -3072,6 +3077,8 @@ class PerformanceMonitor:
             _lineage_prompt["prompt_text"] = _pt
             # non-crypto identity hash for change-attribution diffing
             _lineage_prompt["prompt_hash"] = hashlib.sha1(_pt.encode("utf-8")).hexdigest()[:16]  # noqa: S324
+        if getattr(self, "_prompt_source_path", None):
+            _lineage_prompt["prompt_source_path"] = str(self._prompt_source_path)
         if self._config_snapshot is not None:
             _lineage_prompt["config_snapshot"] = self._config_snapshot
 

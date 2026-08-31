@@ -714,6 +714,19 @@ poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 propo
 TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
 `test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
 
+**SPEC-041 P61 (proposal → patch)** — P36 proposal은 before/after *텍스트*, P49 `improve start`는
+`.md` 스텁만 — 실제 적용 가능한 diff가 없었다. `cli/improve.py`에 `patch` 서브커맨드 추가:
+`agent-eval improve patch <result.json> --repo . [--gate X] [--prompt-file PATH] [--out DIR]`.
+`config_change` proposal → `_find_agent_eval_decorators(repo)`가 repo를 `ast` 스캔해
+`@agent_eval(...)` 데코레이터를 찾고(`ast.get_source_segment`로 정확한 호출 소스 추출),
+`_patch_config_change`가 닫는 `)` 앞에 proposal의 `after` kwargs를 삽입한 `difflib.unified_diff` 생성.
+`prompt_edit` proposal → `_patch_prompt_edit`가 `lineage.prompt_source_path`(또는 `--prompt-file`)의
+파일에서 `before` 앵커를 `after`로 치환(앵커 없으면 append)한 unified diff. `data_fix`는 patch 불가 —
+task_id 목록만 출력. `--out DIR`면 `<gate>_<kind>.patch` 파일로, 아니면 stdout. **절대 적용 안 함**
+(사용자가 `git apply`). `PerformanceMonitor(prompt_source_path=)` 신규 파라미터 → `_build_lineage()`가
+`lineage.prompt_source_path`로 실음(순수 메타). `test_improve_patch_p61.py`(10). 스키마/insight 변경
+없음(CLI 전용). 전체 4755 통과.
+
 **SPEC-041 P58 (golden-set 건강도)** — `dataset promote`는 케이스를 추가만, 오래 통과한 케이스 은퇴 ·
 현재 실패모드를 골든셋이 여전히 잡는지 · 근접중복 점검이 없었다. `datasets/golden_health.py`(신규,
 stdlib): `load_golden_cases(golden)`(bare list / `{items}` / `{cases}` / 경로 수용) +

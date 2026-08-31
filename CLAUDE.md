@@ -80,6 +80,7 @@ agent-eval benchmark show                                        # print the cur
 agent-eval improve plan v3.json --baseline v2.json               # closed loop (SPEC-041 P49): show per-gate proposals
 agent-eval improve start v3.json --yes                            # register each proposal as an experiment + write .aoo/improve/*.md stubs
 agent-eval improve verify v4.json --baseline v3.json --persist    # score predicted-vs-actual, resolve experiments + append recommendation_outcomes.jsonl
+agent-eval improve patch v3.json --repo .                         # emit a unified diff per proposal (prompt file / @agent_eval decorator) — never applies (SPEC-041 P61)
 
 # Quality
 pytest
@@ -436,7 +437,7 @@ auto_save, auto_save_interval, auto_save_filename
 enable_otel_child_spans, ttft_variability_config, cost_predictability_config
 gate_a_tcr_weight, gate_c_tcr_weight, gate_b_loop_weight
 min_samples_default
-prompt_version, agent_version, iteration_note, prompt_text, config_snapshot, model_params, dataset_ref
+prompt_version, agent_version, iteration_note, prompt_text, prompt_source_path, config_snapshot, model_params, dataset_ref
 retention_mode, window_size
 storage_backend
 enable_pii_redaction, pii_redaction_categories
