@@ -76,6 +76,7 @@ def test_current_file_is_excluded(tmp_path):
         ("cur", {"t1"}, "2026-01-29T00:00:00"),
     ])
     lg = _longitudinal_section(tmp_path, tmp_path / "cur.json")
+    assert lg is not None
     assert lg["n_runs"] == 4
     assert "cur.json" not in lg["run_files"]
 
@@ -89,6 +90,7 @@ def test_eval_set_stability_and_cadence(tmp_path):
         ("r4", {"t1"},       "2026-01-22T00:00:00"),
     ])
     lg = _longitudinal_section(tmp_path)
+    assert lg is not None
     st = lg["eval_set_stability"]
     assert st and st["n_runs_same_eval_set"] == 4
     assert st["detectable_change_pp"] >= 0
@@ -111,6 +113,7 @@ def test_baseline_json_is_skipped(tmp_path):
         encoding="utf-8",
     )
     lg = _longitudinal_section(tmp_path)
+    assert lg is not None
     assert "baseline.json" not in lg["run_files"]
     assert lg["n_runs"] == 4
 

@@ -82,6 +82,7 @@ def test_insight_changes_separates_newly_and_still_below():
     base = _r(0.9, 0.9, 0.5)
     ic = _insight_changes_section(cur, base, None, None,
                                   cur["extra_metrics"]["harness_groups"])
+    assert ic is not None
     assert set(ic["newly_failing_gates"]) == {"A", "C"}
     assert ic["still_below_gates"] == ["D"]
     html = _build_insight_changes(ic)

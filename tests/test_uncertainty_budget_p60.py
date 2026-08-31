@@ -34,6 +34,7 @@ def test_sampling_component_with_task_estimate():
         "evaluator_trust": {}, "freshness": {}, "threshold_sensitivity": {}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     s = next(c for c in ub["components"] if c["source"] == "sampling")
     assert "more tasks" in s["lever_cost"]
     assert "±5pp" in s["projected_reduction"]
@@ -50,6 +51,7 @@ def test_judge_component_counts_disagreements():
         "freshness": {}, "threshold_sensitivity": {}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     j = next(c for c in ub["components"] if c["source"] == "judge")
     assert "3 judge" in j["cheapest_lever"] and j["lever_cost"] == "~3 tasks"
 
@@ -63,6 +65,7 @@ def test_staleness_ignores_tiny_eval_set_warning():
         "threshold_sensitivity": {}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     # the tiny-eval-set warning is sampling, not staleness
     assert not any(c["source"] == "staleness" for c in ub["components"])
     assert any(c["source"] == "sampling" for c in ub["components"])
@@ -76,6 +79,7 @@ def test_staleness_fires_on_old_baseline():
         "threshold_sensitivity": {}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     st = next(c for c in ub["components"] if c["source"] == "staleness")
     assert "63 days old" in st["description"]
     assert st["cheapest_lever"] == "re-baseline against a recent run"
@@ -90,6 +94,7 @@ def test_borderline_from_knife_edge_or_near_gap():
         "readiness": {},
     }
     ub = _uncertainty_budget_section(out_knife)
+    assert ub is not None
     b = next(c for c in ub["components"] if c["source"] == "borderline")
     assert "not more measurement" in b["cheapest_lever"]
 
@@ -99,6 +104,7 @@ def test_borderline_from_knife_edge_or_near_gap():
         "readiness": {"gaps": [{"gate": "A", "gap": -0.02}]},
     }
     ub2 = _uncertainty_budget_section(out_gap)
+    assert ub2 is not None
     assert any(c["source"] == "borderline" for c in ub2["components"])
 
 
@@ -111,6 +117,7 @@ def test_contributions_sum_to_100():
         "threshold_sensitivity": {"knife_edge": True}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     assert ub["n_sources"] == 4
     assert abs(sum(c["contribution_pct"] for c in ub["components"]) - 100.0) < 0.5
     # sorted by contribution desc

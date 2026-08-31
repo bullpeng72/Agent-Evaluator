@@ -51,6 +51,7 @@ def test_buckets_confirm_rate_and_verdict():
     outs = [{"verdict": "confirmed", "target_gate": "D", "gate_delta": 0.16,
              "note": "parallelised the retriever + cache"}]
     p = synthesize_priors(exps, outs)
+    assert p is not None
     a = next(b for b in p["by_bucket"] if b["gate"] == "A")
     assert a["category"] == "prompt_edit" and a["n"] == 3
     assert a["confirm_rate"] == round(2 / 3, 2) and a["verdict"] == "works_well"
@@ -68,7 +69,8 @@ def test_prior_for_bucket_then_category_then_none():
     p = synthesize_priors(
         [_exp("A", "[improve] Gate A prompt_edit: x", "confirmed", 0.1),
          _exp("A", "[improve] Gate A prompt_edit: y", "confirmed", 0.1)], [])
-    assert prior_for(p, "A", "prompt_edit")["verdict"] == "works_well"
+    _pf = prior_for(p, "A", "prompt_edit")
+    assert _pf is not None and _pf["verdict"] == "works_well"
     cat = prior_for(p, "B", "prompt_edit")           # no B bucket -> category rollup
     assert cat and cat["scope"] == "category"
     assert prior_for(p, "A", "data_fix") is None

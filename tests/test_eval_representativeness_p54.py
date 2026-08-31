@@ -47,6 +47,7 @@ def test_query_coverage_and_blind_spots():
     er = _eval_representativeness_section(_tasks(), _cur({"queries": [
         "how do I return an item", "where is my package",
         "update my credit card on file", "cancel my subscription"]}))
+    assert er is not None
     qc = er["query_coverage"]
     assert qc["n_production_queries"] == 4
     assert qc["n_covered"] == 3
@@ -57,6 +58,7 @@ def test_query_coverage_and_blind_spots():
 def test_topic_histogram_gaps_and_over_representation():
     er = _eval_representativeness_section(_tasks(), _cur({"topics": {
         "returns": 0.25, "shipping": 0.45, "billing": 0.30}}))
+    assert er is not None
     d = er["distributions"][0]
     assert d["key"] == "topic"
     gap_vals = {g["value"] for g in d["coverage_gaps"]}
@@ -70,6 +72,7 @@ def test_prod_weighted_tcr_below_measured():
     er = _eval_representativeness_section(_tasks(), _cur({"topics": {
         "returns": 0.2, "shipping": 0.8}}))
     # eval is mostly the easy 'returns' topic; prod is mostly failing 'shipping'
+    assert er is not None
     assert er["prod_weighted_tcr_estimate_pct"] < er["measured_tcr_pct"]
 
 
@@ -85,6 +88,7 @@ def test_metadata_histogram_key():
         "extra_metrics": {"production_sample": {
             "metadata": {"difficulty": {"easy": 0.3, "hard": 0.7}}}},
         "tasks": tasks})
+    assert er is not None
     d = next(x for x in er["distributions"] if x["key"] == "difficulty")
     assert any(g["value"] == "hard" for g in d["coverage_gaps"])
 

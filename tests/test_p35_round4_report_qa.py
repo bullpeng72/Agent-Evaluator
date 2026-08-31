@@ -169,6 +169,7 @@ def test_uncertainty_budget_says_no_dominant_driver_when_tied():
         "threshold_sensitivity": {}, "readiness": {},
     }
     ub = _uncertainty_budget_section(out)
+    assert ub is not None
     assert ub["dominant_source"] is None
     assert ub["tied_top"] == 3
     assert "No single dominant driver" in ub["note"]
@@ -210,6 +211,7 @@ def test_reference_frame_marks_below_floor_percentile():
     hg = {"A": {"score": 0.50, "status": "fail", "gate": "fail", "details": {}}}
     tasks = [_t(f"t{i}", 0.4, 0.4, False) for i in range(20)]
     rf = _reference_frame_section({}, hg, tasks, ref)
+    assert rf is not None
     ga = next(m for m in rf["metrics"] if m["metric"] == "gate_a")
     assert ga["percentile_is_floor"] is True     # 0.50 is below the p10 = 0.71
 

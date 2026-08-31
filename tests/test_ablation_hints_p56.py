@@ -58,6 +58,7 @@ def test_prompt_line_hit_for_premature_stop():
     tasks += [_t(f"m{i}", 0.3, 0.2, False,
                  "only part of a multi-step answer completed") for i in range(4)]
     hints = _ablation_hints_section(tasks, _cur(tasks), _tax(tasks))
+    assert hints is not None
     ps = next(h for h in hints if h["taxonomy_code"] == "PREMATURE_STOP")
     assert ps["target_kind"] == "prompt_line"
     assert "numbered steps" in ps["target"] and ps["prompt_line_index"] == 3
@@ -70,6 +71,7 @@ def test_config_knob_for_runtime_error_and_ranking():
     tasks += [_t(f"m{i}", 0.3, 0.2, False,
                  "only part of a multi-step answer completed") for i in range(2)]
     hints = _ablation_hints_section(tasks, _cur(tasks), _tax(tasks))
+    assert hints is not None
     # runtime (5) ranks above premature-stop (2)
     assert hints[0]["taxonomy_code"] == "RUNTIME_ERROR"
     assert hints[0]["target_kind"] == "config_knob"
@@ -85,6 +87,7 @@ def test_missing_prompt_line_is_flagged():
     # prompt has no step/decomposition instruction
     hints = _ablation_hints_section(
         tasks, _cur(tasks, "You are a support agent. Answer questions."), _tax(tasks))
+    assert hints is not None
     ps = next(h for h in hints if h["taxonomy_code"] == "PREMATURE_STOP")
     assert ps["prompt_line_index"] is None
     assert "no rule addressing it" in ps["rationale"]

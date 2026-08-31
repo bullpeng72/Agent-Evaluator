@@ -13,7 +13,8 @@ from agent_evaluator.utils.confidence import pearson_r
 def test_pearson_r():
     assert pearson_r([1, 2, 3, 4], [1, 2, 3, 4]) == 1.0
     assert pearson_r([1, 2, 3, 4], [4, 3, 2, 1]) == -1.0
-    assert abs(pearson_r([1, 2, 3, 4, 5], [1, 2, 1, 2, 1])) < 0.5
+    weak = pearson_r([1, 2, 3, 4, 5], [1, 2, 1, 2, 1])
+    assert weak is not None and abs(weak) < 0.5
     assert pearson_r([1, 1, 1], [1, 2, 3]) is None      # zero variance
     assert pearson_r([1, 2], [1, 2]) is None            # < 3 pairs
 
@@ -52,6 +53,7 @@ def test_independent_metrics_not_redundant():
     acc = [0.7, 0.6, 0.9, 0.4, 0.5, 0.8, 0.3, 0.65]      # ~uncorrelated with comp
     tasks = [_t(f"t{i}", c, a) for i, (c, a) in enumerate(zip(comp, acc))]
     ms = _metric_signal_section(tasks)
+    assert ms is not None
     assert not any(set(r["pair"]) == {"accuracy", "completion"}
                    for r in ms["redundant_pairs"])
 
@@ -63,6 +65,7 @@ def test_outcome_correlation_ranks_metrics():
         acc = 0.1 + i * 0.08
         tasks.append(_t(f"t{i}", 0.5, acc, outcome=1.0 + acc * 4.0))
     ms = _metric_signal_section(tasks)
+    assert ms is not None
     oc = ms["outcome_correlation"]
     assert oc is not None
     top = oc[0]
@@ -72,6 +75,7 @@ def test_outcome_correlation_ranks_metrics():
 def test_no_outcome_when_absent():
     tasks = [_t(f"t{i}", i / 10, (10 - i) / 10) for i in range(1, 9)]
     ms = _metric_signal_section(tasks)
+    assert ms is not None
     assert ms["outcome_correlation"] is None
 
 

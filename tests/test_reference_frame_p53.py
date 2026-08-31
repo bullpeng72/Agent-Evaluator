@@ -66,11 +66,13 @@ def test_save_load_roundtrip_and_coercion(tmp_path):
     save_reference({"label": "x", "tcr_pct": 78,
                     "gate_scores": {"A": [0.7, 0.8], "z": 5}}, path)
     ref = load_reference(path)
+    assert ref is not None
     assert ref["label"] == "x" and ref["tcr_pct"] == 78.0
     assert "A" in ref["gate_scores"] and "Z" not in ref["gate_scores"]
     # deep-merge on gate_scores
     save_reference({"gate_scores": {"E": 0.95}}, path)
     ref2 = load_reference(path)
+    assert ref2 is not None
     assert set(ref2["gate_scores"]) == {"A", "E"}
 
 
@@ -92,6 +94,7 @@ def test_section_shape_and_weakest():
            "tcr_pct": {"p10": 62, "p25": 70, "p50": 78, "p75": 85, "p90": 91},
            "gate_scores": {"A": [0.71, 0.74, 0.77, 0.80, 0.83], "E": 0.95}}
     rf = _reference_frame_section({}, _hg(0.72, 0.9), _tasks(), ref)
+    assert rf is not None
     assert rf["label"] == "support-rag"
     tcr = next(m for m in rf["metrics"] if m["metric"] == "tcr")
     assert isinstance(tcr["percentile"], int)
@@ -108,6 +111,7 @@ def test_section_shape_and_weakest():
 def test_above_reference_summary():
     ref = {"label": "r", "tcr_pct": [30, 35, 40, 45, 50]}   # low bar
     rf = _reference_frame_section({}, {}, _tasks(), ref)
+    assert rf is not None
     tcr = rf["metrics"][0]
     assert tcr["verdict"] == "above reference" and tcr["percentile"] == 100
 
@@ -158,5 +162,6 @@ def test_cli_benchmark_from_results(tmp_path, capsys):
     )
     assert cmd_benchmark(ns) == 0
     ref = load_reference(ref_path)
+    assert ref is not None
     assert "tcr_pct" in ref and isinstance(ref["tcr_pct"], dict)
     assert "A" in ref.get("gate_scores", {})

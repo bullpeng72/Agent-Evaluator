@@ -53,6 +53,7 @@ def test_stable_when_models_agree():
          "scores": {f"t{i}": {"overall": 8.2} for i in range(8)}},
     ]
     jr = _judge_robustness_section(_cur(runs), _tasks())
+    assert jr is not None
     assert jr["verdict_stability_across_models"]["stable"] is True
     assert jr["n_sensitive"] == 0
     assert "stable across judges" in jr["note"]
@@ -66,6 +67,7 @@ def test_unstable_flags_bucket_flips_and_cost_share():
          "scores": {f"t{i}": {"overall": 6.5 if i % 2 == 0 else 8.5} for i in range(8)}},
     ]
     jr = _judge_robustness_section(_cur(runs, total_cost=2.0), _tasks())
+    assert jr is not None
     assert jr["verdict_stability_across_models"]["stable"] is False
     assert jr["n_sensitive"] == 4
     assert all(s["bucket_flip"] for s in jr["judge_sensitive_tasks"])
@@ -81,6 +83,7 @@ def test_cost_share_none_without_total_cost():
     ]
     cur = {"extra_metrics": {"harness_groups": {}, "judge_runs": runs}, "tasks": _tasks()}
     jr = _judge_robustness_section(cur, _tasks())
+    assert jr is not None
     assert jr["judge_cost_share_pct"] is None
 
 

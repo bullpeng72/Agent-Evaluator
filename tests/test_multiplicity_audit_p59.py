@@ -36,6 +36,7 @@ def test_collects_family_and_runs_bh():
            "slices": [{"value": "a", "p_value": 0.04},
                       {"value": "b", "p_value": 0.5}]}]
     ma = _multiplicity_audit_section(sa, md, None)
+    assert ma is not None
     assert ma["n_comparisons"] == 4
     assert ma["alpha"] == 0.05
     assert ma["n_nominally_significant"] == 2       # 0.03 and 0.04
@@ -51,6 +52,7 @@ def test_strong_signal_survives_bh():
     sa = [{"task_type": "qa", "p_value": 0.0001},
           {"task_type": "rag", "p_value": 0.6}]
     ma = _multiplicity_audit_section(sa, None, None)
+    assert ma is not None
     assert ma["n_significant_after_bh"] == 1
     assert ma["flagged"] == []
     assert "No finding is likely" in ma["note"]
@@ -60,6 +62,7 @@ def test_cohort_pairs_join_the_family():
     coh = {"pairs": [{"a": "v1", "b": "v2", "p_value": 0.02},
                      {"a": "v1", "b": "v3", "p_value": 0.8}]}
     ma = _multiplicity_audit_section(None, None, coh)
+    assert ma is not None
     assert ma["n_comparisons"] == 2
     assert "cohort_comparison" in ma["sections"]
 
@@ -67,6 +70,7 @@ def test_cohort_pairs_join_the_family():
 def test_refs_removed_from_output():
     sa = [{"task_type": "qa", "p_value": 0.03}]
     ma = _multiplicity_audit_section(sa, None, None)
+    assert ma is not None
     assert "_refs" in ma           # present until _attach_multiplicity_flags pops it
 
 

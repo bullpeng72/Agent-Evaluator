@@ -64,6 +64,7 @@ def test_tool_differentiator_when_retrieval_equal():
            tools=[{"tool_name": "search"}, {"tool_name": "order_api"}]),
     ] + [_t(f"ok{i}", 1.0, 0.9, True, f"other {i}") for i in range(6)]
     rows = _contrast_pairs_section(tasks)
+    assert rows is not None
     assert "tools" in rows[0]["likely_differentiator"]
     assert "order_api" in rows[0]["likely_differentiator"]
 
@@ -76,6 +77,7 @@ def test_metadata_differentiator():
            extra={"model": "sonnet"}),
     ] + [_t(f"ok{i}", 1.0, 0.9, True, f"z {i}") for i in range(6)]
     rows = _contrast_pairs_section(tasks)
+    assert rows is not None
     assert "metadata" in rows[0]["likely_differentiator"]
     assert rows[0]["differences"]["metadata"]["model"] == ["haiku", "sonnet"]
 

@@ -62,6 +62,7 @@ def test_uncovered_failure_modes_are_the_blind_spot():
     tasks += [_t(f"m{i}", 0.3, 0.2, False, f"multi step warranty claim {i}",
                  "only part of a multi-step answer completed") for i in range(3)]
     h = assess_golden_health(golden, _run_with_taxonomy(tasks))
+    assert h is not None
     codes = {u["code"] for u in h["uncovered_failure_modes"]}
     assert "RUNTIME_ERROR" in codes and "PREMATURE_STOP" in codes
     assert h["coverage_pct"] == 0.0
@@ -77,6 +78,7 @@ def test_covered_mode_raises_coverage():
     tasks += [_t(f"to{i}", 0.0, 0.0, False, f"track order {i}",
                  "error: TimeoutError") for i in range(4)]
     h = assess_golden_health(golden, _run_with_taxonomy(tasks))
+    assert h is not None
     assert h["coverage_pct"] == 100.0
     assert h["uncovered_failure_modes"] == []
 
@@ -93,6 +95,7 @@ def test_stale_case_flagged_and_streak(tmp_path):
             "tasks": [_t("p1", 1.0, 0.95, True, "what is your phone number")]}))
     h = assess_golden_health(golden, {"tasks": tasks, "extra_metrics": {}},
                              history_dir=str(tmp_path))
+    assert h is not None
     assert h["stale_cases"]
     s = h["stale_cases"][0]
     assert s["passed_streak"] >= 4 and "phone number" in s["question"]
@@ -105,6 +108,7 @@ def test_redundant_near_duplicates():
         {"question": "what are your opening hours"},
     ]}
     h = assess_golden_health(golden, {"tasks": [], "extra_metrics": {}})
+    assert h is not None
     assert h["redundant_cases"]
     assert h["redundant_cases"][0]["duplicate_of"] == 0
 

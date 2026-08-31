@@ -91,14 +91,17 @@ def test_explainer_hook_and_fallback():
                             "source": "LLM"}], "wrong_claim": "custom"}
 
     fe = _failure_explanations_section(tasks, explainer=good)
+    assert fe is not None
     assert fe[0]["explained_by"] == "explainer"
     assert fe[0]["claims"][0]["source"] == "LLM"
 
     fe_bad = _failure_explanations_section(tasks, explainer=lambda p: "nope")
+    assert fe_bad is not None
     assert fe_bad[0]["explained_by"] == "template"
 
     fe_raise = _failure_explanations_section(
         tasks, explainer=lambda p: (_ for _ in ()).throw(RuntimeError()))
+    assert fe_raise is not None
     assert fe_raise[0]["explained_by"] == "template"
 
 

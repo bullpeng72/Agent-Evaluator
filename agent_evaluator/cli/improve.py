@@ -366,13 +366,18 @@ def _unified(before: str, after: str, path_label: str) -> str:
     ))
 
 
-def _patch_prompt_edit(row: dict[str, Any], repo: Path, prompt_file: str | None,
+def _patch_prompt_edit(row: dict[str, Any], repo: Path | None, prompt_file: str | None,
                        lineage: dict[str, Any]) -> tuple[str, str]:
     src = prompt_file or lineage.get("prompt_source_path")
     if not src:
         return ("", "no prompt source — set PerformanceMonitor(prompt_source_path=…) "
                 "or pass --prompt-file; suggested text:\n" + row.get("after", ""))
-    p = (repo / src) if not Path(src).is_absolute() else Path(src)
+    if Path(src).is_absolute():
+        p = Path(src)
+    elif repo is None:
+        return ("", "no repo root to resolve the relative prompt path against")
+    else:
+        p = repo / src
     if not p.is_file():
         return ("", f"prompt file not found: {p}")
     text = p.read_text(encoding="utf-8")

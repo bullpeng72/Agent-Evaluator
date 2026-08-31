@@ -81,6 +81,7 @@ def test_section_carries_new_keys_and_contamination_warning():
     cur = {"extra_metrics": {"lineage": {
         "prompt_text": "Example: what is the return policy exactly please tell me"}}}
     q = _eval_set_quality_section(tasks, None, {}, cur)
+    assert q is not None
     assert "capability_coverage" in q and "contamination" in q
     assert q["contamination"]
     assert any("overlap the system prompt" in w for w in q["coverage_warnings"])

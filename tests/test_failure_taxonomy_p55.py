@@ -112,6 +112,7 @@ def test_section_aggregates_and_sorts():
     tasks += [_t(f"m{i}", 0.3, 0.2, False,
                  "only part of a multi-step answer completed") for i in range(2)]
     ft = _failure_taxonomy_section(tasks)
+    assert ft is not None
     assert ft["n_failures"] == 6
     codes = [m["code"] for m in ft["by_mode"]]
     assert codes[0] == "RUNTIME_ERROR"          # biggest bucket first
@@ -126,6 +127,7 @@ def test_label_issue_uses_baseline():
     cur = {"tasks": [_t("bad", 0.1, 0.1, False, "low similarity", resp="x", gt="y")]}
     base = {"tasks": [_t("bad", 0.1, 0.1, False, "low similarity", resp="x", gt="y")]}
     ft = _failure_taxonomy_section(cur["tasks"], base)
+    assert ft is not None
     assert any(m["code"] == "LABEL_OR_SPEC_ISSUE" for m in ft["by_mode"])
 
 
