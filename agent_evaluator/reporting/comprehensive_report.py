@@ -3372,6 +3372,50 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
     )
 
 
+_EFF_KIND_LABEL = {
+    "model_routing": ("Model routing", "#0ea5e9"),
+    "step_gating": ("Step gating", "#7c3aed"),
+    "retry_reduction": ("Retry reduction", "#d97706"),
+}
+
+
+def _build_efficiency_opportunities(eo: list[dict[str, Any]] | None) -> str:
+    """P40: turn the latency-budget / cost-economics numbers into concrete moves —
+    route to a cheaper model, gate an always-on step, cut retry spend."""
+    if not eo:
+        return ""
+    cards = ""
+    for o in eo:
+        lbl, col = _EFF_KIND_LABEL.get(o.get("kind", ""), (o.get("kind", ""), "#6b7280"))
+        sp = o.get("projected_saving_pct")
+        per100k = o.get("projected_saving_per_100k_usd")
+        save_s = ""
+        if isinstance(sp, (int, float)):
+            save_s = (f'<span style="color:#059669;font-weight:700">~{sp:.0f}% cost</span>'
+                      + (f' (~${per100k:,.0f}/100k calls)' if per100k else ""))
+        cards += (
+            '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;'
+            'margin:8px 0;background:#fff">'
+            f'<div style="font-size:11px;font-weight:700;color:{col};text-transform:'
+            f'uppercase;letter-spacing:.4px">{_esc(lbl)}</div>'
+            f'<div style="font-weight:600;margin:2px 0">{_esc(o.get("title", ""))} '
+            f'{save_s}</div>'
+            f'<p style="font-size:12px;color:#374151;margin:2px 0">{_esc(o.get("detail", ""))}</p>'
+            f'<p style="font-size:11px;color:#9ca3af;margin:2px 0 0">Risk: '
+            f'{_esc(o.get("risk", ""))}</p>'
+            '</div>'
+        )
+    return (
+        '<div class="gate-section" id="efficiency-opportunities" '
+        'style="border-left-color:#0ea5e9">'
+        '<h2 style="color:#1e2030">Efficiency Opportunities</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'First-order cost / latency moves synthesised from the slice, span and '
+        'retry data. Projections assume the rest of the system is unchanged.</p>'
+        f'{cards}</div>'
+    )
+
+
 def _build_calibration(cal: dict[str, Any] | None) -> str:
     """P39: is the agent's own confidence trustworthy? Reliability diagram +
     ECE/Brier + over/under-confidence verdict + risk/coverage + abstention."""
@@ -3917,7 +3961,7 @@ _TOC_LABELS = {
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "insight-changes": "Insight diff",
-    "calibration": "Calibration",
+    "calibration": "Calibration", "efficiency-opportunities": "Efficiency",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
@@ -5387,6 +5431,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
         _build_calibration(_insights_obj.get("calibration")),
+        _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -5621,6 +5666,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
         _build_calibration(_insights_obj.get("calibration")),
+        _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,

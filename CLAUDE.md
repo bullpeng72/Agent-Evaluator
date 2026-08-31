@@ -1268,6 +1268,21 @@ accuracy/ECE/Brier KPI + confidence 버킷별 stated vs actual 표(gap>0.1 빨�
 `extra.confidence`(실패 태스크는 0.82-0.97로 overconfident) + `t_qa_7`/`t_rag_8` `abstained`.
 `test_calibration_p39.py`(9). 전체 4571 통과.
 
+**SPEC-041 P40 (비용/지연 최적화 제안)** — `reporting/insights.py::_efficiency_opportunities_section`:
+P7 지연 예산·P16 비용 경제성이 *보고만* 하던 것을 구체적 조치로. `insights.efficiency_opportunities[]`
+`{kind, title, detail, projected_saving_pct, projected_saving_per_100k_usd, risk, evidence}`:
+(a) **model_routing** — `metadata_slices`의 model/variant/engine dimension에서 값별 per-task 토큰비용
+(`_task_token_cost`) + TCR 계산 → 가장 싼 값이 가장 비싼 값의 85% 미만 비용이고 TCR 손실 ≤5pp이며
+현재 cost/task보다 싸면 "consolidate on '<cheap>'" + 절감률/10만콜 절감액. (b) **step_gating** —
+`parse_span_timeline`으로 태스크별 스텝 타이밍 파싱, ≥5개 timed 태스크에서 ≥90% 태스크에 등장 &
+mean self_ms ≥80ms & 최대 지속시간 스텝(=핵심 작업)이 아닌 스텝 1개를 "gate the '<step>' step"
+(비용 절감 정량화 불가라 None). (c) **retry_reduction** — `cost_economics.retry_cost_pct ≥5%`면
+runtime 카테고리 `failure_clusters` 이름과 함께 "N% of spend is retries". 전부 상관·1차 근사.
+`build_insights` out 딕셔너리 조립 후(`_attach_proposals` 옆) 계산. 리포트
+`_build_efficiency_opportunities()` 섹션 `efficiency-opportunities`(calibration 다음), TOC "Efficiency".
+스키마 `efficiency_opportunities`. gen_example_v2.py: rich RAG 태스크에 timed `retrieve→rerank→
+synthesize` tool_calls 추가(step_gating 데모). `test_efficiency_opportunities_p40.py`(6). 전체 4577 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

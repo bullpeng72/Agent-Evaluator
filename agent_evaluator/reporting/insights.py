@@ -473,6 +473,172 @@ def _cost_economics_section(
 
 
 # ---------------------------------------------------------------------------
+# Efficiency opportunities (P40) — cost/latency reporting -> concrete proposals.
+#
+# P7 (latency budget) and P16 (cost economics) only *report*. The data to act on
+# is already here: per-variant cost + TCR from metadata slices, per-step timing
+# from span data, retry spend from cost economics. This section synthesises the
+# obvious moves — route to a cheaper model, gate an always-on step, cut retries.
+# Correlational and first-order; a human decides.
+# ---------------------------------------------------------------------------
+_ROUTE_TCR_TOL_PP = 5.0
+_STEP_UBIQUITY = 0.9
+_RETRY_PCT_FLOOR = 5.0
+
+
+def _efficiency_opportunities_section(
+    tasks: list[dict[str, Any]],
+    current: dict[str, Any],
+    cost_economics: dict[str, Any] | None,
+    metadata_slices: list[dict[str, Any]] | None,
+    failure_clusters: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    if not tasks:
+        return None
+    ce = cost_economics or {}
+    cur_cpt = _safe_float(ce.get("cost_per_task_usd"))
+    out: list[dict[str, Any]] = []
+
+    pricing = (current.get("pricing") or {}) if isinstance(current, dict) else {}
+    p_in, p_out = _safe_float(pricing.get("input")), _safe_float(pricing.get("output"))
+
+    # (a) model routing — a variant/model metadata dimension with a cheaper value
+    #     whose TCR is within tolerance of the expensive one.
+    for dim in metadata_slices or []:
+        key = str(dim.get("dimension", ""))
+        short = key[6:] if key.startswith("extra.") else key
+        if not any(w in short.lower() for w in ("model", "variant", "engine")):
+            continue
+        rows: list[dict[str, Any]] = []
+        for s in dim.get("slices") or []:
+            val = str(s.get("value"))
+            members = [
+                t for t in tasks
+                if str((_task_extra(t) or {}).get(short)) == val
+            ]
+            costs = [
+                c for c in (_task_token_cost(t, p_in, p_out) for t in members)
+                if c is not None
+            ]
+            if len(members) < 3 or not costs or s.get("tcr_pct") is None:
+                continue
+            rows.append({
+                "value": val, "n": len(members),
+                "tcr_pct": float(s["tcr_pct"]),
+                "cost_per_task_usd": round(sum(costs) / len(costs), 6),
+            })
+        if len(rows) < 2:
+            continue
+        cheap = min(rows, key=lambda r: r["cost_per_task_usd"])
+        dear = max(rows, key=lambda r: r["cost_per_task_usd"])
+        tcr_loss = dear["tcr_pct"] - cheap["tcr_pct"]
+        if (cheap["value"] != dear["value"]
+                and cheap["cost_per_task_usd"] < dear["cost_per_task_usd"] * 0.85
+                and tcr_loss <= _ROUTE_TCR_TOL_PP
+                and cur_cpt and cheap["cost_per_task_usd"] < cur_cpt):
+            saved_pct = (cur_cpt - cheap["cost_per_task_usd"]) / cur_cpt * 100.0
+            out.append({
+                "kind": "model_routing",
+                "title": f"Consolidate on the '{cheap['value']}' {short}",
+                "detail": (
+                    f"'{cheap['value']}' costs ${cheap['cost_per_task_usd']:.4f}/task "
+                    f"vs ${dear['cost_per_task_usd']:.4f} for '{dear['value']}', and "
+                    f"its TCR is {cheap['tcr_pct']:.0f}% vs {dear['tcr_pct']:.0f}% "
+                    f"({-tcr_loss:+.1f}pp). Routing all traffic to '{cheap['value']}' "
+                    f"is projected to cut cost/task by {saved_pct:.0f}%."
+                ),
+                "projected_saving_pct": round(saved_pct, 1),
+                "projected_saving_per_100k_usd": round(
+                    (cur_cpt - cheap["cost_per_task_usd"]) * 100_000, 0,
+                ),
+                "risk": (
+                    f"up to ~{max(0.0, tcr_loss):.1f}pp TCR on the share that "
+                    f"currently uses '{dear['value']}'"
+                    if tcr_loss > 0 else "none measured on this eval set"
+                ),
+                "evidence": {"by_value": rows},
+            })
+
+    # (b) always-on step with meaningful cost — a candidate to gate behind a
+    #     confidence / necessity check.
+    span_count: Counter = Counter()
+    span_ms: dict[str, list[float]] = defaultdict(list)
+    n_timed = 0
+    for t in tasks:
+        for src in ("tool_calls", "chain_steps", "agent_interactions"):
+            tl = parse_span_timeline(t.get(src) or [])
+            if tl and tl.get("spans"):
+                n_timed += 1
+                for sp in tl["spans"]:
+                    span_count[sp["name"]] += 1
+                    span_ms[sp["name"]].append(float(sp.get("self_ms") or 0.0))
+                break
+    if n_timed >= 5:
+        _means = {
+            nm: (sum(v) / len(v) if v else 0.0) for nm, v in span_ms.items()
+        }
+        # never suggest gating the single most expensive step — that's the core work
+        _core = max(_means, key=_means.get) if _means else None
+        _ubiq = sorted(
+            (nm for nm, c in span_count.items()
+             if c / n_timed >= _STEP_UBIQUITY and c >= 5 and nm != _core),
+            key=lambda nm: -_means.get(nm, 0.0),
+        )
+        for name in _ubiq:
+            share = span_count[name] / n_timed
+            mean_ms = _means.get(name, 0.0)
+            if mean_ms >= 80.0:
+                out.append({
+                    "kind": "step_gating",
+                    "title": f"Gate the '{name}' step",
+                    "detail": (
+                        f"The '{name}' step runs on {share * 100:.0f}% of traced "
+                        f"tasks and adds ~{mean_ms:.0f}ms each. If it only changes "
+                        f"the answer on a minority, gate it behind a "
+                        f"retrieval-confidence / necessity check."
+                    ),
+                    "projected_saving_pct": None,
+                    "projected_saving_per_100k_usd": None,
+                    "risk": "quality drop on the tasks that genuinely need this step",
+                    "evidence": {"share_pct": round(share * 100.0, 1),
+                                 "mean_self_ms": round(mean_ms, 1),
+                                 "n": span_count[name]},
+                })
+                break          # one is enough — the costliest ubiquitous non-core step
+
+    # (c) retry spend
+    rpct = _safe_float(ce.get("retry_cost_pct"))
+    if rpct is not None and rpct >= _RETRY_PCT_FLOOR:
+        rt_clusters = list(dict.fromkeys(
+            str(c.get("signature") or c.get("label"))
+            for c in (failure_clusters or [])
+            if _proposal_category(str(c.get("signature") or c.get("label") or "")) == "runtime"
+        ))
+        out.append({
+            "kind": "retry_reduction",
+            "title": f"{rpct:.0f}% of spend is retries",
+            "detail": (
+                f"${ce.get('retry_cost_usd', 0):.4f} ({rpct:.0f}% of total) is spent "
+                f"re-running tasks that failed the first time"
+                + (f", concentrated in: {', '.join(str(x) for x in rt_clusters[:3])}"
+                   if rt_clusters else "")
+                + ". Fix the root cause (timeout / tool errors) rather than "
+                  "widening the retry budget."
+            ),
+            "projected_saving_pct": round(rpct, 1),
+            "projected_saving_per_100k_usd": round(
+                (_safe_float(ce.get("retry_cost_usd"), 0.0) or 0.0)
+                / max(1, len(tasks)) * 100_000, 0,
+            ),
+            "risk": "fewer automatic recoveries — pair with a real reliability fix",
+            "evidence": {"retry_cost_usd": ce.get("retry_cost_usd"),
+                         "clusters": [str(x) for x in rt_clusters[:5]]},
+        })
+
+    return out or None
+
+
+# ---------------------------------------------------------------------------
 # Evaluator trust (P14) — "how much can I trust the numbers?"
 #
 # Every L2-L6 figure that involves the LLM judge inherits the judge's error. This
@@ -4062,6 +4228,11 @@ def build_insights(
         "experiment_metadata": (diagnosis or {}).get("experiment_metadata"),
     }
     _safe(_attach_proposals, out, tasks, current, fixer, default=None)
+    out["efficiency_opportunities"] = _safe(
+        _efficiency_opportunities_section, tasks, current,
+        out.get("cost_economics"), out.get("metadata_slices"),
+        out.get("failure_clusters"), default=None,
+    )
     out["regression_attribution"] = _safe(
         _regression_attribution_section, tasks, out.get("failure_lineage"),
         out.get("change_attribution"), out.get("metadata_slices"), default=None,

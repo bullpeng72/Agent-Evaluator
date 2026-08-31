@@ -680,6 +680,24 @@
       }
     },
 
+    "efficiency_opportunities": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["kind", "title"],
+        "properties": {
+          "kind": { "enum": ["model_routing", "step_gating", "retry_reduction"] },
+          "title": { "type": "string" },
+          "detail": { "type": "string" },
+          "projected_saving_pct": { "type": ["number", "null"] },
+          "projected_saving_per_100k_usd": { "type": ["number", "null"] },
+          "risk": { "type": "string" },
+          "evidence": { "type": "object" }
+        }
+      }
+    },
+
     "calibration": {
       "type": ["object", "null"],
       "additionalProperties": true,
