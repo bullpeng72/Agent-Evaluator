@@ -3176,6 +3176,51 @@ class PerformanceMonitor:
 
         return report
 
+    def running_insights(self, *, targets: Any = None) -> dict:
+        """SPEC-041 P50 — the cheap, baseline-free insight subset for the run so
+        far: a ``running_verdict`` (Wilson-CI pass-rate vs target + a
+        ``decisive`` early-stop flag) plus ``verdict`` / ``readiness`` /
+        ``gate_findings`` / ``failure_clusters`` / ``security_*`` /
+        ``calibration`` / ``narrative``. Safe to call mid-run, as often as you
+        like (``generate_report()`` is cached between ``record_task()`` calls).
+        Never raises — returns ``{}`` if the insight layer is unavailable.
+
+        Args:
+            targets: optional user SLOs (``utils.targets.load_targets()`` shape).
+                Falls back to ``.aoo/targets.json`` when omitted.
+        """
+        try:
+            from ...reporting.insights import build_insights
+
+            if targets is None:
+                try:
+                    from ...utils.targets import load_targets
+
+                    targets = load_targets()
+                except Exception:
+                    targets = None
+            data = self.generate_report().to_dict()
+            if not data.get("tasks"):
+                # report.to_dict() (dataclass asdict) carries harness_groups via
+                # extra_metrics but not the per-task list — graft it, mirroring
+                # save_to_file().
+                with self._tasks_lock:
+                    _snap = list(self.tcr_tracker._tasks)
+                data["tasks"] = [asdict(t) for t in _snap]
+            return build_insights(data, None, targets=targets, partial=True) or {}
+        except Exception as exc:  # never let a running check break the caller
+            logger.debug("running_insights() unavailable: %s", exc)
+            return {}
+
+    def should_early_stop(self, *, targets: Any = None) -> tuple:
+        """SPEC-041 P50 — ``(stop: bool, running_verdict: dict)``. ``stop`` is
+        ``True`` only when the running verdict is *decisive* (more tasks cannot
+        flip the ready / not-ready call). Purely advisory — the caller decides
+        whether to break its evaluation loop."""
+        ins = self.running_insights(targets=targets)
+        rv = ins.get("running_verdict") or {}
+        return bool(rv.get("decisive")), rv
+
     def invalidate_report_cache(self) -> None:
         """SPEC-014 REQ-4: generate_report() 캐시를 무효화한다.
 

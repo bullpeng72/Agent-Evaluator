@@ -1869,6 +1869,99 @@ def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+_RUNNING_MIN_TASKS = 10
+
+
+def _running_verdict_section(
+    tasks: list[dict[str, Any]],
+    harness_groups: dict[str, Any],
+    *,
+    targets: dict[str, Any] | None = None,
+    min_tasks: int = _RUNNING_MIN_TASKS,
+) -> dict[str, Any]:
+    """P50: a mid-run readiness call for early-stop. Binary task pass-rate
+    (``not _effective_fail``) + Wilson CI vs the TCR target, plus a check that
+    every *measured* gate is at its bar. ``decisive`` means: keep sampling
+    cannot flip the call.
+
+      - CI upper bound already below target        -> decisive, not_ready
+      - CI lower bound at/above target AND every
+        measured gate >= its target                -> decisive, ready
+      - otherwise                                  -> undecided (keep going)
+    """
+    n = len(tasks)
+    passes = sum(
+        1 for t in tasks
+        if not _effective_fail(
+            success=t.get("success", False),
+            accuracy=t.get("accuracy_score"),
+            completion=t.get("completion_score"),
+        )
+    )
+    accs = [_safe_float(t.get("accuracy_score")) for t in tasks]
+    accs = [a for a in accs if a is not None]
+    try:
+        from agent_evaluator.utils.targets import gate_target
+    except Exception:  # pragma: no cover - defensive
+        def gate_target(_t: Any, _k: str, default: float = 0.7) -> float:
+            return default
+
+    target_tcr = 70.0
+    if isinstance(targets, dict) and isinstance(targets.get("tcr_pct"), (int, float)):
+        target_tcr = float(targets["tcr_pct"])
+
+    gates_below: list[str] = []
+    for k in "ABCDEFG":
+        gd = harness_groups.get(k) or {}
+        sc = gd.get("score")
+        if isinstance(sc, (int, float)) and sc < gate_target(targets, k, _READINESS_TARGET) - 1e-9:
+            gates_below.append(k)
+
+    out: dict[str, Any] = {
+        "n_tasks": n,
+        "pass_rate_pct": round(passes / n * 100.0, 2) if n else None,
+        "accuracy_pct": round(sum(accs) / len(accs) * 100.0, 2) if accs else None,
+        "target_tcr_pct": round(target_tcr, 2),
+        "gates_below_target": gates_below,
+        "decisive": False,
+        "verdict": "undecided",
+        "reason": "",
+    }
+    if n < min_tasks:
+        out["reason"] = f"only {n} task(s) so far — need >= {min_tasks} for a call"
+        return out
+    try:
+        from agent_evaluator.utils.confidence import wilson_interval
+
+        lo, hi = wilson_interval(passes, n)
+    except Exception:  # pragma: no cover - defensive
+        return out
+    lo_pp, hi_pp = round(lo * 100.0, 2), round(hi * 100.0, 2)
+    out["pass_rate_ci_pct"] = [lo_pp, hi_pp]
+
+    if hi_pp < target_tcr:
+        out.update(
+            decisive=True, verdict="not_ready",
+            reason=(f"pass-rate 95% CI upper bound {hi_pp:.1f}% is still below the "
+                    f"{target_tcr:.0f}% target after {n} tasks — more tasks will "
+                    f"not clear it"),
+        )
+    elif lo_pp >= target_tcr and not gates_below:
+        out.update(
+            decisive=True, verdict="ready",
+            reason=(f"pass-rate 95% CI lower bound {lo_pp:.1f}% is at/above the "
+                    f"{target_tcr:.0f}% target and all measured gates are at their "
+                    f"bar — safe to stop"),
+        )
+    else:
+        bits = [f"pass-rate CI [{lo_pp:.1f}%, {hi_pp:.1f}%] straddles the "
+                f"{target_tcr:.0f}% target"]
+        if gates_below:
+            bits.append(f"gates below target: {', '.join(gates_below)}")
+        out["reason"] = "; ".join(bits) + " — keep sampling"
+    return out
+
+
 def _sample_guidance_section(
     ci: dict[str, Any], *, target_halfwidth_pp: float = 5.0,
 ) -> dict[str, Any] | None:
@@ -4971,6 +5064,57 @@ def _experiments_section(
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _build_partial_insights(
+    current: dict[str, Any],
+    hg: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    total_tasks: int,
+    targets: dict[str, Any] | None,
+    narrator: Any,
+) -> dict[str, Any]:
+    """P50: the cheap, baseline-free subset of ``build_insights`` for a run in
+    progress — a running readiness call + early-stop decision, plus the few
+    sections that need no baseline / history / cohort / git. Every regression,
+    lineage, cohort, trace-diff, longitudinal and experiment section is skipped
+    (they all require a second run or a log). Same "never raises" contract."""
+    ci = _safe(_metric_confidence_section, tasks, default={"n_tasks": total_tasks})
+    diagnosis = _safe(
+        lambda: __import__(
+            "agent_evaluator.rca.diagnose", fromlist=["diagnose"],
+        ).diagnose(current, None),
+        default=None,
+    )
+    evaluator_trust = _safe(_evaluator_trust_section, tasks, current, default=None)
+    security_findings = _safe(_security_findings_section, current, tasks, default=None)
+    fclusters = _safe(_failure_clusters_section, tasks, total_tasks, default=[])
+    out: dict[str, Any] = {
+        "schema_version": INSIGHTS_SCHEMA_VERSION,
+        "detection_mode": "partial",
+        "partial": True,
+        "n_tasks": total_tasks,
+        "running_verdict": _safe(
+            _running_verdict_section, tasks, hg, targets=targets, default={},
+        ),
+        "verdict": _safe(
+            _verdict_section, hg, diagnosis, ci, total_tasks, evaluator_trust,
+            security_findings, targets, default={},
+        ),
+        "readiness": _safe(_readiness_section, tasks, hg, targets, default=None),
+        "metric_confidence": ci,
+        "gate_findings": _safe(_gate_findings_section, diagnosis, default=[]),
+        "failure_clusters": fclusters,
+        "failure_segments": _safe(_failure_segments_section, tasks, default=None),
+        "security_findings": security_findings,
+        "security_posture": _safe(
+            _security_posture_section, current, tasks, security_findings, default=None,
+        ),
+        "calibration": _safe(_calibration_section, tasks, default=None),
+        "sample_guidance": _safe(_sample_guidance_section, ci, default=None),
+    }
+    out["narrative"] = _safe(_narrative_section, out, narrator, default="")
+    return out
+
+
 def build_insights(
     current: dict[str, Any],
     baseline: dict[str, Any] | None = None,
@@ -4987,6 +5131,7 @@ def build_insights(
     current_file: str | Path | None = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
+    partial: bool = False,
 ) -> dict[str, Any]:
     """Compute the machine-readable insight object for a result JSON.
 
@@ -5016,6 +5161,13 @@ def build_insights(
             cost_per_task_usd?}`` (typically ``utils.targets.load_targets()``).
             When set, ``verdict`` and ``readiness`` measure against this bar
             instead of the built-in 0.7.
+        partial: SPEC-041 P50 — when ``True``, return only the cheap,
+            baseline-free subset for a run *in progress*: a ``running_verdict``
+            (Wilson-CI pass-rate vs target + a ``decisive`` early-stop flag),
+            plus ``verdict`` / ``readiness`` / ``gate_findings`` /
+            ``failure_clusters`` / ``security_*`` / ``calibration`` /
+            ``narrative``. Every regression / lineage / cohort / longitudinal /
+            experiment section is skipped.
 
     Returns:
         A JSON-serializable dict — see ``INSIGHTS_SCHEMA_VERSION``. Never raises;
@@ -5024,6 +5176,9 @@ def build_insights(
     hg = _harness_groups(current)
     tasks = [t for t in (current.get("tasks") or []) if isinstance(t, dict)]
     total_tasks = len(tasks)
+
+    if partial:
+        return _build_partial_insights(current, hg, tasks, total_tasks, targets, narrator)
 
     diagnosis: dict[str, Any] | None = None
     try:

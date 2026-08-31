@@ -590,6 +590,24 @@ inconclusive) 출력. `--persist`면 `resolve_experiment` + `record_recommendati
 `recommendation_outcomes.jsonl`에 append) → 다음 실행의 P8 "past outcomes"가 학습. `verify`는 항상
 exit 0 (틀린 예측은 빌드 실패가 아니라 데이터, HOTL). `test_improve_p49.py`(9). 전체 4647 통과.
 
+**SPEC-041 P50 (증분/스트리밍 인사이트 + early-stop)** — `reporting/insights.py::
+build_insights(current, *, partial=True)` — 실행 *중* 리포트용 값싼 baseline-free 하위집합만 반환한다
+(`_build_partial_insights()`가 즉시 return). `detection_mode="partial"`, `partial=True`, `n_tasks`,
+그리고 `running_verdict`(`_running_verdict_section(tasks, hg, targets=)`): 태스크 이진 pass-rate
+(`not _effective_fail`)의 Wilson 95% CI를 TCR 타깃(기본 70%, `targets.tcr_pct`로 override)과 대조 +
+"측정된 모든 게이트가 각자의 bar 이상인가"(`gate_target`) 확인 →
+`decisive`(=표본 더 쌓아도 판정이 안 바뀜) + `verdict`(ready/not_ready/undecided) + `reason`.
+CI 상한<타깃 → decisive not_ready, CI 하한≥타깃 && gates_below 없음 → decisive ready, 그 외 undecided.
+표본 <10이면 항상 undecided. 함께 포함: `verdict`/`readiness`/`metric_confidence`/`gate_findings`/
+`failure_clusters`/`failure_segments`/`security_findings`/`security_posture`/`calibration`/
+`sample_guidance`/`narrative`. 회귀·lineage·cohort·longitudinal·experiment 등은 전부 스킵(두 번째
+실행/로그 필요). `PerformanceMonitor.running_insights(targets=None)` — `generate_report().to_dict()`에
+per-task 리스트를 graft해 `build_insights(partial=True)` 호출(캐시된 report라 record_task 사이 반복
+호출 저렴). `.should_early_stop()` → `(stop: bool, running_verdict: dict)` — `stop`은 `decisive`일
+때만 True, 순수 advisory(호출자가 루프 break 결정). 스키마: `detection_mode` enum에 `"partial"` 추가 +
+`running_verdict`/`partial`/`n_tasks`. `test_partial_insights_p50.py`(10) + `test_insights_schema.py`
+partial 시나리오. 전체 4658 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

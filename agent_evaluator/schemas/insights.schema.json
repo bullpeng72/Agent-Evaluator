@@ -8,7 +8,24 @@
   "required": ["schema_version", "detection_mode", "verdict", "metric_confidence"],
   "properties": {
     "schema_version": { "type": "string" },
-    "detection_mode": { "enum": ["absolute_threshold", "regression_vs_baseline"] },
+    "detection_mode": { "enum": ["absolute_threshold", "regression_vs_baseline", "partial"] },
+    "partial": { "type": "boolean" },
+    "n_tasks": { "type": "integer" },
+    "running_verdict": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_tasks": { "type": "integer" },
+        "pass_rate_pct": { "type": ["number", "null"] },
+        "pass_rate_ci_pct": { "type": "array", "items": { "type": "number" } },
+        "accuracy_pct": { "type": ["number", "null"] },
+        "target_tcr_pct": { "type": "number" },
+        "gates_below_target": { "type": "array", "items": { "type": "string" } },
+        "decisive": { "type": "boolean" },
+        "verdict": { "enum": ["ready", "not_ready", "undecided"] },
+        "reason": { "type": "string" }
+      }
+    },
     "narrative": { "type": "string" },
     "narrative_audit": {
       "type": ["object", "null"],

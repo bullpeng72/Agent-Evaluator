@@ -125,3 +125,19 @@ class TestBuildInsightsValidates:
         self._check(schema, ins)
         assert ins["detection_mode"] == "regression_vs_baseline"
         assert ins["change_attribution"] is not None
+
+    def test_partial_mode_running_verdict(self, schema):
+        # P50 — mid-run subset: still schema-valid, carries running_verdict
+        cur = _report(
+            {"A": {"score": 0.45, "status": "fail", "gate": "fail",
+                   "details": {"tcr_pct": 30.0}}},
+            [_task(f"f{i}", ok=False) for i in range(28)]
+            + [_task(f"p{i}", ok=True) for i in range(4)],
+        )
+        ins = build_insights(cur, partial=True)
+        self._check(schema, ins)
+        assert ins["detection_mode"] == "partial" and ins["partial"] is True
+        rv = ins["running_verdict"]
+        assert rv["decisive"] is True and rv["verdict"] == "not_ready"
+        # expensive / baseline sections are absent in partial mode
+        assert "cohort_comparison" not in ins and "longitudinal" not in ins
