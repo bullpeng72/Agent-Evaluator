@@ -424,7 +424,9 @@ class TestReviewQueue:
         assert by_id["b0"]["priority"] == "medium"
         assert rq["by_priority"]["high"] == 4
 
-    def test_regressed_failures_are_high_priority(self):
+    def test_regressed_failures_are_medium_priority(self):
+        # P35r4: a plain regression is MEDIUM — it only becomes HIGH when it also
+        # carries another signal (judge disagreement / suspicious label).
         base = _report(
             {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
             [{**_task("shared", ok=True), "task_type": "qa"}]
@@ -437,8 +439,8 @@ class TestReviewQueue:
         )
         rq = build_insights(cur, base)["review_queue"]
         it = next(i for i in rq["items"] if i["task_id"] == "shared")
-        assert it["priority"] == "high"
-        assert "baseline" in it["reasons"][0]
+        assert it["priority"] == "medium"
+        assert any("baseline" in r for r in it["reasons"])
 
     def test_none_when_nothing_to_review(self):
         rpt = _report(

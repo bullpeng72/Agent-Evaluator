@@ -377,14 +377,24 @@ def test_r3_gate_e_excludes_threat_free_rate_from_average():
 
 
 def test_r3_conclusion_hallucination_na_when_not_measured():
+    # no HallucinationDetector rate AND no faithfulness -> "n/a (not enabled)"
     hg = {"A": {"score": 0.64, "status": "warn", "gate": "warn", "details": {}},
-          "C": {"score": 0.63, "status": "warn", "gate": "warn",
-                "details": {"avg_llm_faithfulness": 3.7}}}  # faith != hallucination rate
+          "C": {"score": 0.63, "status": "warn", "gate": "warn", "details": {}}}
     html = _build_conclusion(24, 71.0, 58.5, 0.0, hg, {})
     assert "Hallucination Rate:</strong> n/a (not enabled)" in html
-    # only A and C are scored -> "2/2 measured", note the two unmeasured gates
     assert "measured PASS" in html
     assert "gate(s) not measured" in html
+
+
+def test_r4_conclusion_shows_faithfulness_when_present():
+    # P35r4: HallucinationDetector off but LLM-judge faithfulness on -> show the
+    # faithfulness score instead of a bare "not enabled".
+    hg = {"A": {"score": 0.64, "status": "warn", "gate": "warn", "details": {}},
+          "C": {"score": 0.63, "status": "warn", "gate": "warn",
+                "details": {"avg_llm_faithfulness": 3.7}}}
+    html = _build_conclusion(24, 71.0, 58.5, 0.0, hg, {})
+    assert "Faithfulness (LLM judge):</strong> 3.70/5" in html
+    assert "n/a (not enabled)" not in html
 
 
 def test_r3_insight_changes_newly_below_target_includes_warn():

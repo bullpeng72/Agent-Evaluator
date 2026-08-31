@@ -205,11 +205,22 @@ def classify_failure(
 
     hits: list[tuple[str, int]] = []  # (code, weight)
 
-    # --- runtime / tool ---------------------------------------------------- #
-    if r.startswith("error:") or any(w in r for w in ("timeout", "exception", "traceback")):
-        hits.append(("RUNTIME_ERROR", 3))
-    if any(s.get("success") is False for s in tcs):
-        hits.append(("TOOL_EXECUTION_ERROR", 3))
+    # --- runtime error (terminal — an errored/empty run is not a RAG miss) - #
+    _errored = (r.startswith("error:")
+                or any(w in r for w in ("timeout", "exception", "traceback")))
+    if _errored:
+        # A clean "error:" / timeout / exception signature is a runtime error —
+        # keep it one bucket so it matches the Path-to-Green failure cluster, and
+        # do NOT run RAG classification (an empty / crashed response cannot be a
+        # retrieval or grounding miss).
+        return {**FAILURE_MODES["RUNTIME_ERROR"].to_dict(), "confidence": 0.9}
+
+    # a failed tool step is a signal, not a verdict — let it compete with the
+    # reason-string signals below (a "contradicts context" failure that happens
+    # to have a failed retrieval step is still a grounding failure).
+    _tool_failed = any(s.get("success") is False for s in tcs)
+    if _tool_failed:
+        hits.append(("TOOL_EXECUTION_ERROR", 2))
     exp_tools = task.get("expected_tools") or []
     if exp_tools:
         used = {str(s.get("tool_name") or s.get("tool") or s.get("name") or "").lower()
@@ -220,16 +231,16 @@ def classify_failure(
     if any(w in r for w in ("wrong tool", "tool selection", "unexpected tool")):
         hits.append(("TOOL_SELECTION_ERROR", 2))
 
-    # --- loop / premature stop ------------------------------------------- #
+    # --- loop / premature stop (reason-string signals — beat lexical RAG) - #
     if any(w in r for w in ("loop", "repeat", "repetition", "consecutive_repeat")):
-        hits.append(("LOOP_OR_REPETITION", 3))
+        hits.append(("LOOP_OR_REPETITION", 4))
     if any(w in r for w in ("partial", "incomplete", "multi-step", "only part",
                             "subtask", "not all steps")):
-        hits.append(("PREMATURE_STOP", 2))
+        hits.append(("PREMATURE_STOP", 3))
 
     # --- refusal --------------------------------------------------------- #
     if _REFUSAL_RE.search(resp) and gt.strip():
-        hits.append(("REFUSAL_WHEN_ANSWERABLE", 3))
+        hits.append(("REFUSAL_WHEN_ANSWERABLE", 4))
 
     # --- format -------------------------------------------------------- #
     if _JSON_ASK_RE.search(q) and resp.strip() and not _looks_structured(resp):
@@ -242,21 +253,30 @@ def classify_failure(
                             "scope", "out of scope", "instruction", "constraint")):
         hits.append(("INSTRUCTION_IGNORED", 2))
 
-    # --- RAG: retrieval vs grounding --------------------------------- #
+    # --- RAG: grounding vs retrieval ------------------------------------ #
+    # The failure-reason string is the primary signal (it is what the failure
+    # clusters / longitudinal view key on). "contradicts / not grounded /
+    # unsupported / hallucinated" means the context had the answer and the model
+    # did not use it -> GROUNDING_MISS (context present) / HALLUCINATED_FACT
+    # (no context). RETRIEVAL_MISS is only inferred lexically, and only when no
+    # such reason keyword is present, so it never overrides an explicit reason.
+    _grounding_reason = any(
+        w in r for w in ("contradict", "not grounded", "unsupported", "hallucin",
+                         "fabricat", "made up", "not supported", "faithful")
+    )
+    # "retrieved context" / "the context" in the reason means context existed even
+    # if the eval did not attach the chunks to this task record.
+    _had_context = bool(chunks) or ("context" in r or "retrieved" in r or "passage" in r)
     gt_w = _content_words(gt)
-    if chunks and gt_w:
+    if _grounding_reason:
+        hits.append(("GROUNDING_MISS" if _had_context else "HALLUCINATED_FACT", 4))
+    elif chunks and gt_w:
         best = max((_overlap(gt_w, _content_words(c)) for c in chunks), default=0.0)
-        if best < 0.30:
-            hits.append(("RETRIEVAL_MISS", 3))
-        elif any(w in r for w in ("ground", "context", "contradict", "unsupported",
-                                  "not grounded", "faithful")):
-            hits.append(("GROUNDING_MISS", 3))
-    elif any(w in r for w in ("hallucin", "fabricat", "made up", "not grounded",
-                              "unsupported")):
-        hits.append(("HALLUCINATED_FACT", 2))
+        if best < 0.25:
+            hits.append(("RETRIEVAL_MISS", 2))
 
     # number contradiction with the ground truth -> a concrete wrong fact
-    if gt and resp:
+    if gt and resp and not _grounding_reason:
         gn, rn = set(_NUM_RE.findall(gt)), set(_NUM_RE.findall(resp))
         if gn and rn and not (gn & rn):
             hits.append(("HALLUCINATED_FACT", 2))
@@ -265,11 +285,15 @@ def classify_failure(
     if gt and resp and len(_words(resp)) > 6 * max(1, len(_words(gt))) and len(resp) > 400:
         hits.append(("OVER_ELABORATION", 2))
 
-    # --- label / spec problem ------------------------------------ #
+    # --- label / spec problem vs plain low similarity ---------------- #
+    _sim_reason = any(w in r for w in ("suspicious", "ground_truth similarity",
+                                       "low similarity", "label"))
     if repeated_across_runs and acc is not None and acc < 0.35:
-        hits.append(("LABEL_OR_SPEC_ISSUE", 3))
-    if any(w in r for w in ("suspicious", "ground_truth similarity", "label")):
-        hits.append(("LABEL_OR_SPEC_ISSUE", 2))
+        hits.append(("LABEL_OR_SPEC_ISSUE", 4))
+    elif _sim_reason:
+        # a plain low-similarity signature with nothing more specific — do not let
+        # an incidental RETRIEVAL_MISS win over "we don't really know why".
+        hits.append(("LOW_SIMILARITY", 3))
 
     if not hits:
         return {**FAILURE_MODES["LOW_SIMILARITY"].to_dict(), "confidence": 0.3}

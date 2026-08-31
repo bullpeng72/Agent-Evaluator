@@ -100,7 +100,7 @@ def _from_results(dir_path: str) -> dict:
     gate_scores: dict = {}
     for g in "ABCDEFG":
         vals = [r["gate_scores"].get(g) for r in hist]
-        vals = [v for v in vals if isinstance(v, (int, float))]
+        vals = [float(v) for v in vals if isinstance(v, (int, float))]
         if len(vals) >= 2:
             gate_scores[g] = percentiles_from_values(vals)
     if gate_scores:

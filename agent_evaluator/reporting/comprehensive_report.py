@@ -3182,11 +3182,18 @@ def _build_evaluator_reliability(tasks: list[Any] | None,
             '<th>Task</th><th>Judge</th><th>Heuristic</th><th>|Δ|</th>'
             f'</tr></thead><tbody>{dis_rows}</tbody></table>' if dis_rows else ""
         )
+        _nd = jvh.get("n_disagreements")
+        _nn = jvh.get("n_neutral")
+        _split = ""
+        if isinstance(_nd, int):
+            _split = (f" — {jvh.get('n_agree', 0)} agree, {_nd} materially disagree"
+                      + (f", {_nn} in between" if _nn else "") + " (the table lists "
+                      "the material ones)")
         jvh_html = (
             f'<p style="font-size:12px;margin:8px 0 0;color:#4b5563">'
             f'LLM judge vs token-overlap scorer over {jvh["n_comparable"]} task(s): '
             f'<strong>{jvh["agreement_rate"] * 100:.0f}%</strong> agree '
-            f'(mean |Δ| {jvh["mean_abs_diff"]:.2f}).</p>{dis_tbl}'
+            f'(mean |Δ| {jvh["mean_abs_diff"]:.2f}){_split}.</p>{dis_tbl}'
         )
 
     calib = et.get("judge_calibration")
@@ -3588,9 +3595,11 @@ def _build_slice_analysis(tasks: list[Any] | None,
 
     head = ('<th>Task type</th><th>N</th><th>TCR (95% CI)</th><th>Accuracy</th>'
             + ('<th>Δ vs baseline</th>' if has_base else ''))
+    # P35r4: only show the "*" legend when a row actually carries one.
+    _any_sig = any(r.get("significant") for r in rows_data)
     note = ('<p style="font-size:11px;color:#9ca3af;margin:4px 0 0">'
             '* = the two-sample bootstrap 95% CI of the difference excludes 0 '
-            '(significant for that slice).</p>' if has_base else '')
+            '(significant for that slice).</p>' if (has_base and _any_sig) else '')
     return (
         '<div class="gate-section" id="slice-analysis" style="border-left-color:#6366f1">'
         '<h2 style="color:#1e2030">Per-Slice Breakdown</h2>'
@@ -3815,8 +3824,13 @@ def _build_security_findings(current: dict[str, Any] | None) -> str:
         col = _SEC_SEV_COLOR.get(sev, "#6b7280")
         cwe = f.get("cwe")
         cwe_s = ", ".join(cwe) if isinstance(cwe, list) else (cwe or "")
-        _sl, _sc = _SUCCEEDED_BADGE.get(f.get("succeeded", "unknown"), ("", "#9ca3af"))
         _compound = f.get("kind") == "compound"
+        # P35r4: the compound row is a combined *view* of the rows below it — don't
+        # give it its own outcome badge (it was inflating the "landed" count a
+        # reader tallies from the table).
+        _sl, _sc = (("(see rows below)", "#9ca3af") if _compound
+                    else _SUCCEEDED_BADGE.get(f.get("succeeded", "unknown"),
+                                              ("", "#9ca3af")))
         _tr_style = ' style="background:#fef2f2"' if _compound else ""
         rows += (
             f'<tr{_tr_style}>'
@@ -3849,10 +3863,19 @@ def _build_security_findings(current: dict[str, Any] | None) -> str:
                '; no attack is confirmed to have landed (detection ≠ compromise)')
             + '</p>'
         )
+    # P35r4: title count must match the attack-surface line — count *distinct*
+    # findings (the compound row is a combined view of two of them, not a 4th).
+    _n_real = (posture.get("n_findings") if isinstance(posture, dict)
+               and posture.get("n_findings") is not None
+               else sum(1 for f in findings if f.get("kind") != "compound"))
+    _n_comp = sum(1 for f in findings if f.get("kind") == "compound")
+    _title_n = (f"{_n_real} finding(s)"
+                + (f" · {_n_comp} compound view" if _n_comp else "")
+                + " — most severe first")
     return (
         '<div class="gate-section" id="security-findings" style="border-left-color:#dc2626">'
         f'<h2 style="color:#dc2626">Security Findings '
-        f'<span style="font-size:13px;color:#6b7280">({len(findings)} — most severe first)</span></h2>'
+        f'<span style="font-size:13px;color:#6b7280">({_title_n})</span></h2>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 10px">'
         'A security regression is the highest-priority fix. "Landed" infers from '
         'whether a tool call executed after the flagged step — detection is not '
@@ -5016,17 +5039,23 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
 
     fails = [r for r in gate_rows if r[1] == "fail"]
     warns = [r for r in gate_rows if r[1] == "warn"]
+    # P35r4: keep the "problem gate" list identical to the narrative — the
+    # primary count is fail+warn; a passing gate under a stricter user target is
+    # a separate parenthetical, never folded into the count.
+    _but_gates = list((verdict_obj or {}).get("below_user_target_gates") or [])
+    _but = (f" (plus {len(_but_gates)} passing but below your stricter target: "
+            + ", ".join(_but_gates) + ")") if _but_gates else ""
 
     if fails:
         verdict = "❌ Not deployment-ready"
         vcolor = "#ef4444"
         detail = f"{len(fails)} Gate(s) failing: " + ", ".join(
-            f"{k} ({_GATE_FULL[k]})" for k, _, _ in fails)
+            f"{k} ({_GATE_FULL[k]})" for k, _, _ in fails) + _but
     elif warns:
         verdict = "⚠️ Deploy with caution"
         vcolor = "#f59e0b"
         detail = f"{len(warns)} Gate(s) below target: " + ", ".join(
-            f"{k} ({_GATE_FULL[k]})" for k, _, _ in warns)
+            f"{k} ({_GATE_FULL[k]})" for k, _, _ in warns) + _but
     elif gate_rows:
         verdict = "✅ Deployment-ready"
         vcolor = "#10b981"
@@ -5744,7 +5773,8 @@ def _build_reference_frame(rf: dict[str, Any] | None) -> str:
                 else "Gate " + name.split("_", 1)[1].upper() if name.startswith("gate_")
                 else name)
         pct = m.get("percentile")
-        pct_s = f"p{pct}" if isinstance(pct, int) else "—"
+        _pfx = "≤p" if m.get("percentile_is_floor") else "p"
+        pct_s = f"{_pfx}{pct}" if isinstance(pct, int) else "—"
         gap = m.get("gap")
         is_pct = name == "tcr"
         gap_s = ("—" if gap is None
@@ -5876,7 +5906,22 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
         and (harness_groups[k].get("details") or {}).get("hallucination_rate") is not None
         for k in ("C", "G")
     )
-    _hall_str = f"{hall_rate:.1f}%" if _hall_measured else "n/a (not enabled)"
+    # P35r4: when the HallucinationDetector wasn't run but LLM-judge faithfulness
+    # was, report the faithfulness score instead of a bare "not enabled" — the
+    # signal exists, it's just a different one.
+    _faith = None
+    for k in ("C", "G"):
+        _fv = (harness_groups.get(k) or {}).get("details", {}).get("avg_llm_faithfulness")
+        if isinstance(_fv, (int, float)):
+            _faith = _fv if _fv <= 1.0 else _fv / 5.0
+            break
+    if _hall_measured:
+        _hall_label, _hall_str = "Hallucination Rate", f"{hall_rate:.1f}%"
+    elif _faith is not None:
+        _hall_label = "Faithfulness (LLM judge)"
+        _hall_str = f"{_faith * 5:.2f}/5"
+    else:
+        _hall_label, _hall_str = "Hallucination Rate", "n/a (not enabled)"
 
     grade = "S (Outstanding)" if tcr >= 95 and acc >= 90 else \
             "A (Excellent)" if tcr >= 90 and acc >= 85 else \
@@ -5908,6 +5953,13 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
 
     _gate_line = ""
     if total_active > 0:
+        _n_warn = sum(
+            1 for key in _scored
+            if (harness_groups[key].get("gate")
+                or harness_groups[key].get("status") or "").lower() == "warn"
+        )
+        _n_fail = total_active - pass_count - _n_warn
+        _breakdown = f" ({_n_warn} warn, {_n_fail} fail)" if (_n_warn or _n_fail) else ""
         _unscored_note = (
             f' <span style="font-size:12px;color:#6b7280">'
             f'({_n_unscored} gate(s) not measured)</span>'
@@ -5915,7 +5967,7 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
         )
         _gate_line = (
             f'<p><strong>Harness Gate:</strong> {pass_count}/{total_active} '
-            f'measured PASS{_unscored_note}</p>'
+            f'measured PASS{_breakdown}{_unscored_note}</p>'
         )
 
     return (
@@ -5925,7 +5977,7 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
         f'<p><strong>Grade:</strong> {grade}{_conf}</p>'
         f'<p><strong>Total Tasks:</strong> {total_tasks}</p>'
         f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>Accuracy:</strong> {_num(acc, ".1f")}% | '
-        f'<strong>Hallucination Rate:</strong> {_hall_str}</p>'
+        f'<strong>{_hall_label}:</strong> {_hall_str}</p>'
         f'{_ci_line}'
         f'{_gate_line}'
         f'</div>'

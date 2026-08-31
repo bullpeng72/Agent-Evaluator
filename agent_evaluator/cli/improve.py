@@ -112,7 +112,7 @@ def _proposals(ins: dict, gate_filter: str | None) -> list[dict[str, Any]]:
             "prior": rec.get("prior"),
         })
     order = {"fail": 0, "warn": 1}
-    rows.sort(key=lambda r: (order.get(r.get("status"), 9), r.get("gate")))
+    rows.sort(key=lambda r: (order.get(str(r.get("status") or ""), 9), r.get("gate")))
     return rows
 
 
@@ -134,7 +134,7 @@ def _print_plan(rows: list[dict[str, Any]], open_notes: set[str]) -> None:
         sc = RD if r.get("status") == "fail" else Y
         print(f"{B}{i}. Gate {r['gate']} — {r['gate_name']}{R} "
               f"{sc}({r.get('status')}){R}{pd_s}{tracked}")
-        print(f"   change type : {_KIND_LABEL.get(r.get('kind'), r.get('kind'))}"
+        print(f"   change type : {_KIND_LABEL.get(str(r.get('kind') or ''), r.get('kind'))}"
               f"  ({r.get('authored_by')})")
         if r.get("target_field"):
             print(f"   target field: {r['target_field']}")
@@ -167,7 +167,7 @@ def _stub_text(row: dict[str, Any], eid: str) -> str:
     return (
         f"# Improvement stub — Gate {row['gate']} ({row['gate_name']})\n\n"
         f"- experiment_id: {eid}\n"
-        f"- change type: {_KIND_LABEL.get(row.get('kind'), row.get('kind'))}\n"
+        f"- change type: {_KIND_LABEL.get(str(row.get('kind') or ''), row.get('kind'))}\n"
         f"- target field: {row.get('target_field') or '(gate score)'}\n"
         f"- predicted Δ: {row.get('predicted_delta')}\n"
         f"- evidence tasks: {', '.join(row.get('evidence_task_ids') or []) or '—'}\n\n"
@@ -432,7 +432,7 @@ def _cmd_patch(args: argparse.Namespace) -> int:
     n_diff = 0
     for r in rows:
         kind = r.get("kind")
-        print(f"\n{B}Gate {r['gate']} — {_KIND_LABEL.get(kind, kind)}{R}")
+        print(f"\n{B}Gate {r['gate']} — {_KIND_LABEL.get(str(kind or ''), kind)}{R}")
         if kind == "prompt_edit":
             diff, msg = _patch_prompt_edit(r, repo, getattr(args, "prompt_file", None),
                                            lineage)

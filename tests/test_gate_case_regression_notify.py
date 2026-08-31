@@ -14,12 +14,15 @@ from agent_evaluator.alerts.engine import _handler_for_target
 from agent_evaluator.cli.gate import cmd_gate
 
 
-def _task(tid, ok, acc):
-    return {
+def _task(tid, ok, acc, judge=None):
+    t = {
         "task_id": tid, "success": ok, "accuracy_score": acc,
         "completion_score": 1.0 if ok else 0.0,
         "question": "q", "response": "r", "ground_truth": "r", "task_type": "qa",
     }
+    if judge is not None:
+        t["llm_judge"] = {"scores": {"overall": judge}}
+    return t
 
 
 def _result(tasks):
@@ -92,11 +95,12 @@ class TestCaseRegressionGate:
         assert rc == 4
 
     def test_max_review_high_triggers_exit_4(self, tmp_path):
-        # two judge/heuristic-disagreeing tasks -> HIGH review items
+        # regressed AND judge/heuristic disagree (judge 9/10 vs heuristic ~0) ->
+        # HIGH review items (P35r4: a plain regression alone is only MEDIUM)
         b, c = self._files(
             tmp_path,
-            [_task("t1", True, 0.9), _task("t2", True, 0.9)],
-            [_task("t1", False, 0.05), _task("t2", False, 0.05)],
+            [_task("t1", True, 0.9, judge=9.0), _task("t2", True, 0.9, judge=9.0)],
+            [_task("t1", False, 0.05, judge=9.0), _task("t2", False, 0.05, judge=9.0)],
         )
         rc = cmd_gate(_ns(result_file=c, max_review_high=0, baseline_result=b))
         assert rc == 4

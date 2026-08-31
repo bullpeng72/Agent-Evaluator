@@ -684,9 +684,21 @@ def _efficiency_opportunities_section(
         }
         # never suggest gating the single most expensive step — that's the core work
         _core = max(_means, key=lambda nm: _means[nm]) if _means else None
+        # P35r4: don't suggest gating a step whose *quality* is a top failure mode
+        # — "do less retrieval" contradicts "retrieval/grounding is why we fail".
+        _quality_sig = " ".join(
+            str(c.get("signature") or c.get("label") or "")
+            for c in (failure_clusters or [])[:4]
+        ).lower()
+        _quality_hot = {
+            "retrieve", "retrieval", "retriever", "rerank", "re-rank", "search",
+            "grounding", "ground",
+        } if any(w in _quality_sig for w in
+                 ("context", "grounded", "retriev", "contradict")) else set()
         _ubiq = sorted(
             (nm for nm, c in span_count.items()
-             if c / n_timed >= _STEP_UBIQUITY and c >= 5 and nm != _core),
+             if c / n_timed >= _STEP_UBIQUITY and c >= 5 and nm != _core
+             and not any(h in nm.lower() for h in _quality_hot)),
             key=lambda nm: -_means.get(nm, 0.0),
         )
         for name in _ubiq:
@@ -1026,9 +1038,13 @@ def _evaluator_trust_section(
             ),
             key=lambda d: -d["diff"],
         )
+        _n_agree = sum(1 for d in diffs if d <= _TRUST_AGREE_BAND)
         jvh = {
             "n_comparable": len(pairs),
-            "agreement_rate": round(sum(1 for d in diffs if d <= _TRUST_AGREE_BAND) / len(diffs), 3),
+            "n_agree": _n_agree,
+            "n_disagreements": len(disagreements),
+            "n_neutral": len(pairs) - _n_agree - len(disagreements),
+            "agreement_rate": round(_n_agree / len(diffs), 3),
             "mean_abs_diff": round(sum(diffs) / len(diffs), 3),
             "disagreements": disagreements[:10],
         }
@@ -1391,23 +1407,34 @@ def _verdict_section(
                 if k in fails or k in warns:
                     continue
                 sc = _safe_float((harness_groups.get(k) or {}).get("score"))
-                if sc is not None and sc < gate_target(targets, k) - 1e-9:
+                if sc is not None and sc < gate_target(targets, k) - _USER_TARGET_MATERIAL:
                     below_user_target.append(k)
     except Exception:  # pragma: no cover - defensive
         pass
 
     _bar = " your target" if _user else " target"
+    # P35r4: the primary "problem gate" count is fails + warns (SDK status) — the
+    # one list every section shares. `below_user_target` (a passing gate under a
+    # stricter user bar) is surfaced as a separate clause, never folded into the
+    # headline count, so the narrative and the executive summary agree.
+    _but = ""
+    if below_user_target and _user:
+        _but = (f" (plus {len(below_user_target)} passing but below your target: "
+                + ", ".join(below_user_target) + ")")
     if fails:
         level = "not_ready"
         headline = f"{len(fails)} Gate(s) failing: " + ", ".join(
             f"{k} ({_GATE_FULL[k]})" for k in fails
-        )
-    elif warns or below_user_target:
+        ) + _but
+    elif warns:
         level = "caution"
-        _lo = warns + below_user_target
-        headline = f"{len(_lo)} Gate(s) below{_bar}: " + ", ".join(
-            f"{k} ({_GATE_FULL[k]})" for k in _lo
-        )
+        headline = f"{len(warns)} Gate(s) below{_bar}: " + ", ".join(
+            f"{k} ({_GATE_FULL[k]})" for k in warns
+        ) + _but
+    elif below_user_target:
+        level = "caution"
+        headline = (f"{len(below_user_target)} Gate(s) below your target: "
+                    + ", ".join(f"{k} ({_GATE_FULL[k]})" for k in below_user_target))
     elif passes:
         level = "ready"
         headline = (f"All {len(passes)} measured Gates meet{_bar}."
@@ -1464,7 +1491,7 @@ def _verdict_section(
             })
             break
 
-    for k in (fails + warns + below_user_target)[:3]:
+    for k in (fails + warns)[:3]:
         sf = list(shortfalls_by_gate.get(k) or [])
         # push low-sample components to the back so a solidly-measured shortfall wins
         sf.sort(key=lambda s: _is_low_sample(s.get("field", "")))
@@ -1688,6 +1715,7 @@ def _effort_weight_for_sig(sig: str) -> float:
 
 _PROJ_BOOT_N = 400
 _PROJ_SEED = 12345
+_USER_TARGET_MATERIAL = 0.03   # min shortfall to a user target to count as a blocker
 
 
 def _readiness_section(
@@ -1717,8 +1745,11 @@ def _readiness_section(
             fails.append(k)
         elif st == "warn":
             warns.append(k)
-        elif _user_targets and sc is not None and sc < _gt(k) - 1e-9:
-            warns.append(k)          # clears the SDK line but not the user's bar
+        elif (_user_targets and sc is not None and sc < _gt(k) - _USER_TARGET_MATERIAL):
+            # clears the SDK line but misses the user's bar by a *material* margin
+            # (P35r4: a 0.005 shortfall to a stretch target is not a Path-to-Green
+            # blocker — it was cluttering the gap table and the uncertainty budget).
+            warns.append(k)
     if not tasks:
         return None
 
@@ -2028,6 +2059,15 @@ def _reference_frame_section(
         med = reference_median(entry)
         front = reference_frontier(entry)
         pctile = percentile_of(value, entry)
+        # P35r4: mark values that fall below the reference's lowest point — "p10"
+        # then really means "≤ p10", not "10th percentile".
+        _floor = None
+        if isinstance(entry, list) and entry:
+            _floor = min(entry)
+        elif isinstance(entry, dict) and entry:
+            _floor = min(entry.values())
+        below_floor = (_floor is not None and isinstance(value, (int, float))
+                       and value < _floor)
         gap = None if med is None else round(value - med, 3 if not pct_scale else 1)
         vd = "at reference"
         if med is not None:
@@ -2040,6 +2080,7 @@ def _reference_frame_section(
             "reference_median": med,
             "reference_frontier": front,
             "percentile": pctile,
+            "percentile_is_floor": bool(below_floor),
             "gap": gap,
             "gap_to_frontier": None if front is None else round(value - front,
                                                                3 if not pct_scale else 1),
@@ -2479,8 +2520,11 @@ def _eval_set_quality_section(
     contamination = _contamination(tasks, _prompt)
     additions = _targeted_additions(tasks, dict(hist))
     if contamination:
+        # P35r4: count distinct tasks, not (task, field) rows — one task that
+        # matches on both question and ground_truth was being reported as 2.
+        _n_contam = len({c.get("task_id") for c in contamination})
         warnings.append(
-            f"{len(contamination)} task(s) overlap the system prompt heavily "
+            f"{_n_contam} task(s) overlap the system prompt heavily "
             "(4-gram ≥ 40%) — those scores are inflated."
         )
     for _tc in coverage["thin_cells"][:3]:
@@ -3572,8 +3616,20 @@ def _has_neg(text: Any) -> bool:
     return bool(_NEG_RE.search(str(text or "")))
 
 
+_WORD_NUM = {
+    "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+    "eleven": "11", "twelve": "12",
+}
+
+
 def _nums(text: Any) -> set[str]:
-    return set(re.findall(r"\d+(?:\.\d+)?", str(text or "")))
+    s = str(text or "").lower()
+    out = set(re.findall(r"\d+(?:\.\d+)?", s))
+    for w, d in _WORD_NUM.items():
+        if re.search(rf"\b{w}\b", s):
+            out.add(d)
+    return out
 
 
 def _claim_verdict(claim: str, gt: str) -> str:
@@ -3584,11 +3640,11 @@ def _claim_verdict(claim: str, gt: str) -> str:
     shared = (ct & gtt) - _RAG_STOPWORDS
     # Contradiction signals win even when the token overlap is high — "we do NOT
     # ship" vs "we ship", or "5 years" vs "2 years", share most content words.
-    if shared:
-        neg_flip = _has_neg(claim) != _has_neg(gt)
-        num_flip = bool(_nums(claim)) and bool(_nums(gt)) and not (_nums(claim) & _nums(gt))
-        if neg_flip or num_flip:
-            return "contradicts_ground_truth"
+    _cn, _gn = _nums(claim), _nums(gt)
+    num_flip = bool(_cn) and bool(_gn) and not (_cn & _gn)
+    neg_flip = _has_neg(claim) != _has_neg(gt)
+    if shared and (neg_flip or num_flip):
+        return "contradicts_ground_truth"
     if ov >= _FE_SUPPORTED:
         return "supported"
     if shared and 0.18 <= ov < _FE_SUPPORTED:
@@ -3862,18 +3918,31 @@ def _uncertainty_budget_section(out: dict[str, Any]) -> dict[str, Any] | None:
     comps.sort(key=lambda c: -c["contribution_pct"])
 
     dom = comps[0]
-    note = (
-        f"Confidence is {str(conf or 'unrated').upper()}. "
-        f"Main driver: {dom['source']} ({dom['contribution_pct']:.0f}%) — "
-        f"{dom['cheapest_lever']} ({dom['lever_cost']})."
-        + (f" Also: {', '.join(c['source'] for c in comps[1:])}."
-           if len(comps) > 1 else "")
-    )
+    # P35r4: don't call one source "the main driver" when the top contributions
+    # are tied (equal weights) — say so plainly.
+    _tied = sum(1 for c in comps if c["contribution_pct"] >= dom["contribution_pct"] - 0.1)
+    if _tied > 1:
+        note = (
+            f"Confidence is {str(conf or 'unrated').upper()}. No single dominant "
+            f"driver — {_tied} sources contribute about equally "
+            f"({dom['contribution_pct']:.0f}% each): "
+            + ", ".join(c["source"] for c in comps) + ". "
+            f"Cheapest first step: {dom['cheapest_lever']} ({dom['lever_cost']})."
+        )
+    else:
+        note = (
+            f"Confidence is {str(conf or 'unrated').upper()}. "
+            f"Main driver: {dom['source']} ({dom['contribution_pct']:.0f}%) — "
+            f"{dom['cheapest_lever']} ({dom['lever_cost']})."
+            + (f" Also: {', '.join(c['source'] for c in comps[1:])}."
+               if len(comps) > 1 else "")
+        )
     return {
         "overall_confidence": conf,
         "components": comps,
-        "dominant_source": dom["source"],
+        "dominant_source": None if _tied > 1 else dom["source"],
         "n_sources": len(comps),
+        "tied_top": _tied if _tied > 1 else None,
         "note": note,
     }
 
@@ -4450,9 +4519,13 @@ def _review_queue_section(
     for s in (eval_set_quality or {}).get("suspicious_ground_truth") or []:
         _add(s.get("task_id", ""), "high", s.get("reason", "suspicious ground truth"))
 
-    # 3. regressed vs baseline (passed before, fails now)
+    # 3. regressed vs baseline (passed before, fails now). P35r4: a plain
+    # regression is MEDIUM — it becomes HIGH only when it *also* carries another
+    # signal (judge disagreement / suspicious label), which the _add() priority
+    # promotion handles. Otherwise every regression was HIGH and the tier carried
+    # no information.
     for tid in (failure_lineage or {}).get("regressed") or []:
-        _add(tid, "high", "passed in the baseline run, fails now")
+        _add(tid, "medium", "passed in the baseline run, fails now")
     for tid in (failure_lineage or {}).get("new") or []:
         _add(tid, "medium", "new failure not present in the baseline run")
 
@@ -5475,7 +5548,9 @@ def _insight_changes_section(
         {"task_id": s.get("task_id"), "threat_type": s.get("threat_type"),
          "severity": s.get("severity")}
         for s in (security_findings or [])
-        if (s.get("task_id"), s.get("threat_type")) not in base_sec_keys
+        # P35r4: the compound row is a combined view, not a distinct new finding
+        if s.get("kind") != "compound"
+        and (s.get("task_id"), s.get("threat_type")) not in base_sec_keys
     ]
 
     def _lvl(hg: dict[str, Any]) -> str:
@@ -5709,7 +5784,9 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
         why = (v.get("confidence_reasons") or [])
         s1 += f". Confidence is {conf.upper()}"
         if why:
-            s1 += f" ({why[0]})"
+            # P35r4: list every reason (was why[0]) so the narrative and the
+            # executive summary give the same "why".
+            s1 += f" ({'; '.join(why)})"
     parts.append(s1 + ".")
 
     # A critical / high security finding outranks everything else — surface it
@@ -5717,7 +5794,15 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
     sec = ins.get("security_findings") or []
     sev_sec = [f for f in sec if f.get("severity") in ("critical", "high")]
     if sev_sec:
-        kinds = sorted({f.get("threat_type", "threat") for f in sev_sec})
+        # P35r4: if a compound finding is present, name it and drop its
+        # constituents (they read as "X + Y, Y on task t").
+        _comp = sorted({
+            f.get("threat_type", "") for f in sev_sec if f.get("kind") == "compound"
+        })
+        if _comp:
+            kinds = _comp
+        else:
+            kinds = sorted({f.get("threat_type", "threat") for f in sev_sec})
         parts.append(
             f"A {sev_sec[0]['severity']}-severity security finding was detected "
             f"({', '.join(kinds)} on task {sev_sec[0].get('task_id')}) — treat this "
@@ -5774,8 +5859,9 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
     rfr = ins.get("reference_frame") or {}
     rf_tcr = next((m for m in (rfr.get("metrics") or []) if m.get("metric") == "tcr"), None)
     if rf_tcr and isinstance(rf_tcr.get("percentile"), int):
+        _tp = ("≤p" if rf_tcr.get("percentile_is_floor") else "p")
         s = (f"Against the '{rfr.get('label', 'reference')}' reference, TCR sits at "
-             f"p{rf_tcr['percentile']}")
+             f"{_tp}{rf_tcr['percentile']}")
         ff = rfr.get("furthest_from_frontier")
         if ff and isinstance(ff.get("percentile"), int):
             s += (f"; {_pretty_metric_name(ff['metric'])} is the weakest at "
@@ -5875,7 +5961,13 @@ def _narrative_audit_section(
         except ValueError:
             continue
         window = low[max(0, m.start() - 40):m.end() + 12]
-        about_headline = any(
+        # P35r4: "95% CI" / "95% confidence interval" is a CI reference, not a
+        # headline-metric claim — don't flag it as over-claiming.
+        _is_ci_ref = any(
+            w in low[m.start():m.end() + 20]
+            for w in ("ci", "confidence interval", "interval", "span", "±")
+        )
+        about_headline = (not _is_ci_ref) and any(
             w in window for w in ("tcr", "accuracy", "accurate",
                                   "completion rate", "task completion", "pass rate")
         )

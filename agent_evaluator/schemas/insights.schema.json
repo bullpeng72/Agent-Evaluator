@@ -1079,7 +1079,8 @@
       "additionalProperties": true,
       "properties": {
         "overall_confidence": { "type": ["string", "null"] },
-        "dominant_source": { "type": "string" },
+        "dominant_source": { "type": ["string", "null"] },
+        "tied_top": { "type": ["integer", "null"] },
         "n_sources": { "type": "integer" },
         "components": {
           "type": "array",
