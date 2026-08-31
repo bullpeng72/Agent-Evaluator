@@ -574,6 +574,22 @@ run" 상태 표 + 안정성 한 줄 + cadence 한 줄. TOC "Across runs". monito
 gen_example_v2: `h1/h2/h3` 이전 run 3개 추가 + 7개 run의 timestamp를 7일 간격으로 재작성.
 `test_longitudinal_p48.py`(7). 전체 4638 통과.
 
+**SPEC-041 P49 (`agent-eval improve` — 폐루프)** — `cli/improve.py`(신규, `cli/main.py`에 배선).
+`build_insights().recommendations[].proposal`(P36: prompt_edit/config_change/data_fix + before/after/
+rationale/evidence)와 `recommendations[].experiment`(P8: predicted_gate_delta)를 추적 워크플로우로
+전환하는 얇은 래퍼 — 새 판정 로직 없음. 3개 서브커맨드:
+`plan <result.json> [--baseline B] [--gate X]` — fail/warn 게이트별 제안을 status(fail 먼저)·gate 순으로
+출력(변경 타입·before→after·근거·evidence 태스크·예측 Δ·이미 열린 experiment 여부).
+`start <result.json> [--out .aoo/improve] [--log .aoo/experiments.jsonl] [--yes]` — 각 제안을
+`register_experiment(target_gate=, predicted_delta=experiment.predicted_gate_delta, target_field=,
+note="[improve] Gate X kind: rationale")`로 등록(`(gate, field, note)` 키로 열린 experiment와 dedup) +
+`.aoo/improve/<gate>_<kind>_<eid>.md` apply-me 스텁 작성. `--yes` 없으면 dry-run.
+`verify <new.json> --baseline <old.json> [--persist] [--min-effect 0.02]` — `[improve]` 접두 열린
+experiment를 `score_experiments`로 predicted-vs-actual 채점(confirmed/partially_confirmed/refuted/
+inconclusive) 출력. `--persist`면 `resolve_experiment` + `record_recommendation_outcome`(new.json 옆
+`recommendation_outcomes.jsonl`에 append) → 다음 실행의 P8 "past outcomes"가 학습. `verify`는 항상
+exit 0 (틀린 예측은 빌드 실패가 아니라 데이터, HOTL). `test_improve_p49.py`(9). 전체 4647 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

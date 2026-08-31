@@ -36,6 +36,7 @@ from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.diagnose import cmd_diagnose
 from agent_evaluator.cli.gate import cmd_gate
+from agent_evaluator.cli.improve import build_improve_subparser, cmd_improve
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
 from agent_evaluator.cli.opencode import build_opencode_subparser, cmd_opencode
 from agent_evaluator.cli.targets import build_target_subparser, cmd_target
@@ -1253,6 +1254,9 @@ def main() -> None:
     # target subcommand (SPEC-041 P43)
     build_target_subparser(sub)
 
+    # improve subcommand (SPEC-041 P49)
+    build_improve_subparser(sub)
+
     # abtest subcommand
     build_abtest_subparser(sub)
 
@@ -1280,6 +1284,7 @@ def main() -> None:
         "claims":    cmd_claims,
         "experiment": cmd_experiment,
         "target":    cmd_target,
+        "improve":   cmd_improve,
         "abtest":    cmd_abtest,
     }
 

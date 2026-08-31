@@ -71,6 +71,10 @@ agent-eval target show                                            # print curren
 # once set: `agent-eval gate` uses them (unless --gate-thresholds given) and every
 # "below target" line in the report / insights measures against your bar, not 0.7
 
+agent-eval improve plan v3.json --baseline v2.json               # closed loop (SPEC-041 P49): show per-gate proposals
+agent-eval improve start v3.json --yes                            # register each proposal as an experiment + write .aoo/improve/*.md stubs
+agent-eval improve verify v4.json --baseline v3.json --persist    # score predicted-vs-actual, resolve experiments + append recommendation_outcomes.jsonl
+
 # Quality
 pytest
 ruff check agent_evaluator/
@@ -201,7 +205,7 @@ agent_evaluator/
 Gate A–G results stored under `extra_metrics.harness_groups` in JSON result files.
 결과 JSON 최상위에 `schema_version`("1.1", SPEC-041 P4.3) — 소비자가 필드 형태 변화에 대응하도록. breaking change 시 major 증가.
 
-**`extra_metrics.insights`** — machine-readable insight layer (L5/L6). `reporting/insights.py::build_insights(current, baseline=None, *, recommendation_log_path=None, experiments_log_path=None, with_experiment_metadata=False, repo_path=".", narrator=None, fixer=None, targets=None, cohort=None, cohort_metric="tcr")` re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`, the `gates/*` aggregates, `rca.recommendation_tracking`/`verify`) into one JSON-serializable dict. **No new scoring formulas. Never raises** — a section that fails to compute is omitted or `null`.
+**`extra_metrics.insights`** — machine-readable insight layer (L5/L6). `reporting/insights.py::build_insights(current, baseline=None, *, recommendation_log_path=None, experiments_log_path=None, with_experiment_metadata=False, repo_path=".", narrator=None, fixer=None, explainer=None, targets=None, history_dir=None, current_file=None, cohort=None, cohort_metric="tcr")` re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`, the `gates/*` aggregates, `rca.recommendation_tracking`/`verify`) into one JSON-serializable dict. **No new scoring formulas. Never raises** — a section that fails to compute is omitted or `null`.
 
 - **Attached / served by:** `monitor.save_to_file()` → `extra_metrics.insights`; `serve/routers/diagnose.py` → `result["insights"]` (dashboard Improve tab); consumed by `cli/gate.py` (`--digest`, `--fail-on-case-regression`, `--max-review-high`, `--notify`). The static HTML report renders the same content via its own `_build_*` helpers (content parity — `insights` is the machine channel).
 - **Schema is the contract:** `agent_evaluator/schemas/insights.schema.json` (Draft 2020-12; every object `additionalProperties:true` for forward-compat; nullable sections typed `["object"|"array","null"]`). `tests/test_insights_schema.py` validates several scenarios. Result JSON also carries top-level `schema_version` ("1.1"); bump major on a breaking field-shape change.
