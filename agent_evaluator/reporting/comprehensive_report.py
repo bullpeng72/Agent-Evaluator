@@ -3233,6 +3233,68 @@ def _build_evaluator_reliability(tasks: list[Any] | None,
     )
 
 
+def _build_eval_representativeness(er: dict[str, Any] | None) -> str:
+    """P54: does the eval set match production traffic? Query coverage +
+    per-key distribution gaps + a prod-weighted TCR estimate."""
+    if not er:
+        return ""
+    parts = ""
+    mt = er.get("measured_tcr_pct")
+    pw = er.get("prod_weighted_tcr_estimate_pct")
+    if isinstance(mt, (int, float)) and isinstance(pw, (int, float)):
+        col = "#dc2626" if pw < mt - 3 else "#059669"
+        parts += (
+            f'<p style="font-size:13px;margin:0 0 6px">Measured TCR '
+            f'<strong>{mt:.1f}%</strong> · production-weighted estimate '
+            f'<strong style="color:{col}">{pw:.1f}%</strong> '
+            f'<span style="color:#9ca3af">(re-weighted by the supplied traffic '
+            f'mix)</span></p>'
+        )
+    qc = er.get("query_coverage")
+    if qc:
+        parts += (
+            f'<p style="font-size:12px;margin:0 0 4px">Query coverage: '
+            f'{qc.get("n_covered")}/{qc.get("n_production_queries")} '
+            f'({qc.get("coverage_pct")}%). '
+        )
+        bs = qc.get("blind_spots") or []
+        if bs:
+            parts += ('Uncovered: '
+                      + "; ".join(_esc(b) for b in bs[:5]) + '.')
+        parts += '</p>'
+    for d in er.get("distributions") or []:
+        gaps = d.get("coverage_gaps") or []
+        over = d.get("over_represented") or []
+        if not gaps and not over:
+            continue
+        rows = ""
+        for g in gaps:
+            rows += (f'<tr><td>{_esc(str(g.get("value")))}</td>'
+                     f'<td style="text-align:right;color:#dc2626">under</td>'
+                     f'<td style="text-align:right">{g.get("prod_weight")}</td>'
+                     f'<td style="text-align:right">{g.get("eval_share")}</td></tr>')
+        for o in over:
+            rows += (f'<tr><td>{_esc(str(o.get("value")))}</td>'
+                     f'<td style="text-align:right;color:#d97706">over</td>'
+                     f'<td style="text-align:right">{o.get("prod_weight")}</td>'
+                     f'<td style="text-align:right">{o.get("eval_share")}</td></tr>')
+        parts += (
+            f'<h3 style="margin:10px 0 4px">By {_esc(d.get("key", ""))} '
+            f'<span style="font-size:12px;color:#9ca3af">(distribution distance '
+            f'{d.get("distribution_distance")})</span></h3>'
+            '<table class="mtable"><thead><tr><th>Value</th><th></th>'
+            '<th>Prod weight</th><th>Eval share</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+    return (
+        '<div class="gate-section" id="eval-representativeness" '
+        'style="border-left-color:#b45309">'
+        '<h2 style="color:#1e2030">Eval vs Production</h2>'
+        f'<p style="color:#6b7280;font-size:12px;margin:0 0 6px">{_esc(er.get("note", ""))}</p>'
+        f'{parts}</div>'
+    )
+
+
 def _build_golden_health(gh: dict[str, Any] | None) -> str:
     """P58: does the golden set still earn its keep? Failure-mode coverage,
     blind spots, stale / trivial cases, near-duplicates."""
@@ -4569,7 +4631,7 @@ _TOC_LABELS = {
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
-    "golden-health": "Golden set",
+    "golden-health": "Golden set", "eval-representativeness": "vs Prod",
     "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
     "ablation-hints": "Change first", "contrast-pairs": "Pass vs fail",
     "failure-explanations": "Wrong claims",
@@ -6297,6 +6359,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
         _build_golden_health(_insights_obj.get("golden_health")),
+        _build_eval_representativeness(_insights_obj.get("eval_representativeness")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),
@@ -6558,6 +6621,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
         _build_golden_health(_insights_obj.get("golden_health")),
+        _build_eval_representativeness(_insights_obj.get("eval_representativeness")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_ablation_hints(_insights_obj.get("ablation_hints")),

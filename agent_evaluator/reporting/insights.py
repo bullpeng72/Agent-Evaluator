@@ -3000,6 +3000,159 @@ def _ctx_chunks(context: Any) -> list[str]:
     return [p.strip() for p in parts if len(p.strip()) >= 15]
 
 
+_PROD_COVER_SIM = 0.3
+_PROD_OVER_FACTOR = 2.0
+
+
+def _prod_sample(current: dict[str, Any]) -> dict[str, Any] | None:
+    em = (current.get("extra_metrics") or {}) if isinstance(current, dict) else {}
+    ps = em.get("production_sample")
+    return ps if isinstance(ps, dict) and ps else None
+
+
+def _hist_norm(h: Any) -> dict[str, float] | None:
+    if not isinstance(h, dict) or not h:
+        return None
+    vals = {str(k): float(v) for k, v in h.items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0}
+    tot = sum(vals.values())
+    if tot <= 0:
+        return None
+    return {k: v / tot for k, v in vals.items()}
+
+
+def _eval_representativeness_section(
+    tasks: list[dict[str, Any]], current: dict[str, Any],
+) -> dict[str, Any] | None:
+    """P54: does the eval set match production traffic? Opt-in
+    ``extra_metrics.production_sample`` — ``{queries:[…]}`` (nearest-eval-question
+    coverage), ``{topics:{…}}`` / ``{metadata:{key:{…}}}`` (histogram vs the eval
+    set's ``extra.<key>`` / ``task_type`` distribution). Deterministic; lexical
+    only. ``None`` when no sample is supplied."""
+    ps = _prod_sample(current)
+    if not ps or not tasks:
+        return None
+
+    out: dict[str, Any] = {}
+    notes: list[str] = []
+
+    # --- raw representative queries -> coverage --------------------------- #
+    queries = [str(q) for q in (ps.get("queries") or []) if str(q).strip()]
+    if queries:
+        eval_q = [_wtok(t.get("question")) for t in tasks]
+        eval_q = [w for w in eval_q if w]
+        covered = 0
+        blind: list[str] = []
+        for q in queries:
+            qw = _wtok(q)
+            if not qw:
+                continue
+            best = max((_overlap(qw, ew) for ew in eval_q), default=0.0)
+            if best >= _PROD_COVER_SIM:
+                covered += 1
+            else:
+                blind.append(q[:160])
+        n = len([q for q in queries if _wtok(q)])
+        out["query_coverage"] = {
+            "n_production_queries": n,
+            "n_covered": covered,
+            "coverage_pct": round(covered / n * 100.0, 1) if n else None,
+            "blind_spots": blind[:15],
+        }
+        if n and covered / n < 0.8:
+            notes.append(f"{n - covered}/{n} sampled production queries have no "
+                         f"close match in the eval set")
+
+    # --- histogram comparison (topics / metadata) ---------------------- #
+    hist_specs: list[tuple[str, dict[str, float]]] = []
+    th = _hist_norm(ps.get("topics"))
+    if th:
+        hist_specs.append(("topic", th))
+    for mk, mh in (ps.get("metadata") or {}).items():
+        n_mh = _hist_norm(mh)
+        if n_mh:
+            hist_specs.append((str(mk), n_mh))
+
+    dists: list[dict[str, Any]] = []
+    for key, prod_h in hist_specs:
+        # eval distribution for this key: extra.<key>, else task_type when key=="topic"
+        counts: dict[str, int] = {}
+        for t in tasks:
+            v = _task_extra(t).get(key)
+            if v is None and key in ("topic", "task_type"):
+                v = t.get("task_type")
+            if isinstance(v, (str, bool, int)):
+                counts[str(v)] = counts.get(str(v), 0) + 1
+        tot = sum(counts.values())
+        if not tot:
+            continue
+        eval_h = {k: v / tot for k, v in counts.items()}
+        gaps = [
+            {"value": k, "prod_weight": round(pw, 3),
+             "eval_share": round(eval_h.get(k, 0.0), 3)}
+            for k, pw in sorted(prod_h.items(), key=lambda kv: -kv[1])
+            if pw >= 0.1 and eval_h.get(k, 0.0) < pw / _PROD_OVER_FACTOR
+        ]
+        over = [
+            {"value": k, "eval_share": round(ev, 3),
+             "prod_weight": round(prod_h.get(k, 0.0), 3)}
+            for k, ev in sorted(eval_h.items(), key=lambda kv: -kv[1])
+            if ev >= 0.1 and ev > prod_h.get(k, 0.0) * _PROD_OVER_FACTOR
+        ]
+        # L1 distance between the two distributions
+        allk = set(prod_h) | set(eval_h)
+        l1 = round(sum(abs(prod_h.get(k, 0.0) - eval_h.get(k, 0.0)) for k in allk) / 2.0, 3)
+        # prod-weighted TCR: re-mean completion by prod weights over this key
+        pw_tcr = None
+        by_val_comp: dict[str, list[float]] = {}
+        for t in tasks:
+            v = _task_extra(t).get(key)
+            if v is None and key in ("topic", "task_type"):
+                v = t.get("task_type")
+            c = _safe_float(t.get("completion_score"))
+            if v is not None and c is not None:
+                by_val_comp.setdefault(str(v), []).append(c)
+        if by_val_comp:
+            num = den = 0.0
+            for k, cs in by_val_comp.items():
+                w = prod_h.get(k)
+                if w is None:
+                    continue
+                num += w * (sum(cs) / len(cs))
+                den += w
+            if den > 0:
+                pw_tcr = round(num / den * 100.0, 1)
+        dists.append({
+            "key": key,
+            "distribution_distance": l1,
+            "coverage_gaps": gaps,
+            "over_represented": over,
+            "prod_weighted_tcr_estimate_pct": pw_tcr,
+        })
+        if gaps:
+            notes.append(f"eval set under-covers production '{key}' value "
+                         f"'{gaps[0]['value']}' ({gaps[0]['prod_weight']:.0%} of "
+                         f"traffic, {gaps[0]['eval_share']:.0%} of the eval set)")
+
+    if dists:
+        out["distributions"] = dists
+        # surface a single headline prod-weighted TCR (first key that has one)
+        for d in dists:
+            if d.get("prod_weighted_tcr_estimate_pct") is not None:
+                out["prod_weighted_tcr_estimate_pct"] = d["prod_weighted_tcr_estimate_pct"]
+                break
+
+    if not out:
+        return None
+    cur_comps = [c for c in (_safe_float(t.get("completion_score")) for t in tasks)
+                 if c is not None]
+    out["measured_tcr_pct"] = (round(sum(cur_comps) / len(cur_comps) * 100.0, 1)
+                               if cur_comps else None)
+    out["note"] = "; ".join(notes) or "the eval set broadly matches the supplied " \
+                                      "production sample"
+    return out
+
+
 _CONTRAST_LIMIT = 6
 _CONTRAST_MIN_SIM = 0.4
 
@@ -6212,6 +6365,9 @@ def build_insights(
             _failure_taxonomy_section, tasks, baseline, default=None,
         ),
         "contrast_pairs": _safe(_contrast_pairs_section, tasks, default=None),
+        "eval_representativeness": _safe(
+            _eval_representativeness_section, tasks, current, default=None,
+        ),
         "failure_explanations": _safe(
             _failure_explanations_section, tasks, explainer=explainer, default=None,
         ),

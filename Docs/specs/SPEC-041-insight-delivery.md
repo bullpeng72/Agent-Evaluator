@@ -714,6 +714,23 @@ poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 propo
 TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
 `test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
 
+**SPEC-041 P54 (production 대표성)** — `eval_set_quality`는 평가셋 *내부*만 감사, production 트래픽과
+대조가 없었다. `reporting/insights.py::_eval_representativeness_section(tasks, current)` — 옵트인
+`extra_metrics.production_sample`(judge_runs와 같은 패턴): `{queries:[…]}`(대표 질문 → 가장 가까운
+평가 질문과 Jaccard≥0.3면 covered, 아니면 blind spot), `{topics:{k:w}}` / `{metadata:{key:{v:w}}}`
+(히스토그램 → 평가셋의 `extra.<key>` 또는 `task_type` 분포와 대조). → `insights.eval_representativeness
+{measured_tcr_pct, prod_weighted_tcr_estimate_pct, query_coverage{n_production_queries, n_covered,
+coverage_pct, blind_spots[]}, distributions[]{key, distribution_distance(L1/2), coverage_gaps[]
+{value, prod_weight, eval_share}(prod≥10% && eval<prod/2), over_represented[](eval≥10% &&
+eval>2·prod), prod_weighted_tcr_estimate_pct(= Σ w·mean(completion|value) / Σ w, 평가셋에 있는
+value만)}, note}`. **핵심 시그널**: measured TCR 81%인데 prod-weighted 51% → 평가셋이 쉬운
+토픽 과대표집. 결정적, 어휘/카운팅만. `build_insights` out dict `contrast_pairs` 뒤 배선. 리포트
+`_build_eval_representativeness()` 섹션 `eval-representativeness`(golden-health 뒤): measured vs
+prod-weighted TCR + query coverage + key별 under/over 표. TOC "vs Prod". 스키마
+`eval_representativeness`. `test_eval_representativeness_p54.py`(7) + `test_insights_schema.py`
+시나리오. 예시 아티팩트는 monitor에 production_sample 주입 경로가 없어 미표시(judge_runs/golden_health와
+동일 — CLI/파이프라인이 주 경로). 전체 4770 통과.
+
 **SPEC-041 P62 (run 내 대조쌍)** — `ask_insights`는 정적 객체 조회, `trace_diffs`(P32)는 버전 간만 —
 "태스크 X는 실패, 비슷한 태스크 Y는 통과, 뭐가 달랐나"가 없었다. `reporting/insights.py::
 _contrast_pairs_section(tasks)` → `insights.contrast_pairs[]{fail_task_id, fail_question, pass_task_id,

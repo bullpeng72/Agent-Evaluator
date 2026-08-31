@@ -920,6 +920,31 @@
       }
     },
 
+    "eval_representativeness": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "measured_tcr_pct": { "type": ["number", "null"] },
+        "prod_weighted_tcr_estimate_pct": { "type": ["number", "null"] },
+        "query_coverage": { "type": ["object", "null"] },
+        "distributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "key": { "type": "string" },
+              "distribution_distance": { "type": "number" },
+              "coverage_gaps": { "type": "array" },
+              "over_represented": { "type": "array" },
+              "prod_weighted_tcr_estimate_pct": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    },
+
     "golden_health": {
       "type": ["object", "null"],
       "additionalProperties": true,

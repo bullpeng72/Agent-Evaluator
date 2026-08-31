@@ -276,6 +276,26 @@ class TestBuildInsightsValidates:
         assert ins["reference_frame"] is not None
         assert ins["reference_frame"]["metrics"]
 
+    def test_eval_representativeness_section(self, schema):
+        # P54 — opt-in extra_metrics.production_sample
+        tasks = [_task(f"r{i}", ok=True) for i in range(10)]
+        tasks += [_task(f"s{i}", ok=False) for i in range(2)]
+        for t in tasks[:10]:
+            t["extra"] = {"topic": "returns"}
+        for t in tasks[10:]:
+            t["extra"] = {"topic": "shipping"}
+        rpt = _report(
+            {"A": {"score": 0.7, "status": "warn", "gate": "warn", "details": {}}},
+            tasks,
+        )
+        rpt["extra_metrics"]["production_sample"] = {
+            "topics": {"returns": 0.3, "shipping": 0.7},
+            "queries": ["return an item", "where is my order"],
+        }
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        assert ins["eval_representativeness"] is not None
+
     def test_judge_robustness_section(self, schema):
         # P52 — multi-judge runs in extra_metrics.judge_runs
         rpt = _report(
