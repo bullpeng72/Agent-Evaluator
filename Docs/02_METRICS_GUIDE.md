@@ -44,6 +44,31 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 
 ---
 
+## Reading a Gate verdict
+
+Each of Gates A–G reduces to **one score in [0, 1]** and a status:
+
+| Score | Status | Meaning |
+|-------|--------|---------|
+| `≥ 0.70` | 🟢 **pass** | above the bar |
+| `0.50 – 0.70` | 🟡 **warn** | below the bar but not failing — a soft signal |
+| `< 0.50` | 🔴 **fail** | blocks deployment |
+| `None` | ⚪ **not measured** | no metric for this gate was activated, or every component was under-sampled |
+
+- The score is a **weighted mean of that gate's active components** (see the contribution map below).
+  Gates A and C blend the TCR component at `gate_a_tcr_weight` / `gate_c_tcr_weight` (default 0.4);
+  the rest is a plain mean of the other measured components.
+- A **not-measured** gate passes by default. `HarnessEvaluationGate(required_groups=[…], strict_required=True)`
+  (Python) turns that into a failure instead — use it so a forgotten Config doesn't look like a green gate.
+- A component measured on **fewer than its `min_samples`** is dropped from the score and listed under
+  `insufficient_data_warnings`; if a gate ends up with ≤2 measured components and a sub-0.9 score, the
+  report flags it as low-representativeness.
+- `agent-eval gate` treats `score ≥ 0.70` as passing by default; pass `--fail-on-gate-warn` to also
+  fail a `warn`, or `--gate-thresholds "E:0.95"` for a per-gate bar. All three verdict entry points
+  (`HarnessEvaluationGate`, `QuickEval.gate()`, the CLI) share one loop — see [05_QUALITY_GATE.md](05_QUALITY_GATE.md).
+
+---
+
 ## Full metric summary (58)
 
 ### Native Trackers (25) — Gate contribution map

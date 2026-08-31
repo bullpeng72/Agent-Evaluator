@@ -57,6 +57,36 @@ agent-eval gate results/eval.json --gate-thresholds "A:0.8,E:0.95" --required-ga
 
 Missing any one threshold returns a non-zero exit code.
 
+#### Exit codes
+
+`agent-eval gate` fails your CI step by returning non-zero. Each opt-in check has a dedicated code so
+the pipeline can branch on *why* it failed:
+
+| Code | Meaning | Triggered by |
+|------|---------|--------------|
+| `0` | all checks passed | — |
+| `1` | a threshold / composite score / gate threshold was missed; also a cost-SLO breach or an unreadable/unparseable input file | `--tcr` / `--accuracy` / `--min-gate-score` / `--gate-thresholds` / `--max-cost-per-task` |
+| `2` | regression vs. baseline | `--fail-on-regression` |
+| `3` | golden-set regression (a case missing or now failing) | `--golden-set --fail-on-golden-regression` |
+| `4` | a previously-passing task now fails, or the review queue exceeds the cap | `--fail-on-case-regression` / `--max-review-high` |
+
+Priority when several fire at once: `3` > `4` > `2` > `1`.
+
+#### `--explain` — the "why it failed" RCA summary
+
+On failure, `agent-eval gate` also prints a short root-cause summary (weakest components per failing
+gate + a one-line fix). It is on by default; pass `--no-explain` to suppress it, or `--explain` to
+force it even on a pass. `--digest` additionally prints the PM / QA / engineer briefs.
+
+#### `--junit-xml PATH` — CI test-report integration
+
+Writes a JUnit-format XML alongside the terminal output so CI systems (GitHub Actions, GitLab,
+Jenkins) render the gate result as a test report:
+
+```bash
+agent-eval gate results/eval.json --tcr 85 --accuracy 70 --junit-xml results/gate-junit.xml
+```
+
 #### `--min-gate-score` / `--group-weights` in detail
 
 | Option | Format | Description |
@@ -335,17 +365,24 @@ jobs:
       - name: Quality Gate
         run: |
           agent-eval gate results/eval.json \
-            --tcr 85 \
-            --accuracy 70 \
-            --llm-judge 3.5 \
-            --hallucination 5
+            --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5 \
+            --baseline results/baseline.json --fail-on-regression 10 \
+            --junit-xml results/gate-junit.xml
 
-      - name: Upload results
+      - name: Publish gate report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Agent Quality Gate
+          path: results/gate-junit.xml
+          reporter: java-junit
+
+      - name: Upload results (JSON + HTML report)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-results
-          path: results/
+          path: results/          # includes results/eval.html — open it for the full breakdown
 ```
 
 ### pytest quality gate

@@ -148,6 +148,20 @@ agent-eval dataset health golden.json --against results/latest.json
 The `uncovered_failure_modes` from `dataset health` is a **blind spot** — a failure mode observed in
 production that no case in the golden set reproduces. Adding cases that cover these modes is the priority.
 
+### The closed loop — review queue → golden set → regression gate
+
+`dataset promote` is the middle step of a loop that keeps the golden set aligned with what actually
+breaks:
+
+1. A run's report (and `extra_metrics.insights.review_queue`) lists the tasks whose automatic verdict
+   is least trustworthy — judge↔heuristic disagreement, borderline scores, a task that regressed.
+2. `agent-eval dataset promote result.json --min-priority high` turns the ones you approve into golden
+   regression cases (preserving each `task_id`).
+3. `agent-eval gate <next_run>.json --golden-set <golden>.json --fail-on-golden-regression` then fails
+   CI (exit 3) if any of those approved cases goes missing or starts failing again.
+4. `agent-eval dataset health <golden>.json --against <latest>.json` periodically checks the golden set
+   still covers the failure modes production is producing.
+
 > `GoldenSetBuilder` only sees `results/` sessions already instrumented with `PerformanceMonitor`. To mine
 > cases from ordinary conversations that ran without `@agent_eval` (e.g. a Claude Code session) — an
 > optional, core-independent personal tool — see
