@@ -987,6 +987,32 @@
       }
     },
 
+    "uncertainty_budget": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "overall_confidence": { "type": ["string", "null"] },
+        "dominant_source": { "type": "string" },
+        "n_sources": { "type": "integer" },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "source": { "enum": ["sampling", "judge", "staleness", "borderline"] },
+              "contribution_pct": { "type": "number" },
+              "description": { "type": "string" },
+              "cheapest_lever": { "type": "string" },
+              "lever_cost": { "type": "string" },
+              "projected_reduction": { "type": "string" }
+            }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    },
+
     "calibration": {
       "type": ["object", "null"],
       "additionalProperties": true,

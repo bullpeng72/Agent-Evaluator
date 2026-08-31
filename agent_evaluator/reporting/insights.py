@@ -3331,6 +3331,147 @@ def _change_implicates(change_label: str, category: str) -> bool:
     return False
 
 
+_UB_SOURCE_DESC = {
+    "sampling": "too few tasks / a wide TCR confidence interval",
+    "judge": "the LLM judge's reliability for this run",
+    "staleness": "an old baseline or an unchanged eval set",
+    "borderline": "the agent genuinely sitting on the pass line",
+}
+
+
+def _uncertainty_budget_section(out: dict[str, Any]) -> dict[str, Any] | None:
+    """P60: decompose the verdict's uncertainty into actionable buckets —
+    sampling noise / judge unreliability / eval-set staleness / genuine
+    borderline — each with the cheapest lever to shrink it. Re-shapes
+    ``verdict`` + ``metric_confidence`` + ``evaluator_trust`` + ``freshness`` +
+    ``threshold_sensitivity`` + ``readiness``; no new judgement. ``None`` when
+    confidence is high and nothing is flagged."""
+    v = out.get("verdict") or {}
+    conf = v.get("confidence")
+    ci = out.get("metric_confidence") or {}
+    et = out.get("evaluator_trust") or {}
+    fr = out.get("freshness") or {}
+    ts = out.get("threshold_sensitivity") or {}
+    rd = out.get("readiness") or {}
+
+    n = ci.get("n_tasks") or 0
+    hw = ci.get("tcr_ci_halfwidth")            # 0–1
+    tcr_pct = ci.get("tcr_pct")
+    comps: list[dict[str, Any]] = []
+
+    # --- sampling ---------------------------------------------------------- #
+    wide = isinstance(hw, (int, float)) and hw > 0.15
+    thin = isinstance(n, int) and n < 50
+    if wide or thin:
+        more = None
+        try:
+            from agent_evaluator.utils.confidence import required_n_for_halfwidth
+
+            p = (float(tcr_pct) / 100.0) if isinstance(tcr_pct, (int, float)) else 0.5
+            more = max(0, required_n_for_halfwidth(min(max(p, 0.01), 0.99), 0.05) - int(n))
+        except Exception:  # pragma: no cover - defensive
+            more = None
+        red = (f"TCR CI ±{hw * 100:.0f}pp → ±5pp"
+               if isinstance(hw, (int, float)) else "narrows the TCR interval")
+        comps.append({
+            "source": "sampling",
+            "weight": 3 if ((isinstance(hw, (int, float)) and hw > 0.25)
+                            or (isinstance(n, int) and n < 20)) else 2,
+            "description": _UB_SOURCE_DESC["sampling"],
+            "cheapest_lever": "run more evaluation tasks",
+            "lever_cost": (f"~{more} more tasks" if more else "more tasks"),
+            "projected_reduction": red,
+        })
+
+    # --- judge --------------------------------------------------------- #
+    tl = et.get("trust_level")
+    if tl in ("low", "medium"):
+        jvh = et.get("judge_vs_heuristic") or {}
+        n_dis = len(jvh.get("disagreements") or [])
+        comps.append({
+            "source": "judge",
+            "weight": 3 if tl == "low" else 2,
+            "description": _UB_SOURCE_DESC["judge"] + f" is {tl}",
+            "cheapest_lever": (
+                f"human-review the {n_dis} judge/heuristic-disagreement task(s)"
+                if n_dis else "human-review a sample of judged tasks"),
+            "lever_cost": (f"~{n_dis} tasks" if n_dis else "a handful of tasks"),
+            "projected_reduction": "takes the judge out of the confidence chain",
+        })
+
+    # --- staleness (not the tiny-eval-set warning — that is sampling) --- #
+    age = fr.get("baseline_age_days")
+    old_baseline = isinstance(age, (int, float)) and age > 30
+    _stale_w = [
+        w for w in (fr.get("warnings") or [])
+        if any(k in str(w).lower() for k in
+               ("old", "re-baseline", "unchanged", "stale", "suspicious",
+                "identical", "days"))
+    ]
+    if old_baseline or _stale_w:
+        comps.append({
+            "source": "staleness",
+            "weight": 2,
+            "description": (f"the baseline is {int(age)} days old" if old_baseline
+                            else _stale_w[0]),
+            "cheapest_lever": ("re-baseline against a recent run" if old_baseline
+                              else "refresh the eval set / re-check labels"),
+            "lever_cost": "1 run",
+            "projected_reduction": "removes the staleness caveat",
+        })
+
+    # --- borderline --------------------------------------------------- #
+    knife = bool(ts.get("knife_edge"))
+    near_gap = next(
+        (g for g in (rd.get("gaps") or [])
+         if isinstance(g.get("gap"), (int, float)) and abs(g["gap"]) <= 0.05),
+        None,
+    )
+    if knife or near_gap:
+        where = (f"Gate {near_gap.get('gate')} is {near_gap['gap']:+.02f} from its bar"
+                 if near_gap else ts.get("knife_edge_detail", "the verdict is knife-edge"))
+        comps.append({
+            "source": "borderline",
+            "weight": 2,
+            "description": _UB_SOURCE_DESC["borderline"] + f" — {where}",
+            "cheapest_lever": "a real capability improvement (not more measurement)",
+            "lever_cost": "engineering, not tasks",
+            "projected_reduction": "moves the score clear of the line",
+        })
+
+    if not comps:
+        if conf in (None, "high"):
+            return None
+        comps.append({
+            "source": "sampling", "weight": 1,
+            "description": "confidence is limited but the driver is unclassified",
+            "cheapest_lever": "run more evaluation tasks",
+            "lever_cost": "more tasks",
+            "projected_reduction": "narrows the interval",
+        })
+
+    total_w = sum(c["weight"] for c in comps)
+    for c in comps:
+        c["contribution_pct"] = round(c.pop("weight") / total_w * 100.0, 1)
+    comps.sort(key=lambda c: -c["contribution_pct"])
+
+    dom = comps[0]
+    note = (
+        f"Confidence is {str(conf or 'unrated').upper()}. "
+        f"Main driver: {dom['source']} ({dom['contribution_pct']:.0f}%) — "
+        f"{dom['cheapest_lever']} ({dom['lever_cost']})."
+        + (f" Also: {', '.join(c['source'] for c in comps[1:])}."
+           if len(comps) > 1 else "")
+    )
+    return {
+        "overall_confidence": conf,
+        "components": comps,
+        "dominant_source": dom["source"],
+        "n_sources": len(comps),
+        "note": note,
+    }
+
+
 def _regression_attribution_section(
     tasks: list[dict[str, Any]],
     failure_lineage: dict[str, Any] | None,
@@ -5899,6 +6040,9 @@ def build_insights(
     out["regression_attribution"] = _safe(
         _regression_attribution_section, tasks, out.get("failure_lineage"),
         out.get("change_attribution"), out.get("metadata_slices"), default=None,
+    )
+    out["uncertainty_budget"] = _safe(
+        _uncertainty_budget_section, out, default=None,
     )
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     out["narrative_audit"] = _safe(

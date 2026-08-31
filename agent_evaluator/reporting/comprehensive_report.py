@@ -3823,6 +3823,41 @@ def _build_multiagent(ma: dict[str, Any] | None) -> str:
     )
 
 
+_UB_SOURCE_COLOR = {
+    "sampling": "#0891b2", "judge": "#7c3aed",
+    "staleness": "#b45309", "borderline": "#dc2626",
+}
+
+
+def _build_uncertainty_budget(ub: dict[str, Any] | None) -> str:
+    """P60: what the verdict's uncertainty is made of, and the cheapest lever
+    to shrink each part."""
+    if not ub or not ub.get("components"):
+        return ""
+    rows = ""
+    for c in ub["components"]:
+        col = _UB_SOURCE_COLOR.get(c.get("source", ""), "#6b7280")
+        rows += (
+            f'<tr><td><span style="color:{col};font-weight:700">'
+            f'{_esc(c.get("source", ""))}</span></td>'
+            f'<td style="text-align:right;font-variant-numeric:tabular-nums">'
+            f'{c.get("contribution_pct")}%</td>'
+            f'<td style="font-size:12px">{_esc(c.get("description", ""))}</td>'
+            f'<td style="font-size:12px">{_esc(c.get("cheapest_lever", ""))} '
+            f'<span style="color:#9ca3af">({_esc(c.get("lever_cost", ""))})</span></td>'
+            f'</tr>'
+        )
+    return (
+        '<div class="gate-section" id="uncertainty-budget" '
+        'style="border-left-color:#0d9488">'
+        '<h2 style="color:#1e2030">Uncertainty Budget</h2>'
+        f'<p style="color:#6b7280;font-size:13px;margin:0 0 6px">{_esc(ub.get("note", ""))}</p>'
+        '<table class="mtable"><thead><tr><th>Source</th><th>Share</th>'
+        '<th>Why</th><th>Cheapest lever</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _build_calibration(cal: dict[str, Any] | None) -> str:
     """P39: is the agent's own confidence trustworthy? Reliability diagram +
     ECE/Brier + over/under-confidence verdict + risk/coverage + abstention."""
@@ -4412,7 +4447,8 @@ _TOC_LABELS = {
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "longitudinal": "Across runs",
     "insight-changes": "Insight diff",
-    "calibration": "Calibration", "efficiency-opportunities": "Efficiency",
+    "uncertainty-budget": "Uncertainty", "calibration": "Calibration",
+    "efficiency-opportunities": "Efficiency",
     "multiagent": "Multi-agent",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
@@ -6123,6 +6159,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
+        _build_uncertainty_budget(_insights_obj.get("uncertainty_budget")),
         _build_calibration(_insights_obj.get("calibration")),
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
@@ -6380,6 +6417,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
+        _build_uncertainty_budget(_insights_obj.get("uncertainty_budget")),
         _build_calibration(_insights_obj.get("calibration")),
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,

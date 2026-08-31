@@ -147,6 +147,18 @@ class TestBuildInsightsValidates:
         if ins.get("multiplicity_audit"):
             assert "_refs" not in ins["multiplicity_audit"]
 
+    def test_uncertainty_budget_section(self, schema):
+        # P60 — low-confidence run -> a decomposed uncertainty budget
+        rpt = _report(
+            {"A": {"score": 0.66, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"p{i}", ok=True) for i in range(6)]
+            + [_task(f"f{i}", ok=False) for i in range(4)],
+        )
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        if ins.get("uncertainty_budget"):
+            assert ins["uncertainty_budget"]["components"]
+
     def test_partial_mode_running_verdict(self, schema):
         # P50 — mid-run subset: still schema-valid, carries running_verdict
         cur = _report(

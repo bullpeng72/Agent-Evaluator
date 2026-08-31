@@ -715,6 +715,22 @@ pop하고 `likely_noise=True`를 원래 `slice_analysis`/`metadata_slices` 행�
 표. TOC "Multi-comp". 스키마 `multiplicity_audit` + `slice_analysis[].{p_value,likely_noise}`.
 `test_multiplicity_audit_p59.py`(8) + `test_insights_schema.py` 시나리오. 전체 4716 통과.
 
+**SPEC-041 P60 (불확실성 예산)** — `verdict.confidence`는 LOW/MEDIUM/HIGH + 사유 문자열만 냈지
+"불확실성이 무엇으로 이뤄졌나 / 각각 줄이려면 뭐가 제일 싼가"를 분해하지 않았다.
+`reporting/insights.py::_uncertainty_budget_section(out)`(post-dict) → `insights.uncertainty_budget
+{overall_confidence, components[]{source(sampling/judge/staleness/borderline), contribution_pct,
+description, cheapest_lever, lever_cost, projected_reduction}, dominant_source, n_sources, note}`.
+재shaping만(새 판정 없음): sampling = n<50 또는 tcr_ci_halfwidth>0.15 → `required_n_for_halfwidth`로
+"~N개 더 → ±5pp"; judge = `evaluator_trust.trust_level` in (low,medium) →
+"judge/heuristic 불일치 태스크 N개 리뷰"; staleness = `freshness.baseline_age_days`>30 또는 old/
+unchanged/suspicious 계열 warning(작은 eval-set warning은 sampling으로 분류, 이중계상 방지) →
+"re-baseline / 라벨 재점검"; borderline = `threshold_sensitivity.knife_edge` 또는 `readiness.gaps`의
+|gap|≤0.05 → "측정이 아니라 실제 개선 필요". weight 정규화→`contribution_pct`, 큰 순 정렬.
+confidence=high이고 아무 소스도 안 걸리면 None. 리포트 `_build_uncertainty_budget()` 섹션
+`uncertainty-budget`(calibration 앞): note + source별 표(share / why / cheapest lever). TOC
+"Uncertainty". 스키마 `uncertainty_budget`. `test_uncertainty_budget_p60.py`(9) +
+`test_insights_schema.py` 시나리오. 전체 4726 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적
