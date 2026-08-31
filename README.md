@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0--rc4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -158,18 +158,18 @@ agent_evaluator/
 └── reporting/             # comprehensive_report.py — self-contained HTML report generation
 
 Evaluator_Examples/       # 31 example files (ch01–ch31)
-tests/                    # 4,120+ test functions
+tests/                    # 4,700+ test functions
 ```
 
 ---
 
 ## Changelog
 
+**v1.0.0** (2026-08-31) — General Availability. Completes SPEC-041's insight-delivery layer: `build_insights()` is now a ~62-key schema-validated hub covering user-defined SLOs, longitudinal failure tracking, a single-agent failure taxonomy, the closed `agent-eval improve` loop, mid-run early-stop insights, multiple-comparison auditing, and an external reference frame. Public SDK API unchanged from rc4.
+
 **v1.0.0-rc4** (2026-08-28) — `doctor` falls back to the global install when there's no project-local one; integration hook docs currency pass.
 
 **v1.0.0-rc3** (2026-08-28) — Integration install lifecycle: `agent-eval claude`/`opencode` gain `upgrade` (edit-preserving refresh), `doctor` (static + live round-trip verification), and `uninstall` subcommands.
-
-**v1.0.0-rc2** (2026-08-27) — Release candidate for v1.0.0: packaging/CI fixes + LiveGuardrail bridge parity on top of rc.1.
 
 Full version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.0.0 (2026-08-31) — General Availability
+
+First GA release. Public SDK API is `1.0.0-rc4` unchanged — the delta is the completion of
+SPEC-041's insight-delivery layer (`reporting/insights.py::build_insights()` is now a ~62-key
+machine-readable hub, every section schema-validated against `agent_evaluator/schemas/insights.schema.json`)
+plus two further example-report audit passes. No breaking changes.
+
+- ✨ **User-defined targets / SLOs** (P43) — `.aoo/targets.json` via `agent-eval target set`; `agent-eval gate` and every "below target" line now measure against your per-gate / TCR bar, not a fixed 0.7.
+- ✨ **Deploy-call robustness** (P44) — `threshold_sensitivity` flags a knife-edge readiness verdict.
+- ✨ **Eval-set intelligence** — gap analysis + prompt-contamination check (P45), metric signal / redundancy (P46), golden-set health (P58), eval-set-vs-production representativeness (P54).
+- ✨ **Failure understanding** — claim-level failure explanation (P47) and a single-agent failure taxonomy (P55): 14 modes, each with an owner (prompt / config / data / model / infra) and remediation.
+- ✨ **Longitudinal intelligence** (P48) — chronic / flapping / recurring failure tracking across sibling runs.
+- ✨ **Closed improvement loop** — `agent-eval improve {plan,start,verify,patch}` (P49, P61); improvement priors synthesized from past experiment outcomes (P57).
+- ✨ **Partial / mid-run insights** (P50) — `build_insights(partial=True)`, `PerformanceMonitor.running_insights()` / `.should_early_stop()` for advisory early-stop in an eval loop.
+- ✨ **Provenance** (P51) — a `derived_from` on every `next_actions` / `fix_plan` / `recommendations` item.
+- ✨ **Judge robustness** (P52) and **external reference frame** (P53) — `.aoo/reference.json`, percentile vs an industry / historical baseline.
+- ✨ **Statistical rigor** — multiple-comparison audit (P59: Welch p-values + `likely_noise` flags), uncertainty budget (P60: where the confidence gap comes from and the cheapest lever to close it).
+- ✨ **Ablation hints** (P56) — the one prompt line / config knob most implicated in each failure mode.
+- ✨ **Within-run contrast pairs** (P62) — each worst failure beside its nearest passing task plus a structured diff isolating the likely differentiator.
+- ✨ New CLI: `agent-eval benchmark {set,show,clear}`, `agent-eval dataset health`.
+- 🐛 **P35 rounds 4–5** — ~30 cross-section coherence fixes from re-auditing the generated example report: Gate A/C/F score-breakdown reconciliation, narrative claim audit, review-queue severity, flaky-fixed failure lineage, cohort "—" for gates a version never measured, and more.
+- 📝 SPEC-041 insight-layer field reference moved to `Docs/specs/SPEC-041-insight-delivery.md`; `insights.schema.json` extended for every new section; `CLAUDE.md` Key Files tree compressed to 1–2 lines per entry.
+
 ## v1.0.0-rc4 (2026-08-28) — `doctor` global fallback + hook-docs currency
 
 Follow-up to rc3. No public SDK API changes.
