@@ -491,9 +491,13 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
                  note="Requires InstructionConfig" if dk == "avg_instruction_adherence" and v is None else "")
         acc_a = details.get("avg_accuracy")
         if acc_a is not None:
+            # P35r5: accuracy is blended INTO the TCR component, not a standalone
+            # averaged term — keep it out of the naive-mean divisor so the
+            # "( … ) ÷ N" line doesn't double-count it.
             _add("Accuracy Score (AccuracyEvaluator)", _fmt_ratio(acc_a), acc_a,
-                 formula_label="avg_accuracy",
-                 note="blended into the TCR component (0.6×TCR + 0.4×accuracy)")
+                 formula_label="avg_accuracy", in_avg=False,
+                 note="blended into the TCR component (0.6×TCR + 0.4×accuracy), "
+                      "not a separate averaged term")
         else:
             _add("Accuracy Score (AccuracyEvaluator)", None, None,
                  formula_label="avg_accuracy",
@@ -690,6 +694,18 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
         )
 
     elif gate_key == "F":
+        # P35r5: the Gate F score is the mean of whatever coordination signals
+        # were measured — the AgentCoordinationTracker score and the
+        # ToolSelectionTracker F1 feed it even when no Gate-F Config is set, so
+        # the breakdown must show those, not only the 4 Config fields.
+        cs = details.get("coordination_score")
+        if cs is not None:
+            _add("Coordination Score (AgentCoordinationTracker / 10)",
+                 _fmt_ratio(cs), cs, formula_label="coordination_score")
+        ts = details.get("avg_tool_selection_f1")
+        if ts is not None:
+            _add("Tool-Selection F1 (ToolSelectionTracker / 100)",
+                 _fmt_ratio(ts), ts, formula_label="avg_tool_selection_f1")
         for dk, lbl, fl in [
             ("avg_consensus", "Consensus Rate", "avg_consensus"),
             ("avg_propagation", "Propagation Accuracy", "avg_propagation"),
@@ -697,8 +713,10 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
             ("avg_conflict_resolution", "Conflict Resolution Rate", "avg_conflict_resolution"),
         ]:
             v = details.get(dk)
-            _add(lbl, _fmt_ratio(v), v, formula_label=fl)
-        formula_str = "avg( avg_consensus, avg_propagation, avg_role_compliance, avg_conflict_resolution )"
+            if v is not None:
+                _add(lbl, _fmt_ratio(v), v, formula_label=fl)
+        formula_str = ("avg( coordination_score, avg_tool_selection_f1, avg_consensus, "
+                       "avg_propagation, avg_role_compliance, avg_conflict_resolution )")
 
     elif gate_key == "G":
         tc = details.get("tool_coverage")
@@ -1956,6 +1974,7 @@ def _norm_task_for_case(t: Any) -> dict[str, Any]:
         "tool_calls": get("tool_calls") or [],
         "chain_steps": get("chain_steps") or [],
         "agent_interactions": get("agent_interactions") or [],
+        "extra": get("extra") if isinstance(get("extra"), dict) else {},
     }
 
 
@@ -2268,6 +2287,15 @@ def _build_failure_lineage(cases: list[dict[str, Any]],
     new_untracked = sorted(cur_fail - set(base_fail_map))  # baseline에 없던 태스크가 실패
     persistent = sorted(cur_fail & base_fail)
     fixed = sorted(base_fail - cur_fail)              # 지난번 실패 → 이번 통과(또는 사라짐)
+    # P35r5: a "fixed" task that is non-deterministic passed by luck this run —
+    # don't present it as a clean fix.
+    _flaky = {
+        str(c["task_id"]) for c in cases
+        if isinstance((c.get("extra") or {}).get("reproducibility"), dict)
+        and _safe_float((c["extra"]["reproducibility"]).get("score"), 1.0) < 0.85
+    }
+    fixed_flaky = [t for t in fixed if t in _flaky]
+    fixed = [t for t in fixed if t not in _flaky]
 
     def _chips(label: str, ids: list[str], color: str) -> str:
         if not ids:
@@ -2283,6 +2311,8 @@ def _build_failure_lineage(cases: list[dict[str, Any]],
         + _chips("♻️ Persistent", persistent, "#92400e")
         + _chips("🆕 New (not in baseline)", new_untracked, "#6b7280")
         + _chips("✅ Fixed since baseline", fixed, "#059669")
+        + _chips("⚠️ Passing but non-deterministic (fixed by luck?)",
+                 fixed_flaky, "#b45309")
     )
     if not body:
         return ""
@@ -4402,8 +4432,26 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
     the response text diff and the trajectory step diff, not just the average."""
     if not td:
         return ""
-    blocks = ""
+    # P35r5: collapse cards that tell the same story (same verdict + same
+    # current-version response) — the example had 2 identical TimeoutError cards
+    # and 2 identical "contact support" deflections.
+    _grouped: list[dict[str, Any]] = []
+    _seen: dict[tuple, dict[str, Any]] = {}
     for d in td:
+        rd0 = d.get("response_diff") or {}
+        _cur_resp = ""
+        for v in d.get("per_version") or []:
+            if str(v.get("label")) == (d.get("compared") or ["", ""])[-1]:
+                _cur_resp = str(v.get("response_excerpt") or "")
+                break
+        key = (d.get("verdict"), bool(rd0.get("errored")), _cur_resp.strip().lower())
+        if _cur_resp and key in _seen:
+            _seen[key].setdefault("_also", []).append(str(d.get("task_id")))
+        else:
+            _seen[key] = d
+            _grouped.append(d)
+    blocks = ""
+    for d in _grouped:
         col, lbl = _TD_VERDICT_STYLE.get(d.get("verdict", ""), ("#6b7280", d.get("verdict", "")))
         cmp_ = d.get("compared") or []
         sd = d.get("score_delta") or {}
@@ -4455,9 +4503,12 @@ def _build_trace_diffs(td: list[dict[str, Any]] | None) -> str:
             traj_line = (f'<div style="font-size:11px;color:#6b7280;margin-top:4px">'
                          f'Trajectory: {" · ".join(bits)}</div>')
 
+        _also = d.get("_also") or []
+        _also_s = (f' <span style="color:#9ca3af">· same change also on '
+                   f'{_esc(", ".join(_also))}</span>' if _also else "")
         blocks += (
             f'<div style="border-top:1px solid #e5e7eb;padding:8px 0">'
-            f'<div style="font-size:12px"><strong>{_esc(str(d.get("task_id", "")))}</strong> '
+            f'<div style="font-size:12px"><strong>{_esc(str(d.get("task_id", "")))}</strong>{_also_s} '
             f'<span style="color:{col};font-weight:700">{_esc(lbl)}</span> '
             f'<span style="color:#9ca3af">'
             f'{_esc(" → ".join(str(c) for c in cmp_))} · '
@@ -4491,10 +4542,15 @@ def _build_cohort_comparison(cc: dict[str, Any] | None) -> str:
     vs = cc["versions"]
     metric = cc.get("metric", "tcr").upper()
 
+    # P35r5: show "—" for a gate a version didn't measure, so the reader sees
+    # why the newest run's worst gate has no history to compare against.
+    _all_g = [g for g in "ABCDEFG" if any(g in (v.get("gate_scores") or {}) for v in vs)]
     vrows = ""
     for v in vs:
         gs = v.get("gate_scores") or {}
-        gs_txt = " · ".join(f"{g} {gs[g]:.2f}" for g in "ABCDEFG" if g in gs) or "—"
+        gs_txt = " · ".join(
+            f"{g} {gs[g]:.2f}" if g in gs else f"{g} —" for g in _all_g
+        ) or "—"
         tcr = v.get("tcr_pct")
         vrows += (
             f'<tr><td style="font-weight:600">{_esc(v.get("label", "?"))}</td>'
@@ -4790,6 +4846,9 @@ def _build_insight_changes(ic: dict[str, Any] | None) -> str:
                       "#dc2626" if vc.get("to") == "not_ready" else "#059669")
     if ic.get("newly_failing_gates"):
         rows += _line("📉", "Newly below target", ", ".join(ic["newly_failing_gates"]), "#dc2626")
+    if ic.get("still_below_gates"):
+        rows += _line("➖", "Still below target (already was in the baseline)",
+                      ", ".join(ic["still_below_gates"]), "#92400e")
     if ic.get("newly_passing_gates"):
         rows += _line("✅", "Newly at target", ", ".join(ic["newly_passing_gates"]), "#059669")
     tc = ic.get("trust_change")
@@ -5459,11 +5518,15 @@ def _build_recommendations(harness_groups: dict, tcr: float, acc: float,
             _top_fld = _shortfalls[0].get("field", "") if _shortfalls else ""
             _top_h = _shortfalls[0].get("health") if _shortfalls else None
             code_html = _rec_code_snippet(_top_fld, _top_h) if _top_fld else ""
-            past_html = _rec_past_outcomes(recommendation_log_path, key)
             exp_html = _rec_experiment_block(key, _top_fld, _top_h, _ncomp) if _top_fld else ""
             base_html = _rec_baseline_verdict(baseline, current, key)
             proposal_html = _rec_proposal_html(_proposal_by_gate.get(key))
             prior_html = _rec_prior_html(_prior_by_gate.get(key))
+            # P35r5: the P57 "Track record" line (change-type specific) supersedes
+            # the P8 "Past changes to Gate X" roll-up — showing both gave two
+            # slightly different numbers for "the past record" on one card.
+            past_html = ("" if prior_html
+                         else _rec_past_outcomes(recommendation_log_path, key))
 
             recs.append(
                 f'<div class="rec {priority_class}">'

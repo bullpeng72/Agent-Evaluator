@@ -2046,7 +2046,7 @@ def _reference_frame_section(
         )
     except Exception:  # pragma: no cover - defensive
         return None
-    if not is_defined(reference):
+    if not is_defined(reference) or reference is None:
         return None
 
     comps = [_safe_float(t.get("completion_score")) for t in tasks]
@@ -3862,8 +3862,8 @@ def _uncertainty_budget_section(out: dict[str, Any]) -> dict[str, Any] | None:
         })
 
     # --- staleness (not the tiny-eval-set warning — that is sampling) --- #
-    age = fr.get("baseline_age_days")
-    old_baseline = isinstance(age, (int, float)) and age > 30
+    age = _safe_float(fr.get("baseline_age_days")) or 0.0
+    old_baseline = age > 30
     _stale_w = [
         w for w in (fr.get("warnings") or [])
         if any(k in str(w).lower() for k in
@@ -4022,8 +4022,13 @@ def _regression_attribution_section(
                 continue
             top_val, top_n = vals.most_common(1)[0]
             share = top_n / n
-            if share >= 0.6 and top_n >= 2:
-                dd = slice_delta.get(f"extra.{key}", {}).get(top_val)
+            dd = slice_delta.get(f"extra.{key}", {}).get(top_val)
+            # P35r5: drop a concentration whose slice regressed only trivially —
+            # "these 2 tasks are all 'standard' difficulty" is not a cause when
+            # 'standard' overall dropped just 3pp. Keep it when the slice delta is
+            # unknown (no baseline members) — the render then states no causation.
+            _immaterial = dd is not None and dd > -5.0
+            if share >= 0.6 and top_n >= 2 and not _immaterial:
                 concentration.append({
                     "dimension": f"extra.{key}",
                     "value": top_val,
@@ -5569,6 +5574,10 @@ def _insight_changes_section(
     base_fail = {k for k in "ABCDEFG" if _gate_status(base_hg.get(k)) in _below}
     newly_failing_gates = sorted(cur_fail - base_fail)
     newly_passing_gates = sorted(base_fail - cur_fail)
+    # P35r5: gates below target in *both* runs — so a reader who sees "4 gates
+    # below" elsewhere but "3 newly below" here understands the 4th was already
+    # below in the baseline, not a contradiction.
+    still_below_gates = sorted(cur_fail & base_fail)
 
     if not any([new_clusters, resolved_clusters, trust_change, new_security_findings,
                 verdict_change, newly_failing_gates, newly_passing_gates]):
@@ -5581,6 +5590,7 @@ def _insight_changes_section(
         "verdict_change": verdict_change,
         "newly_failing_gates": newly_failing_gates,
         "newly_passing_gates": newly_passing_gates,
+        "still_below_gates": still_below_gates,
     }
 
 

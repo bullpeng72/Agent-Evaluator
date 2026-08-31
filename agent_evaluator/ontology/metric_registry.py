@@ -32,8 +32,9 @@ class GateGuidance:
 GATE_GUIDANCE: dict[str, GateGuidance] = {
     "A": GateGuidance(
         "Goal Achievement",
-        "Improve TCR, accuracy, and hallucination metrics. Add InstructionConfig / "
-        "GoalAlignmentConfig to your decorator to enable detailed tracking.",
+        "Improve task completion, answer accuracy, and response "
+        "relevance/completeness. Add InstructionConfig / GoalAlignmentConfig / "
+        "SubtaskConfig to your decorator to enable detailed tracking.",
     ),
     "B": GateGuidance(
         "Behavioral Integrity",
