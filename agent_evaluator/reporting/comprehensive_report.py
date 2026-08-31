@@ -2945,6 +2945,60 @@ def _build_metric_signal(ms: dict[str, Any] | None) -> str:
     )
 
 
+def _build_judge_robustness(jr: dict[str, Any] | None) -> str:
+    """P52: how much the deploy picture depends on *which* judge model scored
+    it — cross-model pass/fail agreement, tasks that flip, judge cost share."""
+    if not jr:
+        return ""
+    vs = jr.get("verdict_stability_across_models") or {}
+    stable = vs.get("stable")
+    banner_bg = "#ecfdf5" if stable else "#fff7ed"
+    banner_bd = "#059669" if stable else "#d97706"
+    means = vs.get("per_model_overall_mean") or {}
+    mean_rows = "".join(
+        f'<tr><td>{_esc(str(m))}</td>'
+        f'<td style="text-align:right">{v:.2f}</td></tr>'
+        for m, v in means.items()
+    )
+    sens = jr.get("judge_sensitive_tasks") or []
+    sens_rows = ""
+    for s in sens:
+        sc = " / ".join(f"{x:.2f}" for x in s.get("scores") or [])
+        flip = ('<span style="color:#dc2626;font-weight:700">flips</span>'
+                if s.get("bucket_flip") else "spread")
+        sens_rows += (
+            f'<tr><td>{_esc(str(s.get("task_id")))}</td>'
+            f'<td style="text-align:right">{sc}</td>'
+            f'<td style="text-align:right">{s.get("spread"):.2f}</td>'
+            f'<td>{flip}</td></tr>'
+        )
+    sens_html = ""
+    if sens_rows:
+        sens_html = (
+            '<h3 style="margin:12px 0 4px">Judge-sensitive tasks '
+            f'<span style="font-size:12px;color:#6b7280">({jr.get("n_sensitive")} '
+            'total)</span></h3>'
+            '<table class="mtable"><thead><tr><th>Task</th><th>Scores</th>'
+            '<th>Spread</th><th>Effect</th></tr></thead>'
+            f'<tbody>{sens_rows}</tbody></table>'
+        )
+    cost_share = jr.get("judge_cost_share_pct")
+    cost_s = (f' · judge cost {cost_share:.1f}% of eval spend'
+              if isinstance(cost_share, (int, float)) else "")
+    return (
+        '<div class="gate-section" id="judge-robustness" '
+        'style="border-left-color:#7c3aed">'
+        '<h2 style="color:#1e2030">Judge Robustness</h2>'
+        f'<div style="background:{banner_bg};border-left:3px solid {banner_bd};'
+        f'padding:8px 10px;font-size:13px;margin:0 0 8px">{_esc(jr.get("note", ""))}'
+        f'{cost_s}</div>'
+        '<h3 style="margin:8px 0 4px">Per-model mean overall</h3>'
+        '<table class="mtable"><thead><tr><th>Judge</th><th>Mean</th></tr></thead>'
+        f'<tbody>{mean_rows}</tbody></table>'
+        f'{sens_html}</div>'
+    )
+
+
 def _build_evaluator_reliability(tasks: list[Any] | None,
                                  current: dict[str, Any] | None) -> str:
     """P14: how much can the reader trust the numbers? Surfaces judge-vs-heuristic
@@ -4218,7 +4272,8 @@ _TOC_LABELS = {
     "advanced": "Advanced", "operational-signals": "Anomalies",
     "slice-analysis": "Slices", "metadata-slices": "Metadata slices",
     "sample-guidance": "Test next", "reproducibility": "Reproducibility",
-    "metric-signal": "Metric signal", "evaluator-reliability": "Evaluator trust",
+    "metric-signal": "Metric signal", "judge-robustness": "Judge robustness",
+    "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "failure-explanations": "Wrong claims",
@@ -5850,6 +5905,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_metric_signal(_insights_obj.get("metric_signal")),
+        _build_judge_robustness(_insights_obj.get("judge_robustness")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
@@ -6097,6 +6153,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_metric_signal(_insights_obj.get("metric_signal")),
+        _build_judge_robustness(_insights_obj.get("judge_robustness")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),

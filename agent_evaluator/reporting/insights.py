@@ -871,6 +871,132 @@ def _metric_signal_section(tasks: list[dict[str, Any]]) -> dict[str, Any] | None
     }
 
 
+_JUDGE_SWING = 0.20          # normalised (/1) overall-score range that flags a task
+_JUDGE_BUCKET_LINE = 0.60    # pass/fail bucket line on the normalised judge score
+_JUDGE_MODEL_DRIFT = 0.10    # per-model mean gap above which models "disagree"
+
+
+def _jr_runs(current: dict[str, Any]) -> list[dict[str, Any]]:
+    """Read the opt-in ``extra_metrics.judge_runs`` — either a bare list of run
+    dicts or ``{"runs": [...]}``. Each run: ``{model?, cost_usd?, scores:
+    {task_id: {overall, ...}}}`` (``scores`` may also be a list of
+    ``{task_id, overall}``)."""
+    em = (current.get("extra_metrics") or {}) if isinstance(current, dict) else {}
+    jr = em.get("judge_runs")
+    if isinstance(jr, dict):
+        jr = jr.get("runs")
+    return [r for r in jr if isinstance(r, dict)] if isinstance(jr, list) else []
+
+
+def _jr_score_map(run: dict[str, Any]) -> dict[str, float]:
+    """task_id -> normalised (/1) overall score for one run."""
+    sc = run.get("scores")
+    out: dict[str, float] = {}
+    items: list[tuple[Any, Any]] = []
+    if isinstance(sc, dict):
+        items = list(sc.items())
+    elif isinstance(sc, list):
+        items = [(d.get("task_id"), d) for d in sc if isinstance(d, dict)]
+    for tid, val in items:
+        if tid is None:
+            continue
+        ov = val.get("overall") if isinstance(val, dict) else val
+        ov = _safe_float(ov)
+        if ov is None:
+            continue
+        out[str(tid)] = ov / 10.0 if ov > 1.0 else ov
+    return out
+
+
+def _judge_robustness_section(
+    current: dict[str, Any], tasks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """P52: how much the deploy picture depends on *which* judge scored it.
+    Needs ``extra_metrics.judge_runs`` with >= 2 runs (typically the same tasks
+    scored by two judge models). No re-scoring — pure aggregation of what the
+    pipeline recorded."""
+    runs = _jr_runs(current)
+    if len(runs) < 2:
+        return None
+    maps = [_jr_score_map(r) for r in runs]
+    models = [str(r.get("model") or f"run{i + 1}") for i, r in enumerate(runs)]
+    common = set(maps[0])
+    for m in maps[1:]:
+        common &= set(m)
+    if not common:
+        return None
+
+    sensitive: list[dict[str, Any]] = []
+    same_bucket = 0
+    for tid in sorted(common):
+        vals = [m[tid] for m in maps]
+        spread = max(vals) - min(vals)
+        buckets = {v >= _JUDGE_BUCKET_LINE for v in vals}
+        flips = len(buckets) > 1
+        if not flips:
+            same_bucket += 1
+        if flips or spread >= _JUDGE_SWING:
+            sensitive.append({
+                "task_id": tid,
+                "models": models,
+                "scores": [round(v, 3) for v in vals],
+                "spread": round(spread, 3),
+                "bucket_flip": flips,
+            })
+    sensitive.sort(key=lambda d: (-int(d["bucket_flip"]), -d["spread"]))
+
+    per_model_mean = {
+        models[i]: round(sum(maps[i][t] for t in common) / len(common), 4)
+        for i in range(len(runs))
+    }
+    means = list(per_model_mean.values())
+    drift = round(max(means) - min(means), 4)
+    agreement = round(same_bucket / len(common), 3)
+
+    judge_cost = sum(
+        c for c in (_safe_float(r.get("cost_usd")) for r in runs) if c is not None
+    )
+    total_cost = None
+    try:
+        eff = (current.get("efficiency_metrics") or {}).get("tokens") or {}
+        tc = _safe_float(eff.get("total_cost"))
+        if tc is not None:
+            total_cost = tc + judge_cost
+    except Exception:  # pragma: no cover - defensive
+        total_cost = None
+    cost_share = (
+        round(judge_cost / total_cost * 100.0, 1)
+        if total_cost and total_cost > 0 else None
+    )
+
+    stable = drift < _JUDGE_MODEL_DRIFT and agreement >= 0.9
+    note = (
+        f"{len(models)} judge runs ({', '.join(models)}); "
+        f"pass/fail agreement {agreement * 100:.0f}% over {len(common)} tasks, "
+        f"per-model mean spread {drift:+.2f}. "
+        + ("Verdict is stable across judges."
+           if stable else
+           f"{len(sensitive)} task(s) move enough to change their pass/fail call "
+           f"depending on the judge — confirm those by hand.")
+    )
+    return {
+        "n_runs": len(runs),
+        "models": models,
+        "n_comparable_tasks": len(common),
+        "verdict_stability_across_models": {
+            "stable": stable,
+            "per_model_overall_mean": per_model_mean,
+            "max_mean_gap": drift,
+            "bucket_agreement_rate": agreement,
+        },
+        "judge_sensitive_tasks": sensitive[:20],
+        "n_sensitive": len(sensitive),
+        "judge_cost_usd": round(judge_cost, 4) if judge_cost else 0.0,
+        "judge_cost_share_pct": cost_share,
+        "note": note,
+    }
+
+
 def _evaluator_trust_section(
     tasks: list[dict[str, Any]], current: dict[str, Any],
 ) -> dict[str, Any] | None:
@@ -5258,6 +5384,7 @@ def build_insights(
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
         "metric_signal": _safe(_metric_signal_section, tasks, default=None),
+        "judge_robustness": _safe(_judge_robustness_section, current, tasks, default=None),
         "review_queue": _safe(
             _review_queue_section, tasks,
             evaluator_trust=evaluator_trust, failure_lineage=failure_lineage,

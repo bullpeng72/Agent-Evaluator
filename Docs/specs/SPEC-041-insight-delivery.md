@@ -619,6 +619,22 @@ from_diagnosis}`. 스키마: 세 아이템에 `derived_from`(object|null, additi
 (전부 이미 `additionalProperties:true`라 하위호환). 리포트 `_build_readiness`의 fix-plan 행에
 "from failure cluster · e.g. t_x, t_y" 한 줄. `test_provenance_p51.py`(5). 전체 4663 통과.
 
+**SPEC-041 P52 (judge 견고성)** — `reporting/insights.py::_judge_robustness_section(current, tasks)` →
+`insights.judge_robustness`. 옵트인 `extra_metrics.judge_runs`(파이프라인이 채움 — bare list 또는
+`{"runs":[…]}`, 각 run `{model?, cost_usd?, scores:{task_id:{overall,…}}}` 또는 `scores`가
+`[{task_id, overall}]` list 형태)에 run이 2개 이상일 때만. `_jr_score_map`이 overall을 /1로 정규화
+(값>1이면 /10). 반환: `verdict_stability_across_models{stable, per_model_overall_mean, max_mean_gap,
+bucket_agreement_rate}` — 모델별 평균 overall + 모든 run이 같은 pass/fail 버킷(0.60 라인)에 드는 태스크
+비율. `stable` = max_mean_gap<0.10 && agreement≥0.9. `judge_sensitive_tasks[]{task_id, models, scores,
+spread, bucket_flip}` — 버킷이 뒤집히거나 spread≥0.20인 태스크(flip 먼저, spread 큰 순, 20개).
+`judge_cost_usd`(run cost_usd 합) + `judge_cost_share_pct`(= judge_cost / (judge_cost +
+efficiency_metrics.tokens.total_cost) ×100, total 없으면 None). `note` 합성. 새 판정 없음 —
+파이프라인이 기록한 것의 순수 집계(재채점 없음). P14 `evaluator_trust`(judge↔heuristic·calibration·
+self-consistency)의 cross-model 축 보완. 스키마 `judge_robustness`. 리포트 `_build_judge_robustness()`
+섹션 `judge-robustness`(metric-signal 뒤): stable 배너(초록/앰버) + 모델별 평균 표 + judge-sensitive
+태스크 표. TOC "Judge robustness". `test_judge_robustness_p52.py`(8) + `test_insights_schema.py` 시나리오.
+전체 4671 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

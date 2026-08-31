@@ -243,6 +243,44 @@
       }
     },
 
+    "judge_robustness": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_runs": { "type": "integer" },
+        "models": { "type": "array", "items": { "type": "string" } },
+        "n_comparable_tasks": { "type": "integer" },
+        "verdict_stability_across_models": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "stable": { "type": "boolean" },
+            "per_model_overall_mean": { "type": "object" },
+            "max_mean_gap": { "type": "number" },
+            "bucket_agreement_rate": { "type": "number" }
+          }
+        },
+        "judge_sensitive_tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "task_id": { "type": "string" },
+              "models": { "type": "array", "items": { "type": "string" } },
+              "scores": { "type": "array", "items": { "type": "number" } },
+              "spread": { "type": "number" },
+              "bucket_flip": { "type": "boolean" }
+            }
+          }
+        },
+        "n_sensitive": { "type": "integer" },
+        "judge_cost_usd": { "type": "number" },
+        "judge_cost_share_pct": { "type": ["number", "null"] },
+        "note": { "type": "string" }
+      }
+    },
+
     "evaluator_trust": {
       "type": ["object", "null"],
       "additionalProperties": true,

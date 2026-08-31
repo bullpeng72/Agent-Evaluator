@@ -141,3 +141,21 @@ class TestBuildInsightsValidates:
         assert rv["decisive"] is True and rv["verdict"] == "not_ready"
         # expensive / baseline sections are absent in partial mode
         assert "cohort_comparison" not in ins and "longitudinal" not in ins
+
+    def test_judge_robustness_section(self, schema):
+        # P52 — multi-judge runs in extra_metrics.judge_runs
+        rpt = _report(
+            {"A": {"score": 0.7, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"t{i}", ok=True, judge=8.0) for i in range(10)],
+        )
+        rpt["extra_metrics"]["judge_runs"] = [
+            {"model": "haiku", "cost_usd": 0.1,
+             "scores": {f"t{i}": {"overall": 5.0 if i < 4 else 8.0} for i in range(10)}},
+            {"model": "sonnet", "cost_usd": 0.9,
+             "scores": {f"t{i}": {"overall": 7.0 if i < 4 else 8.0} for i in range(10)}},
+        ]
+        rpt["efficiency_metrics"] = {"tokens": {"total_cost": 2.0}}
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        assert ins["judge_robustness"] is not None
+        assert ins["judge_robustness"]["n_runs"] == 2
