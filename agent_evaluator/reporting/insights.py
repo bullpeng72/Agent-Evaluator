@@ -271,6 +271,115 @@ def _nondeterminism_section(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 
 # ---------------------------------------------------------------------------
+# Agent calibration & abstention quality (P39) — opt-in.
+#
+# When a task records `extra.confidence` (0–1, the agent's own probability that
+# its answer is right) and/or `extra.abstained` (bool), we can say things the
+# accuracy score alone can't: is the agent WRONG-BUT-CONFIDENT (the dangerous
+# failure), does its confidence carry enough signal to route on (risk/coverage),
+# and when it says "I don't know" is it right to? No opt-in data -> section is
+# None (zero cost, zero noise).
+# ---------------------------------------------------------------------------
+def _is_correct(t: dict[str, Any]) -> bool:
+    acc = _safe_float(t.get("accuracy_score"))
+    if acc is not None:
+        return acc >= 0.6
+    return not _effective_fail(
+        success=t.get("success", False),
+        accuracy=t.get("accuracy_score"),
+        completion=t.get("completion_score"),
+    )
+
+
+def _calibration_section(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    conf_pairs: list[tuple[float, float]] = []
+    abstained: list[dict[str, Any]] = []
+    answered_correct = answered_total = 0
+    for t in tasks:
+        ex = _task_extra(t) or {}
+        abst = bool(ex.get("abstained"))
+        conf = ex.get("confidence")
+        if abst:
+            gt = str(t.get("ground_truth") or "").strip()
+            abstained.append({
+                "task_id": str(t.get("task_id") or "—"),
+                # "answerable" heuristic: a real, non-trivial ground truth exists
+                "answerable": len(gt.split()) >= 3,
+                "question": str(t.get("question") or "")[:160],
+            })
+            continue
+        if isinstance(conf, (int, float)):
+            conf_pairs.append((float(conf), 1.0 if _is_correct(t) else 0.0))
+        answered_total += 1
+        if _is_correct(t):
+            answered_correct += 1
+
+    if len(conf_pairs) < 5 and not abstained:
+        return None
+
+    out: dict[str, Any] = {"n_with_confidence": len(conf_pairs)}
+
+    if len(conf_pairs) >= 5:
+        try:
+            from agent_evaluator.utils.confidence import (
+                brier_score,
+                expected_calibration_error,
+                risk_coverage_points,
+            )
+        except Exception:  # pragma: no cover - defensive
+            return out if abstained else None
+        ece = expected_calibration_error(conf_pairs)
+        mean_conf = sum(c for c, _ in conf_pairs) / len(conf_pairs)
+        acc = sum(y for _, y in conf_pairs) / len(conf_pairs)
+        gap = mean_conf - acc          # +ve = overconfident
+        out.update({
+            "ece": (ece or {}).get("ece"),
+            "mce": (ece or {}).get("mce"),
+            "brier": brier_score(conf_pairs),
+            "mean_confidence": round(mean_conf, 4),
+            "empirical_accuracy": round(acc, 4),
+            "confidence_gap": round(gap, 4),
+            "verdict": (
+                "overconfident" if gap > 0.10
+                else "underconfident" if gap < -0.10
+                else "well-calibrated"
+            ),
+            "reliability_bins": (ece or {}).get("bins") or [],
+            "risk_coverage": risk_coverage_points(conf_pairs) or [],
+        })
+        # does the confidence carry routing signal? risk should FALL as coverage
+        # drops (abstain on the least-sure first). Flat = no signal; rising = the
+        # confidence is inverted (high-confidence answers are worse).
+        rc = out["risk_coverage"]
+        if len(rc) >= 2:
+            _d = rc[-1]["risk"] - rc[0]["risk"]
+            out["confidence_is_informative"] = bool(_d < -0.03)
+            out["confidence_signal"] = (
+                "informative" if _d < -0.03
+                else "inverted" if _d > 0.03
+                else "flat"
+            )
+
+    if abstained:
+        n_ab = len(abstained)
+        n_answerable = sum(1 for a in abstained if a["answerable"])
+        out["abstention"] = {
+            "n_abstained": n_ab,
+            "abstention_rate_pct": round(
+                n_ab / max(1, n_ab + answered_total) * 100.0, 1,
+            ),
+            "answered_accuracy_pct": (
+                round(answered_correct / answered_total * 100.0, 1)
+                if answered_total else None
+            ),
+            "abstained_when_answerable": n_answerable,
+            "example_task_ids": [a["task_id"] for a in abstained[:10]],
+        }
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Cost economics (P16) — the number that actually matters is cost per *successful*
 # task, plus how much is being burned on failures and retries, plus what that
 # projects to at scale. Gate D only ever showed total / per-task cost.
@@ -3468,6 +3577,22 @@ def _narrative_from_template(ins: dict[str, Any]) -> str:
             f"; {extras[1]}." if len(extras) > 1 else "."
         ))
 
+    cal = ins.get("calibration") or {}
+    if (cal.get("verdict") == "overconfident"
+            and isinstance(cal.get("confidence_gap"), (int, float))):
+        parts.append(
+            f"The agent is overconfident — it reports "
+            f"{cal.get('mean_confidence', 0) * 100:.0f}% confidence but is only "
+            f"{cal.get('empirical_accuracy', 0) * 100:.0f}% accurate "
+            f"(ECE {cal.get('ece')}); wrong answers are being delivered as if certain."
+        )
+    ab = cal.get("abstention") or {}
+    if ab.get("abstained_when_answerable"):
+        parts.append(
+            f"The agent abstained on {ab['n_abstained']} task(s), "
+            f"{ab['abstained_when_answerable']} of which had a usable ground truth."
+        )
+
     ce = ins.get("cost_economics") or {}
     proj = ce.get("projection") or {}
     if proj.get("total_usd"):
@@ -3909,6 +4034,7 @@ def build_insights(
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
+        "calibration": _safe(_calibration_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
         "trajectories": _safe(_trajectories_section, tasks, default=None),
         "experiments": _safe(

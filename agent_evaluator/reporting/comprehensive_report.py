@@ -3372,6 +3372,104 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
     )
 
 
+def _build_calibration(cal: dict[str, Any] | None) -> str:
+    """P39: is the agent's own confidence trustworthy? Reliability diagram +
+    ECE/Brier + over/under-confidence verdict + risk/coverage + abstention."""
+    if not cal:
+        return ""
+    has_conf = isinstance(cal.get("ece"), (int, float))
+    _vcol = {"overconfident": "#dc2626", "underconfident": "#d97706",
+             "well-calibrated": "#059669"}.get(cal.get("verdict", ""), "#6b7280")
+
+    kpis = ""
+    if has_conf:
+        kpis = (
+            '<div class="kpis">'
+            f'<div class="kpi"><div class="kpi-lbl">Verdict</div>'
+            f'<div class="kpi-val" style="color:{_vcol};font-size:15px">'
+            f'{_esc(cal.get("verdict", "—"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">Mean confidence</div>'
+            f'<div class="kpi-val">{cal.get("mean_confidence", 0) * 100:.0f}%</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">Empirical accuracy</div>'
+            f'<div class="kpi-val">{cal.get("empirical_accuracy", 0) * 100:.0f}%</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">ECE</div>'
+            f'<div class="kpi-val">{cal.get("ece")}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">Brier</div>'
+            f'<div class="kpi-val">{cal.get("brier")}</div></div>'
+            '</div>'
+        )
+
+    bins_html = ""
+    _bins = cal.get("reliability_bins") or []
+    if _bins:
+        rows = ""
+        for b in _bins:
+            _diff = b.get("accuracy", 0) - b.get("mean_conf", 0)
+            _c = "#dc2626" if _diff < -0.1 else ("#d97706" if _diff > 0.1 else "#374151")
+            rows += (
+                f'<tr><td>{b.get("lo"):.1f}–{b.get("hi"):.1f}</td>'
+                f'<td style="text-align:right">{b.get("n")}</td>'
+                f'<td style="text-align:right">{b.get("mean_conf", 0) * 100:.0f}%</td>'
+                f'<td style="text-align:right;color:{_c};font-weight:600">'
+                f'{b.get("accuracy", 0) * 100:.0f}%</td></tr>'
+            )
+        bins_html = (
+            '<h3 style="margin:12px 0 4px">Reliability by confidence bucket</h3>'
+            '<table class="mtable"><thead><tr><th>Confidence</th><th>N</th>'
+            '<th>Stated</th><th>Actual</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+
+    rc_html = ""
+    _rc = cal.get("risk_coverage") or []
+    if _rc:
+        cells = " · ".join(
+            f'{p.get("coverage", 0) * 100:.0f}% cov → {p.get("risk", 0) * 100:.0f}% err'
+            for p in _rc
+        )
+        _sig = cal.get("confidence_signal")
+        _inf_s = {
+            "informative": ' <span style="color:#059669">— confidence carries '
+                           'routing signal</span>',
+            "flat": ' <span style="color:#dc2626">— confidence does not separate '
+                    'right from wrong (flat risk)</span>',
+            "inverted": ' <span style="color:#dc2626">— confidence is inverted: '
+                        'high-confidence answers are <em>more</em> likely wrong</span>',
+        }.get(_sig, "")
+        rc_html = (
+            '<h3 style="margin:12px 0 4px">Risk / coverage '
+            '<span style="font-size:12px;color:#6b7280">(answer only the most-confident '
+            'fraction)</span></h3>'
+            f'<p style="font-size:12px;color:#374151;margin:0">{cells}{_inf_s}</p>'
+        )
+
+    ab = cal.get("abstention") or {}
+    ab_html = ""
+    if ab:
+        _wa = ab.get("abstained_when_answerable", 0)
+        ab_html = (
+            '<h3 style="margin:12px 0 4px">Abstention</h3>'
+            f'<p style="font-size:12px;color:#374151;margin:0">Abstained on '
+            f'<strong>{ab.get("n_abstained")}</strong> task(s) '
+            f'({ab.get("abstention_rate_pct")}% of the set)'
+            + (f'; answered-task accuracy {ab.get("answered_accuracy_pct")}%'
+               if ab.get("answered_accuracy_pct") is not None else "")
+            + (f'. <span style="color:#d97706">{_wa} of those had a usable ground '
+               f'truth</span> — possible over-abstention.' if _wa else '.')
+            + '</p>'
+        )
+
+    return (
+        '<div class="gate-section" id="calibration" style="border-left-color:#0891b2">'
+        '<h2 style="color:#1e2030">Confidence Calibration</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'Does the agent know when it is right? From opt-in <code>extra.confidence</code> '
+        '/ <code>extra.abstained</code>. A wrong-but-confident agent is the dangerous '
+        'failure mode the accuracy score alone cannot see.</p>'
+        f'{kpis}{bins_html}{rc_html}{ab_html}</div>'
+    )
+
+
 def _build_conversation(cv: dict[str, Any] | None) -> str:
     """P24: multi-turn quality — per-turn context-reference trajectory, the turn
     the agent starts to degrade, and per-session goal drift."""
@@ -3819,6 +3917,7 @@ _TOC_LABELS = {
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "insight-changes": "Insight diff",
+    "calibration": "Calibration",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
@@ -5287,6 +5386,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
+        _build_calibration(_insights_obj.get("calibration")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -5520,6 +5620,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
         _build_nondeterminism(_tasks_list),
+        _build_calibration(_insights_obj.get("calibration")),
         _build_eval_set_quality(_tasks_list, baseline, harness_groups),
         failure_cases_html,
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,

@@ -680,6 +680,26 @@
       }
     },
 
+    "calibration": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_with_confidence": { "type": "integer" },
+        "ece": { "type": ["number", "null"] },
+        "mce": { "type": ["number", "null"] },
+        "brier": { "type": ["number", "null"] },
+        "mean_confidence": { "type": "number" },
+        "empirical_accuracy": { "type": "number" },
+        "confidence_gap": { "type": "number" },
+        "verdict": { "enum": ["overconfident", "underconfident", "well-calibrated"] },
+        "reliability_bins": { "type": "array" },
+        "risk_coverage": { "type": "array" },
+        "confidence_is_informative": { "type": "boolean" },
+        "confidence_signal": { "enum": ["informative", "flat", "inverted"] },
+        "abstention": { "type": ["object", "null"] }
+      }
+    },
+
     "regression_attribution": {
       "type": ["object", "null"],
       "additionalProperties": true,

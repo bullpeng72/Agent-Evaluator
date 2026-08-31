@@ -1249,6 +1249,25 @@ context→grounding, retry/timeout/tool→runtime, step/numbered→decomposition
 (change-attribution 앞), TOC "Reg. cause". 스키마 `regression_attribution` 추가.
 `test_regression_attribution_p38.py`(5). 전체 4562 통과.
 
+**SPEC-041 P39 (에이전트 확신도 calibration + 기권 품질)** — opt-in. `utils/confidence.py`:
+`expected_calibration_error(pairs, n_bins=10)`(ECE = Σ nᵦ/N·|accᵦ−confᵦ|, MCE, 버킷별 상세) ·
+`brier_score(pairs)`(Σ(conf−correct)²/N) · `risk_coverage_points(pairs)`(confidence 내림차순 정렬 →
+상위 커버리지별 error rate — 잘 보정됐으면 커버리지 줄일수록 risk 하락). `reporting/insights.py::
+_calibration_section(tasks)` — 태스크 `extra.confidence`(0-1)/`extra.abstained`(bool)를 읽어
+`{n_with_confidence, ece, mce, brier, mean_confidence, empirical_accuracy, confidence_gap(+면
+overconfident), verdict(overconfident>0.10/underconfident<−0.10/well-calibrated), reliability_bins[],
+risk_coverage[], confidence_is_informative, confidence_signal(informative/flat/inverted),
+abstention{n_abstained, abstention_rate_pct, answered_accuracy_pct, abstained_when_answerable(=
+usable ground_truth 있는데 기권), example_task_ids}}`. `_is_correct`: accuracy≥0.6 우선, 없으면
+not `_effective_fail`. 확신 태스크 <5개이고 기권도 없으면 None. `build_insights` out 딕셔너리에
+`calibration` 추가. `_narrative_from_template`이 overconfident면 "reports X% confidence but only
+Y% accurate (ECE …); wrong answers delivered as if certain" 문장 + 기권 answerable 있으면 별도
+문장. 리포트 `_build_calibration()` 섹션 `calibration`(non-determinism 다음): verdict/mean_conf/
+accuracy/ECE/Brier KPI + confidence 버킷별 stated vs actual 표(gap>0.1 빨강) + risk/coverage 한 줄
+(+signal 판정) + abstention. TOC "Calibration". 스키마 `calibration`. gen_example_v2.py: rich run에
+`extra.confidence`(실패 태스크는 0.82-0.97로 overconfident) + `t_qa_7`/`t_rag_8` `abstained`.
+`test_calibration_p39.py`(9). 전체 4571 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

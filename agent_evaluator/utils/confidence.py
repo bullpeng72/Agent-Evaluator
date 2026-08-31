@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Sequence
+from typing import Any
 
 _Z_95 = 1.959963984540054  # Φ⁻¹(0.975) — 양측 95%
 
@@ -162,6 +163,103 @@ def mde_two_proportions(
     p = min(max(p_pooled, 1e-6), 1.0 - 1e-6)
     se = math.sqrt(p * (1.0 - p) * (1.0 / n_a + 1.0 / n_b))
     return (z_alpha + z_power) * se
+
+
+def expected_calibration_error(
+    pairs: Sequence[tuple[float, float]], *, n_bins: int = 10,
+) -> dict[str, Any] | None:
+    """Expected Calibration Error for ``[(confidence, correct 0/1), …]``.
+
+    Bins predictions by confidence into ``n_bins`` equal-width buckets; ECE is the
+    sample-weighted mean gap between bucket confidence and bucket accuracy::
+
+        ECE = Σ_b (n_b / N) · | acc_b − conf_b |
+
+    Returns ``{ece, mce, n, bins:[{lo, hi, n, mean_conf, accuracy, gap}]}`` or
+    ``None`` when there are no usable pairs. ``mce`` is the worst single bucket gap.
+    """
+    xs = [
+        (min(max(float(c), 0.0), 1.0), 1.0 if y else 0.0)
+        for c, y in pairs
+        if c is not None
+    ]
+    if not xs:
+        return None
+    n = len(xs)
+    bins: list[dict[str, Any]] = []
+    ece = 0.0
+    mce = 0.0
+    for b in range(n_bins):
+        lo = b / n_bins
+        hi = (b + 1) / n_bins
+        members = [
+            (c, y) for c, y in xs
+            if (c > lo or (b == 0 and c == 0.0)) and c <= hi
+        ]
+        if not members:
+            continue
+        nb = len(members)
+        mean_conf = sum(c for c, _ in members) / nb
+        acc = sum(y for _, y in members) / nb
+        gap = abs(acc - mean_conf)
+        ece += (nb / n) * gap
+        mce = max(mce, gap)
+        bins.append({
+            "lo": round(lo, 3), "hi": round(hi, 3), "n": nb,
+            "mean_conf": round(mean_conf, 4), "accuracy": round(acc, 4),
+            "gap": round(gap, 4),
+        })
+    return {"ece": round(ece, 4), "mce": round(mce, 4), "n": n, "bins": bins}
+
+
+def brier_score(pairs: Sequence[tuple[float, float]]) -> float | None:
+    """Mean squared error of the confidences: ``Σ (conf − correct)² / N``.
+    Lower is better; 0.25 is the coin-flip baseline for a balanced set."""
+    xs = [
+        (min(max(float(c), 0.0), 1.0), 1.0 if y else 0.0)
+        for c, y in pairs if c is not None
+    ]
+    if not xs:
+        return None
+    return round(sum((c - y) ** 2 for c, y in xs) / len(xs), 4)
+
+
+def risk_coverage_points(
+    pairs: Sequence[tuple[float, float]],
+    *,
+    coverages: Sequence[float] = (1.0, 0.9, 0.8, 0.7, 0.6, 0.5),
+) -> list[dict[str, float]] | None:
+    """Selective-prediction risk/coverage curve. Sort by confidence desc, then for
+    each target coverage take that top fraction and report its error rate::
+
+        [{coverage, n, risk}]   risk = 1 − accuracy over the retained slice
+
+    A well-calibrated model's risk drops as coverage shrinks (it abstains on the
+    ones it is least sure of first). ``None`` when there are no pairs.
+    """
+    xs = sorted(
+        (
+            (min(max(float(c), 0.0), 1.0), 1.0 if y else 0.0)
+            for c, y in pairs if c is not None
+        ),
+        key=lambda t: -t[0],
+    )
+    if not xs:
+        return None
+    n = len(xs)
+    out: list[dict[str, float]] = []
+    seen: set[int] = set()
+    for cov in coverages:
+        k = max(1, int(round(cov * n)))
+        if k in seen:
+            continue
+        seen.add(k)
+        slice_ = xs[:k]
+        acc = sum(y for _, y in slice_) / k
+        out.append({
+            "coverage": round(k / n, 3), "n": k, "risk": round(1.0 - acc, 4),
+        })
+    return out
 
 
 _LEVEL_ORDER = {"high": 2, "medium": 1, "low": 0}
