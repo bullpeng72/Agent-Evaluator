@@ -85,6 +85,12 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
 - **Statistically valid A/B testing** — `agent-eval abtest` auto-selects Welch's t-test (2 files),
   mSPRT always-valid inference (`--sequential`, safe under repeated peeking), or N-way + FDR correction
   (3+ files). → [`Evaluator_Examples/ch29_sequential_ab_test.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Evaluator_Examples/ch29_sequential_ab_test.py)
+- **Machine-readable insight layer + closed improvement loop** — every result JSON carries an
+  `extra_metrics.insights` object (deployment-readiness verdict, Path to Green, failure clustering,
+  paste-ready fix snippets, per-`(gate, change)` track record). `agent-eval target` pins your project
+  SLOs, `agent-eval benchmark` an external reference distribution, and `agent-eval experiment` /
+  `agent-eval improve` register a hypothesis → apply → re-verify loop. Schema-validated, never raises.
+  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md)
 - **Real-time guardrail (AOO stack)** — `LiveGuardrail` blocks a single tool call *before* it executes
   (Gate B/E), with a reference [OpenCode](https://opencode.ai) plugin (`agent-eval opencode install`)
   and native [Claude Code](https://claude.com/claude-code) CLI hooks (`agent-eval claude install`).
@@ -102,9 +108,9 @@ to do. Every category is additive and independent; combine as needed.
 
 | # | Category | Install | What it adds |
 |---|----------|---------|---------------|
-| **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · CLI (`gate`/`diagnose`/`abtest`/`claims`/`trend`/`dataset`) |
+| **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · full CLI (`gate`/`diagnose`/`abtest`/`trend`/`dataset`/`experiment`/`target`/`benchmark`/`improve`/`claims`) |
 | **2** | **SDK — dashboard + monitoring** | `pip install "agent-evaluator[sdk]"` | FastAPI dashboard (`serve`), Phoenix/OTEL (`otel`), Korean RAG PDF processing (`pdf`+`korean`) — recommended for most users |
-| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations` + `recommend_fix` MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
+| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations`, `recommend_fix`, and `ask_insights` stdio MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (`recommend_fix`'s knowledge is used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
 | **4** | **Your agent's framework** | `pip install "agent-evaluator[langchain]"` (or `[crewai]`/`[autogen]`/`[dspy]`/`[pydanticai]`/`[eval]`) | Packages your *agent code* imports directly — agent-evaluator itself works without them via duck typing; install only what you actually use |
 | **5** | **Examples / full / dev** | `pip install "agent-evaluator[examples]"` | Everything needed to run `Evaluator_Examples/` with real (non-mock) DeepEval/Ragas/dashboard/Phoenix output. `[full]` = category 4's frameworks all at once (⚠️ 10+ min install); `[dev]` = contributor tooling |
 
@@ -123,10 +129,13 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval diagnose <result.json>` | Root-cause diagnosis for a Gate regression |
 | `agent-eval abtest <files...>` | Statistical A/B / N-way comparison |
 | `agent-eval trend <dir>` | Regression detection across sequential results |
-| `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
+| `agent-eval dataset build\|promote\|health` | Golden-dataset extraction / HITL promotion / coverage health |
+| `agent-eval target set\|show` | Pin project SLOs (`.aoo/targets.json`) — used by `gate` and the report's "below target" lines |
+| `agent-eval benchmark set\|show` | Pin an external reference distribution (`.aoo/reference.json`) for percentile + gap-to-frontier |
+| `agent-eval experiment register\|list\|score` | Register a Gate/field hypothesis, score predicted vs actual |
+| `agent-eval improve plan\|start\|verify\|patch` | Closed loop: proposal → experiment → re-verify → outcome log |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
-| `agent-eval opencode install` | Install the LiveGuardrail OpenCode plugin |
-| `agent-eval claude install` | Install the LiveGuardrail Claude Code CLI hooks |
+| `agent-eval opencode install` / `claude install` | Install the LiveGuardrail OpenCode plugin / Claude Code CLI hooks |
 | `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
 
 ---
@@ -147,31 +156,33 @@ cd Evaluator_Examples && python ch01_first_eval.py   # ... through ch31_recommen
 
 ```
 agent_evaluator/
-├── decorators.py       # agent_eval · batch_eval · conversation_eval · QuickEval facade (quick_eval.py)
-├── gates/               # Gate A–G scoring (gate_a_goal/ … gate_g_observability/) + LiveGuardrail
-├── core/trackers/       # 25 Native Trackers (Layer 1 foundation · Layer 2 agentic/security) + monitor.py
-├── rca/                  # diagnose() — Gate regression root-cause diagnosis + recommendation tracking
-├── ontology/              # GATE_GUIDANCE / MAST failure-mode taxonomy (Gate F)
-├── integrations/         # LLMJudge · DeepEval/Ragas adapters · MCP servers
-├── serve/                # FastAPI dashboard ([serve] extra)
-├── cli/                  # agent-eval CLI (gate, diagnose, abtest, trend, claims, opencode, claude, monitor, dataset)
-└── reporting/             # comprehensive_report.py — self-contained HTML report generation
+├── decorators.py     # agent_eval · batch_eval · conversation_eval · QuickEval facade (quick_eval.py)
+├── gates/            # Gate A–G scoring (gate_a_goal/ … gate_g_observability/) + LiveGuardrail
+├── core/trackers/    # 25 Native Trackers (Layer 1 foundation · Layer 2 agentic/security) + monitor.py
+├── rca/              # diagnose() — Gate-regression root-cause diagnosis + improvement/experiment logs
+├── ontology/         # GATE_GUIDANCE · NATIVE_METRIC_RULES · MAST + single-agent failure taxonomies
+├── reporting/        # insights.py (build_insights) + comprehensive_report.py (self-contained HTML)
+├── integrations/     # LLMJudge · DeepEval/Ragas adapters · MCP servers · live-guardrail bridges
+├── serve/            # FastAPI dashboard ([sdk] extra)
+└── cli/              # agent-eval CLI (init, check, gate, diagnose, abtest, trend, dataset,
+                      #   experiment, target, benchmark, improve, claims, monitor, opencode, claude)
 
-Evaluator_Examples/       # 31 example files (ch01–ch31)
-tests/                    # 4,700+ test functions
+Evaluator_Examples/   # 31 example files (ch01–ch31)
+tests/                # 4,700+ test functions
 ```
 
 ---
 
 ## Changelog
 
-**v1.0.0** (2026-08-31) — General Availability. Completes SPEC-041's insight-delivery layer: `build_insights()` is now a ~62-key schema-validated hub covering user-defined SLOs, longitudinal failure tracking, a single-agent failure taxonomy, the closed `agent-eval improve` loop, mid-run early-stop insights, multiple-comparison auditing, and an external reference frame. Public SDK API unchanged from rc4.
+**v1.0.0** (2026-08-31) — General Availability. Completes SPEC-041's insight-delivery layer:
+`extra_metrics.insights` is now a ~62-key schema-validated hub covering user-defined SLOs
+(`agent-eval target`), longitudinal failure tracking, a single-agent failure taxonomy, the closed
+`agent-eval improve` loop, mid-run early-stop insights, multiple-comparison auditing, and an external
+reference frame (`agent-eval benchmark`). Public SDK API unchanged from the `1.0.0-rc*` line.
 
-**v1.0.0-rc4** (2026-08-28) — `doctor` falls back to the global install when there's no project-local one; integration hook docs currency pass.
-
-**v1.0.0-rc3** (2026-08-28) — Integration install lifecycle: `agent-eval claude`/`opencode` gain `upgrade` (edit-preserving refresh), `doctor` (static + live round-trip verification), and `uninstall` subcommands.
-
-Full version history: [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
+Full version history (including the `1.0.0-rc.1`–`rc4` release-candidate series):
+[`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
 
 ---
 
