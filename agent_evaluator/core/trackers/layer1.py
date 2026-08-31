@@ -361,7 +361,7 @@ class AccuracyEvaluator(BaseTracker):
         else:
             return self._general_accuracy(ground_truth, prediction)
 
-    def decompose_qa(self, ground_truth: str, prediction: str) -> dict[str, float]:
+    def decompose_qa(self, ground_truth: str, prediction: str) -> dict[str, float | str]:
         """SPEC-041 P23: the per-signal breakdown behind the QA accuracy score.
 
         Returns ``{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted,
@@ -399,12 +399,12 @@ class AccuracyEvaluator(BaseTracker):
         comps = {"token_overlap_f1": round(overlap_ratio, 4), "jaccard": round(jaccard, 4),
                  "lcs_ratio": round(lcs_sim, 4), "char_sim": round(char_sim, 4)}
         return {**comps, "weighted": round(weighted, 4),
-                "weakest": min(comps, key=comps.get)}
+                "weakest": min(comps, key=lambda k: comps[k])}
 
     def _qa_accuracy(self, ground_truth: str, prediction: str) -> float:
         """QA accuracy — weighted blend of token-overlap F1, Jaccard, LCS ratio
         and character similarity (see :meth:`decompose_qa`)."""
-        final_score = self.decompose_qa(ground_truth, prediction)["weighted"]
+        final_score = float(self.decompose_qa(ground_truth, prediction)["weighted"])
         if final_score > 1.0:
             logger.debug(
                 "_qa_accuracy: weighted score %.4f exceeded 1.0 (clamped). "
