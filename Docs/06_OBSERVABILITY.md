@@ -113,6 +113,29 @@ for q, gt in dataset:
 eval.save()  # creates results/quickeval.json + .html automatically
 ```
 
+### The static HTML report (no server needed)
+
+The `.html` written alongside every result JSON is a **self-contained report** — no dashboard, no
+server, no CDN. Open it in a browser or attach it to a PR. It renders the same insight content the
+dashboard's Improve tab shows, in a fixed top-to-bottom reading order:
+
+- **header + Executive Summary** — date, task count, TCR / Accuracy with 95% CI, Gate A–G badges, a
+  one-line `❌ / ⚠️ / ✅` deployment-readiness verdict, a `HIGH / MEDIUM / LOW CONFIDENCE` badge, and
+  **Next actions 1·2·3**
+- **Path to Green** — the quantified gap to each failing gate's pass line + a fix plan ordered by TCR
+  impact (with a projected score after the plan)
+- **per-gate Score Breakdown** — the formula and each component's raw value / contribution
+- **failure cases** — the worst tasks with `question → response`, a likely-reason label, an expandable
+  **tool-call trajectory** (waterfall when timing is present) and an accuracy-signal breakdown
+- **Recommendations** — paste-ready `@agent_eval` snippets, an experiment proposal, and this gate's
+  past track record
+- **with a baseline** (`save_to_file("eval", baseline_path=…)`) — a regressed / new / fixed failure-set
+  diff, prompt/config change attribution, and a version-comparison table
+
+To re-render one from an already-saved JSON (no re-run), use the dashboard's **📤 Export** tab or
+`GET /html/{file_id}`; from code, `generate_comprehensive_html_report(monitor)` after populating the
+monitor. Full section-by-section reference: [`09_OUTPUTS.md` §4](09_OUTPUTS.md#4-static-html-report--single-result).
+
 ---
 
 ## 3. Dashboard panels — activation classification

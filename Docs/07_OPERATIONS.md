@@ -301,6 +301,57 @@ monitor = PerformanceMonitor(
 )
 ```
 
+### Bounded memory for an always-on monitor — `retention_mode`
+
+`PerformanceMonitor` keeps every `TaskResult` in memory by default (`retention_mode="full"`). For a
+process that records indefinitely, cap it:
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    retention_mode="window",   # keep only the most recent window_size tasks in memory
+    window_size=10000,         # default 10000
+)
+```
+
+Aggregate metrics stay correct (they are running aggregates); only the raw per-task list is trimmed.
+
+### Persistent storage — `storage_backend="sqlite"`
+
+The default `storage_backend="json"` writes one file per `save_to_file()`. For high-volume or
+long-running production, opt into the SQLite backend — it upserts tasks into a `.db`, powers the
+`search_violations` FTS5 index, and lets a restarted process pick up where it left off:
+
+```python
+monitor = PerformanceMonitor(output_dir="results/", storage_backend="sqlite")
+# ... records tasks into results/<name>.db ...
+
+# On a later process, replay history so aggregates and — critically — the
+# AnomalyDetector baseline are not empty after the restart:
+monitor = PerformanceMonitor(output_dir="results/", enable_anomaly_detection=True)
+n = monitor.rehydrate_from_storage("results/production.db", limit=500)  # returns tasks replayed
+```
+
+> Replay with `enable_llm_judge` / `enable_hallucination_detection` / `enable_security_metrics` **off**
+> if you only want to reproduce past history — otherwise already-scored tasks are re-scored (and an
+> LLM Judge re-incurs cost).
+
+### PII redaction before storage — `enable_pii_redaction`
+
+Redact PII from task question / response / context before it is written to the result file or the
+SQLite store (off by default):
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_pii_redaction=True,
+    pii_redaction_categories=["email", "phone", "ssn", "credit_card"],  # None = a sensible default set
+)
+```
+
+This is independent of the Gate E `ComplianceConfig` PII *detection* — that scores the agent; this
+scrubs what you persist.
+
 ---
 
 ## 7. Troubleshooting

@@ -13,11 +13,12 @@ The shortest path from installing Agent Evaluator to your first evaluation, savi
 3. [Low-level direct recording (escape hatch)](#low-level-direct-recording-escape-hatch)
 4. [Context manager pattern (escape hatch)](#context-manager-pattern-escape-hatch)
 5. [Result output path — zero configuration](#result-output-path--zero-configuration)
-6. [Launching the dashboard](#launching-the-dashboard)
-7. [Enabling security / agentic metrics](#enabling-security--agentic-metrics)
-8. [CI/CD quality gating](#cicd-quality-gating)
-9. [Real-time production monitoring](#real-time-production-monitoring)
-10. [Next steps](#next-steps)
+6. [What `save()` produces](#what-save-produces)
+7. [Launching the dashboard](#launching-the-dashboard)
+8. [Enabling security / agentic metrics](#enabling-security--agentic-metrics)
+9. [CI/CD quality gating](#cicd-quality-gating)
+10. [Real-time production monitoring](#real-time-production-monitoring)
+11. [Next steps](#next-steps)
 
 ---
 
@@ -244,6 +245,19 @@ monitor = PerformanceMonitor(
 # The same applies to QuickEval
 eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 ```
+
+---
+
+## What `save()` produces
+
+Every `save_to_file()` / `eval.save()` writes **two files**:
+
+| File | What it is |
+|------|------------|
+| `<name>.json` | the machine-readable result — every task, all 58 metrics, the Gate A–G scores, and (under `extra_metrics.insights`) a ~62-key deployment-readiness verdict. Consumed by `agent-eval gate` / `diagnose` / the dashboard. |
+| `<name>.html` | a **self-contained, server-less report** you can open in any browser or attach to a PR. It opens with a one-line deployment-readiness verdict + confidence badge, then Next actions 1·2·3, a **Path to Green** (the gap to each failing gate + an impact-ordered fix plan), per-gate Score Breakdown, the worst failure cases (each with a tool-call trajectory), and Recommendations with paste-ready `@agent_eval` snippets. Full section list: [`09_OUTPUTS.md` §4](09_OUTPUTS.md#4-static-html-report--single-result). |
+
+Pass `save_to_file("eval", baseline_path="results/prev.json")` and the HTML report adds a regression/new/fixed failure-set diff and prompt/config change attribution.
 
 ---
 

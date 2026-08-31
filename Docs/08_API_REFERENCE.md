@@ -15,7 +15,7 @@ Full API documentation for Agent Evaluator v1.0.0.
 ## Table of Contents
 
 1. [Quick start (4 patterns)](#1-quick-start)
-2. [Core class API](#2-core-class-api)
+2. [Core class API](#2-core-class-api) (PerformanceMonitor · TaskResult · EvaluationReport · TaskType · HarnessEvaluationGate)
 3. [Decorator API](#3-decorator-api)
 4. [EvalMetadata & get_eval_ctx()](#4-evalmetadata--get_eval_ctx)
 5. [Context managers (evaluation_session)](#5-context-managers)
@@ -29,6 +29,7 @@ Full API documentation for Agent Evaluator v1.0.0.
 13. [Hybrid evaluation (Layer 3)](#13-hybrid-evaluation-layer-3)
 14. [RCA diagnosis + recommendation history (agent_evaluator.rca / ontology)](#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology)
 15. [CLI reference](#15-cli-reference)
+16. [Reporting & insights (agent_evaluator.reporting)](#16-reporting--insights-agent_evaluatorreporting)
 
 ---
 
@@ -302,6 +303,41 @@ TaskType.TOOL_USE              # "tool_use"
 ```
 
 The `task_type` parameter accepts an Enum or a string interchangeably (`TaskType.QA` == `"qa"`).
+
+---
+
+### HarnessEvaluationGate
+
+The Config-as-Code gate verdict — it inspects the Gate A–G scores that `PerformanceMonitor` aggregated
+from the Harness Configs, rather than taking numeric thresholds directly. Shares the verdict loop
+(`gates/base.py::evaluate_gate_scores()`) with `QuickEval.gate()` and `agent-eval gate`.
+
+```python
+from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
+
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(
+    report,
+    min_group_score=0.7,          # minimum score per gate (applied to gates not in group_thresholds)
+    required_groups=None,         # None = every gate that has a score; or e.g. ["A", "E"]
+    fail_on_warn=False,           # True → a "warn" status is also a failure
+    group_thresholds=None,        # per-gate minimum, e.g. {"E": 0.95} — same as CLI --gate-thresholds
+    strict_required=False,        # True → fail if a gate in required_groups is unmeasured (score=None)
+)
+
+result = gate.evaluate()   # no arguments
+# {"passed": bool,
+#  "groups": {"A": {"score": float|None, "status": str, "passed": bool, "threshold": float,
+#                   "not_measured": bool,          # only when score=None
+#                   "insufficient_data_warnings": list[str]}},   # only when present
+#  "violations": [...],
+#  "summary": {"total_groups": int, "passed_groups": int, "overall_score": float|None}}
+
+gate.enforce()   # CI/CD — sys.exit(1) on failure
+```
+
+> With `required_groups`, `fail_on_warn`, `group_thresholds`, `strict_required` all at their defaults,
+> `evaluate()` behaves identically to the pre-1.0 single-threshold form.
 
 ---
 
@@ -1250,7 +1286,10 @@ raise InvalidOperationError(
 )
 ```
 
-Both classes have a `message` and an optional `context: dict` field.
+Every exception derives from `AgentEvaluatorError` (also re-exported from `agent_evaluator`), so a
+single `except AgentEvaluatorError` catches them all. The hierarchy: `ConfigurationError`,
+`ValidationError`, `InvalidOperationError`, `MetricComputationError`, `StorageError`,
+`FrameworkNotInstalledError`. All carry a `message` and an optional `context: dict`.
 
 ---
 
@@ -1536,43 +1575,105 @@ agent-eval --version
 
 ---
 
-## Public API summary
+## 16. Reporting & insights (agent_evaluator.reporting)
 
-Symbols importable directly via `from agent_evaluator import ...`:
+Not in the top-level `__all__` — import from the submodule. `save_to_file()` calls
+`generate_comprehensive_html_report()` for you; call it directly to render from a live monitor.
 
 ```python
-# Core classes
-PerformanceMonitor, TaskResult, TaskType, EvaluationReport,
+from agent_evaluator.reporting import generate_comprehensive_html_report
 
-# Hybrid
-HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
+html = generate_comprehensive_html_report(monitor, baseline=None)   # -> str (self-contained HTML)
+```
 
-# Helpers & context managers
+Pass `baseline` (a prior result dict) and the report adds the regressed/new/fixed failure-set diff,
+change attribution, and a version-comparison table. See [`09_OUTPUTS.md` §4–§5](09_OUTPUTS.md#4-static-html-report--single-result)
+for the full section list.
+
+To re-render from an already-saved JSON without a monitor, use the dashboard (`agent-eval dashboard`
+→ Export, or `GET /html/{file_id}`), or — with the `[sdk]` extra —
+`generate_html_from_result_file(parse_file(path))` /
+`generate_comparison_html_report(compare_result)` from `agent_evaluator.reporting.comprehensive_report`
+(both take objects from `agent_evaluator.serve.loader`, not a raw path).
+
+### `build_insights()` — the machine-readable insight layer
+
+```python
+from agent_evaluator.reporting.insights import build_insights
+
+insights = build_insights(
+    current,                       # a result dict (report.to_dict() or json.load())
+    baseline=None,                 # a prior result dict — enables regression / change sections
+    *,
+    targets=None,                  # dict from utils.targets.load_targets() — judge against your SLOs
+    reference=None,                # dict from utils.reference.load_reference() — percentile vs a benchmark
+    golden_set_path=None,          # enables `golden_health`
+    history_dir=None, current_file=None,   # enable `longitudinal` (needs ≥4 sibling runs)
+    cohort=None, cohort_metric="tcr",      # 3+ result dicts -> `cohort_comparison`
+    recommendation_log_path=None, experiments_log_path=None,   # .aoo/*.jsonl -> track record + priors
+    narrator=None, fixer=None, explainer=None,   # opt-in hooks; bad return -> deterministic fallback
+    with_experiment_metadata=False, repo_path=".",
+    partial=False,                 # True -> only the cheap baseline-free subset + `running_verdict`
+)
+# -> a ~62-key JSON-serializable dict. Never raises — a section that can't compute is omitted or null.
+```
+
+This re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`,
+the gate aggregates) into one object; it introduces **no new scoring formulas**. It is attached to
+every result JSON under `extra_metrics.insights` by `save_to_file()`. Full key-by-key reference:
+[`09_OUTPUTS.md` §3](09_OUTPUTS.md#3-result-json-save_to_file) and `Docs/specs/SPEC-041-insight-delivery.md`.
+Schema: `agent_evaluator/schemas/insights.schema.json`.
+
+Related helper modules (also submodule-only): `agent_evaluator.utils.targets` (`.aoo/targets.json`),
+`agent_evaluator.utils.reference` (`.aoo/reference.json`), `agent_evaluator.utils.confidence`
+(Wilson / bootstrap CIs, Welch p-value, ECE/Brier — stdlib-only, deterministic).
+
+---
+
+## Public API summary
+
+A curated view of `from agent_evaluator import ...` (the module's `__all__` has ~120 symbols; the 33
+Harness Config classes are omitted here — see [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) — as are
+individual exception subclasses).
+
+```python
+# Core
+PerformanceMonitor, TaskResult, TaskType, EvaluationReport, HarnessEvaluationGate,
+QuickEval,
+
+# Decorators & metadata injection
+agent_eval, batch_eval, conversation_eval, eval_context, get_eval_ctx,
+EvalMetadata, TurnMetadata, EvalDecorator,
+flush_conversation, flush_all_conversations,
+
+# Decorator config dataclasses
+LLMJudgeConfig, SecurityConfig, RetryConfig,
+
+# Context managers & helpers
 create_taskresult,
 evaluation_session, async_evaluation_session, hybrid_evaluation_session,
 
-# QuickEval facade
-QuickEval,
+# Hybrid (Layer 3)
+HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
 
 # Multi-turn conversation
 ConversationSession, ConversationMetrics, ConversationTurn,
 
-# LLM Judge (included in the base install)
+# LLM Judge (base install)
 LLMJudge,
 
-# Transparency
-TestTransparencyManager, AnnotationType, TestStepStatus,
-
-# Configuration
+# Presets & configuration
+AGENT_EVAL_PRESETS, register_preset,
 load_env, get_settings, init_from_app,
 
-# Advanced / custom trackers
-BaseTracker, infer_privilege_level,
-
 # Streaming / feedback / anomaly / cost
-ImplicitFeedbackTracker,
+StreamingEvaluator, AgentEvalMiddleware, ImplicitFeedbackTracker,
 AnomalyDetector, AnomalyEvent,
 CostTracker, AdaptivePolicy, SamplingStage,
+
+# Alerts
+AlertEngine, AlertRule, AlertRuleBuilder, AlertEvent, SimpleTaskAlertRule,
+SlackHandler, WebhookHandler, EmailHandler,
 
 # Individual trackers
 TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
@@ -1582,12 +1683,20 @@ AgentCoordinationTracker, WorkflowExecutionTracker,
 InputSanitizationTracker, OutputLeakageDetector,
 ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector,
 
-# Alerts
-SimpleTaskAlertRule,
+# Transparency & advanced
+TestTransparencyManager, AnnotationType, TestStepStatus,
+BaseTracker, infer_privilege_level, get_framework_info,
+
+# Exceptions
+AgentEvaluatorError, ConfigurationError, ValidationError, InvalidOperationError,
+MetricComputationError, StorageError, FrameworkNotInstalledError,
 
 # Type hints
-FrameworkLiteral,   # a Literal type of the 24 frameworks
+FrameworkLiteral,   # a Literal of the 24 frameworks (plus "native")
 ```
+
+> `setup_otel` is public (used in §1 / [06_OBSERVABILITY.md](06_OBSERVABILITY.md)) but not in `__all__` —
+> import it explicitly: `from agent_evaluator import setup_otel`.
 
 ---
 
