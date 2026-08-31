@@ -2531,6 +2531,56 @@ def _build_failure_explanations(fe: list[dict[str, Any]] | None) -> str:
     )
 
 
+_TAX_OWNER_BADGE = {
+    "prompt": ("#7c3aed", "PROMPT"), "config": ("#0891b2", "CONFIG"),
+    "data": ("#b45309", "DATA"), "model": ("#dc2626", "MODEL"),
+    "infra": ("#334155", "INFRA"),
+}
+
+
+def _build_failure_taxonomy(ft: dict[str, Any] | None) -> str:
+    """P55: every failing task classified into the single-agent failure
+    taxonomy, aggregated by mode with an owner + remediation."""
+    if not ft or not ft.get("by_mode"):
+        return ""
+    dom = ft.get("dominant_mode") or {}
+    om = ft.get("owner_mix") or {}
+    om_s = ", ".join(f"{k} {v}" for k, v in sorted(om.items(), key=lambda kv: -kv[1]))
+    rows = ""
+    for m in ft["by_mode"]:
+        col, tag = _TAX_OWNER_BADGE.get(m.get("owner", ""), ("#6b7280", "?"))
+        rows += (
+            f'<tr><td style="font-weight:600">{_esc(m.get("name", ""))}'
+            f'<div style="font-size:11px;color:#9ca3af">{_esc(m.get("code", ""))}</div></td>'
+            f'<td><span style="background:{col};color:#fff;border-radius:3px;'
+            f'padding:1px 5px;font-size:10px;font-weight:700">{tag}</span></td>'
+            f'<td style="text-align:right;font-variant-numeric:tabular-nums">'
+            f'{m.get("n")} ({m.get("share_of_failures_pct")}%)</td>'
+            f'<td style="text-align:right;color:#6b7280">{m.get("mean_confidence")}</td>'
+            f'<td style="font-size:12px">{_esc(m.get("remediation", ""))}</td></tr>'
+        )
+    head = ""
+    if dom:
+        head = (
+            f'<p style="font-size:13px;margin:0 0 6px"><strong>Dominant mode:</strong> '
+            f'{_esc(dom.get("name", ""))} — {dom.get("n")} of {ft.get("n_failures")} '
+            f'failures ({dom.get("share_of_failures_pct")}%). '
+            f'<span style="color:#6b7280">Owner mix: {_esc(om_s)}.</span></p>'
+        )
+    return (
+        '<div class="gate-section" id="failure-taxonomy" '
+        'style="border-left-color:#9333ea">'
+        '<h2 style="color:#1e2030">Failure Taxonomy</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 4px">Each failing task '
+        'classified into a single-agent failure mode with the team that owns the '
+        'fix.</p>'
+        f'{head}'
+        '<table class="mtable"><thead><tr><th>Mode</th><th>Owner</th>'
+        '<th>Failures</th><th>Conf.</th><th>Remediation</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _build_failure_segments(tasks: list[Any] | None) -> str:
     """P30: cluster failing questions by lexical topic ("fails on multi-entity
     comparison questions") and pin each failure to the retrieved passage or tool
@@ -4276,7 +4326,8 @@ _TOC_LABELS = {
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
-    "failure-cases": "Failures", "failure-explanations": "Wrong claims",
+    "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
+    "failure-explanations": "Wrong claims",
     "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
@@ -5966,6 +6017,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
         failure_cases_html,
+        _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
@@ -6220,6 +6272,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_eval_set_quality(_tasks_list, baseline, harness_groups,
                                 _insights_obj.get("eval_set_quality")),
         failure_cases_html,
+        _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,

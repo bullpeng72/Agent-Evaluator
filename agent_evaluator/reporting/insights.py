@@ -2921,8 +2921,100 @@ def _failure_triggers_section(
             kind = "runtime_error"
             detail = reason
         if kind:
-            out.append({"task_id": tid, "kind": kind, "detail": detail})
+            row = {"task_id": tid, "kind": kind, "detail": detail}
+            try:
+                from agent_evaluator.ontology.failure_taxonomy import classify_failure
+
+                row["taxonomy_code"] = classify_failure(t, reason=reason)["code"]
+            except Exception:  # pragma: no cover - defensive
+                pass
+            out.append(row)
     return out or None
+
+
+_FTX_LIMIT = 200
+
+
+def _failure_taxonomy_section(
+    tasks: list[dict[str, Any]], baseline: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """P55: classify every failing task into the single-agent failure taxonomy
+    (``ontology.failure_taxonomy``) and aggregate by mode — a structured
+    root-cause picture with an owner + remediation per mode. Deterministic."""
+    try:
+        from agent_evaluator.ontology.failure_taxonomy import FAILURE_MODES, classify_failure
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+    fails = [
+        t for t in tasks
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score"))
+    ]
+    if not fails:
+        return None
+
+    # which failing tasks also fail in the baseline (enables LABEL_OR_SPEC_ISSUE)
+    repeat_ids: set[str] = set()
+    if baseline:
+        b_fail = {
+            str(t.get("task_id")) for t in (baseline.get("tasks") or [])
+            if isinstance(t, dict) and _effective_fail(
+                success=t.get("success", False),
+                accuracy=t.get("accuracy_score"),
+                completion=t.get("completion_score"))
+        }
+        repeat_ids = {str(t.get("task_id")) for t in fails
+                      if str(t.get("task_id")) in b_fail}
+
+    buckets: dict[str, dict[str, Any]] = {}
+    for t in fails[:_FTX_LIMIT]:
+        tid = str(t.get("task_id") or "—")
+        c = classify_failure(
+            t, reason=_reason_signature(_task_reason(t)),
+            repeated_across_runs=tid in repeat_ids,
+        )
+        b = buckets.setdefault(c["code"], {
+            "code": c["code"], "name": c["name"], "owner": c["owner"],
+            "remediation": c["remediation"], "task_ids": [], "confidences": [],
+        })
+        b["task_ids"].append(tid)
+        b["confidences"].append(c["confidence"])
+
+    total = len(fails)
+    by_mode: list[dict[str, Any]] = []
+    for b in buckets.values():
+        n = len(b["task_ids"])
+        by_mode.append({
+            "code": b["code"], "name": b["name"], "owner": b["owner"],
+            "remediation": b["remediation"],
+            "n": n,
+            "share_of_failures_pct": round(n / total * 100.0, 1),
+            "mean_confidence": round(sum(b["confidences"]) / n, 2),
+            "example_task_ids": b["task_ids"][:5],
+        })
+    by_mode.sort(key=lambda m: (-m["n"], -m["mean_confidence"]))
+
+    owner_mix: dict[str, int] = {}
+    for m in by_mode:
+        owner_mix[m["owner"]] = owner_mix.get(m["owner"], 0) + m["n"]
+    unclassified = sum(m["n"] for m in by_mode if m["code"] == "LOW_SIMILARITY")
+
+    dom = by_mode[0] if by_mode else None
+    return {
+        "n_failures": total,
+        "n_classified": total - unclassified,
+        "n_modes": len([m for m in by_mode if m["code"] != "LOW_SIMILARITY"]),
+        "by_mode": by_mode,
+        "owner_mix": owner_mix,
+        "dominant_mode": (
+            {"code": dom["code"], "name": dom["name"], "owner": dom["owner"],
+             "n": dom["n"], "share_of_failures_pct": dom["share_of_failures_pct"]}
+            if dom else None
+        ),
+        "taxonomy_version": len(FAILURE_MODES),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -5538,6 +5630,9 @@ def build_insights(
         "failure_clusters": fclusters,
         "failure_segments": fsegments,
         "failure_triggers": _safe(_failure_triggers_section, tasks, default=None),
+        "failure_taxonomy": _safe(
+            _failure_taxonomy_section, tasks, baseline, default=None,
+        ),
         "failure_explanations": _safe(
             _failure_explanations_section, tasks, explainer=explainer, default=None,
         ),

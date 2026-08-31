@@ -463,8 +463,39 @@
         "properties": {
           "task_id": { "type": "string" },
           "kind": { "type": "string" },
-          "detail": { "type": "string" }
+          "detail": { "type": "string" },
+          "taxonomy_code": { "type": "string" }
         }
+      }
+    },
+
+    "failure_taxonomy": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_failures": { "type": "integer" },
+        "n_classified": { "type": "integer" },
+        "n_modes": { "type": "integer" },
+        "by_mode": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "code": { "type": "string" },
+              "name": { "type": "string" },
+              "owner": { "enum": ["prompt", "config", "data", "model", "infra"] },
+              "remediation": { "type": "string" },
+              "n": { "type": "integer" },
+              "share_of_failures_pct": { "type": "number" },
+              "mean_confidence": { "type": "number" },
+              "example_task_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "owner_mix": { "type": "object" },
+        "dominant_mode": { "type": ["object", "null"] },
+        "taxonomy_version": { "type": "integer" }
       }
     },
 

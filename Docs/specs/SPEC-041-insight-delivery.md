@@ -661,6 +661,26 @@ TOC "Reference". 스키마 `reference_frame`. `test_reference_frame_p53.py`(12) 
 `test_insights_schema.py` 시나리오. gen_example_v2: `.aoo/reference.json`(support-rag-2026H1) 추가 —
 v3는 TCR p18 / Gate A p10로 렌더. 전체 4684 통과.
 
+**SPEC-041 P55 (단일 에이전트 실패 taxonomy)** — `_failure_triggers_section`은 4개 하드코딩 버킷,
+`_proposal_category`는 별개 6개, `failure_segments.dominant_reason`은 자유 텍스트 — 정본 taxonomy가
+없었다. `ontology/failure_taxonomy.py`(신규, stdlib, `mast_taxonomy.py`의 단일 에이전트 대응):
+`FAILURE_MODES` 14개(`INSTRUCTION_IGNORED`/`FORMAT_VIOLATION`/`REFUSAL_WHEN_ANSWERABLE`/
+`RETRIEVAL_MISS`/`GROUNDING_MISS`/`HALLUCINATED_FACT`/`TOOL_SELECTION_ERROR`/`TOOL_EXECUTION_ERROR`/
+`RUNTIME_ERROR`/`PREMATURE_STOP`/`LOOP_OR_REPETITION`/`OVER_ELABORATION`/`LABEL_OR_SPEC_ISSUE`/
+`LOW_SIMILARITY`), 각 `{code, name, owner(prompt/config/data/model/infra), description, remediation}`.
+`classify_failure(task, *, reason=None, repeated_across_runs=False)` — 결정적, NLI 무의존(refusal regex ·
+포맷 요청 vs 구조화 응답 · 도구 실패/미사용 · gt↔context content-word overlap<0.30이면 retrieval,
+아니면 grounding · 숫자 모순 · 응답 길이비 · baseline 반복+저정확도→라벨문제). 신호 가중합→
+`{code, owner, remediation, confidence(0.3–0.95)}`. `_content_words`는 영문 stopword 제거.
+`reporting/insights.py::_failure_taxonomy_section(tasks, baseline=None)` →
+`insights.failure_taxonomy{n_failures, n_classified, n_modes, by_mode[]{code, name, owner, remediation,
+n, share_of_failures_pct, mean_confidence, example_task_ids}, owner_mix{prompt:n,…}, dominant_mode,
+taxonomy_version}` (n 큰 순). `_failure_triggers_section` 각 행에 `taxonomy_code` 추가. `build_insights`
+out dict `failure_triggers` 뒤 배선. 리포트 `_build_failure_taxonomy()` 섹션 `failure-taxonomy`
+(failure-cases 뒤): dominant + owner mix + 모드별 표(owner 뱃지 색상). TOC "Failure modes". 스키마
+`failure_taxonomy` + `failure_triggers[].taxonomy_code`. `test_failure_taxonomy_p55.py`(17) +
+`test_insights_schema.py` 시나리오. 예시 v3는 dominant "Retrieval miss" 5/12로 렌더. 전체 4701 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

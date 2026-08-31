@@ -142,6 +142,29 @@ class TestBuildInsightsValidates:
         # expensive / baseline sections are absent in partial mode
         assert "cohort_comparison" not in ins and "longitudinal" not in ins
 
+    def test_failure_taxonomy_section(self, schema):
+        # P55 — single-agent failure taxonomy
+        tasks = (
+            [_task(f"ok{i}", ok=True) for i in range(10)]
+            + [_task(f"to{i}", ok=False) for i in range(3)]
+            + [_task(f"m{i}", ok=False) for i in range(3)]
+        )
+        for t in tasks[10:13]:
+            t["partial_reason"] = "error: TimeoutError"
+            t["accuracy_score"] = 0.1
+        for t in tasks[13:]:
+            t["partial_reason"] = "only part of a multi-step answer completed"
+            t["accuracy_score"] = 0.3
+        rpt = _report(
+            {"A": {"score": 0.5, "status": "fail", "gate": "fail", "details": {}}},
+            tasks,
+        )
+        ins = build_insights(rpt)
+        self._check(schema, ins)
+        ft = ins["failure_taxonomy"]
+        assert ft is not None and ft["by_mode"]
+        assert ft["dominant_mode"]["code"] in {m["code"] for m in ft["by_mode"]}
+
     def test_reference_frame_section(self, schema):
         # P53 — external reference distribution
         rpt = _report(
