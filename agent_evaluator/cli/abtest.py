@@ -97,7 +97,7 @@ def _print_mde(result: dict[str, Any]) -> None:
     m_b = result.get("other_mean")
     n_a = (result.get("sample_sizes") or {}).get("self", 0)
     n_b = (result.get("sample_sizes") or {}).get("other", 0)
-    if not all(isinstance(x, (int, float)) for x in (m_a, m_b)):
+    if not (isinstance(m_a, (int, float)) and isinstance(m_b, (int, float))):
         return
     if not (0.0 <= m_a <= 1.0 and 0.0 <= m_b <= 1.0):
         return  # not a proportion-like metric — MDE for proportions doesn't apply
