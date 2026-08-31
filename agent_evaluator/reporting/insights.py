@@ -1802,10 +1802,106 @@ def _sample_guidance_section(
     }
 
 
+def _q_ngrams(text: Any, n: int = 4) -> set[str]:
+    words = [w.lower() for w in _RE_WORD.findall(str(text or ""))]
+    if len(words) < n:
+        return set()
+    return {" ".join(words[i:i + n]) for i in range(len(words) - n + 1)}
+
+
+def _len_bucket(text: Any) -> str:
+    w = len(_RE_WORD.findall(str(text or "")))
+    return "short" if w <= 8 else "long" if w >= 25 else "medium"
+
+
+def _capability_coverage(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    """task_type × difficulty × tool-use × question-length cells, with the empty
+    / thin ones named. Answers "you have 0 tasks testing hard multi-hop"."""
+    dims: dict[str, dict[str, dict[str, Any]]] = {}
+
+    def _bump(dim: str, val: str, failed: bool) -> None:
+        cell = dims.setdefault(dim, {}).setdefault(val, {"n": 0, "fail_n": 0})
+        cell["n"] += 1
+        if failed:
+            cell["fail_n"] += 1
+
+    for t in tasks:
+        failed = _effective_fail(success=t.get("success", False),
+                                 accuracy=t.get("accuracy_score"),
+                                 completion=t.get("completion_score"))
+        _bump("task_type", str(t.get("task_type") or "—"), failed)
+        ex = _task_extra(t) or {}
+        if isinstance(ex.get("difficulty"), (str, int, float)):
+            _bump("difficulty", str(ex["difficulty"]), failed)
+        _bump("uses_tools", "yes" if t.get("tool_calls") else "no", failed)
+        _bump("question_length", _len_bucket(t.get("question")), failed)
+
+    thin = [
+        {"dimension": d, "value": v, "n": c["n"], "fail_n": c["fail_n"]}
+        for d, vals in dims.items() for v, c in vals.items()
+        if 0 < c["n"] < 3
+    ]
+    return {"cells": dims, "thin_cells": sorted(thin, key=lambda x: x["n"])}
+
+
+def _contamination(tasks: list[dict[str, Any]], prompt_text: str) -> list[dict[str, Any]]:
+    """A task whose question / ground_truth appears near-verbatim in the system
+    prompt (or few-shot block) — its score is inflated. 4-gram overlap."""
+    pg = _q_ngrams(prompt_text)
+    if not pg:
+        return []
+    out: list[dict[str, Any]] = []
+    for t in tasks:
+        for field in ("question", "ground_truth"):
+            tg = _q_ngrams(t.get(field))
+            if not tg:
+                continue
+            share = len(tg & pg) / len(tg)
+            if share >= 0.40:
+                out.append({
+                    "task_id": str(t.get("task_id") or "—"),
+                    "field": field,
+                    "overlap_pct": round(share * 100.0, 1),
+                    "snippet": str(t.get(field) or "")[:120],
+                })
+    return sorted(out, key=lambda x: -x["overlap_pct"])[:15]
+
+
+def _targeted_additions(
+    tasks: list[dict[str, Any]], hist: dict[str, int],
+) -> list[dict[str, Any]]:
+    """Where do failures concentrate, and is that cohort under-sampled? -> "add N
+    tasks of type X"."""
+    fail_by_type: Counter = Counter()
+    for t in tasks:
+        if _effective_fail(success=t.get("success", False),
+                           accuracy=t.get("accuracy_score"),
+                           completion=t.get("completion_score")):
+            fail_by_type[str(t.get("task_type") or "—")] += 1
+    if not fail_by_type:
+        return []
+    med = sorted(hist.values())[len(hist) // 2] if hist else 0
+    out: list[dict[str, Any]] = []
+    for tt, fn in fail_by_type.most_common(3):
+        n = hist.get(tt, 0)
+        if n < max(8, med) and fn >= 2:
+            out.append({
+                "task_type": tt,
+                "current_n": n,
+                "failing_n": fn,
+                "suggested_add": max(8, med) - n,
+                "reason": (f"{fn} of the failures are '{tt}' but the set only has "
+                           f"{n} '{tt}' task(s) — add ~{max(8, med) - n} more to "
+                           f"localise the problem."),
+            })
+    return out
+
+
 def _eval_set_quality_section(
     tasks: list[dict[str, Any]],
     baseline: dict[str, Any] | None,
     harness_groups: dict[str, Any],
+    current: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Treat the eval set as a first-class object (P12): coverage / balance /
     near-duplicates / "is this Gate even being exercised" / suspicious labels.
@@ -1890,12 +1986,38 @@ def _eval_set_quality_section(
                               f"(acc {ba:.2f} → {ca:.2f}){hint} — verify the label / question",
                 })
 
+    # P45: capability-coverage matrix, prompt contamination, targeted additions
+    _prompt = ""
+    try:
+        _prompt = str(
+            ((current or {}).get("extra_metrics") or {}).get("lineage", {})
+            .get("prompt_text") or ""
+        )
+    except Exception:  # pragma: no cover - defensive
+        _prompt = ""
+    coverage = _capability_coverage(tasks)
+    contamination = _contamination(tasks, _prompt)
+    additions = _targeted_additions(tasks, dict(hist))
+    if contamination:
+        warnings.append(
+            f"{len(contamination)} task(s) overlap the system prompt heavily "
+            "(4-gram ≥ 40%) — those scores are inflated."
+        )
+    for _tc in coverage["thin_cells"][:3]:
+        warnings.append(
+            f"Only {_tc['n']} task(s) at {_tc['dimension']}={_tc['value']} — "
+            "that cohort is effectively untested."
+        )
+
     return {
         "n_tasks": len(tasks),
         "task_type_histogram": dict(hist),
         "near_duplicate_clusters": dup_clusters[:10],
         "coverage_warnings": warnings,
         "suspicious_ground_truth": suspicious[:10],
+        "capability_coverage": coverage,
+        "contamination": contamination,
+        "targeted_additions": additions,
     }
 
 
@@ -4688,7 +4810,7 @@ def build_insights(
     evaluator_trust = _safe(_evaluator_trust_section, tasks, current, default=None)
     failure_lineage = _safe(_failure_lineage_section, tasks, baseline, default=None)
     eval_set_quality = _safe(
-        _eval_set_quality_section, tasks, baseline, hg, default=None,
+        _eval_set_quality_section, tasks, baseline, hg, current, default=None,
     )
     rag_loc = _safe(rag_localization, tasks, default=None)
     security_findings = _safe(_security_findings_section, current, tasks, default=None)

@@ -3001,30 +3001,34 @@ def _build_evaluator_reliability(tasks: list[Any] | None,
 
 def _build_eval_set_quality(tasks: list[Any] | None,
                             baseline: dict[str, Any] | None,
-                            harness_groups: dict[str, Any]) -> str:
-    """P12: the eval set as a first-class object — coverage, balance,
-    near-duplicates, "is this Gate exercised at all", suspicious labels."""
-    if not tasks:
-        return ""
-    try:
-        from agent_evaluator.reporting.insights import _eval_set_quality_section
+                            harness_groups: dict[str, Any],
+                            precomputed: dict[str, Any] | None = None) -> str:
+    """P12 + P45: the eval set as a first-class object — coverage, balance,
+    near-duplicates, "is this Gate exercised at all", suspicious labels, a
+    capability-coverage matrix, prompt contamination, targeted additions."""
+    q = precomputed
+    if not q:
+        if not tasks:
+            return ""
+        try:
+            from agent_evaluator.reporting.insights import _eval_set_quality_section
 
-        norm = [_norm_task_for_case(t) for t in tasks]
-        q = _eval_set_quality_section(
-            [
-                {
-                    "task_id": c["task_id"], "task_type": c["task_type"],
-                    "question": c["question"], "ground_truth": c["ground_truth"],
-                    "accuracy_score": c["accuracy_score"],
-                    "agent_interactions": c["agent_interactions"],
-                    "tool_calls": c["tool_calls"], "context": _task_context(t),
-                }
-                for t, c in zip(tasks, norm)
-            ],
-            baseline, harness_groups or {},
-        )
-    except Exception:
-        q = None
+            norm = [_norm_task_for_case(t) for t in tasks]
+            q = _eval_set_quality_section(
+                [
+                    {
+                        "task_id": c["task_id"], "task_type": c["task_type"],
+                        "question": c["question"], "ground_truth": c["ground_truth"],
+                        "accuracy_score": c["accuracy_score"],
+                        "agent_interactions": c["agent_interactions"],
+                        "tool_calls": c["tool_calls"], "context": _task_context(t),
+                    }
+                    for t, c in zip(tasks, norm)
+                ],
+                baseline, harness_groups or {},
+            )
+        except Exception:
+            q = None
     if not q:
         return ""
     hist = q.get("task_type_histogram") or {}
@@ -3076,19 +3080,67 @@ def _build_eval_set_quality(tasks: list[Any] | None,
             'Suspicious ground truth / questions:</p>'
             f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7;color:#7c2d12">{rows}</ul>'
         )
+    # P45: capability-coverage matrix
+    cov = q.get("capability_coverage") or {}
+    cov_html = ""
+    for dim, vals in (cov.get("cells") or {}).items():
+        cells = " · ".join(
+            f'{_esc(v)} <strong>{c["n"]}</strong>'
+            + (f' <span style="color:#dc2626">({c["fail_n"]} fail)</span>'
+               if c.get("fail_n") else "")
+            for v, c in vals.items()
+        )
+        cov_html += (
+            f'<div style="font-size:12px;margin:2px 0"><span style="color:#6b7280;'
+            f'width:120px;display:inline-block">{_esc(dim)}</span>{cells}</div>'
+        )
+    if cov_html:
+        cov_html = ('<h3 style="margin:12px 0 4px">Capability coverage</h3>' + cov_html)
+
+    # P45: contamination
+    contam = q.get("contamination") or []
+    contam_html = ""
+    if contam:
+        rows = "".join(
+            f'<li><strong>{_esc(c["task_id"])}</strong> — {_esc(c["field"])} shares '
+            f'{c["overlap_pct"]}% of its 4-grams with the system prompt: '
+            f'<span style="color:#7c2d12">“{_esc(_clip(c["snippet"], 90))}”</span></li>'
+            for c in contam
+        )
+        contam_html = (
+            '<h3 style="margin:12px 0 4px" style="color:#b91c1c">⚠️ Prompt '
+            'contamination</h3>'
+            '<p style="font-size:12px;color:#6b7280;margin:0">These tasks appear in '
+            'the prompt / few-shot block — their scores are inflated.</p>'
+            f'<ul style="margin:2px 0 0 18px;font-size:12px;line-height:1.7">{rows}</ul>'
+        )
+
+    # P45: targeted additions
+    adds = q.get("targeted_additions") or []
+    adds_html = ""
+    if adds:
+        rows = "".join(
+            f'<li>{_esc(a.get("reason", ""))}</li>' for a in adds
+        )
+        adds_html = (
+            '<h3 style="margin:12px 0 4px">What to add</h3>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{rows}</ul>'
+        )
+
     clean_html = ""
-    if not (warnings or dups or susp):
+    if not (warnings or dups or susp or contam or adds):
         clean_html = (
             '<p style="margin:8px 0 0;font-size:12px;color:#059669">'
-            '✓ No coverage, balance, near-duplicate, or suspicious-label issues '
-            'detected in this eval set.</p>'
+            '✓ No coverage, balance, near-duplicate, contamination or '
+            'suspicious-label issues detected in this eval set.</p>'
         )
     return (
         '<div class="gate-section" id="eval-set-quality" style="border-left-color:#8b5cf6">'
         '<h2 style="color:#1e2030">Eval-Set Quality</h2>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 8px">'
         'A verdict is only as good as the set it is measured on.</p>'
-        f'{hist_bar}{warn_html}{dup_html}{susp_html}{clean_html}'
+        f'{hist_bar}{warn_html}{contam_html}{cov_html}{adds_html}{dup_html}{susp_html}'
+        f'{clean_html}'
         '</div>'
     )
 
@@ -5677,7 +5729,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_nondeterminism(_tasks_list),
         _build_calibration(_insights_obj.get("calibration")),
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
-        _build_eval_set_quality(_tasks_list, baseline, harness_groups),
+        _build_eval_set_quality(_tasks_list, baseline, harness_groups,
+                                _insights_obj.get("eval_set_quality")),
         failure_cases_html,
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
@@ -5920,7 +5973,8 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_nondeterminism(_tasks_list),
         _build_calibration(_insights_obj.get("calibration")),
         _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
-        _build_eval_set_quality(_tasks_list, baseline, harness_groups),
+        _build_eval_set_quality(_tasks_list, baseline, harness_groups,
+                                _insights_obj.get("eval_set_quality")),
         failure_cases_html,
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,

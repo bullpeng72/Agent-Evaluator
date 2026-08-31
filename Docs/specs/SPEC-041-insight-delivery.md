@@ -520,6 +520,22 @@ payload `{task_id, question, response, ground_truth, context_chunks[], template_
 TOC "Wrong claims". 스키마 `failure_explanations`. gen_example_v2: `t_rag_3`을 `wrong_fact` 모드로
 고정(숫자 플립 → context_chunk[0] 추적 데모). `test_failure_explanations_p47.py`(10). 전체 4617 통과.
 
+**SPEC-041 P45 (eval-set 갭 분석 + contamination)** — `_eval_set_quality_section(tasks, baseline,
+harness_groups, current=None)`(신규 `current` 인자)에 3개 추가:
+- `capability_coverage` — `_capability_coverage()`가 `task_type × difficulty(extra) × uses_tools
+  (bool) × question_length(short≤8w/long≥25w/medium)` 셀별 `{n, fail_n}` + `thin_cells`(0<n<3).
+- `contamination[]` — `_contamination()`가 태스크 `question`/`ground_truth`의 4-gram(`_q_ngrams`)이
+  `lineage.prompt_text`의 4-gram과 ≥40% 겹치면 `{task_id, field, overlap_pct, snippet}`(few-shot
+  누출 → 점수 부풀림). prompt_text 없으면 [].
+- `targeted_additions[]` — `_targeted_additions()`가 실패가 몰린 task_type(≥2건)이 히스토그램
+  중앙값·8 미만이면 `{task_type, current_n, failing_n, suggested_add, reason}`.
+contamination 있으면 / thin_cell 상위 3개도 `coverage_warnings`에 문장 추가. 리포트
+`_build_eval_set_quality(..., precomputed=)` — 이제 `_insights_obj["eval_set_quality"]`를 그대로
+받아(재계산 안 함) capability-coverage 표 + ⚠️ Prompt contamination 리스트 + "What to add" 리스트를
+렌더. 스키마 `eval_set_quality.{capability_coverage,contamination,targeted_additions}`. gen_example_v2:
+PROMPT_V3에 `t_qa_2` 질문+정답을 few-shot으로 넣어 contamination 데모. `test_eval_set_gap_p45.py`(7).
+전체 4624 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

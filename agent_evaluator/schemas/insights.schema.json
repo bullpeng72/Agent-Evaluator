@@ -674,7 +674,10 @@
         "task_type_histogram": { "type": "object", "additionalProperties": { "type": "integer" } },
         "near_duplicate_clusters": { "type": "array" },
         "coverage_warnings": { "type": "array", "items": { "type": "string" } },
-        "suspicious_ground_truth": { "type": "array" }
+        "suspicious_ground_truth": { "type": "array" },
+        "capability_coverage": { "type": ["object", "null"] },
+        "contamination": { "type": "array" },
+        "targeted_additions": { "type": "array" }
       }
     },
 
