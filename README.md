@@ -75,6 +75,14 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
 - **58 metrics** — 25 Native Trackers (accuracy, hallucination, latency, tool efficiency, 5 security
   trackers, …) + the 33 Harness Configs above. → [`Docs/02_METRICS_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/02_METRICS_GUIDE.md)
   or the in-app **SDK Reference** (`agent-eval dashboard` → `/sdk-docs`)
+- **Self-contained HTML report** — `save_to_file()` (and `agent-eval gate`) write one `.html` next to
+  the JSON — no server needed. It leads with a one-line **deployment-readiness verdict** + a
+  HIGH/MEDIUM/LOW confidence badge, then **Next actions 1·2·3**, a **Path to Green** (quantified gap to
+  each failing gate + an impact-ordered fix plan), per-gate **Score Breakdown**, the worst failure
+  cases each with a **tool-call trajectory waterfall** and accuracy-signal breakdown, and
+  **Recommendations** carrying paste-ready `@agent_eval` snippets. Pass a baseline and it adds the
+  regressed/new/fixed failure-set diff plus prompt/config **change attribution**.
+  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md#4-static-html-report--single-result)
 - **CI/CD quality gating** — `agent-eval gate result.json --tcr 85 --accuracy 70`, plus baseline
   regression detection, per-version baselines, and golden-set regression gating.
   → [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/05_QUALITY_GATE.md)
@@ -91,11 +99,15 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   SLOs, `agent-eval benchmark` an external reference distribution, and `agent-eval experiment` /
   `agent-eval improve` register a hypothesis → apply → re-verify loop. Schema-validated, never raises.
   → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md)
-- **Real-time guardrail (AOO stack)** — `LiveGuardrail` blocks a single tool call *before* it executes
-  (Gate B/E), with a reference [OpenCode](https://opencode.ai) plugin (`agent-eval opencode install`)
-  and native [Claude Code](https://claude.com/claude-code) CLI hooks (`agent-eval claude install`).
-  → [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) ·
-  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md)
+- **Real-time guardrail — two reference stacks** — the same `LiveGuardrail` engine blocks a single
+  tool call *before* it runs (Gate B/E), wired into either **AOO** (Agent-Evaluator + Ollama +
+  [OpenCode](https://opencode.ai) — fully local, no cloud model) via `agent-eval opencode install`, or
+  **AC** (Agent-Evaluator + [Claude Code](https://claude.com/claude-code) — native CLI hooks) via
+  `agent-eval claude install`. Identical verdict logic; the difference is the process model (a resident
+  subprocess vs. per-call replay). →
+  [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) ·
+  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) ·
+  [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md)
 - **Dashboard** — `agent-eval dashboard` (FastAPI): Harness Gate breakdown, File Compare with pairwise
   LLM Judge, anomaly/cost tracking, and a 🔧 Improve tab surfacing the RCA engine.
 
@@ -199,9 +211,9 @@ Full version history (including the `1.0.0-rc.1`–`rc4` release-candidate serie
 | [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/07_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
 | [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/08_API_REFERENCE.md) | Full public API reference |
 | [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
-| [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | Real-time guardrail, OpenCode + Ollama integration |
-| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | Real-time guardrail via native Claude Code CLI hooks |
-| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md) | OpenCode vs Claude Code integration — detailed comparison |
+| [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
+| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
+| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |
 | [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md) | Version history |
 
