@@ -3296,15 +3296,26 @@ _SEC_SEV_COLOR = {"critical": "#7f1d1d", "high": "#dc2626", "medium": "#d97706",
                   "low": "#6b7280", "unknown": "#6b7280"}
 
 
-def _build_security_findings(current: dict[str, Any] | None) -> str:
-    """P19: which task triggered which threat — the per-task detail Gate E's
-    aggregate section never showed."""
-    try:
-        from agent_evaluator.reporting.insights import _security_findings_section
+_SUCCEEDED_BADGE = {
+    "yes": ('landed', '#dc2626'), "likely": ('likely landed', '#d97706'),
+    "no": ('blocked', '#059669'), "unknown": ('unknown', '#9ca3af'),
+}
 
-        findings = _security_findings_section(current or {})
+
+def _build_security_findings(current: dict[str, Any] | None) -> str:
+    """P19 + P42: which task triggered which threat, whether the attack actually
+    landed, compound (multi-tracker) exposure, and the attack-surface summary."""
+    try:
+        from agent_evaluator.reporting.insights import (
+            _security_findings_section,
+            _security_posture_section,
+        )
+
+        _tasks = (current or {}).get("tasks") if isinstance(current, dict) else None
+        findings = _security_findings_section(current or {}, _tasks)
+        posture = _security_posture_section(current or {}, _tasks, findings)
     except Exception:
-        findings = None
+        findings = posture = None
     if not findings:
         return ""
     rows = ""
@@ -3312,23 +3323,52 @@ def _build_security_findings(current: dict[str, Any] | None) -> str:
         sev = f.get("severity", "unknown")
         col = _SEC_SEV_COLOR.get(sev, "#6b7280")
         cwe = f.get("cwe")
+        cwe_s = ", ".join(cwe) if isinstance(cwe, list) else (cwe or "")
+        _sl, _sc = _SUCCEEDED_BADGE.get(f.get("succeeded", "unknown"), ("", "#9ca3af"))
+        _compound = f.get("kind") == "compound"
+        _tr_style = ' style="background:#fef2f2"' if _compound else ""
         rows += (
-            f'<tr><td style="color:{col};font-weight:700;white-space:nowrap">{_esc(sev.upper())}</td>'
-            f'<td style="white-space:nowrap;font-size:12px">{_esc(f.get("task_id", ""))}</td>'
+            f'<tr{_tr_style}>'
+            f'<td style="color:{col};font-weight:700;white-space:nowrap">{_esc(sev.upper())}'
+            + (' <span style="font-size:10px">COMPOUND</span>' if _compound else "")
+            + f'</td><td style="white-space:nowrap;font-size:12px">{_esc(f.get("task_id", ""))}</td>'
             f'<td style="white-space:nowrap">{_esc(f.get("threat_type", ""))}'
-            + (f' <span style="color:#9ca3af">({_esc(cwe)})</span>' if cwe else "")
+            + (f' <span style="color:#9ca3af">({_esc(cwe_s)})</span>' if cwe_s else "")
             + f'</td><td style="font-size:12px;color:#4b5563">{_esc(f.get("detail", ""))} '
-            f'<span style="color:#9ca3af">[{_esc(f.get("tracker", ""))}]</span></td></tr>'
+            f'<span style="color:#9ca3af">[{_esc(f.get("tracker", ""))}]</span></td>'
+            f'<td style="white-space:nowrap;color:{_sc};font-weight:600;font-size:11px">'
+            f'{_esc(_sl)}</td></tr>'
+        )
+    posture_html = ""
+    if posture:
+        _bs = " · ".join(f"{k} {v}" for k, v in (posture.get("by_severity") or {}).items())
+        _tools = ", ".join(
+            f'{_esc(t["tool"])} ({t["n"]})' for t in (posture.get("tools_implicated") or [])
+        )
+        _landed = posture.get("landed_or_likely") or []
+        posture_html = (
+            '<p style="font-size:12px;color:#4b5563;margin:0 0 10px;'
+            'background:#fff;border:1px solid #fecaca;border-radius:6px;padding:8px 10px">'
+            f'<strong>Attack surface:</strong> {posture.get("n_findings")} finding(s) '
+            f'over {posture.get("n_tasks_affected")} task(s) ({_esc(_bs)})'
+            + (f'; {posture.get("n_compound")} compound' if posture.get("n_compound") else "")
+            + (f'; tools implicated: {_tools}' if _tools else "")
+            + (f'; <span style="color:#dc2626">{len(_landed)} attack(s) landed or '
+               f'likely landed</span>' if _landed else
+               '; no attack is confirmed to have landed (detection ≠ compromise)')
+            + '</p>'
         )
     return (
         '<div class="gate-section" id="security-findings" style="border-left-color:#dc2626">'
         f'<h2 style="color:#dc2626">Security Findings '
         f'<span style="font-size:13px;color:#6b7280">({len(findings)} — most severe first)</span></h2>'
         '<p style="color:#6b7280;font-size:13px;margin:0 0 10px">'
-        'A security regression is the highest-priority fix. Each row is the task that '
-        'triggered the threat.</p>'
+        'A security regression is the highest-priority fix. "Landed" infers from '
+        'whether a tool call executed after the flagged step — detection is not '
+        'the same as compromise.</p>'
+        f'{posture_html}'
         '<table class="mtable"><thead><tr>'
-        '<th>Severity</th><th>Task</th><th>Threat</th><th>Detail</th>'
+        '<th>Severity</th><th>Task</th><th>Threat</th><th>Detail</th><th>Outcome</th>'
         f'</tr></thead><tbody>{rows}</tbody></table>'
         '</div>'
     )

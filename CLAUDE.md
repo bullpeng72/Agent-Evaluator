@@ -1300,6 +1300,22 @@ repeated→1.3(Step Repetition), 한 에이전트 error_rate≥0.34→1.2(Disobe
 태스크에 planner→retriever→responder crew `agent_interactions`(thin context 핸드오프).
 `test_multiagent_insight_p41.py`(6). 전체 4583 통과.
 
+**SPEC-041 P42 (복합 보안 finding + 공격 결과 연결)** — `reporting/insights.py`:
+`_security_findings_section(current, tasks=None)` 각 finding에 `succeeded`(yes/likely/no/unknown)
+추가 — 레코드에 `blocked/prevented/enforced` 또는 `acted_on/executed/bypassed`가 있으면 그대로,
+없으면 태스크 `tool_calls`에 성공 실행이 있으면 "likely", 아니면 "unknown"(탐지 ≠ 침해). 같은
+태스크에 서로 다른 트래커 2개 이상이 flag하면 단일 `kind:"compound"` finding 합성 —
+`severity`를 최악 컴포넌트에서 한 단계 상향(`_bump_severity`, critical cap), `components[]`·
+`cwe[]`(리스트)·`succeeded`(컴포넌트 중 하나라도 landed면 승계). 정렬은 compound 먼저.
+새 `_security_posture_section(current, tasks, security_findings)` → `insights.security_posture
+{n_findings, n_tasks_affected, n_compound, by_severity, tools_implicated[]{tool, n}(detail의
+"tool <name>" 파싱), landed_or_likely[], any_landed}`. `build_insights` out 딕셔너리에
+`security_posture` 추가, `security_findings` 호출에 `tasks` 전달. 리포트
+`_build_security_findings`: 상단에 attack-surface 요약 박스 + 표에 "Outcome" 열(landed 빨강/
+likely 주황/blocked 초록) + compound 행 하이라이트(CRITICAL COMPOUND 태그). 스키마
+`security_findings[].{succeeded,kind,components}` + `cwe` array 허용 + `security_posture`.
+`test_security_compound_p42.py`(7). 전체 4590 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

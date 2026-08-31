@@ -468,8 +468,11 @@
           "tracker": { "type": "string" },
           "threat_type": { "type": "string" },
           "severity": { "type": "string" },
-          "cwe": { "type": ["string", "null"] },
-          "detail": { "type": "string" }
+          "cwe": { "type": ["string", "array", "null"] },
+          "detail": { "type": "string" },
+          "succeeded": { "enum": ["yes", "likely", "no", "unknown"] },
+          "kind": { "type": "string" },
+          "components": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -677,6 +680,20 @@
         "git": { "type": ["object", "null"] },
         "largest_gate_move": { "type": ["object", "null"] },
         "note": { "type": "string" }
+      }
+    },
+
+    "security_posture": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_findings": { "type": "integer" },
+        "n_tasks_affected": { "type": "integer" },
+        "n_compound": { "type": "integer" },
+        "by_severity": { "type": "object" },
+        "tools_implicated": { "type": "array" },
+        "landed_or_likely": { "type": "array" },
+        "any_landed": { "type": "boolean" }
       }
     },
 

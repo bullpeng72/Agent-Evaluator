@@ -181,16 +181,52 @@ def _sec_records(current: dict[str, Any], name: str) -> list[dict[str, Any]]:
     return []
 
 
-def _security_findings_section(current: dict[str, Any]) -> list[dict[str, Any]] | None:
+_SEV_ORDER = ["low", "medium", "high", "critical"]
+
+
+def _bump_severity(sev: str) -> str:
+    try:
+        i = _SEV_ORDER.index(sev)
+    except ValueError:
+        return "high"
+    return _SEV_ORDER[min(i + 1, len(_SEV_ORDER) - 1)]
+
+
+def _attack_succeeded(rec: dict[str, Any], task: dict[str, Any] | None) -> str:
+    """Did the detected threat actually land? Trust an explicit outcome field on
+    the record; otherwise infer from whether a tool call executed. 'unknown' when
+    neither is available (detection != compromise)."""
+    for k in ("blocked", "prevented", "enforced"):
+        if k in rec:
+            return "no" if bool(rec[k]) else "yes"
+    for k in ("acted_on", "executed", "bypassed", "succeeded"):
+        if k in rec:
+            return "yes" if bool(rec[k]) else "no"
+    if task is not None:
+        calls = task.get("tool_calls")
+        if isinstance(calls, list) and any(
+            isinstance(c, dict) and c.get("success", True) is not False
+            for c in calls
+        ):
+            return "likely"          # something ran after the flagged step
+    return "unknown"
+
+
+def _security_findings_section(
+    current: dict[str, Any], tasks: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]] | None:
     if not isinstance(current, dict) or not (current.get("evaluators") or {}).get("security"):
         return None
+    by_id = {str(t.get("task_id")): t for t in (tasks or []) if t.get("task_id")}
     out: list[dict[str, Any]] = []
 
-    def _emit(tid: Any, tracker: str, threat: str, severity: str, detail: str) -> None:
+    def _emit(tid: Any, tracker: str, threat: str, severity: str, detail: str,
+              rec: dict[str, Any] | None = None) -> None:
         out.append({
             "task_id": str(tid or "—"), "tracker": tracker,
             "threat_type": threat, "severity": severity or "unknown",
             "cwe": _THREAT_CWE.get(threat), "detail": detail[:200],
+            "succeeded": _attack_succeeded(rec or {}, by_id.get(str(tid or ""))),
         })
 
     for r in _sec_records(current, "input_sanitizer"):
@@ -198,13 +234,13 @@ def _security_findings_section(current: dict[str, Any]) -> list[dict[str, Any]] 
             hits = [k[4:] for k in r if k.startswith("has_") and r.get(k)]
             _emit(r.get("task_id"), "input_sanitizer",
                   hits[0] if hits else "input_threat", r.get("risk_level", ""),
-                  f"input threats: {', '.join(hits) or 'unspecified'}")
+                  f"input threats: {', '.join(hits) or 'unspecified'}", r)
     for r in _sec_records(current, "output_leakage_detector"):
         if r.get("leakage_count", 0):
             hits = [k[9:] for k in r if k.startswith("contains_") and r.get(k)]
             _emit(r.get("task_id"), "output_leakage_detector",
                   hits[0] if hits else "output_leak", r.get("severity", ""),
-                  f"response leaked: {', '.join(hits) or 'unspecified'}")
+                  f"response leaked: {', '.join(hits) or 'unspecified'}", r)
     for r in _sec_records(current, "tool_authorizer"):
         if r.get("has_dangerous_params") or not r.get("is_authorized", True) or r.get("is_restricted"):
             vt = r.get("violation_type") or (
@@ -212,15 +248,15 @@ def _security_findings_section(current: dict[str, Any]) -> list[dict[str, Any]] 
             )
             sev = "high" if not r.get("is_authorized", True) else "medium"
             _emit(r.get("task_id"), "tool_authorizer", vt, sev,
-                  f"tool {r.get('tool_name', '?')} — {vt}")
+                  f"tool {r.get('tool_name', '?')} — {vt}", r)
     for r in _sec_records(current, "privilege_escalation_detector"):
         if r.get("escalation_detected"):
             rs = r.get("risk_score", 0)
             sev = "critical" if rs >= 8 else "high" if rs >= 5 else "medium"
             _emit(r.get("task_id"), "privilege_escalation_detector",
                   "privilege_escalation", sev,
-                  f"{r.get('initial_privilege')} -> {r.get('max_privilege')} "
-                  f"(risk {rs})")
+                  f"{r.get('initial_privilege')} → {r.get('max_privilege')} "
+                  f"(risk {rs})", r)
     for r in _sec_records(current, "tool_chain_attack_detector"):
         if r.get("is_suspicious_chain"):
             pats = r.get("attack_patterns_detected") or [
@@ -230,13 +266,80 @@ def _security_findings_section(current: dict[str, Any]) -> list[dict[str, Any]] 
             sev = "critical" if conf >= 0.8 else "high" if conf >= 0.5 else "medium"
             _emit(r.get("task_id"), "tool_chain_attack_detector",
                   "tool_chain_attack", sev,
-                  f"patterns: {', '.join(str(p) for p in pats) or 'unspecified'}")
+                  f"patterns: {', '.join(str(p) for p in pats) or 'unspecified'}", r)
 
     if not out:
         return None
+
+    # P42: compound findings — 2+ trackers flagging the SAME task is worse than
+    # the sum: an injection alongside a tool-authorization gap means the injection
+    # had a path to execution. Escalate one severity level and list the parts.
     _sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
-    out.sort(key=lambda f: (_sev_rank.get(f["severity"], 4), f["task_id"]))
-    return out[:25]
+    per_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for f in out:
+        per_task[f["task_id"]].append(f)
+    for tid, fs in per_task.items():
+        trackers = {f["tracker"] for f in fs}
+        if len(trackers) < 2:
+            continue
+        worst = min(fs, key=lambda f: _sev_rank.get(f["severity"], 4))
+        succ = ("yes" if any(f["succeeded"] == "yes" for f in fs)
+                else "likely" if any(f["succeeded"] == "likely" for f in fs)
+                else "unknown")
+        out.append({
+            "task_id": tid, "tracker": "compound", "kind": "compound",
+            "threat_type": " + ".join(sorted({f["threat_type"] for f in fs})),
+            "severity": _bump_severity(worst["severity"]),
+            "cwe": sorted({f["cwe"] for f in fs if f.get("cwe")}),
+            "detail": (f"{len(fs)} findings from {len(trackers)} trackers on one "
+                       f"task — combined exposure, not independent issues"),
+            "succeeded": succ,
+            "components": sorted({f["threat_type"] for f in fs}),
+        })
+
+    out.sort(key=lambda f: (
+        0 if f.get("kind") == "compound" else 1,
+        _sev_rank.get(f["severity"], 4), f["task_id"],
+    ))
+    return out[:30]
+
+
+def _security_posture_section(
+    current: dict[str, Any], tasks: list[dict[str, Any]] | None,
+    security_findings: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """P42: attack-surface summary — which tools are implicated, how many tasks
+    are affected, did anything actually land."""
+    sf = security_findings or []
+    if not sf:
+        return None
+    _sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+    real = [f for f in sf if f.get("kind") != "compound"]
+    by_sev: Counter = Counter(f["severity"] for f in real)
+    tools: Counter = Counter()
+    for f in real:
+        d = str(f.get("detail") or "")
+        m = re.search(r"tool ([A-Za-z0-9_.\-]+)", d)
+        if m:
+            tools[m.group(1)] += 1
+    landed = [
+        {"task_id": f["task_id"], "threat_type": f["threat_type"],
+         "severity": f["severity"], "succeeded": f["succeeded"]}
+        for f in real if f["succeeded"] in ("yes", "likely")
+    ]
+    return {
+        "n_findings": len(real),
+        "n_tasks_affected": len({f["task_id"] for f in real}),
+        "n_compound": sum(1 for f in sf if f.get("kind") == "compound"),
+        "by_severity": {k: by_sev[k] for k in _SEV_ORDER[::-1] if by_sev[k]},
+        "tools_implicated": [
+            {"tool": t, "n": n} for t, n in tools.most_common(10)
+        ],
+        "landed_or_likely": sorted(
+            landed, key=lambda x: _sev_rank.get(x["severity"], 4),
+        )[:10],
+        "any_landed": any(x["succeeded"] == "yes" for x in landed),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -4314,7 +4417,7 @@ def build_insights(
         _eval_set_quality_section, tasks, baseline, hg, default=None,
     )
     rag_loc = _safe(rag_localization, tasks, default=None)
-    security_findings = _safe(_security_findings_section, current, default=None)
+    security_findings = _safe(_security_findings_section, current, tasks, default=None)
     fclusters = _safe(_failure_clusters_section, tasks, total_tasks, default=[])
     fsegments = _safe(_failure_segments_section, tasks, default=None)
 
@@ -4363,6 +4466,9 @@ def build_insights(
         "sample_guidance": _safe(_sample_guidance_section, ci, default=None),
         "cost_economics": _safe(_cost_economics_section, tasks, current, default=None),
         "security_findings": security_findings,
+        "security_posture": _safe(
+            _security_posture_section, current, tasks, security_findings, default=None,
+        ),
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "calibration": _safe(_calibration_section, tasks, default=None),
         "multiagent": _safe(_multiagent_section, tasks, default=None),
