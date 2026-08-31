@@ -107,6 +107,7 @@ class TestReportIntegration:
             generate_comprehensive_html_report,
         )
 
+        m = None
         for run in range(4):
             m = PerformanceMonitor(output_dir=str(tmp_path))
             for i in range(10):
@@ -126,6 +127,7 @@ class TestReportIntegration:
                 "target_gate": "D", "verdict": "confirmed", "gate_delta": 0.1,
             }) + "\n", encoding="utf-8",
         )
+        assert m is not None
         html = generate_comprehensive_html_report(m)
         assert 'id="history-trend"' in html
         assert "<polyline" in html

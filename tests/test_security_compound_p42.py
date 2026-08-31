@@ -66,6 +66,7 @@ def test_compound_finding_escalates():
     sf = _security_findings_section(
         _sec_current(priv=True, dparams=True), _tasks(tool_ok=True),
     )
+    assert sf is not None
     comp = [f for f in sf if f.get("kind") == "compound"]
     assert len(comp) == 1
     c = comp[0]
@@ -79,6 +80,7 @@ def test_compound_finding_escalates():
 
 def test_no_compound_for_single_tracker():
     sf = _security_findings_section(_sec_current(priv=True), _tasks())
+    assert sf is not None
     assert not any(f.get("kind") == "compound" for f in sf)
 
 
@@ -89,6 +91,7 @@ def test_security_posture_summary():
     p = _security_posture_section(
         _sec_current(priv=True, dparams=True), _tasks(tool_ok=True), sf,
     )
+    assert p is not None
     assert p["n_findings"] == 2
     assert p["n_tasks_affected"] == 1
     assert p["n_compound"] == 1

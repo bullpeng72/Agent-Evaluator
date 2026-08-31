@@ -155,6 +155,21 @@
       }
     },
 
+    "threshold_sensitivity": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "current_line": { "type": "number" },
+        "swept_verdict_at_current_line": { "type": "string" },
+        "knife_edge": { "type": "boolean" },
+        "knife_edge_detail": { "type": "string" },
+        "gate_line_sweep": { "type": "array" },
+        "accuracy_threshold_sweep": { "type": "array" },
+        "n_gates_measured": { "type": "integer" },
+        "n_tasks_with_accuracy": { "type": "integer" }
+      }
+    },
+
     "metric_confidence": {
       "type": "object",
       "additionalProperties": true,

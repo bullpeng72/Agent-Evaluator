@@ -14,7 +14,7 @@ import re
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from ...exceptions import ValidationError
 from ...utils.lazy_import import LazyModule as _LazyModule
@@ -50,6 +50,19 @@ _QA_WEIGHT_TOKEN_OVERLAP: float = 0.4   # token-level F1 overlap (most important
 _QA_WEIGHT_JACCARD: float = 0.3         # set-based Jaccard similarity
 _QA_WEIGHT_LCS: float = 0.2             # longest-common-subsequence ratio
 _QA_WEIGHT_CHAR: float = 0.1            # character-level similarity
+
+
+class QADecomposition(TypedDict):
+    """Return shape of :meth:`AccuracyEvaluator.decompose_qa` — the four QA
+    similarity signals (each 0–1), their weighted combination, and the name of
+    the weakest signal."""
+
+    token_overlap_f1: float
+    jaccard: float
+    lcs_ratio: float
+    char_sim: float
+    weighted: float
+    weakest: str
 
 # Code accuracy constants
 # AST 비교 점수가 이 값 이상이면 정규화 비교를 건너뜀 (고신뢰 AST 일치)
@@ -361,7 +374,7 @@ class AccuracyEvaluator(BaseTracker):
         else:
             return self._general_accuracy(ground_truth, prediction)
 
-    def decompose_qa(self, ground_truth: str, prediction: str) -> dict[str, float | str]:
+    def decompose_qa(self, ground_truth: str, prediction: str) -> QADecomposition:
         """SPEC-041 P23: the per-signal breakdown behind the QA accuracy score.
 
         Returns ``{token_overlap_f1, jaccard, lcs_ratio, char_sim, weighted,
@@ -373,8 +386,10 @@ class AccuracyEvaluator(BaseTracker):
         """
         gt_norm = _normalize_qa_text(ground_truth)
         pred_norm = _normalize_qa_text(prediction)
-        _empty = {"token_overlap_f1": 0.0, "jaccard": 0.0, "lcs_ratio": 0.0,
-                  "char_sim": 0.0, "weighted": 0.0, "weakest": "token_overlap_f1"}
+        _empty: QADecomposition = {
+            "token_overlap_f1": 0.0, "jaccard": 0.0, "lcs_ratio": 0.0,
+            "char_sim": 0.0, "weighted": 0.0, "weakest": "token_overlap_f1",
+        }
         if not gt_norm:
             return _empty
         gt_tokens = self._tokenize_words(gt_norm)
@@ -398,13 +413,17 @@ class AccuracyEvaluator(BaseTracker):
         )
         comps = {"token_overlap_f1": round(overlap_ratio, 4), "jaccard": round(jaccard, 4),
                  "lcs_ratio": round(lcs_sim, 4), "char_sim": round(char_sim, 4)}
-        return {**comps, "weighted": round(weighted, 4),
-                "weakest": min(comps, key=lambda k: comps[k])}
+        weakest = min(comps, key=lambda k: comps[k])
+        return {
+            "token_overlap_f1": comps["token_overlap_f1"], "jaccard": comps["jaccard"],
+            "lcs_ratio": comps["lcs_ratio"], "char_sim": comps["char_sim"],
+            "weighted": round(weighted, 4), "weakest": weakest,
+        }
 
     def _qa_accuracy(self, ground_truth: str, prediction: str) -> float:
         """QA accuracy — weighted blend of token-overlap F1, Jaccard, LCS ratio
         and character similarity (see :meth:`decompose_qa`)."""
-        final_score = float(self.decompose_qa(ground_truth, prediction)["weighted"])
+        final_score = self.decompose_qa(ground_truth, prediction)["weighted"]
         if final_score > 1.0:
             logger.debug(
                 "_qa_accuracy: weighted score %.4f exceeded 1.0 (clamped). "

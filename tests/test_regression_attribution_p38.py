@@ -57,6 +57,7 @@ def test_links_slice_and_change():
     ms = [{"dimension": "extra.difficulty",
            "slices": [{"value": "hard", "n": 3, "tcr_pct": 30.0, "tcr_delta_pp": -25.0}]}]
     ra = _regression_attribution_section(tasks, fl, ca, ms)
+    assert ra is not None
     assert ra["n_regressed_tasks"] == 3
     c0 = ra["clusters"][0]
     assert c0["category"] == "decomposition"
@@ -75,6 +76,7 @@ def test_non_scalar_extra_keys_ignored():
     ]
     fl = {"regressed": ["r0", "r1", "r2"]}
     ra = _regression_attribution_section(tasks, fl, {}, None)
+    assert ra is not None
     dims = {s["dimension"] for c in ra["clusters"] for s in c["slice_concentration"]}
     assert "extra.trace" not in dims and "extra.note" not in dims
     assert "extra.region" in dims          # short scalar survives

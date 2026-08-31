@@ -340,8 +340,10 @@ class TestImprovementLoopClosure:
 
     def test_config_hint_normalizes_avg_prefix(self):
         from agent_evaluator.ontology.metric_registry import config_hint_for
-        assert config_hint_for("avg_loop_detection")["config"] == "LoopDetectionConfig"
-        assert config_hint_for("sla_breach_rate")["config"] == "SLAConfig"
+        loop_hint = config_hint_for("avg_loop_detection")
+        assert loop_hint is not None and loop_hint["config"] == "LoopDetectionConfig"
+        sla_hint = config_hint_for("sla_breach_rate")
+        assert sla_hint is not None and sla_hint["config"] == "SLAConfig"
         assert config_hint_for("nonexistent") is None
 
     def test_experiment_block_predicts_delta_and_n(self):

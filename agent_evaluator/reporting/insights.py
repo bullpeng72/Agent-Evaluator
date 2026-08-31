@@ -1283,6 +1283,94 @@ def _verdict_section(
 
 
 # ---------------------------------------------------------------------------
+# Threshold sensitivity (P44) — the verdict hinges on two arbitrary constants:
+# the gate pass line (0.7) and the per-task accuracy threshold (0.7). Sweep both
+# and show whether the deploy decision is robust or one 0.05 from flipping.
+# ---------------------------------------------------------------------------
+_TS_GATE_LINES = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85)
+_TS_ACC_THR = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80)
+
+
+def _ts_verdict(scores: list[float], line: float) -> str:
+    if not scores:
+        return "unknown"
+    if any(s < line - 0.15 for s in scores):
+        return "not_ready"
+    if any(s < line for s in scores):
+        return "caution"
+    return "ready"
+
+
+def _threshold_sensitivity_section(
+    harness_groups: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    targets: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    scores = [
+        _safe_float((harness_groups.get(k) or {}).get("score"))
+        for k in "ABCDEFG"
+    ]
+    scores = [s for s in scores if s is not None]
+    accs = [a for a in (_safe_float(t.get("accuracy_score")) for t in tasks) if a is not None]
+    if not scores and not accs:
+        return None
+
+    try:
+        from agent_evaluator.utils.targets import gate_target, is_user_defined
+
+        cur_line = gate_target(targets, "A", _READINESS_TARGET) if is_user_defined(targets) \
+            else _READINESS_TARGET
+    except Exception:  # pragma: no cover - defensive
+        cur_line = _READINESS_TARGET
+
+    gate_sweep = [
+        {
+            "line": ln,
+            "gates_meeting": sum(1 for s in scores if s >= ln - 1e-9),
+            "gates_below": sum(1 for s in scores if s < ln - 1e-9),
+            "verdict": _ts_verdict(scores, ln),
+        }
+        for ln in _TS_GATE_LINES
+    ]
+    acc_sweep = [
+        {
+            "threshold": thr,
+            "pass_rate_pct": round(
+                sum(1 for a in accs if a >= thr - 1e-9) / len(accs) * 100.0, 1,
+            ) if accs else None,
+        }
+        for thr in _TS_ACC_THR
+    ]
+
+    # knife-edge: does the verdict at the current line differ from ±0.05?
+    cur_v = _ts_verdict(scores, cur_line)
+    lo_v = _ts_verdict(scores, max(0.0, cur_line - 0.05))
+    hi_v = _ts_verdict(scores, cur_line + 0.05)
+    knife = bool(scores) and (lo_v != cur_v or hi_v != cur_v)
+    detail = ""
+    if knife:
+        bits = []
+        if lo_v != cur_v:
+            bits.append(f"at {cur_line - 0.05:.2f} it would be '{lo_v}'")
+        if hi_v != cur_v:
+            bits.append(f"at {cur_line + 0.05:.2f} it would be '{hi_v}'")
+        detail = (f"The readiness call is '{cur_v}' at the {cur_line:.2f} pass line; "
+                  + "; ".join(bits) + " — the decision is sensitive to where the "
+                  "line is drawn.")
+
+    return {
+        "current_line": round(cur_line, 3),
+        "swept_verdict_at_current_line": cur_v,
+        "knife_edge": knife,
+        "knife_edge_detail": detail,
+        "gate_line_sweep": gate_sweep,
+        "accuracy_threshold_sweep": acc_sweep,
+        "n_gates_measured": len(scores),
+        "n_tasks_with_accuracy": len(accs),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Path to green (P29) — the verdict says "not ready"; this quantifies the gap
 # to each gate's pass line and orders the failure clusters into a fix plan with
 # a deterministic projection of "close these N and Gate A reaches ~0.74".
@@ -4480,6 +4568,9 @@ def build_insights(
             security_findings, targets, default={},
         ),
         "readiness": _safe(_readiness_section, tasks, hg, targets, default=None),
+        "threshold_sensitivity": _safe(
+            _threshold_sensitivity_section, hg, tasks, targets, default=None,
+        ),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
         "review_queue": _safe(

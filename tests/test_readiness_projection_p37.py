@@ -78,6 +78,7 @@ def test_projection_is_deterministic():
     tasks, hg = _run()
     a = _readiness_section(tasks, hg)
     b = _readiness_section(tasks, hg)
+    assert a is not None and b is not None
     assert a["fix_plan"][0]["roi"] == b["fix_plan"][0]["roi"]
     assert a["fix_plan"][0]["projected_gate_scores_ci"] == \
         b["fix_plan"][0]["projected_gate_scores_ci"]

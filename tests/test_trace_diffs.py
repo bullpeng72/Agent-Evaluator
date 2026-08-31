@@ -61,7 +61,9 @@ class TestTraceDiffsSection:
 
     def test_response_and_trajectory_diff(self):
         cur, coh = _cohort()
-        row = next(d for d in _trace_diffs_section(cur, coh) if d["task_id"] == "t1")
+        td = _trace_diffs_section(cur, coh)
+        assert td is not None
+        row = next(d for d in td if d["task_id"] == "t1")
         assert 0.0 <= row["response_diff"]["similarity"] < 1.0
         assert row["response_diff"]["added"] or row["response_diff"]["removed"]
         assert "rerank" in row["trajectory_diff"]["added"]
@@ -69,12 +71,15 @@ class TestTraceDiffsSection:
 
     def test_per_version_covers_all_versions_having_the_task(self):
         cur, coh = _cohort()
-        row = next(d for d in _trace_diffs_section(cur, coh) if d["task_id"] == "t1")
+        td = _trace_diffs_section(cur, coh)
+        assert td is not None
+        row = next(d for d in td if d["task_id"] == "t1")
         assert [v["label"] for v in row["per_version"]] == ["v3", "v1", "v2"]
 
     def test_unchanged_task_excluded(self):
         cur, coh = _cohort()
         td = _trace_diffs_section(cur, coh)
+        assert td is not None
         assert all(d["task_id"] != "t2" for d in td)
 
     def test_none_without_cohort(self):
@@ -87,7 +92,9 @@ class TestTraceDiffsSection:
                             [{"tool_name": "a"}, {"tool_name": "b"}])])
         v2 = _run("v2", [_t("t1", "q", 0.4, 0.3, False, "same text here",
                             [{"tool_name": "b"}, {"tool_name": "a"}])])
-        row = _trace_diffs_section(v2, [v1])[0]
+        td = _trace_diffs_section(v2, [v1])
+        assert td is not None
+        row = td[0]
         assert row["trajectory_diff"]["reordered"] is True
 
 

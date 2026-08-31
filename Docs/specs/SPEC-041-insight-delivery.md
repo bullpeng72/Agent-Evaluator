@@ -489,6 +489,19 @@ targets에서 채움(명시 인수가 이김), "Using targets from .aoo/targets.
 per-row 값. 스키마 `verdict.{below_user_target_gates,targets_source,targets}` +
 `readiness.{targets_source,per_gate_targets}`. `test_user_targets_p43.py`(10). 전체 4600 통과.
 
+**SPEC-041 P44 (임계값 민감도)** — `reporting/insights.py::_threshold_sensitivity_section(harness_groups,
+tasks, targets=None)` → `insights.threshold_sensitivity`. 배포 판정이 두 임의 상수(게이트 pass 라인
+0.7, per-task accuracy 임계값)에 얼마나 민감한지 스윕. `gate_line_sweep[]` = 라인
+{0.50…0.85} 각각에 `{line, gates_meeting(score≥line), gates_below, verdict}` — verdict는 `_ts_verdict`
+스윕 모델(라인 미달 게이트 있으면 caution, `line−0.15` 미달 있으면 not_ready). `accuracy_threshold_sweep[]`
+= 임계값 {0.50…0.80}별 `pass_rate_pct`(=accuracy≥thr 태스크 비율). `knife_edge` = 현재 라인(user
+target 있으면 그 값, 없으면 0.7)의 스윕 verdict가 ±0.05에서 달라지면 True + `knife_edge_detail`
+("at 0.65 it would be 'caution' — the decision is sensitive to where the line is drawn"). 순수
+계산(per-task 점수만, 새 판정 없음). `build_insights` out 딕셔너리에 추가. 리포트
+`_build_threshold_sensitivity()` 섹션 `threshold-sensitivity`(Conclusion 앞): knife-edge면 앰버 배너,
+안정이면 초록 한 줄 + pass-line 스윕 표(현재 행 볼드 "← current") + accuracy 스윕 표. TOC "Sensitivity".
+스키마 `threshold_sensitivity`. `test_threshold_sensitivity_p44.py`(7). 전체 4607 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

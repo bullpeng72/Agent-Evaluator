@@ -63,6 +63,7 @@ class TestScoreBreakdownsSection:
             [_task(f"t{i}", ok=False) for i in range(3)]
             + [_task(f"ok{i}", ok=True) for i in range(5)]
         )
+        assert rows is not None
         assert len(rows) == 3
         r = rows[0]
         assert set(r["accuracy_components"]) == {
@@ -75,6 +76,7 @@ class TestScoreBreakdownsSection:
         judge = {"skipped": False, "reasoning": "Wrong city, hedged.",
                  "scores": {"overall": 3.0, "completeness": 2, "relevance": 4, "faithfulness": 1}}
         rows = _score_breakdowns_section([_task("t0", ok=False, judge=judge)])
+        assert rows is not None
         r = rows[0]
         assert r["judge_reasoning"] == "Wrong city, hedged."
         assert r["judge_dimensions"] == {"completeness": 2, "relevance": 4, "faithfulness": 1}
@@ -96,7 +98,9 @@ class TestScoreBreakdownsSection:
                           "scores": {"overall": 4.0, "completeness": 5,
                                      "relevance": 5, "faithfulness": 1}},
         }
-        r = _score_breakdowns_section([t])[0]
+        rows = _score_breakdowns_section([t])
+        assert rows is not None
+        r = rows[0]
         assert r["weakest_signal"] == "judge.faithfulness"
 
     def test_code_and_tool_use_get_a_note_not_components(self):
@@ -104,6 +108,7 @@ class TestScoreBreakdownsSection:
             {**_task("c0", ok=False), "task_type": "coding", "ground_truth": ""},
             {**_task("tu0", ok=False), "task_type": "tool_use", "ground_truth": ""},
         ])
+        assert rows is not None
         by = {r["task_id"]: r for r in rows}
         assert "AST" in by["c0"]["accuracy_note"]
         assert "tool_calls" in by["tu0"]["accuracy_note"]

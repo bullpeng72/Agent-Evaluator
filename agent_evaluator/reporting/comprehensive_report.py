@@ -4073,7 +4073,8 @@ _TOC_LABELS = {
     "multiagent": "Multi-agent",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
-    "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
+    "history-trend": "Trend", "change-ledger": "Ledger",
+    "threshold-sensitivity": "Sensitivity", "conclusion": "Conclusion",
 }
 
 
@@ -5048,6 +5049,70 @@ def _build_diagnosis(
     )
 
 
+def _build_threshold_sensitivity(ts: dict[str, Any] | None) -> str:
+    """P44: is the deploy decision robust, or one arbitrary 0.05 from flipping?
+    Sweeps the gate pass line and the per-task accuracy threshold."""
+    if not ts or not ts.get("gate_line_sweep"):
+        return ""
+    cur = ts.get("current_line", 0.7)
+    ke = ts.get("knife_edge")
+    banner = ""
+    if ke:
+        banner = (
+            '<p style="font-size:12px;color:#b45309;background:#fffbeb;border:1px '
+            'solid #fde68a;border-radius:6px;padding:8px 10px;margin:0 0 8px">'
+            f'⚠️ {_esc(ts.get("knife_edge_detail", ""))}</p>'
+        )
+    else:
+        banner = (
+            '<p style="font-size:12px;color:#059669;margin:0 0 8px">'
+            f'The readiness call is stable across ±0.05 of the {cur:.2f} pass '
+            'line.</p>'
+        )
+    rows = ""
+    for r in ts["gate_line_sweep"]:
+        _is_cur = abs(r["line"] - cur) < 1e-6
+        _tr = ' style="font-weight:700"' if _is_cur else ""
+        _cur_tag = " ← current" if _is_cur else ""
+        _vc = {"ready": "#059669", "caution": "#d97706",
+               "not_ready": "#dc2626"}.get(r["verdict"], "#6b7280")
+        rows += (
+            f'<tr{_tr}>'
+            f'<td>{r["line"]:.2f}{_cur_tag}</td>'
+            f'<td style="text-align:right">{r["gates_meeting"]}</td>'
+            f'<td style="text-align:right">{r["gates_below"]}</td>'
+            f'<td style="color:{_vc}">{_esc(r["verdict"])}</td></tr>'
+        )
+    acc_rows = ""
+    for r in ts.get("accuracy_threshold_sweep") or []:
+        pr = r.get("pass_rate_pct")
+        acc_rows += (
+            f'<tr><td>{r["threshold"]:.2f}</td>'
+            f'<td style="text-align:right">{pr:.1f}%</td></tr>'
+            if isinstance(pr, (int, float)) else ""
+        )
+    acc_html = ""
+    if acc_rows:
+        acc_html = (
+            '<h3 style="margin:12px 0 4px">Pass rate vs accuracy threshold</h3>'
+            '<table class="mtable"><thead><tr><th>Accuracy ≥</th>'
+            '<th>Tasks passing</th></tr></thead>'
+            f'<tbody>{acc_rows}</tbody></table>'
+        )
+    return (
+        '<div class="gate-section" id="threshold-sensitivity" '
+        'style="border-left-color:#64748b">'
+        '<h2 style="color:#1e2030">Threshold Sensitivity</h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">The verdict hinges '
+        'on where the pass line is drawn. This sweeps it.</p>'
+        f'{banner}'
+        '<table class="mtable"><thead><tr><th>Pass line</th><th>Gates meeting</th>'
+        '<th>Gates below</th><th>Readiness</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table>'
+        f'{acc_html}</div>'
+    )
+
+
 # ---------------------------------------------------------------------------
 # Conclusion
 # ---------------------------------------------------------------------------
@@ -5573,6 +5638,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
+        _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
@@ -5814,6 +5880,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         diagnosis_html,
         _build_history_trend(_res_dir, _cur_file),
         _build_change_ledger(_res_dir),
+        _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
         _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
         '</div></body></html>',
     ]
