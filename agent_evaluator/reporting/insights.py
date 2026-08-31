@@ -3139,6 +3139,127 @@ def _failure_taxonomy_section(
     }
 
 
+# Which prompt-sentence topic / decorator knob each taxonomy mode points at.
+_MODE_PROMPT_HINTS = {
+    "INSTRUCTION_IGNORED": ("must", "always", "never", "only", "do not", "required"),
+    "FORMAT_VIOLATION": ("format", "json", "list", "table", "schema", "bullet", "yaml"),
+    "REFUSAL_WHEN_ANSWERABLE": ("cannot", "refuse", "decline", "safety", "unable",
+                                "don't answer"),
+    "GROUNDING_MISS": ("context", "grounded", "retrieved", "source", "cite",
+                       "don't know", "passage"),
+    "HALLUCINATED_FACT": ("context", "fact", "accurate", "verify", "grounded",
+                          "make up"),
+    "PREMATURE_STOP": ("step", "steps", "complete", "every", "verify", "checklist",
+                       "numbered"),
+    "OVER_ELABORATION": ("concise", "brief", "short", "length", "lead with",
+                         "to the point"),
+    "TOOL_SELECTION_ERROR": ("tool", "use the", "call", "when to"),
+}
+_MODE_CONFIG_KNOB = {
+    "RETRIEVAL_MISS": ("retriever top_k / re-ranker / chunking",
+                       "no retrieved passage covers the answer"),
+    "RUNTIME_ERROR": ("FaultToleranceConfig(max_retries) + a tighter tool timeout",
+                      "tasks time out or raise before finishing"),
+    "TOOL_EXECUTION_ERROR": ("RetryConfig(retry_on_timeout) + tool auth / rate limits",
+                             "tool calls return errors"),
+    "LOOP_OR_REPETITION": ("LoopDetectionConfig(consecutive_repeat_threshold)",
+                           "the agent repeats a step / output"),
+    "PREMATURE_STOP": ("SubtaskConfig(min_subtasks)",
+                       "multi-step tasks end early"),
+}
+_ABLATION_LIMIT = 8
+
+
+def _prompt_sentences(prompt_text: str) -> list[tuple[int, str]]:
+    raw = re.split(r"(?<=[.!?])\s+|\n+", str(prompt_text or ""))
+    return [(i, s.strip()) for i, s in enumerate(raw) if len(s.split()) >= 3]
+
+
+def _ablation_hints_section(
+    tasks: list[dict[str, Any]],
+    current: dict[str, Any],
+    failure_taxonomy: dict[str, Any] | None,
+) -> list[dict[str, Any]] | None:
+    """P56: for each failure mode, which single prompt sentence or decorator
+    knob is most implicated — ranked by how many failures it touches. Answers
+    "the one prompt line to change first". Deterministic; needs no baseline."""
+    if not failure_taxonomy or not failure_taxonomy.get("by_mode"):
+        return None
+    prompt_text = (
+        ((current.get("extra_metrics") or {}).get("lineage") or {}).get("prompt_text") or ""
+    )
+    sentences = _prompt_sentences(prompt_text)
+
+    def _match_sentence(keys: tuple[str, ...]) -> tuple[int, str] | None:
+        best, best_hits = None, 0
+        for idx, s in sentences:
+            low = s.lower()
+            hits = sum(1 for k in keys if k in low)
+            if hits > best_hits:
+                best, best_hits = (idx, s), hits
+        return best if best_hits else None
+
+    hints: list[dict[str, Any]] = []
+    for m in failure_taxonomy["by_mode"]:
+        code = m.get("code")
+        owner = m.get("owner")
+        n = int(m.get("n") or 0)
+        if code == "LOW_SIMILARITY" or n < 2:
+            continue
+        if owner not in ("prompt", "config", "infra"):
+            continue
+        ev = m.get("example_task_ids") or []
+        if owner == "prompt":
+            hit = _match_sentence(_MODE_PROMPT_HINTS.get(code, ()))
+            if hit:
+                hints.append({
+                    "target_kind": "prompt_line",
+                    "target": _clip_txt(hit[1], 160),
+                    "prompt_line_index": hit[0],
+                    "taxonomy_code": code,
+                    "mode_name": m.get("name"),
+                    "n_tasks": n,
+                    "rationale": (f"{n} '{m.get('name')}' failure(s) — this line is the "
+                                  f"closest existing instruction; tighten or replace it."),
+                    "example_task_ids": ev[:5],
+                })
+            else:
+                hints.append({
+                    "target_kind": "prompt_line",
+                    "target": "(no matching instruction in the system prompt)",
+                    "prompt_line_index": None,
+                    "taxonomy_code": code,
+                    "mode_name": m.get("name"),
+                    "n_tasks": n,
+                    "rationale": (f"{n} '{m.get('name')}' failure(s) and the prompt has "
+                                  f"no rule addressing it — add one."),
+                    "example_task_ids": ev[:5],
+                })
+        else:  # config
+            knob = _MODE_CONFIG_KNOB.get(code)
+            if not knob:
+                continue
+            hints.append({
+                "target_kind": "config_knob",
+                "target": knob[0],
+                "prompt_line_index": None,
+                "taxonomy_code": code,
+                "mode_name": m.get("name"),
+                "n_tasks": n,
+                "rationale": f"{n} failure(s) where {knob[1]}.",
+                "example_task_ids": ev[:5],
+            })
+    if not hints:
+        return None
+    hints.sort(key=lambda h: -h["n_tasks"])
+    return hints[:_ABLATION_LIMIT]
+
+
+def _clip_txt(s: str, n: int) -> str:
+    s = " ".join(str(s).split())
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
 # ---------------------------------------------------------------------------
 # Claim-level failure explanation (P47) — "grounding failure" is a category;
 # this pins the *specific sentence* that is wrong and where it came from. Split
@@ -6043,6 +6164,10 @@ def build_insights(
     )
     out["uncertainty_budget"] = _safe(
         _uncertainty_budget_section, out, default=None,
+    )
+    out["ablation_hints"] = _safe(
+        _ablation_hints_section, tasks, current, out.get("failure_taxonomy"),
+        default=None,
     )
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     out["narrative_audit"] = _safe(

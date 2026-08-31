@@ -499,6 +499,24 @@
       }
     },
 
+    "ablation_hints": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "target_kind": { "enum": ["prompt_line", "config_knob"] },
+          "target": { "type": "string" },
+          "prompt_line_index": { "type": ["integer", "null"] },
+          "taxonomy_code": { "type": "string" },
+          "mode_name": { "type": "string" },
+          "n_tasks": { "type": "integer" },
+          "rationale": { "type": "string" },
+          "example_task_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+
     "failure_lineage": {
       "type": ["object", "null"],
       "additionalProperties": true,

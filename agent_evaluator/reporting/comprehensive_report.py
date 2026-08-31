@@ -2581,6 +2581,39 @@ def _build_failure_taxonomy(ft: dict[str, Any] | None) -> str:
     )
 
 
+def _build_ablation_hints(hints: list[dict[str, Any]] | None) -> str:
+    """P56: the single prompt line / config knob most implicated in each failure
+    mode, ranked by how many failures it touches."""
+    if not hints:
+        return ""
+    rows = ""
+    for h in hints:
+        kind = h.get("target_kind", "")
+        badge = ("#7c3aed", "PROMPT LINE") if kind == "prompt_line" else ("#0891b2", "CONFIG")
+        li = h.get("prompt_line_index")
+        li_s = f' <span style="color:#9ca3af">(line {li})</span>' if li is not None else ""
+        rows += (
+            f'<tr><td style="text-align:right;font-variant-numeric:tabular-nums">'
+            f'{h.get("n_tasks")}</td>'
+            f'<td><span style="background:{badge[0]};color:#fff;border-radius:3px;'
+            f'padding:1px 5px;font-size:10px;font-weight:700">{badge[1]}</span></td>'
+            f'<td style="font-size:12px"><code>{_esc(h.get("target", ""))}</code>{li_s}'
+            f'<div style="font-size:11px;color:#9ca3af">{_esc(h.get("mode_name", ""))} '
+            f'· {_esc(h.get("rationale", ""))}</div></td></tr>'
+        )
+    return (
+        '<div class="gate-section" id="ablation-hints" '
+        'style="border-left-color:#9333ea">'
+        '<h2 style="color:#1e2030">What to Change First</h2>'
+        '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">The one prompt line '
+        'or config knob most implicated in each failure mode, ordered by how many '
+        'failures it touches. Localisation, not a rewrite.</p>'
+        '<table class="mtable"><thead><tr><th>Failures</th><th>Target</th>'
+        '<th>What / why</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></div>'
+    )
+
+
 def _build_failure_segments(tasks: list[Any] | None) -> str:
     """P30: cluster failing questions by lexical topic ("fails on multi-entity
     comparison questions") and pin each failure to the retrieved passage or tool
@@ -4440,6 +4473,7 @@ _TOC_LABELS = {
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
+    "ablation-hints": "Change first",
     "failure-explanations": "Wrong claims",
     "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
@@ -6166,6 +6200,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                 _insights_obj.get("eval_set_quality")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
+        _build_ablation_hints(_insights_obj.get("ablation_hints")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,
@@ -6424,6 +6459,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
                                 _insights_obj.get("eval_set_quality")),
         failure_cases_html,
         _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
+        _build_ablation_hints(_insights_obj.get("ablation_hints")),
         _build_failure_explanations(_insights_obj.get("failure_explanations")),
         _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
                                diagnosis=diag_result,

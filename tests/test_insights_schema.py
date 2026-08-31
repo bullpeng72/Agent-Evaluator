@@ -212,11 +212,17 @@ class TestBuildInsightsValidates:
             {"A": {"score": 0.5, "status": "fail", "gate": "fail", "details": {}}},
             tasks,
         )
+        rpt["extra_metrics"]["lineage"] = {
+            "prompt_text": "Answer using the retrieved context. "
+                           "Break the task into numbered steps."}
         ins = build_insights(rpt)
         self._check(schema, ins)
         ft = ins["failure_taxonomy"]
         assert ft is not None and ft["by_mode"]
         assert ft["dominant_mode"]["code"] in {m["code"] for m in ft["by_mode"]}
+        # P56 ablation_hints rides on the taxonomy
+        if ins.get("ablation_hints"):
+            assert ins["ablation_hints"][0]["n_tasks"] >= 2
 
     def test_reference_frame_section(self, schema):
         # P53 — external reference distribution

@@ -681,6 +681,20 @@ out dict `failure_triggers` 뒤 배선. 리포트 `_build_failure_taxonomy()` �
 `failure_taxonomy` + `failure_triggers[].taxonomy_code`. `test_failure_taxonomy_p55.py`(17) +
 `test_insights_schema.py` 시나리오. 예시 v3는 dominant "Retrieval miss" 5/12로 렌더. 전체 4701 통과.
 
+**SPEC-041 P56 (ablation 힌트)** — `readiness`는 "클러스터 X 고치면 TCR Y"까지만, "어느 프롬프트
+문장 / 어느 config knob이 가장 많은 실패에 연루됐나"는 없었다. `reporting/insights.py::
+_ablation_hints_section(tasks, current, failure_taxonomy)`(post-dict, `out.failure_taxonomy` 읽음) →
+`insights.ablation_hints[]{target_kind(prompt_line|config_knob), target(문장 또는 knob 이름),
+prompt_line_index, taxonomy_code, mode_name, n_tasks, rationale, example_task_ids}` (n 큰 순, 최대 8).
+P55 taxonomy의 `by_mode`(n≥2, owner prompt/config/infra)를 순회 — owner=prompt면
+`_MODE_PROMPT_HINTS` 키워드로 `lineage.prompt_text` 문장 중 최다 매치 문장을 지목(없으면 "no rule
+addressing it — add one"), owner=config/infra면 `_MODE_CONFIG_KNOB`(RETRIEVAL_MISS→top_k/re-ranker,
+RUNTIME_ERROR→FaultToleranceConfig+timeout, LOOP→LoopDetectionConfig, PREMATURE_STOP→SubtaskConfig
+등). baseline 불필요. P36 `_deterministic_proposal`(처방)과 달리 이건 *국소화*(전 클러스터 걸쳐
+"제일 먼저 건드릴 한 줄"). 리포트 `_build_ablation_hints()` 섹션 `ablation-hints`(failure-taxonomy 뒤):
+Failures / Target(PROMPT LINE·CONFIG 뱃지 + line N) / What·why 표. TOC "Change first". 스키마
+`ablation_hints`. `test_ablation_hints_p56.py`(8) + `test_insights_schema.py` 시나리오. 전체 4734 통과.
+
 **SPEC-041 P57 (개선 prior — run 간 학습)** — `.aoo/experiments.jsonl` + `recommendation_outcomes.jsonl`이
 쌓이기만 하고 종합이 없었다(`summarize_recommendation_outcomes`는 개수만, `recalibrated_delta`는
 단일 gate/field 2+표본 혼합). `rca/improvement_priors.py`(신규, 순수 카운팅, 랭킹 없음 —
