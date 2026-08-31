@@ -2898,6 +2898,53 @@ def _build_review_queue(tasks: list[Any] | None,
     )
 
 
+def _build_metric_signal(ms: dict[str, Any] | None) -> str:
+    """P46: which per-task metrics are redundant, and (with extra.outcome) which
+    actually predict the downstream result."""
+    if not ms or not ms.get("correlations"):
+        return ""
+    red = ms.get("redundant_pairs") or []
+    red_html = ""
+    if red:
+        rows = "".join(f'<li>{_esc(r.get("note", ""))}</li>' for r in red)
+        red_html = (
+            '<h3 style="margin:8px 0 4px">Redundant metrics</h3>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{rows}</ul>'
+        )
+    oc = ms.get("outcome_correlation") or []
+    oc_html = ""
+    if oc:
+        rows = ""
+        for d in oc:
+            _c = "#059669" if abs(d["r"]) >= 0.4 else (
+                "#d97706" if abs(d["r"]) >= 0.15 else "#dc2626")
+            rows += (
+                f'<tr><td>{_esc(d["metric"])}</td>'
+                f'<td style="text-align:right;color:{_c};font-weight:600">'
+                f'{d["r"]:+.2f}</td><td style="text-align:right">{d["n"]}</td></tr>'
+            )
+        oc_html = (
+            '<h3 style="margin:12px 0 4px">Predicts the recorded outcome '
+            '<span style="font-size:12px;color:#6b7280">(extra.outcome)</span></h3>'
+            '<table class="mtable"><thead><tr><th>Metric</th><th>r</th><th>N</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table>'
+        )
+    corr_rows = "".join(
+        f'<tr><td>{_esc(c["a"])} ↔ {_esc(c["b"])}</td>'
+        f'<td style="text-align:right">{c["r"]:+.2f}</td></tr>'
+        for c in sorted(ms["correlations"], key=lambda c: -abs(c["r"]))
+    )
+    return (
+        '<div class="gate-section" id="metric-signal" style="border-left-color:#0891b2">'
+        '<h2 style="color:#1e2030">Metric Signal</h2>'
+        f'<p style="color:#6b7280;font-size:13px;margin:0 0 6px">{_esc(ms.get("note", ""))}</p>'
+        f'{red_html}{oc_html}'
+        '<h3 style="margin:12px 0 4px">Pairwise correlation</h3>'
+        '<table class="mtable"><thead><tr><th>Pair</th><th>r</th></tr></thead>'
+        f'<tbody>{corr_rows}</tbody></table></div>'
+    )
+
+
 def _build_evaluator_reliability(tasks: list[Any] | None,
                                  current: dict[str, Any] | None) -> str:
     """P14: how much can the reader trust the numbers? Surfaces judge-vs-heuristic
@@ -4171,7 +4218,7 @@ _TOC_LABELS = {
     "advanced": "Advanced", "operational-signals": "Anomalies",
     "slice-analysis": "Slices", "metadata-slices": "Metadata slices",
     "sample-guidance": "Test next", "reproducibility": "Reproducibility",
-    "evaluator-reliability": "Evaluator trust",
+    "metric-signal": "Metric signal", "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "failure-cases": "Failures", "failure-explanations": "Wrong claims",
@@ -5723,6 +5770,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_slice_analysis(_tasks_list, baseline),
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
+        _build_metric_signal(_insights_obj.get("metric_signal")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),
@@ -5967,6 +6015,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_slice_analysis(_tasks_list, baseline),
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
+        _build_metric_signal(_insights_obj.get("metric_signal")),
         _build_evaluator_reliability(_tasks_list, current_dict),
         _build_review_queue(_tasks_list, current_dict, baseline),
         _build_security_findings(_ins_input),

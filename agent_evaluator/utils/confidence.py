@@ -212,6 +212,26 @@ def expected_calibration_error(
     return {"ece": round(ece, 4), "mce": round(mce, 4), "n": n, "bins": bins}
 
 
+def pearson_r(xs: Sequence[float], ys: Sequence[float]) -> float | None:
+    """Pearson correlation of two equal-length numeric sequences (stdlib).
+    ``None`` when < 3 pairs or either side has zero variance."""
+    pairs = [
+        (float(a), float(b)) for a, b in zip(xs, ys)
+        if a is not None and b is not None
+    ]
+    n = len(pairs)
+    if n < 3:
+        return None
+    mx = sum(a for a, _ in pairs) / n
+    my = sum(b for _, b in pairs) / n
+    sxx = sum((a - mx) ** 2 for a, _ in pairs)
+    syy = sum((b - my) ** 2 for _, b in pairs)
+    if sxx <= 0 or syy <= 0:
+        return None
+    sxy = sum((a - mx) * (b - my) for a, b in pairs)
+    return round(sxy / math.sqrt(sxx * syy), 4)
+
+
 def brier_score(pairs: Sequence[tuple[float, float]]) -> float | None:
     """Mean squared error of the confidences: ``Σ (conf − correct)² / N``.
     Lower is better; 0.25 is the coin-flip baseline for a balanced set."""

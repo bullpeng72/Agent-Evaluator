@@ -184,6 +184,19 @@
       }
     },
 
+    "metric_signal": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "metrics_analysed": { "type": "array", "items": { "type": "string" } },
+        "n_tasks": { "type": "integer" },
+        "correlations": { "type": "array" },
+        "redundant_pairs": { "type": "array" },
+        "outcome_correlation": { "type": ["array", "null"] },
+        "note": { "type": "string" }
+      }
+    },
+
     "evaluator_trust": {
       "type": ["object", "null"],
       "additionalProperties": true,

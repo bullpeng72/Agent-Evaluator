@@ -536,6 +536,18 @@ contamination 있으면 / thin_cell 상위 3개도 `coverage_warnings`에 문장
 PROMPT_V3에 `t_qa_2` 질문+정답을 few-shot으로 넣어 contamination 데모. `test_eval_set_gap_p45.py`(7).
 전체 4624 통과.
 
+**SPEC-041 P46 (지표 신호/중복 분석)** — `utils/confidence.py::pearson_r(xs, ys)`(stdlib, <3쌍 또는
+분산 0이면 None). `reporting/insights.py::_metric_signal_section(tasks)` → `insights.metric_signal`.
+per-task 지표 벡터 추출(`completion`·`accuracy`·`judge_overall`(/10)·`faithfulness`(/5)·
+`latency`(execution_time)·`tokens`(tokens_used.total), 각각 ≥5개 있어야 포함) → 모든 쌍 Pearson
+`correlations[]{a,b,r,n}` + `redundant_pairs[]`(|r|≥0.9 → "둘 중 하나만 추적해도 정보 손실 ≈0") +
+(opt-in `extra.outcome` 스칼라 ≥5개면) `outcome_correlation[]{metric,r,n}` |r| 내림차순 — "가장 잘
+예측하는 지표" + |r|<0.15인 지표는 "deprioritise". `note` 합성. 리포트 `_build_metric_signal()` 섹션
+`metric-signal`(evaluator-reliability 앞): Redundant metrics 리스트 + outcome 예측 표(|r|≥0.4 초록/
+0.15–0.4 주황/<0.15 빨강) + pairwise 상관 표. TOC "Metric signal". 스키마 `metric_signal`.
+gen_example_v2: rich 태스크에 `extra.outcome`(1–5 CSAT, accuracy 추종·latency 무관) 추가.
+`test_metric_signal_p46.py`(7). 전체 4631 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

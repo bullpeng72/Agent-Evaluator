@@ -758,6 +758,118 @@ _TRUST_DISAGREE_THRESHOLD = 0.40   # |judge_norm - accuracy| above this = a disa
 _TRUST_AGREE_BAND = 0.25           # within this = the pair "agrees"
 
 
+# ---------------------------------------------------------------------------
+# Metric signal / redundancy (P46) — not every metric is load-bearing for a
+# given agent. Correlate the per-task metrics: near-1 correlation means two
+# metrics measure the same thing (tracking both adds ~0 information). When a
+# task carries `extra.outcome` (a downstream signal — CSAT, thumbs, revenue),
+# report which metrics actually predict it so effort goes to the ones that move
+# the needle.
+# ---------------------------------------------------------------------------
+_MS_MIN_N = 5
+_MS_REDUNDANT = 0.90
+
+
+def _metric_signal_section(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    cols: dict[str, list[float | None]] = {
+        "completion": [], "accuracy": [], "judge_overall": [],
+        "faithfulness": [], "latency": [], "tokens": [],
+    }
+    outcomes: list[float | None] = []
+    for t in tasks:
+        cols["completion"].append(_safe_float(t.get("completion_score")))
+        cols["accuracy"].append(_safe_float(t.get("accuracy_score")))
+        j = t.get("llm_judge")
+        sc = j.get("scores") if isinstance(j, dict) else None
+        cols["judge_overall"].append(
+            (_safe_float((sc or {}).get("overall")) or 0.0) / 10.0
+            if isinstance(sc, dict) and sc.get("overall") is not None else None
+        )
+        cols["faithfulness"].append(
+            (_safe_float((sc or {}).get("faithfulness")) or 0.0) / 5.0
+            if isinstance(sc, dict) and sc.get("faithfulness") is not None else None
+        )
+        cols["latency"].append(_safe_float(t.get("execution_time")))
+        tu = t.get("tokens_used")
+        cols["tokens"].append(
+            _safe_float(tu.get("total")) if isinstance(tu, dict) else None
+        )
+        ex = _task_extra(t) or {}
+        ov = ex.get("outcome")
+        outcomes.append(float(ov) if isinstance(ov, (int, float)) and not isinstance(ov, bool)
+                        else None)
+
+    live = {
+        k: v for k, v in cols.items()
+        if sum(1 for x in v if x is not None) >= _MS_MIN_N
+    }
+    if len(live) < 2:
+        return None
+
+    try:
+        from agent_evaluator.utils.confidence import pearson_r
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+    names = sorted(live)
+    correlations: list[dict[str, Any]] = []
+    redundant: list[dict[str, Any]] = []
+    for i in range(len(names)):
+        for k in range(i + 1, len(names)):
+            a, b = names[i], names[k]
+            pairs = [
+                (x, y) for x, y in zip(live[a], live[b])
+                if x is not None and y is not None
+            ]
+            r = pearson_r([p[0] for p in pairs], [p[1] for p in pairs])
+            if r is None:
+                continue
+            correlations.append({"a": a, "b": b, "r": r, "n": len(pairs)})
+            if abs(r) >= _MS_REDUNDANT:
+                redundant.append({
+                    "pair": [a, b], "r": r,
+                    "note": (f"'{a}' and '{b}' correlate {r:+.2f} — tracking both "
+                             f"adds almost no information; keep one."),
+                })
+
+    outcome_corr: list[dict[str, Any]] = []
+    n_out = sum(1 for o in outcomes if o is not None)
+    if n_out >= _MS_MIN_N:
+        for k in names:
+            pairs = [
+                (x, o) for x, o in zip(live[k], outcomes)
+                if x is not None and o is not None
+            ]
+            r = pearson_r([p[0] for p in pairs], [p[1] for p in pairs])
+            if r is not None:
+                outcome_corr.append({"metric": k, "r": r, "n": len(pairs)})
+        outcome_corr.sort(key=lambda d: -abs(d["r"]))
+
+    note_bits = []
+    if redundant:
+        note_bits.append(
+            f"{len(redundant)} metric pair(s) are redundant (|r| ≥ 0.9)"
+        )
+    if outcome_corr:
+        top = outcome_corr[0]
+        weak = [d for d in outcome_corr if abs(d["r"]) < 0.15]
+        note_bits.append(
+            f"'{top['metric']}' best predicts the recorded outcome (r={top['r']:+.2f})"
+            + (f"; {', '.join(d['metric'] for d in weak)} barely move it — "
+               "deprioritise work on those" if weak else "")
+        )
+    return {
+        "metrics_analysed": names,
+        "n_tasks": len(tasks),
+        "correlations": correlations,
+        "redundant_pairs": redundant,
+        "outcome_correlation": outcome_corr or None,
+        "note": ". ".join(note_bits) or "No redundant metric pairs; no outcome "
+                                       "signal recorded (add extra.outcome to rank "
+                                       "metrics by what they predict).",
+    }
+
+
 def _evaluator_trust_section(
     tasks: list[dict[str, Any]], current: dict[str, Any],
 ) -> dict[str, Any] | None:
@@ -4830,6 +4942,7 @@ def build_insights(
         ),
         "metric_confidence": ci,
         "evaluator_trust": evaluator_trust,
+        "metric_signal": _safe(_metric_signal_section, tasks, default=None),
         "review_queue": _safe(
             _review_queue_section, tasks,
             evaluator_trust=evaluator_trust, failure_lineage=failure_lineage,
