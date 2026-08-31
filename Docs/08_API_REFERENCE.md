@@ -1,42 +1,42 @@
-# API 레퍼런스
+# API Reference
 
-Agent Evaluator v1.0.0-rc4 전체 API 문서
+Full API documentation for Agent Evaluator v1.0.0.
 
 ---
 
-## 버전 정보
+## Version info
 
-- **버전:** v1.0.0-rc4
+- **Version:** v1.0.0
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-08-27
+- **Last updated:** 2026-08-31
 
 ---
 
-## 목차
+## Table of Contents
 
-1. [빠른 시작 (4가지 패턴)](#1-빠른-시작)
-2. [핵심 클래스 API](#2-핵심-클래스-api)
-3. [데코레이터 API](#3-데코레이터-api)
+1. [Quick start (4 patterns)](#1-quick-start)
+2. [Core class API](#2-core-class-api)
+3. [Decorator API](#3-decorator-api)
 4. [EvalMetadata & get_eval_ctx()](#4-evalmetadata--get_eval_ctx)
-5. [컨텍스트 매니저 (evaluation_session)](#5-컨텍스트-매니저)
-6. [프레임워크 통합](#6-프레임워크-통합)
-7. [보안 API](#7-보안-api)
+5. [Context managers (evaluation_session)](#5-context-managers)
+6. [Framework integration](#6-framework-integration)
+7. [Security API](#7-security-api)
 8. [ConversationSession](#8-conversationsession)
 9. [LLMJudge](#9-llmjudge)
-10. [이상탐지 / 스트리밍 / 알림](#10-이상탐지--스트리밍--알림)
-11. [예외 클래스](#11-예외-클래스)
-12. [Layer 2 Agentic 트래커](#12-layer-2-agentic-트래커)
-13. [하이브리드 평가 (Layer 3)](#13-하이브리드-평가-layer-3)
-14. [RCA 진단 + 추천 이력 (agent_evaluator.rca / ontology)](#14-rca-진단--추천-이력-agent_evaluatorrca--ontology)
-15. [CLI 레퍼런스](#15-cli-레퍼런스)
+10. [Anomaly detection / streaming / alerts](#10-anomaly-detection--streaming--alerts)
+11. [Exception classes](#11-exception-classes)
+12. [Layer 2 Agentic trackers](#12-layer-2-agentic-trackers)
+13. [Hybrid evaluation (Layer 3)](#13-hybrid-evaluation-layer-3)
+14. [RCA diagnosis + recommendation history (agent_evaluator.rca / ontology)](#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology)
+15. [CLI reference](#15-cli-reference)
 
 ---
 
-## 1. 빠른 시작
+## 1. Quick start
 
-### 패턴 1 — @agent_eval 데코레이터 (권장)
+### Pattern 1 — @agent_eval decorator (recommended)
 
-가장 유연하고 세밀한 제어가 가능한 표준 방식입니다.
+The standard, most flexible style, with fine-grained control.
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
@@ -47,13 +47,13 @@ monitor = PerformanceMonitor(output_dir="results/")
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 호출 시 자동 기록
-agent("대한민국의 수도는?", ground_truth="서울")
+# Recorded automatically on each call
+agent("What is the capital of Korea?", ground_truth="Seoul")
 ```
 
-### 패턴 2 — @conversation_eval (멀티턴)
+### Pattern 2 — @conversation_eval (multi-turn)
 
-멀티턴 대화의 맥락 유지율을 자동으로 평가합니다.
+Automatically evaluates the context-retention rate of a multi-turn conversation.
 
 ```python
 from agent_evaluator import conversation_eval, flush_conversation
@@ -62,14 +62,14 @@ from agent_evaluator import conversation_eval, flush_conversation
 def chat(msg: str, sid: str):
     return chatbot.chat(msg)
 
-chat("안녕", sid="u1")
-chat("오늘 날씨는?", sid="u1")
+chat("Hi", sid="u1")
+chat("What's the weather today?", sid="u1")
 flush_conversation("u1")
 ```
 
-### 패턴 3 — @batch_eval (배치 일괄 처리)
+### Pattern 3 — @batch_eval (batch processing)
 
-질문 리스트를 한 번에 평가하고 결과를 자동으로 기록합니다.
+Evaluates a list of questions at once and records the results automatically.
 
 ```python
 from agent_evaluator.decorators import batch_eval
@@ -79,15 +79,15 @@ def qa_batch(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 
 qa_batch(
-    questions=["한국의 수도는?", "Python 창시자는?"],
-    ground_truths=["서울", "귀도 반 로섬"],
+    questions=["What is the capital of Korea?", "Who created Python?"],
+    ground_truths=["Seoul", "Guido van Rossum"],
 )
-# → 2개의 TaskResult가 monitor에 기록됨
+# → 2 TaskResults are recorded on the monitor
 ```
 
-### 패턴 4 — QuickEval (편의용 팩토리)
+### Pattern 4 — QuickEval (convenience factory)
 
-설정을 한 줄로 끝내고 싶을 때 사용합니다.
+Use it when you want to finish configuration in one line.
 
 ```python
 from agent_evaluator import QuickEval
@@ -99,89 +99,88 @@ def agent(q): ...
 
 ---
 
-## 2. 핵심 클래스 API
+## 2. Core class API
 
 ### PerformanceMonitor
 
-중앙 오케스트레이터. 모든 트래커를 내부에서 구성하고 평가 결과를 집계한다.
+The central orchestrator. Configures every tracker internally and aggregates the evaluation results.
 
 ```python
 from agent_evaluator import PerformanceMonitor
 
 monitor = PerformanceMonitor(
-    output_dir="results/",                # 저장 디렉토리 (기본: "results/")
-    enable_hallucination_detection=False, # Hallucination 탐지 활성화 (기본: False)
-    enable_security_metrics=False,        # 보안 지표 활성화 (기본: False)
-    auto_save=False,                      # N건마다 자동 저장 여부 (기본: False)
-    auto_save_interval=10,                # 자동 저장 주기 (기본: 10)
-    auto_save_filename="auto_save",       # 자동 저장 파일명
+    output_dir="results/",                # output directory (default: "results/")
+    enable_hallucination_detection=False, # enable hallucination detection (default: False)
+    enable_security_metrics=False,        # enable security metrics (default: False)
+    auto_save=False,                      # save automatically every N records (default: False)
+    auto_save_interval=10,                # auto-save interval (default: 10)
+    auto_save_filename="auto_save",       # auto-save filename
 )
 ```
 
-#### 주요 메서드
+#### Key methods
 
-| 메서드 | 반환값 | 설명 |
-|--------|--------|------|
-| `record_task(result)` | `self` | TaskResult 기록. 메서드 체이닝 지원 |
-| `generate_report()` | `EvaluationReport` | 누적 지표 기반 보고서 생성 |
-| `save_to_file(filename, baseline_path=None)` | `str` (저장된 JSON 경로) | JSON + HTML 파일 저장. `baseline_path` 지정 시 HTML의 Gate RCA 진단 섹션이 회귀 기반 감지로 동작 |
-| `register_gate(gate_id, compute_fn)` | `None` | 독립 커스텀 Gate 플러그인 등록 — `compute_fn(tasks, min_samples) -> dict` |
-| `compare_with_thresholds()` | `dict` | 임계값 대비 통과/실패 여부 (`monitor.thresholds = {...}`로 설정) |
-| `reset(keep_config=True)` | `None` | 누적 태스크 초기화 |
-| `snapshot()` | `dict` | 현재 상태 스냅샷 |
-| `compare_with_snapshot(snap)` | `dict` | 스냅샷과 현재 지표 비교 |
-| `restore_from_snapshot(snap)` | `None` | 스냅샷으로 복원 |
-| `clone()` | `PerformanceMonitor` | 설정 복제 (태스크 제외) |
-| `merge(other)` | `None` | 다른 모니터의 태스크 병합 |
-| `filter_tasks(**kwargs)` | `list` | 조건부 태스크 필터링 |
-| `aggregate_metrics(since, until, by)` | `dict` | 기간/기준별 지표 집계 |
-| `get_timeseries_metrics(metric, granularity)` | `list` | 시계열 지표 조회 |
-| `export_to_dataframe(include_fields)` | `DataFrame` | pandas DataFrame으로 내보내기 |
-| `export_to_wandb()` | `None` | Weights & Biases 내보내기 (requires wandb) |
-| `export_to_mlflow()` | `None` | MLflow 내보내기 (requires mlflow) |
-| `compare(other)` | `dict` | 다른 모니터와 지표 비교 |
-| `analyze()` | `dict` | 병목 분석 + 최적화 권고 |
-| `rehydrate_from_storage(path, limit=None)` *(v0.9.8+)* | `int` | SQLite(`storage_backend="sqlite"`) 이력을 `record_task()` 루프로 재생 — 프로세스 재시작 후에도 `AnomalyDetector` 기준선이 살아남게 한다. 반환값은 재생된 태스크 수 |
-| `agent_version` *(속성)* | `Optional[str]` | 읽기 전용 — 생성자에 넘긴 값의 최종 해석 결과(`"auto"`면 자동 태깅 결과, 리터럴 문자열이면 그대로, 미지정이면 `None`). setter 없음 |
-| `iteration_note` *(생성자 파라미터)* | `Optional[str]` | `agent_version="auto"`의 불투명한 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙인다. `extra_metrics.lineage.iteration_note`에 그대로 실림, 새 계산 없음. 대시보드 File Compare의 Metric Comparison 표에 `agent_version`과 나란히 렌더링된다. 생략(기본값 `None`)하면 회귀 없음 |
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `record_task(result)` | `self` | records a TaskResult. Supports method chaining |
+| `generate_report()` | `EvaluationReport` | produces a report from the accumulated metrics |
+| `save_to_file(filename, baseline_path=None)` | `str` (path of the saved JSON) | saves JSON + HTML files. With `baseline_path`, the HTML's Gate RCA diagnosis section works in regression-based mode |
+| `register_gate(gate_id, compute_fn)` | `None` | registers an independent custom Gate plugin — `compute_fn(tasks, min_samples) -> dict` |
+| `compare_with_thresholds()` | `dict` | pass/fail against thresholds (set via `monitor.thresholds = {...}`) |
+| `reset(keep_config=True)` | `None` | clears the accumulated tasks |
+| `snapshot()` | `dict` | snapshot of the current state |
+| `compare_with_snapshot(snap)` | `dict` | compares a snapshot against the current metrics |
+| `restore_from_snapshot(snap)` | `None` | restores from a snapshot |
+| `clone()` | `PerformanceMonitor` | clones the configuration (without tasks) |
+| `merge(other)` | `None` | merges another monitor's tasks |
+| `filter_tasks(**kwargs)` | `list` | conditional task filtering |
+| `aggregate_metrics(since, until, by)` | `dict` | aggregate metrics by period/criterion |
+| `get_timeseries_metrics(metric, granularity)` | `list` | query a time-series metric |
+| `export_to_dataframe(include_fields)` | `DataFrame` | export as a pandas DataFrame |
+| `export_to_wandb()` | `None` | export to Weights & Biases (requires wandb) |
+| `export_to_mlflow()` | `None` | export to MLflow (requires mlflow) |
+| `compare(other)` | `dict` | compare metrics against another monitor |
+| `analyze()` | `dict` | bottleneck analysis + optimization recommendations |
+| `rehydrate_from_storage(path, limit=None)` *(v0.9.8+)* | `int` | replays a SQLite (`storage_backend="sqlite"`) history through a `record_task()` loop — keeps the `AnomalyDetector` baseline alive across a process restart. Returns the number of replayed tasks |
+| `agent_version` *(property)* | `Optional[str]` | read-only — the resolved value passed to the constructor (`"auto"` → auto-tag result; a literal string → as is; unset → `None`). No setter |
+| `iteration_note` *(constructor parameter)* | `Optional[str]` | attaches a human-readable one-line note to the opaque dirty-hash tag of `agent_version="auto"`. Carried verbatim in `extra_metrics.lineage.iteration_note`, no new computation. Rendered alongside `agent_version` in the dashboard File Compare's Metric Comparison table. Omitting it (default `None`) causes no regression |
 
-> **`rehydrate_from_storage()` 사용 시 주의**: `enable_llm_judge`/`enable_hallucination_detection`/`enable_security_metrics`가 켜진 모니터로 재생하면 이미 채점된 과거 태스크가 **다시 채점**된다(LLM Judge라면 비용도 재발생). 과거 이력을 그대로 재현만 하려면 이 플래그들을 끈 모니터로 재생할 것.
+> **Caution with `rehydrate_from_storage()`**: replaying with a monitor that has `enable_llm_judge` / `enable_hallucination_detection` / `enable_security_metrics` on **re-scores** the already-scored past tasks (re-incurring cost for the LLM Judge). To reproduce the past history as is, replay with a monitor that has those flags off.
 
 ```python
-# 프로세스 시작 시 1회 — 이후 monitor.record_task(...)로 신규 트래픽 기록 시작
+# Once at process start — then start recording new traffic with monitor.record_task(...)
 monitor = PerformanceMonitor(output_dir="results/", enable_anomaly_detection=True)
 n = monitor.rehydrate_from_storage("results/production_sessions.db", limit=500)
 ```
 
-> **`agent_version="auto"`**: 현재 git 커밋 SHA 앞 8자로 자동 태깅한다.
-> 커밋되지 않은 tracked 파일 변경이 있으면(`git diff HEAD`) 그 diff를 해시해
-> `{commit8}-dirty-{hash6}` 형태로 접미사를 붙인다 — 커밋 없이 반복 실행하는 로컬
-> 개발 루프에서도 서로 다른 코드 상태가 자동으로 구분된다. git 정보가 없으면(비-git
-> 환경 등) 예외 없이 `None`으로 떨어진다.
+> **`agent_version="auto"`**: auto-tags with the first 8 chars of the current git commit SHA.
+> If there are uncommitted changes to tracked files (`git diff HEAD`), that diff is hashed and
+> appended as a `{commit8}-dirty-{hash6}` suffix — so different code states are distinguished
+> automatically even in a local dev loop that runs repeatedly without committing. If git info is
+> unavailable (a non-git environment, etc.), it falls back to `None` with no exception.
 >
 > ```python
 > monitor = PerformanceMonitor(output_dir="results/", agent_version="auto")
 > monitor.agent_version  # -> "a1b2c3d4" | "a1b2c3d4-dirty-f3a91c" | None
 > ```
 
-> **`iteration_note`**: 위 `-dirty-<hash>` 태그 자체는 의미를 담지
-> 않으므로, 어느 iteration이 무엇을 시도한 것인지 사람이 읽을 수 있는 메모를
-> 함께 남긴다.
+> **`iteration_note`**: the `-dirty-<hash>` tag itself carries no meaning, so leave a
+> human-readable note of what that iteration tried.
 >
 > ```python
 > monitor = PerformanceMonitor(
 >     output_dir="results/", agent_version="auto",
->     iteration_note="플랜 단계를 먼저 세우게 지시문 추가",
+>     iteration_note="added an instruction to plan the steps first",
 > )
 > ```
 
-#### 팩토리 classmethod
+#### Factory classmethods
 
 ```python
-# RAG 평가 최적 설정 (hallucination_detection 기본 활성)
+# Optimal settings for RAG evaluation (hallucination_detection on by default)
 monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 
-# 보안 에이전트 평가 최적 설정 (security_metrics 기본 활성)
+# Optimal settings for security-agent evaluation (security_metrics on by default)
 monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 ```
 
@@ -189,55 +188,55 @@ monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
 ### TaskResult
 
-단일 태스크 실행 결과를 담는 불변 데이터클래스 (`@dataclass(frozen=True)`).
+An immutable dataclass holding the result of a single task run (`@dataclass(frozen=True)`).
 
-#### 필수 필드 (11개)
+#### Required fields (11)
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `task_id` | `str` | 고유 태스크 식별자 |
-| `task_type` | `str \| TaskType` | 태스크 유형 (e.g. `"qa"`) |
-| `success` | `bool` | 성공 여부 |
-| `completion_score` | `float` | 완료 점수 (0.0–1.0) |
-| `accuracy_score` | `float` | 정확도 점수 (0.0–1.0) |
-| `execution_time` | `float` | 실행 시간 (초) |
-| `tokens_used` | `dict` | 토큰 사용량 `{"total": int, "input": int, "output": int}` |
-| `tool_calls` | `list` | 도구 호출 목록 |
-| `attempts` | `int` | 시도 횟수 |
-| `errors` | `list` | 발생한 오류 목록 |
-| `timestamp` | `datetime` | 기록 시각 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id` | `str` | unique task identifier |
+| `task_type` | `str \| TaskType` | task type (e.g. `"qa"`) |
+| `success` | `bool` | whether it succeeded |
+| `completion_score` | `float` | completion score (0.0–1.0) |
+| `accuracy_score` | `float` | accuracy score (0.0–1.0) |
+| `execution_time` | `float` | execution time (seconds) |
+| `tokens_used` | `dict` | token usage `{"total": int, "input": int, "output": int}` |
+| `tool_calls` | `list` | list of tool calls |
+| `attempts` | `int` | number of attempts |
+| `errors` | `list` | list of errors that occurred |
+| `timestamp` | `datetime` | time of recording |
 
-#### 선택 필드 (13개)
+#### Optional fields (13)
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `response` | `str \| None` | 에이전트 응답 텍스트 |
-| `question` | `str \| None` | 입력 질문 |
-| `ground_truth` | `str \| None` | 정답 |
-| `context` | `str \| None` | RAG 컨텍스트 |
-| `framework` | `str \| None` | 사용 프레임워크 (e.g. `"langchain"`) |
-| `model_name` | `str \| None` | 사용 모델명 |
-| `task_name` | `str \| None` | 태스크 이름 (선택 레이블) |
-| `has_error` | `bool` | 오류 발생 여부 |
-| `partial_reason` | `str \| None` | 부분 완료 이유 |
-| `extra` | `dict` | 추가 메타데이터 |
-| `agent_interactions` | `list` | 멀티 에이전트 교환 목록 |
-| `chain_steps` | `list` | 체인 실행 단계 목록 |
-| `expected_tools` | `list` | 기대 도구 목록 (F1 계산용) |
+| Field | Type | Description |
+|-------|------|-------------|
+| `response` | `str \| None` | agent response text |
+| `question` | `str \| None` | input question |
+| `ground_truth` | `str \| None` | reference answer |
+| `context` | `str \| None` | RAG context |
+| `framework` | `str \| None` | framework used (e.g. `"langchain"`) |
+| `model_name` | `str \| None` | model used |
+| `task_name` | `str \| None` | task name (optional label) |
+| `has_error` | `bool` | whether an error occurred |
+| `partial_reason` | `str \| None` | reason for partial completion |
+| `extra` | `dict` | extra metadata |
+| `agent_interactions` | `list` | list of multi-agent exchanges |
+| `chain_steps` | `list` | list of chain execution steps |
+| `expected_tools` | `list` | expected-tool list (for F1) |
 
-#### 권장 생성 방법 — create_taskresult() 헬퍼
+#### Recommended creation — the create_taskresult() helper
 
 ```python
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
     task_id="task_001",
-    question="한국의 수도는?",
-    response="서울입니다.",
-    ground_truth="서울",
+    question="What is the capital of Korea?",
+    response="It is Seoul.",
+    ground_truth="Seoul",
     execution_time=1.23,
     task_type="qa",
-    # 선택
+    # optional
     tokens_used={"total": 150, "input": 50, "output": 100},
     tool_calls=[],
     context=None,
@@ -246,13 +245,13 @@ result = create_taskresult(
 )
 ```
 
-`create_taskresult()`는 `accuracy_score`와 `completion_score`를 자동 계산한다. `success`, `attempts`, `errors`, `timestamp` 필드도 기본값이 자동 설정된다.
+`create_taskresult()` computes `accuracy_score` and `completion_score` automatically. The `success`, `attempts`, `errors`, and `timestamp` fields are also given automatic defaults.
 
-#### 직렬화 / 역직렬화
+#### Serialization / deserialization
 
 ```python
 d = result.to_dict()
-result2 = TaskResult.from_dict(d)       # ISO-8601 timestamp 자동 변환
+result2 = TaskResult.from_dict(d)       # ISO-8601 timestamp converted automatically
 result3 = TaskResult.from_json(json_str)
 ```
 
@@ -260,26 +259,26 @@ result3 = TaskResult.from_json(json_str)
 
 ### EvaluationReport
 
-`generate_report()`가 반환하는 불변 보고서 객체.
+The immutable report object returned by `generate_report()`.
 
 ```python
 report = monitor.generate_report()
 
-# 주요 속성
+# Key properties
 report.task_completion_rate     # float (0–100)
 report.overall_accuracy         # float (0–100)
-report.average_latency          # float (초)
+report.average_latency          # float (seconds)
 report.total_tasks              # int
 report.successful_tasks         # int
-report.hallucination_rate       # float | None (enable_hallucination_detection=True 시)
-report.security_incidents       # dict | None (enable_security_metrics=True 시)
+report.hallucination_rate       # float | None (when enable_hallucination_detection=True)
+report.security_incidents       # dict | None (when enable_security_metrics=True)
 
-# 직렬화 / 역직렬화
+# Serialization / deserialization
 d = report.to_dict()
 report2 = EvaluationReport.from_dict(d)
 report3 = EvaluationReport.from_json(json_str)
 
-# 동등 비교 (timestamp 제외 의미론적 비교)
+# Equality (semantic comparison excluding timestamp)
 assert report == report2
 ```
 
@@ -302,45 +301,45 @@ TaskType.PLANNING              # "planning"
 TaskType.TOOL_USE              # "tool_use"
 ```
 
-`task_type` 파라미터는 Enum과 문자열 혼용을 지원한다 (`TaskType.QA` == `"qa"`).
+The `task_type` parameter accepts an Enum or a string interchangeably (`TaskType.QA` == `"qa"`).
 
 ---
 
-## 3. 데코레이터 API
+## 3. Decorator API
 
 ### agent_eval
 
-가장 유연한 단일 함수 평가 데코레이터. 함수 실행 결과를 자동으로 TaskResult로 변환하여 monitor에 기록한다.
+The most flexible single-function evaluation decorator. Converts the function's result into a TaskResult automatically and records it on the monitor.
 
 ```python
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
-    task_type="qa",                  # 필수. TaskType Enum 또는 문자열
-    question_arg="question",         # 질문 파라미터 이름 (기본: "question")
-    ground_truth_arg="ground_truth", # 정답 파라미터 이름 (기본: "ground_truth")
-    context_arg=None,                # RAG 컨텍스트 파라미터 이름
-    framework=None,                  # "langchain"|"openai"|"anthropic"|... 24개
-    model_name=None,                 # 모델명
-    task_id_prefix=None,             # task_id 접두사
-    enabled=True,                    # 데코레이터 활성화 여부
-    rag_mode=False,                  # context_arg + hallucination + IR 자동 설정
-    security=None,                   # 보안 지표 임시 활성 (SecurityConfig())
-    llm_judge=None,                  # LLM Judge 설정 (LLMJudgeConfig(model=..., criteria=[...]))
-    enable_anomaly_detection=False,  # 이상 탐지 임시 활성
-    enable_hallucination_detection=False,  # Hallucination 탐지 임시 활성
-    alert_rules=[],                  # SimpleTaskAlertRule 목록
-    flush_every=0,                   # N 호출마다 save_to_file() 자동 실행 (0=비활성)
-    retry=None,                      # 재시도 설정 (RetryConfig(max=N, delay=X, backoff=Y))
-    on_record=None,                  # TaskResult 후처리 콜백 (TaskResult → TaskResult)
-    sample_rate=1.0,                 # 샘플링 비율 (0.0–1.0)
+    task_type="qa",                  # required. TaskType Enum or string
+    question_arg="question",         # name of the question parameter (default: "question")
+    ground_truth_arg="ground_truth", # name of the reference-answer parameter (default: "ground_truth")
+    context_arg=None,                # name of the RAG context parameter
+    framework=None,                  # "langchain"|"openai"|"anthropic"|... (24)
+    model_name=None,                 # model name
+    task_id_prefix=None,             # task_id prefix
+    enabled=True,                    # whether the decorator is enabled
+    rag_mode=False,                  # auto-sets context_arg + hallucination + IR
+    security=None,                   # temporarily enable security metrics (SecurityConfig())
+    llm_judge=None,                  # LLM Judge settings (LLMJudgeConfig(model=..., criteria=[...]))
+    enable_anomaly_detection=False,  # temporarily enable anomaly detection
+    enable_hallucination_detection=False,  # temporarily enable hallucination detection
+    alert_rules=[],                  # list of SimpleTaskAlertRule
+    flush_every=0,                   # auto-run save_to_file() every N calls (0 = disabled)
+    retry=None,                      # retry settings (RetryConfig(max=N, delay=X, backoff=Y))
+    on_record=None,                  # TaskResult post-processing callback (TaskResult → TaskResult)
+    sample_rate=1.0,                 # sampling rate (0.0–1.0)
 )
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
-`rag_mode=True` 단축 예시:
+`rag_mode=True` shortcut example:
 
 ```python
 @agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
@@ -352,25 +351,25 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 ### QuickEval
 
-`PerformanceMonitor` + `EvalDecorator`를 1줄로 시작하는 원스톱 Facade.
+A one-stop facade that starts `PerformanceMonitor` + `EvalDecorator` in one line.
 
 ```python
 from agent_evaluator import QuickEval
 
-# 기본 생성
+# Basic
 eval = QuickEval("results/")
 
-# 팩토리 메서드
+# Factory methods
 eval = QuickEval.for_rag("results/")
 eval = QuickEval.for_security("results/")
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 eval = QuickEval.for_regression_eval("results/", baseline_file="baseline.json")
 
-# YAML 설정 파일에서 로드
+# Load from a YAML config file
 eval = QuickEval.from_config("eval_config.yaml")
 ```
 
-#### 단축 데코레이터 (property)
+#### Shortcut decorators (properties)
 
 ```python
 @eval.qa           # task_type="qa"
@@ -381,14 +380,14 @@ eval = QuickEval.from_config("eval_config.yaml")
 @eval.planning     # task_type="planning"
 @eval.data_analysis  # task_type="data_analysis"
 @eval.creative     # task_type="creative"
-@eval.chat         # task_type="qa" (대화형)
-@eval.multi_agent  # task_type="tool_use" + 멀티 에이전트 설정
+@eval.chat         # task_type="qa" (conversational)
+@eval.multi_agent  # task_type="tool_use" + multi-agent settings
 @eval.security     # security=SecurityConfig()
 def agent(question: str, ground_truth: str = "") -> str:
     ...
 ```
 
-직접 호출 (커스텀 파라미터):
+Direct call (custom parameters):
 
 ```python
 @eval(task_type="qa", framework="anthropic", flush_every=10)
@@ -396,32 +395,32 @@ def agent(question: str, ground_truth: str = "") -> str:
     ...
 ```
 
-#### 주요 메서드
+#### Key methods
 
-| 메서드 | 설명 |
-|--------|------|
-| `save()` | `quickeval.json` + `quickeval.html` 저장 |
-| `gate(tcr=None, accuracy=None, quality=None, hallucination=None)` | 임계값 미달 시 `sys.exit(1)` |
-| `summary()` | dict — `task_completion_rate`, `overall_accuracy`, `p95_latency`, `total_cost_usd`, `hallucination_rate` 등 |
-| `compare(other)` | 두 QuickEval 인스턴스의 지표 비교 |
-| `ab_test(other)` | A/B 비교 + t-검정 p-value (scipy 필요) |
-| `generate_gate_config(filepath)` | 현재 지표 기반 95% 임계값 자동 제안 → JSON 저장 |
-| `export_to_dataframe()` | pandas DataFrame 내보내기 |
-| `replay(results_file)` | 기존 JSON 결과 재로딩 |
-| `watch(directory, callback)` | 디렉토리 감시 + 신규 JSON 자동 replay |
+| Method | Description |
+|--------|-------------|
+| `save()` | saves `quickeval.json` + `quickeval.html` |
+| `gate(tcr=None, accuracy=None, quality=None, hallucination=None)` | `sys.exit(1)` if a threshold is missed |
+| `summary()` | dict — `task_completion_rate`, `overall_accuracy`, `p95_latency`, `total_cost_usd`, `hallucination_rate`, etc. |
+| `compare(other)` | compares the metrics of two QuickEval instances |
+| `ab_test(other)` | A/B comparison + t-test p-value (requires scipy) |
+| `generate_gate_config(filepath)` | auto-suggests 95% thresholds from the current metrics → saves JSON |
+| `export_to_dataframe()` | export as a pandas DataFrame |
+| `replay(results_file)` | reloads existing JSON results |
+| `watch(directory, callback)` | watches a directory + auto-replays new JSON |
 
-#### auto_save 옵션
+#### auto_save option
 
 ```python
 eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
-# 10건 기록마다 save_to_file() 자동 호출
+# save_to_file() is called automatically every 10 records
 ```
 
 ---
 
 ### batch_eval
 
-리스트 입력을 받아 일괄 처리하는 데코레이터. `questions[i]` / `ground_truths[i]` / `responses[i]`를 묶어 각각 독립된 `TaskResult`로 기록한다.
+A decorator that takes list inputs and processes them in bulk. It zips `questions[i]` / `ground_truths[i]` / `responses[i]` and records each as an independent `TaskResult`.
 
 ```python
 from agent_evaluator.decorators import batch_eval
@@ -429,44 +428,44 @@ from agent_evaluator.decorators import batch_eval
 @batch_eval(
     monitor,
     task_type="qa",
-    # ── 입출력 파라미터 이름 ──────────────────────────────────
-    questions_arg="questions",        # 질문 리스트 파라미터 이름 (기본: "questions")
-    ground_truths_arg="ground_truths",# 정답 리스트 파라미터 이름 (기본: "ground_truths")
-    contexts_arg=None,                # RAG context 리스트 파라미터 이름 (RAG 평가 시)
-    expected_tools_arg=None,          # expected_tools 리스트 파라미터 이름 (Tool F1 계산 시)
-    # ── task_id 생성 ─────────────────────────────────────────
-    task_id_prefix="batch",           # 자동 생성 task_id 접두어 → {prefix}_{uuid8}_{i:03d}
-    task_id_fn=None,                  # 커스텀 task_id 생성 함수 (index, question, gt) -> str
-    # ── 프레임워크 / 모델 ────────────────────────────────────
-    framework="native",               # 프레임워크 식별자 (24개 지원)
-    model_name="",                    # LLM 모델명
-    # ── 채점 커스텀 ─────────────────────────────────────────
-    score_fn=None,                    # 커스텀 accuracy 함수 (response, gt) -> float
-    completion_fn=None,               # 커스텀 completion 함수
-    # ── 콜백 ────────────────────────────────────────────────
-    on_record=None,                   # 항목별 기록 후 콜백 (task_result) -> None
-    on_error=None,                    # 배치 함수 예외 발생 시 콜백
-    on_batch_complete=None,           # 배치 전체 완료 후 콜백 (results_list) -> None
-    on_batch_progress=None,           # 항목별 진행 콜백 (i, total) -> None
-    on_item_error=None,               # 항목별 오류 콜백 (exc, index, question) -> None
-    # ── 실행 제어 ────────────────────────────────────────────
-    concurrency=0,                    # >0이면 항목별 병렬 실행 (ThreadPool/asyncio.gather)
-    item_timeout=None,                # 항목별 타임아웃 (초)
-    timeout=None,                     # 배치 전체 타임아웃 (초)
-    sample_rate=1.0,                  # 평가 실행 비율 (0.0–1.0)
-    enabled=True,                     # False이면 데코레이터 우회
-    # ── 저장 / 출력 ─────────────────────────────────────────
+    # ── input/output parameter names ─────────────────────────
+    questions_arg="questions",        # name of the questions-list parameter (default: "questions")
+    ground_truths_arg="ground_truths",# name of the reference-answers-list parameter (default: "ground_truths")
+    contexts_arg=None,                # name of the RAG contexts-list parameter (for RAG evaluation)
+    expected_tools_arg=None,          # name of the expected_tools-list parameter (for Tool F1)
+    # ── task_id generation ───────────────────────────────────
+    task_id_prefix="batch",           # prefix for auto-generated task_id → {prefix}_{uuid8}_{i:03d}
+    task_id_fn=None,                  # custom task_id generator (index, question, gt) -> str
+    # ── framework / model ────────────────────────────────────
+    framework="native",               # framework identifier (24 supported)
+    model_name="",                    # LLM model name
+    # ── custom scoring ───────────────────────────────────────
+    score_fn=None,                    # custom accuracy function (response, gt) -> float
+    completion_fn=None,               # custom completion function
+    # ── callbacks ────────────────────────────────────────────
+    on_record=None,                   # per-item post-record callback (task_result) -> None
+    on_error=None,                    # callback when the batch function raises
+    on_batch_complete=None,           # callback after the whole batch (results_list) -> None
+    on_batch_progress=None,           # per-item progress callback (i, total) -> None
+    on_item_error=None,               # per-item error callback (exc, index, question) -> None
+    # ── execution control ────────────────────────────────────
+    concurrency=0,                    # >0 → run items in parallel (ThreadPool / asyncio.gather)
+    item_timeout=None,                # per-item timeout (seconds)
+    timeout=None,                     # whole-batch timeout (seconds)
+    sample_rate=1.0,                  # fraction to evaluate (0.0–1.0)
+    enabled=True,                     # if False, bypass the decorator
+    # ── save / output ────────────────────────────────────────
     return_format="list",             # "list" | "dataframe"
-    flush_every=None,                 # N 배치 호출마다 save_to_file() 자동 실행
-    alert_rules=None,                 # SimpleTaskAlertRule 목록
+    flush_every=None,                 # auto-run save_to_file() every N batch calls
+    alert_rules=None,                 # list of SimpleTaskAlertRule
     preset=None,                      # "production"|"development"|"testing"|"canary"
-    # ── 선택적 평가 활성화 ───────────────────────────────────
+    # ── optional evaluation activation ───────────────────────
     enable_hallucination_detection=False,
     enable_anomaly_detection=False,
-    security=None,                    # SecurityConfig() — 보안 지표 임시 활성
+    security=None,                    # SecurityConfig() — temporarily enable security metrics
     llm_judge=None,                   # LLMJudgeConfig(model=..., criteria=[...])
-    custom_parser=None,               # 응답 파싱 커스텀 함수
-    # ── Harness Config (33개 모두 지원) ─────────────────────
+    custom_parser=None,               # custom response-parsing function
+    # ── Harness Config (all 33 supported) ────────────────────
     # instructions=InstructionConfig(...), sla=SLAConfig(...), ...
 )
 def batch_agent(questions: list, ground_truths: list = None) -> list:
@@ -475,12 +474,12 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 results = batch_agent(questions, ground_truths=gts)
 ```
 
-`return_format="dataframe"` 시 DataFrame에는 `tokens_total`, `tokens_input`, `tokens_output`, `framework`, `tool_call_count`, `has_error`, `attempts`, `timestamp` 컬럼이 포함된다.
+With `return_format="dataframe"`, the DataFrame includes the columns `tokens_total`, `tokens_input`, `tokens_output`, `framework`, `tool_call_count`, `has_error`, `attempts`, `timestamp`.
 
-#### 주요 사용 예시
+#### Common usage examples
 
 ```python
-# RAG 배치 평가
+# RAG batch evaluation
 @batch_eval(
     monitor, task_type="information_retrieval",
     contexts_arg="contexts",
@@ -490,12 +489,12 @@ def rag_batch(questions, contexts=None, ground_truths=None):
     return [rag_chain.invoke({"question": q, "context": c})
             for q, c in zip(questions, contexts)]
 
-# 병렬 실행 (concurrency=4 → ThreadPool 4개)
+# Parallel execution (concurrency=4 → a 4-thread ThreadPool)
 @batch_eval(monitor, task_type="qa", concurrency=4, item_timeout=10.0)
 def fast_batch(questions, ground_truths=None):
     return [llm.invoke(q) for q in questions]
 
-# LLM Judge + 배치 저장
+# LLM Judge + batch save
 @batch_eval(
     monitor, task_type="qa",
     llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001"),
@@ -509,7 +508,7 @@ def judged_batch(questions, ground_truths=None):
 
 ### eval_context
 
-컨텍스트 매니저 형태의 평가 데코레이터. 외부 함수나 복잡한 흐름에 적합하다.
+A context-manager-form evaluation decorator. Suited to external functions or complex flows.
 
 ```python
 from agent_evaluator.decorators import eval_context
@@ -517,49 +516,49 @@ from agent_evaluator.decorators import eval_context
 with eval_context(
     monitor,
     task_type="qa",
-    question="한국의 수도는?",
-    ground_truth="서울",
-    timeout=30.0,            # 타임아웃 (초)
-    auto_task_id=True,       # task_id 자동 생성
+    question="What is the capital of Korea?",
+    ground_truth="Seoul",
+    timeout=30.0,            # timeout (seconds)
+    auto_task_id=True,       # auto-generate task_id
 ) as ctx:
     ctx.response = external_agent(ctx.question)
     ctx.tokens_used = {"total": 100, "input": 30, "output": 70}
     ctx.tool_calls = [{"tool_name": "search", "success": True}]
-    ctx.chunk_step("retrieval", success=True)  # 스트리밍 청크 단계 기록
+    ctx.chunk_step("retrieval", success=True)  # record a streaming-chunk step
 ```
 
-`ctx.depth`로 중첩 깊이를 조회할 수 있다. 최대 중첩 깊이는 `eval_context.MAX_NESTING_DEPTH`로 제한된다.
+`ctx.depth` reports the nesting depth. The maximum nesting depth is limited by `eval_context.MAX_NESTING_DEPTH`.
 
 ---
 
 ### conversation_eval
 
-멀티턴 대화 평가 데코레이터.
+The multi-turn conversation evaluation decorator.
 
 ```python
 from agent_evaluator.decorators import conversation_eval
 
 @conversation_eval(
     monitor,
-    session_id_arg="session_id",             # session_id 파라미터 이름
+    session_id_arg="session_id",             # name of the session_id parameter
     max_turns_exceeded_action="flush",       # "flush"|"warn"|"error"
     flush_every=0,
-    on_session_timeout=None,                 # 세션 타임아웃 콜백
-    on_turn=None,                            # 턴별 콜백 (session_id, user, response, metadata)
-    session_score_fn=None,                   # 세션 점수 함수 override
-    turn_score_fn=None,                      # 턴별 점수 함수 override
+    on_session_timeout=None,                 # session-timeout callback
+    on_turn=None,                            # per-turn callback (session_id, user, response, metadata)
+    session_score_fn=None,                   # session-score function override
+    turn_score_fn=None,                      # per-turn score function override
 )
 def chat_agent(message: str, session_id: str = "s1") -> str:
     return chat_model.invoke(message)
 ```
 
-비동기 제너레이터도 지원된다.
+Async generators are supported too.
 
 ---
 
-### EvalDecorator (인스턴스 모드)
+### EvalDecorator (instance mode)
 
-`QuickEval` 내부에서 사용하는 클래스. 직접 사용 시:
+The class used internally by `QuickEval`. To use it directly:
 
 ```python
 from agent_evaluator.decorators import EvalDecorator
@@ -581,11 +580,11 @@ decorator = EvalDecorator(
 def agent(question: str, ground_truth: str = "") -> str:
     ...
 
-# batch 및 context 모드
+# batch and context modes
 @decorator.batch(shuffle=True)
 def batch_fn(questions, ground_truths=None): ...
 
-with decorator.context("qa", question="질문") as ctx:
+with decorator.context("qa", question="question") as ctx:
     ctx.response = external_fn(ctx.question)
 ```
 
@@ -593,9 +592,9 @@ with decorator.context("qa", question="질문") as ctx:
 
 ## 4. EvalMetadata & get_eval_ctx()
 
-데코레이터 내부 함수에서 평가 메타데이터를 주입하는 두 가지 방법.
+Two ways to inject evaluation metadata from inside the decorated function.
 
-### 방법 A — get_eval_ctx() (컨텍스트 주입)
+### Method A — get_eval_ctx() (context injection)
 
 ```python
 from agent_evaluator.decorators import agent_eval, get_eval_ctx
@@ -615,9 +614,9 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
     return "answer"
 ```
 
-`get_eval_ctx()`는 데코레이터 실행 스택 외부에서 호출하면 `None`을 반환한다.
+`get_eval_ctx()` returns `None` when called outside the decorator's execution stack.
 
-### 방법 B — EvalMetadata 튜플 반환
+### Method B — return an EvalMetadata tuple
 
 ```python
 from agent_evaluator.decorators import agent_eval, EvalMetadata
@@ -635,16 +634,16 @@ def agent(question: str, ground_truth: str = "") -> tuple:
     return "answer", meta
 ```
 
-데코레이터는 반환값이 `(str, EvalMetadata)` 튜플임을 감지하면 자동으로 분리한다.
+When the decorator detects that the return value is a `(str, EvalMetadata)` tuple, it splits it automatically.
 
 ---
 
-## 5. 컨텍스트 매니저
+## 5. Context managers
 
-`evaluation_session` / `async_evaluation_session`은 세션 단위 자동 저장을 제공합니다.
-세션 블록 종료 시 (예외 발생 시에도) `results/*.json + .html`을 자동 저장합니다.
+`evaluation_session` / `async_evaluation_session` provide automatic per-session saving.
+On exit from the session block (even on an exception) they save `results/*.json + .html` automatically.
 
-### 권장 — @agent_eval 데코레이터와 함께
+### Recommended — with the @agent_eval decorator
 
 ```python
 from agent_evaluator import PerformanceMonitor, evaluation_session
@@ -658,11 +657,11 @@ with evaluation_session("output_filename") as monitor:
 
     for q, gt in dataset:
         my_agent(q, ground_truth=gt)
-# 세션 종료 시 results/output_filename.json + .html 자동 저장
-# 예외 발생 시에도 안전하게 저장됨
+# On session exit, results/output_filename.json + .html are saved automatically
+# It is saved safely even on an exception
 ```
 
-### 탈출구 — eval_context (데코레이터 불가 시)
+### Escape hatch — eval_context (when a decorator cannot be used)
 
 ```python
 from agent_evaluator import evaluation_session
@@ -675,7 +674,7 @@ with evaluation_session("output_filename") as monitor:
             ctx.response = external_agent.run(q)
 ```
 
-### 저수준 — create_taskresult() 직접 사용
+### Low-level — using create_taskresult() directly
 
 ```python
 from agent_evaluator import evaluation_session, create_taskresult
@@ -693,7 +692,7 @@ with evaluation_session("output_filename") as monitor:
         monitor.record_task(result)
 ```
 
-### async_evaluation_session (비동기)
+### async_evaluation_session (async)
 
 ```python
 from agent_evaluator import async_evaluation_session
@@ -718,11 +717,11 @@ async with hybrid_evaluation_session("hybrid_eval") as monitor:
 
 ---
 
-## 6. 프레임워크 통합
+## 6. Framework integration
 
-24개 프레임워크에 대해 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used`, `state_transitions` 등을 자동 추출한다.
+For 24 frameworks, `tool_calls`, `chain_steps`, `tokens_used`, `state_transitions`, etc. are extracted automatically from the response object.
 
-### framework= 파라미터
+### The framework= parameter
 
 ```python
 from agent_evaluator.decorators import agent_eval
@@ -749,25 +748,25 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
     )
 ```
 
-#### 지원 프레임워크 (24개)
+#### Supported frameworks (24)
 
-| 그룹 | 프레임워크 |
-|------|-----------|
+| Group | Frameworks |
+|-------|------------|
 | LLM SDK | `anthropic`, `openai`, `gemini`, `cohere`, `groq`, `mistral`, `ollama`, `vllm`, `huggingface` |
-| 오케스트레이션 | `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`, `smolagents`, `semantic_kernel` |
-| 클라우드 | `vertexai`, `bedrock` |
-| 검색/RAG | `llamaindex`, `haystack` |
-| 공식 에이전트 SDK | `openai_agents`, `google_adk`, `claude_agent_sdk` (자동 감지 미지원 — `framework=` 명시 필요) |
+| Orchestration | `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`, `smolagents`, `semantic_kernel` |
+| Cloud | `vertexai`, `bedrock` |
+| Search/RAG | `llamaindex`, `haystack` |
+| Official agent SDKs | `openai_agents`, `google_adk`, `claude_agent_sdk` (auto-detection not supported — specify `framework=`) |
 
-자동 감지 (`auto_detect_framework=True` 기본 활성):
+Auto-detection (`auto_detect_framework=True` is on by default):
 
 ```python
-@agent_eval(monitor, task_type="qa")  # framework= 생략 시 응답 속성으로 자동 감지
+@agent_eval(monitor, task_type="qa")  # omit framework= → auto-detected from the response's attributes
 def agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.completions.create(...)  # openai 자동 감지
+    return client.chat.completions.create(...)  # openai auto-detected
 ```
 
-### 프레임워크 전용 데코레이터
+### Framework-specific decorators
 
 ```python
 from agent_evaluator.integrations import (
@@ -784,7 +783,7 @@ def lc_agent(question: str, ground_truth: str = "") -> str:
     return chain.invoke({"input": question})
 ```
 
-### 프레임워크 메타데이터 조회
+### Querying framework metadata
 
 ```python
 from agent_evaluator.decorators import get_framework_info
@@ -795,19 +794,19 @@ info = get_framework_info("langchain")
 
 ---
 
-## 7. 보안 API
+## 7. Security API
 
-보안 지표는 기본적으로 비활성화되어 있다 (`enable_security_metrics=False`). 활성화 방법은 세 가지다.
+Security metrics are disabled by default (`enable_security_metrics=False`). There are three ways to enable them.
 
-### 방법 1 — PerformanceMonitor 영구 활성
+### Method 1 — enable permanently on PerformanceMonitor
 
 ```python
 monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
-# 또는
+# or
 monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 ```
 
-### 방법 2 — SecurityConfig 임시 활성 (데코레이터)
+### Method 2 — enable temporarily via SecurityConfig (decorator)
 
 ```python
 from agent_evaluator.decorators import agent_eval, SecurityConfig
@@ -815,10 +814,10 @@ from agent_evaluator.decorators import agent_eval, SecurityConfig
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
-# 함수 종료 후 monitor의 security 설정을 원래 값으로 복원
+# the monitor's security setting is restored to its original value after the function returns
 ```
 
-### 방법 3 — 독립 사용
+### Method 3 — standalone use
 
 ```python
 from agent_evaluator.helpers.taskresult_helpers import (
@@ -826,83 +825,83 @@ from agent_evaluator.helpers.taskresult_helpers import (
     check_output_leakage,
 )
 
-# 입력 보안 검증
+# Input-security validation
 result = validate_input_security(user_input)
-# 반환: {"is_safe": bool, "threats": list, "risk_level": "low"|"medium"|"high"}
+# returns: {"is_safe": bool, "threats": list, "risk_level": "low"|"medium"|"high"}
 
-# 출력 유출 탐지
+# Output-leakage detection
 result = check_output_leakage(agent_output)
-# 반환: {"has_leakage": bool, "leaked_types": list}
+# returns: {"has_leakage": bool, "leaked_types": list}
 ```
 
-### 탐지 패턴
+### Detection patterns
 
-`InputSanitizationTracker`가 탐지하는 위협 유형:
+Threat types detected by `InputSanitizationTracker`:
 
-| 유형 | 설명 |
-|------|------|
-| `sql_injection` | SQL 주입 시도 |
-| `command_injection` | 시스템 명령 주입 |
-| `path_traversal` | 디렉토리 탐색 공격 |
-| `xss` | 크로스 사이트 스크립팅 |
-| `prompt_injection` | 프롬프트 주입 |
+| Type | Description |
+|------|-------------|
+| `sql_injection` | SQL injection attempt |
+| `command_injection` | system-command injection |
+| `path_traversal` | directory-traversal attack |
+| `xss` | cross-site scripting |
+| `prompt_injection` | prompt injection |
 
-### 5개 보안 트래커
+### The 5 security trackers
 
-| 클래스 | 탐지 대상 |
-|--------|----------|
-| `InputSanitizationTracker` | 입력 주입 공격 5종 |
-| `OutputLeakageDetector` | API 키, 비밀번호, 파일 경로 등 민감 정보 유출 |
-| `ToolAuthorizationTracker` | 미승인 도구 호출 |
-| `PrivilegeEscalationDetector` | 권한 상승 시도 |
-| `ToolChainAttackDetector` | 연쇄 도구 공격 패턴 |
+| Class | What it detects |
+|-------|-----------------|
+| `InputSanitizationTracker` | 5 kinds of input-injection attacks |
+| `OutputLeakageDetector` | leaked sensitive info — API keys, passwords, file paths, etc. |
+| `ToolAuthorizationTracker` | unauthorized tool calls |
+| `PrivilegeEscalationDetector` | privilege-escalation attempts |
+| `ToolChainAttackDetector` | chained tool-attack patterns |
 
-#### 주요 파라미터 (v0.8.3+)
+#### Key parameters (v0.8.3+)
 
 ```python
-# 샘플링 — 고트래픽 환경에서 성능 최적화
-tracker = InputSanitizationTracker(sample_rate=0.2)   # 20%만 검사
+# Sampling — performance tuning in a high-traffic environment
+tracker = InputSanitizationTracker(sample_rate=0.2)   # inspect only 20%
 detector = OutputLeakageDetector(sample_rate=0.2)
 
-# 시스템 경로 제외 목록 커스터마이즈 (OutputLeakageDetector)
+# Customize the system-path exclusion list (OutputLeakageDetector)
 detector = OutputLeakageDetector(
-    excluded_unix_paths=["usr/", "bin/", "myapp/", "opt/"]  # 기본: 8개 시스템 접두사
+    excluded_unix_paths=["usr/", "bin/", "myapp/", "opt/"]  # default: 8 system prefixes
 )
 
-# sample_rate=0.0 이면 전부 건너뜀 (sampled_out: True 반환)
-# sample_rate=1.0 이면 전수 검사 (기본값)
+# sample_rate=0.0 skips everything (returns sampled_out: True)
+# sample_rate=1.0 inspects everything (default)
 ```
 
 ---
 
 ## 8. ConversationSession
 
-멀티턴 대화 평가를 위한 클래스.
+The class for multi-turn conversation evaluation.
 
 ```python
 from agent_evaluator import ConversationSession, ConversationMetrics, ConversationTurn
 
 session = ConversationSession(session_id="conv_001")
-session.add_turn(user_input="안녕하세요", agent_response="안녕하세요!")
-session.add_turn(user_input="오늘 날씨는?", agent_response="맑습니다.")
+session.add_turn(user_input="Hello", agent_response="Hello!")
+session.add_turn(user_input="What's the weather today?", agent_response="It's clear.")
 
 metrics: ConversationMetrics = session.compute_metrics()
 ```
 
-#### ConversationMetrics 속성
+#### ConversationMetrics properties
 
-| 속성 | 타입 | 설명 |
-|------|------|------|
-| `turn_count` | `int` | 총 턴 수 |
-| `overall_score` | `float` | 전체 점수 (0.0–1.0) |
-| `context_retention` | `float` | 컨텍스트 유지율 |
-| `topic_coherence` | `float` | 주제 일관성 |
-| `progressive_depth` | `float` | 대화 깊이 진행도 |
-| `session_completion` | `float` | 세션 완료율 |
-| `avg_turn_latency` | `float \| None` | 평균 턴 지연시간 (초) |
-| `turn_scores` | `dict \| None` | 턴별 품질 점수 `{turn_num: score}` |
+| Property | Type | Description |
+|----------|------|-------------|
+| `turn_count` | `int` | total number of turns |
+| `overall_score` | `float` | overall score (0.0–1.0) |
+| `context_retention` | `float` | context-retention rate |
+| `topic_coherence` | `float` | topic coherence |
+| `progressive_depth` | `float` | how the conversation depth progresses |
+| `session_completion` | `float` | session-completion rate |
+| `avg_turn_latency` | `float \| None` | average turn latency (seconds) |
+| `turn_scores` | `dict \| None` | per-turn quality scores `{turn_num: score}` |
 
-### PerformanceMonitor와 통합 (권장)
+### Integration with PerformanceMonitor (recommended)
 
 ```python
 with monitor.conversation("session_001") as conv:
@@ -918,123 +917,123 @@ with monitor.conversation("session_001") as conv:
 
 ## 9. LLMJudge
 
-ground_truth 없이 LLM이 직접 채점하는 평가 엔진. 기본 설치에 포함되어 있다.
+An evaluation engine where an LLM scores directly, without a ground_truth. Ships in the base install.
 
 ```python
-from agent_evaluator import LLMJudge  # pip install agent-evaluator (기본 설치에 포함)
+from agent_evaluator import LLMJudge  # pip install agent-evaluator (included by default)
 
 judge = LLMJudge(
-    model="claude-haiku-4-5-20251001",   # 기본 모델 (빠름·저비용)
-    sample_rate=0.1,                      # 10%만 채점
-    budget_per_day=1.0,                   # 하루 $1 상한
-    judge_criteria=["medical_accuracy"],  # G-Eval 커스텀 기준 (선택)
-    # 다중 모델 자동 에스컬레이션 (v0.8.3+)
-    escalation_model="claude-sonnet-4-6", # primary 점수 미달 시 재채점
-    escalation_threshold=2.5,             # overall < 2.5 이면 에스컬레이션 (0–5 스케일)
+    model="claude-haiku-4-5-20251001",   # default model (fast, low-cost)
+    sample_rate=0.1,                      # score only 10%
+    budget_per_day=1.0,                   # $1/day cap
+    judge_criteria=["medical_accuracy"],  # G-Eval custom criteria (optional)
+    # multi-model auto-escalation (v0.8.3+)
+    escalation_model="claude-sonnet-4-6", # re-score when the primary score falls short
+    escalation_threshold=2.5,             # escalate if overall < 2.5 (0–5 scale)
 )
 
 result = judge.judge(
     task_id="t1",
-    question="한국의 수도는?",
-    response="서울은 한국의 수도입니다.",
-    context="한국은 동아시아의 나라이다.",  # RAG 컨텍스트 (선택)
+    question="What is the capital of Korea?",
+    response="Seoul is the capital of Korea.",
+    context="Korea is a country in East Asia.",  # RAG context (optional)
 )
 
-result["scores"]["overall"]        # float (0–5) — 품질 3차원 평균
-result["scores"]["faithfulness"]   # float (0–5) — RAG 충실도 (context 있을 때)
-result.get("escalated")            # True이면 escalation_model로 재채점된 결과
-result.get("primary_overall")      # 에스컬레이션 전 primary 점수
+result["scores"]["overall"]        # float (0–5) — mean of 3 quality dimensions
+result["scores"]["faithfulness"]   # float (0–5) — RAG faithfulness (when context is present)
+result.get("escalated")            # True → re-scored with escalation_model
+result.get("primary_overall")      # the primary score before escalation
 ```
 
-#### `LLMJudge` 생성자 파라미터
+#### `LLMJudge` constructor parameters
 
-| 파라미터 | 기본값 | 설명 |
-|---------|--------|------|
-| `model` | `None` (자동) | 기본 채점 모델 |
-| `sample_rate` | `0.1` | 채점 비율 (0.0–1.0) |
-| `budget_per_day` | `None` | 일일 USD 상한 |
-| `judge_criteria` | `None` | G-Eval 커스텀 기준 리스트 |
-| `escalation_model` | `None` | 재채점 상위 모델 (v0.8.3+) |
-| `escalation_threshold` | `2.5` | 에스컬레이션 트리거 임계값 (v0.8.3+) |
-| `max_context_chars` | `4000` | 컨텍스트 잘림 한도 |
-| `seed` | `None` | 샘플링 재현성용 랜덤 시드 |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `model` | `None` (auto) | default scoring model |
+| `sample_rate` | `0.1` | scoring rate (0.0–1.0) |
+| `budget_per_day` | `None` | daily USD cap |
+| `judge_criteria` | `None` | G-Eval custom-criteria list |
+| `escalation_model` | `None` | higher model for re-scoring (v0.8.3+) |
+| `escalation_threshold` | `2.5` | escalation trigger threshold (v0.8.3+) |
+| `max_context_chars` | `4000` | context truncation limit |
+| `seed` | `None` | random seed for sampling reproducibility |
 
-### 비동기 채점 — `ajudge()` (v0.8.3+)
+### Async scoring — `ajudge()` (v0.8.3+)
 
-`run_in_executor` 기반 non-blocking 호출. `asyncio` 환경에서 사용한다.
+A non-blocking call based on `run_in_executor`. Use it in an `asyncio` environment.
 
 ```python
 import asyncio
 
 result = asyncio.run(judge.ajudge(
     task_id="t1",
-    question="한국의 수도는?",
-    response="서울입니다.",
+    question="What is the capital of Korea?",
+    response="It is Seoul.",
 ))
 ```
 
-### 연속 오류 자동 비활성화 / 복구 (v0.8.3+)
+### Auto-disable / recovery on consecutive errors (v0.8.3+)
 
-3회 연속 API 오류 발생 시 자동 비활성화되고 이후 호출은 `{"skipped": True}` 를 반환한다.
+After 3 consecutive API errors it auto-disables, and subsequent calls return `{"skipped": True}`.
 
 ```python
-# 비활성화 확인
-judge._disabled_reason  # None이면 정상, str이면 비활성화 사유
+# Check whether it is disabled
+judge._disabled_reason  # None = fine; str = the disable reason
 
-# 복구
-judge.reset_errors()    # 오류 카운터 리셋 + 재활성화
+# Recover
+judge.reset_errors()    # reset the error counter + re-enable
 ```
 
-### 환경변수 — `AGENT_EVALUATOR_JUDGE_PROVIDER` (v0.8.3+)
+### Environment variable — `AGENT_EVALUATOR_JUDGE_PROVIDER` (v0.8.3+)
 
-LLM Judge가 사용할 API 제공자를 지정한다.
+Specifies which API provider the LLM Judge uses.
 
 ```bash
-AGENT_EVALUATOR_JUDGE_PROVIDER=auto        # 기본: API 키 보유 제공자 자동 선택
-AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic   # Anthropic API 우선 사용
-AGENT_EVALUATOR_JUDGE_PROVIDER=openai      # OpenAI API 우선 사용
+AGENT_EVALUATOR_JUDGE_PROVIDER=auto        # default: auto-select whichever provider has an API key
+AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic   # prefer the Anthropic API
+AGENT_EVALUATOR_JUDGE_PROVIDER=openai      # prefer the OpenAI API
 ```
 
-### 페어와이즈(A/B) 비교 — `judge_pairwise()` (v0.9.8+)
+### Pairwise (A/B) comparison — `judge_pairwise()` (v0.9.8+)
 
-절대 스코어(`judge()`)는 채점 모델의 그날그날 기준 이동(scale drift)에 민감하다. "이 프롬프트 변경이 더 나은가?"처럼 상대 비교가 필요하면 `judge_pairwise()`가 더 안정적이다.
+An absolute score (`judge()`) is sensitive to the scoring model's day-to-day scale drift. When you need a relative comparison — "is this prompt change better?" — `judge_pairwise()` is more stable.
 
 ```python
 result = judge.judge_pairwise(
-    question="한국의 수도는?",
-    response_a="서울입니다.",              # 예: 프롬프트 v1의 응답
-    response_b="서울은 한국의 수도입니다.", # 예: 프롬프트 v2의 응답
-    context="",                            # 선택적 RAG 컨텍스트
-    swap_check=True,                       # 기본값 — 포지션 편향 완화
+    question="What is the capital of Korea?",
+    response_a="It is Seoul.",                    # e.g. the response from prompt v1
+    response_b="Seoul is the capital of Korea.",  # e.g. the response from prompt v2
+    context="",                                   # optional RAG context
+    swap_check=True,                              # default — mitigates position bias
 )
 result["winner"]      # "a" | "b" | "tie"
-result["reasoning"]   # 1차 호출(A/B 원래 순서)의 근거 설명
-result["swap_check"]  # True면 실제로 A/B를 뒤집어 재확인한 결과
+result["reasoning"]   # the rationale from the first call (A/B in the original order)
+result["swap_check"]  # True → the re-check result with A/B actually swapped
 ```
 
-`swap_check=True`(기본값)이면 A/B 순서를 뒤집어 한 번 더 호출한다 — 두 호출의 승자가 일치하면 그 결과를, 불일치하면(포지션 편향 신호) `"tie"`로 수렴한다. 비용을 절반으로 줄이려면 `swap_check=False`를 지정한다. `sample_rate` 샘플링은 적용되지 않는다 — 호출자가 명시적으로 요청하는 단발성 비교이기 때문이다. 예산 초과·연속 오류 자동 비활성화는 `judge()`와 동일하게 적용되며, 판정 이력은 `judge.results`(절대 스코어)와 분리된 `judge.pairwise_results`에 쌓인다.
+With `swap_check=True` (the default) it calls once more with the A/B order swapped — if both calls agree on the winner, that result stands; if they disagree (a position-bias signal), it converges to `"tie"`. To halve the cost, set `swap_check=False`. `sample_rate` sampling is not applied — this is a one-off comparison the caller explicitly requests. Budget-exceeded and consecutive-error auto-disable apply the same as `judge()`, and the verdict history accumulates in `judge.pairwise_results`, separate from `judge.results` (absolute scores).
 
-대시보드에서는 `compare_results(detailed=True, pairwise=True)`가 공통 task마다 이 메서드를 호출해 `win_rate`를 집계한다.
+In the dashboard, `compare_results(detailed=True, pairwise=True)` calls this method for every shared task and aggregates the `win_rate`.
 
-### 버전별 비교 — `prompt_version`/`agent_version` (v0.9.8+)
+### Version comparison — `prompt_version` / `agent_version` (v0.9.8+)
 
-결과 파일에 `prompt_version`/`agent_version`을 태깅해두면 대시보드가 파일 `id`를 직접 고르지 않고도 자동으로 그룹핑·비교한다.
+Tag a result file with `prompt_version` / `agent_version` and the dashboard groups and compares automatically without you picking a file `id` directly.
 
 ```python
 monitor = PerformanceMonitor(output_dir="results/", prompt_version="v2-cot", agent_version="0.9.10")
 ```
 
-`agent_version="auto"`를 주면 git 상태로 자동 태깅한다 — 현재 커밋의 짧은 SHA(생성 시점에 1회 캐싱), 추적 파일에 커밋 안 된 변경이 있으면 `-dirty-<hash>` 접미사가 붙는다(git 정보를 못 구하면 `None`). `iteration_note=`로 이 dirty-hash 태그에 사람이 읽을 수 있는 한 줄 메모를 붙일 수 있다 — 표시 전용, 채점에는 영향 없음.
+Passing `agent_version="auto"` auto-tags from the git state — the current commit's short SHA (cached once at construction), with a `-dirty-<hash>` suffix if there are uncommitted changes to tracked files (`None` if git info is unavailable). Use `iteration_note=` to attach a human-readable one-line note to that dirty-hash tag — display only, no effect on scoring.
 
 ```bash
-GET /api/results?prompt_version=v2-cot                    # 태그로 목록 필터
-GET /api/compare?group_by=prompt_version                  # 태그별 최신 파일을 자동 비교(ids= 불필요)
-GET /api/compare?group_by=prompt_version&detailed=true&pairwise=true   # + 페어와이즈 judge_pairwise() 비교
+GET /api/results?prompt_version=v2-cot                    # filter the list by tag
+GET /api/compare?group_by=prompt_version                  # auto-compare the latest file per tag (no ids= needed)
+GET /api/compare?group_by=prompt_version&detailed=true&pairwise=true   # + pairwise judge_pairwise() comparison
 ```
 
-대시보드의 File Compare 탭이 이 API를 그대로 노출한다 — **Group by** 드롭다운(`prompt_version`/`agent_version`), 파일 2개 선택 시 나타나는 **⚖️ Pairwise Judge** 서브탭, 비교 결과를 그대로 내려받는 **📄 Export HTML** 버튼.
+The dashboard's File Compare tab exposes this API directly — the **Group by** dropdown (`prompt_version` / `agent_version`), the **⚖️ Pairwise Judge** sub-tab that appears when two files are selected, and the **📄 Export HTML** button that downloads the comparison as is.
 
-### QuickEval과 통합
+### Integration with QuickEval
 
 ```python
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
@@ -1044,7 +1043,7 @@ def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
-### agent_eval과 통합
+### Integration with agent_eval
 
 ```python
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
@@ -1056,34 +1055,34 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 10. 이상탐지 / 스트리밍 / 알림
+## 10. Anomaly detection / streaming / alerts
 
 ### AnomalyDetector
 
-외부 ML 라이브러리 없이 Z-score/IQR/선형회귀로 6종의 이상을 탐지한다: `latency_trend` · `accuracy_drift` · `token_spike` · `error_surge` · `security_pattern` · `feedback_negativity` *(v0.9.8+, 부정 암묵 피드백 급증)*.
+Detects 6 kinds of anomaly with Z-score / IQR / linear regression, without an external ML library: `latency_trend` · `accuracy_drift` · `token_spike` · `error_surge` · `security_pattern` · `feedback_negativity` *(v0.9.8+, a spike in negative implicit feedback)*.
 
 ```python
 from agent_evaluator import AnomalyDetector, AnomalyEvent
 
 detector = AnomalyDetector(
-    baseline_window=100,   # 기준선 계산에 쓸 최근 태스크 수
-    detection_window=20,   # 현재값 계산에 쓸 최근 태스크 수
+    baseline_window=100,   # recent task count used to compute the baseline
+    detection_window=20,   # recent task count used to compute the current value
 )
 
 events = detector.scan(monitor)
-# events: List[AnomalyEvent] — monitor.latency_tracker/accuracy_evaluator/token_tracker/
-# tcr_tracker/input_sanitizer/feedback_tracker의 인메모리 이력을 읽는다(재시작 시 초기화됨 —
-# 아래 rehydrate_from_storage()로 완화)
+# events: List[AnomalyEvent] — reads the in-memory history of monitor.latency_tracker /
+# accuracy_evaluator / token_tracker / tcr_tracker / input_sanitizer / feedback_tracker
+# (cleared on restart — mitigated by rehydrate_from_storage() below)
 
 event = events[0]
 event.type          # "latency_trend" | "accuracy_drift" | "token_spike" | "error_surge" |
                     # "security_pattern" | "feedback_negativity"
 event.severity      # "warning" | "critical"
-event.detail        # 사람이 읽을 수 있는 설명
+event.detail        # human-readable description
 event.algorithm     # "linear_regression" | "z-score" | "iqr" | "ratio"
 event.detected_at
 
-# 원인·권고 설명
+# Cause / recommendation explanation
 explanation = detector.explain_event(event)
 # {"metric", "value", "threshold", "deviation_pct", "severity", "explanation", "suggested_action", "detected_at"}
 
@@ -1091,14 +1090,14 @@ events_with_explanation = detector.scan_with_explain(monitor)
 # [{**event.to_dict(), "explanation": {...}}, ...]
 ```
 
-> **재시작 생존 기준선 (v0.9.8+)**: `AnomalyDetector`는 인메모리 이력만 본다 — 프로세스가
-> 재시작되면 기준선이 비워진다. `monitor.rehydrate_from_storage(db_path)`(SQLite 백엔드
-> 필요)를 스캔 전에 호출하면 과거 이력을 재생해 즉시 의미 있는 기준선으로 사용할 수 있다.
-> 자세한 내용은 위 [PerformanceMonitor](#performancemonitor) 절 참고.
+> **Restart-surviving baseline (v0.9.8+)**: `AnomalyDetector` only sees the in-memory history — when
+> the process restarts, the baseline is empty. Calling `monitor.rehydrate_from_storage(db_path)`
+> (requires the SQLite backend) before the scan replays the past history so it can be used as a
+> meaningful baseline immediately. See the [PerformanceMonitor](#performancemonitor) section above.
 
 ### StreamingEvaluator
 
-`PerformanceMonitor`를 감싸 실시간 슬라이딩 윈도우(1분/5분/1시간) 지표를 제공한다.
+Wraps `PerformanceMonitor` and provides real-time sliding-window (1m / 5m / 1h) metrics.
 
 ```python
 from agent_evaluator.streaming import StreamingEvaluator
@@ -1106,14 +1105,14 @@ from agent_evaluator import AlertEngine, AnomalyDetector
 
 streaming_eval = StreamingEvaluator(
     monitor=monitor,
-    flush_interval=60,          # 지표 집계·저장 주기(초)
-    alert_handler=AlertEngine(),  # 선택 — record()마다 evaluate() 호출
-    # v0.9.8+ — 기존 flush 스레드에 주기적 이상탐지를 얹는다(새 스레드 없음)
+    flush_interval=60,          # metric aggregation / save interval (seconds)
+    alert_handler=AlertEngine(),  # optional — calls evaluate() on each record()
+    # v0.9.8+ — adds periodic anomaly detection onto the existing flush thread (no new thread)
     anomaly_detector=AnomalyDetector(baseline_window=200, detection_window=20),
-    anomaly_scan_interval=300,  # anomaly_detector 스캔 주기(초) — flush_interval과 독립적
-    anomaly_alert_handler=None, # 지정하면 스캔 결과를 AlertEngine.dispatch_anomaly_events()로 자동 발송
+    anomaly_scan_interval=300,  # anomaly_detector scan interval (seconds) — independent of flush_interval
+    anomaly_alert_handler=None, # if set, scan results are auto-dispatched via AlertEngine.dispatch_anomaly_events()
 )
-streaming_eval.start()  # 백그라운드 flush(+ 이상탐지) 스레드 시작
+streaming_eval.start()  # start the background flush (+ anomaly-detection) thread
 
 streaming_eval.record(
     task_id="t1", success=True, execution_time=1.2, tokens_used=150,
@@ -1123,46 +1122,46 @@ stats = streaming_eval.get_stats("5m")  # count · tcr · avg_latency · p95_lat
 streaming_eval.stop()
 ```
 
-`anomaly_detector`/`alert_handler`/`anomaly_alert_handler` 셋 다 설정해야 이상 발견 시 실제 알림 발송까지 이어진다(완전 옵트인) — `anomaly_detector`만 설정하면 `streaming_eval._last_anomalies`에 스캔 결과만 쌓이고 발송되지 않는다.
+All three of `anomaly_detector` / `alert_handler` / `anomaly_alert_handler` must be set for an anomaly to actually result in an alert being sent (fully opt-in) — with only `anomaly_detector` set, scan results just accumulate in `streaming_eval._last_anomalies` and are not dispatched.
 
 ### AlertEngine & AlertRule
 
-`SimpleTaskAlertRule`(아래, 데코레이터용 태스크 단위 규칙)보다 저수준인 스트리밍 전용 알림 엔진. 재시도-백오프(지수 1s/2s/4s)·규칙별 쿨다운·전역 알림폭풍 방지를 갖췄다.
+A streaming-only alert engine, lower-level than `SimpleTaskAlertRule` (below, a per-task rule for decorators). It has retry-backoff (exponential 1s/2s/4s), per-rule cooldown, and global alert-storm suppression.
 
 ```python
 from agent_evaluator import AlertEngine, AlertRule
 from agent_evaluator.alerts.handlers import SlackHandler
 
 engine = AlertEngine(
-    async_dispatch=False,        # True면 handler.send()를 백그라운드 스레드로 디스패치
-    max_alerts_per_window=None,  # 트레일링 윈도우 내 전역 발송 상한(알림폭풍 방지)
+    async_dispatch=False,        # True → dispatch handler.send() on a background thread
+    max_alerts_per_window=None,  # global send cap within the trailing window (alert-storm suppression)
     window_seconds=60,
 )
 engine.add_rule(AlertRule(
-    name="TCR 급락",
+    name="TCR drop",
     condition=lambda ev: ev.get_stats("5m")["tcr"] < 70,
     handler=SlackHandler(webhook_url="https://..."),
     cooldown=300,
     severity="critical",
 ))
-engine.evaluate(streaming_eval)  # StreamingEvaluator 폴링 — 조건 충족 시 규칙마다 발송
+engine.evaluate(streaming_eval)  # poll the StreamingEvaluator — send per rule when the condition holds
 ```
 
 #### `dispatch_anomaly_events()` (v0.9.8+)
 
-`AnomalyDetector.scan()`의 결과를 `evaluate()`와 별개의 경로로 발송한다 — `AnomalyEvent.type`별로 캐시된 `AlertRule`을 통해 같은 쿨다운/재시도-백오프/알림폭풍 방지 인프라를 재사용하며, `evaluate()`가 순회하는 규칙 목록과는 분리되어 있어 재발화 사고가 없다.
+Dispatches the results of `AnomalyDetector.scan()` on a path separate from `evaluate()` — it reuses the same cooldown / retry-backoff / alert-storm infrastructure via an `AlertRule` cached per `AnomalyEvent.type`, and is decoupled from the rule list `evaluate()` iterates over, so there is no re-firing accident.
 
 ```python
 events = AnomalyDetector().scan(monitor)
 fired = engine.dispatch_anomaly_events(
     events,
     handler=SlackHandler(webhook_url="https://..."),
-    cooldown=300,  # 이 호출에서 신규로 캐시할 규칙의 쿨다운(초) — 기존 캐시된 규칙엔 영향 없음
+    cooldown=300,  # cooldown (seconds) for rules newly cached by this call — no effect on already-cached rules
 )
-# fired: List[AlertEvent] — 쿨다운을 통과해 실제로 발송된 이벤트만
+# fired: List[AlertEvent] — only the events that passed the cooldown and were actually sent
 ```
 
-`StreamingEvaluator(anomaly_detector=..., alert_handler=engine, anomaly_alert_handler=SlackHandler(...))`로 구성하면 이 호출이 자동으로 이루어진다(위 StreamingEvaluator 절 참고).
+Configuring `StreamingEvaluator(anomaly_detector=..., alert_handler=engine, anomaly_alert_handler=SlackHandler(...))` makes this call happen automatically (see the StreamingEvaluator section above).
 
 ### SimpleTaskAlertRule & AlertRuleBuilder
 
@@ -1170,7 +1169,7 @@ fired = engine.dispatch_anomaly_events(
 from agent_evaluator import SimpleTaskAlertRule
 from agent_evaluator.alerts import AlertRuleBuilder
 
-# 직접 생성
+# Direct creation
 rule = SimpleTaskAlertRule(
     name="slow_response",
     condition=lambda tr: tr.execution_time > 5.0,
@@ -1179,7 +1178,7 @@ rule = SimpleTaskAlertRule(
     cooldown=60,
 )
 
-# 빌더 팩토리 (권장)
+# Builder factory (recommended)
 rule = AlertRuleBuilder.when_latency_above(
     threshold=5.0,
     handler=lambda msg, tr: print(f"[ALERT] {msg}"),
@@ -1191,10 +1190,10 @@ rule = AlertRuleBuilder.when_completion_below(threshold=0.8, handler=my_handler)
 rule = AlertRuleBuilder.when_error(handler=my_handler)
 rule = AlertRuleBuilder.when_tool_calls_exceed(max_calls=10, handler=my_handler)
 
-# dry_run — 핸들러 미실행 조건 검증
+# dry_run — verify the condition without running the handler
 fired = rule.dry_run(task_result)  # bool
 
-# 복합 조건
+# Compound conditions
 rule = SimpleTaskAlertRule(
     name="compound_check",
     compound_conditions=[
@@ -1204,7 +1203,7 @@ rule = SimpleTaskAlertRule(
     handler=my_handler,
 )
 
-# agent_eval과 통합
+# Integration with agent_eval
 @agent_eval(monitor, task_type="qa", alert_rules=[rule])
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -1218,9 +1217,9 @@ from agent_evaluator import ImplicitFeedbackTracker
 tracker = ImplicitFeedbackTracker()
 tracker.record(
     task_id="t1",
-    feedback_type="thumbs_up",    # 긍정: copy·thumbs_up·share·save·follow_up_depth
-                                   # 부정: regenerate·thumbs_down·abandon·correction
-    metadata={"source": "web_ui"},  # 선택
+    feedback_type="thumbs_up",    # positive: copy · thumbs_up · share · save · follow_up_depth
+                                   # negative: regenerate · thumbs_down · abandon · correction
+    metadata={"source": "web_ui"},  # optional
 )
 stats = tracker.get_stats()
 # {"total": int, "positive_count": int, "negative_count": int, "positive_rate": float,
@@ -1230,7 +1229,7 @@ stats = tracker.get_stats()
 
 ---
 
-## 11. 예외 클래스
+## 11. Exception classes
 
 ```python
 from agent_evaluator.exceptions import (
@@ -1238,26 +1237,26 @@ from agent_evaluator.exceptions import (
     InvalidOperationError,
 )
 
-# ValidationError — 입력값 검증 실패
+# ValidationError — input validation failed
 raise ValidationError(
-    "task_id는 비어 있을 수 없습니다.",
+    "task_id must not be empty.",
     context={"task_id": "", "field": "task_id"},
 )
 
-# InvalidOperationError — 잘못된 상태에서의 작업 호출
+# InvalidOperationError — an operation called in an invalid state
 raise InvalidOperationError(
-    "모니터가 초기화되지 않았습니다.",
+    "The monitor is not initialized.",
     context={"monitor_state": "uninitialized"},
 )
 ```
 
-두 클래스 모두 `message`와 선택적 `context: dict` 필드를 가진다.
+Both classes have a `message` and an optional `context: dict` field.
 
 ---
 
-## 12. Layer 2 Agentic 트래커
+## 12. Layer 2 Agentic trackers
 
-`PerformanceMonitor`에 내장되어 `record_task()` 호출 시 자동 집계된다. 개별 접근이 필요한 경우:
+Built into `PerformanceMonitor` and aggregated automatically on `record_task()`. When you need individual access:
 
 ### ToolCallAnalyzer
 
@@ -1278,7 +1277,7 @@ stats = analyzer.get_efficiency_stats()
 from agent_evaluator import ToolSelectionTracker
 
 tracker = ToolSelectionTracker()
-tracker.record(task_result)  # expected_tools 필드 필요
+tracker.record(task_result)  # requires the expected_tools field
 f1_stats = tracker.get_f1_by_tool()
 # {"tool_name": {"precision": float, "recall": float, "f1": float}}
 ```
@@ -1318,9 +1317,9 @@ stats = tracker.get_stats()
 
 ---
 
-## 13. 하이브리드 평가 (Layer 3)
+## 13. Hybrid evaluation (Layer 3)
 
-외부 평가 라이브러리(DeepEval, Ragas)와 통합. `[eval]` extra가 필요하다.
+Integration with external evaluation libraries (DeepEval, Ragas). Requires the `[eval]` extra.
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport
@@ -1332,13 +1331,13 @@ monitor = HybridPerformanceMonitor(
     use_ragas=True,
 )
 
-# 권장: 데코레이터 방식 (rag_mode=True → hallucination + IR 자동 활성)
+# Recommended: the decorator approach (rag_mode=True → hallucination + IR enabled automatically)
 @agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 
-# 저수준: hybrid_evaluation_session + ExtendedTaskResult 직접 주입
-# (retrieved_contexts 등 하이브리드 전용 필드가 필요한 경우)
+# Low-level: hybrid_evaluation_session + inject ExtendedTaskResult directly
+# (when you need hybrid-only fields such as retrieved_contexts)
 from agent_evaluator import hybrid_evaluation_session
 
 async with hybrid_evaluation_session("hybrid_eval") as monitor:
@@ -1347,24 +1346,24 @@ async with hybrid_evaluation_session("hybrid_eval") as monitor:
 
     base = create_taskresult(
         task_id="hybrid_001",
-        question="질문",
-        response="답변",
-        ground_truth="정답",
+        question="question",
+        response="answer",
+        ground_truth="reference",
         execution_time=1.5,
         task_type="information_retrieval",
     )
     result = ExtendedTaskResult(
         **dataclasses.asdict(base),
-        retrieved_contexts=["컨텍스트1", "컨텍스트2"],
+        retrieved_contexts=["context 1", "context 2"],
     )
     monitor.record_task(result)
 
 report: HybridEvaluationReport = monitor.generate_report()
-report.deepeval_scores     # DeepEval 지표
-report.ragas_scores        # Ragas 지표
+report.deepeval_scores     # DeepEval metrics
+report.ragas_scores        # Ragas metrics
 ```
 
-### 개별 어댑터
+### Individual adapters
 
 ```python
 from agent_evaluator.integrations.metric_adapters import (
@@ -1388,168 +1387,193 @@ scores = adapter.evaluate(
 
 ---
 
-## 14. RCA 진단 + 추천 이력 (agent_evaluator.rca / ontology)
+## 14. RCA diagnosis + recommendation history (agent_evaluator.rca / ontology)
 
-`agent_evaluator`의 top-level `__all__`에는 없는 서브모듈이다 — `from agent_evaluator.rca import ...`
-/ `from agent_evaluator.ontology import ...`로 직접 임포트한다. Gate 점수가 하락했을 때 "왜"를
-3단계(감지→원인귀속→교차확인)로 자동화하고, 조치를 적용한 뒤 실제로 개선됐는지 폐루프로 검증한다.
-HOTL 원칙 — 후보와 근거만 제시하고 최종 판단은 사람의 몫이다.
+These are submodules not in `agent_evaluator`'s top-level `__all__` — import them directly with `from agent_evaluator.rca import ...` / `from agent_evaluator.ontology import ...`. When a Gate score drops, they automate "why" in three stages (detect → attribute → cross-reference), and, after an action is applied, verify in a closed loop whether it actually improved. The HOTL principle — they present candidates and evidence only; the final judgment is the human's.
 
 ```python
 from agent_evaluator.rca import diagnose
 
 result = diagnose(
-    current,                       # 평가 결과 JSON dict (report.to_dict() 또는 json.load())
-    baseline=None,                 # 있으면 회귀 기반 감지, 없으면 현재 fail/warn 상태로 폴백 감지
-    regression_threshold=0.1,      # baseline 대비 허용 회귀 비율
-    violation_db_path=None,        # SQLite DB 경로 — 있으면 3단계(교차확인)에서 search_violations() 호출
-    with_experiment_metadata=False,  # True면 git diff로 baseline↔current 사이 실제 커밋 변경 이력도 첨부
+    current,                       # evaluation-result JSON dict (report.to_dict() or json.load())
+    baseline=None,                 # if present, regression-based detection; if absent, falls back to detection from the current fail/warn state
+    regression_threshold=0.1,      # allowed regression ratio vs the baseline
+    violation_db_path=None,        # SQLite DB path — if present, stage 3 (cross-reference) calls search_violations()
+    with_experiment_metadata=False,  # True → also attach the actual commit change log between baseline ↔ current, via git diff
     repo_path=".",
 )
 # result: {detection_mode, detected_gates, multi_gate_note, sla_shared_cause_check,
 #          findings: [{gate, current_score, baseline_score, top_detail_deltas,
-#                      cross_references, mast_candidates(Gate F만)}],
+#                      cross_references, mast_candidates (Gate F only)}],
 #          shared_cause_explanations, independently_investigate_gates, experiment_metadata}
 ```
 
-추천을 적용한 뒤 실제로 개선됐는지 폐루프 검증(`.aoo/claims.jsonl`과 같은 append-only JSONL 패턴):
+Verify in a closed loop whether the applied recommendation actually improved things (the append-only JSONL pattern, like `.aoo/claims.jsonl`):
 
 ```python
 from agent_evaluator.rca import verify_recommendation_outcome, record_recommendation_outcome
 
-# 1회성 판정만 필요할 때
+# When you only need a one-off verdict
 verdict = verify_recommendation_outcome(
     before, after, target_gate="A", improvement_threshold=0.05,
 )
 # {target_gate, before_score, after_score, gate_delta, verdict: "confirmed"|"refuted"|"inconclusive", ...}
 
-# 판정 + JSONL 이력 기록까지 한 번에
+# Verdict + JSONL history logging in one call
 record_recommendation_outcome(
     ".aoo/recommendation_outcomes.jsonl",
     recommendation_id="gate-a-instruction-config", target_gate="A",
-    before=before, after=after, note="InstructionConfig required_keywords 추가",
+    before=before, after=after, note="added InstructionConfig required_keywords",
 )
 ```
 
-Gate F 진단 시 참고용 MAST(Multi-Agent System Failure Taxonomy, Cemri et al. NeurIPS 2025) 후보:
+MAST (Multi-Agent System Failure Taxonomy, Cemri et al. NeurIPS 2025) candidates for Gate F diagnosis:
 
 ```python
 from agent_evaluator.ontology.mast_taxonomy import mast_failure_modes_for_gate_f_metric
 
 modes = mast_failure_modes_for_gate_f_metric("avg_conflict_resolution")
-# 관련된 MASTFailureMode(code, category, name, prevalence_pct, description, remediation, ...) 후보들
+# related MASTFailureMode(code, category, name, prevalence_pct, description, remediation, ...) candidates
 ```
 
-CLI: `agent-eval diagnose`, 대시보드: 🔧 Improve 탭이 동일 결과를 노출한다.
+CLI: `agent-eval diagnose`; dashboard: the 🔧 Improve tab exposes the same result.
 
 ---
 
-## 15. CLI 레퍼런스
+## 15. CLI reference
 
 ```bash
-# API 키 설정 마법사
+# API-key setup wizard
 agent-eval init
 
-# 현재 설정 확인
+# Check the current configuration
 agent-eval check
 
-# FastAPI 대시보드 실행 (기본 포트 8765)
+# FastAPI dashboard (default port 8765)
 agent-eval dashboard
 agent-eval dashboard --port 9000
-agent-eval dashboard --watch   # 파일 변경 감시 모드
+agent-eval dashboard --watch   # watch files for changes
 
-# Phoenix 모니터링 서버 기동
+# Start the Phoenix monitoring server
 agent-eval monitor
 agent-eval monitor --port 6006
-agent-eval monitor --check     # OTEL 패키지 설치 여부 및 포트 확인
+agent-eval monitor --check     # check the OTEL package install and port
 
-# CI/CD 품질 게이팅
+# CI/CD quality gating
 agent-eval gate result.json --tcr 85 --accuracy 70
 agent-eval gate result.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
 agent-eval gate result.json --baseline-version v2-cot --fail-on-regression 10
 agent-eval gate result.json --golden-set data/golden_datasets/golden_1.json --fail-on-golden-regression
+agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regression   # exit 4: a case that passed before fails now (SPEC-041 P26)
+agent-eval gate result.json --max-cost-per-task 0.05     # cost SLO gate: fail if total_cost / task count exceeds this (P28)
+agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X   # exit 4 on HIGH review items + post the narrative / regressions / cohort winner
+agent-eval gate result.json --digest                     # also print the PM / QA / engineer briefs after the table (P34)
+agent-eval gate result.json --target-file .aoo/targets.json   # use the project SLOs (.aoo/targets.json) as thresholds (P43)
 
-# Gate 회귀 원인진단 (RCA — detect → attribute → cross-reference, HOTL 원칙)
+# Gate-regression root-cause diagnosis (RCA — detect → attribute → cross-reference, the HOTL principle)
 agent-eval diagnose result.json
 agent-eval diagnose result.json --baseline baseline.json --show-diff
 
-# 통계적 A/B 비교 (2개 파일 → Welch's t-test, 3개+ → N-way + FDR 보정)
-# 비교할 두 실행을 찾는 게 먼저 필요하다면 CTX_SESSION_SEARCH.md 워크플로우 C(선택적) 참고
+# Pin project goals / SLOs (.aoo/targets.json — thereafter gate / report / insights judge against this bar, SPEC-041 P43)
+agent-eval target set --gate A=0.85 --gate E=0.95 --tcr 90
+agent-eval target show
+
+# Pin an external reference distribution (.aoo/reference.json — insights show percentile + gap-to-frontier, P53)
+agent-eval benchmark set --tcr 78 --gate A=0.75 --label support-rag
+agent-eval benchmark set --from-results results/     # derive TCR / per-gate percentile distributions from a results directory
+agent-eval benchmark show
+
+# Improvement-experiment registry (.aoo/experiments.jsonl — register a hypothesis and score it on the next run, P27)
+agent-eval experiment register --gate A --field avg_subtask_completion --predict-delta 0.08 --note "add SubtaskConfig"
+agent-eval experiment list
+agent-eval experiment score v3.json --baseline v2.json --persist
+
+# Closed improvement loop (proposal → experiment/stub → verify → outcomes, SPEC-041 P49/P57/P61)
+agent-eval improve plan v3.json --baseline v2.json      # print per-gate proposals
+agent-eval improve start v3.json --yes                  # register each proposal as an experiment + write .aoo/improve/*.md stubs
+agent-eval improve verify v4.json --baseline v3.json --persist   # score predicted vs actual + resolve experiments
+agent-eval improve patch v3.json --repo .               # emit a unified diff per proposal (prompt file / @agent_eval decorator) — never applied (P61)
+
+# Statistical A/B comparison (2 files → Welch's t-test, 3+ → N-way + FDR correction)
+# If you first need to find the two runs to compare, see workflow C (optional) in CTX_SESSION_SEARCH.md
 agent-eval abtest v1.json v2.json --metric accuracy_score
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference
 agent-eval abtest v1.json v2.json v3.json                   # N-way
 
-# 골든 데이터셋 자동 추출
+# Golden-dataset auto-extraction / promotion / health
 agent-eval dataset build --source results/ --max-cases 30
 agent-eval dataset build --source results/ --strategy high_value --output data/golden.json
+agent-eval dataset promote result.json --min-priority high     # HITL review queue → golden regression cases (P15)
+agent-eval dataset health golden.json --against v3.json        # golden-set coverage vs current failure modes + stale / duplicate cases (P58)
 
-# 순차 평가 결과 추세 분석 (TCR·정확도 회귀 감지)
+# Trend analysis of sequential evaluation results (TCR / accuracy regression detection)
 agent-eval trend results/ --fail-on-regression
 
-# LiveGuardrail OpenCode 플러그인 / Claude Code 훅 설치 라이프사이클
+# LiveGuardrail OpenCode plugin / Claude Code hook install lifecycle
 agent-eval opencode install
-agent-eval opencode install --global   # 전역 설치
-agent-eval opencode install --force    # 기존 설치 덮어쓰기
-agent-eval opencode install --with-violation-search   # + search_violations MCP 서버 등록
-agent-eval opencode install --with-recommend-fix       # + recommend_fix MCP 서버 등록
-agent-eval opencode upgrade            # 패키지 업데이트 후 플러그인 .ts 갱신 (agent-evaluator.config.json 보존)
-agent-eval opencode doctor            # 설치가 실제로 도는지 검증 (정적 + Python stdio 브리지 라운드트립, --json/--no-live/--strict)
-agent-eval opencode uninstall         # 플러그인 + opencode.json mcp 항목 제거 (pip uninstall 전에 실행, --purge/--dry-run/--yes)
-agent-eval claude upgrade             # 훅 matcher/인터프리터 갱신 + guardrail_config.json에 새 기본 키만 deep-merge (사용자 편집 보존)
-agent-eval claude doctor             # 정적 검사 + 라이브 훅 라운드트립(allow/deny/배치리포트) + MCP 핸드셰이크
-agent-eval claude uninstall          # settings.json에서 우리 훅 제거 + MCP 해제 + 세션 상태 삭제 (pip uninstall 전에 실행)
+agent-eval opencode install --global   # global install
+agent-eval opencode install --force    # overwrite an existing install
+agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
+agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
+agent-eval opencode upgrade            # refresh the plugin .ts after a package update (keeps agent-evaluator.config.json)
+agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip, --json/--no-live/--strict)
+agent-eval opencode uninstall         # remove the plugin + opencode.json mcp entries (run before pip uninstall, --purge/--dry-run/--yes)
+agent-eval claude install             # install the LiveGuardrail Claude Code CLI hooks (--global/--force, --with-violation-search/--with-recommend-fix/--with-ask-insights)
+agent-eval claude upgrade             # refresh hook matchers/interpreters + deep-merge only NEW default keys into guardrail_config.json (keeps your edits)
+agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake
+agent-eval claude uninstall          # remove our hooks from settings.json + deregister MCP + delete session state (run before pip uninstall)
 
-# .aoo/claims.jsonl 팀 스코프 클레임 관리 (TeamConcurrencyConfig 연동)
-agent-eval claims add src/ --developer auto   # 클레임 개설 (git config user.name으로 자동 해석)
-agent-eval claims list                        # 활성 클레임 목록
-agent-eval claims release <claim_id>          # 클레임 해제
-agent-eval claims audit --ttl-hours 8         # CI: TTL 초과·스코프 겹침 위반 점검 (위반 시 exit 1)
+# .aoo/claims.jsonl team scope-claim management (TeamConcurrencyConfig integration)
+agent-eval claims add src/ --developer auto   # open a claim (resolves via git config user.name)
+agent-eval claims list                        # list active claims
+agent-eval claims release <claim_id>          # release a claim
+agent-eval claims audit --ttl-hours 8         # CI: flag TTL-exceeded / overlapping-scope violations (exit 1 on a violation)
 
-# 버전 확인
+# Version info
 agent-eval --version
 ```
 
 ---
 
-## 공개 API 요약
+## Public API summary
 
-`from agent_evaluator import ...`로 바로 임포트 가능한 심볼:
+Symbols importable directly via `from agent_evaluator import ...`:
 
 ```python
-# 핵심 클래스
+# Core classes
 PerformanceMonitor, TaskResult, TaskType, EvaluationReport,
 
-# 하이브리드
+# Hybrid
 HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
 
-# 헬퍼 & 컨텍스트 매니저
+# Helpers & context managers
 create_taskresult,
 evaluation_session, async_evaluation_session, hybrid_evaluation_session,
 
-# QuickEval Facade
+# QuickEval facade
 QuickEval,
 
-# 멀티턴 대화
+# Multi-turn conversation
 ConversationSession, ConversationMetrics, ConversationTurn,
 
-# LLM Judge (기본 설치에 포함)
+# LLM Judge (included in the base install)
 LLMJudge,
 
-# 투명성
+# Transparency
 TestTransparencyManager, AnnotationType, TestStepStatus,
 
-# 설정
+# Configuration
 load_env, get_settings, init_from_app,
 
-# 고급 / 커스텀 트래커
+# Advanced / custom trackers
 BaseTracker, infer_privilege_level,
 
-# 스트리밍 / 피드백 / 이상탐지 / 비용
+# Streaming / feedback / anomaly / cost
 ImplicitFeedbackTracker,
 AnomalyDetector, AnomalyEvent,
 CostTracker, AdaptivePolicy, SamplingStage,
 
-# 개별 트래커
+# Individual trackers
 TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
 ResponseQualityEvaluator, LatencyTracker, TokenEconomyTracker,
 ToolCallAnalyzer, RetryCorrectionTracker, ToolSelectionTracker,
@@ -1557,13 +1581,13 @@ AgentCoordinationTracker, WorkflowExecutionTracker,
 InputSanitizationTracker, OutputLeakageDetector,
 ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector,
 
-# 알림
+# Alerts
 SimpleTaskAlertRule,
 
-# 타입 힌트
-FrameworkLiteral,   # 24개 프레임워크 Literal 타입
+# Type hints
+FrameworkLiteral,   # a Literal type of the 24 frameworks
 ```
 
 ---
 
-*Agent Evaluator v1.0.0-rc4 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v1.0.0 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [example directory](../Evaluator_Examples/)*

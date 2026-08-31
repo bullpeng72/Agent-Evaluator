@@ -1,125 +1,145 @@
-# 품질 게이트 가이드
+# Quality Gate Guide
 
-임계값 설정 · 품질 게이팅 · CI/CD 통합
+Threshold configuration · quality gating · CI/CD integration.
 
-**v1.0.0-rc4 | Python 3.8+**
-
----
-
-## 목차
-
-1. [개요](#1-개요)
-2. [게이팅 방법 4가지](#2-게이팅-방법-4가지)
-3. [지원 Threshold 메트릭 전체 목록](#3-지원-threshold-메트릭-전체-목록)
-4. [환경별 권장값](#4-환경별-권장값)
-5. [CI/CD 통합](#5-cicd-통합)
-6. [임계값 파일 관리](#6-임계값-파일-관리)
-7. [추세 분석 (agent-eval trend)](#7-추세-분석-agent-eval-trend)
-8. [Gate 회귀 원인진단 (agent-eval diagnose)](#8-gate-회귀-원인진단-agent-eval-diagnose)
-9. [도메인별 Harness Config 프리셋](#9-도메인별-harness-config-프리셋)
-10. [Best Practices](#10-best-practices)
+**v1.0.0 | Python 3.8+**
 
 ---
 
-## 1. 개요
+## Table of Contents
 
-**Threshold(임계값)** 는 에이전트 품질의 최저 기준선입니다.
-
-- **품질 게이트** — 배포 전 최소 성능 보장
-- **CI/CD 자동화** — 평가 점수 미달 시 파이프라인 차단 (`sys.exit(1)`)
-- **회귀 방지** — 코드 변경 후 성능 저하 자동 감지
+1. [Overview](#1-overview)
+2. [The 4 gating methods](#2-the-4-gating-methods)
+3. [Full list of supported threshold metrics](#3-full-list-of-supported-threshold-metrics)
+4. [Recommended values by environment](#4-recommended-values-by-environment)
+5. [CI/CD integration](#5-cicd-integration)
+6. [Managing threshold files](#6-managing-threshold-files)
+7. [Trend analysis (agent-eval trend)](#7-trend-analysis-agent-eval-trend)
+8. [Gate-regression root-cause diagnosis (agent-eval diagnose)](#8-gate-regression-root-cause-diagnosis-agent-eval-diagnose)
+9. [Defining SLOs and the closed improvement loop](#9-defining-slos-and-the-closed-improvement-loop) — `target` · `benchmark` · `experiment` · `improve`
+10. [Domain-specific Harness Config presets](#10-domain-specific-harness-config-presets)
+11. [Best Practices](#11-best-practices)
 
 ---
 
-## 2. 게이팅 방법 4가지
+## 1. Overview
 
-### 방법 1 — CLI gate (가장 간단)
+A **threshold** is the minimum quality bar for an agent.
 
-평가 결과 JSON 파일을 직접 검사합니다. CI/CD 스크립트에서 바로 사용 가능합니다.
+- **Quality gate** — guarantees a minimum level of performance before deployment
+- **CI/CD automation** — stops the pipeline (`sys.exit(1)`) when the evaluation score falls short
+- **Regression prevention** — automatically detects a performance drop after a code change
+
+---
+
+## 2. The 4 gating methods
+
+### Method 1 — CLI gate (simplest)
+
+Inspects an evaluation-result JSON file directly. Usable straight from a CI/CD script.
 
 ```bash
-# 기본: TCR과 정확도만 검사
+# Basic: check only TCR and accuracy
 agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
-# 복합: 4개 지표 동시 검사
+# Composite: check 4 metrics at once
 agent-eval gate results/eval.json --tcr 85 --accuracy 70 --llm-judge 3.5 --hallucination 5
 
-# Harness Gate A–G 복합 점수 판정 (v0.8.3+)
+# Harness Gate A–G composite-score verdict (v0.8.3+)
 agent-eval gate results/eval.json --min-gate-score 0.75
 
-# Gate별 가중치 지정 — 보안(E)·목표달성(A)을 3배 강조
+# Per-gate weights — emphasize Security (E) and Goal Achievement (A) 3×
 agent-eval gate results/eval.json --min-gate-score 0.75 --group-weights "A:2.0,E:3.0,B:1.0"
 
-# Gate별 개별 최소 점수 지정 — 가중 복합 점수가 아니라 Gate 각각을 독립적으로 판정
+# Per-gate minimum scores — judge each gate independently, not as one weighted composite
 agent-eval gate results/eval.json --gate-thresholds "A:0.8,E:0.95" --required-gates "A,E" --fail-on-gate-warn
 ```
 
-임계값을 하나라도 미달하면 비제로(non-zero) 종료 코드를 반환합니다.
+Missing any one threshold returns a non-zero exit code.
 
-#### `--min-gate-score` / `--group-weights` 상세
+#### `--min-gate-score` / `--group-weights` in detail
 
-| 옵션 | 형식 | 설명 |
-|------|------|------|
-| `--min-gate-score` | `float` (0.0–1.0) | Gate A–G 가중 평균 최소값. 미달 시 exit(1) |
-| `--group-weights` | `"A:W,B:W,..."` | Gate별 가중치 (생략 시 균등 가중). 미정의 Gate는 기본값 1.0 |
+| Option | Format | Description |
+|--------|--------|-------------|
+| `--min-gate-score` | `float` (0.0–1.0) | minimum weighted average of Gates A–G. exit(1) if below |
+| `--group-weights` | `"A:W,B:W,..."` | per-gate weights (equal weighting if omitted). Undefined gates default to 1.0 |
 
 ```bash
-# 예: 보안(E) 3배, 신뢰성(C) 2배 가중, 전체 복합 점수 0.8 이상 필요
+# e.g. weight Security (E) 3×, Reliability (C) 2×, require overall composite ≥ 0.8
 agent-eval gate results/eval.json \
   --min-gate-score 0.80 \
   --group-weights "C:2.0,E:3.0"
 ```
 
-복합 점수는 `extra_metrics.harness_groups.{A-G}.score` 필드에서 추출합니다. 해당 데이터가 없는 Gate는 계산에서 제외됩니다.
+The composite score is taken from the `extra_metrics.harness_groups.{A-G}.score` fields. Gates with no such data are excluded from the calculation.
 
-#### `--gate-thresholds` / `--required-gates` / `--fail-on-gate-warn` 상세
+#### `--gate-thresholds` / `--required-gates` / `--fail-on-gate-warn` in detail
 
-`--min-gate-score`/`--group-weights`가 **하나의 가중 복합 점수**로 판정하는 것과 달리, 이 3개 옵션은 **Gate A–G 각각을 독립적으로** 임계값과 비교합니다 — Gate별로 다른 위험 수준을 적용하고 싶을 때(예: 보안은 0.95, 나머지는 0.7) 사용합니다.
+Unlike `--min-gate-score` / `--group-weights`, which judge on **one weighted composite score**, these three options compare **each of Gates A–G independently** against a threshold — use them when you want a different risk level per gate (e.g. Security at 0.95, everything else at 0.7).
 
-| 옵션 | 형식 | 설명 |
-|------|------|------|
-| `--gate-thresholds` | `"A:0.8,E:0.95"` | Gate별 개별 최소 점수. 목록에 없는 Gate는 `--min-gate-score`를 폴백으로 사용 |
-| `--required-gates` | `"A,E"` | `--gate-thresholds` 검사 대상 Gate를 제한 (미지정 시 점수가 있는 Gate 전체 검사) |
-| `--fail-on-gate-warn` | flag | Gate 상태가 `warn`이면 실패로 처리 (기본: warn도 통과) |
+| Option | Format | Description |
+|--------|--------|-------------|
+| `--gate-thresholds` | `"A:0.8,E:0.95"` | per-gate minimum score. Gates not listed fall back to `--min-gate-score` |
+| `--required-gates` | `"A,E"` | restrict which gates `--gate-thresholds` checks (if omitted, all gates with a score are checked) |
+| `--fail-on-gate-warn` | flag | treat a gate `warn` status as a failure (default: `warn` still passes) |
 
-> `--required-gates`와 `--fail-on-gate-warn`은 `--gate-thresholds`가 함께 지정돼야만 동작합니다 — 단독으로 주면 아무 효과가 없습니다. `--required-gates`에 없는 Gate는 "경고"가 아니라 검사 자체에서 조용히 제외됩니다.
+> `--required-gates` and `--fail-on-gate-warn` only take effect when `--gate-thresholds` is also given — on their own they do nothing. A gate not in `--required-gates` is silently excluded from the check, not "warned".
 
-Python 코드에서 동등한 판정을 원하면 아래 [방법 4 — HarnessEvaluationGate](#방법-4--harnessevaluationgate-config-as-code-종합-판정)를 사용하세요 — `agent-eval gate` CLI와 `HarnessEvaluationGate`는 서로 호출하지 않는 독립 구현이므로 완전히 동일하지는 않습니다.
+For an equivalent verdict from Python code, use [Method 4 — HarnessEvaluationGate](#method-4--harnessevaluationgate-config-as-code-composite-verdict) below — the `agent-eval gate` CLI and `HarnessEvaluationGate` are independent implementations that do not call each other, so they are not perfectly identical.
 
-#### `--baseline-version` — 버전별 독립 기준선 (v0.9.8+)
+#### `--baseline-version` — per-version independent baselines (v0.9.8+)
 
-여러 프롬프트/에이전트 버전을 동시에 실험할 때, 버전마다 독립된 기준선을 두고 각자의 회귀 여부를 추적합니다. 미지정 시 기존 `<result_dir>/baseline.json` 단일 경로 동작과 100% 동일합니다.
+When experimenting with several prompt / agent versions at once, keep an independent baseline per version and track each one's regression separately. If omitted, behavior is 100% identical to the existing single-path `<result_dir>/baseline.json`.
 
 ```bash
-# v2-cot 실험 전용 기준선 저장 — <result_dir>/baselines/v2-cot.json 에 저장됨
+# Save a baseline for the v2-cot experiment — stored at <result_dir>/baselines/v2-cot.json
 agent-eval gate results/run_v2.json --save-baseline --baseline-version v2-cot
 
-# 같은 실험의 이후 실행을 v2-cot 기준선과만 비교 (다른 버전의 기준선에 영향 없음)
+# Compare later runs of the same experiment against the v2-cot baseline only (no effect on other versions' baselines)
 agent-eval gate results/run_v2_latest.json --baseline-version v2-cot --fail-on-regression 10
 ```
 
-`--baseline`(명시적 경로)을 함께 지정하면 `--baseline-version`보다 우선합니다.
+`--baseline` (an explicit path) takes precedence over `--baseline-version` when both are given.
 
-#### `--golden-set` / `--fail-on-golden-regression` — 골든셋 회귀 게이트 (v0.9.8+)
+#### `--golden-set` / `--fail-on-golden-regression` — golden-set regression gate (v0.9.8+)
 
-사람이 승인한 골든 데이터셋(`agent-eval dataset build` 또는 대시보드 승인 워크플로우 결과, `data/golden_datasets/golden_*.json`)의 각 케이스가 **최신 실행 결과에 여전히 커버되고 통과하는지** 확인합니다. 매칭은 `task_id` 우선, 없으면 `question` 텍스트 완전 일치로 폴백합니다 — 골든셋을 병합할 때 가능하면 원본 `task_id`를 보존하세요(대시보드의 `merge_approved()`는 이미 이를 보존합니다).
+Verifies that each case in a human-approved golden dataset (the output of `agent-eval dataset build` or the dashboard approval workflow, `data/golden_datasets/golden_*.json`) is **still covered and still passing in the latest run**. Matching is by `task_id` first, falling back to exact `question` text — when merging golden sets, preserve the original `task_id` where possible (the dashboard's `merge_approved()` already does).
 
-> 이 게이트는 **사후 분석**입니다 — 에이전트를 재실행하지 않고 이미 생성된 결과 JSON만 검사합니다. "골든셋으로 에이전트를 다시 돌려서 검증"하려면 위의 [Golden Dataset 기반 회귀 테스트](#golden-dataset-기반-회귀-테스트) 패턴(재실행 + `eval.gate()`)을 사용하세요 — 두 방식은 서로 대체가 아니라 보완 관계입니다.
+> This gate is a **post-hoc analysis** — it inspects an already-produced result JSON without re-running the agent. To "re-run the agent against the golden set to verify it," use the [golden-dataset regression test](#golden-dataset-regression-test) pattern below (re-run + `eval.gate()`) — the two approaches are complementary, not substitutes.
 
 ```bash
 agent-eval gate results/run_latest.json \
   --golden-set data/golden_datasets/golden_20260705_120000.json \
   --fail-on-golden-regression
-# exit 3: golden regression — 케이스 누락(커버리지 갭) 또는 success=False(품질 회귀)
+# exit 3: golden regression — a missing case (coverage gap) or success=False (quality regression)
 ```
 
-`--fail-on-golden-regression` 없이 `--golden-set`만 지정하면 회귀를 stderr에 보고만 하고 종료 코드에는 반영하지 않습니다(다른 옵트인 체크와 동일한 관례) — 지정 시에만 전용 종료 코드 `3`을 반환합니다. 골든셋 파일이 없거나 파싱에 실패하면(경로 오탈자 등) 조용히 통과시키지 않고 즉시 exit 1로 실패합니다.
+Passing `--golden-set` without `--fail-on-golden-regression` only reports regressions to stderr and does not affect the exit code (the same convention as other opt-in checks) — the dedicated exit code `3` is returned only when the flag is set. If the golden-set file is missing or fails to parse (a path typo, etc.), it does not pass silently — it fails immediately with exit 1.
+
+#### Case regression · cost SLO · review-queue gate (SPEC-041 P26·P28·P34)
+
+| Option | Format | Description |
+|--------|--------|-------------|
+| `--baseline-result` + `--fail-on-case-regression` | file path + flag | **exit 4** if a task that passed in the previous run fails now |
+| `--max-cost-per-task` | `float` ($) | fail if `total_cost / task count` exceeds this (cost SLO) |
+| `--max-review-high` | `int` | **exit 4** if the number of HIGH items in `insights.review_queue` exceeds this |
+| `--notify` | `slack://...` \| `webhook://...` | after the verdict, send the narrative + regressions + cohort winner to the target channel (never raises) |
+| `--digest` | flag | also print the PM / QA / engineer briefs after the table |
+| `--target-file` | file path | use the project SLOs in `.aoo/targets.json` as thresholds ([§9.1](#9-defining-slos-and-the-closed-improvement-loop)) |
+
+```bash
+agent-eval gate result.json \
+  --baseline-result results/prev_run.json --fail-on-case-regression \
+  --max-cost-per-task 0.05 \
+  --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X \
+  --digest
+```
 
 ---
 
-### 방법 2 — QuickEval.gate() (코드에서)
+### Method 2 — QuickEval.gate() (from code)
 
-평가와 게이팅을 한 파일에서 처리합니다.
+Handles evaluation and gating in one file.
 
 ```python
 from agent_evaluator import QuickEval
@@ -133,23 +153,23 @@ def agent(question: str, ground_truth: str = "") -> str:
 for q, gt in dataset:
     agent(q, ground_truth=gt)
 
-# 임계값 미달 시 sys.exit(1)
+# sys.exit(1) if a threshold is missed
 eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5.0)
 
-# raise_on_fail=False → 종료 대신 bool 반환
+# raise_on_fail=False → return a bool instead of exiting
 passed = eval.gate(tcr=80, accuracy=65, raise_on_fail=False)
 if not passed:
-    print("품질 기준 미달 — 배포 보류")
+    print("quality bar missed — hold the deployment")
 
-# 현재 결과 기반으로 gate_config.json 자동 생성 (현재 값의 95% 수준)
+# Auto-generate gate_config.json from the current results (at 95% of the current values)
 eval.generate_gate_config("gate_config.json")
 ```
 
 ---
 
-### 방법 3 — monitor.thresholds (저수준 API)
+### Method 3 — monitor.thresholds (low-level API)
 
-`PerformanceMonitor`를 직접 사용할 때 세밀한 제어가 필요한 경우에 사용합니다.
+Use this when you need fine-grained control while using `PerformanceMonitor` directly.
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -158,16 +178,16 @@ monitor = PerformanceMonitor(output_dir="results/")
 monitor.thresholds = {
     "tcr": 85.0,
     "accuracy": 70.0,
-    "latency": 5.0,   # P95 기준, 초 단위
+    "latency": 5.0,   # P95, in seconds
 }
 
 results = monitor.compare_with_thresholds()
 for metric, data in results.items():
     status = "PASS" if data["status"] == "pass" else "FAIL"
-    print(f"[{status}] {metric}: {data['value']:.1f} (기준: {data['threshold']})")
+    print(f"[{status}] {metric}: {data['value']:.1f} (threshold: {data['threshold']})")
 ```
 
-`compare_with_thresholds()` 반환값 구조:
+Structure returned by `compare_with_thresholds()`:
 
 ```python
 {
@@ -192,98 +212,99 @@ for metric, data in results.items():
 
 ---
 
-### 방법 4 — HarnessEvaluationGate (Config-as-Code 종합 판정)
+### Method 4 — HarnessEvaluationGate (Config-as-Code composite verdict)
 
-`agent-eval gate`/`QuickEval.gate()`가 숫자 임계값 중심이라면, `HarnessEvaluationGate`는 **Harness Config 선언 자체를 판정 근거로 삼는** Python API입니다. `@agent_eval`에 선언한 33개 Harness Config(`InstructionConfig`, `SLAConfig`, `ThreatSeverityConfig` 등)의 결과가 Gate A–G 점수로 집계된 뒤, 이 클래스가 그 점수를 검사합니다. Config 선언이 코드(Git 추적)로 남으므로 "왜 이 기준이 정해졌는가"를 리뷰 이력으로 추적할 수 있습니다.
+Where `agent-eval gate` / `QuickEval.gate()` are numeric-threshold-centric, `HarnessEvaluationGate` is a Python API that **treats the Harness Config declarations themselves as the basis for the verdict**. The results of the 33 Harness Configs declared on `@agent_eval` (`InstructionConfig`, `SLAConfig`, `ThreatSeverityConfig`, etc.) are aggregated into the Gate A–G scores, and this class inspects those scores. Because the Config declarations live in code (Git-tracked), you can trace "why was this bar set" through review history.
 
 ```python
 from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
 
 report = monitor.generate_report()
 gate = HarnessEvaluationGate(report)
-result = gate.evaluate()   # 인수 없음
+result = gate.evaluate()   # no arguments
 # {"passed": bool, "groups": {"A": {"score": float|None, "status": str, "passed": bool,
-#      "threshold": float, "not_measured": bool (score=None일 때만),
-#      "insufficient_data_warnings": list[str] (있을 때만)}},
+#      "threshold": float, "not_measured": bool (only when score=None),
+#      "insufficient_data_warnings": list[str] (when present)}},
 #  "violations": [...], "summary": {"total_groups": int, "passed_groups": int, "overall_score": float|None}}
 
-# CI/CD — 실패 시 sys.exit(1)
+# CI/CD — sys.exit(1) on failure
 gate.enforce()
 ```
 
-**Gate별 개별 임계값 + 미측정 Gate 강제 실패** — CLI의 `--gate-thresholds`/`--required-gates`에 대응합니다.
+**Per-gate thresholds + forced failure of unmeasured gates** — corresponds to the CLI's `--gate-thresholds` / `--required-gates`.
 
 ```python
 gate = HarnessEvaluationGate(
     report,
     required_groups=["A", "E"],
-    group_thresholds={"E": 0.95},   # Security는 더 엄격하게, 나머지는 min_group_score
-    strict_required=True,            # required_groups에 명시한 Gate가 score=None(Config 자체를
-                                      # 설정 안 함)이면 실패 처리. 기본값(False)은 "측정 안 된 Gate는
-                                      # 조용히 통과"인 CLI/QuickEval.gate()와 동일한 기존 동작 유지
+    group_thresholds={"E": 0.95},   # Security stricter; the rest use min_group_score
+    strict_required=True,            # fail if a gate named in required_groups has score=None
+                                      # (no Config set at all). The default (False) keeps the same
+                                      # "an unmeasured gate silently passes" behavior as
+                                      # the CLI / QuickEval.gate()
 )
 result = gate.evaluate()
 ```
 
-| 파라미터 | 기본값 | 설명 |
-|----------|--------|------|
-| `min_group_score` | `0.7` | 각 Gate 최소 허용 점수. `group_thresholds`에 없는 Gate에 적용 |
-| `required_groups` | `None`(점수 있는 모든 Gate) | 검사할 Gate 목록 |
-| `fail_on_warn` | `False` | `True`면 `warn` 상태도 실패로 처리 |
-| `group_thresholds` | `None` | Gate별 개별 최소 점수 dict. CLI `--gate-thresholds`와 동일 개념 |
-| `strict_required` | `False` | `required_groups`에 명시한 Gate가 미측정(`score=None`)이면 실패 처리 |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `min_group_score` | `0.7` | minimum acceptable score per gate. Applied to gates not in `group_thresholds` |
+| `required_groups` | `None` (all gates with a score) | list of gates to check |
+| `fail_on_warn` | `False` | if `True`, a `warn` status is also a failure |
+| `group_thresholds` | `None` | per-gate minimum-score dict. Same concept as the CLI `--gate-thresholds` |
+| `strict_required` | `False` | fail if a gate named in `required_groups` is unmeasured (`score=None`) |
 
-> ⚠️ `agent-eval gate` CLI(`--gate-thresholds`)·`QuickEval.gate(gate_thresholds=...)`·`HarnessEvaluationGate`는 Gate A–G 임계값 판정을 세 곳에서 각각 호출하는 서로 다른 진입점입니다 — `_compute_gate_regressions()`(베이스라인 회귀 판정 공식)와 `gates/base.py::evaluate_gate_scores()`(Gate별 score/threshold/status → passed 판정 루프)를 셋 다 공유합니다. 남은 차이는 진입점별 고유 기능뿐입니다(`HarnessEvaluationGate`의 `strict_required`, CLI의 `--baseline-version`/`--golden-set`). 세 진입점 모두 `score=None`(해당 Gate의 Config를 아예 설정하지 않은 경우)인 Gate는 기본적으로 통과 처리합니다(`HarnessEvaluationGate`만 `strict_required=True`로 이 동작을 끌 수 있습니다).
-
----
-
-## 3. 지원 Threshold 메트릭 전체 목록
-
-| 레이어 | 메트릭 키 | 단위 | 방향 | 권장값 (Prod) |
-|--------|-----------|------|------|---------------|
-| Layer 1 | `tcr` | % | 높을수록 좋음 | ≥ 85 |
-| Layer 1 | `accuracy` | % | 높을수록 좋음 | ≥ 70 |
-| Layer 1 | `hallucination` | % | **낮을수록 좋음** | ≤ 5 |
-| Layer 1 | `quality` | 점 (0–5) | 높을수록 좋음 | ≥ 3.5 |
-| Layer 1 | `latency` | 초 (P95) | **낮을수록 좋음** | ≤ 5.0 |
-| Layer 1 | `cost_per_task` | USD | **낮을수록 좋음** | ≤ 0.05 |
-| Layer 2 | `tool_selection_accuracy` | % (F1) | 높을수록 좋음 | ≥ 80 |
-| Layer 2 | `agent_coordination` | % | 높을수록 좋음 | ≥ 75 |
-| Layer 2 | `workflow_execution` | % | 높을수록 좋음 | ≥ 80 |
-| Layer 2 | `retry_success_rate` | % | 높을수록 좋음 | ≥ 60 |
-| Layer 2 (보안) | `input_sanitization` | % | 높을수록 좋음 | ≥ 95 |
-| Layer 2 (보안) | `output_leakage` | % (탐지율) | **낮을수록 좋음** | ≤ 1 |
-| Layer 2 (보안) | `authorization` | % | 높을수록 좋음 | ≥ 99 |
-| Layer 2 (보안) | `privilege_escalation` | 건 | **낮을수록 좋음** | 0 |
-| Layer 2 (보안) | `tool_chain_attack` | 건 | **낮을수록 좋음** | 0 |
-| Layer 3 (RAG) | `faithfulness` | 점 (0–1) | 높을수록 좋음 | ≥ 0.80 |
-| Layer 3 (RAG) | `answer_relevancy` | 점 (0–1) | 높을수록 좋음 | ≥ 0.75 |
-| Layer 3 (RAG) | `context_recall` | 점 (0–1) | 높을수록 좋음 | ≥ 0.70 |
-| Layer 3 (RAG) | `context_precision` | 점 (0–1) | 높을수록 좋음 | ≥ 0.70 |
-
-> **주의사항**:
-> - `latency`는 평균이 아닌 **P95(95 백분위수)** 기준입니다.
-> - `quality`는 **5점 척도** (0–5)입니다. 10점 척도가 아닙니다.
-> - `hallucination`, `output_leakage`, `privilege_escalation`, `tool_chain_attack`은 낮을수록 좋습니다 (미달 판정 방향 반전).
+> ⚠️ The `agent-eval gate` CLI (`--gate-thresholds`), `QuickEval.gate(gate_thresholds=...)`, and `HarnessEvaluationGate` are three separate entry points that each invoke the Gate A–G threshold verdict — all three share `_compute_gate_regressions()` (the baseline-regression formula) and `gates/base.py::evaluate_gate_scores()` (the per-gate score/threshold/status → passed loop). The only remaining differences are entry-point-specific features (`HarnessEvaluationGate`'s `strict_required`, the CLI's `--baseline-version` / `--golden-set`). All three pass a gate with `score=None` (no Config set for that gate at all) by default (only `HarnessEvaluationGate` can turn this off, via `strict_required=True`).
 
 ---
 
-## 4. 환경별 권장값
+## 3. Full list of supported threshold metrics
 
-| 메트릭 | 개발(Dev) | 스테이징(Staging) | 운영(Prod) |
-|--------|-----------|-------------------|------------|
+| Layer | Metric key | Unit | Direction | Recommended (Prod) |
+|-------|------------|------|-----------|--------------------|
+| Layer 1 | `tcr` | % | higher is better | ≥ 85 |
+| Layer 1 | `accuracy` | % | higher is better | ≥ 70 |
+| Layer 1 | `hallucination` | % | **lower is better** | ≤ 5 |
+| Layer 1 | `quality` | points (0–5) | higher is better | ≥ 3.5 |
+| Layer 1 | `latency` | seconds (P95) | **lower is better** | ≤ 5.0 |
+| Layer 1 | `cost_per_task` | USD | **lower is better** | ≤ 0.05 |
+| Layer 2 | `tool_selection_accuracy` | % (F1) | higher is better | ≥ 80 |
+| Layer 2 | `agent_coordination` | % | higher is better | ≥ 75 |
+| Layer 2 | `workflow_execution` | % | higher is better | ≥ 80 |
+| Layer 2 | `retry_success_rate` | % | higher is better | ≥ 60 |
+| Layer 2 (security) | `input_sanitization` | % | higher is better | ≥ 95 |
+| Layer 2 (security) | `output_leakage` | % (detection rate) | **lower is better** | ≤ 1 |
+| Layer 2 (security) | `authorization` | % | higher is better | ≥ 99 |
+| Layer 2 (security) | `privilege_escalation` | count | **lower is better** | 0 |
+| Layer 2 (security) | `tool_chain_attack` | count | **lower is better** | 0 |
+| Layer 3 (RAG) | `faithfulness` | points (0–1) | higher is better | ≥ 0.80 |
+| Layer 3 (RAG) | `answer_relevancy` | points (0–1) | higher is better | ≥ 0.75 |
+| Layer 3 (RAG) | `context_recall` | points (0–1) | higher is better | ≥ 0.70 |
+| Layer 3 (RAG) | `context_precision` | points (0–1) | higher is better | ≥ 0.70 |
+
+> **Notes**:
+> - `latency` is measured at **P95 (95th percentile)**, not the mean.
+> - `quality` is on a **0–5 scale**, not 0–10.
+> - `hallucination`, `output_leakage`, `privilege_escalation`, and `tool_chain_attack` are better when lower (the "below bar" direction is inverted).
+
+---
+
+## 4. Recommended values by environment
+
+| Metric | Dev | Staging | Prod |
+|--------|-----|---------|------|
 | `tcr` | ≥ 70% | ≥ 80% | ≥ 85% |
 | `accuracy` | ≥ 55% | ≥ 65% | ≥ 70% |
 | `hallucination` | ≤ 15% | ≤ 8% | ≤ 5% |
 | `quality` | ≥ 2.5 | ≥ 3.0 | ≥ 3.5 |
-| `latency` (P95) | ≤ 15초 | ≤ 8초 | ≤ 5초 |
+| `latency` (P95) | ≤ 15s | ≤ 8s | ≤ 5s |
 | `cost_per_task` | ≤ 0.20 USD | ≤ 0.10 USD | ≤ 0.05 USD |
 
-개발 환경에서는 느슨하게 시작하고, 운영 배포 전 단계적으로 강화합니다.
+Start loose in the dev environment and tighten in stages before a production deployment.
 
 ---
 
-## 5. CI/CD 통합
+## 5. CI/CD integration
 
 ### GitHub Actions
 
@@ -326,7 +347,7 @@ jobs:
           path: results/
 ```
 
-### pytest Quality Gate
+### pytest quality gate
 
 ```python
 # tests/test_quality_gate.py
@@ -348,9 +369,9 @@ def test_quality_gate():
 
 def test_latency_gate():
     eval = QuickEval("results/")
-    # ... 평가 실행 ...
+    # ... run the evaluation ...
     passed = eval.gate(latency=8.0, raise_on_fail=False)
-    assert passed, f"P95 latency exceeded 8s threshold"
+    assert passed, "P95 latency exceeded the 8s threshold"
 ```
 
 ```bash
@@ -372,11 +393,11 @@ evaluate:
     when: always
 ```
 
-### Golden Dataset 기반 회귀 테스트
+### Golden-dataset regression test
 
-> 이 패턴은 에이전트를 **재실행**해 골든셋을 통과하는지 확인합니다. 이미 만들어진 결과 JSON
-> 파일만으로(재실행 없이) 골든셋 커버리지/통과 여부를 확인하려면 위 "방법 1 — CLI gate"의
-> `--golden-set` / `--fail-on-golden-regression` (v0.9.8+)를 사용하세요.
+> This pattern **re-runs** the agent to check whether it passes the golden set. To check golden-set
+> coverage / pass status from an already-produced result JSON alone (no re-run), use
+> `--golden-set` / `--fail-on-golden-regression` (v0.9.8+) from "Method 1 — CLI gate" above.
 
 ```python
 # tests/test_quality_regression.py
@@ -399,18 +420,18 @@ def test_quality_regression(golden_dataset):
 
 ---
 
-## 6. 임계값 파일 관리
+## 6. Managing threshold files
 
-임계값을 코드에 하드코딩하지 않고 파일로 관리하면 환경별 설정을 분리할 수 있습니다.
+Rather than hard-coding thresholds in code, manage them in a file so you can separate configuration per environment.
 
-### 파일 생성 — 자동
+### File creation — automatic
 
 ```python
-# 현재 결과의 95% 수준으로 gate_config.json 자동 생성
+# Auto-generate gate_config.json at 95% of the current results
 eval.generate_gate_config("gate_config.json")
 ```
 
-### 파일 생성 — 수동
+### File creation — manual
 
 ```json
 {
@@ -422,22 +443,22 @@ eval.generate_gate_config("gate_config.json")
 }
 ```
 
-### Python API에서 파일 로드
+### Loading the file from the Python API
 
-`QuickEval.gate(config_file=...)` 를 사용하면 JSON 파일에서 임계값을 읽을 수 있습니다. CLI(`agent-eval gate`)에는 `--config` 플래그가 없으므로 Python API를 사용하세요.
+`QuickEval.gate(config_file=...)` reads thresholds from a JSON file. The CLI (`agent-eval gate`) has no `--config` flag, so use the Python API.
 
 ```python
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
 eval.gate(config_file="gate_config.json")
-# 또는 환경별 파일 분리
+# or split per environment
 import os
 env = os.environ.get("DEPLOY_ENV", "prod")
 eval.gate(config_file=f"gate_config.{env}.json")
 ```
 
-### 코드에서 파일 로드 (PerformanceMonitor)
+### Loading the file from code (PerformanceMonitor)
 
 ```python
 import json
@@ -453,69 +474,105 @@ results = monitor.compare_with_thresholds()
 
 ---
 
-## 7. 추세 분석 (agent-eval trend)
+## 7. Trend analysis (agent-eval trend)
 
-순차 실행 결과의 TCR·정확도 추세를 분석하고, 회귀 감지 시 CI/CD를 차단합니다.
+Analyzes the TCR / accuracy trend across sequential run results and stops CI/CD when a regression is detected.
 
 ```bash
-# 최근 10개 결과 파일 TCR·정확도 추세 분석
+# Trend analysis of the TCR / accuracy of the last 10 result files
 agent-eval trend results/
 
-# 최근 5개 파일만 분석
+# Analyze only the last 5 files
 agent-eval trend results/ --window 5
 
-# 회귀 감지 시 exit 1 (CI/CD 실패 처리)
+# exit 1 on a detected regression (CI/CD failure)
 agent-eval trend results/ --fail-on-regression
 
-# 분석 결과 JSON 저장
+# Save the analysis result as JSON
 agent-eval trend results/ --output-json trend.json
 ```
 
 ---
 
-## 8. Gate 회귀 원인진단 (agent-eval diagnose)
+## 8. Gate-regression root-cause diagnosis (agent-eval diagnose)
 
-`agent-eval gate`/`agent-eval trend`가 회귀를 잡아낸 *다음* 단계 — "어떤 Gate가, 어느 세부 지표
-때문에, 왜" 나빠졌는지 3단계(감지 → 원인귀속 → 교차확인)로 자동 진단합니다. **CI 게이트가 아닙니다**
-— pass/fail을 판정하지 않고 사람이 읽을 후보 원인과 근거만 출력합니다(HOTL 원칙). baseline이 없어도
-현재 fail/warn 상태인 Gate를 감지하는 방식으로 동작합니다.
+The step *after* `agent-eval gate` / `agent-eval trend` catch a regression — it automatically diagnoses "which gate got worse, because of which detail metric, and why" in three stages (detect → attribute → cross-reference). **It is not a CI gate** — it does not judge pass/fail; it only prints human-readable candidate causes and evidence (the HOTL principle). It works even without a baseline, by detecting gates currently in a fail/warn state.
 
 ```bash
-# baseline 없이 — 현재 fail/warn 상태인 Gate를 감지
+# No baseline — detect gates currently in a fail/warn state
 agent-eval diagnose results/latest.json
 
-# baseline과 비교 — 회귀 기반 감지로 격상
+# Compare against a baseline — upgrade to regression-based detection
 agent-eval diagnose results/latest.json --baseline results/baseline.json
 
-# --show-diff: baseline↔current 사이 실제 git 커밋 변경 이력까지 함께 표시
+# --show-diff: also show the actual git-commit change log between baseline ↔ current
 agent-eval diagnose results/latest.json --baseline results/baseline.json --show-diff
 
-# JSON으로 출력 (스크립트 연동용)
+# JSON output (for script integration)
 agent-eval diagnose results/latest.json --json
 ```
 
-출력에는 감지 방식(`detection_mode`), 감지된 Gate 목록, Gate별 `top_detail_deltas`(baseline 대비
-가장 많이 움직인 세부 지표), SQLite 위반 이력이 있으면 관련 위반 건, Gate F는 MAST(Cemri et al.,
-NeurIPS 2025) 실패모드 후보까지 포함됩니다. Gate C·D가 동시에 감지되면 SLA가 공유 원인인지 먼저
-확인하는 체크도 함께 표시됩니다.
+The output includes the detection mode (`detection_mode`), the list of detected gates, each gate's `top_detail_deltas` (the detail metrics that moved most vs. the baseline), any related violations if a SQLite violation history exists, and — for Gate F — MAST (Cemri et al., NeurIPS 2025) failure-mode candidates. When Gates C and D are detected together, a check that first verifies whether SLA is the shared cause is also shown.
 
-Python API: `agent_evaluator.rca.diagnose()` — 상세 시그니처는 [`08_API_REFERENCE.md`의 "RCA 진단 +
-추천 이력" 절](08_API_REFERENCE.md#14-rca-진단--추천-이력-agent_evaluatorrca--ontology) 참고. 대시보드
-🔧 Improve 탭이 동일 결과를 시각화합니다.
+Python API: `agent_evaluator.rca.diagnose()` — for the detailed signature see the ["RCA diagnosis + recommendation history" section of `08_API_REFERENCE.md`](08_API_REFERENCE.md#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology). The dashboard 🔧 Improve tab visualizes the same result.
 
-> `--show-diff`가 지목한 git 커밋을 "누가/어떤 대화로 썼는지"까지 역추적하고 싶다면(선택적, 코어
-> 비의존 개인 도구) [`CTX_SESSION_SEARCH.md`의 워크플로우 A](CTX_SESSION_SEARCH.md#워크플로우-a--gate-회귀--git-커밋--원본-세션-역추적)
-> 참고.
+> To trace the git commit `--show-diff` points to back to "who wrote it, in which conversation" — an
+> optional, core-independent personal tool — see
+> [Workflow A in `CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md#workflow-a--gate-regression--git-commit--source-session-trace-back).
 
 ---
 
-## 9. 도메인별 Harness Config 프리셋
+## 9. Defining SLOs and the closed improvement loop
 
-도메인마다 위험 허용 수준이 다릅니다. 아래 프리셋을 참고해 도메인에 맞게 임계값을 조정하세요.
+Where `gate` / `trend` / `diagnose` judge "can we deploy right now," the commands in this section **pin the baseline itself as a project SLO** and turn the diagnosis into a closed **hypothesis → action → re-verification** loop (SPEC-041 P27·P43·P49·P53·P57).
 
-### 의료 AI (엄격)
+### 9.1 Pin project goals — `agent-eval target`
 
-생명·안전 직결 시스템 — 오탐보다 미탐이 더 위험합니다.
+```bash
+agent-eval target set --gate A=0.85 --gate E=0.95 --tcr 90   # written to .aoo/targets.json
+agent-eval target show
+```
+
+Once set, `agent-eval gate` uses these values as thresholds unless `--gate-thresholds` is given, and every "below target" line in the report / insights is measured against **your bar**, not 0.7.
+
+### 9.2 External reference distribution — `agent-eval benchmark`
+
+```bash
+agent-eval benchmark set --tcr 78 --gate A=0.75 --label support-rag   # a single reference value
+agent-eval benchmark set --from-results results/                       # derive a percentile distribution from a results directory
+agent-eval benchmark show
+```
+
+Once set, `insights.reference_frame` also reports this run's percentile and the gap to the frontier.
+
+### 9.3 Improvement-experiment registry — `agent-eval experiment`
+
+```bash
+agent-eval experiment register --gate A --field avg_subtask_completion --predict-delta 0.08 --note "add SubtaskConfig"
+agent-eval experiment list
+agent-eval experiment score v3.json --baseline v2.json --persist   # score predicted vs actual, record a verdict
+```
+
+### 9.4 Closed improvement loop — `agent-eval improve`
+
+```bash
+agent-eval improve plan v3.json --baseline v2.json       # print per-gate proposals (component_shortfalls-based if no baseline)
+agent-eval improve start v3.json --yes                   # register each proposal as an experiment + write .aoo/improve/*.md stubs
+agent-eval improve verify v4.json --baseline v3.json --persist   # score predicted vs actual + resolve experiments + append recommendation_outcomes.jsonl
+agent-eval improve patch v3.json --repo .                # emit a unified diff per proposal (prompt file / @agent_eval decorator) — never applied automatically
+```
+
+Once the two logs (`.aoo/experiments.jsonl`, `.aoo/recommendation_outcomes.jsonl`) accumulate, `insights.improvement_priors` folds them into a per-(gate, change-category) confirm-rate track record and surfaces it as the confidence of the next proposal.
+
+---
+
+## 10. Domain-specific Harness Config presets
+
+Every domain has a different risk tolerance. Use the presets below as a starting point and adjust the thresholds to your domain.
+
+### Medical AI (strict)
+
+A life- and safety-critical system — a missed detection is worse than a false alarm.
 
 ```python
 from agent_evaluator import (
@@ -524,33 +581,33 @@ from agent_evaluator import (
 )
 
 MEDICAL_HARNESS = dict(
-    # Gate E: 위협 임계값을 절반으로 낮춤 (낮은 위협도도 즉시 차단)
+    # Gate E: halve the threat threshold (block even low-severity threats immediately)
     threat_severity=ThreatSeverityConfig(fail_score=4.0, fail_on_critical=True),
-    # Gate E: HIPAA 준수 + 데이터 최소화 필수
+    # Gate E: HIPAA compliance + mandatory data minimization
     compliance=ComplianceConfig(
         compliance_framework="hipaa",
         pii_categories=["ssn", "medical_record", "diagnosis", "email", "phone"],
         require_data_minimization=True,
     ),
-    # Gate D: 응답 지연 엄격 (진단 보조 시스템은 빠른 응답 필수)
+    # Gate D: strict response latency (a diagnostic-support system must respond fast)
     sla=SLAConfig(p95_ms=2000, p99_ms=4000),
-    # Gate G: 반드시 추론 과정 포함 (의사의 검토를 위해)
+    # Gate G: reasoning always required (for a doctor's review)
     explainability=ExplainabilityConfig(
         require_reasoning=True,
         min_reasoning_length=100,
         reasoning_markers=["왜냐하면", "따라서", "근거", "증거"],
     ),
-    # Gate C: 오류 복구 필수 (시스템 중단 불가)
+    # Gate C: recovery required (no system outages allowed)
     fault_tolerance=FaultToleranceConfig(
         check_fallback_attempts=True,
-        partial_success_threshold=0.8,  # 80% 이상 완성도 필요
+        partial_success_threshold=0.8,  # require ≥ 80% completeness
     ),
 )
 ```
 
-### 금융 AI (엄격)
+### Financial AI (strict)
 
-규제 준수 + 비용 예측 가능성이 핵심입니다.
+Regulatory compliance + cost predictability are key.
 
 ```python
 from agent_evaluator import (
@@ -559,26 +616,26 @@ from agent_evaluator import (
 )
 
 FINANCE_HARNESS = dict(
-    # Gate E: SOX/PCI-DSS 준수
+    # Gate E: SOX/PCI-DSS compliance
     compliance=ComplianceConfig(
         compliance_framework="sox",
         pii_categories=["credit_card", "bank_account", "ssn", "tax_id"],
         require_data_minimization=True,
     ),
-    # Gate D: 매우 엄격한 SLA (금융 거래 지연 = 손실)
+    # Gate D: very strict SLA (a delayed financial transaction = a loss)
     sla=SLAConfig(p95_ms=1000, p99_ms=2000),
-    # Gate D: 비용 예산 엄격 제한 (건당 처리 비용 통제)
+    # Gate D: strict cost budget (control the per-request processing cost)
     resource_budget=ResourceBudgetConfig(max_tokens=800, max_cost_usd=0.005),
-    # Gate D: 비용 변동성 최소화 (예산 예측 가능성)
-    # monitor 생성자에 전달: PerformanceMonitor(cost_predictability_config=...)
+    # Gate D: minimize cost variability (budget predictability)
+    # pass to the monitor constructor: PerformanceMonitor(cost_predictability_config=...)
     # CostPredictabilityConfig(max_coefficient_of_variation=0.2, min_samples=10)
     threat_severity=ThreatSeverityConfig(fail_score=5.0, fail_on_critical=True),
 )
 ```
 
-### 일반 챗봇 (완화)
+### General chatbot (relaxed)
 
-사용자 경험 중심 — 빠른 이터레이션이 중요합니다.
+User-experience-centric — fast iteration matters.
 
 ```python
 from agent_evaluator import (
@@ -586,14 +643,14 @@ from agent_evaluator import (
 )
 
 CHATBOT_HARNESS = dict(
-    # Gate D: 여유로운 SLA (챗봇은 5초까지 허용)
+    # Gate D: generous SLA (a chatbot may take up to 5s)
     sla=SLAConfig(p95_ms=5000, p99_ms=10000),
-    # Gate E: 기본 PII 보호만
+    # Gate E: basic PII protection only
     compliance=ComplianceConfig(
         pii_categories=["email", "phone"],
         compliance_framework="general",
     ),
-    # Gate G: 추론 과정 선택 (챗봇은 간결한 답변 선호)
+    # Gate G: reasoning optional (chatbots prefer concise answers)
     explainability=ExplainabilityConfig(
         require_reasoning=False,
         min_reasoning_length=0,
@@ -601,60 +658,60 @@ CHATBOT_HARNESS = dict(
 )
 ```
 
-### 프리셋 적용 패턴
+### Preset application pattern
 
 ```python
 from agent_evaluator.decorators import agent_eval
 
-# 도메인 선택
+# Choose the domain
 DOMAIN = "medical"  # "medical" | "finance" | "chatbot"
 PRESET = {"medical": MEDICAL_HARNESS, "finance": FINANCE_HARNESS, "chatbot": CHATBOT_HARNESS}[DOMAIN]
 
 @agent_eval(monitor, task_type="qa", **PRESET)
 def domain_agent(question: str, ground_truth: str = "") -> str:
-    return f"도메인 특화 응답: {question}"
+    return f"domain-specific response: {question}"
 ```
 
-### 도메인별 임계값 비교
+### Threshold comparison by domain
 
-| 항목 | 의료 | 금융 | 일반 챗봇 |
-|------|------|------|-----------|
+| Item | Medical | Financial | General chatbot |
+|------|---------|-----------|-----------------|
 | SLA P95 | 2,000ms | 1,000ms | 5,000ms |
-| ThreatSeverity fail_score | 4.0 | 5.0 | 7.0 (기본) |
-| 추론 과정 필수 | ✅ 필수 | 권장 | 선택 |
-| PII 카테고리 | 의료+개인정보 | 금융+개인정보 | 이메일·전화 |
-| 비용 예산/건 | — | $0.005 | $0.01 |
+| ThreatSeverity fail_score | 4.0 | 5.0 | 7.0 (default) |
+| Reasoning required | ✅ required | recommended | optional |
+| PII categories | medical + personal | financial + personal | email · phone |
+| Cost budget / request | — | $0.005 | $0.01 |
 
 ---
 
-## 10. Best Practices
+## 11. Best Practices
 
-**보수적으로 시작하라**
-처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.
+**Start conservative**
+Setting strict thresholds from the outset produces many false failures. Start loose (`tcr: 70`, `accuracy: 55`) and tighten gradually as data accumulates.
 
-**`generate_gate_config()`로 기준선을 잡아라**
-수동으로 임계값을 정하기 어려울 때는 충분한 평가를 먼저 실행한 후 `generate_gate_config()`를 호출합니다. 현재 결과의 95% 수준을 자동 계산해줍니다.
+**Anchor your baseline with `generate_gate_config()`**
+When it is hard to set thresholds by hand, run enough evaluations first and then call `generate_gate_config()`. It auto-computes 95% of the current results.
 
-**Latency는 P95 기준임을 명심하라**
-`latency` 임계값은 평균이 아닌 P95에 적용됩니다. 평균 2초 에이전트도 P95가 10초일 수 있습니다. 사용자 경험 기반으로 P95 목표를 설정하세요.
+**Remember latency is measured at P95**
+The `latency` threshold applies to P95, not the mean. An agent averaging 2s can still have a P95 of 10s. Set the P95 target based on user experience.
 
-**Quality는 5점 척도다**
-`quality` 임계값은 0–5 범위입니다. `3.5` 이상이 일반적인 운영 기준입니다. 10점 척도로 혼동하지 마세요.
+**Quality is on a 0–5 scale**
+The `quality` threshold ranges 0–5. `3.5` and above is the typical production bar. Do not confuse it with a 0–10 scale.
 
-**Hallucination과 보안 지표는 방향이 반전된다**
-`hallucination`, `output_leakage`, `privilege_escalation`, `tool_chain_attack`은 낮을수록 좋습니다. `compare_with_thresholds()`에서 `direction: "lower_is_better"`로 표시됩니다.
+**Hallucination and security metrics have an inverted direction**
+`hallucination`, `output_leakage`, `privilege_escalation`, and `tool_chain_attack` are better when lower. `compare_with_thresholds()` marks them with `direction: "lower_is_better"`.
 
-**환경마다 다른 임계값 파일을 유지하라**
-`gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json`을 별도로 관리하고 CI/CD 환경 변수로 선택합니다.
+**Keep a separate threshold file per environment**
+Manage `gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json` separately and select via a CI/CD environment variable.
 
 ---
 
-| 목적 | 문서 |
-|------|------|
-| 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
-| 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
-| 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
-| 골든 데이터셋 · 한국어 RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
-| 출력 체계 전체 (JSON · 리포트 · CLI · 대시보드 · AI 런타임) | [09_OUTPUTS.md](09_OUTPUTS.md) |
-| Docker · 환경별 설정 | [07_OPERATIONS.md](07_OPERATIONS.md) |
-| ctx 세션 검색 (선택적 개인 워크플로우) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |
+| Goal | Document |
+|------|----------|
+| Installation · basic usage | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
+| All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
+| Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
+| Golden dataset · Korean RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
+| Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [09_OUTPUTS.md](09_OUTPUTS.md) |
+| Docker · per-environment configuration | [07_OPERATIONS.md](07_OPERATIONS.md) |
+| ctx session search (optional personal workflow) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |

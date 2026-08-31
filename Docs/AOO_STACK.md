@@ -224,7 +224,7 @@ and `BranchGuardConfig`/`get_current_branch()`/`is_branch_protected()` checks as
 `-dirty-<hash>` suffix appended when tracked files have uncommitted changes. This matters specifically
 for AOO's rhythm — you typically fix code and restart a session without committing between iterations,
 so tagging by commit SHA alone would collapse many distinct iterations into one tag. The dirty-hash
-suffix keeps them distinguishable. See [`Docs/08_API_REFERENCE.md`'s "버전별 비교" section](08_API_REFERENCE.md#버전별-비교--prompt_versionagent_version-v098)
+suffix keeps them distinguishable. See [the "Version comparison" section of `Docs/08_API_REFERENCE.md`](08_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098)
 for the general (non-AOO) mechanics.
 
 ## `search_violations` MCP server

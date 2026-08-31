@@ -1,47 +1,47 @@
-# 운영 가이드
+# Operations Guide
 
-설치 · Docker · 환경별 설정 · 성능 최적화 · 트러블슈팅
+Installation · Docker · per-environment configuration · performance tuning · troubleshooting.
 
-**v1.0.0-rc4 | Python 3.8+**
-
----
-
-## 목차
-
-1. [설치 variants](#1-설치-variants)
-2. [환경 설정](#2-환경-설정)
-3. [AGENT_EVAL_PRESETS — 용도별 사전 설정](#3-agent_eval_presets--용도별-사전-설정)
-4. [Docker 배포](#4-docker-배포)
-5. [환경별 PerformanceMonitor 설정](#5-환경별-performancemonitor-설정)
-6. [성능 최적화](#6-성능-최적화)
-7. [트러블슈팅](#7-트러블슈팅)
+**v1.0.0 | Python 3.8+**
 
 ---
 
-## 1. 설치 variants
+## Table of Contents
+
+1. [Installation variants](#1-installation-variants)
+2. [Environment configuration](#2-environment-configuration)
+3. [AGENT_EVAL_PRESETS — purpose-specific presets](#3-agent_eval_presets--purpose-specific-presets)
+4. [Docker deployment](#4-docker-deployment)
+5. [Per-environment PerformanceMonitor configuration](#5-per-environment-performancemonitor-configuration)
+6. [Performance tuning](#6-performance-tuning)
+7. [Troubleshooting](#7-troubleshooting)
+
+---
+
+## 1. Installation variants
 
 ```bash
-# 기본 설치 — 코어 평가 엔진 (LLMJudge 포함)
+# Base install — core evaluation engine (LLMJudge included)
 pip install agent-evaluator
 
-# SDK 기능 포함 — 대시보드 · OTEL · PDF (운영 배포 권장)
+# With SDK features — dashboard · OTEL · PDF (recommended for production)
 pip install "agent-evaluator[sdk]"
 
-# 모든 예제 실행 — sdk + deepeval/ragas/langchain
+# Run every example — sdk + deepeval/ragas/langchain
 pip install "agent-evaluator[examples]"
 
-# 프레임워크 통합 (사용자 에이전트가 해당 프레임워크를 사용할 때만)
+# Framework integration (only when your agent uses that framework)
 pip install "agent-evaluator[langchain]"   # LangChain + LangGraph
 pip install "agent-evaluator[eval]"        # DeepEval + Ragas
-pip install "agent-evaluator[crewai]"      # CrewAI (무거움 — 전이 의존성 100개+)
-pip install "agent-evaluator[autogen]"     # AutoGen (무거움, 단독 격리)
-pip install "agent-evaluator[full]"        # 전체 (⚠️ crewai/autogen 포함, 10분+)
+pip install "agent-evaluator[crewai]"      # CrewAI (heavy — 100+ transitive dependencies)
+pip install "agent-evaluator[autogen]"     # AutoGen (heavy, isolated on its own)
+pip install "agent-evaluator[full]"        # everything (⚠️ includes crewai/autogen, 10 min+)
 
-# 개발 환경 (소스에서 설치)
+# Development environment (install from source)
 pip install -e ".[dev]"
 ```
 
-### 설치 검증
+### Verifying the install
 
 ```bash
 python -c "from agent_evaluator import PerformanceMonitor, QuickEval; print('OK')"
@@ -50,100 +50,100 @@ agent-eval --version
 
 ---
 
-## 2. 환경 설정
+## 2. Environment configuration
 
-### .env 파일 설정
+### The .env file
 
 ```bash
-# .env (Git에 커밋하지 말 것 — .gitignore에 추가)
+# .env (do not commit to Git — add it to .gitignore)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
-# 결과 저장 디렉토리 (기본값: results/)
+# Results directory (default: results/)
 AGENT_EVALUATOR_OUTPUT_DIR=results/
 
-# 프로젝트 루트 지정 (Git 루트 자동 탐지가 기본값)
+# Project root override (Git-root auto-detection is the default)
 # AGENT_EVALUATOR_ROOT=/path/to/my/project
 
-# 환경 구분
+# Environment tag
 ENV=production
 LOG_LEVEL=INFO
 
-# LLM Judge 제공자 (v0.8.3+)
-# auto: API 키 보유 제공자 자동 선택 (기본값)
-# openai | anthropic: 특정 제공자 우선 사용
+# LLM Judge provider (v0.8.3+)
+# auto: auto-select whichever provider has an API key (default)
+# openai | anthropic: prefer a specific provider
 AGENT_EVALUATOR_JUDGE_PROVIDER=auto
 
-# 선택: 알림 Webhook
+# Optional: alert webhook
 ALERT_WEBHOOK=https://hooks.slack.com/services/...
 ```
 
-### 설정 마법사
+### Setup wizard
 
 ```bash
-# 대화형 API 키 설정 — .env 파일 자동 생성
+# Interactive API-key setup — generates the .env file automatically
 agent-eval init
 
-# 현재 설정 상태 확인
+# Check the current configuration state
 agent-eval check
 ```
 
-### 결과 저장 경로 자동 감지 순서
+### Result-output path auto-detection order
 
-| 우선순위 | 방법 |
-|---------|------|
-| 1 | 환경 변수 `AGENT_EVALUATOR_OUTPUT_DIR` (최우선) |
-| 2 | 환경 변수 `AGENT_EVALUATOR_ROOT` (프로젝트 루트 지정) |
-| 3 | Git 저장소 루트 아래 `results/` |
-| 4 | 현재 작업 디렉토리 아래 `results/` (폴백) |
+| Priority | Method |
+|---------|--------|
+| 1 | environment variable `AGENT_EVALUATOR_OUTPUT_DIR` (highest priority) |
+| 2 | environment variable `AGENT_EVALUATOR_ROOT` (project root override) |
+| 3 | `results/` under the Git repository root |
+| 4 | `results/` under the current working directory (fallback) |
 
 ```python
-# 현재 감지된 경로 확인
+# Check the currently detected paths
 from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
 
-print("프로젝트 루트:", find_project_root())
-print("결과 저장 경로:", get_evaluation_results_dir())
+print("Project root:", find_project_root())
+print("Results directory:", get_evaluation_results_dir())
 ```
 
-### 설정 디버깅
+### Debugging configuration
 
 ```python
 from agent_evaluator.config import load_env, get_settings
 
-load_env()  # .env 로드
+load_env()  # load .env
 settings = get_settings()
-print(settings)  # 현재 설정 출력
+print(settings)  # print the current settings
 ```
 
 ---
 
-## 3. AGENT_EVAL_PRESETS — 용도별 사전 설정
+## 3. AGENT_EVAL_PRESETS — purpose-specific presets
 
-직접 지정한 파라미터가 preset보다 항상 우선한다.
+An explicitly passed parameter always takes precedence over the preset.
 
-| Preset | sample_rate | timeout | flush_every | 그 외 |
+| Preset | sample_rate | timeout | flush_every | Other |
 |--------|:-----------:|:-------:|:-----------:|-------|
 | `production` | 0.1 | 30.0s | 50 | `enable_anomaly_detection=True` · `enable_llm_judge=True` · `allow_duplicate_task_ids=False` |
-| `development` | 1.0 | 없음 | 1 | `enable_llm_judge=True` · `auto_detect_framework=True` |
+| `development` | 1.0 | none | 1 | `enable_llm_judge=True` · `auto_detect_framework=True` |
 | `testing` | 0.1 | 60.0s | 5 | — |
 | `canary` | 0.05 | 30.0s | 50 | `enable_anomaly_detection=True` |
-| `performance` | 1.0 | 10.0s | 20 | `enable_anomaly_detection=True` — 레이턴시/토큰 지표 위주, LLM Judge는 끈 채로 가볍게 |
-| `security` | 1.0 | 30.0s | 기본값 | 보안 지표 위주 시나리오용 경량 프리셋(`security=SecurityConfig()`는 preset이 자동으로 켜주지 않으므로 필요하면 별도 지정) |
+| `performance` | 1.0 | 10.0s | 20 | `enable_anomaly_detection=True` — latency/token-focused, LLM Judge left off for a lighter run |
+| `security` | 1.0 | 30.0s | default | a lightweight preset for security-focused scenarios (`security=SecurityConfig()` is not enabled automatically by the preset — set it separately if you need it) |
 
 ```python
 from agent_evaluator import QuickEval
 
-eval = QuickEval("results/", preset="production")   # 운영 배포
-eval = QuickEval("results/", preset="development")  # 개발 중 전량 평가 + LLM Judge
-eval = QuickEval("results/", preset="testing")       # 테스트 — 외부 API 호출 샘플링으로 최소화
-eval = QuickEval("results/", preset="canary")        # 카나리 배포 — 5% 샘플링
-eval = QuickEval("results/", preset="performance")   # 레이턴시/토큰 지표 집중 모니터링
-eval = QuickEval("results/", preset="security")      # 보안 시나리오 — sample_rate=1.0
+eval = QuickEval("results/", preset="production")   # production deployment
+eval = QuickEval("results/", preset="development")  # full evaluation during dev + LLM Judge
+eval = QuickEval("results/", preset="testing")       # testing — minimize external API calls via sampling
+eval = QuickEval("results/", preset="canary")        # canary deployment — 5% sampling
+eval = QuickEval("results/", preset="performance")   # focused latency/token monitoring
+eval = QuickEval("results/", preset="security")      # security scenario — sample_rate=1.0
 ```
 
 ---
 
-## 4. Docker 배포
+## 4. Docker deployment
 
 ### Dockerfile
 
@@ -189,8 +189,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./results:/app/results          # 평가 결과 영속화
-      - ./data:/app/data                # Golden Dataset
+      - ./results:/app/results          # persist evaluation results
+      - ./data:/app/data                # golden dataset
       - ./.env:/app/.env
     command: agent-eval dashboard --port 8765 --no-open
     restart: unless-stopped
@@ -202,36 +202,36 @@ services:
 ```
 
 ```bash
-# 실행
+# Run
 docker-compose up -d dashboard
 
-# 로그 확인
+# Check logs
 docker-compose logs -f dashboard
 
-# 대시보드 접속: http://localhost:8765
+# Dashboard: http://localhost:8765
 ```
 
 ---
 
-## 5. 환경별 PerformanceMonitor 설정
+## 5. Per-environment PerformanceMonitor configuration
 
-### 환경 변수 요약
+### Environment-variable summary
 
-| 변수 | 개발 | 스테이징 | 프로덕션 |
-|------|------|----------|----------|
+| Variable | Dev | Staging | Production |
+|----------|-----|---------|------------|
 | `ENV` | `development` | `staging` | `production` |
 | `LOG_LEVEL` | `DEBUG` | `INFO` | `WARNING` |
-| TCR 임계값 | 70% | 85% | 95% |
-| Accuracy 임계값 | 65% | 80% | 90% |
+| TCR threshold | 70% | 85% | 95% |
+| Accuracy threshold | 65% | 80% | 90% |
 
-### 환경별 PerformanceMonitor 코드
+### Per-environment PerformanceMonitor code
 
 ```python
 import os
 from agent_evaluator import PerformanceMonitor
 
 def get_monitor() -> PerformanceMonitor:
-    """환경에 따라 최적 Monitor 반환"""
+    """Return the optimal Monitor for the environment."""
     env = os.getenv("ENV", "development")
 
     if env == "production":
@@ -254,76 +254,71 @@ def get_monitor() -> PerformanceMonitor:
 
 ---
 
-## 6. 성능 최적화
+## 6. Performance tuning
 
-### 장시간 실행 평가 — 자동 저장
+### Long-running evaluations — auto-save
 
 ```python
 monitor = PerformanceMonitor(
     output_dir="results/",
     auto_save=True,
-    auto_save_interval=50,         # 50건마다 자동 저장 — OOM 방지
+    auto_save_interval=50,         # save every 50 records — prevents OOM
     auto_save_filename="auto_checkpoint",
 )
 ```
 
-### 고트래픽 프로덕션 — 샘플링
+### High-traffic production — sampling
 
 ```python
 from agent_evaluator.decorators import agent_eval
 
-# 10%만 평가 — 비용/성능 균형
+# Evaluate only 10% — a cost/performance balance
 @agent_eval(monitor, task_type="qa", sample_rate=0.1)
 def production_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
-
-# 낮은 비율 샘플링 — 10%만 평가 (프로덕션 비용 절감)
-@agent_eval(monitor, task_type="qa", sample_rate=0.1)
-def selective_agent(question: str, ground_truth: str = "") -> str:
-    return llm.invoke(question)
 ```
 
-### 데코레이터 주기 저장
+### Periodic saving from the decorator
 
 ```python
-# 10번 호출마다 저장
+# Save every 10 calls
 @agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question, ground_truth=""): ...
 
-# batch_eval에도 동일 적용
+# The same applies to batch_eval
 @batch_eval(monitor, flush_every=5)
 def batch_agent(questions, ground_truths=None): ...
 ```
 
-### LLM Judge 비용 절감
+### Reducing LLM Judge cost
 
 ```python
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_llm_judge=True,
-    judge_sample_rate=0.1,     # 10%만 LLM Judge 채점 (비용 절감)
-    judge_model="claude-haiku-4-5-20251001",  # 비용 효율적인 모델
+    judge_sample_rate=0.1,     # score only 10% with the LLM Judge (cost saving)
+    judge_model="claude-haiku-4-5-20251001",  # a cost-efficient model
 )
 ```
 
 ---
 
-## 7. 트러블슈팅
+## 7. Troubleshooting
 
-### 주요 문제 및 해결책
+### Common problems and fixes
 
-| 문제 | 원인 | 해결책 |
-|------|------|--------|
-| `ModuleNotFoundError: agent_evaluator` | 패키지 미설치 | `pip install agent-evaluator` |
-| `AuthenticationError: Invalid API key` | API 키 오류 | `.env` 확인, `agent-eval check` 실행 |
-| `FileNotFoundError: results/` | 출력 디렉토리 없음 | `mkdir -p results/` 또는 `output_dir` 지정 |
-| `ImportError: fastapi` | `[sdk]` extra 미설치 | `pip install "agent-evaluator[sdk]"` |
-| `ImportError: opentelemetry` | `[sdk]` extra 미설치 | `pip install "agent-evaluator[sdk]"` |
-| Quality Gate 항상 통과 | 트래커 비활성화 | `enable_hallucination_detection=True` 등 확인 |
-| 보안 지표 0% | `enable_security_metrics` 미설정 | `PerformanceMonitor(enable_security_metrics=True)` |
-| Accuracy 항상 0 | ground_truth 미전달 | 함수 인자에 `ground_truth` 파라미터 추가 |
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `ModuleNotFoundError: agent_evaluator` | package not installed | `pip install agent-evaluator` |
+| `AuthenticationError: Invalid API key` | wrong API key | check `.env`, run `agent-eval check` |
+| `FileNotFoundError: results/` | output directory missing | `mkdir -p results/` or set `output_dir` |
+| `ImportError: fastapi` | `[sdk]` extra not installed | `pip install "agent-evaluator[sdk]"` |
+| `ImportError: opentelemetry` | `[sdk]` extra not installed | `pip install "agent-evaluator[sdk]"` |
+| Quality gate always passes | trackers disabled | check `enable_hallucination_detection=True`, etc. |
+| Security metrics 0% | `enable_security_metrics` not set | `PerformanceMonitor(enable_security_metrics=True)` |
+| Accuracy always 0 | `ground_truth` not passed | add a `ground_truth` parameter to the function args |
 
-### 설치 상태 확인
+### Checking the install state
 
 ```bash
 agent-eval check
@@ -337,51 +332,51 @@ try:
     from agent_evaluator.serve import server
     print('serve: OK')
 except ImportError:
-    print('serve: NOT installed — pip install "agent-evaluator[sdk]"')
+    print('serve: NOT installed — pip install \"agent-evaluator[sdk]\"')
 
 try:
     import opentelemetry
     print('otel: OK')
 except ImportError:
-    print('otel: NOT installed — pip install "agent-evaluator[sdk]"')
+    print('otel: NOT installed — pip install \"agent-evaluator[sdk]\"')
 "
 ```
 
-### 보안 지표 미수집 문제
+### Security metrics not collected
 
 ```python
-# 올바른 설정
+# Correct configuration
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_security_metrics=True,  # 반드시 명시
+    enable_security_metrics=True,  # must be set explicitly
 )
-# v0.7.3부터 record_task() 시 5개 보안 트래커 자동 호출
+# Since v0.7.3, the 5 security trackers are invoked automatically on record_task()
 ```
 
-### 프로덕션 배포 전 체크리스트
+### Pre-deployment checklist
 
 ```bash
-# 1. 패키지 임포트 확인
+# 1. Confirm the package imports
 python -c "from agent_evaluator import PerformanceMonitor, QuickEval; print('OK')"
 
-# 2. API 키 설정 확인
+# 2. Check API-key configuration
 agent-eval check
 
-# 3. .env가 Git에 포함되지 않았는지 확인
-git check-ignore .env   # .env 출력되어야 함
+# 3. Confirm .env is not tracked by Git
+git check-ignore .env   # should print .env
 
-# 4. 결과 디렉토리 확인
+# 4. Check the results directory
 ls -la results/
 
-# 5. Quality Gate 테스트
-agent-eval gate results/sample.json --tcr 0 --accuracy 0   # 항상 통과 테스트
+# 5. Quality-gate smoke test
+agent-eval gate results/sample.json --tcr 0 --accuracy 0   # always-passes test
 ```
 
 ---
 
-| 목적 | 문서 |
-|------|------|
-| 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
-| 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| 대시보드 · Phoenix 모니터링 | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
-| 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| Goal | Document |
+|------|----------|
+| Installation · basic usage | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
+| Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
+| Dashboard · Phoenix monitoring | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
+| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |

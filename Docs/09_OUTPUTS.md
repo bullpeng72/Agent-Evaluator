@@ -1,367 +1,368 @@
-# 출력 & 리포트 가이드
+# Outputs & Reports Guide
 
-결과 JSON · HTML 리포트 · CLI · 대시보드 · AI 런타임 출력의 체계적 정리
+A systematic map of the result JSON · HTML report · CLI · dashboard · AI-runtime outputs.
 
-**v1.0.0-rc4 | Python 3.8+**
-
----
-
-## 목차
-
-1. [출력의 3가지 대상과 6가지 정보 계층](#1-출력의-3가지-대상과-6가지-정보-계층)
-2. [출력 표면 전체 지도](#2-출력-표면-전체-지도)
-3. [결과 JSON (`save_to_file()`)](#3-결과-json-save_to_file)
-4. [정적 HTML 리포트 — 단일 결과](#4-정적-html-리포트--단일-결과)
-5. [비교 HTML 리포트](#5-비교-html-리포트)
-6. [CLI 터미널 출력](#6-cli-터미널-출력)
-7. [대시보드](#7-대시보드)
-8. [AI 런타임 출력 (Claude 훅 · OpenCode 플러그인 · MCP)](#8-ai-런타임-출력-claude-훅--opencode-플러그인--mcp)
-9. [정보 계층 × 표면 매트릭스](#9-정보-계층--표면-매트릭스)
-10. [역할별 출력 워크플로우](#10-역할별-출력-워크플로우)
+**v1.0.0 | Python 3.8+**
 
 ---
 
-## 1. 출력의 3가지 대상과 6가지 정보 계층
+## Table of Contents
 
-Agent-Evaluator의 모든 출력은 **평가 결과를 전달하고 개선을 유도**하기 위해 존재한다. 출력을 볼 주체는 셋이다.
-
-| 대상 | 무엇을 원하나 | 주 표면 |
-|------|--------------|---------|
-| **개발자** | "어느 태스크가 왜 실패했나 · 뭘 고치면 되나" | HTML 리포트 · `agent-eval diagnose` · 대시보드 |
-| **품질관리자(QM)** | "배포해도 되나 · 지난 버전 대비 어떤가 · 리스크는" | HTML 리포트 상단 · `agent-eval gate` · 대시보드 · 비교 리포트 |
-| **AI 런타임** (Claude Code · OpenCode 에이전트) | "지금 이 행동이 막혔다 · 대신 뭘 해야 하나" | LiveGuardrail 차단 메시지 · SessionEnd 요약 · MCP 도구 |
-
-모든 표면은 아래 **6개 정보 계층** 중 일부를 노출한다. 계층이 높을수록 "판단"에 가깝고, 낮을수록 "원천 데이터"다.
-
-| # | 계층 | 내용 | 정본 위치 |
-|---|------|------|-----------|
-| L1 | **원천 기록** | 태스크별 question/response/score/tool_calls/errors | 결과 JSON `tasks[]` |
-| L2 | **집계 지표** | TCR · Accuracy · P95 · 토큰/비용 · 25 Native Tracker 통계. **95% 신뢰구간**(TCR/Accuracy) + 표본 적정성 | 결과 JSON `accuracy_metrics`/`efficiency_metrics` · `utils.confidence` |
-| L3 | **Gate 점수** | Harness Gate A–G score(0–1) + status(pass/warn/fail) + 산식 컴포넌트. **점수 대표성 경고** + 표본 부족 경고 | 결과 JSON `extra_metrics.harness_groups` |
-| L4 | **판정** | 임계값 통과/실패 · baseline 회귀 · 골든셋 회귀. **판정 확신도**(HIGH/MEDIUM/LOW) | `agent-eval gate` (exit code) · 리포트 Executive Summary |
-| L5 | **진단(RCA)** | 어느 컴포넌트가 점수를 깎았나 · **실패 테마 군집화** · **baseline 대비 실패 집합 변화** · 과거 위반 이력 교차참조 · MAST 후보 | `rca.diagnose()` → `agent-eval diagnose` / 리포트 진단·실패 케이스 섹션 |
-| L6 | **처방 & 인사이트** | 배포 준비도 한 줄 판정 · Next actions 1·2·3 · 컴포넌트별 구체 조치 · **붙여넣을 수 있는 코드 스니펫** · **실험 제안(예측 Δ + 표본)** · **과거에 통한 조치** | 리포트 Executive Summary / Recommendations · `recommend_fix` MCP |
-
-> **원칙 (HOTL, Human on the Loop)**: L5·L6은 후보 원인과 조치만 제시한다. "이게 원인이다"·"이렇게 하면 통과한다"를 단정하지 않는다 — 최종 판단은 사람의 몫이다.
+1. [The 3 audiences and 6 information layers](#1-the-3-audiences-and-6-information-layers)
+2. [Full map of output surfaces](#2-full-map-of-output-surfaces)
+3. [Result JSON (`save_to_file()`)](#3-result-json-save_to_file)
+4. [Static HTML report — single result](#4-static-html-report--single-result)
+5. [Comparison HTML report](#5-comparison-html-report)
+6. [CLI terminal output](#6-cli-terminal-output)
+7. [Dashboard](#7-dashboard)
+8. [AI-runtime output (Claude hooks · OpenCode plugin · MCP)](#8-ai-runtime-output-claude-hooks--opencode-plugin--mcp)
+9. [Information-layer × surface matrix](#9-information-layer--surface-matrix)
+10. [Output workflow by role](#10-output-workflow-by-role)
 
 ---
 
-## 2. 출력 표면 전체 지도
+## 1. The 3 audiences and 6 information layers
 
-| 표면 | 형식 | 생성 시점 | 대상 | 노출 계층 |
-|------|------|-----------|------|-----------|
-| **결과 JSON** | `.json` 파일 | `monitor.save_to_file()` / `QuickEval.save()` | 도구·CI·로더 | L1–L6 (전부, 기계 판독 — `extra_metrics.insights`) |
-| **단일 HTML 리포트** | self-contained `.html` | `save_to_file()`가 `.json`과 함께 자동 생성 / 대시보드 Export | 개발자·QM | L2–L6 |
-| **비교 HTML 리포트** | self-contained `.html` | 대시보드 File Compare → Export / `/html/compare` | 개발자·QM | L2–L3 델타 + per-task 회귀/개선 |
-| **`agent-eval gate`** | 터미널 표 + exit code + JUnit XML | CI 파이프라인 / 수동 | CI·QM | L3–L4 + **"Summary" 자연어 내러티브**(SPEC-041 P17) (+`--explain` 시 L5·L6 요약) |
-| **`agent-eval diagnose`** | 터미널 (RCA 3단계) | 수동 (실패 원인 파고들 때) | 개발자 | L5 (+baseline 시 L5 회귀 귀속) |
-| **`agent-eval abtest`** | 터미널 (통계 유의성) | 수동 (v1 vs v2 비교) | 개발자·QM | L2 통계 (Welch/mSPRT/FDR) |
-| **`agent-eval trend`** | 터미널 (slope 추세) | CI / 수동 (여러 run 시계열) | QM·CI | L2 추세 (+회귀 시 git diff) |
-| **대시보드** | FastAPI 웹 UI (23 탭 / 111 route) | `agent-eval dashboard` (port 8765) | 개발자·QM·거버넌스 | L1–L6 (인터랙티브) |
-| **`agent-eval monitor`** | Arize Phoenix 웹 UI | `setup_otel()` opt-in | MLOps·운영 | 실시간 트레이스/스팬 (별도 파이프라인, [06_OBSERVABILITY](06_OBSERVABILITY.md)) |
-| **LiveGuardrail 차단 메시지** | 훅 JSON / Error 문자열 | tool 실행 직전 (Gate B/E 위반) | AI 런타임 | 차단 사유 + `remediation`(조치) |
-| **SessionEnd 요약** | Claude `systemMessage` / OpenCode synthetic transcript | 세션 종료 / 매 턴 | AI 런타임·사용자 | Gate B/E 점수 + 위반 요약 |
-| **`search_violations` MCP** | 자연어 문자열 | 에이전트가 도구 호출 | AI 런타임 | 과거 차단 이력 + `recommend_fix` 힌트 |
-| **`recommend_fix` MCP** | 자연어 문자열 | 에이전트가 도구 호출 | AI 런타임 | Gate/지표별 정적 조치 지식 (L6) |
-| **`ask_insights` MCP** (SPEC-041 P31) | result JSON 경로 + 질문 | 에이전트가 도구 호출 | AI 런타임 | `insights_summary` / `insights_readiness`(path-to-green) / `insights_why_failed(task_id)` / `insights_list(filter)` — insight 계층을 구조화 질문으로 조회 (L5/L6) |
+Every Agent-Evaluator output exists to **deliver the evaluation result and drive improvement**. There are three audiences.
+
+| Audience | What they want | Primary surface |
+|----------|----------------|-----------------|
+| **Developers** | "which task failed and why · what should I fix" | HTML report · `agent-eval diagnose` · dashboard |
+| **Quality manager (QM)** | "can we deploy · how does it compare to the last version · what's the risk" | top of the HTML report · `agent-eval gate` · dashboard · comparison report |
+| **AI runtime** (Claude Code · OpenCode agents) | "this action was just blocked · what should I do instead" | LiveGuardrail block message · SessionEnd summary · MCP tools |
+
+Every surface exposes some of the **6 information layers** below. The higher the layer, the closer to "judgment"; the lower, the closer to "raw data".
+
+| # | Layer | Content | Source of truth |
+|---|-------|---------|-----------------|
+| L1 | **Raw records** | per-task question/response/score/tool_calls/errors | result JSON `tasks[]` |
+| L2 | **Aggregate metrics** | TCR · Accuracy · P95 · tokens/cost · 25 Native Tracker stats. **95% confidence interval** (TCR/Accuracy) + sample adequacy | result JSON `accuracy_metrics` / `efficiency_metrics` · `utils.confidence` |
+| L3 | **Gate scores** | Harness Gate A–G score (0–1) + status (pass/warn/fail) + formula components. **Score-representativeness warning** + insufficient-sample warning | result JSON `extra_metrics.harness_groups` |
+| L4 | **Verdict** | threshold pass/fail · baseline regression · golden-set regression. **Verdict confidence** (HIGH/MEDIUM/LOW) | `agent-eval gate` (exit code) · report Executive Summary |
+| L5 | **Diagnosis (RCA)** | which component drove the score down · **failure-theme clustering** · **change in the failure set vs. baseline** · cross-reference against past violations · MAST candidates | `rca.diagnose()` → `agent-eval diagnose` / report diagnosis & failure-case sections |
+| L6 | **Prescription & insights** | one-line deployment-readiness verdict · Next actions 1·2·3 · concrete per-component action · **paste-ready code snippet** · **experiment proposal (predicted Δ + sample)** · **what has worked before** | report Executive Summary / Recommendations · `recommend_fix` MCP |
+
+> **Principle (HOTL, Human on the Loop)**: L5 and L6 present candidate causes and actions only. They do not assert "this is the cause" or "do this and it will pass" — the final judgment is the human's.
 
 ---
 
-## 3. 결과 JSON (`save_to_file()`)
+## 2. Full map of output surfaces
 
-**모든 출력의 원천.** `monitor.save_to_file("name")` → `results/name.json` + `results/name.html`.
-`storage_backend="sqlite"`면 `.db` (스키마는 [04_DATA_GUIDE](04_DATA_GUIDE.md)).
+| Surface | Format | When produced | Audience | Layers exposed |
+|---------|--------|---------------|----------|----------------|
+| **Result JSON** | `.json` file | `monitor.save_to_file()` / `QuickEval.save()` | tools · CI · loaders | L1–L6 (all, machine-readable — `extra_metrics.insights`) |
+| **Single HTML report** | self-contained `.html` | generated by `save_to_file()` alongside the `.json` / dashboard Export | developers · QM | L2–L6 |
+| **Comparison HTML report** | self-contained `.html` | dashboard File Compare → Export / `/html/compare` | developers · QM | L2–L3 deltas + per-task regression/improvement |
+| **`agent-eval gate`** | terminal table + exit code + JUnit XML | CI pipeline / manual | CI · QM | L3–L4 + **"Summary" plain-English narrative** (SPEC-041 P17) (+ an L5·L6 summary with `--explain`) |
+| **`agent-eval diagnose`** | terminal (3-stage RCA) | manual (digging into a failure cause) | developers | L5 (+ L5 regression attribution with a baseline) |
+| **`agent-eval abtest`** | terminal (statistical significance) | manual (v1 vs v2) | developers · QM | L2 statistics (Welch/mSPRT/FDR) |
+| **`agent-eval trend`** | terminal (slope trend) | CI / manual (time series over runs) | QM · CI | L2 trend (+ git diff on a regression) |
+| **Dashboard** | FastAPI web UI (23 tabs / 111 routes) | `agent-eval dashboard` (port 8765) | developers · QM · governance | L1–L6 (interactive) |
+| **`agent-eval monitor`** | Arize Phoenix web UI | `setup_otel()` opt-in | MLOps · operations | real-time traces/spans (a separate pipeline, [06_OBSERVABILITY](06_OBSERVABILITY.md)) |
+| **LiveGuardrail block message** | hook JSON / error string | just before a tool runs (Gate B/E violation) | AI runtime | block reason + `remediation` (the action) |
+| **SessionEnd summary** | Claude `systemMessage` / OpenCode synthetic transcript | session end / every turn | AI runtime · user | Gate B/E scores + violation summary |
+| **`search_violations` MCP** | plain-text string | agent calls the tool | AI runtime | past block history + `recommend_fix` hint |
+| **`recommend_fix` MCP** | plain-text string | agent calls the tool | AI runtime | static per-gate/metric remediation knowledge (L6) |
+| **`ask_insights` MCP** (SPEC-041 P31) | result-JSON path + a question | agent calls the tool | AI runtime | `insights_summary` / `insights_readiness` (path-to-green) / `insights_why_failed(task_id)` / `insights_list(filter)` — query the insight layer with structured questions (L5/L6) |
 
-### 최상위 키
+---
 
-| 키 | 계층 | 내용 |
-|----|------|------|
-| `schema_version` | — | 결과 스키마 버전 (현재 `"1.1"`). 소비자가 필드 형태 변화에 대응하기 위한 것 — breaking change 시 major 증가 |
-| `tasks[]` | L1 | 태스크별 원천 레코드. 각 항목: `task_id · task_type · success · completion_score · accuracy_score · execution_time · tokens_used · tool_calls · attempts · errors · question · response · ground_truth · context · partial_reason · llm_judge · extra` |
-| `total_tasks` | L2 | 태스크 수 |
+## 3. Result JSON (`save_to_file()`)
+
+**The source of every output.** `monitor.save_to_file("name")` → `results/name.json` + `results/name.html`.
+With `storage_backend="sqlite"`, a `.db` (schema in [04_DATA_GUIDE](04_DATA_GUIDE.md)).
+
+### Top-level keys
+
+| Key | Layer | Content |
+|-----|-------|---------|
+| `schema_version` | — | result-schema version (currently `"1.1"`). Lets consumers adapt to field-shape changes — major bumps on a breaking change |
+| `tasks[]` | L1 | per-task raw records. Each item: `task_id · task_type · success · completion_score · accuracy_score · execution_time · tokens_used · tool_calls · attempts · errors · question · response · ground_truth · context · partial_reason · llm_judge · extra` |
+| `total_tasks` | L2 | task count |
 | `accuracy_metrics` | L2 | `tcr · accuracy_scores · hallucination · quality · rag_metrics` |
 | `efficiency_metrics` | L2 | `latency · tokens · tool_efficiency · retries · coordination · latency_analysis · workflow_analysis` |
-| `quality_metrics` | L2 | ResponseQualityEvaluator 5차원 |
-| `security_metrics` | L2 | 5개 보안 트래커 (opt-in) |
-| `evaluators` | L1 | 각 evaluator의 원본 평가 배열 (재현/재로드용) |
-| `extra_metrics.harness_groups` | **L3** | Gate A–G + `overall`. 각 Gate: `{name, score, status, gate, details}` — `details`에 산식 컴포넌트 (`tcr_pct`, `avg_subtask_completion`, `sla_breach_rate`, …) |
-| `extra_metrics.lineage` | — | `git_commit · agent_version · prompt_version · iteration_note` (버전 추적, `agent_version="auto"` 시 자동). **SPEC-041 P18**: `PerformanceMonitor(prompt_text=…, config_snapshot={…})` 지정 시 `prompt_text · prompt_hash · config_snapshot` 추가 → `insights.change_attribution`이 두 run 대조 |
-| `extra_metrics.insights` | **L5–L6** | 머신 판독 인사이트 계층 (SPEC-041 P9~) — `reporting/insights.py::build_insights()`가 `rca.diagnose()`·`utils.confidence`·`ontology.metric_registry` 출력을 한 객체로. `{schema_version, verdict{level, headline, confidence, next_actions[]}, readiness{gaps[]{gate, score, target, gap, blocking, projected_score_after_plan?}, fix_plan[]{rank, signature, count, impact_pct, effort_hint, targets_gates[], projected_tcr_after_pct, cumulative_tcr_gain_pp}, projected_ready_after{ready_after_n_items, remaining_structural_blockers[], note}}, metric_confidence{tcr_ci_pct, …}, evaluator_trust{trust_level, judge_vs_heuristic, judge_calibration, judge_self_consistency}, gate_findings[]{component_shortfalls[]{field, health, guidance, config_hint}}, failure_clusters[]{signature, task_type, count, impact_pct}, failure_segments[]{label, keywords[], task_ids[], n, share_of_failures_pct, dominant_reason, example_question}, failure_triggers[]{task_id, kind, detail}, failure_lineage{regressed, persistent, new, fixed}, recommendations[]{code_snippet, experiment{…}, past_outcomes, baseline_verdict}, review_queue{items[]{task_id, priority, reasons[]}}, latency_budget, rag_localization{n_borderline, borderline_task_ids}, slice_analysis[], metadata_slices[]{dimension, slices[]}, sample_guidance{message, additional_tasks}, reproducibility_manifest{model_name, model_params, evaluator_config_hash, dependency_versions}, insight_changes{new_clusters[], resolved_clusters[], verdict_change, trust_change, newly_failing_gates[]}, freshness{baseline_age_days, eval_set_identical_to_baseline, warnings[]}, briefs{pm, qa, engineer[]}, narrative_audit{clean, adjustments[]}, cost_economics{cost_per_successful_task_usd, wasted_cost_pct, projection}, security_findings[]{task_id, threat_type, severity, cwe}, nondeterminism[]{task_id, reproducibility_score, sample_responses[]}, score_breakdowns[]{task_id, accuracy_components{token_overlap_f1, jaccard, lcs_ratio, char_sim}, judge_reasoning, weakest_signal}, trajectories[]{task_id, source, total_ms, critical_path[], bottleneck{name, self_ms}, total_cost_usd, total_tokens}, trace_diffs[]{task_id, compared[], verdict, score_delta, response_diff{similarity, added[], removed[]}, trajectory_diff{added[], removed[], reordered}, per_version[]}, experiments[]{hypothesis, target_gate, target_field, predicted, actual, verdict, status}, conversation{n_sessions, turn_quality_trajectory[]{turn, context_ref, nonanswer_rate}, degradation_after_turn}, eval_set_quality, change_attribution{prompt_diff, config_diff, largest_gate_move}, cohort_comparison{versions[], pairwise[], by_task_type[], winner}, narrative}`. **스키마 정본**: `agent_evaluator/schemas/insights.schema.json` (Draft 2020-12, SPEC-041 P20 — `harness_groups.schema.json`과 동일 계약 원칙). 대시보드 Improve 탭·`/api/diagnose/{id}`가 소비. 정적 HTML 리포트는 자체 헬퍼로 같은 내용 렌더 (콘텐츠 동등) |
-| `recommendations` / `alerts` | L6 / — | 리포트 생성용 힌트 · 발화된 알림 |
-| `anomaly_data` | L6 | `enable_anomaly_detection=True`일 때만. `{anomalies[], baseline_window, detection_window}` |
-| `conversation_sessions` / `feedback` / `pricing` / `model_name` / `timestamp` | L1–L2 | 멀티턴 · 암묵 피드백 · 가격표 · 메타 |
+| `quality_metrics` | L2 | ResponseQualityEvaluator's 5 dimensions |
+| `security_metrics` | L2 | the 5 security trackers (opt-in) |
+| `evaluators` | L1 | each evaluator's raw evaluation array (for reproduction / reload) |
+| `extra_metrics.harness_groups` | **L3** | Gates A–G + `overall`. Each gate: `{name, score, status, gate, details}` — `details` holds the formula components (`tcr_pct`, `avg_subtask_completion`, `sla_breach_rate`, …) |
+| `extra_metrics.lineage` | — | `git_commit · agent_version · prompt_version · iteration_note` (version tracking, automatic with `agent_version="auto"`). **SPEC-041 P18**: when `PerformanceMonitor(prompt_text=…, config_snapshot={…})` is set, `prompt_text · prompt_hash · config_snapshot` are added → `insights.change_attribution` contrasts the two runs |
+| `extra_metrics.insights` | **L5–L6** | the machine-readable insight layer (SPEC-041 P9+) — `reporting/insights.py::build_insights()` re-shapes the output of `rca.diagnose()` · `utils.confidence` · `ontology.metric_registry` into one object. Core keys: `{schema_version, verdict{level, headline, confidence, next_actions[]}, readiness{gaps[]{gate, score, target, gap, blocking, projected_score_after_plan?}, fix_plan[]{rank, signature, count, impact_pct, effort_hint, targets_gates[], projected_tcr_after_pct, cumulative_tcr_gain_pp}, projected_ready_after{ready_after_n_items, remaining_structural_blockers[], note}}, metric_confidence{tcr_ci_pct, …}, evaluator_trust{trust_level, judge_vs_heuristic, judge_calibration, judge_self_consistency}, gate_findings[]{component_shortfalls[]{field, health, guidance, config_hint}}, failure_clusters[]{signature, task_type, count, impact_pct}, failure_segments[]{label, keywords[], task_ids[], n, share_of_failures_pct, dominant_reason, example_question}, failure_triggers[]{task_id, kind, detail}, failure_lineage{regressed, persistent, new, fixed}, recommendations[]{code_snippet, experiment{…}, past_outcomes, baseline_verdict}, review_queue{items[]{task_id, priority, reasons[]}}, latency_budget, rag_localization{n_borderline, borderline_task_ids}, slice_analysis[], metadata_slices[]{dimension, slices[]}, sample_guidance{message, additional_tasks}, reproducibility_manifest{model_name, model_params, evaluator_config_hash, dependency_versions}, insight_changes{new_clusters[], resolved_clusters[], verdict_change, trust_change, newly_failing_gates[]}, freshness{baseline_age_days, eval_set_identical_to_baseline, warnings[]}, briefs{pm, qa, engineer[]}, narrative_audit{clean, adjustments[]}, cost_economics{cost_per_successful_task_usd, wasted_cost_pct, projection}, security_findings[]{task_id, threat_type, severity, cwe}, nondeterminism[]{task_id, reproducibility_score, sample_responses[]}, score_breakdowns[]{task_id, accuracy_components{token_overlap_f1, jaccard, lcs_ratio, char_sim}, judge_reasoning, weakest_signal}, trajectories[]{task_id, source, total_ms, critical_path[], bottleneck{name, self_ms}, total_cost_usd, total_tokens}, trace_diffs[]{task_id, compared[], verdict, score_delta, response_diff{similarity, added[], removed[]}, trajectory_diff{added[], removed[], reordered}, per_version[]}, experiments[]{hypothesis, target_gate, target_field, predicted, actual, verdict, status}, conversation{n_sessions, turn_quality_trajectory[]{turn, context_ref, nonanswer_rate}, degradation_after_turn}, eval_set_quality, change_attribution{prompt_diff, config_diff, largest_gate_move}, cohort_comparison{versions[], pairwise[], by_task_type[], winner}, narrative}`. **Top-level keys added by Rounds 6–8 (SPEC-041 P29–P62)** (~62 keys total): `detection_mode` ("full" \| "partial") · `readiness` (Path to Green) · `reference_frame` (percentile + gap-to-frontier vs an external reference, P53) · `threshold_sensitivity` (pass-line / accuracy sweep + `knife_edge`, P44) · `uncertainty_budget` (confidence-gap decomposition + `cheapest_lever`, P60) · `metric_signal` (pairwise Pearson + `redundant_pairs`, P46) · `judge_robustness` (cross-model stability, P52) · `failure_taxonomy` (14 single-agent failure modes + owner prompt/config/data/model/infra, P55) · `ablation_hints` (the prompt sentence / config knob most implicated per mode, P56) · `contrast_pairs` (structured diff of a failure ↔ its nearest passing task, P62) · `failure_explanations` (claim-level verdict/source, P47) · `regression_attribution` (regression → cause linkage, P38) · `improvement_priors` (per-(gate, category) confirm-rate track record, P57) · `efficiency_opportunities` (cost/latency optimization proposals, P40) · `multiplicity_audit` (BH-FDR on slice/metadata/cohort p-values + `likely_noise`, P59) · `calibration` (agent-confidence ECE/Brier/risk-coverage, P39) · `security_posture` · `multiagent` (MAST, P41) · `golden_health` (golden-set coverage vs failure modes, P58) · `eval_representativeness` (prod-weighted TCR vs measured, P54) · `longitudinal` (recurring/chronic/flapping across ≥4 sibling runs, P48) · `shared_cause_explanations` · `newly_unmeasured_gates` · `experiment_metadata` · `narrative_audit` · `briefs`. `partial=True` mode returns only the baseline-free subset (`detection_mode:"partial"` + `running_verdict{decisive, verdict, pass_rate_ci_pct, gates_below_target, reason}`, P50). Each of `next_actions[]` / `readiness.fix_plan[]` / `recommendations[]` carries a `derived_from` (P51 provenance). **Schema is the contract**: `agent_evaluator/schemas/insights.schema.json` (Draft 2020-12, SPEC-041 P20 — every object is `additionalProperties:true`). **The field-by-field description + phase history (P7–P62) live in `Docs/specs/SPEC-041-insight-delivery.md`.** Consumed by the dashboard Improve tab · `/api/diagnose/{id}` · `cli/gate.py` (`--digest` / `--fail-on-case-regression` / `--max-review-high` / `--notify`). The static HTML report renders the same content via its own helpers (content parity) |
+| `recommendations` / `alerts` | L6 / — | hints for report generation · alerts that fired |
+| `anomaly_data` | L6 | only with `enable_anomaly_detection=True`. `{anomalies[], baseline_window, detection_window}` |
+| `conversation_sessions` / `feedback` / `pricing` / `model_name` / `timestamp` | L1–L2 | multi-turn · implicit feedback · price table · metadata |
 
-### `harness_groups[X].details` 필드명 규약
+### `harness_groups[X].details` field-name convention
 
-- 대부분 `avg_*` / `*_rate` / `*_score` = 0–1
-- `tcr_pct` 등 `*_pct` = 0–100
-- `p95_latency_s` = 초, `ttft_p95_ms` = 밀리초
-- `*_count` / `tasks_with_ifr` = 정수 카운터 (점수 아님)
-- 소비 도구가 서로 다른 이름을 쓸 수 있음 → `ontology.metric_registry.canonical_metric_name()`으로 정규화
+- most `avg_*` / `*_rate` / `*_score` = 0–1
+- `tcr_pct` and other `*_pct` = 0–100
+- `p95_latency_s` = seconds, `ttft_p95_ms` = milliseconds
+- `*_count` / `tasks_with_ifr` = integer counters (not scores)
+- consuming tools may use different names → normalize with `ontology.metric_registry.canonical_metric_name()`
 
-### 소비자
+### Consumers
 
-`serve/loader.py` (대시보드) · `cli/gate.py` · `cli/diagnose.py` · `cli/trend.py` · `cli/abtest.py` · `reporting/comprehensive_report.py` · `search_violations` (sqlite 백엔드) · 외부 CI 스크립트.
-
----
-
-## 4. 정적 HTML 리포트 — 단일 결과
-
-`generate_comprehensive_html_report(monitor)` / `generate_html_from_result_file(rf)` — 외부 CDN 의존성 없는 self-contained HTML. **개발자·QM의 1차 리포트.**
-
-### 섹션 순서 (위 → 아래)
-
-| # | 섹션 (`id`) | 계층 | 내용 | 조건 |
-|---|-------------|------|------|------|
-| 0 | 헤더 | L2 | 날짜 · 태스크 수 · 버전 · TCR/Accuracy `(95% CI …)` · Latency · Gate A–G 배지 | 항상 |
-| 0b | **Narrative** (`narrative`) | **L6** | 배포 준비도 + 최약 병목 + 리뷰 큐 + 평가기 신뢰도 + 비용 투사를 2~4문장 영어로 (SPEC-041 P17). `build_insights(narrator=…)`로 LLM 작성 대체 가능 | narrative 있을 때 |
-| 1 | **Executive Summary** (`exec-summary`) | **L6** | 배포 준비도 한 줄 판정 (`❌ Not deployment-ready` / `⚠️ Deploy with caution` / `✅ Deployment-ready`) + **`HIGH/MEDIUM/LOW CONFIDENCE` 배지**(표본 수·CI 폭·측정 컴포넌트 수·임계값 여유·**평가기 신뢰도 P14**) + 병목 Gate + **Next actions 1·2·3** (fail 먼저, 각 Gate 최약 컴포넌트 + 조치) | 항상 |
-| 0·2 | **Freshness** (`freshness`) | **L5** | 신선도 경고 배너 — baseline이 30일 초과 · 질문셋이 baseline과 동일한데 새 실패모드 · 오라벨 의심 케이스 · 태스크 <20개 (SPEC-041 P33) | 경고 있을 때 |
-| 8·3 | **What Changed in the Insights** (`insight-changes`) | **L5** | baseline 대비 *인사이트*의 메타 diff — verdict 이동 · newly failing/passing 게이트 · new/resolved 실패군집 · judge trust 이동 · new 보안 발견 (SPEC-041 P33) | baseline + 움직임 있을 때 |
-| 0·3 | **Briefs by Audience** (`briefs`) | **L6** | 같은 run을 3개 청중용으로 — PM 한 줄(ship/hold + 노력 + confidence) · QA 문단(뭘 리뷰) · engineer 체크리스트(순서대로 뭘 고쳐라). `agent-eval gate --digest`로 터미널에도 (SPEC-041 P34) | 항상 |
-| 0·4 | **Narrative audit** (narrative 배너 하단 빨간 박스) | **L5** | narrative의 정량 주장이 구조화 숫자와 안 맞으면 경고 — verdict≠ready인데 "deployment-ready" · TCR와 다른 % · baseline 없는데 "improvement" · confidence LOW 미언급 (SPEC-041 P34) | narrator가 과대 주장 시 |
-| 1·1 | **Path to Green** (`path-to-green`) | **L6** | 게이트별 pass 라인(0.7)까지의 정량 갭(Now/Target/Gap/After plan) + 실패군집을 **TCR 영향 순**으로 정렬한 수정 계획(크기·`impact_pct`·`effort_hint`·`targets_gates`·누적 투영 TCR) + "상위 N개 군집을 닫으면 실패 게이트 클리어" / 구조적 블로커(B/D/E/F/G) 분리. 투영은 1차 근사 (SPEC-041 P29) | fail/warn 게이트 또는 실패군집 있을 때 |
-| 2 | Scorecard | L3 | Gate A–G 카드 (score bar + status 배지) | 항상 |
-| 3 | Gate A–G 상세 (`gate-a`…`gate-g`) | L3 | **Score Breakdown** (산식 + 컴포넌트별 raw value/기여도/note) + KPI + 상세 표. 측정 컴포넌트 ≤2 & score<90이면 "대표성 낮음" 경고. **전 Gate `insufficient_data_warnings`**(표본 부족 컴포넌트) 노출. **Gate D**: **Latency Budget** (SPEC-041 P7) — model/tool/network/unattributed 스택바 + `Bottleneck: <component>`; **Cost Efficiency** (SPEC-041 P16) — 성공 태스크당 비용(× cost/task) · 실패 낭비 · 재시도 burn · 10만 콜 투사 | 항상 (미측정 항목은 `⚙️ Not Configured` / `📉 Insufficient Data` / `➖ Not Applicable` 배너) |
-| 4 | Advanced Metrics (`advanced`) | L2 | DeepEval · Ragas · 멀티턴 대화 세션 | 데이터 있을 때 |
-| 4b | **Multi-Turn Conversation** (`conversation`) | **L5** | 턴별 context-reference 궤적(스파크라인) + `degradation_after_turn`(에이전트가 답을 포기하기 시작하는 턴) + worst_session (SPEC-041 P24) | `conversation_sessions[]` 있을 때 |
-| 5 | **Operational Signals** (`operational-signals`) | L6 | AnomalyDetector 결과 — type/severity/detail/value + `anomaly_suggestion_for()` 조치 | `enable_anomaly_detection=True` |
-| 5b | **Per-Slice Breakdown** (`slice-analysis`) | **L4** | task_type별 N · TCR(95% CI) · Accuracy. baseline 있으면 `Δ vs baseline` + 두-표본 부트스트랩 유의성(*) (SPEC-041 P10 — "회귀가 한 코호트에 몰렸는지") | task_type ≥ 2종일 때 |
-| 5b·1 | **Metadata Slices** (`metadata-slices`) | **L4** | 5b와 동일한 분석을 task의 스칼라 `extra` 메타데이터(model/prompt_variant/difficulty…)로 자동 슬라이스 (SPEC-041 P28) | `extra`에 2~8개 값의 스칼라 키가 있고 task_type과 1:1이 아닐 때 |
-| 5b·2 | **What to Test Next** (`sample-guidance`) | **L6** | "TCR CI가 ±Npp — ±5pp로 좁히려면 약 M개(+K) 태스크" (SPEC-041 P28) | TCR CI half-width 측정 가능 시 |
-| 5c | **Eval-Set Quality** (`eval-set-quality`) | **L4** | task_type 히스토그램 · 근접중복 질문 클러스터 · 커버리지 경고(Gate 미실행 / 불균형 / 표본 부족) · suspicious ground truth(baseline 대비 동일 실패) (SPEC-041 P12) | 경고/중복/의심 항목 있을 때 |
-| 5d | **Evaluator Reliability** (`evaluator-reliability`) | **L4** | `Evaluator trust: HIGH/MEDIUM/LOW` + 근거 · LLM judge ↔ 휴리스틱 채점기 일치율 + 불일치 태스크 · (있으면) judge-vs-human 보정(MAE/κ) · judge self-consistency. LOW면 배포 준비도 확신도 강등 (SPEC-041 P14) | `llm_judge` 데이터 있을 때 |
-| 5e | **Human Review Queue** (`review-queue`) | **L5** | 자동 판정을 가장 못 믿을 태스크를 우선순위(HIGH/MEDIUM)로 — judge↔휴리스틱 불일치 · suspicious 라벨 · 회귀 실패 · 경계선 점수. `agent-eval dataset promote`로 골든 회귀 케이스 승격 (SPEC-041 P15) | 리뷰 대상 있을 때 |
-| 5f | **Security Findings** (`security-findings`) | **L5** | 어느 태스크가 어떤 위협을 유발했나 — 5개 보안 트래커 per-task 상세 (severity·CWE·detail·tracker), 가장 심각 먼저 (SPEC-041 P19) | `evaluators.security`에 탐지 있을 때 |
-| 5g | **Non-Determinism** (`nondeterminism`) | **L5** | Gate C 재현성 score < 0.85 태스크 — score·run_count·variance + 변형 응답 텍스트 (SPEC-041 P19) | `extra.reproducibility` 있을 때 |
-| 6 | **실패/저점 케이스** (`failure-cases`) | **L1** | ① **Failure set vs baseline** — 📉Regressed/♻️Persistent/🆕New/✅Fixed (baseline 시) ② **RAG failure localization** (SPEC-041 P11) — retrieved context 있는 태스크를 retrieval-miss / grounding-miss / generation-error로 분류, 클래스별 count + 조치 + unsupported claim 예시 ③ **Failure themes** — `(사유 테마 × task_type)` 군집을 count·영향도(~%p) 순 ③·1 **Failure segments** (SPEC-041 P30) — 실패 *질문*을 어휘 토픽으로 군집(TF-IDF + cosine): topic 라벨·크기(% of failures)·공통 사유·예시 질문. `(사유×type)` 군집이 못 잡는 "특정 입력 패턴"("다중 개체 비교 질문에서 실패") ③·2 **Likely triggers** (SPEC-041 P30) — worst-N 실패마다 유발원인 국소화: `[retrieval_gap]`(정답을 담은 검색 청크 없음) / `[grounding]`(응답이 엉뚱한 청크 추종) / `[tool_failure]`(스텝 K 실패) / `[runtime_error]` ④ **Worst cases** 표 (`Status · Question→Response · Score(C/A) · Likely reason`) — 각 행에 **▸ Trajectory** `<details>` (SPEC-041 P7): `tool_calls`→`chain_steps`→`agent_interactions` 순으로 step→tool→인자/출력 요약→✓/✗ + 스텝별 duration/토큰. 스텝에 타이밍(`start_ms`/`end_ms` 또는 `duration`)이 있으면 평면 표 위에 **인라인 SVG 워터폴** (SPEC-041 P25): 스팬별 막대(critical-path 강조, 실패 빨강, depth 들여쓰기) + self_ms/tok/$ 라벨 + total·bottleneck 헤더; **▸ Score breakdown** `<details>` (SPEC-041 P23): 정확도 4개 신호(token_overlap_f1/jaccard/lcs_ratio/char_sim, 최저 빨강) + LLM judge rationale·dimension 점수 | 실패·저점 태스크 있을 때 |
-| 7 | **Recommendations** (`recommendations`) | **L6** | fail/warn Gate마다 (a) `▲/▼ Since baseline` confirmed/refuted (b) GATE_GUIDANCE (c) **Biggest measured shortfalls** (d) **붙여넣을 수 있는 `@agent_eval` 코드 스니펫** (e) **🧪 실험 제안** — 예측 Δ + 권장 표본 + `agent-eval experiment register` 명령(SPEC-041 P27; `.aoo/experiments.jsonl`에 같은 gate/field confirmed 이력 ≥2개면 예측 Δ 재보정) (f) **📈 과거 이력** — 이 Gate 조치 confirmed/refuted/avg Δ | 항상 |
-| 8 | **Gate Failure / RCA Diagnosis** (`diagnosis`) | **L5** | baseline 없으면 "🔍 Gate Failure Diagnosis" — `component_shortfalls`(Component/Current/Health 약한 순) + 처방. baseline 있으면 "🔍 Gate RCA Diagnosis (Improve)" — Baseline/Current/Δ 표 + MAST 후보 + 추천 이력 | 항상 |
-| 8a | **Change Attribution** (`change-attribution`) | **L6** | baseline 대비 시스템 프롬프트 line diff + config 키 변경 + git commit + 최대 회귀 Gate. "무엇이 바뀌어 어느 Gate가 움직였나" (SPEC-041 P18) | baseline + `prompt_text`/`config_snapshot` 있을 때 |
-| 8·0 | **Version Comparison** (`cohort-comparison`) | **L4** | 3+ 버전 나란히 — per-version TCR/Gate 점수 · task_type별 승자 · 모든 쌍 delta+FDR 보정 유의성 · 승자 지목(2위 대비 리드 FDR 유의 시) (SPEC-041 P22) | `generate_*(cohort=[…])` / `?cohort_ids=` 지정 시 |
-| 8·0·1 | **Trace-Level Version Diff** (`trace-diffs`) | **L5** | 버전 간 결과/점수가 움직인 태스크별 — 응답 텍스트 diff(similarity + added/removed) · 궤적 스텝 diff(+/− 도구 호출, reordered) · per-version C/A/✓ 표. "평균이 아니라 이 태스크에서 *무엇이* 바뀌었나" (SPEC-041 P32) | cohort 지정 + 움직인 태스크 있을 때 |
-| 8·1 | **Improvement Experiments** (`experiments`) | **L6** | `.aoo/experiments.jsonl`에 등록된 가설 — hypothesis · predicted Δ · actual Δ · verdict(confirmed/partially_confirmed/refuted/inconclusive/pending) · status. baseline 있으면 open 가설을 즉석 채점 (SPEC-041 P27) | `.aoo/experiments.jsonl` 존재 시 |
-| 8·2 | **Reproducibility Manifest** (`reproducibility`) | **L6** | 이 run의 *평가*를 재현하는 데 필요한 것 — model_name · model_params(temperature/top_p/seed) · judge_model · dataset_ref · evaluator_config(+sha1) · dependency_versions (SPEC-041 P28) | `lineage.reproducibility_manifest` 있을 때 |
-| 8b | **Trend** (`history-trend`) | **L4** | 같은 디렉터리의 형제 결과 JSON을 훑어 per-Gate 인라인 스파크라인 + `first→last (slope)` + `↓ N runs in a row` 배지 (SPEC-041 P13) | 디렉터리에 ≥3 run 있을 때 |
-| 8c | **Change Ledger** (`change-ledger`) | **L6** | `recommendation_outcomes.jsonl` — recorded_at · 변경 · Gate · verdict · Δ score · note (SPEC-041 P13) | 그 파일에 항목 있을 때 |
-| 9 | Conclusion (`conclusion`) | L2 | **Grade + 확신도** · 총 태스크 · TCR/Acc/Hall + **TCR/Accuracy 95% CI** · N/7 PASS · 생성 정보 | 항상 |
-
-### baseline 전달 시 (`save_to_file(baseline_path=...)` / `QuickEval.save(baseline_path=...)`)
-
-- 진단 섹션이 **회귀 기반**(`regression_vs_baseline`)으로 전환 — Baseline/Delta 열이 의미를 가짐
-- `newly_unmeasured_gates` 경고 (baseline엔 있었는데 사라진 Gate = Config 실수 가능)
+`serve/loader.py` (dashboard) · `cli/gate.py` · `cli/diagnose.py` · `cli/trend.py` · `cli/abtest.py` · `reporting/comprehensive_report.py` · `search_violations` (SQLite backend) · external CI scripts.
 
 ---
 
-## 5. 비교 HTML 리포트
+## 4. Static HTML report — single result
 
-`generate_comparison_html_report(compare_result)` — 대시보드 File Compare 탭 Export 또는 `GET /html/compare?ids=…` / `?group_by=…`.
+`generate_comprehensive_html_report(monitor)` / `generate_html_from_result_file(rf)` — self-contained HTML with no external CDN dependency. **The primary report for developers and QM.**
 
-| 섹션 | 내용 |
-|------|------|
-| Metric Comparison | 파일별 Total Tasks · TCR · Accuracy · Avg Latency · Total Cost + `agent_version`/`iteration_note` 메타 행 |
-| Δ Delta | 첫 파일 기준 TCR/Accuracy/Latency 델타 |
-| Per-Task Detail | 공통 태스크 수 · **Regressions**(태스크별 accuracy/latency 하락) · **Improvements** |
-| Pairwise LLM Judge | `judge_pairwise()` 맞대결 — Wins A/Ties/Wins B · Win Rate · 태스크별 승자+근거 (opt-in) |
+### Section order (top → bottom)
 
-3개 이상 파일 → N-way + Benjamini-Hochberg FDR 보정.
+| # | Section (`id`) | Layer | Content | Condition |
+|---|----------------|-------|---------|-----------|
+| 0 | Header | L2 | date · task count · version · TCR/Accuracy `(95% CI …)` · Latency · Gate A–G badges | always |
+| 0b | **Narrative** (`narrative`) | **L6** | deployment readiness + weakest bottleneck + review queue + evaluator trust + cost projection, in 2–4 English sentences (SPEC-041 P17). Replaceable with an LLM via `build_insights(narrator=…)` | when a narrative is present |
+| 1 | **Executive Summary** (`exec-summary`) | **L6** | one-line deployment-readiness verdict (`❌ Not deployment-ready` / `⚠️ Deploy with caution` / `✅ Deployment-ready`) + a **`HIGH/MEDIUM/LOW CONFIDENCE` badge** (sample size · CI width · number of measured components · threshold headroom · **evaluator trust P14**) + the bottleneck gate + **Next actions 1·2·3** (fails first, each gate's weakest component + action) | always |
+| 0·2 | **Freshness** (`freshness`) | **L5** | a freshness-warning banner — baseline older than 30 days · question set identical to baseline but new failure modes · suspected mislabeled cases · < 20 tasks (SPEC-041 P33) | when a warning exists |
+| 8·3 | **What Changed in the Insights** (`insight-changes`) | **L5** | a meta-diff of the *insights* vs. baseline — verdict shift · newly failing/passing gates · new/resolved failure clusters · judge-trust shift · new security finding (SPEC-041 P33) | with a baseline + movement |
+| 0·3 | **Briefs by Audience** (`briefs`) | **L6** | the same run for 3 audiences — a one-line PM brief (ship/hold + effort + confidence) · a QA paragraph (what to review) · an engineer checklist (what to fix, in order). Also in the terminal via `agent-eval gate --digest` (SPEC-041 P34) | always |
+| 0·4 | **Narrative audit** (a red box below the narrative banner) | **L5** | warns when the narrative's quantitative claims don't match the structured numbers — "deployment-ready" while verdict≠ready · a % different from TCR · "improvement" with no baseline · confidence LOW not mentioned (SPEC-041 P34) | when the narrator over-claims |
+| 1·1 | **Path to Green** (`path-to-green`) | **L6** | the quantitative gap to each gate's pass line (0.7): Now/Target/Gap/After-plan + a fix plan ordering failure clusters **by TCR impact** (size · `impact_pct` · `effort_hint` · `targets_gates` · cumulative projected TCR) + "close the top N clusters to clear the failing gate" / structural blockers (B/D/E/F/G) separated out. The projection is a first-order approximation (SPEC-041 P29) | with a fail/warn gate or failure clusters |
+| 2 | Scorecard | L3 | Gate A–G cards (score bar + status badge) | always |
+| 3 | Gate A–G detail (`gate-a`…`gate-g`) | L3 | **Score Breakdown** (formula + per-component raw value / contribution / note) + KPIs + detail tables. If measured components ≤2 & score<90, a "low representativeness" warning. Every gate exposes `insufficient_data_warnings` (under-sampled components). **Gate D**: **Latency Budget** (SPEC-041 P7) — a model/tool/network/unattributed stacked bar + `Bottleneck: <component>`; **Cost Efficiency** (SPEC-041 P16) — cost per successful task (× cost/task) · failure waste · retry burn · a 100k-call projection | always (unmeasured items get a `⚙️ Not Configured` / `📉 Insufficient Data` / `➖ Not Applicable` banner) |
+| 4 | Advanced Metrics (`advanced`) | L2 | DeepEval · Ragas · multi-turn conversation sessions | when data exists |
+| 4b | **Multi-Turn Conversation** (`conversation`) | **L5** | a per-turn context-reference trajectory (sparkline) + `degradation_after_turn` (the turn where the agent starts giving up) + worst_session (SPEC-041 P24) | when `conversation_sessions[]` exists |
+| 5 | **Operational Signals** (`operational-signals`) | L6 | AnomalyDetector results — type/severity/detail/value + `anomaly_suggestion_for()` action | `enable_anomaly_detection=True` |
+| 5b | **Per-Slice Breakdown** (`slice-analysis`) | **L4** | per-task_type N · TCR (95% CI) · Accuracy. With a baseline, `Δ vs baseline` + two-sample bootstrap significance (*) (SPEC-041 P10 — "did the regression concentrate in one cohort") | when task_type ≥ 2 kinds |
+| 5b·1 | **Metadata Slices** (`metadata-slices`) | **L4** | the same analysis as 5b, auto-sliced by the task's scalar `extra` metadata (model/prompt_variant/difficulty…) (SPEC-041 P28) | when `extra` has a scalar key with 2–8 values and it is not 1:1 with task_type |
+| 5b·2 | **What to Test Next** (`sample-guidance`) | **L6** | "TCR CI is ±Npp — to narrow it to ±5pp, about M (+K) more tasks" (SPEC-041 P28) | when the TCR CI half-width can be measured |
+| 5c | **Eval-Set Quality** (`eval-set-quality`) | **L4** | task_type histogram · near-duplicate question clusters · coverage warnings (gate not run / imbalance / under-sampled) · suspicious ground truth (identical failure vs baseline) (SPEC-041 P12) | when a warning / duplicate / suspicious item exists |
+| 5d | **Evaluator Reliability** (`evaluator-reliability`) | **L4** | `Evaluator trust: HIGH/MEDIUM/LOW` + rationale · LLM judge ↔ heuristic-scorer agreement rate + disagreeing tasks · (if present) judge-vs-human calibration (MAE/κ) · judge self-consistency. LOW downgrades the deployment-readiness confidence (SPEC-041 P14) | when `llm_judge` data exists |
+| 5e | **Human Review Queue** (`review-queue`) | **L5** | the tasks whose automatic verdict is least trustworthy, by priority (HIGH/MEDIUM) — judge↔heuristic disagreement · suspicious label · regressed failure · borderline score. Promote to golden regression cases with `agent-eval dataset promote` (SPEC-041 P15) | when there are review targets |
+| 5f | **Security Findings** (`security-findings`) | **L5** | which task triggered which threat — per-task detail across the 5 security trackers (severity · CWE · detail · tracker), most severe first (SPEC-041 P19) | when `evaluators.security` has a detection |
+| 5g | **Non-Determinism** (`nondeterminism`) | **L5** | Gate C reproducibility-score < 0.85 tasks — score · run_count · variance + the varying response texts (SPEC-041 P19) | when `extra.reproducibility` exists |
+| 6 | **Failure / low-score cases** (`failure-cases`) | **L1** | ① **Failure set vs baseline** — 📉Regressed / ♻️Persistent / 🆕New / ✅Fixed (with a baseline) ② **RAG failure localization** (SPEC-041 P11) — classifies tasks with retrieved context into retrieval-miss / grounding-miss / generation-error, per-class count + action + unsupported-claim example ③ **Failure themes** — `(reason theme × task_type)` clusters ordered by count · impact (~pp) ③·1 **Failure segments** (SPEC-041 P30) — clusters failure *questions* by lexical topic (TF-IDF + cosine): topic label · size (% of failures) · common reason · example question. Catches an "input pattern" that `(reason×type)` clusters miss ("fails on multi-entity comparison questions") ③·2 **Likely triggers** (SPEC-041 P30) — localizes the trigger per worst-N failure: `[retrieval_gap]` (no retrieved chunk holds the answer) / `[grounding]` (the response follows the wrong chunk) / `[tool_failure]` (step K failed) / `[runtime_error]` ④ **Worst cases** table (`Status · Question→Response · Score(C/A) · Likely reason`) — each row has a **▸ Trajectory** `<details>` (SPEC-041 P7): `tool_calls`→`chain_steps`→`agent_interactions` in order, step→tool→arg/output summary→✓/✗ + per-step duration/tokens. If steps carry timing (`start_ms`/`end_ms` or `duration`), an **inline SVG waterfall** above the flat table (SPEC-041 P25): per-span bars (critical path emphasized, failures red, depth indented) + self_ms/tok/$ labels + total·bottleneck header; **▸ Score breakdown** `<details>` (SPEC-041 P23): the 4 accuracy signals (token_overlap_f1/jaccard/lcs_ratio/char_sim, lowest red) + LLM-judge rationale · dimension scores | when failed / low-score tasks exist |
+| 7 | **Recommendations** (`recommendations`) | **L6** | per fail/warn gate: (a) `▲/▼ Since baseline` confirmed/refuted (b) GATE_GUIDANCE (c) **Biggest measured shortfalls** (d) a **paste-ready `@agent_eval` code snippet** (e) **🧪 Experiment proposal** — predicted Δ + recommended sample + `agent-eval experiment register` command (SPEC-041 P27; recalibrates the predicted Δ when `.aoo/experiments.jsonl` has ≥2 confirmed records for the same gate/field) (f) **📈 Track record** — this gate's actions confirmed/refuted/avg Δ | always |
+| 8 | **Gate Failure / RCA Diagnosis** (`diagnosis`) | **L5** | without a baseline: "🔍 Gate Failure Diagnosis" — `component_shortfalls` (Component/Current/Health, weakest first) + prescription. With a baseline: "🔍 Gate RCA Diagnosis (Improve)" — Baseline/Current/Δ table + MAST candidates + recommendation history | always |
+| 8a | **Change Attribution** (`change-attribution`) | **L6** | vs. baseline: system-prompt line diff + config-key changes + git commit + the biggest-regression gate. "What changed, and which gate moved" (SPEC-041 P18) | with a baseline + `prompt_text`/`config_snapshot` |
+| 8·0 | **Version Comparison** (`cohort-comparison`) | **L4** | 3+ versions side by side — per-version TCR/Gate scores · per-task_type winner · all-pairs delta + FDR-corrected significance · winner call (when the lead over 2nd place is FDR-significant) (SPEC-041 P22) | when `generate_*(cohort=[…])` / `?cohort_ids=` is given |
+| 8·0·1 | **Trace-Level Version Diff** (`trace-diffs`) | **L5** | per task whose result/score moved between versions — response-text diff (similarity + added/removed) · trajectory-step diff (+/− tool calls, reordered) · per-version C/A/✓ table. "What *specifically* changed in this task, not on average" (SPEC-041 P32) | with a cohort + moved tasks |
+| 8·1 | **Improvement Experiments** (`experiments`) | **L6** | hypotheses registered in `.aoo/experiments.jsonl` — hypothesis · predicted Δ · actual Δ · verdict (confirmed/partially_confirmed/refuted/inconclusive/pending) · status. Scores open hypotheses on the spot with a baseline (SPEC-041 P27) | when `.aoo/experiments.jsonl` exists |
+| 8·2 | **Reproducibility Manifest** (`reproducibility`) | **L6** | what it takes to reproduce this run's *evaluation* — model_name · model_params (temperature/top_p/seed) · judge_model · dataset_ref · evaluator_config (+sha1) · dependency_versions (SPEC-041 P28) | when `lineage.reproducibility_manifest` exists |
+| 8b | **Trend** (`history-trend`) | **L4** | scans sibling result JSONs in the same directory for per-gate inline sparklines + `first→last (slope)` + a `↓ N runs in a row` badge (SPEC-041 P13) | when the directory has ≥3 runs |
+| 8c | **Change Ledger** (`change-ledger`) | **L6** | `recommendation_outcomes.jsonl` — recorded_at · change · gate · verdict · Δ score · note (SPEC-041 P13) | when that file has entries |
+| 9 | Conclusion (`conclusion`) | L2 | **Grade + confidence** · total tasks · TCR/Acc/Hall + **TCR/Accuracy 95% CI** · N/7 PASS · generation info | always |
+
+### When a baseline is passed (`save_to_file(baseline_path=...)` / `QuickEval.save(baseline_path=...)`)
+
+- the diagnosis section switches to **regression-based** (`regression_vs_baseline`) — the Baseline/Delta columns become meaningful
+- a `newly_unmeasured_gates` warning (a gate that was in the baseline but disappeared = a possible Config mistake)
 
 ---
 
-## 6. CLI 터미널 출력
+## 5. Comparison HTML report
 
-모든 CLI는 색상 지원(TTY) + `--json` 옵션(파이프용, 해당 명령).
+`generate_comparison_html_report(compare_result)` — dashboard File Compare tab Export, or `GET /html/compare?ids=…` / `?group_by=…`.
 
-### `agent-eval gate` — 품질 게이팅 (CI)
+| Section | Content |
+|---------|---------|
+| Metric Comparison | per file: Total Tasks · TCR · Accuracy · Avg Latency · Total Cost + an `agent_version` / `iteration_note` metadata row |
+| Δ Delta | TCR/Accuracy/Latency delta relative to the first file |
+| Per-Task Detail | shared task count · **Regressions** (per-task accuracy/latency drop) · **Improvements** |
+| Pairwise LLM Judge | `judge_pairwise()` head-to-head — Wins A / Ties / Wins B · Win Rate · per-task winner + rationale (opt-in) |
+
+3+ files → N-way + Benjamini-Hochberg FDR correction.
+
+---
+
+## 6. CLI terminal output
+
+Every CLI supports color (on a TTY) + a `--json` option (for piping, where applicable).
+
+### `agent-eval gate` — quality gating (CI)
 
 ```
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Agent Evaluator — Quality Gate
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  [Harness Gate Composite Score 표]  (--min-gate-score 시)
+  [Harness Gate Composite Score table]  (with --min-gate-score)
   Metric      Current   Threshold   Delta   Result
   TCR         50.0%     ≥ 85%       -35.0%  ❌ FAIL
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Regressions detected:  (--fail-on-regression 시)
+  Regressions detected:  (with --fail-on-regression)
   ❌ Quality gate failed (0/1 passed)
   → Fail this step in your CI pipeline
 
-  Why it failed — RCA summary   (실패 시 자동, --no-explain으로 억제)
+  Why it failed — RCA summary   (automatic on failure, suppress with --no-explain)
   Gate A (score 0.600) — weakest components:
     • avg_subtask_completion (25%)
-      → 여러 하위 작업 중 일부만 끝냈습니다. SubtaskConfig로 각 단계를 검증하세요.
+      → Only some of the subtasks were completed. Verify each step with SubtaskConfig.
 ```
 
-| exit code | 의미 |
-|-----------|------|
-| 0 | 모든 기준 통과 |
-| 1 | 임계값 미달 / 복합 점수 미달 / Gate 임계값 위반 |
-| 2 | baseline 대비 회귀 (`--fail-on-regression`) |
-| 3 | 골든셋 회귀 (`--golden-set --fail-on-golden-regression`) |
-| 4 | 케이스 회귀 / 리뷰 큐 초과 (SPEC-041 P26) — `--fail-on-case-regression`(baseline에선 통과했는데 지금 실패하는 task; `--baseline-result` full result JSON 필요) 또는 `--max-review-high N`(`insights.review_queue.by_priority.high > N`). 우선순위: golden(3) > case/review(4) > regression(2). |
-| 1 | 비용 SLO 초과 (SPEC-041 P28) — `--max-cost-per-task USD` (`total_cost` / task 수 초과). 다른 임계값 미달과 같은 exit 1. |
+| exit code | Meaning |
+|-----------|---------|
+| 0 | all criteria passed |
+| 1 | threshold missed / composite score missed / gate threshold violated |
+| 2 | regression vs baseline (`--fail-on-regression`) |
+| 3 | golden-set regression (`--golden-set --fail-on-golden-regression`) |
+| 4 | case regression / review queue over the cap (SPEC-041 P26) — `--fail-on-case-regression` (a task that passed in the baseline fails now; needs a full result JSON via `--baseline-result`) or `--max-review-high N` (`insights.review_queue.by_priority.high > N`). Priority: golden(3) > case/review(4) > regression(2). |
+| 1 | cost SLO exceeded (SPEC-041 P28) — `--max-cost-per-task USD` (`total_cost` / task count exceeded). The same exit 1 as any other missed threshold. |
 
-`--junit-xml PATH` → CI 시스템 통합용 XML. `--notify slack://… / webhook://… / https://…`(반복 가능, SPEC-041 P26) → 종료 코드 확정 후 `insights.narrative` + `failure_lineage.regressed` + `cohort_comparison.winner`를 Slack/webhook으로 발송(`alerts.dispatch_gate_result()`; 전송 실패는 보고만, 종료 코드 불변). 상세: [05_QUALITY_GATE](05_QUALITY_GATE.md).
+`--junit-xml PATH` → XML for CI-system integration. `--notify slack://… / webhook://… / https://…` (repeatable, SPEC-041 P26) → after the exit code is decided, sends `insights.narrative` + `failure_lineage.regressed` + `cohort_comparison.winner` to Slack/webhook (`alerts.dispatch_gate_result()`; a send failure is reported only, the exit code is unchanged). Detail: [05_QUALITY_GATE](05_QUALITY_GATE.md).
 
-### `agent-eval diagnose` — Gate 회귀 원인진단 (RCA)
+### `agent-eval diagnose` — Gate-regression root-cause diagnosis (RCA)
 
-CI 게이트 **아님** — 항상 exit 0 (파일 못 읽을 때만 1). 3단계 절차(감지 → 원인귀속 → 교차확인)를 출력.
+**Not** a CI gate — always exit 0 (exit 1 only if a file cannot be read). Prints the 3-stage procedure (detect → attribute → cross-reference).
 
-- **baseline 없이**: `absolute_threshold` 모드 — fail/warn Gate마다 "Weakest score components"(health 오름차순) + `NATIVE_METRIC_RULES` 처방
-- **baseline 있으면** (`--baseline`): `regression_vs_baseline` — 세부 지표 변화량(largest absolute first) + `--show-diff`로 git commit 범위 diff까지
-- Gate F 감지 시 MAST 실패모드 후보 (Cemri et al., NeurIPS 2025)
-- `--violation-db PATH` → sqlite 위반 이력 교차검색
+- **without a baseline**: `absolute_threshold` mode — per fail/warn gate, "Weakest score components" (ascending by health) + a `NATIVE_METRIC_RULES` prescription
+- **with a baseline** (`--baseline`): `regression_vs_baseline` — per-detail change magnitude (largest absolute first) + the git-commit-range diff with `--show-diff`
+- MAST failure-mode candidates when Gate F is detected (Cemri et al., NeurIPS 2025)
+- `--violation-db PATH` → cross-search the SQLite violation history
 
-### `agent-eval abtest` — 통계 A/B
+### `agent-eval abtest` — statistical A/B
 
-CI 게이트 아님. 파일 2개 → Welch's t-test (`--sequential` 시 mSPRT always-valid), 3개+ → N-way + FDR. 유의성 · 효과크기 · 표본 경고만 출력, pass/fail 없음. **SPEC-041 P10**: proportion형 지표(양쪽 mean∈[0,1])에 `min detectable effect @ 80% power (α=0.05): ±X — observed |delta| Y` 한 줄. not significant인데 관측 차이가 MDE보다 작으면 "underpowered — 동등성 증거가 아님, 태스크를 더 모으거나 `--sequential`" 경고.
+Not a CI gate. 2 files → Welch's t-test (`--sequential` → mSPRT always-valid), 3+ → N-way + FDR. Prints significance · effect size · sample warnings only, no pass/fail. **SPEC-041 P10**: for a proportion metric (both means ∈ [0,1]), a one-liner `min detectable effect @ 80% power (α=0.05): ±X — observed |delta| Y`. If not significant but the observed difference is below the MDE, an "underpowered — not evidence of equivalence; collect more tasks or use `--sequential`" warning.
 
-### `agent-eval trend` — 시계열 추세
+### `agent-eval trend` — time-series trend
 
-여러 결과 파일을 시간순으로 읽어 지표별 linear slope 계산 → `improving ↑` / `degrading ↓` / `stable →`.
+Reads several result files in time order, computes a linear slope per metric → `improving ↑` / `degrading ↓` / `stable →`.
 
-| exit code | 의미 |
-|-----------|------|
-| 0 | 회귀 없음 (또는 `--fail-on-regression` 미지정) |
-| 1 | 회귀 감지 (`--fail-on-regression` 지정 시) |
+| exit code | Meaning |
+|-----------|---------|
+| 0 | no regression (or `--fail-on-regression` not given) |
+| 1 | regression detected (when `--fail-on-regression` is given) |
 
-회귀 감지 + 첫/마지막 run에 `lineage.git_commit`이 있으면 **그 사이 실제 코드 변경**(변경 파일 · 커밋 목록)을 자동 첨부 (`--repo-path`로 저장소 지정).
-
----
-
-## 7. 대시보드
-
-`agent-eval dashboard` → FastAPI 서버 (port 8765, 23 탭 / 111 route). `results/` 의 `.json`을 폴링(15초 / `--watch`).
-
-| 탭 그룹 | 주요 탭 | 계층 |
-|---------|---------|------|
-| **개요** | Overview · Harness Gates · Scorecard | L2–L3 |
-| **상세** | Tasks (태스크 테이블) · Accuracy · Latency · Tokens & Cost · Quality | L1–L2 |
-| **에이전틱** | Tool Calls · Coordination · Workflow · Retry | L2 |
-| **보안** | Security (L1/L2 트래커) · Violations 검색(FTS5) | L2 |
-| **비교** | File Compare (group_by · Pairwise Judge · 📄 Export HTML) | L2–L3 델타 |
-| **🔧 Improve** | Gate RCA (`rca.diagnose()`) · baseline 없으면 `component_shortfalls`(Component/Current/Health) 표 · **배포 준비도 판정 + 확신도** · **실패 테마 군집 / baseline 대비 실패 집합** · **처방 카드**(붙여넣을 코드 스니펫 · 실험 제안 · 과거 이력 · baseline 대비 confirmed/refuted) · 추천 적용 이력 | **L5–L6** (`insights` 객체) |
-| **운영** | Anomaly · Alerts · Cost · Config · Transparency | L2·L6 |
-
-탭별 상세 + 활성화 조건: [06_OBSERVABILITY](06_OBSERVABILITY.md) §3–4.
-
-프로덕션 실시간 트레이싱은 대시보드가 아니라 `agent-eval monitor` (Arize Phoenix, `setup_otel()` opt-in) — 별도 파이프라인.
+On a detected regression, if the first/last runs have `lineage.git_commit`, **the actual code change between them** (changed files · commit list) is attached automatically (specify the repo with `--repo-path`).
 
 ---
 
-## 8. AI 런타임 출력 (Claude 훅 · OpenCode 플러그인 · MCP)
+## 7. Dashboard
 
-LiveGuardrail(`gates/live_guardrail.py`)이 tool 실행 **직전** Gate B/E를 동기 판정한다. 목적은 리포트가 아니라 **에이전트의 자가 교정** — "무엇이 막혔나 + 그래서 뭘 하라"를 다음 턴 컨텍스트에 노출.
+`agent-eval dashboard` → a FastAPI server (port 8765, 23 tabs / 111 routes). Polls `.json` in `results/` (15s / `--watch`).
 
-### 8.1 차단 시 — `LiveVerdict`
+| Tab group | Main tabs | Layers |
+|-----------|-----------|--------|
+| **Overview** | Overview · Harness Gates · Scorecard | L2–L3 |
+| **Detail** | Tasks (task table) · Accuracy · Latency · Tokens & Cost · Quality | L1–L2 |
+| **Agentic** | Tool Calls · Coordination · Workflow · Retry | L2 |
+| **Security** | Security (L1/L2 trackers) · Violations search (FTS5) | L2 |
+| **Compare** | File Compare (group_by · Pairwise Judge · 📄 Export HTML) | L2–L3 deltas |
+| **🔧 Improve** | Gate RCA (`rca.diagnose()`) · without a baseline, a `component_shortfalls` (Component/Current/Health) table · **deployment-readiness verdict + confidence** · **failure-theme clusters / failure set vs. baseline** · **prescription cards** (paste-ready code snippet · experiment proposal · track record · confirmed/refuted vs baseline) · recommendation-application history | **L5–L6** (the `insights` object) |
+| **Operations** | Anomaly · Alerts · Cost · Config · Transparency | L2·L6 |
 
-| 필드 | 내용 |
-|------|------|
-| `block` | `True`면 이 tool 호출을 막음 |
-| `gate` | `"B"` (행동 무결성) / `"E"` (보안 경계) |
-| `reason` | 기계 판독 사유 — 예: `loop_detection: ['consecutive_repeat'] (tool='Bash' repeated with identical arguments)` |
-| `detail` | 구조화 판정 (dict) |
-| `remediation` | **조치 지침** — `block=True`이고 미지정이면 `reason`에서 자동 도출: `COMPONENT_GUIDANCE` 문구 + "동일 호출 반복 말고 접근 바꿔라 + `recommend_fix` / `search_violations` MCP 도구로 확인하라" |
+Per-tab detail + activation conditions: [06_OBSERVABILITY](06_OBSERVABILITY.md) §3–4.
 
-### 8.2 Claude Code CLI 훅 (`agent-eval claude install`)
-
-| 이벤트 | 출력 |
-|--------|------|
-| **PreToolUse** (허용) | `{"hookSpecificOutput": {"permissionDecision": "allow"}}` |
-| **PreToolUse** (차단) | `permissionDecisionReason` = `reason` + `\n→ ` + `remediation` · exit 2 · stderr 사유 |
-| **PreToolUse** (circuit breaker tripped) | 연속 5회 차단 → `allow` + `systemMessage`("config가 잘못됐을 가능성이 높다, 파일을 고치고 새 세션") · 이후 관찰 전용(감사만) |
-| **PostToolUse** | 확정 tool 호출을 세션 상태 파일에 기록 (판정 상태 복원용, Claude 훅은 호출마다 별도 프로세스) |
-| **SessionEnd** | 배치 리포트 디스크 저장(`results/claude_code_live_guardrail/`) + `systemMessage` **세션 요약**: `Gate B/E 점수 + 위반 종류 + 차단 건수 + 리포트 경로` |
-
-### 8.3 OpenCode 플러그인 (`agent-eval opencode install`)
-
-| 이벤트 | 출력 |
-|--------|------|
-| **tool.execute.before** (차단) | `throw new Error("[agent-evaluator] blocked by Gate B: <reason>\n→ <remediation>")` — 이 문자열이 다음 턴 컨텍스트에 노출 |
-| **tool.execute.before** (circuit breaker) | 연속 5회 차단 → 관찰 전용 전환 + stderr 경고 (Claude 훅과 대칭) |
-| **tool.execute.after** | 실행 결과(success/exit_code/stdout) 기록. 성공 시 연속 차단 카운터 리셋 |
-| **session.idle** (매 턴) | 위반 총계가 늘었을 때만 **synthetic transcript 파트** 추가 — `Gate B/E score · 위반 종류·대상 도구 · "search_violations로 과거 이력, recommend_fix로 조치 확인하라"`. ctx가 이걸 색인 → 다음 세션 자가 교정 |
-
-Claude vs OpenCode 차이: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_CODE.md).
-
-### 8.4 MCP 도구 (opt-in: `pip install "agent-evaluator[mcp]"` + `--with-violation-search` / `--with-recommend-fix`)
-
-| 도구 | 입력 | 출력 |
-|------|------|------|
-| `search_violations(query)` | 자연어 질의 | 관련도순 과거 차단 이력 (`[차단됨]`/`[관찰됨]` 접두) + 위반 유형 감지 시 **`recommend_fix(gate=…, metric=…)` 호출 힌트** |
-| `recommend_fix(gate, metric=None, value=None)` | Gate A–G + 선택적 지표/값 | 정적 조치 지식 — `GATE_GUIDANCE` + `NATIVE_METRIC_RULES`(value 주면 임계값 위반 여부) + `ANOMALY_METRIC_SUGGESTIONS` + Gate F는 MAST 후보. 결과 파일 불필요, 항상 HOTL 고지로 끝 |
+Production real-time tracing is not the dashboard but `agent-eval monitor` (Arize Phoenix, `setup_otel()` opt-in) — a separate pipeline.
 
 ---
 
-## 9. 정보 계층 × 표면 매트릭스
+## 8. AI-runtime output (Claude hooks · OpenCode plugin · MCP)
 
-`●` = 완전 노출 · `◐` = 부분/요약 · `○` = 없음
+LiveGuardrail (`gates/live_guardrail.py`) judges Gate B/E synchronously **just before** a tool runs. Its purpose is not a report but the **agent's self-correction** — exposing "what was blocked + so what to do" in the next turn's context.
 
-| 표면 | L1 원천 | L2 집계 | L3 Gate | L4 판정 | L5 진단 | L6 처방 |
-|------|:--:|:--:|:--:|:--:|:--:|:--:|
-| 결과 JSON | ● | ● | ● | ◐¹ | ● | ● |
-| 단일 HTML 리포트 | ◐³ | ● | ● | ◐⁴ | ● | ● |
-| 비교 HTML 리포트 | ◐ | ● | ◐ | ○ | ○ | ○ |
+### 8.1 On a block — `LiveVerdict`
+
+| Field | Content |
+|-------|---------|
+| `block` | `True` → this tool call is blocked |
+| `gate` | `"B"` (behavioral integrity) / `"E"` (security boundary) |
+| `reason` | machine-readable reason — e.g. `loop_detection: ['consecutive_repeat'] (tool='Bash' repeated with identical arguments)` |
+| `detail` | structured verdict (dict) |
+| `remediation` | **the action** — when `block=True` and it is unset, derived from `reason` automatically: a `COMPONENT_GUIDANCE` phrase + "don't repeat the same call, change the approach + check with the `recommend_fix` / `search_violations` MCP tools" |
+
+### 8.2 Claude Code CLI hooks (`agent-eval claude install`)
+
+| Event | Output |
+|-------|--------|
+| **PreToolUse** (allowed) | `{"hookSpecificOutput": {"permissionDecision": "allow"}}` |
+| **PreToolUse** (blocked) | `permissionDecisionReason` = `reason` + `\n→ ` + `remediation` · exit 2 · stderr reason |
+| **PreToolUse** (circuit breaker tripped) | 5 consecutive blocks → `allow` + `systemMessage` ("the config is probably wrong, fix the file and start a new session") · thereafter observe-only (audit only) |
+| **PostToolUse** | records the confirmed tool call in the session state file (for verdict-state restoration, since each Claude hook is a separate process) |
+| **SessionEnd** | writes the batch report to disk (`results/claude_code_live_guardrail/`) + a `systemMessage` **session summary**: `Gate B/E scores + violation types + block count + report path` |
+
+### 8.3 OpenCode plugin (`agent-eval opencode install`)
+
+| Event | Output |
+|-------|--------|
+| **tool.execute.before** (blocked) | `throw new Error("[agent-evaluator] blocked by Gate B: <reason>\n→ <remediation>")` — this string is exposed in the next turn's context |
+| **tool.execute.before** (circuit breaker) | 5 consecutive blocks → switch to observe-only + a stderr warning (symmetric with the Claude hook) |
+| **tool.execute.after** | records the execution result (success/exit_code/stdout). On success, resets the consecutive-block counter |
+| **session.idle** (every turn) | adds a **synthetic transcript part** only when the violation total grew — `Gate B/E score · violation types · target tools · "check past history with search_violations, the action with recommend_fix"`. ctx indexes this → self-correction in the next session |
+
+Claude vs OpenCode differences: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_CODE.md).
+
+### 8.4 MCP tools (opt-in: `pip install "agent-evaluator[mcp]"` + `--with-violation-search` / `--with-recommend-fix` / `--with-ask-insights`)
+
+| Tool | Input | Output |
+|------|-------|--------|
+| `search_violations(query)` | natural-language query | past block history by relevance (`[blocked]` / `[observed]` prefix) + a **`recommend_fix(gate=…, metric=…)` call hint** when a violation type is detected |
+| `recommend_fix(gate, metric=None, value=None)` | Gate A–G + optional metric/value | static remediation knowledge — `GATE_GUIDANCE` + `NATIVE_METRIC_RULES` (whether the value violates a threshold) + `ANOMALY_METRIC_SUGGESTIONS` + MAST candidates for Gate F. No result file needed, always ends with a HOTL notice |
+| `ask_insights` (SPEC-041 P31·P62) | result-JSON path + a question | `insights_summary` / `insights_readiness` (path-to-green) / `insights_why_failed(task_id)` / `insights_contrast(task_id)` (failure ↔ nearest pass diff) / `insights_list(filter)` — query the result JSON's insight layer with structured questions (L5/L6) |
+
+---
+
+## 9. Information-layer × surface matrix
+
+`●` = fully exposed · `◐` = partial / summary · `○` = none
+
+| Surface | L1 raw | L2 aggregate | L3 Gate | L4 verdict | L5 diagnosis | L6 prescription |
+|---------|:--:|:--:|:--:|:--:|:--:|:--:|
+| Result JSON | ● | ● | ● | ◐¹ | ● | ● |
+| Single HTML report | ◐³ | ● | ● | ◐⁴ | ● | ● |
+| Comparison HTML report | ◐ | ● | ◐ | ○ | ○ | ○ |
 | `agent-eval gate` | ○ | ◐ | ● | ● | ◐⁵ | ◐⁵ |
 | `agent-eval diagnose` | ○ | ○ | ◐ | ○ | ● | ◐ |
 | `agent-eval abtest` | ○ | ● | ○ | ○ | ○ | ○ |
 | `agent-eval trend` | ○ | ● | ◐ | ◐ | ◐⁶ | ○ |
-| 대시보드 | ● | ● | ● | ◐ | ● | ● |
-| LiveGuardrail 차단 | ◐ | ○ | ◐ | ● | ◐ | ● |
-| SessionEnd 요약 | ○ | ○ | ◐ | ○ | ◐ | ◐ |
+| Dashboard | ● | ● | ● | ◐ | ● | ● |
+| LiveGuardrail block | ◐ | ○ | ◐ | ● | ◐ | ● |
+| SessionEnd summary | ○ | ○ | ◐ | ○ | ◐ | ◐ |
 | `search_violations` | ◐ | ○ | ○ | ○ | ◐ | ◐⁷ |
 | `recommend_fix` | ○ | ○ | ○ | ○ | ○ | ● |
 
-1. `extra_metrics.insights.verdict` (배포 준비도 한 줄 판정 + 확신도) · 2·3. `extra_metrics.insights` (verdict·gate_findings·failure_clusters·recommendations — L5/L6 전체가 SPEC-041 P9부터 기계 판독 가능) · 4. baseline 전달 시 회귀 표시 · 5. `--explain` 또는 실패 시 자동 · 6. 회귀 시 git diff · 7. `recommend_fix` 호출 힌트
+1. `extra_metrics.insights.verdict` (one-line deployment-readiness verdict + confidence) · 2·3. `extra_metrics.insights` (verdict · gate_findings · failure_clusters · recommendations — the whole of L5/L6 is machine-readable from SPEC-041 P9) · 4. regression shown when a baseline is passed · 5. with `--explain` or automatically on failure · 6. git diff on a regression · 7. `recommend_fix` call hint
 
 ---
 
-## 10. 역할별 출력 워크플로우
+## 10. Output workflow by role
 
-### 개발자 — "실패를 고친다"
+### Developer — "fix the failure"
 
 ```
-save_to_file()  →  results/eval.html 열기
-    ├─ Executive Summary: 어느 Gate가 병목인가, Next actions 1·2·3
-    ├─ 실패 케이스 테이블: 어느 태스크가 왜 (question→response + likely reason)
-    ├─ Gate 상세 Score Breakdown: 어느 컴포넌트가 점수를 깎았나
-    └─ Recommendations / Diagnosis: 그 컴포넌트에 대한 구체 조치
+save_to_file()  →  open results/eval.html
+    ├─ Executive Summary: which gate is the bottleneck, Next actions 1·2·3
+    ├─ failure-case table: which task, why (question→response + likely reason)
+    ├─ Gate detail Score Breakdown: which component drove the score down
+    └─ Recommendations / Diagnosis: concrete action for that component
          │
-         └─(더 파고들 때)→  agent-eval diagnose results/eval.json
-                              └─(코드 원인)→  agent-eval diagnose ... --baseline prev.json --show-diff
+         └─(digging deeper)→  agent-eval diagnose results/eval.json
+                              └─(code cause)→  agent-eval diagnose ... --baseline prev.json --show-diff
 ```
 
-### 품질관리자 — "배포 판단 + 회귀 감시"
+### Quality manager — "deployment decision + regression watch"
 
 ```
 CI:  agent-eval gate results/ci.json --tcr 85 --accuracy 70 \
          --fail-on-regression 10 --junit-xml out.xml
-     └─ exit 0/1/2/3  +  실패 시 RCA 요약 3줄
-버전 비교:  대시보드 File Compare  또는  agent-eval abtest v1.json v2.json --sequential
-릴리스 승인:  results/release.html  Executive Summary 한 줄 판정 + N/7 PASS
-시계열:  agent-eval trend results/ --fail-on-regression   (회귀 시 원인 커밋까지)
+     └─ exit 0/1/2/3  +  a 3-line RCA summary on failure
+Version comparison:  dashboard File Compare  or  agent-eval abtest v1.json v2.json --sequential
+Release sign-off:  results/release.html  Executive Summary one-line verdict + N/7 PASS
+Time series:  agent-eval trend results/ --fail-on-regression   (down to the causal commit on a regression)
 ```
 
-### AI 런타임 — "행동 자가 교정"
+### AI runtime — "behavior self-correction"
 
 ```
-tool 실행 시도
-    ├─(Gate B/E 위반)→  차단 + remediation ("접근 바꿔라 + MCP 도구 써라")
-    │      └─ 에이전트: search_violations("rm -rf")  →  과거 이력 + recommend_fix 힌트
-    │                    recommend_fix("B", "loop_detection")  →  조치 지식
-    ├─(연속 5회 차단)→  circuit breaker: 관찰 전용 전환 + "config 재검토" 경고
-    └─ 세션 종료 →  SessionEnd 요약 (Gate B/E 점수 + 위반) → 다음 세션 컨텍스트
+tool-call attempt
+    ├─(Gate B/E violation)→  block + remediation ("change the approach + use the MCP tools")
+    │      └─ agent: search_violations("rm -rf")  →  past history + recommend_fix hint
+    │                recommend_fix("B", "loop_detection")  →  remediation knowledge
+    ├─(5 consecutive blocks)→  circuit breaker: switch to observe-only + a "re-check the config" warning
+    └─ session end →  SessionEnd summary (Gate B/E scores + violations) → next session's context
 ```
 
 ---
 
-## 관련 문서
+## Related documents
 
-| 목적 | 문서 |
-|------|------|
-| 58개 지표 상세 (25 Native + 33 Harness Config) | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
-| 결과 JSON / SQLite 스키마 · 골든셋 | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
-| 임계값 설정 · CI/CD · trend · diagnose | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| 대시보드 23 탭 · Phoenix 실시간 모니터링 | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
-| Claude Code 훅 설치·설정 | [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) |
-| OpenCode vs Claude Code 차이 | [OPENCODE_VS_CLAUDE_CODE.md](OPENCODE_VS_CLAUDE_CODE.md) |
+| Goal | Document |
+|------|----------|
+| All 58 metrics in detail (25 Native + 33 Harness Config) | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
+| Result JSON / SQLite schema · golden set | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
+| Threshold configuration · CI/CD · trend · diagnose | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
+| Dashboard's 23 tabs · Phoenix real-time monitoring | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
+| Claude Code hook installation & configuration | [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) |
+| OpenCode vs Claude Code differences | [OPENCODE_VS_CLAUDE_CODE.md](OPENCODE_VS_CLAUDE_CODE.md) |

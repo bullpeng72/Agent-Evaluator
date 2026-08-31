@@ -1,63 +1,63 @@
-# 데이터 가이드
+# Data Guide
 
-골든 데이터셋 구성 · 한국어 RAG 평가 · PDF 파이프라인
+Golden-dataset construction · Korean RAG evaluation · PDF pipeline.
 
-**v1.0.0-rc4 | Python 3.8+**
+**v1.0.0 | Python 3.8+**
 
 ---
 
-## 목차
+## Table of Contents
 
-1. [개요](#1-개요)
-2. [QAPair 구조](#2-qapair-구조)
-3. [골든 데이터셋 생성 방법](#3-골든-데이터셋-생성-방법)
+1. [Overview](#1-overview)
+2. [QAPair structure](#2-qapair-structure)
+3. [Ways to build a golden dataset](#3-ways-to-build-a-golden-dataset)
 4. [GoldenSetBuilder API](#4-goldensetbuilder-api)
-5. [에이전트 평가 루프](#5-에이전트-평가-루프)
-6. [한국어 RAG 평가 파이프라인](#6-한국어-rag-평가-파이프라인)
-7. [RAG 평가 메트릭](#7-rag-평가-메트릭)
-8. [데코레이터 방식 RAG 평가](#8-데코레이터-방식-rag-평가)
-9. [KoreanRAGEvaluator 상세](#9-koreanragevaluator-상세)
-10. [실전 예제: 기업 정책 문서](#10-실전-예제-기업-정책-문서)
-11. [Phoenix 업로드](#11-phoenix-업로드)
+5. [Agent evaluation loop](#5-agent-evaluation-loop)
+6. [Korean RAG evaluation pipeline](#6-korean-rag-evaluation-pipeline)
+7. [RAG evaluation metrics](#7-rag-evaluation-metrics)
+8. [Decorator-style RAG evaluation](#8-decorator-style-rag-evaluation)
+9. [KoreanRAGEvaluator in detail](#9-koreanragevaluator-in-detail)
+10. [Worked example: a corporate policy document](#10-worked-example-a-corporate-policy-document)
+11. [Uploading to Phoenix](#11-uploading-to-phoenix)
 12. [Best Practices](#12-best-practices)
 
 ---
 
-## 1. 개요
+## 1. Overview
 
-**Golden Dataset**은 에이전트의 정확도와 일관성을 반복적으로 검증하기 위한 레퍼런스 QA 쌍 모음입니다.
+A **golden dataset** is a collection of reference QA pairs used to repeatedly verify an agent's accuracy and consistency.
 
-- **회귀 방지** — 신규 배포 전 기존 능력이 저하되지 않았음을 자동 확인
-- **CI/CD 통합** — `agent-eval gate`와 연동해 품질 기준 미달 시 파이프라인 중단
-- **점진적 확장** — 운영 결과에서 우수한 케이스를 자동 추출해 데이터셋 확장
+- **Regression prevention** — automatically confirm that existing capability has not degraded before a new deployment
+- **CI/CD integration** — hook into `agent-eval gate` to stop the pipeline when the quality bar is missed
+- **Incremental growth** — automatically extract high-quality cases from production results to grow the dataset
 
-기본 저장 경로: `data/golden_datasets/`
+Default output path: `data/golden_datasets/`
 
 ---
 
-## 2. QAPair 구조
+## 2. QAPair structure
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `qa_id` | `str` | ✅ | 고유 식별자 (예: `"qa_001"`) |
-| `question` | `str` | ✅ | 에이전트에게 전달할 질문 |
-| `answer` | `str` | ✅ | 에이전트가 실제로 생성한 답변 (또는 기대 답변) |
-| `context` | `str` | ✅ | RAG 컨텍스트 또는 관련 배경 정보 |
-| `ground_truth` | `str` | ✅ | 정답 기준 (정확도 측정에 사용) |
-| `metadata` | `Dict[str, Any]` | ✅ | 소스 파일, 생성 날짜 등 부가 정보 |
-| `expected_tools` | `List[str]` | ❌ | Layer 2: Tool Selection 평가용 기대 도구 목록 |
-| `expected_agents` | `List[str]` | ❌ | Layer 2: Agent Coordination 평가용 기대 에이전트 |
-| `expected_workflow_steps` | `List[str]` | ❌ | Layer 2: Workflow Execution 평가용 기대 단계 |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `qa_id` | `str` | ✅ | unique identifier (e.g. `"qa_001"`) |
+| `question` | `str` | ✅ | the question to send to the agent |
+| `answer` | `str` | ✅ | the answer the agent actually produced (or the expected answer) |
+| `context` | `str` | ✅ | RAG context or relevant background |
+| `ground_truth` | `str` | ✅ | reference answer (used for accuracy measurement) |
+| `metadata` | `Dict[str, Any]` | ✅ | ancillary info — source file, creation date, etc. |
+| `expected_tools` | `List[str]` | ❌ | Layer 2: expected-tool list for Tool Selection evaluation |
+| `expected_agents` | `List[str]` | ❌ | Layer 2: expected agents for Agent Coordination evaluation |
+| `expected_workflow_steps` | `List[str]` | ❌ | Layer 2: expected steps for Workflow Execution evaluation |
 
 ```json
 {
   "qa_pairs": [
     {
       "qa_id": "qa_001",
-      "question": "한국의 수도는 어디인가요?",
-      "answer": "서울입니다.",
-      "context": "대한민국은 동아시아에 위치한 나라로...",
-      "ground_truth": "서울",
+      "question": "What is the capital of Korea?",
+      "answer": "It is Seoul.",
+      "context": "The Republic of Korea is a country in East Asia...",
+      "ground_truth": "Seoul",
       "metadata": {
         "source": "geography.pdf",
         "page": 1,
@@ -70,21 +70,21 @@
 
 ---
 
-## 3. 골든 데이터셋 생성 방법
+## 3. Ways to build a golden dataset
 
-### A. 수동 작성 (JSON)
+### A. Manual authoring (JSON)
 
-소규모 데이터셋이나 특정 시나리오를 정밀하게 제어할 때 사용합니다.
+Use this for small datasets or when you need precise control over a specific scenario.
 
 ```json
 {
   "qa_pairs": [
     {
       "qa_id": "manual_001",
-      "question": "세금 계산 방법을 설명해주세요.",
+      "question": "Explain how to calculate the tax.",
       "answer": "",
-      "context": "소득세법 제55조에 따르면...",
-      "ground_truth": "과세표준에 세율을 곱하고 누진공제액을 뺍니다.",
+      "context": "Under Article 55 of the Income Tax Act...",
+      "ground_truth": "Multiply the tax base by the rate and subtract the progressive deduction.",
       "metadata": {
         "category": "tax",
         "difficulty": "medium",
@@ -98,93 +98,103 @@
 }
 ```
 
-파일을 `data/golden_datasets/manual_dataset.json`으로 저장합니다.
+Save the file as `data/golden_datasets/manual_dataset.json`.
 
 ---
 
-### B. GoldenSetBuilder 자동 추출 (권장)
+### B. GoldenSetBuilder automatic extraction (recommended)
 
-`@agent_eval` 데코레이터나 `PerformanceMonitor`로 실행한 평가 결과에서 우수한 케이스를 자동으로 추출합니다.
+Automatically extracts high-quality cases from evaluation results produced by the `@agent_eval` decorator or `PerformanceMonitor`.
 
 ```python
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 builder = GoldenSetBuilder(
-    source_dir="results/",          # 평가 결과 JSON 파일 디렉토리
+    source_dir="results/",          # directory of evaluation-result JSON files
     output_dir="data/golden_datasets/",
 )
 
 candidates = builder.extract(
-    strategies=["high_value", "failure_cases"],  # 추출 전략
+    strategies=["high_value", "failure_cases"],  # extraction strategies
     max_cases=50,
     require_human_review=True,
 )
 
 path = builder.save_candidates(candidates, filename="my_dataset.json")
-print(f"저장 완료: {path}")
+print(f"saved: {path}")
 ```
 
-**추출 전략**
+**Extraction strategies**
 
-| 전략 | 설명 |
-|------|------|
-| `"high_value"` | accuracy_score >= 0.9 또는 completion_score >= 0.95인 고품질 케이스 |
-| `"failure_cases"` | 실패한 케이스 (회귀 방지용) |
-| `"edge_cases"` | 점수가 0 또는 1인 극단값 케이스 |
-| `"coverage_gap"` | 태스크 유형 분포에서 부족한 유형 우선 추출 |
+| Strategy | Description |
+|----------|-------------|
+| `"high_value"` | high-quality cases with accuracy_score >= 0.9 or completion_score >= 0.95 |
+| `"failure_cases"` | failed cases (for regression prevention) |
+| `"edge_cases"` | extreme-value cases with a score of 0 or 1 |
+| `"coverage_gap"` | prioritizes task types underrepresented in the distribution |
 
-**CLI로도 동일하게 실행 가능:**
+**The same via the CLI:**
 
 ```bash
 agent-eval dataset build --source results/ --strategy high_value --max-cases 30
+
+# Promote approved cases from the HITL review queue to golden regression cases (SPEC-041 P15)
+agent-eval dataset promote result.json --min-priority high
+
+# Golden-set health — does it still exercise the current failure modes + stale / duplicate cases (SPEC-041 P58)
+agent-eval dataset health golden.json --against results/latest.json
 ```
 
-> `GoldenSetBuilder`는 `PerformanceMonitor`로 이미 계측된 `results/` 세션만 본다. `@agent_eval` 없이
-> 진행된 일반 대화(예: Claude Code 세션)에서 사례를 찾고 싶다면(선택적, 코어 비의존 개인 도구)
-> [`CTX_SESSION_SEARCH.md`의 워크플로우 B](CTX_SESSION_SEARCH.md#워크플로우-b--골든셋-원료-채굴-계측-안-된-과거-세션에서) 참고.
+The `uncovered_failure_modes` from `dataset health` is a **blind spot** — a failure mode observed in
+production that no case in the golden set reproduces. Adding cases that cover these modes is the priority.
+
+> `GoldenSetBuilder` only sees `results/` sessions already instrumented with `PerformanceMonitor`. To mine
+> cases from ordinary conversations that ran without `@agent_eval` (e.g. a Claude Code session) — an
+> optional, core-independent personal tool — see
+> [Workflow B in `CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md#workflow-b--mining-golden-set-raw-material-from-uninstrumented-past-sessions).
 
 ---
 
-### C. KoreanRAGDatasetGenerator (PDF → Golden Dataset)
+### C. KoreanRAGDatasetGenerator (PDF → golden dataset)
 
-PDF 문서에서 한국어 RAG 평가용 QA 쌍을 자동 생성합니다. OpenAI API 키가 필요합니다.
+Automatically generates Korean RAG-evaluation QA pairs from a PDF document. Requires an OpenAI API key.
 
 ```python
 from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
 
 generator = KoreanRAGDatasetGenerator(
-    model="gpt-4o-mini",        # QA 생성에 사용할 LLM
-    chunk_size=800,             # 텍스트 청크 크기 (문자 단위)
+    model="gpt-4o-mini",        # LLM used to generate QA
+    chunk_size=800,             # text chunk size (characters)
     chunk_overlap=150,
     output_dir="golden_datasets"
 )
 
-# PDF에서 Golden Dataset 생성
+# Generate a golden dataset from a PDF
 dataset = generator.generate_from_pdf(
     pdf_path="company_policy.pdf",
     num_questions_per_chunk=3,
     question_types=["factual", "reasoning", "summary"],
-    save_format="json",         # "json" 또는 "csv"
-    max_chunks=None             # None이면 전체, 숫자면 테스트용 샘플링
+    save_format="json",         # "json" or "csv"
+    max_chunks=None             # None = all; a number = sampling for testing
 )
 
-print(f"생성된 QA 쌍: {len(dataset.qa_pairs)}개")
+print(f"generated QA pairs: {len(dataset.qa_pairs)}")
 ```
 
-**생성 프로세스**:
-1. PDF 텍스트 추출 — `KoreanPDFExtractor`로 pypdf/pdfplumber 자동 선택 (pdfplumber 우선)
-2. 텍스트 청킹 — `TextChunker`로 의미 단위 분할 (한국어 문장 부호 자동 인식)
-3. QA 쌍 생성 — `KoreanQAGenerator`로 OpenAI GPT 기반 질문-답변-ground_truth 생성
-4. 검증 및 저장 — `GoldenDatasetManager`로 품질 검증 후 JSON/CSV 저장
+**Generation process**:
+1. PDF text extraction — `KoreanPDFExtractor` auto-selects pypdf/pdfplumber (pdfplumber preferred)
+2. Text chunking — `TextChunker` splits into semantic units (auto-recognizes Korean punctuation)
+3. QA-pair generation — `KoreanQAGenerator` produces question / answer / ground_truth via OpenAI GPT
+4. Validation and save — `GoldenDatasetManager` validates quality and saves as JSON/CSV
 
-**청크 크기 최적화:**
+**Chunk-size tuning:**
 
-| 문서 유형 | chunk_size | overlap |
-|----------|-----------|---------|
-| 기술 문서 (코드, API) | 800~1000 | 150~200 |
-| 정책/법률 (복잡한 조항) | 1000~1500 | 200~300 |
-| 일반 문서 (뉴스, 블로그) | 600~800 | 100~150 |
-| FAQ/간단한 정보 | 400~600 | 80~120 |
+| Document type | chunk_size | overlap |
+|---------------|------------|---------|
+| technical docs (code, API) | 800–1000 | 150–200 |
+| policy / legal (complex clauses) | 1000–1500 | 200–300 |
+| general docs (news, blog) | 600–800 | 100–150 |
+| FAQ / simple info | 400–600 | 80–120 |
 
 ---
 
@@ -198,7 +208,7 @@ builder = GoldenSetBuilder(
     output_dir="data/golden_datasets/",
 )
 
-# 1. 후보 케이스 추출
+# 1. Extract candidate cases
 candidates = builder.extract(
     strategies=["high_value", "failure_cases", "edge_cases", "coverage_gap"],
     max_cases=50,
@@ -206,10 +216,10 @@ candidates = builder.extract(
     min_question_length=10,
 )
 
-# 2. 저장
+# 2. Save
 path = builder.save_candidates(candidates, filename="my_dataset.json")
 
-# 3. Phoenix 업로드 (선택)
+# 3. Upload to Phoenix (optional)
 dataset_id = builder.upload_to_phoenix(
     dataset_path=str(path),
     dataset_name="my-golden-v1",
@@ -217,13 +227,13 @@ dataset_id = builder.upload_to_phoenix(
 )
 ```
 
-### 전체 워크플로우 예시
+### End-to-end workflow example
 
 ```python
 from agent_evaluator import QuickEval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
-# 1단계: 평가 결과 생성
+# Step 1: produce evaluation results
 eval = QuickEval("results/")
 
 @eval.qa
@@ -233,18 +243,18 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 for q, gt in production_data:
     my_agent(q, ground_truth=gt)
 
-eval.save()  # results/quickeval.json 생성
+eval.save()  # creates results/quickeval.json
 
-# 2단계: 우수 케이스를 골든 데이터셋으로 추출
+# Step 2: extract high-quality cases into a golden dataset
 builder = GoldenSetBuilder(source_dir="results/", output_dir="data/golden_datasets/")
 candidates = builder.extract(strategies=["high_value"], max_cases=100)
 path = builder.save_candidates(candidates, filename="golden_v1.json")
-print(f"골든 데이터셋 저장: {path} ({len(candidates)}개 케이스)")
+print(f"golden dataset saved: {path} ({len(candidates)} cases)")
 ```
 
 ---
 
-## 5. 에이전트 평가 루프
+## 5. Agent evaluation loop
 
 ```python
 import json
@@ -256,23 +266,23 @@ eval = QuickEval("results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 골든 데이터셋 로드
+# Load the golden dataset
 with open("data/golden_datasets/golden_v1.json") as f:
     dataset = json.load(f)
 
-# 평가 실행
+# Run the evaluation
 for pair in dataset.get("qa_pairs", dataset):
     my_agent(pair["question"], ground_truth=pair["ground_truth"])
 
-# 결과 저장 및 품질 게이팅
+# Save results and apply quality gating
 eval.save()
-eval.gate(tcr=85, accuracy=70)  # 기준 미달 시 sys.exit(1)
+eval.gate(tcr=85, accuracy=70)  # sys.exit(1) if the bar is missed
 ```
 
-### RAG 에이전트 평가
+### RAG agent evaluation
 
 ```python
-eval = QuickEval.for_rag("results/")  # hallucination_detection=True 자동 활성
+eval = QuickEval.for_rag("results/")  # hallucination_detection=True is enabled automatically
 
 @eval.rag
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
@@ -288,40 +298,40 @@ for pair in dataset.get("qa_pairs", dataset):
 
 ---
 
-## 6. 한국어 RAG 평가 파이프라인
+## 6. Korean RAG evaluation pipeline
 
 ```
-PDF 문서 입력
+PDF document input
     ↓
-KoreanRAGDatasetGenerator (AI 기반 QA 쌍 생성)
+KoreanRAGDatasetGenerator (AI-based QA-pair generation)
     ↓
-GoldenDataset 저장 (JSON/CSV)
+GoldenDataset saved (JSON/CSV)
     ↓
-KoreanRAGEvaluator (Faithfulness / Context Recall 등 측정)
+KoreanRAGEvaluator (measures Faithfulness / Context Recall, etc.)
     ↓
-평가 리포트 생성
+Evaluation report generated
 ```
 
-### 설치
+### Installation
 
 ```bash
-# 한국어 RAG 평가용 의존성
+# dependencies for Korean RAG evaluation
 pip install "agent-evaluator[eval]"
 
-# PDF 처리
-pip install pdfplumber    # 복잡한 레이아웃 PDF 권장
+# PDF processing
+pip install pdfplumber    # recommended for complex-layout PDFs
 ```
 
-### RAGSystemInterface 구현
+### Implementing RAGSystemInterface
 
-평가를 위해 RAG 시스템을 `RAGSystemInterface`에 맞춰 구현합니다. `query()` 메서드만 구현하면 됩니다.
+Implement your RAG system against `RAGSystemInterface`. You only need to implement the `query()` method.
 
 ```python
 from agent_evaluator.datasets.korean_rag_evaluator import RAGSystemInterface, RAGResponse
 
 class MyRAGSystem(RAGSystemInterface):
     def __init__(self):
-        self.vector_db = ...  # Chroma, Pinecone, Qdrant 등
+        self.vector_db = ...  # Chroma, Pinecone, Qdrant, etc.
         self.llm = ...
 
     def query(self, question: str) -> RAGResponse:
@@ -337,7 +347,7 @@ class MyRAGSystem(RAGSystemInterface):
         )
 ```
 
-### 평가 실행
+### Running the evaluation
 
 ```python
 from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
@@ -353,81 +363,81 @@ evaluator = KoreanRAGEvaluator(rag_system=rag_system, use_ragas=True, ragas_mode
 report = evaluator.evaluate_dataset(dataset)
 ```
 
-**평가 결과 예시:**
+**Example evaluation output:**
 
 ```
-Faithfulness       : 0.892  (목표: >= 0.8)
-Answer Relevancy   : 0.856  (목표: >= 0.8)
-Context Recall     : 0.834  (목표: >= 0.8)
-Context Precision  : 0.878  (목표: >= 0.8)
-Answer Similarity  : 0.823  (목표: >= 0.8)
+Faithfulness       : 0.892  (target: >= 0.8)
+Answer Relevancy   : 0.856  (target: >= 0.8)
+Context Recall     : 0.834  (target: >= 0.8)
+Context Precision  : 0.878  (target: >= 0.8)
+Answer Similarity  : 0.823  (target: >= 0.8)
 ```
 
 ---
 
-## 7. RAG 평가 메트릭
+## 7. RAG evaluation metrics
 
-### Faithfulness (충실도)
+### Faithfulness
 
-생성된 답변이 검색된 컨텍스트에 얼마나 충실한지 측정합니다 (환각 방지).
+Measures how faithful the generated answer is to the retrieved context (hallucination prevention).
 
-- **계산**: 답변에서 주장(claims) 추출 → 각 주장이 컨텍스트에서 뒷받침되는지 검증 → `뒷받침된 주장 수 / 전체 주장 수`
-- **목표**: >= 0.8
-- **개선**: 프롬프트에 "문서에 없는 내용은 답변하지 말 것" 명시 / temperature 낮춤 (0.1~0.3)
+- **Computation**: extract claims from the answer → verify each claim is supported by the context → `supported claims / total claims`
+- **Target**: >= 0.8
+- **Improvement**: state "do not answer anything not in the document" in the prompt / lower the temperature (0.1–0.3)
 
-### Answer Relevancy (답변 관련성)
+### Answer Relevancy
 
-답변이 질문과 얼마나 관련있는지 측정합니다.
+Measures how relevant the answer is to the question.
 
-- **계산**: 답변에서 역으로 질문들을 생성 → 생성된 질문과 원래 질문의 임베딩 유사도 계산
-- **목표**: >= 0.8
+- **Computation**: back-generate questions from the answer → compute embedding similarity between the generated questions and the original question
+- **Target**: >= 0.8
 
-### Context Recall (컨텍스트 재현율)
+### Context Recall
 
-Ground truth를 생성하는 데 필요한 정보가 검색된 컨텍스트에 포함되어 있는지 측정합니다.
+Measures whether the information needed to produce the ground truth is present in the retrieved context.
 
-- **계산**: Ground truth를 문장들로 분리 → 각 문장이 컨텍스트에서 추론 가능한지 검증
-- **목표**: >= 0.8
-- **개선**: 검색 top_k 증가 / multilingual 임베딩 모델 / 하이브리드 검색
+- **Computation**: split the ground truth into sentences → verify each sentence is inferable from the context
+- **Target**: >= 0.8
+- **Improvement**: increase retrieval top_k / use a multilingual embedding model / use hybrid retrieval
 
-### Context Precision (컨텍스트 정밀도)
+### Context Precision
 
-검색된 컨텍스트가 질문에 얼마나 관련 있는지 측정합니다.
+Measures how relevant the retrieved context is to the question.
 
-- **계산**: 검색된 각 컨텍스트가 Ground truth와 관련 있는지 판단 → Precision@K 평균
-- **목표**: >= 0.8
-- **개선**: 리랭킹 모델 추가 / 쿼리 확장 / 메타데이터 필터링
+- **Computation**: judge whether each retrieved context is relevant to the ground truth → average Precision@K
+- **Target**: >= 0.8
+- **Improvement**: add a reranking model / use query expansion / use metadata filtering
 
-### Answer Similarity (답변 유사도)
+### Answer Similarity
 
-생성된 답변이 Ground truth와 얼마나 의미적으로 유사한지 측정합니다.
+Measures how semantically similar the generated answer is to the ground truth.
 
-- **계산**: 답변과 Ground truth의 임베딩 코사인 유사도
-- **목표**: >= 0.8
+- **Computation**: cosine similarity between the embeddings of the answer and the ground truth
+- **Target**: >= 0.8
 
-### Threshold 권장 설정
+### Recommended threshold settings
 
-| 메트릭 | 일반적 | 엄격함 | 관대함 | 용도 |
-|--------|--------|--------|--------|------|
-| `faithfulness` | >= 0.8 | >= 0.9 | >= 0.7 | 환각 방지 (가장 중요) |
-| `answer_relevancy` | >= 0.85 | >= 0.9 | >= 0.75 | 답변 품질 |
-| `context_recall` | >= 0.75 | >= 0.85 | >= 0.65 | 검색 완전성 |
-| `context_precision` | >= 0.8 | >= 0.9 | >= 0.7 | 검색 정확도 |
+| Metric | Typical | Strict | Lenient | Purpose |
+|--------|---------|--------|---------|---------|
+| `faithfulness` | >= 0.8 | >= 0.9 | >= 0.7 | hallucination prevention (most important) |
+| `answer_relevancy` | >= 0.85 | >= 0.9 | >= 0.75 | answer quality |
+| `context_recall` | >= 0.75 | >= 0.85 | >= 0.65 | retrieval completeness |
+| `context_precision` | >= 0.8 | >= 0.9 | >= 0.7 | retrieval accuracy |
 
-> 의료/금융/법률 시스템: 엄격한 설정 (특히 faithfulness >= 0.9)
+> Medical / financial / legal systems: use the strict settings (especially faithfulness >= 0.9).
 
 ---
 
-## 8. 데코레이터 방식 RAG 평가
+## 8. Decorator-style RAG evaluation
 
-### QuickEval.for_rag() 사용 (권장)
+### Using QuickEval.for_rag() (recommended)
 
 ```python
 from agent_evaluator import QuickEval
 
-eval = QuickEval.for_rag("results/")  # hallucination_detection 자동 활성화
+eval = QuickEval.for_rag("results/")  # hallucination_detection enabled automatically
 
-@eval.rag  # task_type="information_retrieval" + hallucination detection 자동 적용
+@eval.rag  # task_type="information_retrieval" + hallucination detection applied automatically
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     retrieved = vector_db.search(question, top_k=3)
     context = "\n".join(retrieved)
@@ -444,7 +454,7 @@ eval.save()
 eval.gate(tcr=85, accuracy=70)
 ```
 
-### PerformanceMonitor.for_rag_evaluation() 사용
+### Using PerformanceMonitor.for_rag_evaluation()
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -459,7 +469,7 @@ def rag_agent(question: str, ground_truth: str = "") -> str:
     return llm.generate(question, context)
 ```
 
-### LLMJudge Faithfulness (네이티브, Ragas 불필요)
+### LLMJudge Faithfulness (native, no Ragas needed)
 
 ```python
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
@@ -472,14 +482,14 @@ from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"input": question, "context": context})
-# 결과: task.extra["llm_judge"]["faithfulness"] 자동 기록 (Ragas 불필요)
+# result: task.extra["llm_judge"]["faithfulness"] recorded automatically (no Ragas needed)
 ```
 
 ---
 
-## 9. KoreanRAGEvaluator 상세
+## 9. KoreanRAGEvaluator in detail
 
-### PerformanceMonitor 통합
+### PerformanceMonitor integration
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -511,25 +521,25 @@ comparison = monitor.compare_with_thresholds()
 failed_metrics = [m for m, d in comparison.items() if d["status"] == "fail"]
 
 if failed_metrics:
-    print(f"RAG 품질 게이트 실패: {failed_metrics}")
+    print(f"RAG quality gate failed: {failed_metrics}")
 else:
-    print("RAG 품질 게이트 통과!")
+    print("RAG quality gate passed!")
 ```
 
-### 트러블슈팅
+### Troubleshooting
 
-| 문제 | 원인 | 해결책 |
-|------|------|--------|
-| 낮은 Faithfulness (0.5 이하) | 컨텍스트와 답변 불일치 | 프롬프트 개선, top_k 증가 |
-| 낮은 Context Recall (0.6 이하) | 검색된 문서가 정답 미포함 | 임베딩 모델 변경, chunk 크기 조정 |
-| 느린 평가 속도 | OpenAI API 지연 | `max_samples` 제한, `use_ragas=False` 테스트 |
-| PDF 추출 불량 | 스캔된 PDF (이미지) | pdfplumber 설치 또는 OCR 사용 |
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Low Faithfulness (≤ 0.5) | context and answer mismatch | improve the prompt, increase top_k |
+| Low Context Recall (≤ 0.6) | retrieved documents don't contain the answer | change the embedding model, adjust chunk size |
+| Slow evaluation | OpenAI API latency | limit `max_samples`, test with `use_ragas=False` |
+| Poor PDF extraction | scanned PDF (image) | install pdfplumber or use OCR |
 
 ---
 
-## 10. 실전 예제: 기업 정책 문서
+## 10. Worked example: a corporate policy document
 
-### 1단계: Golden Dataset 생성
+### Step 1: generate the golden dataset
 
 ```python
 from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
@@ -542,10 +552,10 @@ dataset = generator.generate_from_pdf(
     question_types=["factual", "reasoning"],
     save_format="json"
 )
-print(f"생성 완료: {dataset.total_qa_pairs}개 QA 쌍")
+print(f"done: {dataset.total_qa_pairs} QA pairs")
 ```
 
-### 2단계: RAG 시스템 구축
+### Step 2: build the RAG system
 
 ```python
 from langchain_community.vectorstores import Chroma
@@ -554,20 +564,20 @@ from agent_evaluator.datasets.korean_rag_evaluator import RAGSystemInterface, RA
 
 class HRPolicyRAG(RAGSystemInterface):
     def __init__(self, pdf_path: str):
-        # ... LangChain vectorstore 초기화 ...
+        # ... initialize the LangChain vectorstore ...
         pass
 
     def query(self, question: str) -> RAGResponse:
         docs = self.vectorstore.similarity_search(question, k=3)
         contexts = [doc.page_content for doc in docs]
-        answer = self.llm.predict(f"[문서]\n{chr(10).join(contexts)}\n[질문]\n{question}\n[답변]")
+        answer = self.llm.predict(f"[docs]\n{chr(10).join(contexts)}\n[question]\n{question}\n[answer]")
         return RAGResponse(
             question=question, answer=answer,
             retrieved_contexts=contexts, metadata={}
         )
 ```
 
-### 3단계: QuickEval 데코레이터로 평가
+### Step 3: evaluate with the QuickEval decorator
 
 ```python
 from agent_evaluator import QuickEval
@@ -591,7 +601,7 @@ eval.save()
 eval.gate(tcr=85, accuracy=70)
 ```
 
-### 4단계: 상세 Ragas 평가
+### Step 4: detailed Ragas evaluation
 
 ```python
 from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
@@ -600,17 +610,17 @@ evaluator = KoreanRAGEvaluator(rag_system=rag_system, use_ragas=True, ragas_mode
 report = evaluator.evaluate_dataset(dataset)
 
 if report.avg_faithfulness >= 0.8:
-    print("RAG 시스템이 정책 문서에 충실합니다")
+    print("The RAG system is faithful to the policy document")
 else:
-    print("환각(hallucination) 문제가 있습니다")
+    print("There is a hallucination problem")
 ```
 
 ---
 
-## 11. Phoenix 업로드
+## 11. Uploading to Phoenix
 
 ```bash
-# Phoenix 서버 먼저 기동
+# Start the Phoenix server first
 agent-eval monitor
 ```
 
@@ -628,23 +638,23 @@ dataset_id = builder.upload_to_phoenix(
 )
 
 if dataset_id:
-    print(f"Phoenix 업로드 완료: {dataset_id}")
-    print("Phoenix UI → Datasets 탭에서 확인하세요.")
+    print(f"Phoenix upload complete: {dataset_id}")
+    print("Check it in the Phoenix UI → Datasets tab.")
 ```
 
 ---
 
 ## 12. Best Practices
 
-1. **버전 관리** — `data/golden_datasets/*.json`을 Git으로 관리합니다. 팀 전체가 동일한 기준으로 평가할 수 있습니다.
+1. **Version control** — keep `data/golden_datasets/*.json` in Git so the whole team evaluates against the same baseline.
 
-2. **점진적 확장** — 한 번에 대량 생성하기보다 매 배포 사이클마다 `GoldenSetBuilder`로 고품질 케이스를 추가합니다. `max_cases=20~50`으로 작게 시작하세요.
+2. **Incremental growth** — rather than generating a large batch at once, add high-quality cases with `GoldenSetBuilder` each deployment cycle. Start small with `max_cases=20–50`.
 
-3. **Human Review 필수** — `require_human_review=True`(기본값)로 추출한 케이스는 반드시 사람이 검토 후 확정합니다. 자동 추출된 `ground_truth`는 부정확할 수 있습니다.
+3. **Human review is mandatory** — cases extracted with `require_human_review=True` (the default) must be reviewed and confirmed by a person. Auto-extracted `ground_truth` can be inaccurate.
 
-4. **전략 다양화** — `["high_value", "failure_cases", "coverage_gap"]`을 함께 사용해 성공/실패/미커버리지 케이스를 균형 있게 포함합니다.
+4. **Mix strategies** — use `["high_value", "failure_cases", "coverage_gap"]` together to include success / failure / coverage-gap cases in balance.
 
-5. **CI/CD 통합** — PR 머지 전 골든 데이터셋으로 자동 평가를 실행하고 `eval.gate()`로 품질 기준을 강제합니다. 이 문서에서 다루는 골든 데이터셋 자체를 CI 게이트 기준으로 직접 쓰려면 `--golden-set`/`--fail-on-golden-regression`으로 승인된 케이스가 회귀·누락됐는지 검사할 수 있습니다(`agent-eval dataset build`로 추출·승인한 파일을 그대로 사용).
+5. **CI/CD integration** — run an automatic evaluation against the golden dataset before a PR merge and enforce the quality bar with `eval.gate()`. To use the golden dataset itself directly as a CI gate criterion, check with `--golden-set` / `--fail-on-golden-regression` whether approved cases have regressed or gone missing (use the file extracted and approved via `agent-eval dataset build` as is).
 
    ```yaml
    - name: Golden Dataset Evaluation
@@ -656,20 +666,20 @@ if dataset_id:
      run: |
        agent-eval gate results/quickeval.json \
          --golden-set data/golden_datasets/golden_1.json \
-         --fail-on-golden-regression   # exit 3 — 승인된 케이스가 누락/실패하면 실패 처리
+         --fail-on-golden-regression   # exit 3 — fail if an approved case is missing / failing
    ```
 
-6. **태스크 유형별 분리** — QA, RAG, Tool Use 등 태스크 유형별로 별도 파일을 유지합니다. 하나의 파일에 혼합하면 집계 지표가 왜곡될 수 있습니다.
+6. **Separate by task type** — keep a separate file per task type (QA, RAG, Tool Use, etc.). Mixing them in one file can skew the aggregate metrics.
 
-7. **Faithfulness 우선** — RAG 시스템에서는 Faithfulness를 가장 중요한 지표로 다룹니다. 환각 문제가 있으면 다른 지표가 높아도 신뢰할 수 없습니다.
+7. **Faithfulness first** — for a RAG system, treat Faithfulness as the single most important metric. If there is a hallucination problem, high scores on the other metrics cannot be trusted.
 
 ---
 
-| 목적 | 문서 |
-|------|------|
-| 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
-| 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
-| 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
-| 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
-| ctx 세션 검색 (선택적 개인 워크플로우) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |
+| Goal | Document |
+|------|----------|
+| Installation · basic usage | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
+| All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
+| Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
+| Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
+| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| ctx session search (optional personal workflow) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |
