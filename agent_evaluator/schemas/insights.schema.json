@@ -70,7 +70,8 @@
               "gate": { "type": ["string", "null"] },
               "field": { "type": ["string", "null"] },
               "health": { "type": ["number", "null"] },
-              "action": { "type": "string" }
+              "action": { "type": "string" },
+              "derived_from": { "type": ["object", "null"], "additionalProperties": true }
             }
           }
         }
@@ -127,7 +128,8 @@
               "projected_gate_scores": { "type": "object" },
               "projected_gate_scores_ci": { "type": "object" },
               "gate_moves": { "type": "object" },
-              "roi": { "type": "number" }
+              "roi": { "type": "number" },
+              "derived_from": { "type": ["object", "null"], "additionalProperties": true }
             }
           }
         },
@@ -425,6 +427,7 @@
           "experiment": { "type": ["object", "null"] },
           "past_outcomes": { "type": ["object", "null"] },
           "baseline_verdict": { "type": ["object", "null"] },
+          "derived_from": { "type": ["object", "null"], "additionalProperties": true },
           "proposal": {
             "type": ["object", "null"],
             "additionalProperties": true,

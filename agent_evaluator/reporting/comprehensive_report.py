@@ -4507,11 +4507,18 @@ def _build_readiness(rd: dict[str, Any] | None) -> str:
         _eff_lbl = _EFFORT_LABEL.get(_eff_w, str(_eff_w) if _eff_w is not None else "—")
         _roi = it.get("roi")
         _roi_s = f'{_roi:.1f}' if isinstance(_roi, (int, float)) else "—"
+        # P51: provenance — the failure cluster this row was derived from
+        _df = it.get("derived_from") or {}
+        _ev = _df.get("example_task_ids") or it.get("example_task_ids") or []
+        _prov_s = (
+            f'<div style="font-size:10px;color:#9ca3af">from failure cluster · '
+            f'e.g. {_esc(", ".join(str(x) for x in _ev[:4]))}</div>' if _ev else ""
+        )
         plan_rows += (
             f'<tr><td style="text-align:center;color:#6b7280">{it.get("rank")}</td>'
             f'<td><div style="font-weight:600">{_esc(_clip(it.get("signature", ""), 90))}{_tt_s}'
             f'</div><div style="font-size:11px;color:#6b7280">{_esc(it.get("effort_hint", ""))}'
-            f'</div></td>'
+            f'</div>{_prov_s}</td>'
             f'<td style="text-align:right;white-space:nowrap">{it.get("count")} task(s)'
             f'<div style="font-size:11px;color:#9ca3af">{it.get("impact_pct")}% of set</div></td>'
             f'<td style="text-align:center;font-size:11px;color:#6b7280">{_esc(gates)}'

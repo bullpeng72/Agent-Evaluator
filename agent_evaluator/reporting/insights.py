@@ -1327,6 +1327,13 @@ def _verdict_section(
                            f"before shipping — the Gate E score is rate-based and can "
                            f"still pass with a severe finding."),
                 "security": True,
+                "derived_from": {
+                    "source": "security_finding",
+                    "tracker": _sf.get("tracker"),
+                    "task_id": _sf.get("task_id"),
+                    "threat_type": _sf.get("threat_type"),
+                    "severity": _sf.get("severity"),
+                },
             })
             break
 
@@ -1343,6 +1350,13 @@ def _verdict_section(
                 "health": top.get("health"),
                 "action": component_guidance_for(fld) or "",
                 "low_sample": _is_low_sample(fld),
+                "derived_from": {
+                    "source": "gate_component_shortfall",
+                    "gate": k,
+                    "field": fld,
+                    "health": top.get("health"),
+                    "low_sample": _is_low_sample(fld),
+                },
             })
         else:
             g = harness_groups.get(k) or {}
@@ -1353,6 +1367,9 @@ def _verdict_section(
                 "field": None,
                 "health": None,
                 "action": f"See the Gate {k} section (score {_sc_s}).",
+                "derived_from": {
+                    "source": "gate_score", "gate": k, "score": _sc,
+                },
             })
 
     conf_level: str | None = None
@@ -1716,6 +1733,15 @@ def _readiness_section(
             "projected_gate_scores_ci": proj_gate_ci,
             "gate_moves": gate_moves,
             "roi": round(_gap_closed_pp / _eff, 2),
+            "derived_from": {
+                "source": "failure_cluster",
+                "signature": sig,
+                "n": len(members),
+                "impact_pct": round(len(members) / total * 100.0, 1),
+                "example_task_ids": [
+                    str(m.get("task_id")) for m in members[:5] if m.get("task_id")
+                ],
+            },
         })
 
     # Every below-target gate is a candidate for the plan to lift. Split into the
@@ -3045,6 +3071,16 @@ def _recommendations_section(
             "experiment": _experiment(key, top_fld, top_health, ncomp),
             "past_outcomes": _past_outcomes(past_by_gate.get(key) or []),
             "baseline_verdict": _baseline_verdict(baseline, current, key),
+            "derived_from": {
+                "source": "gate_status" if not shortfalls else "gate_component_shortfall",
+                "gate": key,
+                "status": st,
+                "gate_score": _safe_float((gdata or {}).get("score")),
+                "shortfall_fields": [
+                    s.get("field") for s in shortfalls[:2] if s.get("field")
+                ],
+                "from_diagnosis": bool(diagnosis),
+            },
         }
         out.append(rec)
     return out

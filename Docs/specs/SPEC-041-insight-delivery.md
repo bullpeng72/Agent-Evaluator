@@ -608,6 +608,17 @@ per-task 리스트를 graft해 `build_insights(partial=True)` 호출(캐시된 r
 `running_verdict`/`partial`/`n_tasks`. `test_partial_insights_p50.py`(10) + `test_insights_schema.py`
 partial 시나리오. 전체 4658 통과.
 
+**SPEC-041 P51 (인사이트 provenance)** — 실행 가능한 아이템마다 그것이 어느 신호에서 나왔는지
+`derived_from`를 붙인다(새 판정 없음, 순수 메타). `verdict.next_actions[]` — security finding →
+`{source:"security_finding", tracker, task_id, threat_type, severity}`, Gate 컴포넌트 shortfall →
+`{source:"gate_component_shortfall", gate, field, health, low_sample}`, shortfall 없으면
+`{source:"gate_score", gate, score}`. `readiness.fix_plan[]` →
+`{source:"failure_cluster", signature, n, impact_pct, example_task_ids}`. `recommendations[]` →
+`{source: "gate_status"|"gate_component_shortfall", gate, status, gate_score, shortfall_fields[],
+from_diagnosis}`. 스키마: 세 아이템에 `derived_from`(object|null, additionalProperties:true) 추가
+(전부 이미 `additionalProperties:true`라 하위호환). 리포트 `_build_readiness`의 fix-plan 행에
+"from failure cluster · e.g. t_x, t_y" 한 줄. `test_provenance_p51.py`(5). 전체 4663 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적
