@@ -59,8 +59,8 @@ separate scoring pass needed.
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
-Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/05_QUALITY_GATE.md) · Runnable walkthrough:
-[`Evaluator_Examples/ch03_harness_basics.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Evaluator_Examples/ch03_harness_basics.py)
+Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/05_QUALITY_GATE.md) · Runnable walkthrough:
+[`Evaluator_Examples/ch03_harness_basics.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Evaluator_Examples/ch03_harness_basics.py)
 
 ---
 
@@ -68,12 +68,12 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
 
 - **3 decorator types** — `@agent_eval` (1 call → 1 result), `@batch_eval` (1 call → N results),
   `@conversation_eval` (N calls → 1 multi-turn result). All non-invasive: your function's signature,
-  return value, and exceptions are untouched. → [`Docs/01_GETTING_STARTED.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/01_GETTING_STARTED.md)
+  return value, and exceptions are untouched. → [`Docs/01_GETTING_STARTED.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/01_GETTING_STARTED.md)
 - **24 framework adapters** — `framework="langchain"`/`"crewai"`/`"anthropic"`/`"openai"`/… auto-extracts
   `tool_calls`/`chain_steps`/`tokens_used` from the framework's native response object (duck typing —
-  works without agent-evaluator importing the framework itself). → [`Docs/03_INTEGRATION_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/03_INTEGRATION_GUIDE.md)
+  works without agent-evaluator importing the framework itself). → [`Docs/03_INTEGRATION_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/03_INTEGRATION_GUIDE.md)
 - **58 metrics** — 25 Native Trackers (accuracy, hallucination, latency, tool efficiency, 5 security
-  trackers, …) + the 33 Harness Configs above. → [`Docs/02_METRICS_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/02_METRICS_GUIDE.md)
+  trackers, …) + the 33 Harness Configs above. → [`Docs/02_METRICS_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/02_METRICS_GUIDE.md)
   or the in-app **SDK Reference** (`agent-eval dashboard` → `/sdk-docs`)
 - **Self-contained HTML report** — `save_to_file()` (and `agent-eval gate`) write one `.html` next to
   the JSON — no server needed. It leads with a one-line **deployment-readiness verdict** + a
@@ -82,32 +82,32 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   cases each with a **tool-call trajectory waterfall** and accuracy-signal breakdown, and
   **Recommendations** carrying paste-ready `@agent_eval` snippets. Pass a baseline and it adds the
   regressed/new/fixed failure-set diff plus prompt/config **change attribution**.
-  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md#4-static-html-report--single-result)
+  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md#4-static-html-report--single-result)
 - **CI/CD quality gating** — `agent-eval gate result.json --tcr 85 --accuracy 70`, plus baseline
   regression detection, per-version baselines, and golden-set regression gating.
-  → [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/05_QUALITY_GATE.md)
+  → [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/05_QUALITY_GATE.md)
 - **Root-cause diagnosis (RCA)** — `agent-eval diagnose` / `agent_evaluator.rca.diagnose()` automates
   detect → attribute → cross-reference for a Gate regression, and links Gate F findings to the MAST
   failure-mode taxonomy (Cemri et al., NeurIPS 2025). Candidates and evidence only — HOTL, never a
-  verdict. → [`Evaluator_Examples/ch28_rca_diagnosis.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Evaluator_Examples/ch28_rca_diagnosis.py)
+  verdict. → [`Evaluator_Examples/ch28_rca_diagnosis.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Evaluator_Examples/ch28_rca_diagnosis.py)
 - **Statistically valid A/B testing** — `agent-eval abtest` auto-selects Welch's t-test (2 files),
   mSPRT always-valid inference (`--sequential`, safe under repeated peeking), or N-way + FDR correction
-  (3+ files). → [`Evaluator_Examples/ch29_sequential_ab_test.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Evaluator_Examples/ch29_sequential_ab_test.py)
+  (3+ files). → [`Evaluator_Examples/ch29_sequential_ab_test.py`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Evaluator_Examples/ch29_sequential_ab_test.py)
 - **Machine-readable insight layer + closed improvement loop** — every result JSON carries an
   `extra_metrics.insights` object (deployment-readiness verdict, Path to Green, failure clustering,
   paste-ready fix snippets, per-`(gate, change)` track record). `agent-eval target` pins your project
   SLOs, `agent-eval benchmark` an external reference distribution, and `agent-eval experiment` /
   `agent-eval improve` register a hypothesis → apply → re-verify loop. Schema-validated, never raises.
-  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md)
+  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md)
 - **Real-time guardrail — two reference stacks** — the same `LiveGuardrail` engine blocks a single
   tool call *before* it runs (Gate B/E), wired into either **AOO** (Agent-Evaluator + Ollama +
   [OpenCode](https://opencode.ai) — fully local, no cloud model) via `agent-eval opencode install`, or
   **AC** (Agent-Evaluator + [Claude Code](https://claude.com/claude-code) — native CLI hooks) via
   `agent-eval claude install`. Identical verdict logic; the difference is the process model (a resident
   subprocess vs. per-call replay). →
-  [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) ·
-  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) ·
-  [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md)
+  [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) ·
+  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) ·
+  [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md)
 - **Dashboard** — `agent-eval dashboard` (FastAPI): Harness Gate breakdown, File Compare with pairwise
   LLM Judge, anomaly/cost tracking, and a 🔧 Improve tab surfacing the RCA engine.
 
@@ -127,7 +127,7 @@ to do. Every category is additive and independent; combine as needed.
 | **5** | **Examples / full / dev** | `pip install "agent-evaluator[examples]"` | Everything needed to run `Evaluator_Examples/` with real (non-mock) DeepEval/Ragas/dashboard/Phoenix output. `[full]` = category 4's frameworks all at once (⚠️ 10+ min install); `[dev]` = contributor tooling |
 
 Single-feature extras that don't fit the 5 categories above: `[export]` (dashboard Parquet/Excel),
-`[wandb]`, `[mlflow]`. Full package-by-package breakdown: [`pyproject.toml`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/pyproject.toml).
+`[wandb]`, `[mlflow]`. Full package-by-package breakdown: [`pyproject.toml`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/pyproject.toml).
 
 ---
 
@@ -154,7 +154,7 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 
 ## Examples
 
-31 standalone, book-chapter-based files in [`Evaluator_Examples/`](https://github.com/bullpeng72/Agent-Evaluator/tree/Agent-Evaluator/Evaluator_Examples/) (`ch01`–`ch31`),
+31 standalone, book-chapter-based files in [`Evaluator_Examples/`](https://github.com/bullpeng72/Agent-Evaluator/tree/HEAD/Evaluator_Examples/) (`ch01`–`ch31`),
 covering everything from a first evaluation to the full RCA/A/B-testing improvement loop:
 
 ```bash
@@ -187,14 +187,9 @@ tests/                # 4,700+ test functions
 
 ## Changelog
 
-**v1.0.0** (2026-08-31) — General Availability. Completes SPEC-041's insight-delivery layer:
-`extra_metrics.insights` is now a ~62-key schema-validated hub covering user-defined SLOs
-(`agent-eval target`), longitudinal failure tracking, a single-agent failure taxonomy, the closed
-`agent-eval improve` loop, mid-run early-stop insights, multiple-comparison auditing, and an external
-reference frame (`agent-eval benchmark`). Public SDK API unchanged from the `1.0.0-rc*` line.
+**v1.0.0** (2026-08-31) — General Availability: completes SPEC-041's machine-readable insight layer (`extra_metrics.insights`, ~62 schema-validated keys) plus the `target` / `benchmark` / `experiment` / `improve` CLI loop; public SDK API unchanged from `1.0.0-rc*`.
 
-Full version history (including the `1.0.0-rc.1`–`rc4` release-candidate series):
-[`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md)
+Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md).
 
 ---
 
@@ -202,20 +197,20 @@ Full version history (including the `1.0.0-rc.1`–`rc4` release-candidate serie
 
 | | |
 |---|---|
-| [`Docs/01_GETTING_STARTED.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/01_GETTING_STARTED.md) | Decorators, QuickEval, first evaluation |
-| [`Docs/02_METRICS_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/02_METRICS_GUIDE.md) | All 58 metrics — formulas, activation conditions |
-| [`Docs/03_INTEGRATION_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/03_INTEGRATION_GUIDE.md) | 24 framework adapters, auto-detection |
-| [`Docs/04_DATA_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/04_DATA_GUIDE.md) | Golden datasets, evaluation data design |
-| [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/05_QUALITY_GATE.md) | Harness Gates, CI/CD gating, RCA diagnosis |
-| [`Docs/06_OBSERVABILITY.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/06_OBSERVABILITY.md) | Dashboard, alerts, anomaly detection |
-| [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/07_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
-| [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/08_API_REFERENCE.md) | Full public API reference |
-| [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
-| [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
-| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
-| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |
-| [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
-| [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/CHANGELOG.md) | Version history |
+| [`Docs/01_GETTING_STARTED.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/01_GETTING_STARTED.md) | Decorators, QuickEval, first evaluation |
+| [`Docs/02_METRICS_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/02_METRICS_GUIDE.md) | All 58 metrics — formulas, activation conditions |
+| [`Docs/03_INTEGRATION_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/03_INTEGRATION_GUIDE.md) | 24 framework adapters, auto-detection |
+| [`Docs/04_DATA_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/04_DATA_GUIDE.md) | Golden datasets, evaluation data design |
+| [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/05_QUALITY_GATE.md) | Harness Gates, CI/CD gating, RCA diagnosis |
+| [`Docs/06_OBSERVABILITY.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/06_OBSERVABILITY.md) | Dashboard, alerts, anomaly detection |
+| [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/07_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
+| [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/08_API_REFERENCE.md) | Full public API reference |
+| [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
+| [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
+| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
+| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |
+| [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
+| [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md) | Version history |
 
 Also available in-app once the dashboard is running: `agent-eval dashboard` → **SDK Reference**
 (`/sdk-docs`) and **REST API** (`/api/docs`).
@@ -236,4 +231,4 @@ mypy agent_evaluator/          # type check
 
 ## License
 
-MIT — see [`LICENSE`](https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/LICENSE).
+MIT — see [`LICENSE`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/LICENSE).
