@@ -700,6 +700,21 @@ poor track record here (0% confirmed, n=2)"). `agent-eval improve plan`도 propo
 TOC "What works". 스키마 `improvement_priors` + `recommendations[].prior`.
 `test_improvement_priors_p57.py`(6) + `test_insights_schema.py` 시나리오. 전체 4708 통과.
 
+**SPEC-041 P59 (다중비교 감사)** — insight 객체는 수십 개의 암묵적 비교(모든 task_type 슬라이스,
+모든 metadata 셀, 모든 cohort 쌍)를 하는데 BH-FDR 보정은 `cohort_comparison`에만 있었다.
+`_slice_stats`에 `welch_t_p(comps, b_comps)` → `p_value` 추가(baseline 있을 때만; `slice_analysis`와
+`metadata_slices.slices` 둘 다 무료 획득). `reporting/insights.py::_multiplicity_audit_section(
+slice_analysis, metadata_slices, cohort_comparison)`(post-dict, 다른 섹션 읽음) → `insights.
+multiplicity_audit{n_comparisons, alpha(0.05), n_nominally_significant, n_significant_after_bh,
+expected_false_positives(=alpha·n), sections[], flagged[]{section,label,p_value,q_value}, tests[]
+{section,label,p_value,q_value,likely_noise}, note}`. `quick_eval._benjamini_hochberg`로 전체 family에
+BH → `likely_noise = (p<0.05) and not (q<0.05)`. `_attach_multiplicity_flags(out)`가 내부 `_refs`를
+pop하고 `likely_noise=True`를 원래 `slice_analysis`/`metadata_slices` 행에 되꽂음. 새 검정 없음 —
+기존 p들에 대한 family-wise 정직성. 리포트 `_build_multiplicity_audit()` 섹션 `multiplicity-audit`
+(metadata-slices 뒤): clean이면 초록/아니면 앰버 배너 + "N 비교 · ~M 기대 위양성 · K BH 생존" + flagged
+표. TOC "Multi-comp". 스키마 `multiplicity_audit` + `slice_analysis[].{p_value,likely_noise}`.
+`test_multiplicity_audit_p59.py`(8) + `test_insights_schema.py` 시나리오. 전체 4716 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

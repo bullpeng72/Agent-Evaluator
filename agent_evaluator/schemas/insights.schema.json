@@ -586,8 +586,26 @@
           "baseline_tcr_pct": { "type": "number" },
           "tcr_delta_pp": { "type": "number" },
           "tcr_delta_ci_pp": { "$ref": "#/$defs/pair" },
-          "significant": { "type": "boolean" }
+          "significant": { "type": "boolean" },
+          "p_value": { "type": "number" },
+          "likely_noise": { "type": "boolean" }
         }
+      }
+    },
+
+    "multiplicity_audit": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_comparisons": { "type": "integer" },
+        "alpha": { "type": "number" },
+        "n_nominally_significant": { "type": "integer" },
+        "n_significant_after_bh": { "type": "integer" },
+        "expected_false_positives": { "type": "number" },
+        "sections": { "type": "array", "items": { "type": "string" } },
+        "flagged": { "type": "array" },
+        "tests": { "type": "array" },
+        "note": { "type": "string" }
       }
     },
 

@@ -2538,7 +2538,11 @@ def _slice_stats(
     bootstrap significance when ``base_members`` is non-empty. Shared by
     ``_slice_analysis_section`` (by task_type) and ``_metadata_slices_section``
     (by an ``extra`` key)."""
-    from agent_evaluator.utils.confidence import bootstrap_diff_ci, bootstrap_mean_ci
+    from agent_evaluator.utils.confidence import (
+        bootstrap_diff_ci,
+        bootstrap_mean_ci,
+        welch_t_p,
+    )
 
     comps = [
         c for c in (_safe_float(m.get("completion_score")) for m in members)
@@ -2567,12 +2571,130 @@ def _slice_stats(
             if dci is not None:
                 row["tcr_delta_ci_pp"] = [round(dci[0] * 100, 2), round(dci[1] * 100, 2)]
                 row["significant"] = dci[0] > 0 or dci[1] < 0
+            _p = welch_t_p(comps, b_comps)
+            if _p is not None:
+                row["p_value"] = round(_p, 5)
     return row
 
 
 def _task_extra(t: dict[str, Any]) -> dict[str, Any]:
     e = t.get("extra")
     return e if isinstance(e, dict) else {}
+
+
+_MULT_ALPHA = 0.05
+
+
+def _multiplicity_audit_section(
+    slice_analysis: list[dict[str, Any]] | None,
+    metadata_slices: list[dict[str, Any]] | None,
+    cohort_comparison: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """P59: the insight object runs many implicit comparisons (every task_type
+    slice, every metadata cell, every cohort pair). Only ``cohort_comparison`` was
+    FDR-corrected. This collects the whole family of p-values, runs
+    Benjamini-Hochberg across it, and reports how many "significant" findings
+    would not survive — plus a ``likely_noise`` flag pushed back onto each
+    contributing row. No new test — just family-wise honesty over existing p's."""
+    tests: list[dict[str, Any]] = []
+
+    for r in slice_analysis or []:
+        p = r.get("p_value")
+        if isinstance(p, (int, float)):
+            tests.append({"section": "slice_analysis",
+                          "label": f"task_type={r.get('task_type')}",
+                          "ref": ("slice_analysis", str(r.get("task_type"))),
+                          "p": float(p)})
+    for dim in metadata_slices or []:
+        d = dim.get("dimension", "")
+        for s in dim.get("slices") or []:
+            p = s.get("p_value")
+            if isinstance(p, (int, float)):
+                tests.append({"section": "metadata_slices",
+                              "label": f"{d}={s.get('value')}",
+                              "ref": ("metadata_slices", d, str(s.get("value"))),
+                              "p": float(p)})
+    for pr in (cohort_comparison or {}).get("pairs") or []:
+        p = pr.get("p_value")
+        if isinstance(p, (int, float)):
+            tests.append({"section": "cohort_comparison",
+                          "label": f"{pr.get('a')} vs {pr.get('b')}",
+                          "ref": None, "p": float(p)})
+
+    if not tests:
+        return None
+
+    try:
+        from agent_evaluator.quick_eval import _benjamini_hochberg
+
+        qs = _benjamini_hochberg([t["p"] for t in tests])
+    except Exception:  # pragma: no cover - defensive
+        qs = [None] * len(tests)
+
+    n_nom = 0
+    n_bh = 0
+    flagged: list[dict[str, Any]] = []
+    for t, q in zip(tests, qs):
+        nom = t["p"] < _MULT_ALPHA
+        surv = isinstance(q, (int, float)) and q < _MULT_ALPHA
+        t["q_value"] = round(q, 5) if isinstance(q, (int, float)) else None
+        t["likely_noise"] = bool(nom and not surv)
+        if nom:
+            n_nom += 1
+        if surv:
+            n_bh += 1
+        if t["likely_noise"]:
+            flagged.append({"section": t["section"], "label": t["label"],
+                            "p_value": round(t["p"], 5), "q_value": t["q_value"]})
+
+    n = len(tests)
+    note = (
+        f"{n} implicit comparison(s) across "
+        f"{len(sorted({t['section'] for t in tests}))} section(s); "
+        f"{n_nom} look significant at p<{_MULT_ALPHA}, "
+        f"{n_bh} survive Benjamini-Hochberg. "
+        + (f"{len(flagged)} finding(s) are likely multiple-comparison noise."
+           if flagged else "No finding is likely a multiple-comparison artefact.")
+    )
+    return {
+        "n_comparisons": n,
+        "alpha": _MULT_ALPHA,
+        "n_nominally_significant": n_nom,
+        "n_significant_after_bh": n_bh,
+        "expected_false_positives": round(_MULT_ALPHA * n, 2),
+        "sections": sorted({t["section"] for t in tests}),
+        "flagged": flagged,
+        "tests": [
+            {"section": t["section"], "label": t["label"],
+             "p_value": round(t["p"], 5), "q_value": t["q_value"],
+             "likely_noise": t["likely_noise"]}
+            for t in tests
+        ],
+        "note": note,
+        "_refs": [(t["ref"], t["likely_noise"]) for t in tests if t["ref"]],
+    }
+
+
+def _attach_multiplicity_flags(out: dict[str, Any]) -> None:
+    """Push ``likely_noise`` from ``multiplicity_audit`` back onto the individual
+    ``slice_analysis`` / ``metadata_slices`` rows it came from."""
+    ma = out.get("multiplicity_audit") or {}
+    refs = ma.pop("_refs", None) if isinstance(ma, dict) else None
+    if not refs:
+        return
+    sa = {str(r.get("task_type")): r for r in (out.get("slice_analysis") or [])}
+    md = out.get("metadata_slices") or []
+    for ref, noise in refs:
+        if not noise or not ref:
+            continue
+        if ref[0] == "slice_analysis" and ref[1] in sa:
+            sa[ref[1]]["likely_noise"] = True
+        elif ref[0] == "metadata_slices":
+            for dim in md:
+                if dim.get("dimension") == ref[1]:
+                    for s in dim.get("slices") or []:
+                        if str(s.get("value")) == ref[2]:
+                            s["likely_noise"] = True
 
 
 def _metadata_slices_section(
@@ -5764,6 +5886,11 @@ def build_insights(
     }
     _safe(_attach_proposals, out, tasks, current, fixer, default=None)
     _safe(_attach_priors, out, default=None)
+    out["multiplicity_audit"] = _safe(
+        _multiplicity_audit_section, out.get("slice_analysis"),
+        out.get("metadata_slices"), out.get("cohort_comparison"), default=None,
+    )
+    _safe(_attach_multiplicity_flags, out, default=None)
     out["efficiency_opportunities"] = _safe(
         _efficiency_opportunities_section, tasks, current,
         out.get("cost_economics"), out.get("metadata_slices"),

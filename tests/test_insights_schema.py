@@ -126,6 +126,27 @@ class TestBuildInsightsValidates:
         assert ins["detection_mode"] == "regression_vs_baseline"
         assert ins["change_attribution"] is not None
 
+    def test_multiplicity_audit_section(self, schema):
+        # P59 — needs per-slice p-values, which need a baseline
+        cur = _report(
+            {"A": {"score": 0.6, "status": "warn", "gate": "warn", "details": {}}},
+            [_task(f"q{i}", ok=i < 10) for i in range(15)]
+            + [_task(f"r{i}", ok=True) for i in range(12)],
+        )
+        for t in cur["tasks"][15:]:
+            t["task_type"] = "rag"
+        base = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"q{i}", ok=True) for i in range(15)]
+            + [_task(f"r{i}", ok=True) for i in range(12)],
+        )
+        for t in base["tasks"][15:]:
+            t["task_type"] = "rag"
+        ins = build_insights(cur, base)
+        self._check(schema, ins)
+        if ins.get("multiplicity_audit"):
+            assert "_refs" not in ins["multiplicity_audit"]
+
     def test_partial_mode_running_verdict(self, schema):
         # P50 — mid-run subset: still schema-valid, carries running_verdict
         cur = _report(

@@ -3296,6 +3296,45 @@ def _build_eval_set_quality(tasks: list[Any] | None,
     )
 
 
+def _build_multiplicity_audit(ma: dict[str, Any] | None) -> str:
+    """P59: family-wise honesty — how many "significant" slice/metadata/cohort
+    findings survive Benjamini-Hochberg across the whole family of comparisons
+    the insight object ran."""
+    if not ma or not ma.get("n_comparisons"):
+        return ""
+    flagged = ma.get("flagged") or []
+    clean = not flagged
+    bg = "#ecfdf5" if clean else "#fffbeb"
+    bd = "#059669" if clean else "#d97706"
+    rows = ""
+    for f in flagged:
+        rows += (
+            f'<tr><td>{_esc(f.get("section", ""))}</td>'
+            f'<td>{_esc(f.get("label", ""))}</td>'
+            f'<td style="text-align:right">{f.get("p_value")}</td>'
+            f'<td style="text-align:right;color:#d97706">{f.get("q_value")}</td></tr>'
+        )
+    tbl = ""
+    if rows:
+        tbl = (
+            '<table class="mtable"><thead><tr><th>Section</th><th>Finding</th>'
+            '<th>p</th><th>BH q</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+    return (
+        '<div class="gate-section" id="multiplicity-audit" '
+        'style="border-left-color:#64748b">'
+        '<h2 style="color:#1e2030">Multiple-Comparison Audit</h2>'
+        f'<div style="background:{bg};border-left:3px solid {bd};padding:8px 10px;'
+        f'font-size:13px;margin:0 0 8px">{_esc(ma.get("note", ""))}</div>'
+        '<p style="font-size:12px;color:#6b7280;margin:0 0 6px">'
+        f'{ma.get("n_comparisons")} comparisons · '
+        f'~{ma.get("expected_false_positives")} expected false positives at '
+        f'p&lt;{ma.get("alpha")} · {ma.get("n_significant_after_bh")} survive BH.</p>'
+        f'{tbl}</div>'
+    )
+
+
 def _build_slice_analysis(tasks: list[Any] | None,
                           baseline: dict[str, Any] | None) -> str:
     """P10: per-task_type TCR/accuracy with CIs, and — with a baseline — the
@@ -4359,6 +4398,7 @@ _TOC_LABELS = {
     "gate-e": "E", "gate-f": "F", "gate-g": "G",
     "advanced": "Advanced", "operational-signals": "Anomalies",
     "slice-analysis": "Slices", "metadata-slices": "Metadata slices",
+    "multiplicity-audit": "Multi-comp",
     "sample-guidance": "Test next", "reproducibility": "Reproducibility",
     "metric-signal": "Metric signal", "judge-robustness": "Judge robustness",
     "evaluator-reliability": "Evaluator trust",
@@ -6075,6 +6115,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
+        _build_multiplicity_audit(_insights_obj.get("multiplicity_audit")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_metric_signal(_insights_obj.get("metric_signal")),
         _build_judge_robustness(_insights_obj.get("judge_robustness")),
@@ -6331,6 +6372,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         operational_html,
         _build_slice_analysis(_tasks_list, baseline),
         _build_metadata_slices(_insights_obj.get("metadata_slices")),
+        _build_multiplicity_audit(_insights_obj.get("multiplicity_audit")),
         _build_sample_guidance(_insights_obj.get("sample_guidance")),
         _build_metric_signal(_insights_obj.get("metric_signal")),
         _build_judge_robustness(_insights_obj.get("judge_robustness")),
