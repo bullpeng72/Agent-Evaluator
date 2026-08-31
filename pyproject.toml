@@ -109,7 +109,7 @@ korean = [
 # use_semantic_similarity=True 시 자동 사용; 미설치 시 단어 중복 방식으로 폴백
 # paraphrase-multilingual-MiniLM-L12-v2: 50개 언어 지원 (한국어 포함)
 semantic = [
-    "sentence-transformers>=2.7.0,<6.0.0",
+    "sentence-transformers>=2.7.0,<7.0.0",
 ]
 # SDK 전체 묶음 — llm + serve + otel + pdf + korean (운영 배포 권장)
 sdk = [
