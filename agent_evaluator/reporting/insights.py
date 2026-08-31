@@ -22,6 +22,7 @@ evidence — nothing asserts "this is the cause".
 from __future__ import annotations
 
 import difflib
+import json
 import math
 import random
 import re
@@ -4172,6 +4173,127 @@ def _question_fingerprint(report: dict[str, Any] | None) -> frozenset:
     )
 
 
+# ---------------------------------------------------------------------------
+# Longitudinal intelligence (P48) — history.py gives per-gate sparklines;
+# insight_changes diffs current vs ONE baseline. This reads *all* sibling result
+# JSONs and answers "which failure keeps coming back (flapping)", "how much can
+# run-to-run TCR move on an unchanged eval set (the noise floor)", and "how
+# often are we even running this". Needs >= 4 usable sibling runs.
+# ---------------------------------------------------------------------------
+_LONG_MIN_RUNS = 4
+_LONG_MAX_RUNS = 20
+
+
+def _longitudinal_section(
+    history_dir: str | Path | None, current_file: str | Path | None = None,
+) -> dict[str, Any] | None:
+    if not history_dir:
+        return None
+    d = Path(history_dir)
+    if not d.is_dir():
+        return None
+    excl = Path(current_file).resolve() if current_file else None
+    runs: list[dict[str, Any]] = []
+    for p in sorted(d.glob("*.json")):
+        if p.name in ("baseline.json",) or (excl and p.resolve() == excl):
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(data, dict) or not (data.get("tasks")):
+            continue
+        tasks = [t for t in data["tasks"] if isinstance(t, dict)]
+        if not tasks:
+            continue
+        comps = [_safe_float(t.get("completion_score")) for t in tasks]
+        comps = [c for c in comps if c is not None]
+        runs.append({
+            "file": p.name,
+            "timestamp": data.get("timestamp") or "",
+            "tcr": (sum(comps) / len(comps) * 100.0) if comps else None,
+            "fail_sigs": {
+                _reason_signature(_task_reason(t)) for t in tasks
+                if _effective_fail(success=t.get("success", False),
+                                   accuracy=t.get("accuracy_score"),
+                                   completion=t.get("completion_score"))
+            },
+            "fingerprint": _question_fingerprint(data),
+        })
+    runs.sort(key=lambda r: (str(r["timestamp"]), r["file"]))
+    runs = runs[-_LONG_MAX_RUNS:]
+    if len(runs) < _LONG_MIN_RUNS:
+        return None
+
+    # recurring / flapping failure signatures
+    recurring: list[dict[str, Any]] = []
+    all_sigs = {s for r in runs for s in r["fail_sigs"] if s and s != "unspecified"}
+    for sig in sorted(all_sigs):
+        present = [sig in r["fail_sigs"] for r in runs]
+        n_runs = sum(present)
+        if n_runs < 3:
+            continue
+        transitions = sum(1 for a, b in zip(present, present[1:]) if a != b)
+        chronic = n_runs == len(runs)
+        recurring.append({
+            "signature": sig,
+            "in_n_runs": n_runs,
+            "of_runs": len(runs),
+            "flap_transitions": transitions,
+            "currently_failing": present[-1],
+            "kind": "chronic" if chronic else ("flapping" if transitions >= 2
+                                               else "recurring"),
+            "note": (f"fails in every one of the last {n_runs} runs"
+                     if chronic else
+                     f"recurs in {n_runs}/{len(runs)} runs"
+                     + (f", flapped {transitions}×" if transitions >= 2 else "")),
+        })
+    # most chronic first, then most unstable, then most frequent
+    recurring.sort(key=lambda x: (-x["in_n_runs"], -x["flap_transitions"]))
+
+    # eval-set stability — TCR spread across runs with the SAME question set
+    stability = None
+    fp_groups: dict[frozenset, list[float]] = defaultdict(list)
+    for r in runs:
+        if r["fingerprint"] and r["tcr"] is not None:
+            fp_groups[r["fingerprint"]].append(r["tcr"])
+    same = max(fp_groups.values(), key=len, default=[])
+    if len(same) >= 3:
+        m = sum(same) / len(same)
+        sd = (sum((x - m) ** 2 for x in same) / len(same)) ** 0.5
+        stability = {
+            "n_runs_same_eval_set": len(same),
+            "tcr_mean_pct": round(m, 1),
+            "tcr_stdev_pp": round(sd, 2),
+            "detectable_change_pp": round(2.0 * sd, 1),
+            "note": (f"On the unchanged eval set, TCR has moved ±{sd:.1f}pp "
+                     f"run-to-run — a real change smaller than ~{2 * sd:.1f}pp "
+                     f"can't be told from noise."),
+        }
+
+    # cadence
+    gaps = [
+        _days_between(runs[i]["timestamp"], runs[i - 1]["timestamp"])
+        for i in range(1, len(runs))
+    ]
+    gaps = [g for g in gaps if g is not None]
+    cadence = None
+    if gaps:
+        cadence = {
+            "n_intervals": len(gaps),
+            "median_days_between_runs": sorted(gaps)[len(gaps) // 2],
+            "last_gap_days": gaps[-1],
+        }
+
+    return {
+        "n_runs": len(runs),
+        "run_files": [r["file"] for r in runs],
+        "recurring_failures": recurring[:10],
+        "eval_set_stability": stability,
+        "cadence": cadence,
+    }
+
+
 def _insight_changes_section(
     current: dict[str, Any],
     baseline: dict[str, Any] | None,
@@ -4861,6 +4983,8 @@ def build_insights(
     fixer: Any = None,
     explainer: Any = None,
     targets: dict[str, Any] | None = None,
+    history_dir: str | Path | None = None,
+    current_file: str | Path | None = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
 ) -> dict[str, Any]:
@@ -4959,6 +5083,9 @@ def build_insights(
         "insight_changes": _safe(
             _insight_changes_section, current, baseline, security_findings,
             evaluator_trust, hg, default=None,
+        ),
+        "longitudinal": _safe(
+            _longitudinal_section, history_dir, current_file, default=None,
         ),
         "freshness": _safe(
             _freshness_section, current, baseline, eval_set_quality,

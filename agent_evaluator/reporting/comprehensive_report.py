@@ -4225,7 +4225,8 @@ _TOC_LABELS = {
     "recommendations": "Recommendations",
     "conversation": "Conversation", "experiments": "Experiments",
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
-    "freshness": "Freshness", "insight-changes": "Insight diff",
+    "freshness": "Freshness", "longitudinal": "Across runs",
+    "insight-changes": "Insight diff",
     "calibration": "Calibration", "efficiency-opportunities": "Efficiency",
     "multiagent": "Multi-agent",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
@@ -4375,6 +4376,76 @@ def _build_insight_changes(ic: dict[str, Any] | None) -> str:
         '<p style="color:#6b7280;font-size:12px;margin:0 0 6px">Meta-diff vs the baseline '
         '— not the metrics, but the findings.</p>'
         f'{rows}</div>'
+    )
+
+
+_LONG_KIND_STYLE = {
+    "chronic": ("#dc2626", "CHRONIC"),
+    "flapping": ("#b45309", "FLAPPING"),
+    "recurring": ("#6b7280", "RECURRING"),
+}
+
+
+def _build_longitudinal(lg: dict[str, Any] | None) -> str:
+    """P48: cross-run intelligence — failure signatures that keep coming back,
+    how much run-to-run TCR noise the unchanged eval set carries, and how
+    often the suite is actually run."""
+    if not lg:
+        return ""
+    n = lg.get("n_runs", 0)
+    rec = lg.get("recurring_failures") or []
+    rows = ""
+    for r in rec:
+        col, tag = _LONG_KIND_STYLE.get(r.get("kind", "recurring"),
+                                        _LONG_KIND_STYLE["recurring"])
+        now = ('<span style="color:#dc2626;font-weight:700">still failing</span>'
+               if r.get("currently_failing")
+               else '<span style="color:#059669">not in latest run</span>')
+        rows += (
+            f'<tr><td style="padding:3px 8px">{_esc(_clip(r.get("signature", ""), 70))}</td>'
+            f'<td style="padding:3px 8px"><span style="background:{col};color:#fff;'
+            f'border-radius:3px;padding:1px 5px;font-size:10px;font-weight:700">{tag}</span></td>'
+            f'<td style="padding:3px 8px;text-align:center;font-variant-numeric:tabular-nums">'
+            f'{r.get("in_n_runs")}/{r.get("of_runs")}</td>'
+            f'<td style="padding:3px 8px;text-align:center;font-variant-numeric:tabular-nums">'
+            f'{r.get("flap_transitions", 0)}</td>'
+            f'<td style="padding:3px 8px">{now}</td></tr>'
+        )
+    tbl = ""
+    if rows:
+        tbl = (
+            '<table style="border-collapse:collapse;font-size:12px;margin:6px 0;width:100%">'
+            '<thead><tr style="text-align:left;color:#6b7280">'
+            '<th style="padding:3px 8px">Failure signature</th>'
+            '<th style="padding:3px 8px">Pattern</th>'
+            '<th style="padding:3px 8px">Runs</th>'
+            '<th style="padding:3px 8px">Flips</th>'
+            '<th style="padding:3px 8px">Latest run</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+    extra = ""
+    st = lg.get("eval_set_stability")
+    if st and st.get("note"):
+        extra += (
+            f'<div style="font-size:12px;margin:4px 0;color:#374151">'
+            f'📏 {_esc(st["note"])}</div>'
+        )
+    cad = lg.get("cadence")
+    if cad and cad.get("median_days_between_runs") is not None:
+        extra += (
+            f'<div style="font-size:12px;margin:4px 0;color:#374151">'
+            f'🗓️ Suite runs about every {cad["median_days_between_runs"]} day(s) '
+            f'(last gap {cad.get("last_gap_days")} day(s), '
+            f'{cad.get("n_intervals")} intervals).</div>'
+        )
+    if not tbl and not extra:
+        return ""
+    return (
+        '<div class="gate-section" id="longitudinal" style="border-left-color:#7c3aed">'
+        '<h2 style="color:#1e2030">Across Runs</h2>'
+        f'<p style="color:#6b7280;font-size:12px;margin:0 0 6px">What the last {n} runs in '
+        'this directory show that a single snapshot cannot.</p>'
+        f'{tbl}{extra}</div>'
     )
 
 
@@ -5697,6 +5768,8 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
             ]
         except Exception:
             pass
+    _res_dir = getattr(monitor, "output_dir", None)
+    _cur_file = None
     _narrative = ""
     _insights_obj: dict[str, Any] = {}
     try:
@@ -5709,12 +5782,11 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
+            history_dir=_res_dir, current_file=_cur_file,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
         pass
-    _res_dir = getattr(monitor, "output_dir", None)
-    _cur_file = None
     failure_cases_html = ""
     try:
         failure_cases_html = _build_failure_cases(
@@ -5791,6 +5863,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
+        _build_longitudinal(_insights_obj.get("longitudinal")),
         _build_insight_changes(_insights_obj.get("insight_changes")),
         _build_regression_attribution(_insights_obj.get("regression_attribution")),
         _build_change_attribution(_insights_obj.get("change_attribution")),
@@ -5968,6 +6041,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
+            history_dir=_res_dir, current_file=_cur_file,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
     except Exception:
@@ -6036,6 +6110,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
         _build_trace_diffs(_insights_obj.get("trace_diffs")),
+        _build_longitudinal(_insights_obj.get("longitudinal")),
         _build_insight_changes(_insights_obj.get("insight_changes")),
         _build_regression_attribution(_insights_obj.get("regression_attribution")),
         _build_change_attribution(_insights_obj.get("change_attribution")),

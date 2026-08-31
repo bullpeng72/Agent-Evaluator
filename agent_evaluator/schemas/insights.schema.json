@@ -155,6 +155,33 @@
       }
     },
 
+    "longitudinal": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_runs": { "type": "integer" },
+        "run_files": { "type": "array", "items": { "type": "string" } },
+        "recurring_failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "signature": { "type": "string" },
+              "in_n_runs": { "type": "integer" },
+              "of_runs": { "type": "integer" },
+              "flap_transitions": { "type": "integer" },
+              "currently_failing": { "type": "boolean" },
+              "kind": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "eval_set_stability": { "type": ["object", "null"] },
+        "cadence": { "type": ["object", "null"] }
+      }
+    },
+
     "threshold_sensitivity": {
       "type": ["object", "null"],
       "additionalProperties": true,

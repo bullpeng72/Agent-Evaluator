@@ -116,6 +116,12 @@ baseline 인사이트는 full build_insights 재실행 대신 필요한 하위�
 freshness{baseline_age_days, eval_set_identical_to_baseline, n_tasks, warnings[]}|null (SPEC-041 P33 —
 신선도 신호: baseline timestamp 나이 >30일 · 질문셋 fingerprint가 baseline과 동일한데 새 실패모드 존재 ·
 suspicious_ground_truth 있음 · n_tasks<20. warnings는 사람 읽는 문장 리스트),
+longitudinal{n_runs, run_files[], recurring_failures[]{signature, in_n_runs, of_runs, flap_transitions,
+currently_failing, kind(chronic|flapping|recurring), note}, eval_set_stability{n_runs_same_eval_set,
+tcr_mean_pct, tcr_stdev_pp, detectable_change_pp, note}|null, cadence{n_intervals,
+median_days_between_runs, last_gap_days}|null}|null (SPEC-041 P48 — history_dir의 형제 결과 JSON
+≥4개를 가로질러: 계속 실패하는 시그니처 + 변하지 않은 평가셋의 run-to-run TCR 노이즈 밴드 + 실행 주기.
+history_dir 없거나 <4 run이면 null),
 shared_cause_explanations, newly_unmeasured_gates, experiment_metadata}`.
 스키마 정본: **`agent_evaluator/schemas/insights.schema.json`**(Draft 2020-12, SPEC-041 P20) —
 `build_insights()` 출력이 이 스키마를 위반하면 안 된다(전 object `additionalProperties:true`로 전방 호환,
@@ -547,6 +553,26 @@ per-task 지표 벡터 추출(`completion`·`accuracy`·`judge_overall`(/10)·`f
 0.15–0.4 주황/<0.15 빨강) + pairwise 상관 표. TOC "Metric signal". 스키마 `metric_signal`.
 gen_example_v2: rich 태스크에 `extra.outcome`(1–5 CSAT, accuracy 추종·latency 무관) 추가.
 `test_metric_signal_p46.py`(7). 전체 4631 통과.
+
+**SPEC-041 P48 (종단 인텔리전스 — 여러 run 가로지르기)** — `reporting/insights.py::
+_longitudinal_section(history_dir, current_file=None)` → `insights.longitudinal`. `history_dir`의
+형제 결과 JSON(`baseline.json`·`current_file` 제외, `_LONG_MAX_RUNS=20` 최신본, `_LONG_MIN_RUNS=4`
+미만이면 None)을 timestamp 순으로 읽어 각 run의 `{tcr, fail_sigs(=실패 태스크의
+`_reason_signature(_task_reason(t))` 집합), fingerprint(`_question_fingerprint`)}`을 만든다. 반환:
+`recurring_failures[]{signature, in_n_runs, of_runs, flap_transitions(0↔1 전이 수), currently_failing,
+kind(chronic=전 run 실패 / flapping=전이≥2 / recurring), note}` — 3개 이상 run에 등장한 시그니처만,
+`(-in_n_runs, -flap_transitions)` 정렬(가장 만성적인 것 먼저), 상위 10 · `eval_set_stability`
+{같은 fingerprint를 가진 최대 그룹(≥3 run)의 `n_runs_same_eval_set, tcr_mean_pct, tcr_stdev_pp,
+detectable_change_pp(=2·sd)`, "변하지 않은 평가셋에서 TCR이 ±Npp 움직였으니 ~2Npp보다 작은 실제
+변화는 노이즈와 구분 불가"} · `cadence{n_intervals, median_days_between_runs, last_gap_days}`
+(`_days_between` 재사용). P13(per-Gate 스파크라인/slope)의 보완 — 이쪽은 "무엇이 계속 실패하나 /
+재실행에 얼마나 노이즈가 끼나 / 얼마나 자주 도나". `build_insights(history_dir=, current_file=)` 파라미터
+추가, out dict에 `"insight_changes"` 앞으로 배선. 리포트 `_build_longitudinal()` 섹션 `longitudinal`
+(trace-diffs 뒤, insight-changes 앞): CHRONIC/FLAPPING/RECURRING 뱃지 + `runs`(N/M) + `flips` + "latest
+run" 상태 표 + 안정성 한 줄 + cadence 한 줄. TOC "Across runs". monitor 경로는 `current_file=None`이라
+현재 run도 포함(디스크에 있으면), 리포트 경로는 `rf.path`를 제외. 스키마 `longitudinal`.
+gen_example_v2: `h1/h2/h3` 이전 run 3개 추가 + 7개 run의 timestamp를 7일 간격으로 재작성.
+`test_longitudinal_p48.py`(7). 전체 4638 통과.
 
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
