@@ -3416,6 +3416,74 @@ def _build_efficiency_opportunities(eo: list[dict[str, Any]] | None) -> str:
     )
 
 
+def _build_multiagent(ma: dict[str, Any] | None) -> str:
+    """P41: per-agent contribution / error rate, hand-off context retention, the
+    bottleneck agent, the communication graph, and MAST failure-mode candidates."""
+    if not ma or not ma.get("per_agent"):
+        return ""
+    bn = ma.get("bottleneck_agent")
+    pa_rows = ""
+    for pa in ma["per_agent"]:
+        _is_bn = pa["agent_id"] == bn
+        er = pa.get("error_rate", 0.0)
+        _ecol = "#dc2626" if er >= 0.34 else ("#d97706" if er > 0 else "#374151")
+        pa_rows += (
+            f'<tr><td style="font-weight:600">{_esc(pa["agent_id"])}'
+            + (' <span style="color:#dc2626;font-size:11px">bottleneck</span>'
+               if _is_bn else "")
+            + f'</td><td style="text-align:right">{pa.get("n_turns")}</td>'
+            f'<td style="text-align:right">{pa.get("contribution_score", 0) * 100:.0f}%</td>'
+            f'<td style="text-align:right;color:{_ecol};font-weight:600">'
+            f'{er * 100:.0f}%</td></tr>'
+        )
+    ho_rows = ""
+    for h in ma.get("handoffs") or []:
+        cr = h.get("context_retention_at_handoff")
+        _ccol = ("#dc2626" if isinstance(cr, (int, float)) and cr < 0.3
+                 else "#374151")
+        cr_s = f'{cr * 100:.0f}%' if isinstance(cr, (int, float)) else "—"
+        ho_rows += (
+            f'<tr><td>{_esc(h.get("from", "?"))} → {_esc(h.get("to", "?"))}</td>'
+            f'<td style="text-align:right">{h.get("n")}</td>'
+            f'<td style="text-align:right;color:{_ccol};font-weight:600">{cr_s}</td></tr>'
+        )
+    mast_html = ""
+    _mc = ma.get("mast_candidates") or []
+    if _mc:
+        items = "".join(
+            f'<li><strong>{_esc(m.get("code", ""))} {_esc(m.get("name", ""))}</strong> — '
+            f'{_esc(m.get("remediation", ""))}</li>'
+            for m in _mc
+        )
+        mast_html = (
+            '<h3 style="margin:12px 0 4px">MAST failure-mode candidates '
+            '<span style="font-size:12px;color:#6b7280">(Cemri et al. 2025 — '
+            'candidates, not verdicts)</span></h3>'
+            f'<ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">{items}</ul>'
+        )
+    return (
+        '<div class="gate-section" id="multiagent" style="border-left-color:#8b5cf6">'
+        '<h2 style="color:#1e2030">Multi-Agent Coordination</h2>'
+        f'<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        f'{ma.get("n_agents")} agent(s) over {ma.get("n_tasks_with_agent_data")} '
+        f'task(s) with interaction data.</p>'
+        '<h3 style="margin:6px 0 4px">Per agent</h3>'
+        '<table class="mtable"><thead><tr><th>Agent</th><th>Turns</th>'
+        '<th>Share</th><th>Error rate</th></tr></thead>'
+        f'<tbody>{pa_rows}</tbody></table>'
+        + (
+            '<h3 style="margin:12px 0 4px">Hand-offs '
+            '<span style="font-size:12px;color:#6b7280">(does the receiver reuse '
+            'what it was handed?)</span></h3>'
+            '<table class="mtable"><thead><tr><th>Hand-off</th><th>N</th>'
+            '<th>Context retention</th></tr></thead>'
+            f'<tbody>{ho_rows}</tbody></table>' if ho_rows else ""
+        )
+        + mast_html
+        + '</div>'
+    )
+
+
 def _build_calibration(cal: dict[str, Any] | None) -> str:
     """P39: is the agent's own confidence trustworthy? Reliability diagram +
     ECE/Brier + over/under-confidence verdict + risk/coverage + abstention."""
@@ -3962,6 +4030,7 @@ _TOC_LABELS = {
     "cohort-comparison": "Versions", "trace-diffs": "Trace diff",
     "freshness": "Freshness", "insight-changes": "Insight diff",
     "calibration": "Calibration", "efficiency-opportunities": "Efficiency",
+    "multiagent": "Multi-agent",
     "regression-attribution": "Reg. cause", "change-attribution": "Change",
     "diagnosis": "RCA",
     "history-trend": "Trend", "change-ledger": "Ledger", "conclusion": "Conclusion",
@@ -5439,6 +5508,7 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict,
                                insights_recs=_insights_obj.get("recommendations")),
+        _build_multiagent(_insights_obj.get("multiagent")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
@@ -5674,6 +5744,7 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
                                recommendation_log_path=recommendation_log_path,
                                baseline=baseline, current=current_dict,
                                insights_recs=_insights_obj.get("recommendations")),
+        _build_multiagent(_insights_obj.get("multiagent")),
         _build_conversation(_insights_obj.get("conversation")),
         _build_experiments(_insights_obj.get("experiments")),
         _build_cohort_comparison(_insights_obj.get("cohort_comparison")),

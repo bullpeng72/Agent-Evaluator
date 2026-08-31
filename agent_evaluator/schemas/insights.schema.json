@@ -680,6 +680,21 @@
       }
     },
 
+    "multiagent": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "n_tasks_with_agent_data": { "type": "integer" },
+        "n_agents": { "type": "integer" },
+        "per_agent": { "type": "array" },
+        "handoffs": { "type": "array" },
+        "communication_graph": { "type": "array" },
+        "bottleneck_agent": { "type": ["string", "null"] },
+        "repeated_agents": { "type": "array", "items": { "type": "string" } },
+        "mast_candidates": { "type": "array" }
+      }
+    },
+
     "efficiency_opportunities": {
       "type": ["array", "null"],
       "items": {

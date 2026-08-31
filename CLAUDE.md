@@ -1283,6 +1283,23 @@ runtime 카테고리 `failure_clusters` 이름과 함께 "N% of spend is retries
 스키마 `efficiency_opportunities`. gen_example_v2.py: rich RAG 태스크에 timed `retrieve→rerank→
 synthesize` tool_calls 추가(step_gating 데모). `test_efficiency_opportunities_p40.py`(6). 전체 4577 통과.
 
+**SPEC-041 P41 (멀티에이전트 인사이트 섹션)** — `reporting/insights.py::_multiagent_section`:
+`conversation`(P24)에 대응하는 Gate F용 분석. 태스크 `agent_interactions`(list of
+`{from/from_agent/sender, to/to_agent/receiver, message/content, success}`) 있을 때
+`insights.multiagent{n_agents, per_agent[]{agent_id, n_turns, error_rate(성공=False 비율),
+contribution_score(전체 발신 대비 점유)}, handoffs[]{from, to, n, context_retention_at_handoff
+(수신자의 다음 메시지가 받은 메시지 토큰을 재사용하는 `_overlap`)}, communication_graph[],
+bottleneck_agent(≥2턴 중 error_rate 최고, 없으면 저-retention 핸드오프를 가장 많이 받는 에이전트),
+repeated_agents(연속 동일 메시지 발신), mast_candidates[]{code, name, category, remediation}}.
+MAST(Cemri et al. 2025) 매핑: 평균 핸드오프 retention<0.3→1.4(Loss of Conversation History),
+repeated→1.3(Step Repetition), 한 에이전트 error_rate≥0.34→1.2(Disobey Role Spec), A→B·B→A
+핑퐁 사이클→1.5(Unaware of Termination). `mast_failure_mode_by_code` 재사용. 결정적, stdlib.
+`build_insights` out 딕셔너리에 `multiagent` 추가. 리포트 `_build_multiagent()` 섹션 `multiagent`
+(conversation 앞): per-agent 표(bottleneck 표시, error_rate≥0.34 빨강) + 핸드오프 표(retention<0.3
+빨강) + MAST 후보 리스트. TOC "Multi-agent". 스키마 `multiagent`. gen_example_v2.py: rich tool_use
+태스크에 planner→retriever→responder crew `agent_interactions`(thin context 핸드오프).
+`test_multiagent_insight_p41.py`(6). 전체 4583 통과.
+
 **SPEC-041 P34 (대상별 브리프 + 내러티브 주장 감사)** — `reporting/insights.py`:
 `_briefs_section(ins)` → `insights.briefs{pm, qa, engineer}` — 조립된 out dict(verdict/readiness/
 review_queue/evaluator_trust/failure_segments/freshness/security_findings/recommendations)에서 결정적

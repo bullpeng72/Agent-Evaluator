@@ -2753,6 +2753,170 @@ def _review_queue_section(
 
 
 # ---------------------------------------------------------------------------
+# Multi-agent coordination insight (P41)
+#
+# Gate F scores multi-agent runs but `insights` had nothing analogous to the
+# `conversation` section for them. When tasks carry `agent_interactions`, this
+# breaks the run down by agent (turns / error rate / share of the work), by
+# hand-off (does the receiver actually use what it was handed?), names the
+# bottleneck agent, emits the communication graph, and attaches MAST failure-mode
+# candidates. Deterministic, stdlib. `None` when no agent-interaction data.
+# ---------------------------------------------------------------------------
+def _mi_field(item: dict[str, Any], *keys: str) -> str:
+    for k in keys:
+        v = item.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+def _mi_ok(item: dict[str, Any]) -> bool:
+    for k in ("success", "ok"):
+        if k in item:
+            return bool(item[k])
+    return True
+
+
+def _multiagent_section(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    inter: list[dict[str, Any]] = []
+    n_tasks_with = 0
+    for t in tasks:
+        ai = t.get("agent_interactions")
+        if isinstance(ai, list) and ai:
+            rows = [x for x in ai if isinstance(x, dict)]
+            if rows:
+                n_tasks_with += 1
+                inter.extend(rows)
+    if not inter:
+        return None
+
+    def _frm(x: dict[str, Any]) -> str:
+        return _mi_field(x, "from", "from_agent", "sender", "agent", "agent_id", "role")
+
+    def _to(x: dict[str, Any]) -> str:
+        return _mi_field(x, "to", "to_agent", "receiver", "recipient", "target")
+
+    def _msg(x: dict[str, Any]) -> str:
+        return _mi_field(x, "message", "content", "text", "response", "output")
+
+    agents: set[str] = set()
+    sends: Counter = Counter()
+    errs: Counter = Counter()
+    for x in inter:
+        f, to = _frm(x), _to(x)
+        if f:
+            agents.add(f)
+            sends[f] += 1
+            if not _mi_ok(x):
+                errs[f] += 1
+        if to:
+            agents.add(to)
+    if not agents:
+        return None
+
+    total_sends = sum(sends.values()) or 1
+    per_agent = [
+        {
+            "agent_id": a,
+            "n_turns": sends.get(a, 0),
+            "error_rate": round(errs.get(a, 0) / sends[a], 3) if sends.get(a) else 0.0,
+            "contribution_score": round(sends.get(a, 0) / total_sends, 3),
+        }
+        for a in sorted(agents)
+    ]
+
+    # hand-offs + context retention: consecutive interactions where the receiver
+    # of one is the sender of the next.
+    handoff_ct: Counter = Counter()
+    retention: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for i in range(len(inter) - 1):
+        a_to = _to(inter[i])
+        b_from = _frm(inter[i + 1])
+        if a_to and b_from and a_to == b_from:
+            key = (_frm(inter[i]) or "?", a_to)
+            handoff_ct[key] += 1
+            m1, m2 = _wtok(_msg(inter[i])), _wtok(_msg(inter[i + 1]))
+            if m1 and m2:
+                retention[key].append(_overlap(m1, m2))
+    handoffs = [
+        {
+            "from": k[0], "to": k[1], "n": n,
+            "context_retention_at_handoff": (
+                round(sum(retention[k]) / len(retention[k]), 3)
+                if retention.get(k) else None
+            ),
+        }
+        for k, n in handoff_ct.most_common()
+    ]
+
+    # step repetition: an agent sending near-identical consecutive messages
+    repeated_agents: set[str] = set()
+    for i in range(len(inter) - 1):
+        if _frm(inter[i]) and _frm(inter[i]) == _frm(inter[i + 1]):
+            m1, m2 = _wtok(_msg(inter[i])), _wtok(_msg(inter[i + 1]))
+            if m1 and m2 and _overlap(m1, m2) >= 0.8:
+                repeated_agents.add(_frm(inter[i]))
+
+    # bottleneck: highest error rate among agents with >=2 turns, else the one
+    # that receives the most low-retention hand-offs.
+    _cand = [pa for pa in per_agent if pa["n_turns"] >= 2]
+    bottleneck = None
+    if _cand:
+        worst = max(_cand, key=lambda pa: (pa["error_rate"], pa["n_turns"]))
+        if worst["error_rate"] > 0.0:
+            bottleneck = worst["agent_id"]
+    if bottleneck is None and handoffs:
+        low = [h for h in handoffs
+               if (h["context_retention_at_handoff"] or 1.0) < 0.3]
+        if low:
+            bottleneck = max(low, key=lambda h: h["n"])["to"]
+
+    # MAST candidates (Cemri et al.) — heuristic mapping
+    avg_ret = [
+        h["context_retention_at_handoff"] for h in handoffs
+        if h["context_retention_at_handoff"] is not None
+    ]
+    mast_codes: list[str] = []
+    if avg_ret and sum(avg_ret) / len(avg_ret) < 0.3:
+        mast_codes.append("1.4")           # Loss of Conversation History
+    if repeated_agents:
+        mast_codes.append("1.3")           # Step Repetition
+    if any(pa["error_rate"] >= 0.34 and pa["n_turns"] >= 2 for pa in per_agent):
+        mast_codes.append("1.2")           # Disobey Role Specification
+    # a ping-pong hand-off cycle (A->B and B->A both frequent)
+    _pairs = {(h["from"], h["to"]) for h in handoffs if h["n"] >= 2}
+    if any((b, a) in _pairs for (a, b) in _pairs):
+        mast_codes.append("1.5")           # Unaware of Termination Conditions
+
+    mast_candidates: list[dict[str, Any]] = []
+    try:
+        from agent_evaluator.ontology.mast_taxonomy import mast_failure_mode_by_code
+
+        for code in dict.fromkeys(mast_codes):
+            m = mast_failure_mode_by_code(code)
+            if m:
+                mast_candidates.append({
+                    "code": m.code, "name": m.name, "category": m.category,
+                    "remediation": m.remediation,
+                })
+    except Exception:  # pragma: no cover - defensive
+        mast_candidates = []
+
+    return {
+        "n_tasks_with_agent_data": n_tasks_with,
+        "n_agents": len(agents),
+        "per_agent": sorted(per_agent, key=lambda pa: -pa["contribution_score"]),
+        "handoffs": handoffs,
+        "communication_graph": [
+            {"from": h["from"], "to": h["to"], "n": h["n"]} for h in handoffs
+        ],
+        "bottleneck_agent": bottleneck,
+        "repeated_agents": sorted(repeated_agents),
+        "mast_candidates": mast_candidates,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Span timeline (P25) — the P7 trajectory is a flat list. When the steps carry
 # timing (start_ms/end_ms or per-step duration) this parses them into a nested
 # timeline with per-span self-time and cost, so a report can show a waterfall
@@ -4201,6 +4365,7 @@ def build_insights(
         "security_findings": security_findings,
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
         "calibration": _safe(_calibration_section, tasks, default=None),
+        "multiagent": _safe(_multiagent_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
         "trajectories": _safe(_trajectories_section, tasks, default=None),
         "experiments": _safe(
