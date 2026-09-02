@@ -106,7 +106,7 @@ class TestUnsupportedFrameworkWarning:
     """REQ-3: 지원되지 않는 compliance_framework 값에 UserWarning 발생."""
 
     def test_unsupported_value_warns(self):
-        with pytest.warns(UserWarning, match="지원되지 않는"):
+        with pytest.warns(UserWarning, match="unsupported value"):
             ComplianceConfig(compliance_framework="iso27001")
 
     def test_general_does_not_warn(self):

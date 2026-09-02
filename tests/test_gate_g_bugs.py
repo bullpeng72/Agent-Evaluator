@@ -258,7 +258,7 @@ class TestBugG5ErrorDiagnosisNegativeWeights:
                 root_cause_weight=0.0,
                 suggestion_weight=0.0,
             )
-            assert any("합이 0.0" in str(warning.message) for warning in w)
+            assert any("sum to 0.0" in str(warning.message) for warning in w)
 
     def test_valid_weights_produce_nonnegative_score(self):
         cfg = ErrorDiagnosisConfig(
