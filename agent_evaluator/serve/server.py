@@ -236,11 +236,16 @@ def create_app(
 
     # State
     app.state.results_dir = results_dir
+    # 업로드 엔드포인트(POST /api/results/upload)가 파일을 저장할 위치. 스캔 대상과
+    # 반드시 일치해야 업로드된 파일이 목록에 뜬다 — 예전엔 미설정이라 상대 경로
+    # "results"(서버 CWD 기준)로 떨어져 스캔 디렉토리와 어긋날 수 있었다.
+    app.state.output_dir = results_dir
     app.state.title = title
     app.state.version = version
     app.state.result_set = load_results(results_dir)
     app.state.watcher = None
     app.state.offline = offline
+    app.state._last_list_rescan = 0.0
 
     # Offline static assets
     if offline:

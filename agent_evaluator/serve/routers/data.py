@@ -223,17 +223,25 @@ def list_results(
     - ``total_tasks`` — total task count
     - ``total_cost`` — total cost (USD)
     """
-    # watch 모드: 항상 디스크에서 직접 읽어 최신 파일 목록 보장
-    # SPEC-013: previous=기존 result_set을 전달해 변경되지 않은 파일은 재파싱을 건너뛴다
-    # (요청마다 전량 재파싱하던 것을 요청마다 변경분만 재파싱하는 것으로 전환).
-    if getattr(request.app.state, "watcher", None) is not None:
+    # 파일 목록 최신화: 대시보드 기동 이후 새로 저장된 결과 파일도 드롭다운에 뜨도록
+    # 매 요청마다 디스크를 다시 스캔한다(단, 최소 간격으로 스로틀). --watch 여부와 무관.
+    # SPEC-013: previous=기존 result_set을 넘겨 mtime이 그대로인 파일은 재파싱을 건너뛰므로
+    #   "변경 없음" 요청의 실비용은 디렉토리 rglob + 파일당 stat() 한 번뿐이다.
+    # 프런트엔드는 3~5초 간격으로 /api/results를 폴링하므로 여기서 2초 스로틀을 둔다.
+    _RESCAN_MIN_INTERVAL_S = 2.0
+    _now = _time_module.monotonic()
+    _last = getattr(request.app.state, "_last_list_rescan", 0.0)
+    _watching = getattr(request.app.state, "watcher", None) is not None
+    if _watching or (_now - _last) >= _RESCAN_MIN_INTERVAL_S:
         try:
             from ..loader import load_results as _load_results
             request.app.state.result_set = _load_results(
                 request.app.state.results_dir,
                 previous=getattr(request.app.state, "result_set", None),
             )
+            request.app.state._last_list_rescan = _now
         except Exception:
+            # 스캔 실패(권한/경합 등) 시 기존 캐시를 그대로 쓴다 — 목록이 사라지지 않도록.
             pass
 
     _SORT_FIELDS = {"timestamp", "tcr", "accuracy", "avg_latency", "total_tasks", "total_cost"}

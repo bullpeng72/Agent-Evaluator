@@ -327,7 +327,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     /* Hallucination Rate = mean(per-task hallucination_rate) x 100 — the same
        definition the static HTML report, ResultFile.hallucination_rate and the
        Gate C/G score use. (Was flagged/total x 100 = task incidence, a different
-       number under the same label. Incidence is shown separately as "flagged".) */
+       number under the same label. Incidence is shown separately as 'flagged'.) */
     _hall(){const am=data.accuracy_metrics?.hallucination||{};const raw=am.overall_rate??null;if(raw!=null)return raw;const dets=data.hallucination_detail?.detections||[];if(dets.length>0)return dets.reduce((s,x)=>s+(x.hallucination_rate||0),0)/dets.length*100;return 0;},
     _p95(){const em=data.efficiency_metrics||{};return em.latency?.p95??em.p95_latency??0;},
     _cost(){ return cTotal(data); },
@@ -2914,7 +2914,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-data="{
     selK:null,
     meta:{
-      hall_rate:{label:'Flagged Task Rate',unit:'%',desc:'Share of evaluated tasks with at least one hallucination indicator (task incidence). Distinct from the overview "Hallucination Rate", which is the mean per-task hallucination_rate — this counts how many tasks were affected, not how severe.',hint:'flagged / evaluated × 100'},
+      hall_rate:{label:'Flagged Task Rate',unit:'%',desc:'Share of evaluated tasks with at least one hallucination indicator (task incidence). Distinct from the overview Hallucination Rate KPI, which is the mean per-task hallucination_rate — this counts how many tasks were affected, not how severe.',hint:'flagged / evaluated × 100'},
       evaluated:{label:'Evaluated',unit:'tasks',desc:'Number of tasks analyzed for hallucination detection (Layer 1 only). Check DeepEval hallucination in the External Evaluation tab.',hint:'hallucination_detail.detections.length'},
       flagged:{label:'Flagged',unit:'tasks',desc:'Number of tasks with one or more hallucination indicators detected. Responses with numerical mismatch, unsupported claims, or context inconsistency patterns; candidates for human review.',hint:'hallucination_detail.detections.filter(d=>d.hallucination_rate>0).length'},
       types:{label:'Indicator Types',unit:'types',desc:'Number of distinct hallucination indicator types observed in this evaluation. More diverse types suggest the agent\'s hallucination issues are widespread rather than isolated to a specific cause.',hint:'hallucination_detail.indicator_types keys'},
@@ -7849,7 +7849,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">📖 Metrics Guide</div>
   <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Describes the purpose, formulas, and benchmarks of the 58 metrics measured by Agent-Evaluator, organized by Harness Engineering groups. 25 tracker metrics + 33 Harness Config.</div>
   <div style="font-size:12px;line-height:1.6;padding:8px 12px;background:rgba(108,142,245,.08);border-left:3px solid var(--accent);border-radius:5px;margin-bottom:16px">
-    🛡️ <strong>All Gate B/E metrics below are batch (post-session) scoring.</strong> <code>LiveGuardrail</code> (SPEC-019) reuses the same Gate B/Gate E evaluators to check — and block — a single tool call <em>before</em> it executes, instead of scoring the whole session afterward. See <a href="/sdk-docs#live-guardrail" style="color:var(--accent)">SDK Reference → LiveGuardrail</a>.
+    🛡️ <strong>All Gate B/E metrics below are batch (post-session) scoring.</strong> <code>LiveGuardrail</code> reuses the same Gate B/Gate E evaluators to check — and block — a single tool call <em>before</em> it executes, instead of scoring the whole session afterward. See <a href="/sdk-docs#live-guardrail" style="color:var(--accent)">SDK Reference → LiveGuardrail</a>.
   </div>
 
   <div x-data="{mf:'all'}">
@@ -7937,13 +7937,14 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         <strong>Detects how often the AI generates content inconsistent with facts</strong>. Feeds both Gate C (<code style="font-size:10px">_rel_vals</code>) and Gate G (<code style="font-size:10px">_obs_vals</code>) as a fallback when no per-task LLM Judge faithfulness score is recorded.<br>
         Early detection of RAG quality issues and prompt design flaws.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ Activation · Detection Types</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ Activation · Detection Heuristics</summary>
         <div class="hint-text">
           Activate with <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_hallucination_detection=True</code> (disabled by default).<br>
-          6 detection types: factual inconsistency, context deviation, fictitious reference, numerical error, date error, source manipulation.
+          2 heuristics: <strong>unsupported claim</strong> (a response sentence not grounded in the context — optional semantic-similarity check via <code style="font-size:10.5px">use_semantic_hallucination=True</code>) and <strong>numerical inconsistency</strong> (a number in the response that does not appear in the context).<br>
+          Same definition as the Overview "Hallucination Rate" KPI and <code style="font-size:10.5px">ResultFile.hallucination_rate</code>. Per-task task-incidence (flagged / evaluated) is shown separately as "Flagged Task Rate" in the Hallucination Detection tab.
         </div>
       </details>
-      <div class="code-hint">📐 detected_count / evaluated_count × 100</div>
+      <div class="code-hint">📐 mean(per-task hallucination_rate) × 100</div>
       <div class="flex-wrap-5">
         <span class="badge-pass">🟢 ≤5% Excellent</span>
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 5–15% Caution</span>
@@ -8065,9 +8066,10 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
   </div><!-- /l1 grid -->
   </div><!-- /l1 -->
 
-  <!-- ── Gates B·F — Agentic ── -->
-  <div x-show="mf==='all'||mf==='gB'||mf==='gF'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Agentic Metrics (5)<span class="grp-chip grp-B">B Tool·Retry·Workflow</span><span class="grp-chip grp-F">F Coordination</span></span><div class="sdiv-line"></div></div>
+  <!-- ── Gates F·G — Agentic (Layer 2) ── -->
+  <div x-show="mf==='all'||mf==='gF'||mf==='gG'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Agentic Metrics (5)<span class="grp-chip grp-F">F Tool Selection · Coordination</span><span class="grp-chip grp-G">G Tool Success Rate</span><span class="grp-chip" style="background:rgba(148,163,184,.15);color:#94a3b8">Retry · Workflow — no Gate score</span></span><div class="sdiv-line"></div></div>
+  <div style="font-size:11px;color:var(--text2);margin:-6px 0 10px">ℹ️ These are Layer 2 agentic trackers. Their Gate-score contribution: <code style="font-size:10px">ToolCallAnalyzer</code> → Gate G (<code style="font-size:10px">_obs_vals</code>), <code style="font-size:10px">ToolSelectionTracker</code> + <code style="font-size:10px">AgentCoordinationTracker</code> → Gate F (<code style="font-size:10px">_f_vals</code>). <code style="font-size:10px">RetryCorrectionTracker</code> and <code style="font-size:10px">WorkflowExecutionTracker</code> are tracked for analysis only and feed no Gate A–G score. (Gate B behavioral checks are the Harness Configs further down, not these.)</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
@@ -8077,12 +8079,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Tool Success Rate · L2 Agentic</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B Behavioral Integrity</span>
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G Observability</span>
           <span class="badge-info" style="font-size:10px">Agentic</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Measures how successfully the agent calls external tools</strong>.<br>
+        <strong>Measures how successfully the agent calls external tools</strong>. Feeds Gate G <code style="font-size:10px">tool_coverage</code> (<code style="font-size:10px">_obs_vals</code>) — <code style="font-size:10px">success_rate / 100</code> — when tool_calls are recorded.<br>
         Tool failure → primary path to task failure. Early detection of tool interface and prompt improvement needs.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Usage Tips</summary>
@@ -8107,12 +8109,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Selection accuracy · L2 Agentic</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B Behavioral Integrity</span>
+          <span class="grp-chip grp-F" style="margin-left:0;font-size:9.5px">F Multi-Agent</span>
           <span class="badge-info" style="font-size:10px">Agentic</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Evaluates with F1 whether the agent correctly selects the tools needed for a task</strong>.<br>
+        <strong>Evaluates with F1 whether the agent correctly selects the tools needed for a task</strong>. Feeds Gate F (<code style="font-size:10px">_f_vals</code>) — <code style="font-size:10px">avg_f1_score / 100</code> — when <code style="font-size:10px">expected_tools</code> are given.<br>
         Unlike call success rate, measures "did it use the right tools?"
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Precision vs Recall</summary>
@@ -8136,12 +8138,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Self-correction ability · L2 Agentic</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B Behavioral Integrity</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span class="badge-info" style="font-size:10px">Agentic</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Measures the frequency and efficiency of self-correction and retry after failure</strong>.<br>
+        <strong>Measures the frequency and efficiency of self-correction and retry after failure</strong>. Tracked for analysis only — <code style="font-size:10px">RetryCorrectionTracker</code> does not feed any Gate A–G score.<br>
         Moderate retry = resilience. Excessive retry = risk of infinite loops and cost explosion.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Sub-metrics</summary>
@@ -8170,19 +8172,20 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Measures the efficiency of collaboration between agents in a multi-agent system</strong>.<br>
+        <strong>Measures the efficiency of collaboration between agents in a multi-agent system</strong>. Feeds Gate F (<code style="font-size:10px">_f_vals</code>) — <code style="font-size:10px">overall_score / 10</code> — when agent_interactions are recorded.<br>
         Identifies bottleneck agents and failure segments in CrewAI, LangGraph, and AutoGen architectures.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ Topology Analysis</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ Score composition · Topology</summary>
         <div class="hint-text">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">calculate_coordination_score().overall_score</code> is a weighted blend (0–10 scale) of interaction success rate, communication quality, and interaction-type balance (delegation / communication / collaboration).<br>
           <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">get_interaction_patterns()</code> auto-classifies hub·chain·mesh patterns.
         </div>
       </details>
-      <div class="code-hint">📐 successful_interactions / total_interactions × 100</div>
+      <div class="code-hint">📐 overall_score (0–10) = w·success_rate + w·communication + w·type_balance</div>
       <div class="flex-wrap-5">
-        <span class="badge-pass">🟢 ≥90% Excellent</span>
-        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% Good</span>
-        <span class="badge-fail">🔴 &lt;70% Needs Improvement</span>
+        <span class="badge-pass">🟢 ≥9.0 Excellent</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 7.0–8.9 Good</span>
+        <span class="badge-fail">🔴 &lt;7.0 Needs Improvement</span>
       </div>
     </div>
 
@@ -8193,12 +8196,12 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
           <div class="text-muted">Multi-step flow · L2 Agentic</div></div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
-          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B Behavioral Integrity</span>
+          <span class="grp-chip" style="margin-left:0;font-size:9.5px;background:rgba(148,163,184,.15);color:#94a3b8">No Gate score</span>
           <span class="badge-info" style="font-size:10px">Agentic</span>
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Measures the overall flow success rate of complex multi-step tasks</strong> step by step.<br>
+        <strong>Measures the overall flow success rate of complex multi-step tasks</strong> step by step. Tracked for analysis only — <code style="font-size:10px">WorkflowExecutionTracker</code> does not feed any Gate A–G score.<br>
         Also measures branch (conditional) ratio → identifies pipeline design issues and bottlenecks.
       </div>
       <details class="mb-2"><summary class="toggle-text">ℹ️ Funnel Analysis · API</summary>
@@ -8363,8 +8366,8 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
 
   <!-- ── Gates A·C — Hybrid/External ── -->
   <div x-show="mf==='all'||mf==='gA'||mf==='gB'||mf==='gC'||mf==='gD'||mf==='gE'||mf==='gF'||mf==='gG'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Hybrid / External Evaluation (4)<span class="grp-chip grp-C">C LLMJudge·Ragas·Hallucination</span></span><div class="sdiv-line"></div></div>
-  <div style="font-size:11px;color:var(--text2);margin:-6px 0 10px">ℹ️ Layer 3/Hybrid — <code style="font-size:10px">LLMJudge</code>, Ragas, and DeepEval are separate from the 25 Native Trackers count (base install includes them, but they're not counted among the 25). Deployment Gates is the <code style="font-size:10px">agent-eval gate</code> CI feature, not a tracker.</div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Hybrid / External Evaluation (4)<span class="grp-chip grp-C">C LLMJudge · Ragas</span><span class="grp-chip grp-A">A DeepEval</span></span><div class="sdiv-line"></div></div>
+  <div style="font-size:11px;color:var(--text2);margin:-6px 0 10px">ℹ️ Layer 3/Hybrid — none of these count among the 25 Native Trackers. <code style="font-size:10px">LLMJudge</code> is native (no extra install). Ragas and DeepEval need <code style="font-size:10px">pip install "agent-evaluator[eval]"</code> plus an LLM API key. Deployment Gates is the <code style="font-size:10px">agent-eval gate</code> CI feature, not a tracker.</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
@@ -8507,17 +8510,16 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
         </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
-        <strong>Evaluates overall quality of multi-turn conversation sessions across 6 dimensions</strong>.<br>
-        Structurally measures context retention, topic coherence, depth progression, and session completion — beyond simple accuracy. <code style="font-size:10.5px">compute_metrics()</code> returns a <code style="font-size:10.5px">ConversationMetrics</code> dataclass holding these 6 dimensions.
+        <strong>Evaluates overall quality of multi-turn conversation sessions across 4 dimensions</strong>.<br>
+        Structurally measures context retention, topic coherence, depth progression, and session completion — beyond simple accuracy. <code style="font-size:10.5px">compute_metrics()</code> returns a <code style="font-size:10.5px">ConversationMetrics</code> dataclass with these 4 scored dimensions plus <code style="font-size:10.5px">overall_score</code>, <code style="font-size:10.5px">score_stddev</code>, and an informational <code style="font-size:10.5px">avg_turn_latency</code>.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ 6 measurement dimensions</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ 4 scored dimensions</summary>
         <div class="hint-text">
           <strong>Context Retention</strong> — preservation rate of prior turn information<br>
-          <strong>Topic Coherence</strong> — degree of sustained topic continuity<br>
+          <strong>Topic Coherence</strong> — degree of sustained topic continuity (Jaccard)<br>
           <strong>Progressive Depth</strong> — increasing depth trend through conversation<br>
           <strong>Session Completion</strong> — last response length / avg response length (structural metric, not directly linked to quality)<br>
-          <strong>Avg Latency</strong> — response time per turn<br>
-          <strong>Overall Score</strong> — weighted average of the above dimensions
+          <strong>Overall Score</strong> — simple (unweighted) mean of the 4 dimensions above; <strong>score_stddev</strong> — their spread (lower = more balanced). <strong>avg_turn_latency</strong> is reported for context and is not part of the score.
         </div>
       </details>
       <div class="code-hint">📐 overall_score = avg(context_retention, topic_coherence, progressive_depth, session_completion)</div>
@@ -8541,14 +8543,16 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>Automatically detects sudden changes (anomalies) in evaluation metrics using Z-score, IQR, linear regression, and ratio analysis</strong>.<br>
-        Monitors 4 anomaly types: accuracy drift, token spike, error surge, and security patterns.
+        Runs 6 checks: latency trend, accuracy drift, token spike, error surge, security pattern, and feedback negativity.
       </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ Detection types · algorithms</summary>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ 6 checks · algorithms</summary>
         <div class="hint-text">
+          <strong>latency_trend</strong> — linear regression: sustained P95 latency rise<br>
           <strong>accuracy_drift</strong> — Z-score: accuracy baseline deviation<br>
           <strong>token_spike</strong> — IQR: sudden token usage surge<br>
           <strong>error_surge</strong> — ratio: sudden error rate spike<br>
           <strong>security_pattern</strong> — frequency: surge in security threat detection rate<br>
+          <strong>feedback_negativity</strong> — ratio: surge in negative implicit feedback (regenerate / thumbs_down / …)<br>
           <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_anomaly_detection=True</code> required to activate.
         </div>
       </details>
@@ -10521,7 +10525,7 @@ Analyzed chains: ${n} / Suspicious: ${s} / Safe: ${n-s}
       costSelK: null,
       costMeta: {
         total_usd:       {label:'Today\'s Total Cost',   unit:'$',  desc:'Cumulative cost of external evaluation API calls (LLM Judge · DeepEval · Ragas) incurred today. Sum across all providers recorded by CostTracker.'},
-        budget_remaining:{label:'Budget Remaining',       unit:'$',  desc:'Daily budget limit minus cost used so far. Displays "No Limit" if no limit is set. Shown in warning color when remaining budget falls below 20%.'},
+        budget_remaining:{label:'Budget Remaining',       unit:'$',  desc:'Daily budget limit minus cost used so far. Displays No Limit when no limit is set. Shown in warning color when remaining budget falls below 20%.'},
         projected_daily: {label:'Projected Daily Cost',   unit:'$',  desc:'Estimated full-day cost based on current call frequency. Actual cost may be higher when sampling rate is low.'},
         sample_rate:     {label:'Current Sampling Rate',  unit:'%',  desc:'Current evaluation sampling ratio set by AdaptivePolicy. Automatically reduced when budget overrun is likely. 100% means all tasks are being evaluated.'},
         call_count:      {label:'Call Count',         unit:'calls', desc:'Total number of external evaluation API calls made today. Efficiency = total cost / call count (cost per call).'},
@@ -11221,10 +11225,14 @@ function app2() {
         await this.refresh();
       }
       {% if watch %}
+      // --watch: 파일 변경 시 서버가 SSE로 즉시 푸시 (지연 없음)
       this._connectSSE();
-      // 폴링 백업: SSE 수신 실패 시에도 5초마다 파일 목록 자동 갱신 (silent=깜박거림 없음)
-      setInterval(() => this.refresh(true), 5000);
       {% endif %}
+      // 파일 목록 자동 갱신 폴링 — --watch 여부와 무관하게 항상 동작한다.
+      // 서버의 /api/results가 요청마다 디렉토리를 다시 스캔하므로(2초 스로틀),
+      // 대시보드 기동 이후 새로 저장된 결과 파일도 최대 ~5초 안에 select 목록에 뜬다.
+      // silent=true → 실제 목록 변경이 있을 때만 UI 갱신(깜박거림 없음).
+      setInterval(() => this.refresh(true), 5000);
       // 탭 전환 후 복귀 시 자동 갱신 (bfcache/탭 복원 대비)
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') this.refresh();

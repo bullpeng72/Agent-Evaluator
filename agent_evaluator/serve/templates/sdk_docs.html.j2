@@ -109,7 +109,8 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#cli-claims">claims</a>
   <a class="nav-item" href="#cli-dataset">dataset</a>
   <a class="nav-item" href="#cli-monitor">monitor</a>
-  <a class="nav-item" href="#cli-opencode">opencode</a>
+  <a class="nav-item" href="#cli-opencode">opencode · claude</a>
+  <a class="nav-item" href="#cli-loop">target · benchmark · experiment · improve</a>
   <a class="nav-item" href="#cli-trend">trend</a>
 
   <div class="nav-group">🎯 Decorators — Recommended Entry Points</div>
@@ -186,7 +187,9 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#harness-g" style="font-size:11px;color:var(--text2)">↳ ErrorDiagnosisConfig · LatencyAttributionConfig</a>
 
   <div class="nav-group">Real-Time Guardrail</div>
-  <a class="nav-item" href="#live-guardrail">LiveGuardrail <span class="tag">SPEC-019</span></a>
+  <a class="nav-item" href="#live-guardrail">LiveGuardrail · LiveVerdict</a>
+  <a class="nav-item" href="#tool-guard" style="font-size:11px;color:var(--text2)">↳ @tool_guard · live_guardrail_session()</a>
+  <a class="nav-item" href="#guardrail-configs" style="font-size:11px;color:var(--text2)">↳ TeamConcurrencyConfig · BranchGuardConfig</a>
 </nav>
 
 <div style="display:flex;flex-direction:column;overflow:hidden">
@@ -300,46 +303,53 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
 <!-- ── 설치 ── -->
 <section class="sec" id="install">
   <div class="sec-title">📦 Installation &amp; Dependencies</div>
-  <div class="sec-sub">Python 3.8+. <strong>The base install includes LLMJudge, dashboard, OTEL monitoring, and PDF</strong> (v0.7.8+). Only framework integrations require separate installation.</div>
+  <div class="sec-sub">Python 3.8+. <strong>The base install is small</strong> — numpy · pandas · python-dotenv · openai · anthropic. It already covers the 25 trackers, 33 Harness Configs, 7 Gates, LLMJudge, LiveGuardrail (Gate B/E logic), the RCA / insights engine, and the full <code>agent-eval</code> CLI. The <strong>dashboard, OTEL monitoring, PDF/Korean tooling, and the MCP servers are extras</strong> — <code>[sdk]</code> bundles the operational set.</div>
 
-  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">Base Install — Full SDK Included</div>
+  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">Base &amp; SDK bundle</div>
   <table class="mtable" style="margin-bottom:16px">
     <thead><tr><th>Extra</th><th>Install Command</th><th>Added Features</th><th>Key Dependencies</th><th>Install Speed</th></tr></thead>
     <tbody>
       <tr>
         <td><code class="t">Base</code></td>
         <td><code>pip install agent-evaluator</code></td>
-        <td>Layer 1+2 (25 metrics) · LLMJudge · FastAPI dashboard · OTEL monitoring · PDF processing · CLI (<code>agent-eval</code>) — full SDK</td>
-        <td>numpy · pandas · python-dotenv · openai · anthropic · fastapi · uvicorn · opentelemetry-sdk · arize-phoenix · pdfplumber</td>
-        <td>🔶 Medium (~40 packages)</td>
+        <td>Layer 1+2 (25 trackers) · 33 Harness Configs · 7 Gates · LLMJudge · LiveGuardrail · RCA / insights · CLI (<code>gate</code> · <code>diagnose</code> · <code>abtest</code> · <code>benchmark</code> · <code>claims</code> · <code>experiment</code> · <code>improve</code> · <code>target</code> · <code>trend</code> · <code>dataset</code>)</td>
+        <td>numpy · pandas · python-dotenv · openai · anthropic</td>
+        <td>⚡ Fast (~5 packages)</td>
       </tr>
       <tr>
-        <td><code class="t">llm</code></td>
-        <td><code>pip install "agent-evaluator[llm]"</code></td>
-        <td>⚠️ Included in base install — no separate installation needed</td>
-        <td>openai ≥1.0,&lt;3.0 · anthropic ≥0.20,&lt;1.0</td>
-        <td>—</td>
+        <td><code class="t">sdk</code></td>
+        <td><code>pip install "agent-evaluator[sdk]"</code></td>
+        <td><strong>Recommended for operations.</strong> Adds <code>agent-eval dashboard</code> (FastAPI) · <code>agent-eval monitor</code> (Phoenix + OTEL) · PDF + Korean RAG dataset generator · Korean tokenizer. = <code>llm + serve + otel + pdf + korean</code></td>
+        <td>+ fastapi · uvicorn · jinja2 · python-multipart · opentelemetry-sdk · arize-phoenix · pdfplumber · kiwipiepy</td>
+        <td>🔶 Medium (~30 packages)</td>
       </tr>
       <tr>
         <td><code class="t">serve</code></td>
         <td><code>pip install "agent-evaluator[serve]"</code></td>
-        <td>⚠️ Included in base install — no separate installation needed</td>
+        <td>Just the dashboard (<code>agent-eval dashboard</code> / <code>/sdk-docs</code>)</td>
         <td>fastapi · uvicorn · jinja2 · python-multipart</td>
-        <td>—</td>
+        <td>⚡ Fast (~8 packages)</td>
       </tr>
       <tr>
         <td><code class="t">otel</code></td>
         <td><code>pip install "agent-evaluator[otel]"</code></td>
-        <td>⚠️ Included in base install — no separate installation needed</td>
-        <td>opentelemetry-sdk · arize-phoenix</td>
-        <td>—</td>
+        <td>Just real-time tracing (<code>agent-eval monitor</code> — Phoenix + OTLP)</td>
+        <td>opentelemetry-sdk · opentelemetry-exporter-otlp-proto-http · arize-phoenix ≥15.4</td>
+        <td>🔶 Medium (~20 packages)</td>
       </tr>
       <tr>
-        <td><code class="t">pdf</code></td>
-        <td><code>pip install "agent-evaluator[pdf]"</code></td>
-        <td>⚠️ Included in base install — no separate installation needed</td>
-        <td>pdfplumber ≥0.10,&lt;1.0</td>
-        <td>—</td>
+        <td><code class="t">mcp</code></td>
+        <td><code>pip install "agent-evaluator[mcp]"</code></td>
+        <td>The stdio MCP servers used by the LiveGuardrail integrations: <code>search_violations</code> · <code>recommend_fix</code> · <code>ask_insights</code></td>
+        <td>mcp (fastmcp)</td>
+        <td>⚡ Fast (~1 package)</td>
+      </tr>
+      <tr>
+        <td><code class="t">pdf</code> / <code class="t">korean</code> / <code class="t">semantic</code></td>
+        <td><code>pip install "agent-evaluator[semantic]"</code></td>
+        <td>PDF parsing for the Korean RAG generator · <code>kiwipiepy</code> tokenizer (<code>use_korean_tokenizer=True</code>) · sentence-transformers for semantic hallucination (<code>use_semantic_hallucination=True</code>, ~500 MB)</td>
+        <td>pdfplumber · kiwipiepy · sentence-transformers</td>
+        <td>⚡ / ⚡ / 🔴</td>
       </tr>
     </tbody>
   </table>
@@ -400,18 +410,24 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
       <tr>
         <td><code class="t">examples</code></td>
         <td><code>pip install "agent-evaluator[examples]"</code></td>
-        <td>Base + eval — all Evaluator_Examples/ch01–ch31 chapters can be run</td>
+        <td>sdk + eval — every <code>Evaluator_Examples/ch01–ch31</code> chapter runs</td>
         <td>✅ Recommended for running examples</td>
       </tr>
       <tr>
         <td><code class="t">full</code></td>
         <td><code>pip install "agent-evaluator[full]"</code></td>
-        <td>Base + eval + langchain + dspy + pydanticai + crewai + autogen full set</td>
+        <td>sdk + eval + langchain + dspy + pydanticai + crewai + autogen</td>
         <td>⚠️ 10+ minutes. For full CI compatibility testing</td>
+      </tr>
+      <tr>
+        <td><code class="t">dev</code></td>
+        <td><code>pip install "agent-evaluator[dev]"</code></td>
+        <td>Everything + pytest / ruff / mypy — for contributing</td>
+        <td>🔴 Heavy</td>
       </tr>
     </tbody>
   </table>
-  <div class="note tip" style="margin-top:12px">💡 <strong>Recommended installation scenario</strong>: The base install alone enables 25 metrics + LLMJudge + dashboard + OTEL. LangChain/LangGraph → <code>[langchain]</code> · DeepEval/Ragas → <code>[eval]</code> · CrewAI only → <code>[crewai]</code> · AutoGen only → <code>[autogen]</code> (simultaneous crewai·autogen installation may cause pydantic version conflicts)</div>
+  <div class="note tip" style="margin-top:12px">💡 <strong>Recommended installation scenario</strong>: Library / CI use → base (<code>pip install agent-evaluator</code>). Running the dashboard or Phoenix monitoring → <code>[sdk]</code>. LangChain/LangGraph → <code>[langchain]</code> · DeepEval/Ragas → <code>[eval]</code> · LiveGuardrail MCP servers → <code>[mcp]</code> · CrewAI only → <code>[crewai]</code> · AutoGen only → <code>[autogen]</code> (installing crewai + autogen together may cause pydantic version conflicts).</div>
 </section>
 
 <!-- ── CLI Commands ── -->
@@ -503,18 +519,16 @@ agent-eval claims audit --ttl-hours 8</pre>
   </div>
 
   <div class="cls-card" id="cli-dataset" style="margin-top:12px">
-    <div class="cls-head"><span class="cls-name">agent-eval dataset build</span><span class="kind fn">CLI</span><span class="cls-src">cli/dataset.py</span></div>
+    <div class="cls-head"><span class="cls-name">agent-eval dataset</span><span class="kind fn">CLI</span><span class="cls-src">cli/dataset.py</span></div>
     <div class="cls-body">
-      <div class="cls-desc">Auto-extracts golden dataset candidates from production result JSON files. For Phoenix dataset upload, use <code>agent-eval monitor --sync-datasets</code> instead.</div>
-      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
-        <tr><td><span class="p">--source DIR</span></td><td>Results JSON directory (default: <code>./results</code>)</td></tr>
-        <tr><td><span class="p">--output DIR</span></td><td>Golden set output directory (default: <code>&lt;source&gt;/golden_datasets/</code>)</td></tr>
-        <tr><td><span class="p">--strategy STRATEGY...</span></td><td><code>failure_cases</code> (failed tasks) · <code>edge_cases</code> (outliers) — default both. Also: <code>high_value</code> (high positive feedback) · <code>coverage_gap</code> (uncovered task types)</td></tr>
-        <tr><td><span class="p">--max-cases N</span></td><td>Maximum cases to extract (default: 50)</td></tr>
-        <tr><td><span class="p">--no-review</span></td><td>Save immediately without a human-review flag (default: flags candidates as needing review)</td></tr>
-        <tr><td><span class="p">--name FILENAME</span></td><td>Output filename (default: <code>candidates_YYYYMMDD_HHMMSS.json</code>)</td></tr>
+      <div class="cls-desc">Golden dataset lifecycle. For Phoenix dataset upload, use <code>agent-eval monitor --sync-datasets</code> instead.</div>
+      <table class="mtable"><thead><tr><th>Subcommand</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">build</span></td><td>Auto-extract golden candidates from result JSON files. <code>--source DIR</code> · <code>--output DIR</code> · <code>--strategy failure_cases edge_cases high_value coverage_gap</code> (default: failure_cases + edge_cases) · <code>--max-cases N</code> (default 50) · <code>--no-review</code> · <code>--name FILE</code></td></tr>
+        <tr><td><span class="p">promote result.json</span></td><td>Turn the tasks in the result's <code>insights.review_queue</code> (HITL queue) into golden regression cases. <code>--min-priority high</code></td></tr>
+        <tr><td><span class="p">health golden.json --against v3.json</span></td><td>Golden-set coverage vs. current failure modes + stale / duplicate cases. <code>uncovered_failure_modes</code> = blind spots</td></tr>
       </tbody></table>
-<pre>agent-eval dataset build --source results/ --strategy failure_cases high_value --max-cases 30</pre>
+<pre>agent-eval dataset build --source results/ --strategy failure_cases high_value --max-cases 30
+agent-eval dataset health golden.json --against v3.json</pre>
     </div>
   </div>
 
@@ -537,16 +551,39 @@ agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'</pre>
   </div>
 
   <div class="cls-card" id="cli-opencode" style="margin-top:12px">
-    <div class="cls-head"><span class="cls-name">agent-eval opencode install</span><span class="kind fn">CLI</span><span class="cls-src">cli/opencode.py</span></div>
+    <div class="cls-head"><span class="cls-name">agent-eval opencode</span> / <span class="cls-name">agent-eval claude</span><span class="kind fn">CLI</span><span class="cls-src">cli/opencode.py · cli/claude.py</span></div>
     <div class="cls-body">
-      <div class="cls-desc">Installs the bundled LiveGuardrail OpenCode plugin (a thin Node/Bun stdio client — Gate B/E judgment logic always stays in Python LiveGuardrail) into the location OpenCode auto-loads plugins from.</div>
-      <table class="mtable"><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
-        <tr><td><span class="p">--global</span></td><td>Install to <code>~/.config/opencode/plugin/</code> (all projects) instead of project-local <code>.opencode/plugin/</code> (default)</td></tr>
-        <tr><td><span class="p">--force</span></td><td>Overwrite an existing installed plugin file</td></tr>
-        <tr><td><span class="p">--with-violation-search</span></td><td>Also register the <code>search_violations</code> MCP server via <code>opencode mcp add</code> (requires <code>pip install "agent-evaluator[mcp]"</code>)</td></tr>
-        <tr><td><span class="p">--with-recommend-fix</span></td><td>Also register the <code>recommend_fix</code> MCP server — static Gate/metric remediation lookup, no result file required (requires the <code>mcp</code> extra)</td></tr>
+      <div class="cls-desc">Install / manage the LiveGuardrail integration for OpenCode (a thin Node/Bun stdio-client plugin) or Claude Code (PreToolUse/PostToolUse/SessionEnd hooks). Gate B/E judgment logic always stays in Python <code>LiveGuardrail</code>; the plugin/hook is just the bridge. Both tools expose the same four subcommands.</div>
+      <table class="mtable"><thead><tr><th>Subcommand</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">install</span></td><td>Copy the plugin/hook into the location the tool auto-loads from</td></tr>
+        <tr><td><span class="p">upgrade</span></td><td>Re-copy the plugin <code>.ts</code> / refresh hooks after a package update, keeping your <code>*.config.json</code> edits (deep-merges only new keys)</td></tr>
+        <tr><td><span class="p">doctor</span></td><td>Verify the install: plugin/hook freshness + a live Python stdio round-trip (<code>--json</code> / <code>--no-live</code> / <code>--strict</code>)</td></tr>
+        <tr><td><span class="p">uninstall</span></td><td>Remove the plugin/hook + MCP entries + session state. Run <strong>before</strong> <code>pip uninstall</code> (<code>--purge</code> / <code>--dry-run</code> / <code>--yes</code>)</td></tr>
       </tbody></table>
-<pre>agent-eval opencode install --with-violation-search --with-recommend-fix</pre>
+      <table class="mtable" style="margin-top:8px"><thead><tr><th>install Option</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">--global</span></td><td>Install for all projects (<code>~/.config/opencode/plugin/</code> or <code>~/.claude/</code>) instead of project-local (default)</td></tr>
+        <tr><td><span class="p">--force</span></td><td>Overwrite an existing installed plugin/hook file</td></tr>
+        <tr><td><span class="p">--with-violation-search</span></td><td>Also register the <code>search_violations</code> stdio MCP server (requires <code>pip install "agent-evaluator[mcp]"</code>)</td></tr>
+        <tr><td><span class="p">--with-recommend-fix</span></td><td>Also register the <code>recommend_fix</code> MCP server — static Gate/metric remediation lookup, no result file needed</td></tr>
+        <tr><td><span class="p">--with-ask-insights</span></td><td>Also register the <code>ask_insights</code> MCP server — query a result JSON's insight layer</td></tr>
+      </tbody></table>
+<pre>agent-eval claude install --with-violation-search --with-ask-insights
+agent-eval opencode doctor --strict</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" id="cli-loop" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">agent-eval target · benchmark · experiment · improve</span><span class="kind fn">CLI</span><span class="cls-src">cli/targets.py · benchmark.py · experiment.py · improve.py</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">The SLO / reference-frame / closed-improvement-loop commands. State lives under <code>.aoo/</code> (<code>targets.json</code>, <code>reference.json</code>, <code>experiments.jsonl</code>, <code>improve/</code>, <code>recommendation_outcomes.jsonl</code>).</div>
+      <table class="mtable"><thead><tr><th>Command</th><th>Description</th></tr></thead><tbody>
+        <tr><td><span class="p">target set / show</span></td><td>Pin project SLOs (<code>--gate A=0.85 --tcr 90</code>) to <code>.aoo/targets.json</code>. Once set, <code>agent-eval gate</code> auto-loads them and every "below target" line in the report/insights measures against your bar, not <code>0.7</code></td></tr>
+        <tr><td><span class="p">benchmark set / show</span></td><td>Pin an external reference distribution (<code>--tcr 78 --gate A=0.75</code>, or <code>--from-results results/</code>) to <code>.aoo/reference.json</code>. <code>insights.reference_frame</code> then reports the run's percentile + gap to the frontier</td></tr>
+        <tr><td><span class="p">experiment register / list / score</span></td><td>Register a hypothesis (<code>--gate A --field avg_subtask_completion --predict-delta 0.08</code>), then <code>score v3.json --baseline v2.json --persist</code> to write verdicts back</td></tr>
+        <tr><td><span class="p">improve plan / start / verify / patch</span></td><td>Closed loop: per-gate proposals → register each as an experiment + write stubs → score predicted-vs-actual and resolve → emit a unified diff per proposal (never auto-applies)</td></tr>
+      </tbody></table>
+<pre>agent-eval target set --gate A=0.85 --gate E=0.95 --tcr 90
+agent-eval improve plan v3.json --baseline v2.json</pre>
     </div>
   </div>
 
@@ -1046,11 +1083,11 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
           <tr><td><span class="p">enable_transparency</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Activates TestTransparencyManager</td></tr>
           <tr><td><span class="p">gate_a_tcr_weight</span> / <span class="p">gate_c_tcr_weight</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.4</code></td><td>Relative weight of the TCR component vs. remaining Config metrics in Gate A/C scoring (0.0–1.0)</td></tr>
           <tr><td><span class="p">gate_b_loop_weight</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.0</code></td><td>Loop-detection weight in Gate B (<code>0.0</code> = simple average of available metrics)</td></tr>
-          <tr><td><span class="p">min_samples_default</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>3</code></td><td>SPEC-002 — shared minimum-sample-size guard threshold across all Gates A–G</td></tr>
-          <tr><td><span class="p">retention_mode</span><span class="opt">opt</span></td><td><span class="t">"full"|"windowed"</span></td><td><code>"full"</code></td><td>SPEC-004 — <code>"windowed"</code> caps <code>self.tasks</code> to <code>window_size</code> while still reflecting full history for Gate running aggregates (SPEC-018)</td></tr>
+          <tr><td><span class="p">min_samples_default</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>3</code></td><td>Shared minimum-sample-size guard threshold across all Gates A–G</td></tr>
+          <tr><td><span class="p">retention_mode</span><span class="opt">opt</span></td><td><span class="t">"full"|"windowed"</span></td><td><code>"full"</code></td><td><code>"windowed"</code> caps <code>self.tasks</code> to <code>window_size</code> while still reflecting full history for Gate running aggregates</td></tr>
           <tr><td><span class="p">window_size</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>10000</code></td><td>Task window size when <code>retention_mode="windowed"</code></td></tr>
-          <tr><td><span class="p">storage_backend</span><span class="opt">opt</span></td><td><span class="t">"json"|"sqlite"</span></td><td><code>"json"</code></td><td>SPEC-016 — <code>"sqlite"</code> upserts by <code>task_id</code> instead of rewriting the whole file on every <code>save_to_file()</code></td></tr>
-          <tr><td><span class="p">enable_pii_redaction</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>SPEC-020 — masks PII in <code>question</code>/<code>response</code>/<code>context</code>/<code>ground_truth</code> at <code>save_to_file()</code> time only (in-memory data untouched)</td></tr>
+          <tr><td><span class="p">storage_backend</span><span class="opt">opt</span></td><td><span class="t">"json"|"sqlite"</span></td><td><code>"json"</code></td><td><code>"sqlite"</code> upserts by <code>task_id</code> instead of rewriting the whole file on every <code>save_to_file()</code></td></tr>
+          <tr><td><span class="p">enable_pii_redaction</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Masks PII in <code>question</code>/<code>response</code>/<code>context</code>/<code>ground_truth</code> at <code>save_to_file()</code> time only (in-memory data untouched)</td></tr>
           <tr><td><span class="p">pii_redaction_categories</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><code>None</code></td><td>Restrict PII redaction to specific categories (default: all supported categories)</td></tr>
       {% endcall %}
       <div class="slbl">Key Methods</div>
@@ -1058,14 +1095,14 @@ chat_agent(<span class="st">"Where do I start?"</span>, session_id=<span class="
         <thead><tr><th>Method Signature</th><th>Return</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">PerformanceMonitor</span></td><td>Records TaskResult to all active trackers. Returns <code>self</code> for method chaining.</td></tr>
-          <tr><td><span class="p">generate_report(force_recompute=False)</span></td><td><span class="r">EvaluationReport</span></td><td>Aggregates collected data and returns an EvaluationReport object. SPEC-014 — cached and skipped when nothing new has been recorded, unless <code>force_recompute=True</code>.</td></tr>
+          <tr><td><span class="p">generate_report(force_recompute=False)</span></td><td><span class="r">EvaluationReport</span></td><td>Aggregates collected data and returns an EvaluationReport object. Cached and skipped when nothing new has been recorded, unless <code>force_recompute=True</code>.</td></tr>
           <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">str</span></td><td>Saves <code>{output_dir}/{filename}.json</code> + <code>.html</code> (or <code>.db</code> when <code>storage_backend="sqlite"</code>). Returns the saved path. Automatically includes anomaly_data when <code>enable_anomaly_detection=True</code>.</td></tr>
           <tr><td><span class="p">conversation(session_id, task_type="qa")</span></td><td><span class="r">ConversationSession</span></td><td>Multi-turn conversation evaluation context manager. <code>with monitor.conversation("id") as conv: conv.turn(user=..., agent=...)</code></td></tr>
           <tr><td><span class="p">record_implicit_feedback(task_id, event_type, value=None)</span></td><td><span class="r">None</span></td><td>Records user reaction signals (like/copy/retry/share) → stored in feedback_data</td></tr>
           <tr><td><span class="p">evaluate_with_golden_dataset(agent_fn, dataset_path=None, ...)</span></td><td><span class="r">Dict</span></td><td>Auto-evaluates agent with golden dataset</td></tr>
           <tr><td><span class="p">compare_with_thresholds()</span></td><td><span class="r">Dict</span></td><td>Compares current metrics with industry thresholds</td></tr>
           <tr><td><span class="p">reset(keep_config=True)</span></td><td><span class="r">PerformanceMonitor</span></td><td>Clears all accumulated tracker data (thread-safe). Returns <code>self</code>. <code>keep_config=True</code> preserves constructor settings (pricing, judge config, etc.) while clearing recorded tasks.</td></tr>
-          <tr><td><span class="p">invalidate_report_cache()</span></td><td><span class="r">None</span></td><td>SPEC-014 — manually marks the cached report stale. Required after any in-place <code>TaskResult</code> mutation that bypasses <code>record_task()</code>.</td></tr>
+          <tr><td><span class="p">invalidate_report_cache()</span></td><td><span class="r">None</span></td><td>Manually marks the cached report stale. Required after any in-place <code>TaskResult</code> mutation that bypasses <code>record_task()</code>.</td></tr>
           <tr><td><span class="p">for_rag_evaluation(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. Automatically applies optimal RAG evaluation settings (<code>enable_hallucination_detection=True</code>).</td></tr>
           <tr><td><span class="p">for_secure_agents(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. Automatically applies optimal security evaluation settings (<code>enable_security_metrics=True</code>).</td></tr>
         </tbody>
@@ -1651,12 +1688,12 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
         <tr><td><span class="p">budget_per_day</span></td><td><span class="t">float|None</span></td><td><span class="r">None</span></td><td>Daily budget cap (USD). Judge skipped when exceeded.</td></tr>
         <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><span class="r">None</span></td><td>G-Eval custom evaluation criteria. E.g., <code>["medical_accuracy", "empathy"]</code> → <code>criteria_scores</code> auto-added (DeepEval G-Eval replacement)</td></tr>
         <tr><td><span class="p">escalation_model</span> / <span class="p">escalation_threshold</span><span class="opt">opt</span></td><td><span class="t">str|None / float</span></td><td><span class="r">None / 2.5</span></td><td>v0.8.3+ — auto re-scores with <code>escalation_model</code> when the primary <code>overall</code> score falls below <code>escalation_threshold</code> (0–5 scale)</td></tr>
-        <tr><td><span class="p">max_concurrent_judge_calls</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">5</span></td><td>SPEC-006 — <code>asyncio.Semaphore</code> bound on concurrent <code>ajudge()</code> calls</td></tr>
-        <tr><td><span class="p">max_retries</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">3</span></td><td>SPEC-006 — exponential backoff (1s/2s/4s...) retries on provider 429 rate-limit errors</td></tr>
+        <tr><td><span class="p">max_concurrent_judge_calls</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">5</span></td><td><code>asyncio.Semaphore</code> bound on concurrent <code>ajudge()</code> calls</td></tr>
+        <tr><td><span class="p">max_retries</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><span class="r">3</span></td><td>Exponential backoff (1s/2s/4s...) retries on provider 429 rate-limit errors</td></tr>
       </tbody></table>
       <table class="mtable" style="margin-top:12px"><thead><tr><th>Method</th><th>Return Type</th><th>Description</th></tr></thead><tbody>
         <tr><td><span class="p">judge(task_id, question, response, context=None)</span></td><td><span class="t">dict</span></td><td>Single evaluation. <strong>Base keys</strong>: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>toxicity</code>·<code>bias</code>·<code>overall</code>·<code>safety_score</code>. <strong>Conditional</strong>: <code>faithfulness</code> (when rag_mode), <code>criteria_scores</code>·<code>criteria_overall</code> (when judge_criteria set)</td></tr>
-        <tr><td><span class="p">ajudge(task_id, question, response, context=None)</span></td><td><span class="t">Awaitable[dict]</span></td><td>SPEC-006 — async counterpart of <code>judge()</code>, bounded by <code>max_concurrent_judge_calls</code>. Used automatically by <code>@agent_eval</code>'s async wrapper and by <code>batch_eval(..., concurrent_judge=True)</code>.</td></tr>
+        <tr><td><span class="p">ajudge(task_id, question, response, context=None)</span></td><td><span class="t">Awaitable[dict]</span></td><td>Async counterpart of <code>judge()</code>, bounded by <code>max_concurrent_judge_calls</code>. Used automatically by <code>@agent_eval</code>'s async wrapper and by <code>batch_eval(..., concurrent_judge=True)</code>.</td></tr>
         <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>Cumulative stats (call count, avg score, total cost). Dynamically includes faithfulness·criteria_scores based on results.</td></tr>
       </tbody></table>
 <pre><span class="cm"># Default 5-dimension scoring (completeness·relevance·factual_consistency·toxicity·bias)</span>
@@ -1767,7 +1804,7 @@ chat_agent(<span class="st">"What's the difference with asyncio.wait?"</span>, s
         <tr><td><span class="p">--baseline PATH / --save-baseline</span></td><td>Baseline file path (default <code>&lt;result_dir&gt;/baseline.json</code>) / save current results as baseline</td><td></td></tr>
         <tr><td><span class="p">--baseline-version VERSION</span></td><td>Per-version independent baseline — resolves to <code>&lt;result_dir&gt;/baseline-VERSION.json</code> instead of the shared <code>baseline.json</code></td><td></td></tr>
         <tr><td><span class="p">--junit-xml PATH</span></td><td>Output JUnit XML report (CI integration)</td><td></td></tr>
-        <tr><td><span class="p">--min-gate-score SCORE</span></td><td>SPEC-010 — Harness Gate A–G composite score lower bound (0.0–1.0); fails if the weighted group average falls below it</td><td></td></tr>
+        <tr><td><span class="p">--min-gate-score SCORE</span></td><td>Harness Gate A–G composite score lower bound (0.0–1.0); fails if the weighted group average falls below it</td><td></td></tr>
         <tr><td><span class="p">--group-weights WEIGHTS</span></td><td>Per-gate weights for <code>--min-gate-score</code>. Format: <code>'A:2.0,B:1.5,E:3.0'</code> (default all 1.0)</td><td></td></tr>
         <tr><td><span class="p">--gate-thresholds THRESHOLDS</span></td><td>Per-gate minimum score thresholds. Format: <code>'A:0.8,D:0.9,E:0.95'</code> (unlisted gates fall back to <code>--min-gate-score</code>)</td><td></td></tr>
         <tr><td><span class="p">--required-gates GATES</span></td><td>Comma-separated Gates to check, e.g. <code>'A,D,E'</code> (default: all Gates with data)</td><td></td></tr>
@@ -1793,7 +1830,7 @@ agent-eval gate results/ci_run.json --golden-set data/golden_datasets/golden_1.j
 <!-- ── AnomalyDetector ── -->
 <section class="sec" id="anomaly">
   <div class="sec-title">📡 AnomalyDetector</div>
-  <div class="sec-sub">Detects anomaly patterns in evaluation metrics using Z-score, IQR, linear regression, and ratio algorithms. Auto-runs on save_to_file() when <code>PerformanceMonitor(enable_anomaly_detection=True)</code>.</div>
+  <div class="sec-sub">Runs 6 checks over evaluation metrics using Z-score, IQR, linear-regression, ratio, and frequency algorithms. Auto-runs on save_to_file() when <code>PerformanceMonitor(enable_anomaly_detection=True)</code>.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">AnomalyDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.anomaly.detector</span></div>
     <div class="cls-body">
@@ -1809,13 +1846,14 @@ agent-eval gate results/ci_run.json --golden-set data/golden_datasets/golden_1.j
       </table>
       <div class="slbl">AnomalyEvent Fields</div>
       <div class="ret-box">
-        <span class="rk">type</span><span class="rv">: str — "accuracy_drift" | "token_spike" | "error_surge" | "security_pattern"</span><br>
+        <span class="rk">type</span><span class="rv">: str — "latency_trend" | "accuracy_drift" | "token_spike" | "error_surge" | "security_pattern" | "feedback_negativity"</span><br>
         <span class="rk">severity</span><span class="rv">: str — "critical" | "warning"</span><br>
         <span class="rk">detail</span><span class="rv">: str — Detailed description (e.g. "Accuracy drifted -96.4% from baseline (z-score=4.57)")</span><br>
         <span class="rk">value</span><span class="rv">: float — Current measured value</span><br>
         <span class="rk">threshold</span><span class="rv">: float — Reference threshold</span><br>
         <span class="rk">algorithm</span><span class="rv">: str — "z-score" | "iqr" | "linear_regression" | "ratio" | "frequency"</span><br>
-        <span class="rk">detected_at</span><span class="rv">: str — ISO-8601 detection timestamp</span>
+        <span class="rk">detected_at</span><span class="rv">: str — ISO-8601 detection timestamp</span><br>
+        <span class="rv" style="color:var(--text2)">to_dict() also adds <code>event_id</code> (stable hash) and <code>metric</code> (= type)</span>
       </div>
 <pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
 
@@ -2177,7 +2215,7 @@ dataset_id = builder.<span class="fn">push_to_phoenix</span>(
 
 <!-- ── LiveGuardrail ── -->
 <section class="sec" id="live-guardrail">
-  <div class="sec-title">🛡️ LiveGuardrail <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">SPEC-019 · Real-Time Guardrail</span></div>
+  <div class="sec-title">🛡️ LiveGuardrail <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">Real-Time Guardrail</span></div>
   <div class="sec-sub">Every Gate above scores a session <em>after</em> it finishes. <code>LiveGuardrail</code> checks a single tool call <em>before</em> it executes and can block it — reusing the exact same Gate B (Behavioral Integrity) and Gate E (Security Boundary) evaluators that power batch scoring, just invoked synchronously per tool call instead of per session. No new detection logic.</div>
 
   <div class="cls-card">
@@ -2199,45 +2237,111 @@ dataset_id = builder.<span class="fn">push_to_phoenix</span>(
   <div class="cls-card" style="margin-top:12px">
     <div class="cls-head"><span class="cls-name">LiveGuardrail</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.gates.live_guardrail</span></div>
     <div class="cls-body">
-      <div class="cls-desc">One instance per session (agent loop run) — internal state (<code>_tool_calls</code>) is not lock-protected, so sharing one instance across concurrent sessions is unsafe. All constructor parameters are optional; only pass the Gate B Configs / Gate E trackers you want active.</div>
-      <div class="slbl">Constructor Parameters</div>
+      <div class="cls-desc">One instance per session (agent loop run) — internal state (<code>_tool_calls</code>) is not lock-protected, so sharing one instance across concurrent sessions is unsafe. All constructor parameters are optional; only pass the Gate B Configs / Gate E trackers you want active. Every internal exception <strong>fails open</strong> (never blocks a call because of a guardrail bug).</div>
+      <div class="slbl">Constructor Parameters — detectors</div>
       {% call param_table() %}
           <tr><td><span class="p">loop_detection</span><span class="opt">opt</span></td><td><span class="t">LoopDetectionConfig</span></td><td><code>None</code></td><td>Gate B — same config class as <code>@agent_eval(loop_detection=...)</code></td></tr>
           <tr><td><span class="p">deadlock</span><span class="opt">opt</span></td><td><span class="t">DeadlockConfig</span></td><td><code>None</code></td><td>Gate B — circular delegation detection</td></tr>
-          <tr><td><span class="p">scope</span><span class="opt">opt</span></td><td><span class="t">ScopeConfig</span></td><td><code>None</code></td><td>Gate B — allowed/forbidden tool lists</td></tr>
-          <tr><td><span class="p">tool_parameter_safety</span><span class="opt">opt</span></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>None</code></td><td>Gate B — dangerous argument pattern matching</td></tr>
-          <tr><td><span class="p">tool_authorization</span><span class="opt">opt</span></td><td><span class="t">ToolAuthorizationTracker</span></td><td><code>None</code></td><td>Gate E — pass a tracker <em>instance</em>, not a Config (this one is stateful)</td></tr>
+          <tr><td><span class="p">scope</span><span class="opt">opt</span></td><td><span class="t">ScopeConfig</span></td><td><code>None</code></td><td>Gate B — allowed/forbidden tool lists (matching is case-insensitive)</td></tr>
+          <tr><td><span class="p">tool_parameter_safety</span><span class="opt">opt</span></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>None</code></td><td>Gate B — dangerous argument pattern matching (also decodes base64/hex payloads)</td></tr>
+          <tr><td><span class="p">tool_authorization</span><span class="opt">opt</span></td><td><span class="t">ToolAuthorizationTracker</span></td><td><code>None</code></td><td>Gate E — pass a tracker <em>instance</em>, not a Config (this one is stateful). Has a non-customizable hard-coded backstop (<code>rm -rf</code>, <code>sudo</code>, <code>eval(</code>, <code>DROP TABLE</code> …) that scans every argument</td></tr>
           <tr><td><span class="p">privilege_escalation</span><span class="opt">opt</span></td><td><span class="t">PrivilegeEscalationDetector</span></td><td><code>None</code></td><td>Gate E — pass a tracker instance</td></tr>
           <tr><td><span class="p">tool_chain_attack</span><span class="opt">opt</span></td><td><span class="t">ToolChainAttackDetector</span></td><td><code>None</code></td><td>Gate E — pass a tracker instance</td></tr>
+          <tr><td><span class="p">team_concurrency</span><span class="opt">opt</span></td><td><span class="t">TeamConcurrencyConfig</span></td><td><code>None</code></td><td>Block a write into a path another developer has an active <code>.aoo/claims.jsonl</code> scope claim on. Claims + shared-file list are read <strong>once</strong> at construction (call <code>refresh_team_claims()</code> to reload)</td></tr>
+          <tr><td><span class="p">branch_guard</span><span class="opt">opt</span></td><td><span class="t">BranchGuardConfig</span></td><td><code>None</code></td><td>Block a direct <code>git commit</code>/<code>git push</code> on a protected branch (default <code>main</code>/<code>master</code>). Re-checks the current branch just before a git mutation unless <code>recheck_branch=False</code></td></tr>
+      {% endcall %}
+      <div class="slbl">Constructor Parameters — real-time tuning knobs</div>
+      <div class="cls-desc" style="margin-bottom:6px">These affect only the live <code>check_before_tool_call()</code> path — the batch <code>snapshot()</code> still sees full history and full scans, so a live "allow" and the final report stay consistent.</div>
+      {% call param_table() %}
+          <tr><td><span class="p">live_loop_window</span><span class="opt">opt</span></td><td><span class="t">int | None</span></td><td><code>15</code></td><td>Trailing window of recent calls the live loop check looks at. Prevents one early repeat from latching the guardrail closed for the rest of the session. <code>None</code> = whole session (old behavior)</td></tr>
+          <tr><td><span class="p">live_loop_blocking_types</span><span class="opt">opt</span></td><td><span class="t">tuple[str, ...]</span></td><td><code>("consecutive_repeat",)</code></td><td>Which loop types actually <em>block</em> when <code>on_loop_detected="fail"</code>. <code>"window_duplicate"</code> / <code>"response_similarity"</code> are recorded to <code>snapshot()</code> only unless added here</td></tr>
+          <tr><td><span class="p">lenient_shell_file_write</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>True</code></td><td>A pure file write via shell (<code>cat/tee/echo/printf</code> redirect or heredoc, no <code>;</code> <code>&amp;&amp;</code> <code>|</code> <code>$(…)</code> backticks) is treated like <code>Write</code>/<code>Edit</code> — dangerous strings in the file <em>content</em> don't block. Set <code>False</code> to scan heredoc bodies too</td></tr>
+          <tr><td><span class="p">protected_write_paths</span><span class="opt">opt</span></td><td><span class="t">tuple[str, ...] | None</span></td><td><em>ssh/aws/gnupg keys · shell rc · cron · /etc · systemd …</em></td><td>Regex list — a write whose <em>target path</em> matches is blocked (Gate E) regardless of content. <code>None</code>/<code>()</code> disables the check</td></tr>
+          <tr><td><span class="p">auth_scan_skip_keys</span><span class="opt">opt</span></td><td><span class="t">tuple[str, ...]</span></td><td><em>content · old_string/new_string · patch · diff · todos …</em></td><td>Parameter keys carrying <em>file content / patch text</em> are excluded from the hard-coded auth backstop scan, so writing a README that documents <code>sudo apt install</code> isn't blocked. <code>()</code> restores the old full scan</td></tr>
+          <tr><td><span class="p">max_tool_output_chars</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>2000</code></td><td>Truncation length for <code>record_tool_call(output={"stdout": …, "stderr": …})</code></td></tr>
       {% endcall %}
       <div class="slbl">Key Methods</div>
       <table class="mtable">
         <thead><tr><th>Method Signature</th><th>Return</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><span class="p">check_before_tool_call(task_id, tool_name, parameters=None)</span></td><td><span class="r">LiveVerdict</span></td><td>Pure query — does <strong>not</strong> mutate internal state. Evaluates the candidate call against existing history plus this one call.</td></tr>
-          <tr><td><span class="p">record_tool_call(task_id, tool_name, parameters=None)</span></td><td><span class="r">None</span></td><td>Confirms a call that actually executed. Only call this after a <code>block=False</code> verdict — blocked calls must not be recorded.</td></tr>
-          <tr><td><span class="p">snapshot()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Gate B/E evaluation results for all confirmed calls so far, keyed the same way as <code>TaskResult.extra</code> (<code>loop_detection</code>, <code>scope</code>, <code>tool_authorization</code>, etc.). Side-effect free — safe to call repeatedly.</td></tr>
-          <tr><td><span class="p">to_task_extra()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Alias of <code>snapshot()</code>, named for its intended use: assign directly to <code>TaskResult(extra=...)</code> to feed a session's final verdict into the normal batch report.</td></tr>
+          <tr><td><span class="p">check_before_tool_call(task_id, tool_name, parameters=None)</span></td><td><span class="r">LiveVerdict</span></td><td>Pure query — does <strong>not</strong> mutate internal state, and never records a blocked attempt. Evaluates the candidate call against existing history plus this one call.</td></tr>
+          <tr><td><span class="p">record_tool_call(task_id, tool_name, parameters=None, output=None)</span></td><td><span class="r">None</span></td><td>Confirms a call that actually executed. Call only after a <code>block=False</code> verdict. <code>output</code> is a dict with any of <code>success</code> (bool) · <code>exit_code</code> (int) · <code>stdout</code> · <code>stderr</code> — <code>success</code> feeds Gate G's tool success rate.</td></tr>
+          <tr><td><span class="p">record_blocked_attempt(task_id, tool_name, verdict)</span></td><td><span class="r">None</span></td><td>Opt-in audit log of a fully-blocked attempt, kept separate from the Gate B/E scoring history. <code>verdict</code> must have <code>block=True</code> (raises <code>ValueError</code> otherwise).</td></tr>
+          <tr><td><span class="p">refresh_team_claims()</span></td><td><span class="r">None</span></td><td>Reload the <code>team_concurrency</code> claims + shared-file cache (constructor reads them once).</td></tr>
+          <tr><td><span class="p">snapshot()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Gate B/E evaluation results for all confirmed calls so far, keyed the same way as <code>TaskResult.extra</code> (<code>loop_detection</code>, <code>scope</code>, <code>tool_authorization</code>, …). Side-effect free — safe to call repeatedly.</td></tr>
+          <tr><td><span class="p">to_task_extra()</span></td><td><span class="r">Dict[str, Any]</span></td><td>Alias of <code>snapshot()</code>, named for its intended use: assign to <code>TaskResult(extra=...)</code> to feed a session's final verdict into the normal batch report.</td></tr>
         </tbody>
       </table>
-<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.gates.live_guardrail</span> <span class="kw">import</span> LiveGuardrail
+      <div class="note tip" style="margin-top:10px">🔑 <strong>Loop verdict keying</strong>: the live loop check keys on <em>(tool name + SHA-1 of sorted args)</em>, so a varied <code>bash</code> → <code>bash</code> → <code>bash</code> sequence with different commands is not a loop.</div>
+      <div class="note tip" style="margin-top:12px">💡 <strong>Reference integration</strong>: <code>opencode-plugin/</code> (repo root) wires <code>LiveGuardrail</code> into <a href="https://opencode.ai" target="_blank">OpenCode</a>'s <code>tool.execute.before</code>/<code>after</code> hooks via a Python subprocess bridge (<code>agent_evaluator.integrations.live_guardrail_stdio</code> / <code>live_guardrail_report</code>) — live-tested against a real local Ollama session, but shipped as a prototype reference, not part of the pip package. Install it with <code>agent-eval opencode install</code> (or <code>agent-eval claude install</code> for the Claude Code hook).</div>
+    </div>
+  </div>
+
+  <div class="cls-card" style="margin-top:12px" id="tool-guard">
+    <div class="cls-head"><span class="cls-name">@tool_guard</span> · <span class="cls-name">live_guardrail_session()</span><span class="kind fn">decorator + context manager</span><span class="cls-src">agent_evaluator.gates.live_guardrail</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">Non-invasive wrapper so you don't hand-write <code>check_before_tool_call()</code> / <code>record_tool_call()</code> at every call site. Decorate each tool function with <code>@tool_guard</code>, then run the agent loop inside a <code>live_guardrail_session()</code> block — the decorated calls are checked before and recorded after automatically. Works on sync and <code>async def</code> tools. No new detection logic; a pure application layer over <code>LiveGuardrail</code>.</div>
+      <div class="slbl"><code>tool_guard(tool_name=None, *, audit_blocked=False, fail_closed=False, capture_output=None)</code></div>
+      {% call param_table() %}
+          <tr><td><span class="p">tool_name</span><span class="opt">opt</span></td><td><span class="t">str | None</span></td><td><code>None</code></td><td>Name passed to the guardrail. Defaults to the wrapped function's <code>__name__</code></td></tr>
+          <tr><td><span class="p">audit_blocked</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Also call <code>record_blocked_attempt()</code> when a call is blocked</td></tr>
+          <tr><td><span class="p">fail_closed</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>If no <code>live_guardrail_session()</code> is active: <code>True</code> raises <code>RuntimeError</code>; <code>False</code> emits a <code>RuntimeWarning</code> and runs the tool unguarded (kept fail-open for tests/REPLs — set <code>True</code> in production)</td></tr>
+          <tr><td><span class="p">capture_output</span><span class="opt">opt</span></td><td><span class="t">Callable[[Any], dict]</span></td><td><code>None</code></td><td>Maps the tool's return value to <code>{"success":…, "exit_code":…, "stdout":…, "stderr":…}</code> for <code>record_tool_call(output=…)</code>. Omitted → no output inferred. A raised exception is always recorded as <code>success=False</code></td></tr>
+      {% endcall %}
+      <table class="mtable">
+        <thead><tr><th>Symbol</th><th>Kind</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">live_guardrail_session(guardrail, task_id)</span></td><td><span class="r">context manager</span></td><td>Binds the guardrail + task_id (via <code>contextvars</code>, so concurrent <code>asyncio</code> tasks stay isolated) for every <code>@tool_guard</code> call inside the <code>with</code> block. Enter once per session.</td></tr>
+          <tr><td><span class="p">GuardrailBlockedError</span></td><td><span class="r">exception</span></td><td>Raised out of a <code>@tool_guard</code> call when blocked. <code>.verdict</code> holds the <code>LiveVerdict</code> (<code>.gate</code> / <code>.reason</code> / <code>.detail</code>).</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.gates.live_guardrail</span> <span class="kw">import</span> (
+    LiveGuardrail, tool_guard, live_guardrail_session, GuardrailBlockedError,
+)
 <span class="kw">from</span> <span class="cn">agent_evaluator.gates.gate_b_behavioral.configs</span> <span class="kw">import</span> LoopDetectionConfig, ToolParameterSafetyConfig
 
 guardrail = <span class="fn">LiveGuardrail</span>(
-    loop_detection=<span class="fn">LoopDetectionConfig</span>(consecutive_repeat_threshold=<span class="nm">6</span>, on_loop_detected=<span class="st">"record"</span>),
-    tool_parameter_safety=<span class="fn">ToolParameterSafetyConfig</span>(
-        dangerous_patterns=[<span class="st">r"\.\./"</span>, <span class="st">r"&amp;&amp;"</span>, <span class="st">r"\|\|"</span>, <span class="st">r";.*rm\s"</span>, <span class="st">r"__import__"</span>, <span class="st">r"eval\("</span>, <span class="st">r"exec\("</span>, <span class="st">r"rm\s+-\w*f"</span>],
-        fail_on_dangerous=<span class="kw">True</span>,
-    ),
+    loop_detection=<span class="fn">LoopDetectionConfig</span>(consecutive_repeat_threshold=<span class="nm">6</span>),
+    tool_parameter_safety=<span class="fn">ToolParameterSafetyConfig</span>(fail_on_dangerous=<span class="kw">True</span>),
 )
 
-verdict = guardrail.<span class="fn">check_before_tool_call</span>(<span class="st">"session-42"</span>, <span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})
-<span class="kw">if</span> verdict.block:
-    <span class="fn">print</span>(f<span class="st">"blocked (Gate {verdict.gate}): {verdict.reason}"</span>)  <span class="cm"># do NOT call record_tool_call()</span>
-<span class="kw">else</span>:
-    result = execute_tool(<span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})
-    guardrail.<span class="fn">record_tool_call</span>(<span class="st">"session-42"</span>, <span class="st">"bash"</span>, {<span class="st">"command"</span>: <span class="st">"rm -f victim.txt"</span>})</pre>
-      <div class="note tip" style="margin-top:12px">💡 <strong>Reference integration</strong>: <code>opencode-plugin/</code> (repo root) wires <code>LiveGuardrail</code> into <a href="https://opencode.ai" target="_blank">OpenCode</a>'s <code>tool.execute.before</code>/<code>after</code> hooks via a Python subprocess bridge (<code>agent_evaluator.integrations.live_guardrail_stdio</code> / <code>live_guardrail_report</code>) — live-tested against a real local Ollama session, but shipped as a prototype reference, not part of the pip package. See <code>opencode-plugin/README.md</code> and <code>Docs/specs/SPEC-019-live-guardrail-api.md</code>.</div>
+<span class="de">@tool_guard</span>(audit_blocked=<span class="kw">True</span>, fail_closed=<span class="kw">True</span>)
+<span class="kw">def</span> <span class="fn">bash</span>(command: str) -&gt; str:
+    <span class="kw">return</span> subprocess.<span class="fn">run</span>(command, shell=<span class="kw">True</span>, capture_output=<span class="kw">True</span>, text=<span class="kw">True</span>).stdout
+
+<span class="kw">with</span> <span class="fn">live_guardrail_session</span>(guardrail, task_id=<span class="st">"session-1"</span>):
+    <span class="kw">try</span>:
+        <span class="fn">bash</span>(<span class="st">"ls -la"</span>)                 <span class="cm"># checked → runs → recorded</span>
+        <span class="fn">bash</span>(<span class="st">"rm -rf /"</span>)               <span class="cm"># blocked</span>
+    <span class="kw">except</span> GuardrailBlockedError <span class="kw">as</span> e:
+        <span class="fn">print</span>(f<span class="st">"blocked by Gate {e.verdict.gate}: {e.verdict.reason}"</span>)
+
+<span class="cm"># feed the session's Gate B/E verdict into the batch report</span>
+monitor.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(<span class="st">"session-1"</span>, <span class="st">"..."</span>, <span class="st">"..."</span>, extra=guardrail.<span class="fn">to_task_extra</span>()))</pre>
+    </div>
+  </div>
+
+  <div class="cls-card" style="margin-top:12px" id="guardrail-configs">
+    <div class="cls-head"><span class="cls-name">TeamConcurrencyConfig</span> · <span class="cls-name">BranchGuardConfig</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.gates.team_concurrency / .branch_guard</span></div>
+    <div class="cls-body">
+      <div class="cls-desc"><code>TeamConcurrencyConfig</code> — pair with <code>agent-eval claims</code>. When another developer holds an active scope claim on a path, a write there is blocked (Gate E). <code>owner="auto"</code> resolves to <code>git config user.name</code> and excludes your own claims.</div>
+      {% call field_table() %}
+          <tr><td><span class="p">claims_path</span></td><td><span class="t">str</span></td><td><code>".aoo/claims.jsonl"</code> — scope-claim log</td></tr>
+          <tr><td><span class="p">shared_files_path</span></td><td><span class="t">str | None</span></td><td><code>None</code> — file whose lines list paths that always need coordination, claim or not</td></tr>
+          <tr><td><span class="p">scoped_tool_names</span></td><td><span class="t">tuple[str, ...]</span></td><td>Write-type tool names this check applies to</td></tr>
+          <tr><td><span class="p">path_param_candidates</span></td><td><span class="t">tuple[str, ...]</span></td><td>Parameter keys inspected for the target path</td></tr>
+          <tr><td><span class="p">owner</span></td><td><span class="t">str | None</span></td><td><code>None</code> — this session's developer; <code>"auto"</code> → <code>git config user.name</code></td></tr>
+          <tr><td><span class="p">fail_on_conflict</span></td><td><span class="t">bool</span></td><td><code>True</code> — block (vs. record-only) on an overlapping claim</td></tr>
+      {% endcall %}
+      <div class="cls-desc" style="margin-top:10px"><code>BranchGuardConfig</code> — block a direct commit/push on a protected branch before it happens (fail-open).</div>
+      {% call field_table() %}
+          <tr><td><span class="p">protected_branches</span></td><td><span class="t">tuple[str, ...]</span></td><td><code>("main", "master")</code></td></tr>
+          <tr><td><span class="p">git_mutation_patterns</span></td><td><span class="t">tuple[str, ...]</span></td><td><code>(r"git\s+commit", r"git\s+push")</code></td></tr>
+          <tr><td><span class="p">require_branch_prefix</span></td><td><span class="t">str | None</span></td><td><code>None</code> — also require the working branch to start with this prefix</td></tr>
+          <tr><td><span class="p">scoped_tool_names</span></td><td><span class="t">tuple[str, ...]</span></td><td><code>("bash", "Bash")</code></td></tr>
+          <tr><td><span class="p">fail_on_violation</span></td><td><span class="t">bool</span></td><td><code>True</code></td></tr>
+          <tr><td><span class="p">recheck_branch</span></td><td><span class="t">bool</span></td><td><code>True</code> — re-read the current branch just before a git mutation (catches <code>git checkout main</code> mid-session)</td></tr>
+      {% endcall %}
     </div>
   </div>
 </section>
