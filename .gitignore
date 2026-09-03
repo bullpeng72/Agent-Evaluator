@@ -89,6 +89,8 @@ Evaluator_Examples/Test.py
 
 # Golden datasets — 생성 파일만 무시, 정적 시나리오 파일은 추적
 data/golden_datasets/*
+# ch19_phoenix.py가 생성하는 산출물 (실행 시마다 갱신됨 — 추적 안 함)
+data/ch19-phoenix-golden.json
 !data/golden_datasets/agentic_tool_selection.json
 !data/golden_datasets/autogen_eval_scenarios.json
 !data/golden_datasets/crewai_eval_scenarios.json
