@@ -536,6 +536,41 @@ class TestUninstall:
         assert claude_cli.cmd_claude(_uni_ns(purge=True)) == 0
         assert not state.exists()
 
+    def test_bare_uninstall_falls_back_to_global(self, tmp_path, monkeypatch, capsys):
+        # `install --global` then a bare `uninstall` (no --global): the global hooks +
+        # user-scope MCP servers must still be removed, at --scope user.
+        monkeypatch.chdir(tmp_path)
+        gs = tmp_path / "home" / ".claude" / "settings.json"
+        gc = tmp_path / "home" / ".claude" / ".agent-evaluator" / "guardrail_config.json"
+        monkeypatch.setattr(claude_cli, "_GLOBAL_SETTINGS", gs)
+        monkeypatch.setattr(claude_cli, "_GLOBAL_CONFIG", gc)
+        claude_cli.cmd_claude(_ns(global_install=True))  # create the global install
+        assert gs.exists()
+        scopes = []
+        monkeypatch.setattr(
+            claude_cli, "_deregister_mcp_server", lambda name, scope: scopes.append(scope)
+        )
+        capsys.readouterr()
+
+        assert claude_cli.cmd_claude(_uni_ns()) == 0  # no global_install
+        out = capsys.readouterr().out
+        assert "targeting the global install" in out
+        s = json.loads(gs.read_text())
+        assert not claude_cli._our_hook_entries(
+            [e for ev in s.get("hooks", {}).values() for e in ev]
+        )
+        assert scopes and set(scopes) == {"user"}  # deregistered at the right scope
+
+    def test_bare_uninstall_no_install_anywhere_is_still_noop(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(claude_cli, "_GLOBAL_SETTINGS", tmp_path / "no" / "settings.json")
+        monkeypatch.setattr(
+            claude_cli, "_GLOBAL_CONFIG", tmp_path / "no" / ".agent-evaluator" / "c.json"
+        )
+        monkeypatch.setattr(claude_cli, "_deregister_mcp_server", lambda *a, **k: None)
+        assert claude_cli.cmd_claude(_uni_ns()) == 0
+        assert "Nothing to remove" in capsys.readouterr().out
+
 
 class TestDoctorStatic:
     def test_missing_settings_is_error_exit_1(self, tmp_path, monkeypatch, capsys):

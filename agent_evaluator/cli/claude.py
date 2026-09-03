@@ -489,12 +489,44 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
 # ===========================================================================
 # uninstall — 훅/MCP 제거 (pip uninstall 전에 실행)
 # ===========================================================================
+def _scope_has_install(settings_path: Path, state_dir: Path) -> bool:
+    """이 스코프에 agent-evaluator 훅 또는 남은 상태(config/sessions)가 있는지."""
+    n = 0
+    if settings_path.exists():
+        try:
+            s: object = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            s = None
+        if isinstance(s, dict) and isinstance(s.get("hooks"), dict):
+            for event in _HOOK_EVENTS:
+                n += len(_our_hook_entries(s["hooks"].get(event) or []))
+    if n:
+        return True
+    return (state_dir / "guardrail_config.json").exists() or (state_dir / "sessions").exists()
+
+
 def _cmd_uninstall(args: argparse.Namespace) -> int:
     is_global: bool = getattr(args, "global_install", False)
     keep_config: bool = getattr(args, "keep_config", False)
     purge: bool = getattr(args, "purge", False)
     dry_run: bool = getattr(args, "dry_run", False)
     assume_yes: bool = getattr(args, "yes", False)
+
+    # Claude Code merges ~/.claude/settings.json with the project-local one, so a user who
+    # ran `install --global` and then a bare `uninstall` (no --global) would otherwise be
+    # told "Nothing to remove" while the global hooks + user-scope MCP servers stay behind
+    # (and the MCP deregister would run at the wrong --scope). Fall back to the global
+    # install when the project-local scope has nothing, mirroring `doctor`.
+    if (
+        not is_global
+        and not _scope_has_install(_LOCAL_SETTINGS, _LOCAL_CONFIG.parent)
+        and _scope_has_install(_GLOBAL_SETTINGS, _GLOBAL_CONFIG.parent)
+    ):
+        is_global = True
+        print(
+            f"{_D}   No project-local install — targeting the global install (~/.claude). "
+            f"Pass --global to silence this.{_R}"
+        )
 
     settings_path = _GLOBAL_SETTINGS if is_global else _LOCAL_SETTINGS
     state_dir = (_GLOBAL_CONFIG if is_global else _LOCAL_CONFIG).parent
@@ -1042,7 +1074,9 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
         description=(
             "Reverses `install`: removes only our hook entries from settings.json (other\n"
             "hooks untouched), deregisters the MCP servers, and deletes session state.\n"
-            "Keeps guardrail_config.json by default (--purge removes everything).\n\n"
+            "Keeps guardrail_config.json by default (--purge removes everything).\n"
+            "If the project-local scope has nothing, falls back to the global install\n"
+            "(~/.claude) so a bare `uninstall` after `install --global` still works.\n\n"
             "NOTE: `agent-eval` disappears once the package is uninstalled, so this must be\n"
             "run first. Order:  agent-eval claude uninstall  →  pip uninstall agent-evaluator"
         ),
