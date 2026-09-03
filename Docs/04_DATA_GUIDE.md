@@ -2,7 +2,7 @@
 
 Golden-dataset construction · Korean RAG evaluation · PDF pipeline.
 
-**v1.0.0 | Python 3.8+**
+**v1.0.1 | Python 3.8+**
 
 ---
 

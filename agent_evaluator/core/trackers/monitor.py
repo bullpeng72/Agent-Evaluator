@@ -87,10 +87,30 @@ else:
 logger = logging.getLogger(__name__)
 
 
+def _json_sanitize(obj: Any) -> Any:
+    """Recursively replace NaN / ±Infinity floats with ``None`` so the written
+    file is valid *strict* JSON.
+
+    ``json.dump(..., default=_json_serializer)`` cannot do this: ``default`` is
+    only consulted for types the encoder does not recognise, and ``float`` is
+    recognised — a NaN is emitted as the bare token ``NaN``, which ``json.load``
+    accepts but ``JSON.parse`` (the dashboard) and every strict parser reject.
+    A NaN normally can't reach here (the SDK guards every ratio), but an
+    externally supplied ``score_fn`` / a hand-built result dict can carry one.
+    """
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _json_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_sanitize(v) for v in obj]
+    return obj
+
+
 def _json_serializer(obj: Any) -> Any:
     """Custom JSON serializer for non-standard types used by save_to_file()."""
     if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-        return 0.0  # NaN / ±Infinity → 0.0 (dashboard-safe numeric sentinel)
+        return None  # NaN / ±Infinity → null (see _json_sanitize; belt-and-braces)
     if isinstance(obj, datetime):
         return obj.isoformat()
     if isinstance(obj, Enum):
@@ -118,10 +138,14 @@ def _write_json_streaming(file_obj: Any, data: dict[str, Any], tasks_list: list)
     """
     import json as _json
 
-    # tasks 제외한 나머지 필드를 딕셔너리로 구성 후 직렬화
-    header = {k: v for k, v in data.items() if k != "tasks"}
+    # tasks 제외한 나머지 필드를 딕셔너리로 구성 후 직렬화. _json_sanitize로
+    # NaN/Infinity를 null로 바꿔 strict JSON을 보장한다(스트리밍 경로는 header와
+    # task를 개별 직렬화하므로 각각에 적용 — 전체 복사본을 만들지 않는다).
+    header = {k: _json_sanitize(v) for k, v in data.items() if k != "tasks"}
     # indent 없이 직렬화 — 스트리밍 모드에서는 indent 비용 생략
-    header_str = _json.dumps(header, ensure_ascii=False, default=_json_serializer)
+    header_str = _json.dumps(
+        header, ensure_ascii=False, allow_nan=False, default=_json_serializer
+    )
     # 닫는 "}" 제거 후 "tasks" 키를 이어 붙임
     file_obj.write(header_str[:-1])  # "}" 제거
     file_obj.write(', "tasks": [')
@@ -129,7 +153,12 @@ def _write_json_streaming(file_obj: Any, data: dict[str, Any], tasks_list: list)
     for i, task in enumerate(tasks_list):
         if i > 0:
             file_obj.write(",")
-        file_obj.write(_json.dumps(task, ensure_ascii=False, default=_json_serializer))
+        file_obj.write(
+            _json.dumps(
+                _json_sanitize(task), ensure_ascii=False,
+                allow_nan=False, default=_json_serializer,
+            )
+        )
 
     file_obj.write("]}")
 
@@ -5346,7 +5375,10 @@ class PerformanceMonitor:
                     )
                     _write_json_streaming(_f, data, _serialized_tasks)
                 else:
-                    json.dump(data, _f, indent=2, default=_json_serializer)
+                    json.dump(
+                        _json_sanitize(data), _f, indent=2,
+                        allow_nan=False, default=_json_serializer,
+                    )
             os.replace(_tmp_path, filename)
         except Exception as e:
             logger.error("save_to_file JSON save failed: %s", e, exc_info=True)

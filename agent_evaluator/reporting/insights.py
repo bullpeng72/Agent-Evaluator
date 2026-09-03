@@ -52,10 +52,26 @@ _RE_ERR = re.compile(r"^error:\s*([A-Za-z_][A-Za-z0-9_.]*)")
 
 
 def _safe_float(v: Any, default: Any = None) -> Any:
+    if v is None:
+        return default
     try:
-        return float(v) if v is not None else default
+        f = float(v)
     except (TypeError, ValueError):
         return default
+    return f if math.isfinite(f) else default
+
+
+def _scrub_nonfinite(obj: Any) -> Any:
+    """Recursively replace NaN / ±Infinity floats with ``None``. ``json.loads``
+    accepts those tokens, but they must never ride a metric into the insight
+    object (``json.dumps`` would re-emit them and break every strict parser)."""
+    if isinstance(obj, float):
+        return None if not math.isfinite(obj) else obj
+    if isinstance(obj, dict):
+        return {k: _scrub_nonfinite(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_nonfinite(v) for v in obj]
+    return obj
 
 
 def _reason_signature(reason: str) -> str:
@@ -891,9 +907,12 @@ _JUDGE_MODEL_DRIFT = 0.10    # per-model mean gap above which models "disagree"
 
 def _jr_runs(current: dict[str, Any]) -> list[dict[str, Any]]:
     """Read the opt-in ``extra_metrics.judge_runs`` — either a bare list of run
-    dicts or ``{"runs": [...]}``. Each run: ``{model?, cost_usd?, scores:
-    {task_id: {overall, ...}}}`` (``scores`` may also be a list of
-    ``{task_id, overall}``)."""
+    dicts or ``{"runs": [...]}``. Each run may be:
+      - ``{model?, cost_usd?, scores: {task_id: {overall, ...}}}``,
+      - ``{..., scores: [{task_id, overall}, ...]}``, or
+      - ``LLMJudge.get_summary()`` output — ``{..., total_cost_usd?, results:
+        [{task_id, scores: {overall, ...}}, ...]}`` (the natural shape when a
+        user passes ``[judge_a.get_summary(), judge_b.get_summary()]``)."""
     em = (current.get("extra_metrics") or {}) if isinstance(current, dict) else {}
     jr = em.get("judge_runs")
     if isinstance(jr, dict):
@@ -902,8 +921,11 @@ def _jr_runs(current: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _jr_score_map(run: dict[str, Any]) -> dict[str, float]:
-    """task_id -> normalised (/1) overall score for one run."""
+    """task_id -> normalised (/1) overall score for one run. Accepts the three
+    shapes documented on :func:`_jr_runs`."""
     sc = run.get("scores")
+    if not isinstance(sc, (dict, list)):
+        sc = run.get("results")  # LLMJudge.get_summary() shape
     out: dict[str, float] = {}
     items: list[tuple[Any, Any]] = []
     if isinstance(sc, dict):
@@ -913,7 +935,13 @@ def _jr_score_map(run: dict[str, Any]) -> dict[str, float]:
     for tid, val in items:
         if tid is None:
             continue
-        ov = val.get("overall") if isinstance(val, dict) else val
+        if isinstance(val, dict):
+            # {overall: n} or a judge record {scores: {overall: n}}
+            ov = val.get("overall")
+            if ov is None and isinstance(val.get("scores"), dict):
+                ov = val["scores"].get("overall")
+        else:
+            ov = val
         ov = _safe_float(ov)
         if ov is None:
             continue
@@ -1544,6 +1572,7 @@ def _verdict_section(
         conf_level, conf_reasons = verdict_confidence(
             n_tasks=n_tasks,
             tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+            tcr_ci_degenerate=bool(ci.get("tcr_ci_degenerate")),
             n_gate_components=ncomp,
             margin_to_threshold=margin,
             judge_trust=(evaluator_trust or {}).get("trust_level"),
@@ -2167,8 +2196,19 @@ def _metric_confidence_section(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     accs = [a for a in accs if a is not None]
     if comps:
         out["tcr_pct"] = round(sum(comps) / len(comps) * 100.0, 2)
+        # A metric that scored *identically* on every task has a zero-width CI by
+        # construction, not by precision — the interval carries no information
+        # about how many more tasks you need, and a constant 0.50 is usually the
+        # AccuracyEvaluator similarity fallback firing on a scorer/ground-truth
+        # shape mismatch. Downstream sections must not read halfwidth==0 as
+        # "already precise" (P63).
+        if len(comps) >= 2 and max(comps) - min(comps) < 1e-9:
+            out["tcr_ci_degenerate"] = True
+            out["tcr_constant_value"] = round(comps[0], 4)
     if accs:
         out["accuracy_pct"] = round(sum(accs) / len(accs) * 100.0, 2)
+        if len(accs) >= 2 and max(accs) - min(accs) < 1e-9:
+            out["accuracy_ci_degenerate"] = True
     try:
         from agent_evaluator.utils.confidence import bootstrap_mean_ci
 
@@ -2283,14 +2323,20 @@ def _sample_guidance_section(
     """P28: "what to test next" — how many more tasks would tighten the TCR
     confidence interval to ``±target_halfwidth_pp``. Uses the same
     ``required_n_for_halfwidth`` the experiment blocks use, surfaced for the run
-    as a whole. ``None`` when the CI is already at/below target or unmeasurable."""
+    as a whole. ``None`` when the CI is already at/below target or unmeasurable.
+
+    P63: a *degenerate* CI (every task scored identically → zero width by
+    construction) never counts as "already precise" — it carries no signal, so
+    the recommendation is sized off the most conservative ``p=0.5`` and the
+    message says why the interval looks tight."""
     n = int(ci.get("n_tasks") or 0)
     hw = ci.get("tcr_ci_halfwidth")
     tcr_pct = ci.get("tcr_pct")
     if not n or hw is None or tcr_pct is None:
         return None
     hw_pp = round(float(hw) * 100.0, 2)
-    if hw_pp <= target_halfwidth_pp:
+    degenerate = bool(ci.get("tcr_ci_degenerate"))
+    if hw_pp <= target_halfwidth_pp and not degenerate:
         return {
             "n_tasks": n, "tcr_ci_halfwidth_pp": hw_pp,
             "target_halfwidth_pp": target_halfwidth_pp,
@@ -2303,13 +2349,28 @@ def _sample_guidance_section(
     try:
         from agent_evaluator.utils.confidence import required_n_for_halfwidth
 
-        rec_n = required_n_for_halfwidth(
-            max(0.01, min(0.99, float(tcr_pct) / 100.0)),
-            target_halfwidth_pp / 100.0,
-        )
+        _p = 0.5 if degenerate else max(0.01, min(0.99, float(tcr_pct) / 100.0))
+        rec_n = required_n_for_halfwidth(_p, target_halfwidth_pp / 100.0)
     except Exception:  # pragma: no cover - defensive
         return None
     add = max(0, rec_n - n)
+    if degenerate:
+        _cv = ci.get("tcr_constant_value")
+        _cv_s = f" ({float(_cv):.2f})" if isinstance(_cv, (int, float)) else ""
+        return {
+            "n_tasks": n,
+            "tcr_ci_halfwidth_pp": hw_pp,
+            "target_halfwidth_pp": target_halfwidth_pp,
+            "recommended_n": rec_n,
+            "additional_tasks": add,
+            "degenerate": True,
+            "message": (
+                f"Every task scored identically{_cv_s} — the TCR CI is zero-width "
+                f"by construction, not by precision, and carries no signal. Widen "
+                f"the set (about {rec_n} tasks, +{add}) and check whether the "
+                f"scorer / ground-truth shape fits the output."
+            ),
+        }
     return {
         "n_tasks": n,
         "tcr_ci_halfwidth_pp": hw_pp,
@@ -2531,6 +2592,32 @@ def _eval_set_quality_section(
         warnings.append(
             f"Only {_tc['n']} task(s) at {_tc['dimension']}={_tc['value']} — "
             "that cohort is effectively untested."
+        )
+
+    # P63: baseline-independent fingerprint of the text-similarity accuracy
+    # fallback — accuracy is *exactly* 0.50, the ground truth is a bare <3-word
+    # string, and the response is structured (JSON). When a third of the set
+    # matches, the scorer almost certainly does not fit the output shape.
+    def _jsonish(s: Any) -> bool:
+        return str(s or "").lstrip()[:1] in "{["
+
+    _fb: list[str] = []
+    for t in tasks:
+        _af = _safe_float(t.get("accuracy_score"))
+        _gt = str(t.get("ground_truth") or "")
+        if (
+            _af is not None and abs(_af - 0.5) < 1e-9
+            and 0 < len(_RE_WORD.findall(_gt)) < 3
+            and not _jsonish(_gt)
+            and _jsonish(t.get("response"))
+        ):
+            _fb.append(str(t.get("task_id") or ""))
+    if len(_fb) >= max(3, len(tasks) // 3):
+        warnings.append(
+            f"{len(_fb)}/{len(tasks)} tasks score accuracy exactly 0.50 with a "
+            f"<3-word ground truth against a structured (JSON) response — the "
+            f"text-similarity scorer likely does not fit this output. Score the "
+            f"fields directly (score_fn / custom_parser)."
         )
 
     return {
@@ -4550,7 +4637,34 @@ def _review_queue_section(
         elif comp is not None and 0.35 <= comp < 0.55:
             _add(tid, "medium", f"borderline completion ({comp:.2f})")
 
-    if not by_task:
+    # P63: systemic scorer artefact — when the *same* borderline signal floods
+    # the queue for most of the set, that is a scorer / ground-truth-shape
+    # problem across the whole eval, not N individually borderline agents.
+    # Collapse the pure-modal-reason rows into one note; keep rows that also
+    # carry an independent signal (regression, judge disagreement, bad label).
+    systemic_note: str | None = None
+    n_scored = sum(1 for t in tasks if t.get("task_id"))
+    if n_scored >= 5:
+        _modal: dict[str, int] = defaultdict(int)
+        for _it in by_task.values():
+            for _r in _it["reasons"]:
+                if _r.startswith(("borderline completion (", "borderline accuracy (")):
+                    _modal[_r] += 1
+        if _modal:
+            _top_reason, _top_n = max(_modal.items(), key=lambda kv: kv[1])
+            if _top_n / n_scored >= 0.8:
+                systemic_note = (
+                    f"{_top_n}/{n_scored} tasks share one borderline signal "
+                    f"({_top_reason}) — a scorer / ground-truth-shape artefact "
+                    f"across the whole set, not {_top_n} individually borderline "
+                    f"agents. Fix the scorer before triaging these one by one."
+                )
+                for _tid in list(by_task):
+                    _rs = by_task[_tid]["reasons"]
+                    if len(_rs) == 1 and _rs[0] == _top_reason:
+                        del by_task[_tid]
+
+    if not by_task and systemic_note is None:
         return None
     # within a priority band, more independent reasons = more urgent (breaks the
     # "everything is HIGH" tie so the top of the list is still meaningful)
@@ -4561,6 +4675,7 @@ def _review_queue_section(
     )[:25]
     return {
         "n_items": len(items),
+        "systemic_note": systemic_note,
         "by_priority": {
             "high": sum(1 for i in items if i["priority"] == "high"),
             "medium": sum(1 for i in items if i["priority"] == "medium"),
@@ -6401,6 +6516,20 @@ def build_insights(
         A JSON-serializable dict — see ``INSIGHTS_SCHEMA_VERSION``. Never raises;
         any section that fails to compute is omitted or empty.
     """
+    # "Never raises" starts here: a caller may hand us a non-dict (a bare list /
+    # string / None from a malformed result file). Every access below assumes a
+    # mapping, so normalise up front rather than sprinkle guards. Also scrub the
+    # non-standard NaN / Infinity tokens ``json.loads`` lets through — otherwise
+    # they ride a metric into the output dict and break the strict-JSON contract.
+    if not isinstance(current, dict):
+        current = {}
+    else:
+        current = _scrub_nonfinite(current)
+    if not isinstance(baseline, dict):
+        baseline = None
+    else:
+        baseline = _scrub_nonfinite(baseline)
+
     hg = _harness_groups(current)
     tasks = [t for t in (current.get("tasks") or []) if isinstance(t, dict)]
     total_tasks = len(tasks)

@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.1-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -180,12 +180,14 @@ agent_evaluator/
                       #   experiment, target, benchmark, improve, claims, monitor, opencode, claude)
 
 Evaluator_Examples/   # 31 example files (ch01–ch31)
-tests/                # 4,700+ test functions
+tests/                # 4,800+ test functions
 ```
 
 ---
 
 ## Changelog
+
+**v1.0.1** (2026-09-03) — Patch: report-generation hardening (malformed / partial / externally-produced result JSON no longer crashes the static report, `agent-eval gate`, or the dashboard results list; `NaN`/`Infinity` scrubbed on read and write), dashboard ↔ static-report value parity (hallucination rate, task count, per-task fallbacks, all 7 Gate detail tables, score-breakdown reconciliation), and completion of the English-only runtime-output pass. No API, Config, or schema changes.
 
 **v1.0.0** (2026-08-31) — General Availability: completes SPEC-041's machine-readable insight layer (`extra_metrics.insights`, ~62 schema-validated keys) plus the `target` / `benchmark` / `experiment` / `improve` CLI loop; public SDK API unchanged from `1.0.0-rc*`.
 

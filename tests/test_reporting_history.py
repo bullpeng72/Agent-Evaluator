@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agent_evaluator.reporting.history import (
     load_change_ledger,
     scan_history,
@@ -73,6 +75,20 @@ class TestTrendSummary:
     def test_fewer_than_two_runs_no_gates(self, tmp_path):
         _write_run(tmp_path, "only", {"D": 0.9})
         assert trend_summary(scan_history(tmp_path))["gates"] == {}
+
+    @pytest.mark.parametrize("hist", [
+        [{}, {}],                              # rows without a "gate_scores" key
+        [{"gate_scores": None}, {"gate_scores": None}],
+        [1, "x", None],                        # non-dict rows
+        [{"gate_scores": {"A": "bad"}}, {"gate_scores": {"A": 0.5}}],
+        "not a list",
+    ])
+    def test_tolerates_malformed_history_rows(self, hist):
+        # trend_summary is fed scan_history() output in production, but the
+        # module's contract is "never raises" — a hand-built / degenerate list
+        # must degrade, not KeyError / AttributeError.
+        out = trend_summary(hist)
+        assert isinstance(out, dict) and "gates" in out
 
 
 class TestChangeLedger:

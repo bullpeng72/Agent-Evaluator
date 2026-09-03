@@ -75,9 +75,17 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
         "cost_per_task": None,
     }
 
+    # A hand-written / older / partially-written result file may carry an
+    # explicit ``null`` for any of these nested blocks (or the top-level value
+    # itself). ``dict.get(k, {})`` returns that ``None``, not the default, so
+    # every access below is coerced with ``or {}`` — a bad file must exit 1
+    # cleanly, never crash the CI gate with an AttributeError traceback.
+    if not isinstance(data, dict):
+        return metrics
+
     # -- TCR --
-    accuracy_metrics = data.get("accuracy_metrics", {})
-    tcr_block = accuracy_metrics.get("tcr", {})
+    accuracy_metrics = data.get("accuracy_metrics") or {}
+    tcr_block = accuracy_metrics.get("tcr") or {}
     tcr_raw = tcr_block.get("tcr")
     if tcr_raw is None:
         # fallback: success_rate
@@ -91,7 +99,7 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             pass
 
     # -- 정확도 --
-    acc_block = accuracy_metrics.get("accuracy_scores", {})
+    acc_block = accuracy_metrics.get("accuracy_scores") or {}
     acc_raw = acc_block.get("overall_accuracy")
     if acc_raw is not None:
         try:
@@ -101,7 +109,7 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             pass
 
     # -- 환각 탐지율 --
-    hall_block = accuracy_metrics.get("hallucination", {})
+    hall_block = accuracy_metrics.get("hallucination") or {}
     hall_raw = hall_block.get("overall_rate")
     if hall_raw is not None:
         try:
@@ -111,8 +119,8 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             pass
 
     # -- P95 지연시간 --
-    efficiency_metrics = data.get("efficiency_metrics", {})
-    latency_block = efficiency_metrics.get("latency", {})
+    efficiency_metrics = data.get("efficiency_metrics") or {}
+    latency_block = efficiency_metrics.get("latency") or {}
     p95_raw = latency_block.get("p95")
     if p95_raw is not None:
         try:
@@ -124,16 +132,16 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             pass
 
     # -- LLM Judge 종합 점수 (tasks 배열 평균) --
-    tasks = data.get("tasks", [])
+    tasks = data.get("tasks") or []
     scores: list[float] = []
-    for task in tasks:
+    for task in tasks if isinstance(tasks, list) else []:
         if not isinstance(task, dict):
             continue
         llm_judge = task.get("llm_judge")
         if not isinstance(llm_judge, dict):
             continue
-        score_block = llm_judge.get("scores", {})
-        overall = score_block.get("overall")
+        score_block = llm_judge.get("scores") or {}
+        overall = score_block.get("overall") if isinstance(score_block, dict) else None
         if overall is not None:
             try:
                 scores.append(float(overall))
@@ -143,7 +151,7 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
         metrics["llm_judge_overall"] = sum(scores) / len(scores)
 
     # -- 총 비용 --
-    token_block = efficiency_metrics.get("tokens", {})
+    token_block = efficiency_metrics.get("tokens") or {}
     cost_raw = token_block.get("total_cost")
     if cost_raw is not None:
         try:
@@ -152,7 +160,8 @@ def _load_metrics(data: dict[str, Any]) -> dict[str, float | None]:
             pass
 
     # -- 태스크당 비용 (SPEC-041 P28 SLO gate) --
-    _n_tasks = len(data.get("tasks") or [])
+    _tasks_val = data.get("tasks")
+    _n_tasks = len(_tasks_val) if isinstance(_tasks_val, list) else 0
     if metrics["total_cost"] is not None and _n_tasks > 0:
         metrics["cost_per_task"] = metrics["total_cost"] / _n_tasks
 
@@ -173,7 +182,11 @@ def _load_harness_groups(data: dict[str, Any]) -> dict[str, float | None]:
         {"A": score_or_None, ..., "G": score_or_None}
     """
     groups: dict[str, float | None] = {g: None for g in "ABCDEFG"}
-    harness = (data.get("extra_metrics") or {}).get("harness_groups", {})
+    if not isinstance(data, dict):
+        return groups
+    harness = (data.get("extra_metrics") or {}).get("harness_groups") or {}
+    if not isinstance(harness, dict):
+        return groups
     for key in "ABCDEFG":
         group_data = harness.get(key)
         if isinstance(group_data, dict):
@@ -303,9 +316,10 @@ def _load_baseline(path: Path) -> dict[str, Any] | None:
         return None
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)  # type: ignore[no-any-return]
+            loaded = json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
+    return loaded if isinstance(loaded, dict) else None
 
 
 def _save_baseline(
@@ -1006,6 +1020,12 @@ def cmd_gate(args: argparse.Namespace) -> int:
     except (json.JSONDecodeError, OSError) as exc:
         print(f"{RD}❌ Failed to parse JSON: {exc}{R}", file=sys.stderr)
         return 1
+    if not isinstance(data, dict):
+        print(
+            f"{RD}❌ Result file is not a JSON object: {result_file}{R}",
+            file=sys.stderr,
+        )
+        return 1
 
     # ── 사용자 목표(.aoo/targets.json) 자동 적용 (SPEC-041 P43) ──────────────
     # 명시적으로 준 인수가 이긴다; 안 준 것만 targets에서 채운다.
@@ -1106,7 +1126,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             if required_gates_raw else list("ABCDEFG")
         )
         fail_on_warn = getattr(args, "fail_on_gate_warn", False)
-        harness_raw = (data.get("extra_metrics") or {}).get("harness_groups", {})
+        harness_raw = (data.get("extra_metrics") or {}).get("harness_groups") or {}
         min_gate_fallback = getattr(args, "min_gate_score", None)
         _gate_results = evaluate_gate_scores(
             harness_raw, gate_ids=required_ids, thresholds=gate_thresholds,
@@ -1174,7 +1194,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
         except (json.JSONDecodeError, OSError) as exc:
             print(f"{RD}❌ Failed to parse golden set JSON: {exc}{R}", file=sys.stderr)
             return 1
-        golden_regressions = _check_golden_regressions(golden_cases, data.get("tasks", []) or [])
+        _gtasks = data.get("tasks")
+        golden_regressions = _check_golden_regressions(
+            golden_cases, _gtasks if isinstance(_gtasks, list) else [],
+        )
         if golden_regressions:
             _n = len(golden_regressions)
             print(f"\n{RD}{B}Golden set regressions ({_n}):{R}", file=sys.stderr)

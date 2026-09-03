@@ -289,6 +289,7 @@ def verdict_confidence(
     *,
     n_tasks: int,
     tcr_ci_halfwidth: float | None = None,
+    tcr_ci_degenerate: bool = False,
     n_gate_components: int | None = None,
     margin_to_threshold: float | None = None,
     judge_trust: str | None = None,
@@ -300,6 +301,11 @@ def verdict_confidence(
     Args:
         n_tasks: 평가 태스크 수.
         tcr_ci_halfwidth: TCR 95% CI 반폭(0–1 스케일). 없으면 이 신호 무시.
+        tcr_ci_degenerate: TCR이 모든 태스크에서 동일한 값을 냈는가(P63). 그러면
+            CI 폭이 0인 것은 "정밀"이 아니라 "분산·신호 없음"이므로 — 폭이 좁다는
+            이유로 확신도가 올라가지 않도록 — ``"low"``로 끌어내린다. 상수 0.50은
+            대개 AccuracyEvaluator 유사도 폴백이 채점기/정답 형태 불일치에 걸린
+            것이다.
         n_gate_components: fail/warn Gate 판정에 실제로 들어간 측정 컴포넌트 수.
         margin_to_threshold: Gate 점수 − 임계값(0–1). |margin|<0.05면 경계선 판정.
         judge_trust: 평가기(LLM judge) 신뢰도 ``"high"``/``"medium"``/``"low"``
@@ -324,7 +330,9 @@ def verdict_confidence(
     elif n_tasks < 50:
         _demote("medium", f"{n_tasks} tasks (50+ recommended for a stable verdict)")
 
-    if tcr_ci_halfwidth is not None:
+    if tcr_ci_degenerate:
+        _demote("low", "TCR carries no signal — every task scored identically")
+    elif tcr_ci_halfwidth is not None:
         if tcr_ci_halfwidth > 0.30:
             _demote("low", f"TCR 95% CI spans ±{tcr_ci_halfwidth * 100:.0f}pp")
         elif tcr_ci_halfwidth > 0.15:

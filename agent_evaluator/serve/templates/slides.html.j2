@@ -660,10 +660,15 @@ function _populateSlides(data){
   const qual  = data.quality_detail || {};
   const tasks = data.tasks || [];
 
-  const tcr_v  = tcr.tcr || 0;
-  const acc_v  = acc.overall_accuracy || 0;
+  // Fall back to mean(per-task score) x 100 when the stored aggregate is absent
+  // (partial / older / external file) — same rule as the report / dashboard2.
+  const _meanPct = f => { const v = tasks.map(t => t[f]).filter(x => typeof x === 'number');
+    return v.length ? v.reduce((s,x)=>s+x,0)/v.length*100 : 0; };
+  const tcr_v  = tcr.tcr != null ? tcr.tcr : _meanPct('completion_score');
+  const acc_v  = acc.overall_accuracy != null ? acc.overall_accuracy : _meanPct('accuracy_score');
   const hall_v = hallu.overall_rate || 0;
-  const p95_v  = lat.p95 || 0;
+  const _execT = tasks.map(t => t.execution_time).filter(x => typeof x === 'number' && x > 0).sort((a,b)=>a-b);
+  const p95_v  = lat.p95 != null ? lat.p95 : (_execT.length ? _execT[Math.min(_execT.length-1, Math.floor(_execT.length*0.95))] : 0);
   const halluHas = (hallu.total_evaluated||0) > 0;
 
   // ── per-task-type stats ──────────────────────────────────────────────────────
@@ -829,9 +834,19 @@ function deriveNativeGateScores(d) {
   const sl1   = d.security_l1 || {};
   const sl2   = d.security_l2 || {};
 
-  const tcr_v = tcr.tcr || 0;
-  const acc_v = acc.overall_accuracy || 0;
-  const p95_v = lat.p95;
+  // per-task fallback — mirrors loader._compute_harness_groups_fallback so the
+  // deck's derived Gate scores match the report's for a file without stored
+  // accuracy_metrics / harness_groups.
+  const _dTasks = d.tasks || [];
+  const _dMeanPct = f => { const v = _dTasks.map(t => t[f]).filter(x => typeof x === 'number');
+    return v.length ? v.reduce((s,x)=>s+x,0)/v.length*100 : 0; };
+  const tcr_v = tcr.tcr != null ? tcr.tcr : _dMeanPct('completion_score');
+  const acc_v = acc.overall_accuracy != null ? acc.overall_accuracy : _dMeanPct('accuracy_score');
+  let p95_v = lat.p95;
+  if (p95_v == null) {
+    const xs = _dTasks.map(t => t.execution_time).filter(x => typeof x === 'number' && x > 0).sort((a,b)=>a-b);
+    p95_v = xs.length ? xs[Math.min(xs.length-1, Math.floor(xs.length*0.95))] : null;
+  }
 
   // Gate A: avg of TCR + accuracy
   const gA = (tcr_v + acc_v) / 2;

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -168,37 +169,138 @@ class ResultFile:
     mtime: float = 0.0
 
     # ---- computed helpers ------------------------------------------------
+    # Traverse ``d[k1][k2]`` tolerating a ``null`` at any level — a hand-written
+    # or older-SDK result JSON can carry ``"accuracy_metrics": {"tcr": null}``,
+    # where ``dict.get("tcr", {})`` returns None (not the default) and the next
+    # ``.get`` would raise. Consumers (compare_results, CSV export) then do
+    # ``round(prop, 2)`` and need a real number back.
+    def _mget(self, root: str, k1: str, k2: str, default: float = 0.0) -> float:
+        v = self._mget_opt(root, k1, k2)
+        return v if v is not None else default
+
+    def _mget_opt(self, root: str, k1: str, k2: str) -> float | None:
+        """Like :meth:`_mget` but returns ``None`` (not a default) when the value
+        is missing / non-finite — for the properties that then apply a per-task
+        fallback instead of a flat 0.0."""
+        cur: Any = getattr(self, root, None)
+        for k in (k1, k2):
+            if not isinstance(cur, dict):
+                return None
+            cur = cur.get(k)
+        return float(cur) if isinstance(cur, (int, float)) and math.isfinite(cur) else None
+
+    @property
+    def task_count(self) -> int:
+        """The count every displayed surface should agree on: the number of task
+        records actually parsed, falling back to the file's declared
+        ``total_tasks`` only when none were (a summary-only file).
+
+        ``total_tasks`` is whatever the file declares; when that disagrees with
+        the real entry count (a sampled / trimmed export, a partial write, or
+        non-dict rows dropped on load) the static HTML report keys its headline
+        "N tasks" — and every per-task CI / table / cluster — off the parsed
+        list. The dashboard must show the same number or the two contradict.
+        """
+        return len(self.tasks) if self.tasks else self.total_tasks
+
+    def _mean_task_field(self, attr: str) -> float | None:
+        vals = [
+            getattr(t, attr, None) for t in self.tasks
+        ]
+        nums = [v for v in vals if isinstance(v, (int, float)) and math.isfinite(v)]
+        return sum(nums) / len(nums) * 100.0 if nums else None
+
     @property
     def tcr(self) -> float:
-        return self.accuracy_metrics.get("tcr", {}).get("tcr", 0.0)
+        """TCR (0-100). Prefers the stored ``accuracy_metrics.tcr.tcr``; when that
+        is absent (a partial / older-SDK / externally-produced file) falls back to
+        ``mean(task.completion_score) x 100`` — exactly what
+        ``TaskCompletionTracker.calculate_tcr()`` would have written, and what the
+        dashboard's own detail view (``_tcr()``) and ``history._tcr_from`` use.
+        Without this fallback the list card / static report show 0.0% while the
+        detail view shows the real number."""
+        v = self._mget_opt("accuracy_metrics", "tcr", "tcr")
+        if v is not None:
+            return v
+        return self._mean_task_field("completion_score") or 0.0
 
     @property
     def accuracy(self) -> float:
-        return self.accuracy_metrics.get("accuracy_scores", {}).get("overall_accuracy", 0.0)
+        """Accuracy (0-100). Same fallback contract as :pyattr:`tcr` —
+        ``mean(task.accuracy_score) x 100`` when
+        ``accuracy_metrics.accuracy_scores.overall_accuracy`` is absent."""
+        v = self._mget_opt("accuracy_metrics", "accuracy_scores", "overall_accuracy")
+        if v is not None:
+            return v
+        return self._mean_task_field("accuracy_score") or 0.0
 
     @property
     def hallucination_rate(self) -> float:
-        return self.accuracy_metrics.get("hallucination", {}).get("overall_rate", 0.0)
+        return self._mget("accuracy_metrics", "hallucination", "overall_rate")
+
+    def _task_exec_times(self) -> list[float]:
+        return sorted(
+            t.execution_time for t in self.tasks
+            if isinstance(t.execution_time, (int, float))
+            and math.isfinite(t.execution_time) and t.execution_time > 0
+        )
 
     @property
     def avg_latency(self) -> float:
-        return self.efficiency_metrics.get("latency", {}).get("mean", 0.0)
+        """Mean latency (s). Falls back to ``mean(task.execution_time)`` when
+        ``efficiency_metrics.latency.mean`` is absent — same rule as :pyattr:`tcr`
+        and the dashboard's per-task latency fallback."""
+        v = self._mget_opt("efficiency_metrics", "latency", "mean")
+        if v is not None:
+            return v
+        xs = self._task_exec_times()
+        return sum(xs) / len(xs) if xs else 0.0
 
     @property
     def p95_latency(self) -> float:
-        return self.efficiency_metrics.get("latency", {}).get("p95", 0.0)
+        """P95 latency (s). Falls back to the 95th percentile of
+        ``task.execution_time`` when ``efficiency_metrics.latency.p95`` is
+        absent (nearest-rank, matching the dashboard's ``_latPct``)."""
+        v = self._mget_opt("efficiency_metrics", "latency", "p95")
+        if v is not None:
+            return v
+        xs = self._task_exec_times()
+        if not xs:
+            return 0.0
+        return xs[min(len(xs) - 1, int(len(xs) * 0.95))]
 
     @property
     def total_cost(self) -> float:
-        return self.efficiency_metrics.get("tokens", {}).get("total_cost", 0.0)
+        return self._mget("efficiency_metrics", "tokens", "total_cost")
 
     @property
     def avg_cost_per_task(self) -> float:
-        return self.efficiency_metrics.get("tokens", {}).get("avg_cost_per_task", 0.0)
+        """Cost per task. Falls back to ``total_cost / task_count`` (the same
+        thing the dashboard's "per task: $X" computes) when the stored
+        ``efficiency_metrics.tokens.avg_cost_per_task`` is absent."""
+        v = self._mget_opt("efficiency_metrics", "tokens", "avg_cost_per_task")
+        if v is not None:
+            return v
+        tc = self._mget("efficiency_metrics", "tokens", "total_cost", default=0.0)
+        n = self.task_count
+        return tc / n if tc and n else 0.0
 
     @property
     def total_tokens(self) -> int:
-        return self.efficiency_metrics.get("tokens", {}).get("total_tokens", 0)
+        """Total tokens. Falls back to ``sum(task.tokens_used.total)`` (or
+        input+output) when ``efficiency_metrics.tokens.total_tokens`` is absent."""
+        v = self._mget_opt("efficiency_metrics", "tokens", "total_tokens")
+        if v is not None:
+            return int(v)
+        tot = 0
+        for t in self.tasks:
+            tu = t.tokens_used if isinstance(t.tokens_used, dict) else {}
+            n = tu.get("total")
+            if not isinstance(n, (int, float)):
+                n = (tu.get("input", 0) or 0) + (tu.get("output", 0) or 0)
+            if isinstance(n, (int, float)) and math.isfinite(n):
+                tot += int(n)
+        return tot
 
     @property
     def prompt_version(self) -> str | None:
@@ -412,6 +514,43 @@ class ResultSet:
 def _avg(iterable) -> float:
     vals = [v for v in iterable if v is not None]
     return sum(vals) / len(vals) if vals else 0.0
+
+
+def _scrub_nonfinite(obj: Any) -> Any:
+    """Recursively replace NaN / ±Infinity floats with ``None`` (``json.loads``
+    accepts those tokens; nothing downstream should see them). Returns a new
+    structure for dict/list nodes, the same object otherwise."""
+    if isinstance(obj, float):
+        return None if not math.isfinite(obj) else obj
+    if isinstance(obj, dict):
+        return {k: _scrub_nonfinite(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_nonfinite(v) for v in obj]
+    return obj
+
+
+def _fnum(v: Any, default: float = 0.0) -> float:
+    """Coerce to float, tolerating None / "" / non-numeric strings in a result
+    JSON that was hand-written or produced by an older SDK. ``float(None)`` would
+    otherwise crash the whole report path."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return default
+    return f if math.isfinite(f) else default
+
+
+def _inum(v: Any, default: int = 0) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_dict(v: Any) -> dict:
+    """``v`` if it is a dict, else ``{}`` — a result JSON key present but ``null``
+    ( ``"accuracy_metrics": null`` ) must not become a None attribute."""
+    return v if isinstance(v, dict) else {}
 
 
 def _file_id(path: Path) -> str:
@@ -779,10 +918,27 @@ def _compute_harness_groups_fallback(report: dict) -> dict[str, Any]:
     acc = report.get("accuracy_metrics") or {}
     eff = report.get("efficiency_metrics") or {}
     sec = report.get("security_metrics") or {}
+    _tasks = [t for t in (report.get("tasks") or []) if isinstance(t, dict)]
+
+    def _mean_pct(field: str) -> float | None:
+        xs: list[float] = [
+            float(v) for t in _tasks
+            if isinstance(v := t.get(field), (int, float)) and math.isfinite(v)
+        ]
+        return sum(xs) / len(xs) * 100.0 if xs else None
 
     # ── Group A: Goal Achievement ──────────────────────────────────────────
-    tcr_pct = float((acc.get("tcr") or {}).get("tcr", 0.0) or 0.0)
-    overall_acc = float((acc.get("accuracy_scores") or {}).get("overall_accuracy", 0.0) or 0.0) / 100.0
+    # Prefer the stored aggregate; fall back to mean(per-task score) x 100 — the
+    # same rule ResultFile.tcr / .accuracy and the report headline use, so the
+    # Scorecard's Gate A doesn't read 0% while the header shows the real TCR.
+    _stored_tcr = (acc.get("tcr") or {}).get("tcr")
+    tcr_pct = float(_stored_tcr) if isinstance(_stored_tcr, (int, float)) \
+        else (_mean_pct("completion_score") or 0.0)
+    _stored_acc = (acc.get("accuracy_scores") or {}).get("overall_accuracy")
+    overall_acc = (
+        float(_stored_acc) if isinstance(_stored_acc, (int, float))
+        else (_mean_pct("accuracy_score") or 0.0)
+    ) / 100.0
     a_score = round((tcr_pct / 100.0 + overall_acc) / 2.0, 4)
 
     # ── Group B: Behavioral Integrity ─────────────────────────────────────
@@ -800,6 +956,14 @@ def _compute_harness_groups_fallback(report: dict) -> dict[str, Any]:
     # ── Group D: Performance Contract ────────────────────────────────────
     lat = (eff.get("latency") or {})
     p95 = lat.get("p95") or lat.get("p95_latency")
+    if p95 is None:
+        _xs = sorted(
+            float(v) for t in _tasks
+            if isinstance(v := t.get("execution_time"), (int, float))
+            and math.isfinite(v) and v > 0
+        )
+        if _xs:
+            p95 = _xs[min(len(_xs) - 1, int(len(_xs) * 0.95))]
     if p95 is not None:
         p95 = float(p95)
         d_score = round(1.0 if p95 < 5.0 else (0.7 if p95 < 10.0 else 0.3), 4)
@@ -1200,16 +1364,18 @@ def _parse_llm_judge(raw_tasks: list[dict[str, Any]]) -> LLMJudgeData:
 def _parse_tasks(raw_tasks: list[dict[str, Any]]) -> list[TaskRecord]:
     result = []
     for t in raw_tasks:
+        if not isinstance(t, dict):
+            continue  # skip a stray non-dict entry rather than crash the parse
         result.append(TaskRecord(
             task_id=t.get("task_id", ""),
             task_type=t.get("task_type", "unknown"),
             success=bool(t.get("success", False)),
-            completion_score=float(t.get("completion_score", 0)),
-            accuracy_score=float(t.get("accuracy_score", 0)),
-            execution_time=float(t.get("execution_time", 0)),
+            completion_score=_fnum(t.get("completion_score")),
+            accuracy_score=_fnum(t.get("accuracy_score")),
+            execution_time=_fnum(t.get("execution_time")),
             tokens_used=_tu if isinstance(_tu := t.get("tokens_used"), dict) else {},
             tool_calls=t.get("tool_calls") or [],
-            attempts=int(t.get("attempts", 1)),
+            attempts=_inum(t.get("attempts"), 1),
             errors=t.get("errors") or [],
             timestamp=t.get("timestamp", ""),
             expected_tools=t.get("expected_tools"),
@@ -1237,6 +1403,37 @@ def parse_file(path: Path) -> ResultFile:
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as _parse_err:
         logger.warning("parse_file: '%s' parse failed (returning empty result): %s", path, _parse_err)
         raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
+    else:
+        # ``json.loads`` accepts the non-standard ``NaN`` / ``Infinity`` tokens
+        # (an older save_to_file, a hand-built file, an external scorer). They
+        # then propagate through every metric read as a literal ``nan`` — into
+        # ``round()``, f-strings, the rendered page ("TCR: nan%") and back into a
+        # re-serialised insight object that ``JSON.parse`` rejects. Scrub once at
+        # ingest so everything downstream sees finite numbers or ``None``.
+        raw = _scrub_nonfinite(raw)
+
+    # Drop any stray non-dict entry from "tasks" once, up front — every sub-parser
+    # below iterates raw["tasks"] and calls t.get(...), so one bad entry (a string,
+    # null) would otherwise crash the whole report path.
+    _rt = raw.get("tasks")
+    if isinstance(_rt, list):
+        raw["tasks"] = [t for t in _rt if isinstance(t, dict)]
+    elif "tasks" in raw:
+        # present but not a list (explicit null, a dict, a scalar) — a sub-parser
+        # that does ``raw.get("tasks", [])`` gets that value back, not the default,
+        # so ``for t in raw["tasks"]`` would crash. Normalise to an empty list.
+        raw["tasks"] = []
+
+    # Same for the optional "report" wrapper: many sub-parsers do
+    # ``raw.get("report", {}).get(...)`` / ``raw.get("report", raw)`` — the ``, {}``
+    # default only covers a *missing* key, not an explicit ``null`` / non-dict value
+    # (a hand-written or partially-written file), which would then AttributeError
+    # mid-parse and make the file silently vanish from the dashboard. Coerce it
+    # once so a present-but-bad "report" behaves like an absent one.
+    if "report" in raw and not isinstance(raw["report"], dict):
+        del raw["report"]
 
     # Parse advanced first so we can reuse its rag_metrics for has_rag detection
     advanced = _parse_advanced(raw)
@@ -1261,10 +1458,10 @@ def parse_file(path: Path) -> ResultFile:
                         raw.get("metadata", {}).get("total_tasks",
                         len(raw_tasks)))),
         tasks=_parse_tasks(raw_tasks),
-        accuracy_metrics=raw.get("accuracy_metrics",
-                                 raw.get("report", {}).get("accuracy_metrics", {})),
-        efficiency_metrics=raw.get("efficiency_metrics",
-                                   raw.get("report", {}).get("efficiency_metrics", {})),
+        accuracy_metrics=_as_dict(raw.get("accuracy_metrics"))
+        or _as_dict(raw.get("report", {}).get("accuracy_metrics")),
+        efficiency_metrics=_as_dict(raw.get("efficiency_metrics"))
+        or _as_dict(raw.get("report", {}).get("efficiency_metrics")),
         security_l1=_parse_security_l1(raw),
         security_l2=_parse_security_l2(raw),
         agentic=_parse_agentic(raw),

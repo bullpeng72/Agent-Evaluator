@@ -488,3 +488,37 @@ class TestComponentShortfalls:
         cur = _report({"A": self._warn_gate(0.5, avg_x=0.5, avg_a=0.5, avg_m=0.5)})
         fields = [s["field"] for s in diagnose(cur)["findings"][0]["component_shortfalls"]]
         assert fields == ["avg_a", "avg_m", "avg_x"]
+
+
+class TestCliDiagnoseLoadJsonRejectsNonDict:
+    """cli/diagnose.py::_load_json must return None for a result / baseline file
+    that parses to a bare string / number / list — otherwise cmd_diagnose passes
+    it straight to rca.diagnose() which hits AttributeError on ``.get``."""
+
+    def test_non_dict_json_returns_none(self, tmp_path):
+        from agent_evaluator.cli.diagnose import _load_json
+
+        for payload in ('"a string"', "42", '["a", "list"]', "true", "null"):
+            p = tmp_path / "r.json"
+            p.write_text(payload, encoding="utf-8")
+            assert _load_json(str(p)) is None
+
+    def test_dict_json_still_loads(self, tmp_path):
+        from agent_evaluator.cli.diagnose import _load_json
+
+        p = tmp_path / "r.json"
+        p.write_text('{"extra_metrics": {}}', encoding="utf-8")
+        assert _load_json(str(p)) == {"extra_metrics": {}}
+
+    def test_cmd_diagnose_non_dict_result_exits_1(self, tmp_path, capsys):
+        import argparse
+
+        from agent_evaluator.cli.diagnose import cmd_diagnose
+
+        rf = tmp_path / "result.json"
+        rf.write_text('"not an object"', encoding="utf-8")
+        args = argparse.Namespace(
+            result_file=str(rf), baseline=None, violation_db=None,
+            regression_threshold=10.0, json=False, show_diff=False, repo_path=".",
+        )
+        assert cmd_diagnose(args) == 1

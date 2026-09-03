@@ -95,6 +95,26 @@ def get_diagnosis(
 
         _rec_log = Path(_repo_path) / "recommendation_outcomes.jsonl"
         _exp_log = Path(_repo_path) / ".aoo" / "experiments.jsonl"
+
+        # Pass the SAME optional inputs the static HTML report passes, so the
+        # Improve tab's ``insights`` object is identical to the report's — without
+        # ``targets`` the dashboard verdict measures against the built-in 0.7
+        # while the report measures against .aoo/targets.json; without
+        # ``history_dir`` / ``current_file`` the longitudinal / freshness /
+        # insight_changes sections are missing on the dashboard only.
+        try:
+            from agent_evaluator.utils.targets import load_targets
+            _targets = load_targets()
+        except Exception:
+            _targets = None
+        try:
+            from agent_evaluator.utils.reference import load_reference
+            _reference = load_reference()
+        except Exception:
+            _reference = None
+        _cur_file = getattr(rf, "path", None)
+        _hist_dir = str(Path(_cur_file).parent) if _cur_file else _repo_path
+
         result["insights"] = build_insights(
             rf.raw, baseline_raw,
             recommendation_log_path=(_rec_log if _rec_log.exists() else None),
@@ -102,6 +122,10 @@ def get_diagnosis(
             with_experiment_metadata=show_diff,
             repo_path=_repo_path,
             cohort=_cohort,
+            targets=_targets,
+            reference=_reference,
+            history_dir=_hist_dir,
+            current_file=str(_cur_file) if _cur_file else None,
         )
     except Exception:  # keep the diagnosis usable even if insight assembly fails
         result["insights"] = None

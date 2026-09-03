@@ -90,6 +90,28 @@ class TestGenerateComparisonHtmlReport:
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;" in html
 
+    @pytest.mark.parametrize("result", [
+        # null-valued delta fields — a bare f"{None:+.2f}" would TypeError
+        {"files": [{"found": True, "name": "a", "tcr": 80.0}],
+         "delta": [{"vs": "b", "tcr_delta": None, "accuracy_delta": None, "latency_delta": None}]},
+        # null-valued per-task delta in the detail section
+        {"files": [{"found": True, "name": "a"}], "detailed": {"common_task_count": None},
+         "regression_tasks": [{"task_id": "t1", "accuracy_delta": None, "latency_delta": None}]},
+        # a metric value arriving as a string — f"{'x':.1f}" would ValueError
+        {"files": [{"found": True, "name": "a", "tcr": "88.5", "total_tasks": "10",
+                    "accuracy": None, "avg_latency": None, "total_cost": None}]},
+        # containers that are not lists / not dicts
+        {"files": "oops"},
+        {"files": [{"found": True, "name": "a"}], "delta": {"x": 1}, "detailed": "nope",
+         "regression_tasks": ["x", None, 5], "pairwise": "nope"},
+        {"files": None, "delta": None, "detailed": None, "regression_tasks": None,
+         "improvement_tasks": None, "pairwise": None},
+    ])
+    def test_malformed_compare_result_never_crashes(self, result):
+        html = generate_comparison_html_report(result)
+        assert html.lstrip().startswith("<")
+        assert "</html>" in html
+
 
 # ---------------------------------------------------------------------------
 # GET /api/export/html/compare — TestClient 통합 테스트

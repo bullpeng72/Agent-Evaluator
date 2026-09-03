@@ -2,7 +2,7 @@
 
 A reference for the formulas, output keys, and thresholds of Agent Evaluator's **58 metrics**.
 
-**v1.0.0 | 25 Native Trackers + 33 Harness Config = 58 metrics | 7 Gates (A–G) decide deployment readiness**
+**v1.0.1 | 25 Native Trackers + 33 Harness Config = 58 metrics | 7 Gates (A–G) decide deployment readiness**
 
 > For individual tracker API signatures, see [08_API_REFERENCE.md](08_API_REFERENCE.md).
 > For applying the decorator approach, see [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md).

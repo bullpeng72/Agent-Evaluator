@@ -33,18 +33,34 @@ _TASK_TAG_STORE: dict[str, dict[str, list[str]]] = {}
 
 
 def _to_meta(f) -> dict[str, Any]:
-    hall_ev = f.accuracy_metrics.get("hallucination", {})
+    # ``.get("hallucination", {})`` returns None when the key is present but null
+    # (a hand-written / older result file) — coerce so /api/results can't 500 on
+    # one bad sibling file.
+    hall_ev = f.accuracy_metrics.get("hallucination") or {}
     tot = hall_ev.get("total_evaluated", 0) or 0
     flagged = hall_ev.get("total_flagged", 0) or 0
-    hall_rate = round(flagged / tot * 100, 2) if tot > 0 else 0.0
+    # "Hallucination Rate" must mean the same thing on every surface. The static
+    # HTML report, ResultFile.hallucination_rate, the Gate C/G score and
+    # ``agent-eval gate --hallucination`` all use ``overall_rate`` =
+    # mean(per-task hallucination_rate) x 100. The list card used to show
+    # flagged/evaluated x 100 (task *incidence*) under the same label — a
+    # different number for the same run. Align on ``overall_rate``; expose the
+    # incidence separately so the UI can still show "4 / 7 tasks flagged".
+    hall_incidence = round(flagged / tot * 100, 2) if tot > 0 else 0.0
     return {
         "id":            f.file_id,
         "name":          f.name,
         "timestamp":     f.timestamp,
-        "total_tasks":   f.total_tasks,
+        # parsed-count (fallback declared) — same rule as the static HTML report
+        # so the list card and the report headline never disagree.
+        "total_tasks":   f.task_count,
+        "total_tasks_declared": f.total_tasks,
         "tcr":           round(f.tcr, 2),
         "accuracy":      round(f.accuracy, 2),
-        "hallucination": round(float(hall_rate), 2),
+        "hallucination": round(float(f.hallucination_rate), 2),
+        "hallucination_flagged":   int(flagged),
+        "hallucination_evaluated": int(tot),
+        "hallucination_incidence": hall_incidence,
         "avg_latency":   round(f.avg_latency, 3),
         "total_cost":    round(f.total_cost, 6),
         "quality_avg":   round(f.quality_detail.avg_score * 20, 1),
@@ -582,7 +598,10 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: UP006
         "id":                  rf.file_id,
         "name":                rf.name,
         "timestamp":           rf.timestamp,
-        "total_tasks":         rf.total_tasks,
+        # parsed-count (fallback declared) — matches the static HTML report's
+        # headline and every per-task panel below, which iterate ``tasks``.
+        "total_tasks":         rf.task_count,
+        "total_tasks_declared": rf.total_tasks,
         "frameworks":          _fw_dist,
         "tasks":               tasks,
         "accuracy_metrics":    rf.accuracy_metrics,
@@ -853,7 +872,7 @@ def get_reliability(file_id: str, request: Request) -> Dict[str, Any]:  # noqa: 
 
     return {
         "file_id": file_id,
-        "total_tasks": rf.total_tasks,
+        "total_tasks": rf.task_count,
         "error_free_rate": round(error_free / n * 100, 1),
         "retry_free_rate": round(retry_free / n * 100, 1),
         "loop_events": getattr(rf, "loop_events", []),
@@ -1263,7 +1282,12 @@ def get_metric_detail(file_id: str, metric_name: str, request: Request) -> Dict[
         "latency":       (rf.efficiency_metrics or {}).get("latency", {}),
         "tokens":        (rf.efficiency_metrics or {}).get("tokens", {}),
         "hallucination": {
-            "rate":     rf.accuracy_metrics.get("hallucination", {}).get("total_flagged", 0),
+            # ``rate`` is the canonical overall_rate (mean per-task rate x 100),
+            # matching the static report / ResultFile.hallucination_rate. It used
+            # to return ``total_flagged`` — a raw count mislabelled "rate".
+            "rate":     (rf.accuracy_metrics.get("hallucination") or {}).get("overall_rate", 0),
+            "flagged":  (rf.accuracy_metrics.get("hallucination") or {}).get("total_flagged", 0),
+            "evaluated": (rf.accuracy_metrics.get("hallucination") or {}).get("total_evaluated", 0),
             "detail":   rf.hallucination_detail.detections if rf.has_hallucination else [],
             "indicator_types": rf.hallucination_detail.indicator_types if rf.has_hallucination else {},
         },
@@ -1550,7 +1574,11 @@ def compare_results(
             "file_id":    fid,
             "name":       rf.name,
             "found":      True,
-            "total_tasks": rf.total_tasks,
+            # parsed count (fallback declared) — same rule as the single-file
+            # report / _to_meta so the compare table and the single report never
+            # disagree on the same file's task count.
+            "total_tasks": rf.task_count,
+            "total_tasks_declared": rf.total_tasks,
             "tcr":        round(rf.tcr, 2),
             "accuracy":   round(rf.accuracy, 2),
             "avg_latency": round(rf.avg_latency, 3),
@@ -1688,7 +1716,7 @@ def get_leaderboard(
             "file_id":    rf.file_id,
             "name":       rf.name,
             "timestamp":  rf.timestamp,
-            "total_tasks": rf.total_tasks,
+            "total_tasks": rf.task_count,
             "tcr":        round(rf.tcr, 2),
             "accuracy":   round(rf.accuracy, 2),
             "avg_latency": round(rf.avg_latency, 3),
@@ -2616,14 +2644,14 @@ def get_comparison(
         "accuracy": _safe_round(rf_a.accuracy),
         "avg_latency": _safe_round(rf_a.avg_latency, 3),
         "total_cost": _safe_round(rf_a.total_cost, 6),
-        "total_tasks": rf_a.total_tasks,
+        "total_tasks": rf_a.task_count,
     }
     metrics_b = {
         "tcr": _safe_round(rf_b.tcr),
         "accuracy": _safe_round(rf_b.accuracy),
         "avg_latency": _safe_round(rf_b.avg_latency, 3),
         "total_cost": _safe_round(rf_b.total_cost, 6),
-        "total_tasks": rf_b.total_tasks,
+        "total_tasks": rf_b.task_count,
     }
 
     diff = {k: _diff(metrics_a.get(k), metrics_b.get(k)) for k in metrics_a}

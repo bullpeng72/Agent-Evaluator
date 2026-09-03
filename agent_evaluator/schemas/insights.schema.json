@@ -256,7 +256,10 @@
         "accuracy_pct": { "type": "number" },
         "tcr_ci_pct": { "$ref": "#/$defs/pair" },
         "accuracy_ci_pct": { "$ref": "#/$defs/pair" },
-        "tcr_ci_halfwidth": { "type": "number" }
+        "tcr_ci_halfwidth": { "type": "number" },
+        "tcr_ci_degenerate": { "type": "boolean" },
+        "tcr_constant_value": { "type": "number" },
+        "accuracy_ci_degenerate": { "type": "boolean" }
       }
     },
 
@@ -337,6 +340,7 @@
       "additionalProperties": true,
       "properties": {
         "n_items": { "type": "integer", "minimum": 0 },
+        "systemic_note": { "type": ["string", "null"] },
         "by_priority": {
           "type": "object",
           "additionalProperties": true,
@@ -685,6 +689,7 @@
         "target_halfwidth_pp": { "type": "number" },
         "recommended_n": { "type": "integer" },
         "additional_tasks": { "type": "integer" },
+        "degenerate": { "type": "boolean" },
         "message": { "type": "string" }
       }
     },

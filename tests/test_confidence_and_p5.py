@@ -146,6 +146,15 @@ class TestVerdictConfidence:
         )
         assert level == "low"  # n_tasks<20 이 지배
 
+    def test_degenerate_tcr_demotes_low_even_with_zero_halfwidth(self):
+        # P63: a zero-width CI from a constant metric must NOT read as "precise".
+        level, reasons = verdict_confidence(
+            n_tasks=200, tcr_ci_halfwidth=0.0, tcr_ci_degenerate=True,
+            n_gate_components=6, margin_to_threshold=0.2,
+        )
+        assert level == "low"
+        assert any("no signal" in r for r in reasons)
+
 
 class TestReportIntegration:
     def _mon(self, n=18):

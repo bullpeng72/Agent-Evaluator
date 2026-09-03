@@ -39,6 +39,7 @@ from agent_evaluator.cli.gate import (
     _fmt_threshold,
     _fmt_value,
     _load_baseline,
+    _load_harness_groups,
     _load_metrics,
     _print_table,
     _save_baseline,
@@ -201,6 +202,65 @@ class TestLoadMetrics:
     def test_empty_data_all_none(self):
         m = _load_metrics({})
         assert all(v is None for v in m.values())
+
+
+class TestLoadMetricsTolerateNulls:
+    """A hand-written / older / partially-written result file may carry an
+    explicit ``null`` for any nested metric block (or the top-level value).
+    ``agent-eval gate`` must exit 1 cleanly, never crash with AttributeError."""
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"accuracy_metrics": None},
+            {"accuracy_metrics": {"tcr": None}},
+            {"accuracy_metrics": {"accuracy_scores": None}},
+            {"accuracy_metrics": {"hallucination": None}},
+            {"efficiency_metrics": None},
+            {"efficiency_metrics": {"latency": None}},
+            {"efficiency_metrics": {"tokens": None}},
+            {"tasks": None},
+            {"tasks": 5},
+            {"tasks": {"a": 1}},
+            {"tasks": [{"llm_judge": {"scores": None}}]},
+            {"extra_metrics": None},
+            {"extra_metrics": {"harness_groups": None}},
+            {"extra_metrics": {"harness_groups": []}},
+            [],
+            "x",
+            42,
+            None,
+        ],
+    )
+    def test_loaders_never_crash_on_malformed(self, data):
+        m = _load_metrics(data)
+        assert set(m) >= {"tcr", "accuracy", "p95_latency", "hallucination"}
+        g = _load_harness_groups(data)
+        assert set(g) == set("ABCDEFG")
+        assert all(v is None for v in g.values())
+
+    def test_load_baseline_non_dict_returns_none(self, tmp_path):
+        bp = tmp_path / "baseline.json"
+        bp.write_text('["not", "a", "dict"]', encoding="utf-8")
+        assert _load_baseline(bp) is None
+
+    def test_cmd_gate_non_dict_result_exits_1(self, tmp_path):
+        rf = tmp_path / "result.json"
+        rf.write_text('"just a string"', encoding="utf-8")
+        args = _make_args(result_file=str(rf), tcr=80.0)
+        assert cmd_gate(args) == 1
+
+    def test_cmd_gate_null_metric_blocks_no_crash(self, tmp_path):
+        rf = tmp_path / "result.json"
+        rf.write_text(json.dumps({
+            "accuracy_metrics": None,
+            "efficiency_metrics": {"latency": None, "tokens": None},
+            "extra_metrics": {"harness_groups": None},
+            "tasks": [{"task_id": "t1", "success": True, "llm_judge": {"scores": None}}],
+        }), encoding="utf-8")
+        args = _make_args(result_file=str(rf), tcr=80.0, gate_thresholds="A:0.8")
+        # TCR is unmeasurable -> SKIP -> exit 1, but no traceback
+        assert cmd_gate(args) in (0, 1)
 
 
 # ===========================================================================

@@ -635,6 +635,48 @@ self-consistency)의 cross-model 축 보완. 스키마 `judge_robustness`. 리�
 태스크 표. TOC "Judge robustness". `test_judge_robustness_p52.py`(8) + `test_insights_schema.py` 시나리오.
 전체 4671 통과.
 
+## Round 9 — P63 (실측 리포트 감사에서 나온 퇴화 지표 방어선)
+
+동봉 저장소의 실제 결과 리포트(`harness-method-workbook/results/final/v3.html`, 18 tasks)를 코드와
+대조하다 발견: 채점기가 JSON 응답을 2토큰 `ground_truth`("billing P2")와 **텍스트 유사도**로 비교 →
+`AccuracyEvaluator`가 `similarity<0.5 → 0.5` 폴백 → **모든 태스크 completion=0.50**. 그 결과
+`bootstrap_mean_ci([0.5]*18) → (0.5, 0.5)` → `tcr_ci_halfwidth=0.0`. 리포트 3곳이 이 폭 0을
+"정밀"으로 오독: (1) `verdict_confidence`가 `hw>0.15`만 강등해 0.0은 무시(n<20만이 판정을 살림),
+(2) `_sample_guidance_section`이 `hw≤5pp`라 "No more tasks needed for precision" — 같은 리포트의
+`_uncertainty_budget_section`("~367개 더")과 정면 모순, (3) `_review_queue_section`이 18개 전부
+"borderline completion (0.50)"으로 큐를 도배(리뷰 큐 = 전 세트). 핵심 원인(채점기 형태 불일치)에 대한
+작동하는 감지는 0 — 유일한 경로인 `suspicious_ground_truth`의 "GT가 짧다" 힌트가 `accuracy<0.35`
+문턱에서 막힘(폴백이 정확히 0.5로 올려놓음).
+
+**SPEC-041 P63 (퇴화 지표 = 무분산 = 무신호)** — 새 판정 없음, "폭 0인 CI는 정밀이 아니라 신호 없음"을
+전 소비처에 전파. 5개 지점:
+- `reporting/insights.py::_metric_confidence_section` — `len(comps)>=2 and max-min<1e-9`면
+  `tcr_ci_degenerate: true` + `tcr_constant_value`. accuracy도 동일(`accuracy_ci_degenerate`).
+- `utils/confidence.py::verdict_confidence(*, tcr_ci_degenerate=False)` — true면 `_demote("low",
+  "TCR carries no signal — every task scored identically")`. halfwidth 분기보다 우선. insights·
+  comprehensive_report 세 호출부 모두 인자 전달.
+- `reporting/insights.py::_sample_guidance_section` — `degenerate`면 "already precise" 경로 금지 →
+  `p=0.5`로 `required_n_for_halfwidth` 재계산 + `degenerate: true` + "Every task scored identically —
+  the TCR CI is zero-width by construction, not by precision … widen the set … check the scorer /
+  ground-truth shape".
+- `reporting/insights.py::_review_queue_section` — 같은 borderline 이유가 세트의 ≥80%를 덮으면
+  `systemic_note`(스코어러 형태 문제 1줄)로 접고, **독립 신호를 함께 가진 행만** 남긴다(회귀·judge
+  불일치·의심 라벨). `if not by_task and systemic_note is None` 로 완화.
+- `reporting/insights.py::_eval_set_quality_section` — baseline 무관 지문:
+  `accuracy==0.5 정확히` ∧ `GT 단어수<3` ∧ `GT는 non-JSON` ∧ `response는 JSON` 인 태스크가 세트의
+  1/3+ (최소 3) → `coverage_warnings`에 "text-similarity scorer likely does not fit this output —
+  Score the fields directly (score_fn / custom_parser)".
+
+리포트 렌더: `comprehensive_report.py::_metric_ci_data`도 같은 degenerate 감지,
+`_build_review_queue`가 `systemic_note`를 앰버 배너로(행 0개여도 섹션 유지), `_build_sample_guidance`가
+degenerate면 앰버색. 스키마 `metric_confidence.{tcr_ci_degenerate,tcr_constant_value,
+accuracy_ci_degenerate}` · `review_queue.systemic_note` · `sample_guidance.degenerate`.
+`test_confidence_and_p5.py`(+1) · `test_insights_layer.py::TestDegenerateMetricP63`(+6). 전체 4801 통과,
+0 new ruff. 실측 v3.json에서 검증: verdict.confidence LOW(+사유), sample_guidance "carries no signal /
++367", review_queue 18→6 + systemic_note, coverage_warnings에 스코어러 불일치 경고. 근본 치료는 여전히
+동봉 저장소 `eval/`에서 `response.category`/`priority`를 필드 단위로 채점하는 것 — 이 5건은 "다시 이런
+실행이 와도 리포트가 스스로 '이 숫자 믿지 마라'라고 말하게" 하는 방어선.
+
 ## Round 8 — P53–P62 (8th gap analysis, user approved "순서대로 구현")
 
 8번째 정밀 분석이 찾은 4개 축의 gap: (A) 외부 기준 프레임 부재(모든 판정이 절대 임계값 또는

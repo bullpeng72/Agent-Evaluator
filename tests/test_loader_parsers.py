@@ -206,3 +206,152 @@ class TestParseFeedbackData:
         assert result["total"] == 7
         assert result["positive_rate"] == pytest.approx(0.57, abs=1e-3)
         assert result["type_distribution"]["thumbs_up"] == 4
+
+
+# ---------------------------------------------------------------------------
+# _parse_tasks — tolerate null / non-numeric / non-dict entries so a hand-
+# written or older-SDK result JSON does not crash the whole report path.
+# ---------------------------------------------------------------------------
+
+class TestParseTasksTolerantCoercion:
+    def _parse(self, raw):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from agent_evaluator.serve.loader import parse_file
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(raw, f)
+            p = f.name
+        try:
+            return parse_file(Path(p))
+        finally:
+            import os
+            os.unlink(p)
+
+    def test_null_score_fields_do_not_crash(self):
+        rf = self._parse({"total_tasks": 2, "tasks": [
+            {"task_id": "a", "completion_score": None, "accuracy_score": None,
+             "execution_time": None, "attempts": None},
+            {"task_id": "b"},  # keys entirely absent
+        ]})
+        assert len(rf.tasks) == 2
+        assert rf.tasks[0].completion_score == 0.0
+        assert rf.tasks[0].accuracy_score == 0.0
+        assert rf.tasks[0].execution_time == 0.0
+        assert rf.tasks[0].attempts == 1  # default, not 0
+
+    def test_string_scores_are_coerced(self):
+        rf = self._parse({"total_tasks": 1, "tasks": [
+            {"task_id": "a", "completion_score": "0.8", "accuracy_score": "1",
+             "execution_time": "2.5", "attempts": "3"},
+        ]})
+        assert rf.tasks[0].completion_score == 0.8
+        assert rf.tasks[0].attempts == 3
+
+    def test_garbage_string_scores_fall_back(self):
+        rf = self._parse({"total_tasks": 1, "tasks": [
+            {"task_id": "a", "accuracy_score": "n/a", "execution_time": "fast"},
+        ]})
+        assert rf.tasks[0].accuracy_score == 0.0
+        assert rf.tasks[0].execution_time == 0.0
+
+    def test_non_dict_task_entries_are_dropped(self):
+        rf = self._parse({"total_tasks": 3, "tasks": [
+            "oops", None, 42, {"task_id": "real", "accuracy_score": 0.5},
+        ]})
+        assert len(rf.tasks) == 1
+        assert rf.tasks[0].task_id == "real"
+
+    def test_tasks_not_a_list(self):
+        rf = self._parse({"total_tasks": 0, "tasks": "broken"})
+        assert rf.tasks == []
+
+    def test_tasks_explicit_null(self):
+        # ``"tasks": null`` — sub-parsers do ``raw.get("tasks", [])`` which returns
+        # None (not the default), then ``for t in None`` crashes _parse_advanced.
+        rf = self._parse({"accuracy_metrics": {"tcr": {"tcr": 50}}, "tasks": None})
+        assert rf.tasks == []
+        assert round(rf.tcr, 1) == 50.0
+
+    def test_tasks_dict_value(self):
+        rf = self._parse({"tasks": {"weird": 1}})
+        assert rf.tasks == []
+
+
+class TestParseFileTolerateBadReportWrapper:
+    """Many sub-parsers do ``raw.get("report", {}).get(...)`` / ``raw.get("report",
+    raw)`` — the ``, {}`` default only covers a *missing* key, not an explicit
+    ``null`` / non-dict "report" value, which would AttributeError mid-parse and
+    make the file silently vanish from the dashboard (load_results swallows it)."""
+
+    def _parse(self, raw):
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from agent_evaluator.serve.loader import parse_file
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(raw, f)
+            p = f.name
+        try:
+            return parse_file(Path(p))
+        finally:
+            os.unlink(p)
+
+    @pytest.mark.parametrize("bad", [None, 5, "x", [], True])
+    def test_bad_report_wrapper_does_not_crash(self, bad):
+        rf = self._parse({"report": bad, "accuracy_metrics": {"tcr": {"tcr": 71}}})
+        # a present-but-bad "report" behaves like an absent one → flat metrics win
+        assert round(rf.tcr, 1) == 71.0
+
+    def test_valid_report_wrapper_still_read(self):
+        rf = self._parse({"report": {"accuracy_metrics": {"tcr": {"tcr": 88}}}})
+        assert round(rf.tcr, 1) == 88.0
+
+
+class TestResultFilePropertiesTolerateNullMetrics:
+    """A result JSON whose ``accuracy_metrics`` / ``efficiency_metrics`` (or a key
+    inside them) is ``null`` must not turn ResultFile's numeric properties into
+    ``None`` — ``compare_results`` / CSV export / ``_to_meta`` do ``round(prop, n)``
+    and a single bad sibling file otherwise 500s the whole dashboard listing.
+    """
+    def _parse(self, raw):
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from agent_evaluator.serve.loader import parse_file
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(raw, f)
+            p = f.name
+        try:
+            return parse_file(Path(p))
+        finally:
+            os.unlink(p)
+
+    _PROPS = ("tcr", "accuracy", "hallucination_rate", "avg_latency",
+              "p95_latency", "total_cost", "avg_cost_per_task", "total_tokens")
+
+    @pytest.mark.parametrize("raw", [
+        {"accuracy_metrics": None, "tasks": []},
+        {"efficiency_metrics": None, "tasks": []},
+        {"accuracy_metrics": {"tcr": None}, "tasks": []},
+        {"accuracy_metrics": {"tcr": {"tcr": None}}, "tasks": []},
+        {"accuracy_metrics": {"accuracy_scores": None}, "tasks": []},
+        {"efficiency_metrics": {"latency": None}, "tasks": []},
+        {"efficiency_metrics": {"tokens": {"total_cost": None}}, "tasks": []},
+        {"accuracy_metrics": [1, 2], "tasks": []},
+        {"accuracy_metrics": {"tcr": {"tcr": "0.8"}}, "tasks": []},
+    ])
+    def test_numeric_props_always_roundable(self, raw):
+        rf = self._parse(raw)
+        for prop in self._PROPS:
+            v = getattr(rf, prop)
+            assert isinstance(v, (int, float)), f"{prop} -> {v!r}"
+            round(v, 4)  # exactly what the consumers do

@@ -38,9 +38,14 @@ C  = "\033[36m" if _COLOR else ""
 def _load_json(path: str) -> dict[str, Any] | None:
     try:
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            loaded = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
+    # A result / baseline file that parses to a non-object (bare string, number,
+    # list) is malformed for our purposes — return None so the caller reports a
+    # clean "could not read" instead of letting rca.diagnose() hit an
+    # AttributeError on ``.get``.
+    return loaded if isinstance(loaded, dict) else None
 
 
 def _fmt_score(score: float | None) -> str:

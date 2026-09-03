@@ -58,6 +58,25 @@ class TestSchema:
         assert ins["gate_findings"] == []
         assert ins["failure_clusters"] == []
 
+    @pytest.mark.parametrize("bad", [[], "x", 42, None, 3.14, True])
+    def test_never_raises_on_non_dict_current(self, bad):
+        # "Never raises" is unconditional — a caller may hand a bare list /
+        # string / None loaded from a malformed result file.
+        for partial in (False, True):
+            ins = build_insights(bad, partial=partial)
+            assert isinstance(ins, dict)
+            json.dumps(ins)
+
+    @pytest.mark.parametrize("bad_baseline", [[], "x", 0, 1.0])
+    def test_never_raises_on_non_dict_baseline(self, bad_baseline):
+        rpt = _report(
+            {"A": {"score": 0.8, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=i % 2 == 0) for i in range(6)],
+        )
+        ins = build_insights(rpt, bad_baseline)
+        assert isinstance(ins, dict)
+        json.dumps(ins)
+
 
 class TestVerdict:
     def test_failing_gate_is_not_ready(self):
@@ -716,3 +735,54 @@ class TestSaveToFileEmbedsInsights:
         assert ins["schema_version"] == INSIGHTS_SCHEMA_VERSION
         assert ins["metric_confidence"]["n_tasks"] == 12
         assert "verdict" in ins
+
+
+class TestDegenerateMetricP63:
+    """P63: a metric that scored identically on every task must not be read as a
+    precise, well-sampled estimate."""
+
+    def _rpt(self):
+        # every task lands on completion 0.50 (the AccuracyEvaluator similarity
+        # fallback) with a bare 2-word ground truth vs a JSON response
+        tasks = [
+            {
+                "task_id": f"t{i}", "task_type": "qa", "success": True,
+                "completion_score": 0.5,
+                "accuracy_score": 0.5 if i % 3 == 0 else 1.0,
+                "question": f"q{i}",
+                "response": '{"category": "billing", "priority": "P1"}',
+                "ground_truth": "billing P2",
+            }
+            for i in range(18)
+        ]
+        hg = {"A": {"score": 0.60, "status": "warn"}, "G": {"score": 1.0, "status": "pass"}}
+        return _report(hg, tasks)
+
+    def test_metric_confidence_flags_degenerate(self):
+        mc = build_insights(self._rpt())["metric_confidence"]
+        assert mc["tcr_ci_degenerate"] is True
+        assert mc["tcr_constant_value"] == 0.5
+        assert mc["tcr_ci_halfwidth"] == 0.0
+
+    def test_verdict_confidence_low_with_reason(self):
+        v = build_insights(self._rpt())["verdict"]
+        assert v["confidence"] == "low"
+        assert any("no signal" in r for r in v.get("confidence_reasons") or [])
+
+    def test_sample_guidance_does_not_claim_precision(self):
+        sg = build_insights(self._rpt())["sample_guidance"]
+        assert sg["degenerate"] is True
+        assert sg["additional_tasks"] > 0
+        assert "No more tasks needed" not in sg["message"]
+        assert "carries no signal" in sg["message"]
+
+    def test_review_queue_collapses_the_flood(self):
+        rq = build_insights(self._rpt(), self._rpt())["review_queue"]
+        assert rq["systemic_note"] and "artefact across the whole set" in rq["systemic_note"]
+        # only tasks with an independent signal survive as rows (here: none, since
+        # current == baseline → no "new failure"); the note carries the finding
+        assert rq["n_items"] <= 6
+
+    def test_eval_set_quality_warns_scorer_mismatch(self):
+        w = build_insights(self._rpt())["eval_set_quality"]["coverage_warnings"]
+        assert any("does not fit this output" in x for x in w)

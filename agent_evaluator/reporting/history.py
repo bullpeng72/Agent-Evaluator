@@ -76,8 +76,10 @@ def scan_history(
         if not gate_scores:
             continue
         rows.append({
+            # coerce to str — a hand-written / older file may carry an epoch int
+            # or a dict here, which would blow up the sort below (mixed types).
+            "timestamp": str(data.get("timestamp") or ""),
             "file": path.name,
-            "timestamp": data.get("timestamp") or "",
             "tcr": _tcr_from(data),
             "gate_scores": gate_scores,
             "overall": (hg.get("overall") or {}).get("score"),
@@ -93,6 +95,7 @@ def trend_summary(history: list[dict[str, Any]]) -> dict[str, Any]:
     times in a row the score went down (a small tolerance absorbs noise).
     ``slope`` is a plain first-to-last delta — not a regression, just direction.
     """
+    history = [r for r in history if isinstance(r, dict)]
     out: dict[str, Any] = {"n_runs": len(history), "gates": {}}
     if len(history) < 2:
         return out
@@ -107,10 +110,14 @@ def trend_summary(history: list[dict[str, Any]]) -> dict[str, Any]:
     out["first_run"] = _label(history[0])
     out["last_run"] = _label(history[-1])
     tol = 0.005
+    def _gs(r: dict[str, Any]) -> dict[str, Any]:
+        v = r.get("gate_scores")
+        return v if isinstance(v, dict) else {}
+
     for g in _GATES:
-        series = [
-            r["gate_scores"].get(g) for r in history
-            if isinstance(r["gate_scores"].get(g), (int, float))
+        series: list[float] = [
+            float(v) for r in history
+            if isinstance(v := _gs(r).get(g), (int, float))
         ]
         if len(series) < 2:
             continue

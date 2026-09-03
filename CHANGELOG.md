@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.1 (2026-09-03) — report-generation hardening + dashboard parity
+
+Patch release. No public SDK API changes, no new/removed Configs or trackers, no `schema_version` bump.
+Every metric the static HTML report and the dashboard both display now shows the same number, and a
+malformed / partial / externally-produced result JSON no longer crashes report generation.
+
+- 🐛 **Malformed-input defense** — an explicit `null` nested block (`accuracy_metrics: null`, `harness_groups: {"A": null}`, `report: null`), a non-dict `tasks` row, or a non-standard `NaN` / `Infinity` token in a result JSON no longer raises. Hardened across `serve/loader.py` (`_mget` / `parse_file` / `_scrub_nonfinite`), `cli/gate.py` + `cli/diagnose.py` (`agent-eval gate` / `diagnose` exit cleanly instead of a traceback), `reporting/comprehensive_report.py` (all `_build_gate_*` helpers), `reporting/history.py`, and `reporting/insights.py` (`build_insights()` "never raises" is now enforced for non-dict input).
+- 🐛 **Strict-JSON on write** — `monitor.save_to_file()` recursively sanitizes `NaN`/`inf` → `null` and writes with `allow_nan=False`, so every result file parses in a standard JSON reader.
+- 🐛 **Dashboard ↔ static-report parity** — the two surfaces now agree on: hallucination rate (mean per-task severity, not task incidence), task count (`ResultFile.task_count`), per-task fallbacks for TCR / accuracy / latency / tokens / cost when stored aggregates are absent, and all seven Gate detail tables (canonical `avg_*` keys, matching labels/scale/set). The Gate score-breakdown result line no longer prints a false `( … ) ÷ N = <score>%` when the components do not reconcile — it shows `≈ <mean>% · Gate X Score = <score>%` instead.
+- ✨ Static HTML report gains an **Overall** scorecard card and **Implicit Feedback** + **Streaming Snapshot** sections (content parity with the dashboard).
+- 🔧 **English-only runtime output** — the remaining Korean `warnings.warn()` validation messages in `gates/` are translated; all runtime-emitted text (CLI, HTML, logs, MCP, hook, dashboard `detail`) is now English.
+- 🔧 `serve/loader.py` / `reporting/*` type-hint cleanups (Optional narrowing; no behavior change).
+- 🔧 Dev-dependency currency: `setuptools` pin scoped to Python ≥ 3.10 so 3.8 / 3.9 CI installs; `anthropic` / `arize-phoenix` / `sentence-transformers` requirement bumps.
+
 ## v1.0.0 (2026-08-31) — General Availability
 
 First GA release. Public SDK API is `1.0.0-rc4` unchanged — the delta is the completion of

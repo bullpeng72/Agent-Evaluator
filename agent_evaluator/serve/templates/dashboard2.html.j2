@@ -324,7 +324,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     /* ── local helpers: data is inherited from parent app2() scope ── */
     _tcr(){const t=data.tasks||[],n=t.length||1;const raw=data.accuracy_metrics?.tcr?.tcr??null;return raw!=null?raw:t.reduce((s,x)=>s+(x.completion_score||0),0)/n*100;},
     _acc(){const t=data.tasks||[],n=t.length||1;const raw=data.accuracy_metrics?.accuracy_scores?.overall_accuracy??null;return raw!=null?raw:t.reduce((s,x)=>s+(x.accuracy_score||0),0)/n*100;},
-    _hall(){const dets=data.hallucination_detail?.detections||[];if(dets.length>0){const fl=dets.filter(x=>(x.hallucination_rate||0)>0).length;return(fl/dets.length)*100;}const am=data.accuracy_metrics?.hallucination||{};const raw=am.overall_rate??null;if(raw!=null)return raw;const ev=am.total_evaluated||0,fl=am.total_flagged||0;return ev>0?(fl/ev)*100:0;},
+    /* Hallucination Rate = mean(per-task hallucination_rate) x 100 — the same
+       definition the static HTML report, ResultFile.hallucination_rate and the
+       Gate C/G score use. (Was flagged/total x 100 = task incidence, a different
+       number under the same label. Incidence is shown separately as "flagged".) */
+    _hall(){const am=data.accuracy_metrics?.hallucination||{};const raw=am.overall_rate??null;if(raw!=null)return raw;const dets=data.hallucination_detail?.detections||[];if(dets.length>0)return dets.reduce((s,x)=>s+(x.hallucination_rate||0),0)/dets.length*100;return 0;},
     _p95(){const em=data.efficiency_metrics||{};return em.latency?.p95??em.p95_latency??0;},
     _cost(){ return cTotal(data); },
     _pct(v){return v==null?0:Math.min(100,Math.max(0,v));},
@@ -2076,6 +2080,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🪙 Token Economy<span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D Performance Contract</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
+    /* Σ per-task tokens_used — fallback when efficiency_metrics.tokens is absent
+       (partial / external file), mirrors ResultFile.total_tokens / the report. */
+    _tsum(d, f){ return (d.tasks||[]).reduce((s,t)=>{const u=t.tokens_used||{};
+      const v = f==='total' ? (u.total!=null?u.total:(u.input||0)+(u.output||0)) : (u[f]||0);
+      return s + (typeof v==='number'?v:0);}, 0); },
+    _tok(d, key, f){ const tk=(d.efficiency_metrics||{}).tokens||{};
+      return tk[key]!=null ? tk[key] : this._tsum(d, f); },
     meta:{
       total:{label:'Total Tokens',unit:'tokens',desc:'Total LLM tokens consumed across this evaluation. A core efficiency metric directly tied to infrastructure cost, used as a baseline for prompt design and context management optimization.',hint:'Σ(input_tokens + output_tokens)'},
       input:{label:'Input Tokens',unit:'tokens',desc:'Tokens consumed by prompts, system instructions, and context. Used to identify unnecessarily long prompts or excessive context injection, and to evaluate prompt efficiency via the I/O ratio.',hint:'Σ input_tokens'},
@@ -2084,11 +2095,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       io_ratio:{label:'I/O Ratio',unit:'%',desc:'Ratio of output tokens to input tokens. Excessively high values may indicate unnecessarily verbose responses; too low may mean overly terse replies. The optimal ratio varies by task type.',hint:'output_tokens / input_tokens × 100'},
     },
     formula(k,d){
-      const tok=(d.efficiency_metrics||{}).tokens||{};
-      const tot=tok.total_tokens||0;
-      const inp=tok.total_input_tokens||0;
-      const out=tok.total_output_tokens||0;
+      const tot=this._tok(d,'total_tokens','total');
+      const inp=this._tok(d,'total_input_tokens','input');
+      const out=this._tok(d,'total_output_tokens','output');
       const n=d.total_tasks||1;
+      const tok=(d.efficiency_metrics||{}).tokens||{};
       const avg=tok.avg_tokens_per_task||Math.round(tot/n)||0;
       if(k==='total')return `Σ(input_tokens + output_tokens)\n= ${_fmtNumG(inp)} + ${_fmtNumG(out)}\n= ${_fmtNumG(tot)}`;
       if(k==='input')return `Σ input_tokens = ${_fmtNumG(inp)}\n${tot?((inp/tot)*100).toFixed(1):0}% of total\n(token_distribution.input_ratio)`;
@@ -2109,19 +2120,19 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='total'}" @click="selK=selK==='total'?null:'total'">
         <div class="kpi-lbl">Total Tokens</div>
-        <div class="kpi-val icon-lg" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_tokens||0)"></div>
+        <div class="kpi-val icon-lg" x-text="_fmtNumG(_tok(data,'total_tokens','total'))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='input'}" @click="selK=selK==='input'?null:'input'">
         <div class="kpi-lbl">Input Tokens</div>
-        <div class="kpi-val icon-lg" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_input_tokens||0)"></div>
+        <div class="kpi-val icon-lg" x-text="_fmtNumG(_tok(data,'total_input_tokens','input'))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='output'}" @click="selK=selK==='output'?null:'output'">
         <div class="kpi-lbl">Output Tokens</div>
-        <div class="kpi-val icon-lg" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_output_tokens||0)"></div>
+        <div class="kpi-val icon-lg" x-text="_fmtNumG(_tok(data,'total_output_tokens','output'))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='avg_per_task'}" @click="selK=selK==='avg_per_task'?null:'avg_per_task'">
         <div class="kpi-lbl">Avg per Task</div>
-        <div class="kpi-val icon-lg" x-text="_fmtNumG(Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||(data.efficiency_metrics?.tokens?.total_tokens||0)/(data.total_tasks||1)))"></div>
+        <div class="kpi-val icon-lg" x-text="_fmtNumG(Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||_tok(data,'total_tokens','total')/(data.total_tasks||1)))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='io_ratio'}" @click="selK=selK==='io_ratio'?null:'io_ratio'">
         <div class="kpi-lbl">I/O Ratio</div>
@@ -2903,7 +2914,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-data="{
     selK:null,
     meta:{
-      hall_rate:{label:'Hallucination Rate',unit:'%',desc:'Ratio of tasks with detected hallucination indicators. Measures how often the agent generates false or unsourced information; a key risk metric for reliable AI service operations.',hint:'flagged / evaluated × 100'},
+      hall_rate:{label:'Flagged Task Rate',unit:'%',desc:'Share of evaluated tasks with at least one hallucination indicator (task incidence). Distinct from the overview "Hallucination Rate", which is the mean per-task hallucination_rate — this counts how many tasks were affected, not how severe.',hint:'flagged / evaluated × 100'},
       evaluated:{label:'Evaluated',unit:'tasks',desc:'Number of tasks analyzed for hallucination detection (Layer 1 only). Check DeepEval hallucination in the External Evaluation tab.',hint:'hallucination_detail.detections.length'},
       flagged:{label:'Flagged',unit:'tasks',desc:'Number of tasks with one or more hallucination indicators detected. Responses with numerical mismatch, unsupported claims, or context inconsistency patterns; candidates for human review.',hint:'hallucination_detail.detections.filter(d=>d.hallucination_rate>0).length'},
       types:{label:'Indicator Types',unit:'types',desc:'Number of distinct hallucination indicator types observed in this evaluation. More diverse types suggest the agent\'s hallucination issues are widespread rather than isolated to a specific cause.',hint:'hallucination_detail.indicator_types keys'},
@@ -2912,7 +2923,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       const dets=(d.hallucination_detail?.detections||[]).filter(x=>x.source!=='deepeval');
       const ev=dets.length;
       const fl=dets.filter(x=>(x.hallucination_rate||0)>0).length;
-      if(k==='hall_rate')return `Hallucination Rate = flagged / evaluated × 100 (Layer 1 only)\n= ${fl} / ${ev} = ${ev?((fl/ev)*100).toFixed(1):0}%`;
+      if(k==='hall_rate')return `Flagged Task Rate = flagged / evaluated × 100 (Layer 1 only)\n= ${fl} / ${ev} = ${ev?((fl/ev)*100).toFixed(1):0}%`;
       if(k==='evaluated')return `Evaluated = ${ev} tasks (Layer 1 detections)\nDeepEval records: see External Evaluation tab`;
       if(k==='flagged')return `Flagged = ${fl} tasks (hallucination_rate > 0)\nHallucination Rate = ${ev?((fl/ev)*100).toFixed(1):0}%`;
       const typesSet={};dets.filter(x=>(x.hallucination_rate||0)>0).forEach(det=>{new Set((det.indicators||[]).map(i=>i.type||'unknown')).forEach(t=>{typesSet[t]=(typesSet[t]||0)+1;});});

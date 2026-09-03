@@ -86,14 +86,16 @@ def _simple_result(
 # ---------------------------------------------------------------------------
 
 class TestJsonSerializer:
-    def test_nan_becomes_zero(self):
+    def test_nan_becomes_null(self):
+        # NaN / ±inf → None (JSON null): a valid strict-JSON sentinel, unlike a
+        # misleading 0.0. The real scrub is _json_sanitize; this is belt-and-braces.
         from agent_evaluator.core.trackers.monitor import _json_serializer
-        assert _json_serializer(float("nan")) == 0.0
+        assert _json_serializer(float("nan")) is None
 
-    def test_inf_becomes_zero(self):
+    def test_inf_becomes_null(self):
         from agent_evaluator.core.trackers.monitor import _json_serializer
-        assert _json_serializer(float("inf")) == 0.0
-        assert _json_serializer(float("-inf")) == 0.0
+        assert _json_serializer(float("inf")) is None
+        assert _json_serializer(float("-inf")) is None
 
     def test_datetime_iso(self):
         from agent_evaluator.core.trackers.monitor import _json_serializer

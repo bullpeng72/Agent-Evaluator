@@ -5,6 +5,7 @@ Harness Gate A–G 중심 구조 (v0.8.2+)
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -184,6 +185,34 @@ def _metric_row(label: str, value: Any, hint: str = "",
         f'{val_str}{hint_html}</td>'
         f'</tr>'
     )
+
+
+def _detail_rows(details: dict, spec: list) -> str:
+    """Rows for a "Gate X Details" table from ``harness_groups[X]['details']``.
+
+    Each ``spec`` entry is ``(key | (key, …), label)`` — the first key present
+    with a non-None value wins. The aggregates are stored as ``avg_consensus`` /
+    ``avg_reproducibility`` / ``avg_explainability`` …; the report historically
+    listed bare spellings (``consensus_rate``, ``reproducibility``,
+    ``explainability_score``) that matched nothing, so every per-Gate detail
+    table rendered empty while the dashboard showed the same numbers as KPI
+    cards. Keep the old spelling as a fallback for externally-produced files.
+    """
+    out = ""
+    for entry in spec:
+        keys, label = entry[0], entry[1]
+        transform = entry[2] if len(entry) > 2 else None
+        ks = (keys,) if isinstance(keys, str) else keys
+        v = next((details[k] for k in ks if details.get(k) is not None), None)
+        if v is None:
+            continue
+        if transform is not None:
+            try:
+                v = transform(float(v))
+            except (TypeError, ValueError):
+                pass
+        out += _metric_row(label, v)
+    return out
 
 
 def _pct(v: Any, scale: float = 1.0) -> str:
@@ -382,6 +411,22 @@ def _not_tested(reason: str = "", kind: str = "generic") -> str:
 
 def _build_scorecard(harness_groups: dict[str, Any]) -> str:
     cards = []
+    # Overall composite card — the dashboard shows this prominently
+    # (harness_groups.overall.score x 100); the report only had per-Gate cards.
+    _ov = harness_groups.get("overall") if isinstance(harness_groups, dict) else None
+    if isinstance(_ov, dict) and isinstance(_ov.get("score"), (int, float)):
+        _ov_status = (_ov.get("gate") or _ov.get("status") or "").lower()
+        _ov_badge = _gate_badge(_ov_status) if _ov_status else ""
+        _ov_n = _ov.get("scored_groups")
+        _ov_sub = f'<div class="sc-name">{_ov_n} of 7 Gates scored</div>' if _ov_n else ""
+        cards.append(
+            f'<div class="sc-card" style="border-top-color:#1e2030">'
+            f'<div class="sc-gate" style="color:#1e2030">Overall</div>'
+            f'{_ov_sub}'
+            f'<div class="sc-badge">{_ov_badge}</div>'
+            f'{_gate_score_bar(_ov["score"], "overall")}'
+            f'</div>'
+        )
     for key in "ABCDEFG":
         color = _GATE_COLORS[key]
         name = _GATE_NAMES[key]
@@ -805,12 +850,16 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
                 f'<ul style="margin:4px 0 0 16px">{_items}</ul></div>'
             )
 
-    if _reconciles or _tcr_w is None:
+    if _reconciles:
         _result_line = (
             f'Gate {gate_key} Score&nbsp;=&nbsp;{comp_expr}&nbsp;=&nbsp;'
             f'<strong style="color:{score_col}">{score_pct:.1f}%</strong>'
         )
     else:
+        # The shown component expression does not evaluate to the score — a
+        # weighted gate (A/C), or an unexpected component set (hand-authored /
+        # external file). Never print "<expr> = <score>" when that is false;
+        # show the indicative mean with ≈ and the real score separately.
         _result_line = (
             f'{comp_expr}&nbsp;&asymp;&nbsp;{_naive * 100:.1f}%'
             f'&nbsp;&nbsp;·&nbsp;&nbsp;Gate {gate_key} Score&nbsp;=&nbsp;'
@@ -850,10 +899,11 @@ def _build_score_breakdown(gate_key: str, harness_group: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _build_gate_a(tcr: float, success_rate: float, acc: float,
-                  accuracy_metrics: dict, harness_a: dict,
+                  accuracy_metrics: dict, harness_a: dict | None,
                   quality_metrics: dict | None = None) -> str:
     if quality_metrics is None:
         quality_metrics = {}
+    harness_a = harness_a or {}  # a null/absent gate value in harness_groups
     color = _GATE_COLORS["A"]
     gate_status = (harness_a.get("gate") or harness_a.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -897,19 +947,15 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
 
     # Harness A detail
     details = harness_a.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("instruction_adherence", "Instruction Adherence"),
-        ("goal_alignment", "Goal Alignment Score"),
-        ("plan_coherence", "Plan Coherence"),
-        ("subtask_completion", "Subtask Completion Rate"),
-        ("context_retention", "Context Retention Rate"),
-        ("knowledge_retention", "Knowledge Retention"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        (("avg_instruction_adherence", "instruction_adherence"),
+         "Instruction Follow Rate (IFR)"),
+        (("avg_goal_alignment", "goal_alignment"), "Goal Alignment"),
+        (("avg_plan_coherence", "plan_coherence"), "Plan Coherence"),
+        (("avg_subtask_completion", "subtask_completion"), "Subtask Completion"),
+        (("avg_context_retention", "context_retention"), "Context Retention"),
+        (("avg_knowledge_retention", "knowledge_retention"), "Knowledge Retention"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -980,7 +1026,8 @@ def _build_gate_a(tcr: float, success_rate: float, acc: float,
 # ---------------------------------------------------------------------------
 
 def _build_gate_b(tool_selection_stats: dict, has_agentic: bool,
-                  harness_b: dict) -> str:
+                  harness_b: dict | None) -> str:
+    harness_b = harness_b or {}
     color = _GATE_COLORS["B"]
     gate_status = (harness_b.get("gate") or harness_b.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -998,49 +1045,74 @@ def _build_gate_b(tool_selection_stats: dict, has_agentic: bool,
             + _not_tested("No tool selection data collected.")
         )
     if has_agentic and tool_selection_stats:
-        f1 = tool_selection_stats.get("avg_f1")
-        eff = tool_selection_stats.get("avg_efficiency")
-        redundancy = tool_selection_stats.get("redundancy_rate")
-        fail_rate = tool_selection_stats.get("failure_rate")
+        _ts = tool_selection_stats
+
+        def _pctval(v: Any) -> float | None:
+            """A rate as 0-100 %. The SDK writes redundancy_rate / failure_rate /
+            success_rate as 0-100 already; a 0-1 value is scaled up."""
+            fv = _safe_float(v, None)
+            if fv is None:
+                return None
+            fv = float(fv)
+            return fv * 100.0 if 0.0 <= fv <= 1.0 else fv
+
+        def _norm01(v: Any) -> float | None:
+            """A score as 0-1. avg_f1_score / avg_efficiency_score are 0-100."""
+            fv = _safe_float(v, None)
+            if fv is None:
+                return None
+            fv = float(fv)
+            return fv / 100.0 if fv > 1.0 else fv
+
+        # Key names differ between the tracker outputs and older files — accept
+        # both spellings. get_accuracy_stats() → avg_f1_score;
+        # get_efficiency_stats() → avg_efficiency_score / success_rate / *_rate.
+        f1 = _norm01(_ts.get("avg_f1_score", _ts.get("avg_f1")))
+        eff = _norm01(_ts.get("avg_efficiency_score", _ts.get("avg_efficiency")))
+        succ = _pctval(_ts.get("success_rate"))
+        total_calls = _ts.get("total_calls")
+        redundancy = _pctval(_ts.get("redundancy_rate"))
+        fail_rate = _pctval(_ts.get("failure_rate"))
+        def _kpi(label: str, val_html: str, color: str = "") -> str:
+            _st = f' style="color:{color}"' if color else ""
+            return (f'<div class="kpi"><div class="kpi-lbl">{label}</div>'
+                    f'<div class="kpi-val"{_st}>{val_html}</div></div>')
+
         kpi_parts = ""
+        if total_calls is not None:
+            kpi_parts += _kpi("Total Tool Calls", str(int(total_calls)))
+        if succ is not None:
+            kpi_parts += _kpi("Tool Success Rate", f"{succ:.1f}%",
+                              _score_color(succ, 90, 70))
         if f1 is not None:
-            kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">Tool Selection F1</div>'
-                f'<div class="kpi-val" style="color:{_score_color(float(f1)*100,80,60)}">{float(f1):.3f}</div></div>'
-            )
+            kpi_parts += _kpi("Tool Selection F1", f"{f1:.3f}",
+                              _score_color(f1 * 100, 80, 60))
         if eff is not None:
-            kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">Tool Efficiency</div>'
-                f'<div class="kpi-val" style="color:{_score_color(float(eff)*100)}">{_pct(eff)}</div></div>'
-            )
+            kpi_parts += _kpi("Tool Efficiency", f"{eff * 100:.1f}%",
+                              _score_color(eff * 100))
         if redundancy is not None:
-            kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">Redundancy Rate</div>'
-                f'<div class="kpi-val" style="color:{_score_color(100 - float(redundancy)*100)}">{_pct(redundancy)}</div></div>'
-            )
+            kpi_parts += _kpi("Redundancy Rate", f"{redundancy:.1f}%",
+                              _score_color(100 - redundancy))
         if fail_rate is not None:
-            kpi_parts += (
-                f'<div class="kpi"><div class="kpi-lbl">Tool Failure Rate</div>'
-                f'<div class="kpi-val" style="color:{_score_color(100 - float(fail_rate)*100)}">{_pct(fail_rate)}</div></div>'
-            )
+            kpi_parts += _kpi("Tool Failure Rate", f"{fail_rate:.1f}%",
+                              _score_color(100 - fail_rate))
         if kpi_parts:
             tool_html = f'<h3>Tool Usage Analysis</h3><div class="kpis">{kpi_parts}</div>'
 
-    # Harness B detail
+    # Harness B detail. Stored keys are avg_scope_score / avg_tool_parameter_safety
+    # / avg_context_window / avg_state_consistency / avg_deadlock_score, plus
+    # loop_detection_rate (LOWER is better). The old bare spellings matched
+    # nothing → the table was always empty while the dashboard showed the KPIs.
     details = harness_b.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("loop_detection_score", "Loop Detection Rate"),
-        ("scope_compliance", "Scope Compliance"),
-        ("tool_param_safety", "Tool Parameter Safety"),
-        ("context_window_efficiency", "Context Window Efficiency"),
-        ("state_consistency", "State Consistency"),
-        ("deadlock_score", "Deadlock Prevention Rate"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        # match the dashboard's "Loop Detection Rate" (raw rate, lower is better)
+        (("loop_detection_rate", "loop_detection_score"), "Loop Detection Rate"),
+        (("avg_scope_score", "scope_compliance"), "Scope Compliance"),
+        (("avg_tool_parameter_safety", "tool_param_safety"), "Tool Parameter Safety"),
+        (("avg_context_window", "context_window_efficiency"), "Context Window Efficiency"),
+        (("avg_state_consistency", "state_consistency"), "State Consistency"),
+        (("avg_deadlock_score", "deadlock_score"), "Deadlock Detection"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1065,10 +1137,12 @@ def _build_gate_b(tool_selection_stats: dict, has_agentic: bool,
 # Gate C — Reliability
 # ---------------------------------------------------------------------------
 
-def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict | None = None,
+def _build_gate_c(retry_metrics: dict, harness_c: dict | None,
+                  hallucination_data: dict | None = None,
                   llm_judge_data: Any = None) -> str:
     if hallucination_data is None:
         hallucination_data = {}
+    harness_c = harness_c or {}
     color = _GATE_COLORS["C"]
     gate_status = (harness_c.get("gate") or harness_c.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1104,18 +1178,13 @@ def _build_gate_c(retry_metrics: dict, harness_c: dict, hallucination_data: dict
             retry_html = f'<h3>Retry / Recovery</h3><div class="kpis">{kpi_parts}</div>'
 
     details = harness_c.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("reproducibility", "Reproducibility"),
-        ("fault_tolerance", "Fault Tolerance"),
-        ("graceful_degradation", "Graceful Degradation"),
-        ("retry_consistency", "Retry Consistency"),
-        ("idempotency", "Idempotency"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        (("avg_reproducibility", "reproducibility"), "Reproducibility"),
+        (("avg_fault_tolerance", "fault_tolerance"), "Fault Tolerance"),
+        (("avg_degradation", "graceful_degradation"), "Graceful Degradation"),
+        (("avg_retry_consistency", "retry_consistency"), "Retry Consistency"),
+        (("avg_idempotency", "idempotency"), "Idempotency"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1285,9 +1354,10 @@ def _build_latency_budget(tasks: list[Any] | None, p95: Any) -> str:
     )
 
 
-def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
+def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict | None,
                   tasks: list[Any] | None = None,
                   current: dict[str, Any] | None = None) -> str:
+    harness_d = harness_d or {}
     color = _GATE_COLORS["D"]
     gate_status = (harness_d.get("gate") or harness_d.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1325,6 +1395,13 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
         )
     if token_stats:
         _cost = _fmt_usd
+        _total_cost = _safe_float(token_stats.get("total_cost"), None)
+        _cpt = _safe_float(token_stats.get("avg_cost_per_task"), None)
+        _n = len(tasks) if tasks else 0
+        # match the dashboard's "per task: $X" (cTotal / task_count) — fall back to
+        # a computed total_cost / N when the stored avg_cost_per_task is absent.
+        if _cpt is None and _total_cost is not None and _n:
+            _cpt = _total_cost / _n
 
         tok_kpis = (
             f'<div class="kpi"><div class="kpi-lbl">Total Tokens</div>'
@@ -1332,25 +1409,20 @@ def _build_gate_d(latency_stats: dict, token_stats: dict, harness_d: dict,
             f'<div class="kpi"><div class="kpi-lbl">Avg Tokens/Task</div>'
             f'<div class="kpi-val">{_num(token_stats.get("avg_tokens_per_task"), ".0f")}</div></div>'
             f'<div class="kpi"><div class="kpi-lbl">Total Cost</div>'
-            f'<div class="kpi-val">{_cost(token_stats.get("total_cost"))}</div></div>'
+            f'<div class="kpi-val">{_cost(_total_cost)}</div></div>'
             f'<div class="kpi"><div class="kpi-lbl">Cost/Task</div>'
-            f'<div class="kpi-val">{_cost(token_stats.get("avg_cost_per_task"))}</div></div>'
+            f'<div class="kpi-val">{_cost(_cpt)}</div></div>'
         )
         tok_html = f'<h3>Tokens & Cost</h3><div class="kpis">{tok_kpis}</div>'
 
     details = harness_d.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("sla_compliance", "SLA Compliance"),
-        ("efficiency_score", "Efficiency Score"),
-        ("resource_budget_compliance", "Resource Budget Compliance"),
-        ("ttft_variability", "TTFT Variability"),
-        ("cost_predictability", "Cost Predictability"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        (("avg_efficiency_ratio", "efficiency_score"), "Efficiency ROI"),
+        (("avg_efficiency_calibrated_score",), "Efficiency (calibrated)"),
+        (("avg_budget_score", "resource_budget_compliance"), "Resource Budget"),
+        (("avg_cost_predictability", "cost_predictability"), "Cost Predictability"),
+        (("ttft_variability_score", "ttft_variability"), "TTFT Variability"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1433,8 +1505,9 @@ def _build_cost_economics(tasks: list[Any] | None, current: dict[str, Any] | Non
 # Gate E — Security Boundary
 # ---------------------------------------------------------------------------
 
-def _build_gate_e_from_monitor(monitor, harness_e: dict) -> str:
+def _build_gate_e_from_monitor(monitor, harness_e: dict | None) -> str:
     """monitor 객체에서 보안 데이터를 직접 추출."""
+    harness_e = harness_e or {}
     color = _GATE_COLORS["E"]
     gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1467,16 +1540,16 @@ def _build_gate_e_from_monitor(monitor, harness_e: dict) -> str:
         pass
 
     details = harness_e.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("threat_severity_score", "Threat Severity Score"),
-        ("compliance_score", "Compliance Rate"),
-        ("threat_response_score", "Threat Response Score"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    # Match the dashboard's Gate E detail KPIs exactly (gE.details.*):
+    # Compliance / Threat Response / Privilege Escalation / Attack Chain.
+    # threat_count + the per-tracker defense rates are shown in the score
+    # breakdown and the Security Metrics block, not duplicated here.
+    harness_rows = _detail_rows(details, [
+        (("avg_compliance_score", "compliance_score"), "Compliance"),
+        (("avg_threat_response", "threat_response_score"), "Threat Response Score"),
+        (("privilege_escalation_rate",), "Privilege Escalation Rate"),
+        (("chain_attack_rate",), "Attack Chain Detection"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1497,8 +1570,9 @@ def _build_gate_e_from_monitor(monitor, harness_e: dict) -> str:
     )
 
 
-def _build_gate_e_from_rf(rf, harness_e: dict) -> str:
+def _build_gate_e_from_rf(rf, harness_e: dict | None) -> str:
     """ResultFile 객체에서 보안 데이터를 추출."""
+    harness_e = harness_e or {}
     color = _GATE_COLORS["E"]
     gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1518,16 +1592,16 @@ def _build_gate_e_from_rf(rf, harness_e: dict) -> str:
             pass
 
     details = harness_e.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("threat_severity_score", "Threat Severity Score"),
-        ("compliance_score", "Compliance Rate"),
-        ("threat_response_score", "Threat Response Score"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    # Match the dashboard's Gate E detail KPIs exactly (gE.details.*):
+    # Compliance / Threat Response / Privilege Escalation / Attack Chain.
+    # threat_count + the per-tracker defense rates are shown in the score
+    # breakdown and the Security Metrics block, not duplicated here.
+    harness_rows = _detail_rows(details, [
+        (("avg_compliance_score", "compliance_score"), "Compliance"),
+        (("avg_threat_response", "threat_response_score"), "Threat Response Score"),
+        (("privilege_escalation_rate",), "Privilege Escalation Rate"),
+        (("chain_attack_rate",), "Attack Chain Detection"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1617,7 +1691,8 @@ def _build_security_kpis(input_sec: dict, output_leak: dict, tool_auth: dict,
 # ---------------------------------------------------------------------------
 
 def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
-                  has_agentic: bool, harness_f: dict) -> str:
+                  has_agentic: bool, harness_f: dict | None) -> str:
+    harness_f = harness_f or {}
     color = _GATE_COLORS["F"]
     gate_status = (harness_f.get("gate") or harness_f.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1631,13 +1706,42 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
         )
     if has_agentic:
         kpi_parts = []
-        if coordination_stats:
-            coord_score = coordination_stats.get("avg_coordination_score") or coordination_stats.get("score")
-            if coord_score is not None:
+        _fdet = (harness_f.get("details") or {})
+        if coordination_stats or _fdet.get("coordination_score") is not None:
+            cs = coordination_stats or {}
+            # ``coordination_summary`` stores total/successful/unique_agents +
+            # success_rate (0-100); the normalised 0-1 gate component lives in
+            # harness_groups.F.details.coordination_score. Older code looked for
+            # ``avg_coordination_score`` / ``score`` — keys nothing writes — so
+            # this panel silently rendered empty while the dashboard showed all
+            # four numbers.
+            _coord_component = _safe_float(_fdet.get("coordination_score"), None)
+            _isr = _safe_float(cs.get("success_rate"), None)
+            _ti = cs.get("total_interactions")
+            _ua = cs.get("unique_agents") or cs.get("total_agents")
+            if _coord_component is not None:
+                _cc = _coord_component / 10.0 if _coord_component > 1.0 else _coord_component
                 kpi_parts.append(
                     f'<div class="kpi"><div class="kpi-lbl">Coordination Score</div>'
-                    f'<div class="kpi-val" style="color:{_score_color(float(coord_score)*100)}">'
-                    f'{float(coord_score)*100:.1f}%</div></div>'
+                    f'<div class="kpi-val" style="color:{_score_color(_cc * 100)}">'
+                    f'{_cc * 100:.1f}%</div></div>'
+                )
+            if _isr is not None:
+                _isr_pct = _isr * 100.0 if 0.0 <= _isr <= 1.0 else _isr
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">Interaction Success Rate</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(_isr_pct, 90, 70)}">'
+                    f'{_isr_pct:.1f}%</div></div>'
+                )
+            if _ti is not None:
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">Total Interactions</div>'
+                    f'<div class="kpi-val">{int(_ti)}</div></div>'
+                )
+            if _ua is not None:
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">Participating Agents</div>'
+                    f'<div class="kpi-val">{int(_ua)}</div></div>'
                 )
         if workflow_stats:
             # a workflow tracker that saw nothing reports 0.0 rates — don't render
@@ -1672,17 +1776,12 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
             )
 
     details = harness_f.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("consensus_rate", "Consensus Rate"),
-        ("propagation_accuracy", "Propagation Accuracy"),
-        ("agent_role_compliance", "Agent Role Compliance"),
-        ("conflict_resolution_rate", "Conflict Resolution Rate"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        (("avg_consensus", "consensus_rate"), "Consensus Rate"),
+        (("avg_propagation", "propagation_accuracy"), "Propagation Fidelity"),
+        (("avg_role_compliance", "agent_role_compliance"), "Agent Role Compliance"),
+        (("avg_conflict_resolution", "conflict_resolution_rate"), "Conflict Resolution"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1708,7 +1807,8 @@ def _build_gate_f(coordination_stats: dict, workflow_stats: dict,
 # ---------------------------------------------------------------------------
 
 def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
-                  harness_g: dict) -> str:
+                  harness_g: dict | None) -> str:
+    harness_g = harness_g or {}
     color = _GATE_COLORS["G"]
     gate_status = (harness_g.get("gate") or harness_g.get("status") or "").lower()
     badge = _gate_badge(gate_status) if gate_status else ""
@@ -1795,17 +1895,14 @@ def _build_gate_g(quality_metrics: dict, llm_judge_data: Any,
             pass
 
     details = harness_g.get("details") or {}
-    harness_rows = ""
-    fields = [
-        ("explainability_score", "Explainability"),
-        ("observability_score", "Internal State Observability"),
-        ("error_diagnosis_accuracy", "Error Diagnosis Accuracy"),
-        ("latency_attribution_score", "Latency Attribution Analysis"),
-    ]
-    for fk, flabel in fields:
-        v = details.get(fk)
-        if v is not None:
-            harness_rows += _metric_row(flabel, v)
+    harness_rows = _detail_rows(details, [
+        (("avg_explainability", "explainability_score"), "Explainability"),
+        (("avg_observability_score", "observability_score"), "Observability Score"),
+        (("avg_error_diagnosis", "error_diagnosis_accuracy"), "Error Diagnosis"),
+        (("avg_latency_attribution", "latency_attribution_score"),
+         "Latency Attribution Accuracy"),
+        (("tool_coverage",), "Tool Coverage"),
+    ])
     harness_block = ""
     if harness_rows:
         harness_block = (
@@ -1905,9 +2002,21 @@ def _build_advanced_section(adv_metrics: dict, rag_metrics: dict,
         for sess in conversation_sessions[:20]:
             if isinstance(sess, dict):
                 sid = sess.get("session_id", "—")
-                turns = sess.get("turn_count", sess.get("turns", 0))
-                score = sess.get("overall_score") or sess.get("score")
-                ctx = sess.get("context_retention") or sess.get("context")
+                _tv = sess.get("turn_count")
+                if _tv is None:
+                    _tl = sess.get("turns")
+                    _tv = len(_tl) if isinstance(_tl, list) else 0
+                turns = _tv
+                # loader._parse_conversation_sessions nests the scores under
+                # ``metrics`` — the dashboard reads ``s.metrics.overall_score`` /
+                # ``s.metrics.context_retention``. The old top-level reads here
+                # always missed, so this table showed "—" for both columns.
+                _sm_raw = sess.get("metrics")
+                _sm: dict[str, Any] = _sm_raw if isinstance(_sm_raw, dict) else {}
+                score = (_sm.get("overall_score")
+                         or sess.get("overall_score") or sess.get("score"))
+                ctx = (_sm.get("context_retention")
+                       or sess.get("context_retention") or sess.get("context"))
                 score_str = f"{float(score) * 100:.1f}%" if score is not None else "—"
                 ctx_str = f"{float(ctx) * 100:.1f}%" if ctx is not None else "—"
                 rows += (
@@ -2141,10 +2250,16 @@ def _build_trajectory(case: dict[str, Any]) -> str:
 
 
 def _safe_float(v: Any, default: Any) -> Any:
+    if v is None:
+        return default
     try:
-        return float(v) if v is not None else default
+        f = float(v)
     except (TypeError, ValueError):
         return default
+    # NaN / ±inf from an externally supplied score_fn or a hand-built result
+    # JSON with raw NaN tokens — never let it reach round() / an f-string / the
+    # rendered page (which would show a literal "nan%").
+    return f if math.isfinite(f) else default
 
 
 def _case_severity(c: dict[str, Any]) -> float:
@@ -2860,7 +2975,7 @@ def _task_context(t: Any) -> str:
 def _spark_svg(values: list[float], *, lo: float = 0.0, hi: float = 1.0,
                w: int = 110, h: int = 22, color: str = "#6366f1") -> str:
     """Tiny inline SVG sparkline for a 0–1 series."""
-    pts = [v for v in values if isinstance(v, (int, float))]
+    pts = [v for v in values if isinstance(v, (int, float)) and math.isfinite(v)]
     if len(pts) < 2:
         return ""
     span = (hi - lo) or 1.0
@@ -3030,11 +3145,19 @@ def _build_review_queue(tasks: list[Any] | None,
         )
     except Exception:
         rq = None
-    if not rq or not rq.get("items"):
+    if not rq or (not rq.get("items") and not rq.get("systemic_note")):
         return ""
 
+    _sys = rq.get("systemic_note")
+    sys_html = (
+        f'<p style="margin:0 0 10px;padding:8px 10px;border-radius:6px;'
+        f'background:#fef3c7;border:1px solid #f59e0b;color:#92400e;font-size:12px">'
+        f'⚠️ {_esc(_sys)}</p>'
+        if _sys else ""
+    )
+
     rows = ""
-    for it in rq["items"]:
+    for it in rq.get("items") or []:
         pri = it.get("priority", "medium")
         col = {"high": "#dc2626", "medium": "#d97706", "low": "#6b7280"}.get(pri, "#6b7280")
         reasons = "; ".join(_esc(r) for r in it.get("reasons") or [])
@@ -3054,10 +3177,14 @@ def _build_review_queue(tasks: list[Any] | None,
         'Tasks whose automated verdict is least trustworthy — resolve these first, '
         'then <code>agent-eval dataset promote &lt;result.json&gt;</code> '
         'to turn them into golden regression cases.</p>'
-        '<table class="mtable"><thead><tr>'
-        '<th>Priority</th><th>Task</th><th>Why review</th>'
-        f'</tr></thead><tbody>{rows}</tbody></table>'
-        '</div>'
+        + sys_html
+        + (
+            '<table class="mtable"><thead><tr>'
+            '<th>Priority</th><th>Task</th><th>Why review</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table>'
+            if rows else ""
+        )
+        + '</div>'
     )
 
 
@@ -3706,7 +3833,7 @@ def _build_sample_guidance(sg: dict[str, Any] | None) -> str:
     if not sg or not sg.get("message"):
         return ""
     add = sg.get("additional_tasks", 0)
-    col = "#059669" if add == 0 else "#b45309"
+    col = "#059669" if (add == 0 and not sg.get("degenerate")) else "#b45309"
     return (
         '<div class="gate-section" id="sample-guidance" style="border-left-color:#0891b2">'
         '<h2 style="color:#1e2030">What to Test Next</h2>'
@@ -3757,13 +3884,81 @@ def _task_extra(t: Any) -> dict:
 # Operational signals (P3.4) — AnomalyDetector 결과를 리포트에 노출
 # ---------------------------------------------------------------------------
 
-def _build_operational_signals(anomaly_data: dict[str, Any] | None) -> str:
-    """AnomalyDetector 스캔 결과(``anomaly_data``)를 한 섹션으로 렌더링한다.
+def _feedback_block(feedback_data: dict[str, Any] | None) -> str:
+    """Implicit-feedback summary — the same total / positive_rate / negative_rate
+    the dashboard's Feedback panel shows (``feedbackData.*``). The report had no
+    feedback surface at all."""
+    fb = feedback_data if isinstance(feedback_data, dict) else {}
+    total = fb.get("total") or 0
+    if not total:
+        return ""
+    pos = _safe_float(fb.get("positive_rate"), 0.0) or 0.0
+    neg = _safe_float(fb.get("negative_rate"), 0.0) or 0.0
+    # positive_rate / negative_rate are stored 0-100 (dashboard shows them raw%)
+    pos = pos * 100.0 if 0.0 <= pos <= 1.0 else pos
+    neg = neg * 100.0 if 0.0 <= neg <= 1.0 else neg
+    return (
+        '<h3>Implicit Feedback</h3><div class="kpis">'
+        f'<div class="kpi"><div class="kpi-lbl">Signals</div>'
+        f'<div class="kpi-val">{int(total)}</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">Positive Rate</div>'
+        f'<div class="kpi-val" style="color:{_score_color(pos, 60, 30)}">{pos:.1f}%</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">Negative Rate</div>'
+        f'<div class="kpi-val" style="color:{_score_color(100 - neg, 70, 50)}">'
+        f'{neg:.1f}%</div></div></div>'
+    )
 
-    지금까지 이상 탐지 결과는 대시보드에만 있고 정적 리포트에는 없었다 —
-    ``enable_anomaly_detection=True``로 측정했으면 리포트에도 보여준다.
+
+def _streaming_block(streaming_data: dict[str, Any] | None) -> str:
+    """Streaming sliding-window snapshot — the same per-window count / TCR /
+    latency / error-rate the dashboard's live tab shows from
+    ``/api/stream/snapshot`` (``rf.streaming_data``)."""
+    sd = streaming_data if isinstance(streaming_data, dict) else {}
+    rows = ""
+    for w in ("1m", "5m", "1h"):
+        wd = sd.get(w)
+        if not isinstance(wd, dict) or not wd.get("count"):
+            continue
+        rows += (
+            f'<tr><td style="font-weight:600">{w}</td>'
+            f'<td>{int(wd.get("count", 0))}</td>'
+            f'<td>{_num(wd.get("tcr"), ".1f")}%</td>'
+            f'<td>{_num(wd.get("avg_latency"), ".3f")}s</td>'
+            f'<td>{_num(wd.get("p95_latency"), ".3f")}s</td>'
+            f'<td>{_num(wd.get("error_rate"), ".1f")}%</td>'
+            f'<td>{_num(wd.get("avg_tokens"), ".0f")}</td></tr>'
+        )
+    if not rows:
+        return ""
+    return (
+        '<h3>Streaming Snapshot <span style="font-size:12px;color:#6b7280">'
+        '(sliding windows captured during the run)</span></h3>'
+        '<table class="mtable"><thead><tr><th>Window</th><th>Count</th>'
+        '<th>TCR</th><th>Avg Latency</th><th>P95 Latency</th>'
+        '<th>Error Rate</th><th>Avg Tokens</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table>'
+    )
+
+
+def _build_operational_signals(anomaly_data: dict[str, Any] | None,
+                               feedback_data: dict[str, Any] | None = None,
+                               streaming_data: dict[str, Any] | None = None) -> str:
+    """AnomalyDetector 스캔 결과 + 암묵적 피드백 + 스트리밍 스냅샷을 한 섹션으로
+    렌더링한다.
+
+    지금까지 이상 탐지·피드백·스트리밍은 대시보드에만 있고 정적 리포트에는 없었다 —
+    측정했으면 리포트에도 보여준다.
     """
+    _fb = _feedback_block(feedback_data)
+    _st = _streaming_block(streaming_data)
     if not anomaly_data:
+        if _fb or _st:
+            return (
+                '<div class="gate-section" id="operational-signals" '
+                'style="border-left-color:#10b981">'
+                '<h2 style="color:#1e2030">Operational Signals</h2>'
+                f'{_st}{_fb}</div>'
+            )
         return ""
     anomalies = anomaly_data.get("anomalies") or []
     if not anomalies:
@@ -3773,6 +3968,7 @@ def _build_operational_signals(anomaly_data: dict[str, Any] | None) -> str:
             '<div class="ibox ok"><p>Anomaly detection ran — no anomalies detected '
             f'(baseline window {anomaly_data.get("baseline_window", "?")}, '
             f'detection window {anomaly_data.get("detection_window", "?")}).</p></div>'
+            f'{_st}{_fb}'
             '</div>'
         )
     try:
@@ -3807,6 +4003,7 @@ def _build_operational_signals(anomaly_data: dict[str, Any] | None) -> str:
         '<table class="mtable"><thead><tr>'
         '<th>Signal</th><th>Detail</th><th>Value</th><th>Suggested action</th>'
         f'</tr></thead><tbody>{rows}</tbody></table>'
+        f'{_st}{_fb}'
         '</div>'
     )
 
@@ -5212,6 +5409,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
             level, reasons = verdict_confidence(
                 n_tasks=total_tasks,
                 tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+                tcr_ci_degenerate=bool(ci.get("tcr_ci_degenerate")),
                 n_gate_components=_ncomp,
                 margin_to_threshold=_margin,
             )
@@ -5999,6 +6197,7 @@ def _build_conclusion(total_tasks: int, tcr: float, acc: float,
 
         _lvl, _rs = verdict_confidence(
             n_tasks=total_tasks, tcr_ci_halfwidth=ci.get("tcr_ci_halfwidth"),
+            tcr_ci_degenerate=bool(ci.get("tcr_ci_degenerate")),
         )
         _cc = {"high": "#065f46", "medium": "#92400e", "low": "#991b1b"}[_lvl]
         _tail = f" ({_esc('; '.join(_rs))})" if _rs else ""
@@ -6076,6 +6275,11 @@ def _metric_ci_data(tasks: list[Any]) -> dict[str, Any]:
         if a is not None:
             accs.append(a)
     out: dict[str, Any] = {"n": len(tasks)}
+    # P63: a metric that scored identically on every task has a zero-width CI by
+    # construction — flag it so the confidence badge doesn't read "tight" as "precise".
+    if len(comps) >= 2 and max(comps) - min(comps) < 1e-9:
+        out["tcr_ci_degenerate"] = True
+        out["tcr_constant_value"] = round(comps[0], 4)
     try:
         from agent_evaluator.utils.confidence import bootstrap_mean_ci
 
@@ -6109,9 +6313,11 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
 
     gate_badges = ""
     for key in "ABCDEFG":
-        gdata = harness_groups.get(key, {})
+        gdata = harness_groups.get(key)
+        if not isinstance(gdata, dict):
+            continue
         _g_gate = gdata.get("gate") or gdata.get("status")
-        if isinstance(gdata, dict) and _g_gate:
+        if _g_gate:
             gate_badges += (
                 f'<span style="margin-right:6px">'
                 f'<span style="font-size:10px;color:{_GATE_COLORS[key]};font-weight:700">Gate {key} </span>'
@@ -6182,7 +6388,16 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
 
     tool_selection_stats: dict = {}
     try:
-        tool_selection_stats = monitor.tool_selection_tracker.get_accuracy_stats()
+        tool_selection_stats = dict(monitor.tool_selection_tracker.get_accuracy_stats())
+    except Exception:
+        pass
+    try:
+        # merge tool-call efficiency (total_calls / success_rate / redundancy_rate
+        # / failure_rate / avg_efficiency_score) so the monitor-path report shows
+        # the same Tool Usage KPIs the file-path report / dashboard do.
+        _te = monitor.tool_analyzer.get_efficiency_stats()
+        if isinstance(_te, dict):
+            tool_selection_stats.update(_te)
     except Exception:
         pass
 
@@ -6434,7 +6649,14 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
                 "baseline_window": getattr(monitor, "_anomaly_baseline_window", 100),
                 "detection_window": getattr(monitor, "_anomaly_detection_window", 20),
             }
-        operational_html = _build_operational_signals(_adata)
+        _fb_mon = None
+        try:
+            if getattr(monitor, "feedback_tracker", None) is not None:
+                _fb_mon = monitor.feedback_tracker.get_stats()
+        except Exception:
+            _fb_mon = None
+        _sd_mon = getattr(monitor, "_streaming_snapshot", None)
+        operational_html = _build_operational_signals(_adata, _fb_mon, _sd_mon)
     except Exception:
         pass
 
@@ -6540,12 +6762,72 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
     lat_data = rf.efficiency_metrics.get("latency", {}) or {}
     tok_data = rf.efficiency_metrics.get("tokens", {}) or {}
 
-    tcr = _f(tcr_data.get("tcr"))
+    # Use the ResultFile properties (not the raw dict) so the headline TCR /
+    # Accuracy inherit the same "fall back to mean(per-task score) x 100 when the
+    # stored aggregate is absent" rule the dashboard's detail view uses — a
+    # partial / older / external file otherwise reads 0.0% here but the real
+    # number on the dashboard.
+    tcr = _f(getattr(rf, "tcr", None), _f(tcr_data.get("tcr")))
     success_rate = _f(tcr_data.get("success_rate"))
-    acc = _f(acc_data.get("overall_accuracy"))
-    latency = _f(lat_data.get("mean"))
+    if tcr_data.get("success_rate") is None and getattr(rf, "tasks", None):
+        # Full Success Rate = count(completion_score >= 1.0) / N x 100 — exactly
+        # what calculate_tcr() stores and the dashboard's "Full" bucket shows.
+        _cs = [t.completion_score for t in rf.tasks
+               if isinstance(getattr(t, "completion_score", None), (int, float))]
+        if _cs:
+            success_rate = sum(1 for c in _cs if c >= 1.0) / len(_cs) * 100.0
+    acc = _f(getattr(rf, "accuracy", None), _f(acc_data.get("overall_accuracy")))
+    latency = _f(getattr(rf, "avg_latency", None), _f(lat_data.get("mean")))
     hall_rate = _f(hall_data.get("overall_rate"))
-    total_tasks = rf.total_tasks
+
+    # When the file carries no ``efficiency_metrics.latency`` block but the tasks
+    # have execution_time, synthesise the mean/p95 the Gate D panel shows — so it
+    # matches the dashboard, which computes those per-task in the same case.
+    if not lat_data and getattr(rf, "tasks", None):
+        _xs = sorted(
+            t.execution_time for t in rf.tasks
+            if isinstance(getattr(t, "execution_time", None), (int, float))
+            and t.execution_time > 0
+        )
+        if _xs:
+            lat_data = {
+                "mean": sum(_xs) / len(_xs),
+                "p50": _xs[min(len(_xs) - 1, int(len(_xs) * 0.50))],
+                "p90": _xs[min(len(_xs) - 1, int(len(_xs) * 0.90))],
+                "p95": _xs[min(len(_xs) - 1, int(len(_xs) * 0.95))],
+                "p99": _xs[min(len(_xs) - 1, int(len(_xs) * 0.99))],
+            }
+    # Same for the token block — synthesise Σ / avg from per-task tokens_used so
+    # the Gate D "Total Tokens" / "Cost/Task" KPIs match ResultFile.total_tokens
+    # (which R2 gave this fallback) and the CSV export.
+    if not tok_data and getattr(rf, "tasks", None):
+        _tt = _ti = _to = 0
+        _tc = 0.0
+        for _t in rf.tasks:
+            _tu = getattr(_t, "tokens_used", None) or {}
+            _i, _o = _tu.get("input", 0) or 0, _tu.get("output", 0) or 0
+            _n = _tu.get("total")
+            _tt += int(_n) if isinstance(_n, (int, float)) else int(_i) + int(_o)
+            _ti += int(_i) if isinstance(_i, (int, float)) else 0
+            _to += int(_o) if isinstance(_o, (int, float)) else 0
+        _nt = len(rf.tasks) or 1
+        if _tt:
+            tok_data = {
+                "total_tokens": _tt, "total_input_tokens": _ti,
+                "total_output_tokens": _to,
+                "avg_tokens_per_task": round(_tt / _nt, 1),
+            }
+    # Every per-task number below (TCR/accuracy/CI/confidence n) is computed from
+    # the parsed task list — so the headline "N tasks" and the confidence tier
+    # must key off that same count. Fall back to the declared total_tasks only
+    # when no tasks were parsed (e.g. a summary-only file). A JSON whose
+    # total_tasks field disagrees with its actual entries (partial write, a
+    # trimmed/sampled set) otherwise makes the report internally contradictory.
+    # ResultFile.task_count == this same rule (parsed count, fallback declared);
+    # use the property so the dashboard and this report can never drift apart.
+    total_tasks = getattr(rf, "task_count", None)
+    if total_tasks is None:
+        total_tasks = len(rf.tasks) if getattr(rf, "tasks", None) else rf.total_tasks
 
     harness_groups: dict = getattr(rf, "harness_groups", None) or {}
     has_agentic = getattr(rf, "has_agentic", False)
@@ -6696,7 +6978,11 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
 
     operational_html = ""
     try:
-        operational_html = _build_operational_signals((rf.raw or {}).get("anomaly_data"))
+        operational_html = _build_operational_signals(
+            (rf.raw or {}).get("anomaly_data"),
+            getattr(rf, "feedback_data", None),
+            getattr(rf, "streaming_data", None),
+        )
     except Exception:
         pass
 
@@ -6796,14 +7082,32 @@ def generate_comparison_html_report(compare_result: dict[str, Any]) -> str:
     Returns:
         Self-contained HTML string (외부 CDN 의존성 없음, `_build_css()` 재사용).
     """
-    files = compare_result.get("files") or []
-    delta = compare_result.get("delta") or []
-    detailed = compare_result.get("detailed")
-    regression_tasks = compare_result.get("regression_tasks") or []
-    improvement_tasks = compare_result.get("improvement_tasks") or []
-    pairwise = compare_result.get("pairwise")
+    def _cnum(v: Any, default: float = 0.0) -> float:
+        """Coerce a metric / delta field to a float for ``format()``. The API
+        path (``compare_results()``) always sends numbers, but a hand-built
+        ``compare_result`` may carry a null / string where a number is expected —
+        a bare ``f"{x:+.2f}"`` on that raises, so normalise first (matches the
+        defensive style of the other ``generate_*`` functions in this module)."""
+        try:
+            return float(v) if v is not None else default
+        except (TypeError, ValueError):
+            return default
 
-    found_files = [f for f in files if f.get("found")]
+    def _aslist(v: Any) -> list:
+        return v if isinstance(v, list) else []
+
+    files = _aslist(compare_result.get("files"))
+    delta = _aslist(compare_result.get("delta"))
+    detailed = compare_result.get("detailed")
+    if not isinstance(detailed, dict):
+        detailed = None
+    regression_tasks = _aslist(compare_result.get("regression_tasks"))
+    improvement_tasks = _aslist(compare_result.get("improvement_tasks"))
+    pairwise = compare_result.get("pairwise")
+    if not isinstance(pairwise, dict):
+        pairwise = None
+
+    found_files = [f for f in files if isinstance(f, dict) and f.get("found")]
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def _name(f: dict[str, Any]) -> str:
@@ -6838,7 +7142,9 @@ def generate_comparison_html_report(compare_result: dict[str, Any]) -> str:
     ]
     thead = "<tr><th>Metric</th>" + "".join(f"<th>{_name(f)}</th>" for f in found_files) + "</tr>"
     tbody = "".join(
-        f"<tr><td>{label}</td>" + "".join(f"<td>{fmt.format(f.get(key) or 0)}</td>" for f in found_files) + "</tr>"
+        f"<tr><td>{label}</td>"
+        + "".join(f"<td>{fmt.format(_cnum(f.get(key)))}</td>" for f in found_files)
+        + "</tr>"
         for label, key, fmt in _metric_rows
     )
     metric_section = f'''
@@ -6852,10 +7158,10 @@ def generate_comparison_html_report(compare_result: dict[str, Any]) -> str:
     if delta:
         delta_rows = "".join(
             f"<tr><td>vs {_esc(d.get('vs'))}</td>"
-            f"<td>{d.get('tcr_delta', 0):+.2f}%</td>"
-            f"<td>{d.get('accuracy_delta', 0):+.2f}%</td>"
-            f"<td>{d.get('latency_delta', 0):+.3f}s</td></tr>"
-            for d in delta
+            f"<td>{_cnum(d.get('tcr_delta')):+.2f}%</td>"
+            f"<td>{_cnum(d.get('accuracy_delta')):+.2f}%</td>"
+            f"<td>{_cnum(d.get('latency_delta')):+.3f}s</td></tr>"
+            for d in delta if isinstance(d, dict)
         )
         delta_section = f'''
 <div class="gate-section">
@@ -6872,8 +7178,9 @@ def generate_comparison_html_report(compare_result: dict[str, Any]) -> str:
                 return '<tr><td colspan="4" style="text-align:center;color:#9ca3af">None</td></tr>'
             return "".join(
                 f"<tr><td>{_esc(t.get('task_id'))}</td><td>{_esc(t.get('task_type', ''))}</td>"
-                f"<td>{t.get('accuracy_delta', 0):+.3f}</td><td>{t.get('latency_delta', 0):+.3f}s</td></tr>"
-                for t in tasks
+                f"<td>{_cnum(t.get('accuracy_delta')):+.3f}</td>"
+                f"<td>{_cnum(t.get('latency_delta')):+.3f}s</td></tr>"
+                for t in tasks if isinstance(t, dict)
             )
         detail_section = f'''
 <div class="gate-section">

@@ -102,3 +102,38 @@ def test_end_to_end_and_report():
     html = _build_judge_robustness(jr)
     assert "Judge Robustness" in html and "Per-model mean overall" in html
     assert _build_judge_robustness(None) == ""
+
+
+def test_score_map_accepts_llmjudge_get_summary_shape():
+    # P63: judge_runs = [judge_a.get_summary(), judge_b.get_summary()] is the
+    # natural shape — each run has a "results" list of {task_id, scores:{overall}}.
+    run = {"model": "haiku", "total_cost_usd": 0.1,
+           "results": [{"task_id": f"t{i}", "scores": {"overall": 2 if i == 0 else 8}}
+                       for i in range(3)]}
+    assert _jr_score_map(run) == {"t0": 0.2, "t1": 0.8, "t2": 0.8}
+    # a list under "scores" whose items also nest overall under "scores"
+    run2 = {"scores": [{"task_id": "t0", "scores": {"overall": 7}}]}
+    assert _jr_score_map(run2) == {"t0": 0.7}
+
+
+def test_judge_robustness_from_get_summary_shape_end_to_end():
+    def _t(n=8):
+        return [{"task_id": f"t{i}", "task_type": "qa", "completion_score": 1.0,
+                 "accuracy_score": 0.9, "success": True, "question": "q",
+                 "response": "r"} for i in range(n)]
+    cur = {
+        "extra_metrics": {"harness_groups": {}, "judge_runs": [
+            {"model": "haiku", "total_cost_usd": 0.1,
+             "results": [{"task_id": f"t{i}", "scores": {"overall": 5 if i % 2 else 8}}
+                         for i in range(8)]},
+            {"model": "sonnet", "total_cost_usd": 0.9,
+             "results": [{"task_id": f"t{i}", "scores": {"overall": 8}}
+                         for i in range(8)]},
+        ]},
+        "efficiency_metrics": {"tokens": {"total_cost": 2.0}},
+        "tasks": _t(),
+    }
+    jr = _judge_robustness_section(cur, cur["tasks"])
+    assert jr is not None and jr["n_runs"] == 2
+    assert jr["n_sensitive"] == 4  # the odd-i tasks flip pass/fail bucket
+    assert build_insights(cur)["judge_robustness"] is not None
