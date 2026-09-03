@@ -35,7 +35,7 @@ from agent_evaluator import (
     InstructionConfig,
     ExplainabilityConfig,
 )
-from agent_evaluator import agent_eval
+from agent_evaluator import agent_eval, setup_otel
 from agent_evaluator.config import load_env
 
 load_env()
@@ -43,6 +43,20 @@ load_env()
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 Path(_OUTPUT_DIR).mkdir(exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch15-dashboard")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ─────────────────────────────────────────────────────────────
 # 섹션 1 — QuickEval: 개요·태스크 목록 탭 데이터 생성

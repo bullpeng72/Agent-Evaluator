@@ -54,7 +54,7 @@ try:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
             setup_otel(endpoint="http://localhost:6006",
-                       service_name="ch24-quickeval-entry")
+                       service_name="ch25-quickeval-entry")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass

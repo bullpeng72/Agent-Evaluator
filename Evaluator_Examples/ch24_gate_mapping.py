@@ -82,7 +82,7 @@ try:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
             setup_otel(endpoint="http://localhost:6006",
-                       service_name="ch23-gate-mapping")
+                       service_name="ch24-gate-mapping")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass

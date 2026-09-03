@@ -49,7 +49,7 @@ from agent_evaluator import (
     ErrorDiagnosisConfig,
     ConflictResolutionConfig,
 )
-from agent_evaluator import agent_eval, EvalMetadata
+from agent_evaluator import agent_eval, EvalMetadata, setup_otel
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 from agent_evaluator.config import load_env
 
@@ -58,6 +58,18 @@ load_env()
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 Path(_OUTPUT_DIR).mkdir(exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch21-pipeline")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 _PIPELINE_RESULTS: dict = {}  # 단계별 결과 집계
 

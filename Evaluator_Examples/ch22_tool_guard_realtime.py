@@ -38,7 +38,7 @@ import asyncio
 import subprocess
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
 from agent_evaluator.gates.gate_b_behavioral.configs import ScopeConfig, ToolParameterSafetyConfig
 from agent_evaluator.gates.live_guardrail import (
     GuardrailBlockedError,
@@ -52,6 +52,20 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = _PROJECT_ROOT / "results"
 _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 _DB_PATH = _OUTPUT_DIR / "ch22_tool_guard_realtime.db"
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch22-tool-guard-realtime")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ===========================================================================
 # 섹션 1: 기본 사용 — 기존 함수를 전혀 고치지 않고 데코레이터만 붙인다

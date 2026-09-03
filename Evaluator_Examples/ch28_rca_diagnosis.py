@@ -30,13 +30,27 @@ HOTL 원칙(Chapter 2): diagnose()는 "후보 원인 + 근거"만 반환한다 �
 import json
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
 from agent_evaluator.integrations.recommend_fix_mcp import format_recommendation
 from agent_evaluator.ontology.metric_registry import canonical_metric_name
 from agent_evaluator.rca import diagnose
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = str(_PROJECT_ROOT / "results")
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch28-rca-diagnosis")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ===========================================================================
 # 섹션 1: baseline 결과 생성 — 정상 에이전트 (plan_coherence 높음)

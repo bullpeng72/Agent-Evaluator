@@ -28,10 +28,24 @@ Johari et al.(2015) *"Always Valid Inference"* 의 mSPRT를 구현한
 import random
 from pathlib import Path
 
-from agent_evaluator import QuickEval, create_taskresult
+from agent_evaluator import QuickEval, create_taskresult, setup_otel
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = str(_PROJECT_ROOT / "results")
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch29-sequential-ab-test")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ===========================================================================
 # 섹션 1: 문제 재현 — 반복 확인이 왜 위험한가

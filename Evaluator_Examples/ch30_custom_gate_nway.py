@@ -26,11 +26,25 @@ Harness 내장 7개 Gate(A-G)로 충분하지 않을 때, 코어를 포크하지
 import random
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, QuickEval, create_taskresult
+from agent_evaluator import PerformanceMonitor, QuickEval, create_taskresult, setup_otel
 from agent_evaluator.gates.base import _g
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = str(_PROJECT_ROOT / "results")
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch30-custom-gate-nway")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ===========================================================================
 # 섹션 1: register_gate() — 커스텀 "Cost Efficiency" Gate 등록

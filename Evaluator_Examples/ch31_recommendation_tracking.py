@@ -33,7 +33,7 @@ HOTL 원칙: verdict는 confirmed/refuted/inconclusive 세 상태로만 보고�
 import json
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
 from agent_evaluator.rca import (
     load_recommendation_outcomes,
     record_recommendation_outcome,
@@ -46,6 +46,20 @@ _OUTPUT_DIR = str(_PROJECT_ROOT / "results")
 # agent-eval dashboard가 results_dir 아래 이 고정 파일명을 자동으로 읽는다
 # (serve/routers/diagnose.py::_RECOMMENDATIONS_FILENAME) — 별도 설정 불필요.
 _RECOMMENDATIONS_LOG = str(Path(_OUTPUT_DIR) / "recommendation_outcomes.jsonl")
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch31-recommendation-tracking")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ===========================================================================
 # 섹션 1: 개선 전(before) / 개선 후(after) 결과 생성

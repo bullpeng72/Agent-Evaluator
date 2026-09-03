@@ -30,12 +30,27 @@ from agent_evaluator import (
     SubtaskConfig,
     agent_eval,
     load_env,
+    setup_otel,
 )
 
 load_env()
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
+
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="ch04-group-a")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
 
 # ── 공유 monitor ─────────────────────────────────────────────────────────────
 monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR, use_korean_tokenizer=True)
