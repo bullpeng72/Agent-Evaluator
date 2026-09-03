@@ -393,6 +393,27 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
     target = _GLOBAL_TARGET if is_global else _LOCAL_TARGET
     sibling = target.parent / _SIBLING_CONFIG
 
+    # OpenCode auto-loads plugins from BOTH the project-local and the global dir. A user who
+    # ran `install --global` and then a bare `uninstall` (no --global) would otherwise be told
+    # "nothing to do" while the global plugin + its opencode.json MCP entries stay behind.
+    # Fall back to the global install when there is no project-local one, mirroring `doctor`.
+    if (
+        not is_global
+        and not target.exists()
+        and not sibling.exists()
+        and (
+            _GLOBAL_TARGET.exists()
+            or (_GLOBAL_TARGET.parent / _SIBLING_CONFIG).exists()
+        )
+    ):
+        target = _GLOBAL_TARGET
+        sibling = target.parent / _SIBLING_CONFIG
+        is_global = True
+        print(
+            f"{_D}   No project-local install — targeting the global install at {target} "
+            f"(pass --global to silence this).{_R}"
+        )
+
     plan: list[str] = []
     if target.exists():
         plan.append(f"delete plugin file {target}")
@@ -775,7 +796,10 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             "Deletes the installed agent-evaluator.ts and removes the mcp.<name> entries\n"
             "from opencode.json (opencode has no `mcp remove` subcommand, so this edits the\n"
             "JSON directly; .jsonc files are left for you to edit by hand).\n"
-            "Keeps agent-evaluator.config.json unless --purge.\n\n"
+            "Keeps agent-evaluator.config.json unless --purge.\n"
+            "If there is no project-local install, falls back to the global one\n"
+            "(~/.config/opencode/plugin/) so a bare `uninstall` after `install --global`\n"
+            "still works.\n\n"
             "NOTE: `agent-eval` disappears once the package is uninstalled, so run this\n"
             "first.  Order:  agent-eval opencode uninstall  →  pip uninstall agent-evaluator"
         ),

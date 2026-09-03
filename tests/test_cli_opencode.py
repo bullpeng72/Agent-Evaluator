@@ -457,6 +457,33 @@ class TestOpencodeUninstall:
         assert "agent-evaluator-violations" in jsonc.read_text()  # untouched
         assert "JSONC" in capsys.readouterr().err
 
+    def test_bare_uninstall_falls_back_to_global_install(self, tmp_path, monkeypatch, capsys):
+        # `install --global` then a bare `uninstall` (no --global): the global plugin +
+        # its ~/.config/opencode/opencode.json MCP entries must still be removed.
+        monkeypatch.chdir(tmp_path)
+        gt = tmp_path / "config" / "opencode" / "plugin" / "agent-evaluator.ts"
+        gcfg = tmp_path / "config" / "opencode" / "opencode.json"
+        monkeypatch.setattr(opencode_cli, "_GLOBAL_TARGET", gt)
+        monkeypatch.setattr(opencode_cli, "_OPENCODE_GLOBAL_CONFIG", gcfg)
+        opencode_cli.cmd_opencode(_ns(global_install=True))
+        assert gt.exists()
+        gcfg.write_text(json.dumps({"mcp": {
+            "agent-evaluator-violations": {"type": "local"}, "keep-me": {"x": 1},
+        }}))
+        capsys.readouterr()
+
+        assert opencode_cli.cmd_opencode(_uni_ns()) == 0  # no global_install
+        out = capsys.readouterr().out
+        assert "targeting the global install" in out
+        assert not gt.exists()
+        assert json.loads(gcfg.read_text()) == {"mcp": {"keep-me": {"x": 1}}}
+
+    def test_bare_uninstall_no_install_anywhere_is_still_noop(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(opencode_cli, "_GLOBAL_TARGET", tmp_path / "no" / "plugin.ts")
+        assert opencode_cli.cmd_opencode(_uni_ns()) == 0
+        assert "No installed plugin" in capsys.readouterr().out
+
 
 class TestOpencodeDoctor:
     def test_missing_plugin_is_error_exit_1(self, tmp_path, monkeypatch, capsys):
