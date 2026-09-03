@@ -433,6 +433,8 @@ class TaskType(Enum):
         CODING: Alias for CODE_GENERATION (kept for backward compatibility).
         PLANNING: Task decomposition, scheduling, or goal planning.
         TOOL_USE: Tasks requiring external tool / API calls.
+        MULTI_AGENT: Multi-agent coordination tasks (Gate F — consensus,
+            information propagation, role adherence, conflict resolution).
     """
     QA = "qa"
     DATA_ANALYSIS = "data_analysis"
@@ -444,6 +446,7 @@ class TaskType(Enum):
     CODING = "coding"
     PLANNING = "planning"
     TOOL_USE = "tool_use"
+    MULTI_AGENT = "multi_agent"
 
 
 class _TaskContext:

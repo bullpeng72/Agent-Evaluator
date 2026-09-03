@@ -56,6 +56,9 @@ _TASK_TYPE_ALIASES: dict[str, str] = {
     "plan": "planning",
     "analysis": "data_analysis",
     "data": "data_analysis",
+    "multiagent": "multi_agent",
+    "multi-agent": "multi_agent",
+    "coordination": "multi_agent",
 }
 
 
