@@ -34,6 +34,10 @@ SPEC-019 REQ-6 배치 편입 — ``LiveGuardrail.to_task_extra()``가 만든 ``e
                                              #  Gate G(ToolCallAnalyzer)가 실제 도구
                                              #  사용 데이터를 읽을 수 있게 하기 위함)
       "output_dir": str,                    # 기본값 "results/opencode_live_guardrail"
+                                             # 상대 경로면 프로젝트 루트(.git/pyproject.toml
+                                             # 기준)에 고정 — 세션을 어느 하위 디렉터리에서
+                                             # 시작했든 리포트가 한 곳에 누적된다. 절대
+                                             # 경로는 그대로 사용.
       "storage_backend": "sqlite"|"json",   # 기본값 "sqlite"
       "save_filename": str,                 # 기본값 "opencode_sessions" (확장자는 백엔드가 자동 결정)
       "question": str,                      # 기본값 "<opencode session>"
@@ -80,9 +84,32 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any, TextIO
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator.utils.path_helpers import find_project_root
+
+
+def _anchor_output_dir(output_dir: str) -> str:
+    """Resolve a *relative* report ``output_dir`` against the project root.
+
+    Each caller (the OpenCode plugin, a manual ``echo | python -m …`` invocation)
+    spawns this bridge with whatever cwd it happened to have, so a relative
+    ``"results/opencode_live_guardrail"`` would otherwise land a separate copy of
+    the batch report under every directory a session was started from. Anchoring
+    to :func:`find_project_root` (``AGENT_EVALUATOR_ROOT`` → ``.git`` →
+    ``pyproject.toml``/``setup.py`` → cwd) keeps every session in one repo writing
+    to a single ``<repo>/results/…``. An absolute path is returned unchanged; any
+    failure falls back to the original value (never raises).
+    """
+    try:
+        p = Path(output_dir)
+        if p.is_absolute():
+            return output_dir
+        return str(find_project_root() / p)
+    except (OSError, RuntimeError, ValueError):
+        return output_dir
 
 
 def _dispatch_blocked_attempt_alert(task_id: str, blocked_attempts: list[dict[str, Any]]) -> None:
@@ -138,7 +165,9 @@ def record_and_save(payload: dict[str, Any]) -> dict[str, Any]:
     # dict(...)로 복사해 pop이 호출자의 원본 payload를 변형하지 않게 한다.
     extra = dict(payload["extra"])
     tool_calls = extra.pop("tool_calls", [])
-    output_dir = payload.get("output_dir", "results/opencode_live_guardrail")
+    output_dir = _anchor_output_dir(
+        payload.get("output_dir", "results/opencode_live_guardrail")
+    )
     storage_backend = payload.get("storage_backend", "sqlite")
     # SPEC-028 REQ-5: 기본값 "auto"(SPEC-027) — 커밋 SHA + 미커밋 변경 해시로 자동
     # 태깅해, 커밋 없이 반복 실행되는 로컬 세션도 SPEC-025의 group_by/pairwise 비교

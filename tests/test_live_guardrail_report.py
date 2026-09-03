@@ -434,3 +434,52 @@ class TestBlockedAttemptAlert:
         with open(result["saved_to"]) as f:
             data = json.load(f)
         assert data["tasks"][0]["extra"]["blocked_attempts"] == self._BLOCKED
+
+
+class TestOutputDirAnchoring:
+    """A relative report ``output_dir`` is anchored to the project root so every
+    OpenCode session in one repo writes its batch report to a single canonical
+    location — not scattered under whichever sub-directory the session started in."""
+
+    def test_relative_output_dir_anchored_to_repo_root(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        started_from = repo / "packages" / "web"
+        started_from.mkdir(parents=True)
+        monkeypatch.chdir(started_from)
+
+        result = record_and_save({
+            "task_id": "s1", "extra": {}, "storage_backend": "json",
+            "output_dir": "results/opencode_live_guardrail", "save_filename": "sessions",
+        })
+
+        assert result["ok"] is True
+        assert result["saved_to"].startswith(str(repo / "results" / "opencode_live_guardrail"))
+        assert not (started_from / "results").exists()
+
+    def test_absolute_output_dir_is_left_untouched(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        monkeypatch.chdir(repo)
+        abs_out = str(tmp_path / "elsewhere")
+
+        result = record_and_save({
+            "task_id": "s1", "extra": {}, "storage_backend": "json",
+            "output_dir": abs_out, "save_filename": "sessions",
+        })
+
+        assert result["ok"] is True
+        assert result["saved_to"].startswith(abs_out)
+
+    def test_no_project_marker_falls_back_to_cwd(self, tmp_path, monkeypatch):
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        monkeypatch.chdir(loose)
+
+        result = record_and_save({
+            "task_id": "s1", "extra": {}, "storage_backend": "json",
+            "output_dir": "results/opencode_live_guardrail", "save_filename": "sessions",
+        })
+
+        assert result["ok"] is True
+        assert result["saved_to"].startswith(str(loose / "results" / "opencode_live_guardrail"))

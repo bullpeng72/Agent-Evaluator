@@ -207,7 +207,10 @@ const EFFECTIVE_GUARDRAIL_CONFIG: GuardrailInitConfig =
 // 다른 인터프리터를 쓰려면 환경변수로 오버라이드.
 const PYTHON_BIN = process.env.AGENT_EVALUATOR_PYTHON ?? "__AGENT_EVALUATOR_PYTHON_DEFAULT__"
 
-// live_guardrail_report.py가 세션 리포트를 누적할 output_dir.
+// live_guardrail_report.py가 세션 리포트를 누적할 output_dir. 상대 경로면 Python 쪽
+// (_anchor_output_dir)이 프로젝트 루트(.git/pyproject.toml 기준)에 고정하므로, OpenCode를
+// 어느 하위 디렉터리에서 띄우든 리포트가 <repo>/results/... 한 곳에만 쌓인다. 절대 경로로
+// 오버라이드하면 그대로 사용.
 const REPORT_OUTPUT_DIR = process.env.AGENT_EVALUATOR_OUTPUT_DIR ?? "results/opencode_live_guardrail"
 
 interface LiveVerdict {

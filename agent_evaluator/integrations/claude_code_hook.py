@@ -109,6 +109,49 @@ def _state_dir(cwd: str) -> Path:
     return Path(cwd or ".") / _STATE_SUBDIR
 
 
+# SPEC-041: markers that identify a project root when anchoring a *relative*
+# ``output_dir`` for the SessionEnd batch report. Without this, the report DB
+# ("results/claude_code_live_guardrail/claude_code_sessions.db") lands relative
+# to each session's cwd — so a repo where Claude Code is launched from several
+# sub-directories accumulates a scattered copy under every one of them instead of
+# a single canonical ``<repo>/results/…``.
+_PROJECT_ROOT_MARKERS = (".git", "pyproject.toml", "setup.py", "setup.cfg")
+
+
+def _project_root_for(state_dir: Path) -> Path:
+    """Walk up from the session cwd looking for a project-root marker.
+
+    ``state_dir`` is ``<session cwd>/.claude/.agent-evaluator`` so
+    ``state_dir.parent.parent`` is the session cwd. Falls back to that cwd when
+    no marker is found (e.g. a ``--global`` install used outside any project).
+    """
+    try:
+        start = state_dir.parent.parent.resolve()
+    except (OSError, RuntimeError):
+        return Path(".").resolve()
+    for candidate in (start, *start.parents):
+        for marker in _PROJECT_ROOT_MARKERS:
+            if (candidate / marker).exists():
+                return candidate
+    return start
+
+
+def _anchor_output_dir(state_dir: Path, output_dir: str) -> str:
+    """Resolve a relative report ``output_dir`` against the project root.
+
+    An absolute path is returned unchanged; a relative one is anchored to
+    :func:`_project_root_for` so every session in the same repo writes its batch
+    report to one place.
+    """
+    try:
+        p = Path(output_dir)
+        if p.is_absolute():
+            return output_dir
+        return str(_project_root_for(state_dir) / p)
+    except (OSError, RuntimeError, ValueError):
+        return output_dir
+
+
 def _config_path(state_dir: Path) -> Path:
     return state_dir / "guardrail_config.json"
 
@@ -490,7 +533,9 @@ def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, An
     summary_msg = ""
     try:
         config = dict(_session_config(state_dir, session_id, create=False))
-        output_dir = config.pop("output_dir", "results/claude_code_live_guardrail")
+        output_dir = _anchor_output_dir(
+            state_dir, config.pop("output_dir", "results/claude_code_live_guardrail")
+        )
         config.pop("circuit_breaker_after", None)  # 브리지 전용 키 — LiveGuardrail 인자 아님
 
         guardrail = build_guardrail(config)

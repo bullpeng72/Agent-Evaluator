@@ -328,6 +328,57 @@ class TestHandleSessionEnd:
         assert not hook._circuit_file(state_dir, "s1").exists()
 
 
+class TestOutputDirAnchoring:
+    """A relative report ``output_dir`` is anchored to the project root so every
+    session in one repo writes its batch report to a single canonical location —
+    not scattered under whichever sub-directory Claude Code was launched from."""
+
+    def test_relative_output_dir_anchored_to_project_root(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        subdir = repo / "examples" / "deep"
+        subdir.mkdir(parents=True)
+        state_dir = subdir / ".claude" / ".agent-evaluator"
+        state_dir.mkdir(parents=True)
+
+        anchored = hook._anchor_output_dir(state_dir, "results/claude_code_live_guardrail")
+        assert Path(anchored) == repo / "results" / "claude_code_live_guardrail"
+
+    def test_absolute_output_dir_is_left_untouched(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        abs_dir = str(tmp_path / "elsewhere" / "results")
+        assert hook._anchor_output_dir(state_dir, abs_dir) == abs_dir
+
+    def test_no_project_marker_falls_back_to_session_cwd(self, tmp_path):
+        cwd = tmp_path / "loose"
+        state_dir = cwd / ".claude" / ".agent-evaluator"
+        state_dir.mkdir(parents=True)
+        anchored = hook._anchor_output_dir(state_dir, "results/x")
+        assert Path(anchored) == cwd.resolve() / "results" / "x"
+
+    def test_session_end_writes_report_under_project_root(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        subdir = repo / "Evaluator_Examples"
+        subdir.mkdir()
+        state_dir = subdir / ".claude" / ".agent-evaluator"
+        (state_dir / "sessions").mkdir(parents=True)
+        (state_dir / "guardrail_config.json").write_text(
+            json.dumps({"output_dir": "results/claude_code_live_guardrail"})
+        )
+        hook._append_json_list(
+            hook._session_file(state_dir, "s1"),
+            {"tool_name": "Bash", "parameters": {"command": "ls"}, "output": None},
+        )
+
+        result = hook.handle_session_end({"session_id": "s1", "reason": "clear"}, state_dir)
+
+        assert result["ok"] is True
+        canonical = repo / "results" / "claude_code_live_guardrail"
+        assert canonical.is_dir()
+        assert not (subdir / "results").exists()
+
+
 class TestRunDispatch:
     def test_unknown_hook_event_returns_empty_result(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
