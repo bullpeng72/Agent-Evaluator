@@ -39,6 +39,14 @@ python-dotenv>=0.19.0,<2.0.0
 #   pip install "agent-evaluator[llm]"   # OpenAI 또는 Anthropic 키 필요
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ch32 — 로컬 Ollama LLM로 Phoenix에 실데이터 전송 (Gate A–G 통합 + JSON/HTML/대시보드)
+# ─────────────────────────────────────────────────────────────────────────────
+# 외부 LLM SDK 불필요 — stdlib urllib 로 Ollama /api/chat 직접 호출. 코어만으로 동작.
+#   1) Ollama 설치·실행 후  ollama pull llama3.2   (또는 mistral / qwen2.5 …)
+#   2) (선택) pip install "agent-evaluator[otel]"  +  agent-eval monitor   # Phoenix 실시간 스팬
+#   3) (선택) pip install "agent-evaluator[serve]"                          # agent-eval dashboard
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ch30 — 커스텀 Gate 플러그인 + ab_test_nway() N-way 비교
 # ─────────────────────────────────────────────────────────────────────────────
 # ab_test_nway()의 p-value/효과크기 계산에 scipy가 있으면 쓰고, 없으면 그 두

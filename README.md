@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.1-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.2-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -154,12 +154,12 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 
 ## Examples
 
-31 standalone, book-chapter-based files in [`Evaluator_Examples/`](https://github.com/bullpeng72/Agent-Evaluator/tree/HEAD/Evaluator_Examples/) (`ch01`–`ch31`),
+32 standalone, book-chapter-based files in [`Evaluator_Examples/`](https://github.com/bullpeng72/Agent-Evaluator/tree/HEAD/Evaluator_Examples/) (`ch01`–`ch32`),
 covering everything from a first evaluation to the full RCA/A/B-testing improvement loop:
 
 ```bash
 pip install "agent-evaluator[examples]"
-cd Evaluator_Examples && python ch01_first_eval.py   # ... through ch31_recommendation_tracking.py
+cd Evaluator_Examples && python ch01_first_eval.py   # ... through ch32_ollama_realtime.py
 ```
 
 ---
@@ -179,13 +179,15 @@ agent_evaluator/
 └── cli/              # agent-eval CLI (init, check, gate, diagnose, abtest, trend, dataset,
                       #   experiment, target, benchmark, improve, claims, monitor, opencode, claude)
 
-Evaluator_Examples/   # 31 example files (ch01–ch31)
+Evaluator_Examples/   # 32 example files (ch01–ch32)
 tests/                # 4,800+ test functions
 ```
 
 ---
 
 ## Changelog
+
+**v1.0.2** (2026-09-04) — Phoenix / OTEL integration: `arize-phoenix` pin is now Python-version-scoped (v20 on 3.12+, `<19.0.0` on 3.10/3.11, dropped on 3.8/3.9); Phoenix annotations now delivered at span + trace + session tiers with a `?sync=true` + backoff POST and a non-Phoenix-endpoint probe; `agent-eval monitor` console output is ASCII-only (no more mojibake on non-UTF-8 consoles); new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) and a local-Ollama end-to-end example (`ch32_ollama_realtime.py`). No public SDK API, Config, or schema changes.
 
 **v1.0.1** (2026-09-03) — Patch: report-generation hardening (malformed / partial / externally-produced result JSON no longer crashes the static report, `agent-eval gate`, or the dashboard results list; `NaN`/`Infinity` scrubbed on read and write), dashboard ↔ static-report value parity (hallucination rate, task count, per-task fallbacks, all 7 Gate detail tables, score-breakdown reconciliation), and completion of the English-only runtime-output pass. No API, Config, or schema changes.
 
@@ -208,6 +210,7 @@ Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://g
 | [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/07_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
 | [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/08_API_REFERENCE.md) | Full public API reference |
 | [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
+| [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) | Every span, attribute, metric & Phoenix annotation sent over OpenTelemetry |
 | [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
 | [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
 | [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |

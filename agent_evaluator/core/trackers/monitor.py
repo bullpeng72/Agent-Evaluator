@@ -219,6 +219,64 @@ _PHOENIX_MODEL_ALIAS: dict[str, str] = {
 # OTEL 속성 크기 제한 — Phoenix OTLP HTTP 기본 4MB이나 속성값 개별 권장치
 _OTEL_ATTR_MAX_LEN: int = 4096
 
+# Phoenix Annotation API 재시도 백오프 (초).
+# Phoenix는 수신한 스팬을 비동기로 DB에 인덱싱하므로, force_flush() 직후의 annotation
+# POST는 대상 스팬/트레이스/세션이 아직 없어 HTTP 404를 반환할 수 있다. 아래 스케줄대로
+# 지수 백오프하며 재시도한다 (누적 대기 최대 ~7.5초). 연결 오류(Phoenix 미실행)는
+# 2회 실패 후 즉시 포기한다. 환경변수 AGENT_EVAL_PHOENIX_ANNOTATION_RETRY_DELAYS 로
+# 쉼표 구분 실수 목록을 지정해 덮어쓸 수 있다 (예: "1,2,4,8,16").
+def _load_phoenix_annotation_retry_delays() -> tuple[float, ...]:
+    raw = os.getenv("AGENT_EVAL_PHOENIX_ANNOTATION_RETRY_DELAYS", "")
+    if raw.strip():
+        try:
+            parsed = tuple(
+                float(p) for p in raw.split(",") if p.strip()
+            )
+            if parsed:
+                return parsed
+        except ValueError:
+            logger.warning(
+                "AGENT_EVAL_PHOENIX_ANNOTATION_RETRY_DELAYS is malformed (%r); using defaults", raw
+            )
+    return (0.5, 1.0, 2.0, 4.0)
+
+
+_PHOENIX_ANNOTATION_RETRY_DELAYS: tuple[float, ...] = _load_phoenix_annotation_retry_delays()
+
+
+# OTLP 트레이스/메트릭 전송은 표준 규격이라 어떤 백엔드(Jaeger·Tempo·Grafana·Datadog·
+# OTel Collector 등)로도 코드 변경 없이 나간다. 그러나 evaluation 점수를 스팬/트레이스/
+# 세션에 첨부하는 것은 Phoenix 전용 REST(`/v1/*_annotations`)라, 엔드포인트가 Phoenix가
+# 아닐 때 이 POST를 굳이 재시도하면 save_to_file()이 불필요하게 지연된다. base URL당 1회
+# `/arize_phoenix_version` 을 확인해 결과를 캐시한다.
+_PHOENIX_PROBE_CACHE: dict[str, str] = {}
+
+
+def _probe_phoenix_endpoint(base: str) -> str:
+    """base URL이 Arize Phoenix인지 1회 판별하고 캐시한다.
+
+    Returns:
+        ``"phoenix"``     — 확인됨 (annotation REST를 정상 재시도)
+        ``"unknown"``     — 응답은 있으나 미확인 (미래 버전 가능성 → 재시도 없이 1회만 시도)
+        ``"unreachable"`` — 연결 불가 (annotation POST를 건너뜀; OTLP 트레이스는 별개)
+    """
+    cached = _PHOENIX_PROBE_CACHE.get(base)
+    if cached is not None:
+        return cached
+    verdict = "unknown"
+    try:
+        req = urllib.request.Request(f"{base}/arize_phoenix_version", method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            # 이 라우트가 2xx면 Phoenix다 (다른 서비스에는 존재하지 않는 경로).
+            verdict = "phoenix" if 200 <= resp.status < 300 else "unknown"
+    except urllib.error.HTTPError:
+        # 무언가 응답함 — 미래 Phoenix가 라우트를 옮겼거나 프록시가 앞에 있을 수 있음
+        verdict = "unknown"
+    except Exception:
+        verdict = "unreachable"
+    _PHOENIX_PROBE_CACHE[base] = verdict
+    return verdict
+
 
 class _RunningTCRView:
     """SPEC-004 REQ-2: ``retention_mode="windowed"`` 에서 Gate A/C의 TCR 컴포넌트가
@@ -2499,6 +2557,8 @@ class PerformanceMonitor:
                                 logger.debug("quality score extraction failed (ignored): %s", _e)
                             self._pending_annotations.append({
                                 "span_id": format(ctx.span_id, "016x"),
+                                # trace_id — Phoenix "Trace annotation scores" 패널용
+                                "trace_id": format(ctx.trace_id, "032x"),
                                 "accuracy": float(result.accuracy_score or 0.0),
                                 "completion": float(result.completion_score or 0.0),
                                 "success": 1.0 if result.success else 0.0,
@@ -2613,28 +2673,132 @@ class PerformanceMonitor:
         except Exception as _otel_exc:
             logger.debug("_emit_otel_span: span emit failed: %s", _otel_exc)
 
-    def _flush_phoenix_annotations(self) -> None:
-        """누적된 평가 점수를 Phoenix Annotation API로 일괄 전송한다.
+    @staticmethod
+    def _annotation_label(metric: str, score: float) -> str:
+        """annotation 점수에 pass/fail/ok 레이블을 부여한다.
 
-        save_to_file() 끝에서 호출된다. Phoenix가 실행 중이지 않거나
-        OTEL 미설정 시 no-op.
+        - ``hallucination`` 계열: 낮을수록 좋음 → ``score <= 0.3`` 이면 pass
+        - 방향성 없는 수치형(``latency`` / ``tool_calls`` / ``attempts``): 항상 ``ok``
+        - 그 외(정확도·완료도·성공률·품질): ``score >= 0.5`` 이면 pass
+        """
+        if "hallucination" in metric:
+            return "pass" if score <= 0.3 else "fail"
+        if any(k in metric for k in ("latency", "tool_calls", "attempts")):
+            return "ok"
+        return "pass" if score >= 0.5 else "fail"
 
-        전송 지표 (annotator_kind="LLM"):
-            - accuracy      : ae.accuracy_score  (0–1)
-            - completion    : ae.completion_score (0–1)
-            - success       : 1.0 성공 / 0.0 실패
-            - hallucination : hallucination_score (0–1, None이면 생략)
-            - quality       : quality_score       (0–1, None이면 생략)
-            - latency       : execution_time (초)
-            - tool_calls    : tool_calls count (정수)
-            - attempts      : retry 횟수
+    def _post_phoenix_annotations(
+        self,
+        url: str,
+        rows: list[dict[str, Any]],
+        kind: str,
+        *,
+        retry: bool = True,
+    ) -> bool:
+        """Phoenix Annotation API(``/v1/{span,trace,session}_annotations``)에 POST한다.
 
-        타이밍 처리:
-            force_flush() 이후에도 Phoenix가 span을 내부 DB에 인덱싱하는 데
-            추가 시간이 필요할 수 있다 (비동기 처리). 이를 위해 재시도 로직을 적용한다.
+        ``?sync=true`` 로 동기 처리를 요청해 결과(성공/404)를 즉시 확인하고,
+        404(대상이 아직 인덱싱되지 않음)면 :data:`_PHOENIX_ANNOTATION_RETRY_DELAYS`
+        스케줄대로 지수 백오프하며 재시도한다. 연결 오류(Phoenix 미실행)는 2회
+        실패 후 즉시 포기한다. 404 이외의 HTTP 오류(422 등)는 재시도하지 않는다.
+
+        Args:
+            url: annotation 엔드포인트 (쿼리스트링 없이).
+            rows: ``{"data": rows}`` 로 감싸 전송할 annotation dict 목록.
+            kind: 로그용 레이블 ("span" / "trace" / "session").
+            retry: False면 재시도 없이 1회만 시도 (선행 span POST 성공으로
+                인덱싱이 확인된 뒤의 trace/session 전송에 사용).
+
+        Returns:
+            전송 성공 시 True. ``rows`` 가 비어 있으면 (보낼 것이 없으면) True.
         """
         import time
 
+        if not rows:
+            return True
+
+        payload = json.dumps({"data": rows}).encode()
+        target = f"{url}?sync=true"
+        delays = _PHOENIX_ANNOTATION_RETRY_DELAYS if retry else ()
+        conn_failures = 0
+        last_exc: Exception | None = None
+
+        for attempt in range(len(delays) + 1):
+            if attempt > 0:
+                time.sleep(delays[attempt - 1])
+            try:
+                req = urllib.request.Request(
+                    target,
+                    data=payload,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    logger.info(
+                        "Phoenix %s annotations sent: %d rows (HTTP %d, attempt %d/%d)",
+                        kind, len(rows), resp.status, attempt + 1, len(delays) + 1,
+                    )
+                return True
+            except urllib.error.HTTPError as http_exc:
+                body = ""
+                try:
+                    body = http_exc.read().decode("utf-8", errors="replace")[:200]
+                except Exception as _e:
+                    logger.debug("HTTP error body read failed (ignored): %s", _e)
+                last_exc = http_exc
+                # 404 = 대상 스팬/트레이스/세션이 아직 인덱싱되지 않음 → 백오프 후 재시도.
+                # 그 외(422 payload 오류 등)는 재시도해도 소용없음 → 즉시 중단.
+                if http_exc.code != 404:
+                    logger.warning(
+                        "Phoenix %s annotations HTTP %d (not retrying): %s",
+                        kind, http_exc.code, body,
+                    )
+                    return False
+                logger.debug(
+                    "Phoenix %s annotations HTTP 404 (attempt %d/%d) — not indexed yet",
+                    kind, attempt + 1, len(delays) + 1,
+                )
+            except Exception as exc:
+                last_exc = exc
+                conn_failures += 1
+                logger.debug(
+                    "Phoenix %s annotations connection error (attempt %d): %s",
+                    kind, attempt + 1, exc,
+                )
+                if conn_failures >= 2:
+                    break  # Phoenix가 완전히 내려간 상태 — 백오프 전체를 소모하지 않는다
+
+        logger.warning(
+            "Phoenix %s annotations ultimately failed (%d rows): %s",
+            kind, len(rows), last_exc,
+        )
+        return False
+
+    def _flush_phoenix_annotations(self) -> None:
+        """누적된 평가 점수를 Phoenix Annotation API로 전송한다 (span·trace·session 3계층).
+
+        save_to_file() 끝에서 호출된다. Phoenix가 실행 중이지 않거나
+        OTEL 미설정 시 no-op. 어느 계층 전송이 실패해도 나머지 계층은 계속 시도한다.
+
+        전송 지표 (annotator_kind="CODE" — 모두 결정론적 계산값):
+            span / trace (태스크별):
+                - accuracy      : ae.accuracy_score   (0–1)
+                - completion    : ae.completion_score (0–1)
+                - success       : 1.0 성공 / 0.0 실패
+                - hallucination : hallucination_score (0–1, None이면 생략)
+                - quality       : quality_score       (0–1, None이면 생략)
+                - latency_s     : execution_time (초)
+                - tool_calls    : tool_calls 개수
+                - attempts      : retry 횟수
+            session (세션 전체 롤업 — 위 태스크별 값의 평균):
+                - session_accuracy · session_completion · session_pass_rate
+                - session_latency_s · session_hallucination · session_quality
+
+        타이밍 처리:
+            force_flush() 이후에도 Phoenix가 span을 내부 DB에 인덱싱하는 데
+            추가 시간이 필요할 수 있다 (비동기 처리). ``_post_phoenix_annotations``
+            가 ``?sync=true`` + 지수 백오프로 이를 흡수한다.
+        """
         if not self._pending_annotations:
             return
         try:
@@ -2646,102 +2810,120 @@ class PerformanceMonitor:
             # BatchSpanProcessor 플러시 — Phoenix /v1/traces로 전송 완료 대기
             provider.force_flush(timeout_ms=3000)
 
-            data: list[dict[str, Any]] = []
-            for ann in self._pending_annotations:
-                span_id = ann["span_id"]
-                # 전송 대상 지표: None이면 해당 스팬에서 생략
-                metrics_to_send = [
-                    ("accuracy",      ann.get("accuracy"),      "ae.accuracy_score (0–1)"),
-                    ("completion",    ann.get("completion"),    "ae.completion_score (0–1)"),
-                    ("success",       ann.get("success"),       "1.0=pass / 0.0=fail"),
-                    ("hallucination", ann.get("hallucination"), "hallucination_score (0-1, lower is better)"),
-                    ("quality",       ann.get("quality"),       "response quality overall score (0–1)"),
-                    ("latency_s",     ann.get("latency"),       "execution_time in seconds"),
-                    ("tool_calls",    ann.get("tool_calls"),    "number of tool calls"),
-                    ("attempts",      ann.get("attempts"),      "retry attempt count"),
-                ]
-                for metric, score, explanation in metrics_to_send:
+            base = provider.base_endpoint.rstrip("/")
+
+            # 엔드포인트가 Phoenix가 아니면 annotation REST는 의미가 없다.
+            # OTLP 트레이스/메트릭은 이미 표준 규격대로 전송되었으므로 여기서 조용히 종료.
+            probe = _probe_phoenix_endpoint(base)
+            if probe == "unreachable":
+                logger.debug(
+                    "_flush_phoenix_annotations: %s is not reachable — skipping annotation POST "
+                    "(OTLP traces are unaffected)", base,
+                )
+                return
+            full_retry = probe == "phoenix"
+
+            pending = list(self._pending_annotations)
+
+            # 태스크별 지표 정의 — (annotation 이름, ann dict 키, 설명)
+            _METRIC_DEFS = [
+                ("accuracy", "accuracy", "ae.accuracy_score (0-1)"),
+                ("completion", "completion", "ae.completion_score (0-1)"),
+                ("success", "success", "1.0=pass / 0.0=fail"),
+                ("hallucination", "hallucination", "hallucination_score (0-1, lower is better)"),
+                ("quality", "quality", "response quality overall score (0-1)"),
+                ("latency_s", "latency", "execution_time in seconds"),
+                ("tool_calls", "tool_calls", "number of tool calls"),
+                ("attempts", "attempts", "retry attempt count"),
+            ]
+
+            def _rows_for(ann: dict[str, Any]) -> list[tuple[str, Any, str]]:
+                return [(name, ann.get(key), desc) for name, key, desc in _METRIC_DEFS]
+
+            span_rows: list[dict[str, Any]] = []
+            trace_rows: list[dict[str, Any]] = []
+            agg: dict[str, list[float]] = {
+                "accuracy": [], "completion": [], "success": [],
+                "hallucination": [], "quality": [], "latency_s": [],
+            }
+
+            for ann in pending:
+                span_id = ann.get("span_id")
+                trace_id = ann.get("trace_id")
+                for metric, score, explanation in _rows_for(ann):
                     if score is None:
                         continue
-                    # hallucination: 낮을수록 good → label 반전
-                    if metric == "hallucination":
-                        label = "pass" if score <= 0.3 else "fail"
-                    elif metric in ("latency_s", "tool_calls", "attempts"):
-                        label = "ok"  # 방향성이 없는 수치형 지표
-                    else:
-                        label = "pass" if score >= 0.5 else "fail"
-                    data.append({
-                        "span_id": span_id,
-                        "name": metric,
-                        "annotator_kind": "LLM",
+                    score_f = round(float(score), 4)
+                    result = {
+                        "score": score_f,
+                        "label": self._annotation_label(metric, score_f),
+                        "explanation": f"Agent Evaluator: {explanation}",
+                    }
+                    if span_id:
+                        span_rows.append({
+                            "span_id": span_id, "name": metric,
+                            "annotator_kind": "CODE", "result": result, "metadata": {},
+                        })
+                    if trace_id:
+                        trace_rows.append({
+                            "trace_id": trace_id, "name": metric,
+                            "annotator_kind": "CODE", "result": result, "metadata": {},
+                        })
+                    if metric in agg:
+                        agg[metric].append(score_f)
+
+            # 세션 전체 롤업
+            session_rows: list[dict[str, Any]] = []
+            sid = self._otel_session_id
+
+            def _mean(xs: list[float]) -> float | None:
+                return round(sum(xs) / len(xs), 4) if xs else None
+
+            if sid:
+                session_metrics = [
+                    ("session_accuracy", _mean(agg["accuracy"]),
+                     "mean accuracy_score across the session (0-1)"),
+                    ("session_completion", _mean(agg["completion"]),
+                     "mean completion_score across the session (0-1)"),
+                    ("session_pass_rate", _mean(agg["success"]),
+                     "fraction of tasks that passed (0-1)"),
+                    ("session_latency_s", _mean(agg["latency_s"]),
+                     "mean execution_time in seconds"),
+                    ("session_hallucination", _mean(agg["hallucination"]),
+                     "mean hallucination_score (0-1, lower is better)"),
+                    ("session_quality", _mean(agg["quality"]),
+                     "mean response quality score (0-1)"),
+                ]
+                for metric, score, explanation in session_metrics:
+                    if score is None:
+                        continue
+                    session_rows.append({
+                        "session_id": sid, "name": metric, "annotator_kind": "CODE",
                         "result": {
-                            "score": round(float(score), 4),
-                            "label": label,
+                            "score": score,
+                            "label": self._annotation_label(metric, score),
                             "explanation": f"Agent Evaluator: {explanation}",
                         },
                         "metadata": {},
                     })
 
-            payload = json.dumps({"data": data}).encode()
-            url = f"{provider.base_endpoint}/v1/span_annotations"
+            # 계층별로 독립 전송 — 하나가 실패해도 나머지는 계속 시도한다.
+            # - probe가 "phoenix"일 때만 404 백오프 재시도 (인덱싱 지연 흡수).
+            # - "unknown"(미확인 엔드포인트)이면 각 계층 1회만 시도 — 불필요한 지연 방지.
+            # - span 전송이 성공하면 trace/session 대상도 인덱싱 완료 상태이므로 재시도 불필요.
+            span_ok = self._post_phoenix_annotations(
+                f"{base}/v1/span_annotations", span_rows, "span", retry=full_retry
+            )
+            _followup_retry = full_retry and not span_ok
+            self._post_phoenix_annotations(
+                f"{base}/v1/trace_annotations", trace_rows, "trace", retry=_followup_retry
+            )
+            self._post_phoenix_annotations(
+                f"{base}/v1/session_annotations", session_rows, "session", retry=_followup_retry
+            )
 
-            # 재시도 로직: Phoenix가 span을 비동기로 인덱싱하므로
-            # force_flush 직후 POST하면 404가 반환될 수 있다.
-            # 0.5s 간격으로 최대 3회 재시도한다.
-            _MAX_RETRIES = 3
-            _RETRY_DELAY = 0.5  # seconds
-            last_exc: Exception | None = None
-
-            for attempt in range(_MAX_RETRIES):
-                if attempt > 0:
-                    time.sleep(_RETRY_DELAY)
-                try:
-                    req = urllib.request.Request(
-                        url,
-                        data=payload,
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with urllib.request.urlopen(req, timeout=5) as resp:
-                        logger.info(
-                            "Phoenix annotations sent: %d, HTTP %d (attempt %d/%d)",
-                            len(data),
-                            resp.status,
-                            attempt + 1,
-                            _MAX_RETRIES,
-                        )
-                    self._pending_annotations.clear()
-                    return  # 성공
-                except urllib.error.HTTPError as http_exc:
-                    body = ""
-                    try:
-                        body = http_exc.read().decode("utf-8", errors="replace")[:200]
-                    except Exception as _e:
-                        logger.debug("HTTP error body read failed (ignored): %s", _e)
-                    last_exc = http_exc
-                    logger.warning(
-                        "Phoenix annotations HTTP %d (attempt %d/%d): %s",
-                        http_exc.code,
-                        attempt + 1,
-                        _MAX_RETRIES,
-                        body,
-                    )
-                except Exception as exc:
-                    last_exc = exc
-                    logger.debug(
-                        "_flush_phoenix_annotations: connection failed (attempt %d/%d): %s",
-                        attempt + 1,
-                        _MAX_RETRIES,
-                        exc,
-                    )
-                    break  # 연결 오류는 재시도해도 소용없음 (Phoenix 미실행)
-
-            if last_exc is not None:
-                logger.warning(
-                    "Phoenix annotations ultimately failed to send (%d): %s",
-                    len(data),
-                    last_exc,
-                )
+            if span_ok:
+                self._pending_annotations.clear()
         except Exception as exc:
             logger.debug("_flush_phoenix_annotations: initialization failed: %s", exc)
 

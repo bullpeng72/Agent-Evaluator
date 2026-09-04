@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.0.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -530,7 +530,7 @@ threat_response, context_window, latency_attribution
 |------|--------|------|
 | `ragas>=0.4.0` | ✅ | EvaluationDataset, SingleTurnSample API supported |
 | `[crewai,autogen]` pydantic conflict | 🟡 | silently downgrades to pydantic 2.11.x |
-| `arize-phoenix>=15.4.0` | ✅ | pydantic-ai compatibility resolved (previous `<14.7.0` pin removed) |
+| `arize-phoenix` (Python-scoped pin) | ✅ | `[otel]`/`[sdk]`/`[examples]`/`[full]`. **3.12+**: `>=15.4.0,<21.0.0` (admits v20; with `openai<3.0.0` the resolver lands on 20.3.x; v20's inferences/embeddings/UMAP removal doesn't touch the SDK's OTLP/annotation surface). **3.10/3.11**: `>=15.4.0,<19.0.0` — phoenix 19.11+/20.x's `phoenix.trace.dsl.filter._FilterBindings` uses a `MappingProxyType({})` frozen-dataclass default that CPython <3.12 rejects at import, crashing the Phoenix server / `agent-eval monitor`. **3.8/3.9**: line drops (needs `arize-phoenix-otel`, Python ≥3.10); only `opentelemetry-*` install — SDK code imports `opentelemetry.*`, never `phoenix`, so `setup_otel()` + remote/Docker Phoenix + other OTLP backends still work. |
 | `AnswerRelevancy` embeddings | 🟡 | auto-configured only with an OpenAI key |
 
 ---

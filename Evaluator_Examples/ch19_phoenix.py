@@ -7,6 +7,8 @@ agent-eval monitor 와 함께 실행하면 Phoenix 전체 탭을 검증할 수 �
 
 Phoenix 연동 범위:
   Tracing   — record_task() → OTLP 스팬 + save_to_file() → Annotations
+              (Cost·Top models·LLM/Tool span errors 패널까지 커버:
+               model_name 지정 + 실패/도구실패 케이스 포함)
   Datasets  — GoldenSetBuilder.push_to_phoenix()
   Playground— llm.prompts 속성 포함 시 프롬프트 재현 가능
   Prompts   — REST POST /v1/prompts
@@ -54,6 +56,11 @@ _OUTPUT_DIR    = str(_PROJECT_ROOT / "results")
 _PHOENIX_URL   = os.getenv("PHOENIX_URL", "http://localhost:6006")
 _PHOENIX_PORT  = int(_PHOENIX_URL.split(":")[-1])
 _OPENAI_KEY    = os.getenv("OPENAI_API_KEY", "")
+# Phoenix Cost / Top models by cost / Top models by tokens 패널용 — 실제 모델명 지정.
+# 미지정 시 스팬의 llm.model_name = "ae/unspecified" 가 되어 Phoenix 가격표와 매칭되지 않아
+# 비용·모델별 토큰 집계가 전혀 표시되지 않는다. 신규 모델명은 monitor 내부의
+# _PHOENIX_MODEL_ALIAS 가 Phoenix(LiteLLM) 가격표 등록명으로 자동 변환한다.
+_MODEL_NAME    = os.getenv("AGENT_EVAL_MODEL", "claude-haiku-4-5-20251001")
 
 # ---------------------------------------------------------------------------
 # 외부 평가 패키지 가용성 체크
@@ -94,6 +101,7 @@ if EVAL_AVAILABLE:
         use_ragas=True,
         deepeval_model="gpt-5-nano",
         ragas_model="gpt-5-nano",
+        model_name=_MODEL_NAME,         # Phoenix Cost / Top models 패널용
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
         use_korean_tokenizer=True,
@@ -103,6 +111,7 @@ if EVAL_AVAILABLE:
 else:
     monitor = PerformanceMonitor(
         output_dir=_OUTPUT_DIR,
+        model_name=_MODEL_NAME,         # Phoenix Cost / Top models 패널용
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
         use_korean_tokenizer=True,
     )
@@ -120,25 +129,44 @@ from agent_evaluator import agent_eval, EvalMetadata
 # ===========================================================================
 print("\n=== 섹션 1: Phoenix Tracing + Annotations ===")
 
+# 각 항목: (task_type, question, ground_truth, response, context, tool_calls, error_message)
+#   tool_calls    — 지정 시 TOOL 자식 스팬 발행. success=False 항목은 스팬 status=ERROR 로
+#                   기록되어 Phoenix "Tool span errors" 패널에 집계된다.
+#   error_message — 지정 시 task.success=False → 스팬 status=ERROR →
+#                   Phoenix "LLM span errors" 패널에 집계된다.
 TRACING_CASES = [
-    ("qa",                   "한국의 수도는?",           "서울",           "서울입니다.",          None),
-    ("tool_use",             "날씨 검색 도구 사용",      "맑음",           "맑고 따뜻합니다.",     None),
-    ("information_retrieval","RAG 문서 검색 테스트",    "관련 문서 내용",  "문서에 따르면...",
-     ["서울은 대한민국의 수도입니다.", "대한민국의 정치·경제 중심지입니다."]),
-    ("code_generation",      "Hello World 코드",        "print('Hello')", "print('Hello World')", None),
-    ("planning",             "프로젝트 계획 수립",       "1.분석 2.설계",  "1단계: 요구사항 분석...", None),
+    ("qa", "한국의 수도는?", "서울", "서울입니다.", None, None, None),
+    ("tool_use", "날씨 검색 도구 사용", "맑음", "맑고 따뜻합니다.", None,
+     [{"tool_name": "weather_api", "arguments": {"city": "Seoul"},
+       "result": "sunny, 24C", "success": True}], None),
+    ("information_retrieval", "RAG 문서 검색 테스트", "관련 문서 내용", "문서에 따르면...",
+     ["서울은 대한민국의 수도입니다.", "대한민국의 정치·경제 중심지입니다."], None, None),
+    ("code_generation", "Hello World 코드", "print('Hello')", "print('Hello World')",
+     None, None, None),
+    ("planning", "프로젝트 계획 수립", "1.분석 2.설계", "1단계: 요구사항 분석...", None, None, None),
+    # 실패 케이스 — "LLM span errors" 패널용 (task.success=False → 스팬 status=ERROR)
+    ("qa", "2099년 화성의 인구는?", "미상", "", None, None,
+     "LLMError: model returned an empty response"),
+    # 도구 실패 케이스 — "Tool span errors" 패널용 (tool_call success=False → 자식 스팬 status=ERROR)
+    ("tool_use", "결제 API 호출", "결제 완료", "결제 처리 중 오류가 발생했습니다.", None,
+     [{"tool_name": "payment_api", "arguments": {"amount": 1000},
+       "result": "HTTP 503 Service Unavailable", "success": False}], None),
 ]
 
-for task_type, question, ground_truth, response, context in TRACING_CASES:
+for _idx, _case in enumerate(TRACING_CASES):
+    task_type, question, ground_truth, response, context, tool_calls, error_message = _case
+    _out_tok = max(len(response.split()), 1)
     result = create_taskresult(
-        task_id=f"trace_{task_type[:6]}",
+        task_id=f"trace_{_idx:02d}_{task_type[:6]}",
         question=question,
         response=response,
         ground_truth=ground_truth,
         execution_time=round(1.0 + len(response) * 0.01, 2),
         task_type=task_type,
-        tokens_used={"input": 120, "output": len(response.split()), "total": 120 + len(response.split())},
-    
+        tokens_used={"input": 120, "output": _out_tok, "total": 120 + _out_tok},
+        tool_calls=tool_calls or [],
+        has_error=bool(error_message),
+        error_message=error_message,
         use_korean_tokenizer=True,
     )
 
@@ -156,7 +184,9 @@ for task_type, question, ground_truth, response, context in TRACING_CASES:
 
     kind = {"qa": "LLM", "tool_use": "TOOL", "information_retrieval": "RETRIEVER",
             "code_generation": "LLM", "planning": "AGENT"}.get(task_type, "CHAIN")
-    print(f"  [{task_type:<22s}] span.kind={kind:<9s} acc={result.accuracy_score:.2f}")
+    _flag = "  ← ERROR" if error_message else (
+        "  ← tool-fail" if tool_calls and not all(t.get("success", True) for t in tool_calls) else "")
+    print(f"  [{task_type:<22s}] span.kind={kind:<9s} acc={result.accuracy_score:.2f}{_flag}")
 
 if PHOENIX_ONLINE:
     print("  Tracing 탭 확인: Tracing → 스팬 클릭 → Annotations 섹션")
@@ -380,11 +410,13 @@ if not EVAL_AVAILABLE:
 
         MOCK_METRICS = [
             # (g_eval_score, hallucination_score, toxicity_score, ragas_faithfulness, ragas_answer_relevancy)
-            (0.88, 0.92, 0.02, 0.85, 0.91),   # trace_qa
-            (0.75, 0.88, 0.01, None, None),    # trace_tool_u (도구 사용, RAG 없음)
-            (0.82, 0.95, 0.00, 0.89, 0.87),   # trace_inform (RAG)
-            (0.71, 0.85, 0.03, None, None),    # trace_code_g
-            (0.79, 0.90, 0.01, None, None),    # trace_planni
+            (0.88, 0.92, 0.02, 0.85, 0.91),   # trace_00 qa (ok)
+            (0.75, 0.88, 0.01, None, None),    # trace_01 tool_use (ok, RAG 없음)
+            (0.82, 0.95, 0.00, 0.89, 0.87),   # trace_02 information_retrieval (RAG)
+            (0.71, 0.85, 0.03, None, None),    # trace_03 code_generation
+            (0.79, 0.90, 0.01, None, None),    # trace_04 planning
+            (0.18, 0.35, 0.02, None, None),    # trace_05 qa (fail — empty response)
+            (0.52, 0.68, 0.04, None, None),    # trace_06 tool_use (tool failure)
             (0.83, 0.91, 0.02, None, None),    # playground_0
             (0.77, 0.87, 0.01, None, None),    # playground_1
         ]
@@ -435,10 +467,10 @@ if not EVAL_AVAILABLE:
                 "max":  round(max(t_scores), 3),
                 "count": len(t_scores),
             },
-            "g_eval_pass_rate":   {"passed": 6, "total": 7, "rate": round(6/7, 3)},
+            "g_eval_pass_rate":   {"passed": 7, "total": 9, "rate": round(7/9, 3)},
         }
 
-        # RAG 지표 (RAG 태스크 3건: trace_inform + playground 2건)
+        # RAG 지표 (RAG 태스크 2건: trace_00 + trace_02)
         rag_tasks = [(m[3], m[4]) for m in MOCK_METRICS if m[3] is not None]
         if rag_tasks:
             data["rag_metrics"] = {

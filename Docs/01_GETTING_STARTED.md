@@ -2,7 +2,7 @@
 
 The shortest path from installing Agent Evaluator to your first evaluation, saving results, and launching the dashboard.
 
-**v1.0.1 | Python 3.8+**
+**v1.0.2 | Python 3.8+**
 
 ---
 
@@ -362,4 +362,5 @@ my_agent("What is the capital of Korea?", ground_truth="Seoul")
 | Docker · per-environment configuration · performance tuning | [07_OPERATIONS.md](07_OPERATIONS.md) |
 | Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
 | Result JSON · report · CLI · dashboard · AI-runtime output taxonomy | [09_OUTPUTS.md](09_OUTPUTS.md) |
+| OpenTelemetry data reference — spans, attributes, metrics, annotations | [10_OTEL_DATA_REFERENCE.md](10_OTEL_DATA_REFERENCE.md) |
 | Runnable example files | [Evaluator_Examples/](../Evaluator_Examples/) |

@@ -2,7 +2,7 @@
 
 Using the dashboard · Phoenix OTEL real-time monitoring.
 
-**v1.0.1 | Python 3.8+**
+**v1.0.2 | Python 3.8+**
 
 ---
 
@@ -418,6 +418,16 @@ agent-eval monitor --check
 | `--reset` | (flag) | delete all traces / projects / datasets from the Phoenix DB (stop Phoenix first) |
 | `--yes` / `-y` | (flag) | skip the `--reset` confirmation prompt |
 
+### Browser-console auto-reload snippet
+
+The Phoenix UI does not auto-detect a project created after the tab was opened. `agent-eval monitor`
+prints a `[new] project` line when one appears — press <kbd>F5</kbd> then. To reload automatically,
+paste this once into the browser console (F12 → Console), replacing the port if you changed it:
+
+```js
+(()=>{let p='';setInterval(async()=>{const d=await fetch('http://localhost:6006/v1/projects').then(r=>r.json());const c=JSON.stringify((d.data??[]).map(x=>x.name).sort());if(c!==p&&p!=='')location.reload();p=c;},5000);})();
+```
+
 ---
 
 ## 8. setup_otel() API
@@ -426,14 +436,34 @@ agent-eval monitor --check
 from agent_evaluator import setup_otel
 
 setup_otel(
-    endpoint="http://localhost:6006",   # Phoenix 13.x default port (UI + OTLP the same)
-    service_name="my-agent",           # service name in the Phoenix UI
+    endpoint="http://localhost:6006",   # Phoenix default port (UI + OTLP/HTTP share it); or any OTLP receiver
+    service_name="my-agent",           # service name in the Phoenix UI / OTLP resource
     enabled=True,                      # no-op when False (CI environments, etc.)
-    enable_metrics=False,              # Phoenix does not support /v1/metrics — use only with Grafana, etc.
+    enable_metrics=False,              # Phoenix has no /v1/metrics — enable only for Grafana/Collector/etc.
 )
 ```
 
 > **Ordering**: `setup_otel()` must be called **before** the `PerformanceMonitor` is created.
+
+### Other OTLP backends (Jaeger · Tempo · Grafana · Datadog · OTel Collector)
+
+`setup_otel()` uses the **standard OTLP/HTTP exporters** (`OTLPSpanExporter` →
+`{endpoint}/v1/traces`, `OTLPMetricExporter` → `{endpoint}/v1/metrics`). Point
+`endpoint` at any OTLP/HTTP receiver and traces + metrics flow with **no code change**:
+
+```python
+setup_otel(endpoint="http://otel-collector:4318", service_name="my-agent",
+           enable_metrics=True)   # metrics are Phoenix-unsupported but fine elsewhere
+```
+
+What each backend gets:
+
+| Signal | Portability |
+|--------|-------------|
+| Span tree, parent/child, `status=ERROR`, timings, `service.name`, all `ae.*` / attribute values | **Fully standard** — renders in any OTLP backend |
+| `openinference.span.kind` · `input.value` / `output.value` · `llm.token_count.*` · `llm.model_name` · `llm.prompts` · `retrieval.documents` · `session.id` | **OpenInference** semantic conventions (not OTel's `gen_ai.*`). Delivered as plain attributes everywhere; only Phoenix / Arize give them dedicated LLM UI. A backend that keys on OTel `gen_ai.*` will not auto-classify these as LLM spans. |
+| `x-phoenix-project-name` header, `openinference.project.name` resource attr | Phoenix routing hints — ignored (harmless) by other backends |
+| **Evaluation-score annotations** (`/v1/span_annotations`, `/v1/trace_annotations`, `/v1/session_annotations`) | **Phoenix REST only** — not part of OTLP. On a non-Phoenix endpoint the SDK probes `GET /arize_phoenix_version` once, and if it is not Phoenix it **silently skips** these POSTs (traces/metrics are unaffected). Attach scores yourself from the `save_to_file()` JSON if your backend supports annotations. |
 
 ### Disabling in a CI/CD environment
 
@@ -479,16 +509,39 @@ _try_setup_otel("my-service")
 
 ### Phoenix Annotations (score transfer)
 
-Sent to the `/v1/span_annotations` API on `save_to_file()`:
+On `save_to_file()` the run's scores are pushed to Phoenix at three levels
+(`annotator_kind="CODE"` — all deterministic computed values):
+
+**Per task** — to both `/v1/span_annotations` and `/v1/trace_annotations`:
 
 | Evaluator name | Score range | Label |
 |----------------|-------------|-------|
 | `accuracy` | 0.0–1.0 | pass (≥0.5) / fail (<0.5) |
 | `completion` | 0.0–1.0 | pass / fail |
 | `success` | 1.0 (success) / 0.0 (failure) | pass / fail |
+| `hallucination` | 0.0–1.0 (lower is better) | pass (≤0.3) / fail — omitted if not measured |
+| `quality` | 0.0–1.0 | pass / fail — omitted if not measured |
+| `latency_s` | seconds | ok |
+| `tool_calls` | count | ok |
+| `attempts` | retry count | ok |
 
-> **Where to look**: Tracing tab → click a span → the **"Annotations"** section on the right
-> (not the "Evaluators" tab in the top menu)
+**Per session** — to `/v1/session_annotations`, one rollup row each (mean over the
+session's tasks): `session_accuracy`, `session_completion`, `session_pass_rate`,
+`session_latency_s`, `session_hallucination`, `session_quality`.
+
+> **Delivery**: the SDK first probes `GET {endpoint}/arize_phoenix_version` once per
+> endpoint (cached). Only a confirmed Phoenix gets the full retry treatment; an
+> unreachable endpoint is skipped entirely, an unconfirmed one is tried once. Each
+> POST then uses `?sync=true` and retries HTTP 404 (span/trace/session not yet indexed
+> by Phoenix) on an exponential backoff — default `0.5, 1, 2, 4` s, override with
+> `AGENT_EVAL_PHOENIX_ANNOTATION_RETRY_DELAYS="1,2,4,8,16"`. A connection error
+> (Phoenix down) gives up after 2 tries; a non-404 HTTP error (e.g. 422) is not
+> retried. The three tiers are posted independently — one failing does not block the
+> others. Traces/metrics go out over standard OTLP and are never affected by this.
+
+> **Where to look**: Tracing tab → click a span → the **"Annotations"** section on the
+> right (per-task span/trace scores); the project **Metrics** view shows the
+> "Span / Trace / Session annotation scores" panels (not the "Evaluators" top-menu tab).
 
 ---
 
@@ -673,8 +726,15 @@ agent-eval dashboard
 ### Phoenix Annotations are not visible
 
 1. Confirm `setup_otel()` was called **before** the `PerformanceMonitor` was created
-2. Wait ~3s after `save_to_file()`, then refresh
+2. Confirm Phoenix was **already running** when `save_to_file()` ran (the POST is skipped
+   entirely if the OTLP endpoint is unset)
 3. Tracing tab → click a span → check the **"Annotations"** section (not the Evaluators tab)
+4. Check the logs for `Phoenix span/trace/session annotations ultimately failed` — if
+   Phoenix indexes slowly, raise the backoff:
+   `AGENT_EVAL_PHOENIX_ANNOTATION_RETRY_DELAYS="1,2,4,8,16"`
+5. "Trace / Session annotation scores" panels populate from `/v1/trace_annotations` and
+   `/v1/session_annotations` (added alongside span annotations) — they need at least one
+   completed `save_to_file()` against a live Phoenix
 
 ### agent-eval monitor port conflict
 
@@ -694,4 +754,5 @@ agent-eval monitor --attach http://localhost:6006
 | Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
 | Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [09_OUTPUTS.md](09_OUTPUTS.md) |
+| Every span / attribute / metric / annotation sent over OpenTelemetry | [10_OTEL_DATA_REFERENCE.md](10_OTEL_DATA_REFERENCE.md) |
 | Docker · per-environment configuration | [07_OPERATIONS.md](07_OPERATIONS.md) |

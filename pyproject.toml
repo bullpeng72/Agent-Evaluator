@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-evaluator"
-version = "1.0.1"
+version = "1.0.2"
 description = "Production-ready evaluation framework for AI agents — 58 metrics (25 native + 33 Harness Config) across 7 evaluation gates: goal achievement, behavioral integrity, reliability, performance, security, multi-agent coordination, and observability"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -92,8 +92,18 @@ serve = [
 otel = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<20.0.0",
+    # arize-phoenix 핀은 Python 버전별로 스코프한다:
+    #  - 3.8/3.9: arize-phoenix>=17은 arize-phoenix-otel(Python>=3.10) 의존이라 설치 불가 →
+    #    이 줄이 통째로 빠지고 opentelemetry-*만 설치됨. SDK 코드는 phoenix를 직접 import하지
+    #    않고 opentelemetry-*만 쓰므로 setup_otel()/원격·Docker Phoenix·타 OTLP 연동은 정상.
+    #  - 3.10/3.11: <19.0.0. arize-phoenix 19.11+/20.x의 phoenix.trace.dsl.filter._FilterBindings는
+    #    frozen-dataclass 필드 기본값으로 MappingProxyType({})를 쓰는데, CPython<3.12는 이를
+    #    "mutable default"로 거부해 phoenix import(= 서버 / `agent-eval monitor`)가 죽는다
+    #    (3.12에서 MappingProxyType이 hashable이 됨 - gh-87995).
+    #  - 3.12+: <21.0.0 (v20 허용). v20 breaking change(inferences/embeddings/UMAP 제거)는 SDK
+    #    연동면과 무관. openai<3.0.0을 함께 유지하면 resolver는 arize-phoenix 20.3.x로 내려온다.
+    "arize-phoenix>=15.4.0,<21.0.0; python_version >= '3.12'",
+    "arize-phoenix>=15.4.0,<19.0.0; python_version >= '3.10' and python_version < '3.12'",
 ]
 # PDF 처리 — 한국어 RAG 데이터셋 생성기 (빠름, ~2개 패키지)
 # agent_evaluator/datasets/korean_rag_dataset_generator.py 에서 사용
@@ -121,8 +131,18 @@ sdk = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<20.0.0",
+    # arize-phoenix 핀은 Python 버전별로 스코프한다:
+    #  - 3.8/3.9: arize-phoenix>=17은 arize-phoenix-otel(Python>=3.10) 의존이라 설치 불가 →
+    #    이 줄이 통째로 빠지고 opentelemetry-*만 설치됨. SDK 코드는 phoenix를 직접 import하지
+    #    않고 opentelemetry-*만 쓰므로 setup_otel()/원격·Docker Phoenix·타 OTLP 연동은 정상.
+    #  - 3.10/3.11: <19.0.0. arize-phoenix 19.11+/20.x의 phoenix.trace.dsl.filter._FilterBindings는
+    #    frozen-dataclass 필드 기본값으로 MappingProxyType({})를 쓰는데, CPython<3.12는 이를
+    #    "mutable default"로 거부해 phoenix import(= 서버 / `agent-eval monitor`)가 죽는다
+    #    (3.12에서 MappingProxyType이 hashable이 됨 - gh-87995).
+    #  - 3.12+: <21.0.0 (v20 허용). v20 breaking change(inferences/embeddings/UMAP 제거)는 SDK
+    #    연동면과 무관. openai<3.0.0을 함께 유지하면 resolver는 arize-phoenix 20.3.x로 내려온다.
+    "arize-phoenix>=15.4.0,<21.0.0; python_version >= '3.12'",
+    "arize-phoenix>=15.4.0,<19.0.0; python_version >= '3.10' and python_version < '3.12'",
     "pdfplumber>=0.10.0,<1.0.0",
     "kiwipiepy>=0.17.0",
 ]
@@ -208,8 +228,18 @@ examples = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<20.0.0",
+    # arize-phoenix 핀은 Python 버전별로 스코프한다:
+    #  - 3.8/3.9: arize-phoenix>=17은 arize-phoenix-otel(Python>=3.10) 의존이라 설치 불가 →
+    #    이 줄이 통째로 빠지고 opentelemetry-*만 설치됨. SDK 코드는 phoenix를 직접 import하지
+    #    않고 opentelemetry-*만 쓰므로 setup_otel()/원격·Docker Phoenix·타 OTLP 연동은 정상.
+    #  - 3.10/3.11: <19.0.0. arize-phoenix 19.11+/20.x의 phoenix.trace.dsl.filter._FilterBindings는
+    #    frozen-dataclass 필드 기본값으로 MappingProxyType({})를 쓰는데, CPython<3.12는 이를
+    #    "mutable default"로 거부해 phoenix import(= 서버 / `agent-eval monitor`)가 죽는다
+    #    (3.12에서 MappingProxyType이 hashable이 됨 - gh-87995).
+    #  - 3.12+: <21.0.0 (v20 허용). v20 breaking change(inferences/embeddings/UMAP 제거)는 SDK
+    #    연동면과 무관. openai<3.0.0을 함께 유지하면 resolver는 arize-phoenix 20.3.x로 내려온다.
+    "arize-phoenix>=15.4.0,<21.0.0; python_version >= '3.12'",
+    "arize-phoenix>=15.4.0,<19.0.0; python_version >= '3.10' and python_version < '3.12'",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",
@@ -228,8 +258,18 @@ full = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    # v15.4.0에서 pydantic-ai 메타패키지 의존성 제거됨 → 핀 해제
-    "arize-phoenix>=15.4.0,<20.0.0",
+    # arize-phoenix 핀은 Python 버전별로 스코프한다:
+    #  - 3.8/3.9: arize-phoenix>=17은 arize-phoenix-otel(Python>=3.10) 의존이라 설치 불가 →
+    #    이 줄이 통째로 빠지고 opentelemetry-*만 설치됨. SDK 코드는 phoenix를 직접 import하지
+    #    않고 opentelemetry-*만 쓰므로 setup_otel()/원격·Docker Phoenix·타 OTLP 연동은 정상.
+    #  - 3.10/3.11: <19.0.0. arize-phoenix 19.11+/20.x의 phoenix.trace.dsl.filter._FilterBindings는
+    #    frozen-dataclass 필드 기본값으로 MappingProxyType({})를 쓰는데, CPython<3.12는 이를
+    #    "mutable default"로 거부해 phoenix import(= 서버 / `agent-eval monitor`)가 죽는다
+    #    (3.12에서 MappingProxyType이 hashable이 됨 - gh-87995).
+    #  - 3.12+: <21.0.0 (v20 허용). v20 breaking change(inferences/embeddings/UMAP 제거)는 SDK
+    #    연동면과 무관. openai<3.0.0을 함께 유지하면 resolver는 arize-phoenix 20.3.x로 내려온다.
+    "arize-phoenix>=15.4.0,<21.0.0; python_version >= '3.12'",
+    "arize-phoenix>=15.4.0,<19.0.0; python_version >= '3.10' and python_version < '3.12'",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<5.0.0",
     "ragas>=0.4.0,<2.0.0",

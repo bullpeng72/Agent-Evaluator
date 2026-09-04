@@ -3342,6 +3342,143 @@ class TestPerformanceMonitorOtelChildSpans:
         assert call_count >= 3  # at least the 2 child spans + 1 main span
 
 
+# ---------------------------------------------------------------------------
+# Phoenix annotation delivery — span + trace + session tiers, sync + backoff
+# ---------------------------------------------------------------------------
+
+class TestPhoenixAnnotationDelivery:
+    def test_annotation_label_rules(self):
+        from agent_evaluator.core.trackers.monitor import PerformanceMonitor as PM
+        # hallucination-family: lower is better
+        assert PM._annotation_label("hallucination", 0.2) == "pass"
+        assert PM._annotation_label("session_hallucination", 0.9) == "fail"
+        # direction-less numeric metrics
+        assert PM._annotation_label("latency_s", 5.0) == "ok"
+        assert PM._annotation_label("session_latency_s", 0.1) == "ok"
+        assert PM._annotation_label("tool_calls", 3) == "ok"
+        assert PM._annotation_label("attempts", 1) == "ok"
+        # score-family: >= 0.5 passes
+        assert PM._annotation_label("accuracy", 0.5) == "pass"
+        assert PM._annotation_label("session_pass_rate", 0.49) == "fail"
+
+    def test_post_empty_rows_is_noop_success(self):
+        monitor = PerformanceMonitor()
+        assert monitor._post_phoenix_annotations("http://x/v1/span_annotations", [], "span") is True
+
+    _DELAYS_PATCH = "agent_evaluator.core.trackers.monitor._PHOENIX_ANNOTATION_RETRY_DELAYS"
+
+    @pytest.fixture(autouse=True)
+    def _clear_probe_cache(self):
+        from agent_evaluator.core.trackers import monitor as _m
+        _m._PHOENIX_PROBE_CACHE.clear()
+        yield
+        _m._PHOENIX_PROBE_CACHE.clear()
+
+    def test_post_retries_on_404_then_succeeds(self):
+        import urllib.error
+        from email.message import Message
+        monitor = PerformanceMonitor()
+        rows = [{"span_id": "abc", "name": "accuracy", "annotator_kind": "CODE",
+                 "result": {"score": 1.0, "label": "pass"}}]
+        calls = {"n": 0}
+
+        def fake_urlopen(req, timeout=0):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise urllib.error.HTTPError(req.full_url, 404, "not found", Message(), None)
+            return MagicMock(__enter__=lambda s: SimpleNamespace(status=200),
+                             __exit__=lambda s, *a: False)
+
+        with patch(self._DELAYS_PATCH, (0.0, 0.0)), \
+             patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            ok = monitor._post_phoenix_annotations(
+                "http://x/v1/span_annotations", rows, "span")
+        assert ok is True
+        assert calls["n"] == 2  # 404 retried once, then 200
+
+    def test_post_does_not_retry_on_422(self):
+        import urllib.error
+        from email.message import Message
+        monitor = PerformanceMonitor()
+        rows = [{"span_id": "abc", "name": "accuracy",
+                 "annotator_kind": "CODE", "result": {"score": 1.0}}]
+        calls = {"n": 0}
+
+        def fake_urlopen(req, timeout=0):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(req.full_url, 422, "bad", Message(), None)
+
+        with patch(self._DELAYS_PATCH, (0.0, 0.0, 0.0)), \
+             patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            ok = monitor._post_phoenix_annotations(
+                "http://x/v1/span_annotations", rows, "span")
+        assert ok is False
+        assert calls["n"] == 1  # 422 is terminal — no retry
+
+    def test_flush_posts_all_three_tiers(self):
+        """_flush_phoenix_annotations POSTs to span, trace and session endpoints."""
+        monitor = PerformanceMonitor()
+        monitor._otel_session_id = "sess-123"
+        monitor._pending_annotations = [
+            {"span_id": "s1", "trace_id": "t1", "accuracy": 0.9, "completion": 1.0,
+             "success": 1.0, "hallucination": None, "quality": None,
+             "latency": 0.5, "tool_calls": 0.0, "attempts": 1.0},
+            {"span_id": "s2", "trace_id": "t2", "accuracy": 0.2, "completion": 0.3,
+             "success": 0.0, "hallucination": None, "quality": None,
+             "latency": 1.1, "tool_calls": 0.0, "attempts": 1.0},
+        ]
+        posted_urls: list[str] = []
+
+        def fake_urlopen(req, timeout=0):
+            posted_urls.append(req.full_url)
+            return MagicMock(__enter__=lambda s: SimpleNamespace(status=200),
+                             __exit__=lambda s, *a: False)
+
+        fake_provider = SimpleNamespace(
+            enabled=True, base_endpoint="http://localhost:6006",
+            force_flush=lambda timeout_ms=0: None,
+        )
+        with patch("agent_evaluator.core.otel.get_provider", return_value=fake_provider), \
+             patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            monitor._flush_phoenix_annotations()
+
+        joined = " ".join(posted_urls)
+        assert "/v1/span_annotations?sync=true" in joined
+        assert "/v1/trace_annotations?sync=true" in joined
+        assert "/v1/session_annotations?sync=true" in joined
+        # pending cleared after a successful span POST
+        assert monitor._pending_annotations == []
+
+    def test_flush_skips_annotation_post_for_non_phoenix_endpoint(self):
+        """A plain OTLP collector (no Phoenix version route) → annotation POSTs skipped fast."""
+        import urllib.error
+        monitor = PerformanceMonitor()
+        monitor._otel_session_id = "sess-x"
+        monitor._pending_annotations = [
+            {"span_id": "s1", "trace_id": "t1", "accuracy": 0.9, "completion": 1.0,
+             "success": 1.0, "hallucination": None, "quality": None,
+             "latency": 0.5, "tool_calls": 0.0, "attempts": 1.0},
+        ]
+        posted_urls: list[str] = []
+
+        def fake_urlopen(req, timeout=0):
+            posted_urls.append(req.full_url)
+            # collector has no such route / not reachable
+            raise urllib.error.URLError("connection refused")
+
+        fake_provider = SimpleNamespace(
+            enabled=True, base_endpoint="http://otel-collector:4318",
+            force_flush=lambda timeout_ms=0: None,
+        )
+        with patch("agent_evaluator.core.otel.get_provider", return_value=fake_provider), \
+             patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            monitor._flush_phoenix_annotations()
+
+        # only the one-shot probe was attempted; no *_annotations POST
+        assert posted_urls == ["http://otel-collector:4318/arize_phoenix_version"]
+        # pending retained (nothing was delivered)
+        assert len(monitor._pending_annotations) == 1
+
 
 # ===========================================================================
 # From test_v084_improvements.py

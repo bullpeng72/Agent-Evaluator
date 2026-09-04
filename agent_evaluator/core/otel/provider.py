@@ -33,7 +33,7 @@ class OTELProvider:
     기존 JSON 저장 경로에 일절 영향을 주지 않는다.
 
     Args:
-        endpoint: OTLP HTTP receiver 주소 (Phoenix 13.x 기본: http://localhost:6006)
+        endpoint: OTLP HTTP receiver 주소 (Phoenix 기본: http://localhost:6006)
         service_name: Phoenix UI에 표시될 서비스 이름
         enabled: False 시 즉시 no-op 모드
 
