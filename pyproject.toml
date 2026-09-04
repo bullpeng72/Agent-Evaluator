@@ -47,7 +47,7 @@ dependencies = [
     "pandas>=1.3.0,<4.0.0",
     "python-dotenv>=0.19.0,<2.0.0",
     # LLMJudge 엔진 (평가 기능 핵심)
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "anthropic>=0.20.0,<2.0.0",
     # 웹 대시보드, OTEL, PDF 처리는 각각 [serve] / [otel] / [pdf] extras로 설치
 ]
@@ -76,7 +76,7 @@ dependencies = [
 # LLM 클라이언트 — LLMJudge 엔진 (빠름, ~5개 패키지)
 # agent_evaluator/integrations/llm_judge.py 에서 사용
 llm = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "anthropic>=0.20.0,<2.0.0",
 ]
 # 웹 대시보드 — agent-eval serve (빠름, ~8개 패키지)
@@ -123,7 +123,7 @@ semantic = [
 ]
 # SDK 전체 묶음 — llm + serve + otel + pdf + korean (운영 배포 권장)
 sdk = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "anthropic>=0.20.0,<2.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",
@@ -220,7 +220,7 @@ autogen = [
 # 대시보드/Phoenix 파트가 mock이 아니라 실제로 동작한다)
 # pip install "agent-evaluator[examples]" 로 Evaluator_Examples/ 전체 실행 가능
 examples = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "anthropic>=0.20.0,<2.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",
@@ -250,7 +250,7 @@ examples = [
 ]
 # 전체 (crewai/autogen 포함 — ⚠️ 설치 10분+ 소요, pydantic 버전 충돌 silent downgrade 가능)
 full = [
-    "openai>=2.0.0,<3.0.0",
+    "openai>=2.0.0,<4.0.0",
     "anthropic>=0.20.0,<2.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",
