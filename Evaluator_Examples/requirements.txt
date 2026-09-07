@@ -1,61 +1,77 @@
-# Agent-Evaluator 예제 의존성
+# Agent-Evaluator 예제 의존성 — ch01 ~ ch32
 # Python 3.8+
 #
-# 프로젝트 루트에서 설치:
-#   pip install -e ".[dev]"        # 개발 환경 (권장)
-#   pip install -e ".[all]"        # crewai/autogen/otel 제외 전체
-#   pip install -e ".[full]"       # 전체 (⚠️ 10분+ 소요)
+# 이 파일에는 "pip 설치가 필요한" 것만 적는다. 대부분의 예제는 아래 한 줄로 끝난다.
 #
-# PyPI에서 설치:
-#   pip install "agent-evaluator[all]"
+#   pip install agent-evaluator            # ch01~ch32 전부 실행 가능 (mock 에이전트, API 키 불필요)
+#
+# 프로젝트 루트에서 개발 설치:
+#   pip install -e ".[dev]"                # 기여자 도구 포함
+#   pip install -e ".[examples]"           # 아래 챕터별 extra를 한 번에 (crewai/autogen 제외)
+#   pip install -e ".[full]"               # crewai/autogen까지 전부 (⚠️ 10분+ 소요)
+#
+# numpy · pandas · python-dotenv · openai · anthropic 는 agent-evaluator 코어 의존성이라
+# 위 설치에 자동 포함된다 — 여기에 따로 적지 않는다.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ch01–ch12, ch14–ch18, ch20–ch29, ch31 — Layer 1/2 · Harness Gate A–G · 데코레이터 ·
-# 실시간 알림 · 운영 인프라 · RCA · mSPRT 등 — 외부 의존성 없음, agent-evaluator 코어만 필요.
-# (자세한 챕터별 내용은 README.md의 "Example Guide" 표 참고)
+# 코어만으로 동작 — ch01~ch12 · ch14 · ch16 · ch18 · ch20~ch31
+#   Layer 1/2 · Harness Gate A–G · 데코레이터 · 실시간 가드레일 · 알림 · RCA ·
+#   mSPRT/N-way A/B · 커스텀 Gate 등. 외부 의존성 없음.
+#   (챕터별 내용은 README.md "Example Guide" 표 참고)
 # ─────────────────────────────────────────────────────────────────────────────
-
-numpy>=1.20.0,<3.0.0
-pandas>=1.3.0,<4.0.0
-python-dotenv>=0.19.0,<2.0.0
+# 추가 설치 없음.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ch13 — 프레임워크 어댑터 (LangChain · LangGraph · CrewAI · AutoGen)
+# ch13 — 프레임워크 어댑터
 # ─────────────────────────────────────────────────────────────────────────────
-#   pip install "agent-evaluator[langchain]"   # 필요한 프레임워크별 extra로 교체 가능
+# 미설치 시 각 프레임워크 구간은 mock 응답으로 자동 폴백한다. 실제 객체로 돌리려면:
+#   pip install "agent-evaluator[langchain]"    # LangChain · LangGraph
+#   pip install "agent-evaluator[crewai]"       # CrewAI      (전이 의존성 100개+)
+#   pip install "agent-evaluator[autogen]"      # AutoGen
+#   pip install "agent-evaluator[pydanticai]"   # Pydantic AI
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ch15 — 대시보드 조회 예시
+# ─────────────────────────────────────────────────────────────────────────────
+#   pip install "agent-evaluator[serve]"
+#   agent-eval dashboard                        # 기본 포트 8765
+#   agent-eval dashboard --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ch17 · ch22 — ab_test() 통계 유의성 (Welch's t-test)
+# ─────────────────────────────────────────────────────────────────────────────
+# scipy가 있으면 p_value·effect_size를 채우고, 없으면 그 두 필드만 생략한 채
+# (mean·delta·significant 등은 정상) 계속 동작한다 — 선택 설치:
+#   pip install scipy
+# (ch29 ab_test_sequential() · ch30 ab_test_nway() 는 자체 구현이라 scipy 불필요)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ch19 — Phoenix OTEL + DeepEval/Ragas (Layer 3 외부 통합)
 # ─────────────────────────────────────────────────────────────────────────────
 # Phoenix 실시간 모니터링 (OTLP 스팬 송신):
 #   pip install "agent-evaluator[otel]"
-#   agent-eval monitor            # Phoenix 서버 기동 (기본 포트 6006)
+#   agent-eval monitor                         # Phoenix 서버 기동 (기본 포트 6006)
 #
-# DeepEval / Ragas 외부 평가 (대시보드 '외부평가' 탭 활성화):
-#   pip install "agent-evaluator[eval]"
-#   OPENAI_API_KEY 필요
+# DeepEval / Ragas 외부 평가 (대시보드 'External Evaluation' 탭):
+#   pip install "agent-evaluator[eval]"        # OPENAI_API_KEY 필요
+#
+# 섹션 4·6 (Phoenix Prompts/annotations REST 등록) 은 Phoenix 실행 중일 때만 동작하고
+# requests 를 쓴다 — 없으면 그 두 섹션만 조용히 건너뛴다:
+#   pip install requests
 #
 # LLM Judge 채점 (ground_truth 없이 5차원 자동 채점):
-#   pip install "agent-evaluator[llm]"   # OpenAI 또는 Anthropic 키 필요
+#   pip install "agent-evaluator[llm]"         # OpenAI 또는 Anthropic 키 필요
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ch32 — 로컬 Ollama LLM로 Phoenix에 실데이터 전송 (Gate A–G 통합 + JSON/HTML/대시보드)
+# ch32 — 로컬 Ollama LLM 로 Phoenix에 실데이터 전송 (Gate A–G 통합 + JSON/HTML/대시보드)
 # ─────────────────────────────────────────────────────────────────────────────
-# 외부 LLM SDK 불필요 — stdlib urllib 로 Ollama /api/chat 직접 호출. 코어만으로 동작.
-#   1) Ollama 설치·실행 후  ollama pull llama3.2   (또는 mistral / qwen2.5 …)
-#   2) (선택) pip install "agent-evaluator[otel]"  +  agent-eval monitor   # Phoenix 실시간 스팬
-#   3) (선택) pip install "agent-evaluator[serve]"                          # agent-eval dashboard
+# 외부 LLM SDK 불필요 — stdlib urllib 로 Ollama /api/chat 를 직접 호출한다. 코어만으로 동작.
+#   1) Ollama 설치·실행 후:  ollama pull llama3.2   (또는 mistral / qwen2.5 …)
+#   2) (선택) pip install "agent-evaluator[otel]"   + agent-eval monitor   # Phoenix 실시간 스팬
+#   3) (선택) pip install "agent-evaluator[serve]"                         # agent-eval dashboard
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ch30 — 커스텀 Gate 플러그인 + ab_test_nway() N-way 비교
+# (선택) 한국어 형태소 분석 — use_korean_tokenizer=True 정확도용
 # ─────────────────────────────────────────────────────────────────────────────
-# ab_test_nway()의 p-value/효과크기 계산에 scipy가 있으면 쓰고, 없으면 그 두
-# 필드만 생략한 채(mean/delta 등은 정상) 계속 동작한다 — 선택 설치:
-#   pip install scipy
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 대시보드 서버 (agent-eval dashboard)
-# ─────────────────────────────────────────────────────────────────────────────
-# pip install "agent-evaluator[serve]"
-# agent-eval dashboard                     # 기본 포트 8765
-# agent-eval dashboard --port 8080 --watch # 포트 지정 + 파일 변경 자동 갱신
+# 미설치 시 공백 분리로 폴백하고 경고만 출력한다 (예제는 그대로 동작):
+#   pip install "agent-evaluator[korean]"       # kiwipiepy
