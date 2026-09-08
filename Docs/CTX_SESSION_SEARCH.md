@@ -31,6 +31,13 @@ Gate scoring, LiveGuardrail, RCA (`diagnose`), or A/B (`abtest`) depends on ctx 
     Agent-Evaluator's own `record_tool_call(output=...)` / `search_violations` (SPEC-031/024).
   - This result can change if the ctx version / config changes — do not trust it as is without re-verifying.
 
+> **For a *blocked* command specifically, ctx is not the first stop.** Since 1.0.4 the LiveGuardrail
+> batch report stores a PII-redacted excerpt of every fully-blocked call, so
+> `agent-eval {claude,opencode} blocked-detail <task_id>` (or the `show_violation` MCP tool) returns the
+> command directly. It only falls back to reading the host session transcript
+> (`~/.claude/projects/<slug>/<task_id>.jsonl`) when that excerpt is absent — ctx is a further, optional
+> fallback beyond that.
+
 ## Prerequisites
 
 - ctx CLI/MCP must already be installed and indexed (check with `ctx status`). If not installed, see

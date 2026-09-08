@@ -159,12 +159,15 @@ def cmd_claude(args: argparse.Namespace) -> int:
         return _rc
     print(
         f"{_B}agent-eval claude{_R} — LiveGuardrail Claude Code CLI hooks\n\n"
-        f"  {_Y}install{_R}     Register PreToolUse/PostToolUse/SessionEnd hooks in "
+        f"  {_Y}install{_R}         Register PreToolUse/PostToolUse/SessionEnd hooks in "
         f".claude/settings.json\n"
-        f"  {_Y}upgrade{_R}     Refresh hooks/config after a package update "
+        f"  {_Y}upgrade{_R}         Refresh hooks/config after a package update "
         f"(keeps your guardrail_config.json edits)\n"
-        f"  {_Y}doctor{_R}      Verify the install actually works (static + live round-trip)\n"
-        f"  {_Y}uninstall{_R}   Remove the hooks/MCP servers (run before 'pip uninstall')\n\n"
+        f"  {_Y}doctor{_R}          Verify the install actually works (static + live round-trip)\n"
+        f"  {_Y}uninstall{_R}       Remove the hooks/MCP servers (run before 'pip uninstall')\n"
+        f"  {_Y}violations{_R}      Search past Gate B/E blocks in the batch-report DB "
+        f"(--detail shows the command)\n"
+        f"  {_Y}blocked-detail{_R}  Show the exact blocked command(s) for one session (task_id)\n\n"
         f"Usage: agent-eval claude <command> --help",
         file=sys.stderr,
     )
@@ -1056,6 +1059,8 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
             f"  {_G}agent-eval claude install --force{_R}\n"
             f"  {_G}agent-eval claude install --with-violation-search{_R}\n"
             f"  {_G}agent-eval claude install --with-recommend-fix{_R}\n"
+            f'  {_G}agent-eval claude violations "rm -rf" --detail{_R}\n'
+            f"  {_G}agent-eval claude blocked-detail <task_id>{_R}\n"
         ),
     )
     cl_sub = p.add_subparsers(dest="claude_command")

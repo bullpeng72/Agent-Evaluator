@@ -83,7 +83,7 @@ pip install agent-evaluator   # or from a repo checkout: pip install -e .
 agent-eval opencode install                       # .opencode/plugin/ (project-local, default)
 # or: agent-eval opencode install --global         # ~/.config/opencode/plugin/
 # or: agent-eval opencode install --force          # overwrite an existing install
-# or: agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
+# or: agent-eval opencode install --with-violation-search   # + register the search_violations / show_violation MCP server
 # or: agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
 # or: agent-eval opencode install --with-ask-insights         # + register the ask_insights MCP server
 
@@ -229,18 +229,38 @@ so tagging by commit SHA alone would collapse many distinct iterations into one 
 suffix keeps them distinguishable. See [the "Version comparison" section of `Docs/08_API_REFERENCE.md`](08_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098)
 for the general (non-AOO) mechanics.
 
-## `search_violations` MCP server
+## `search_violations` / `show_violation` MCP server
 
 Opt-in (`pip install "agent-evaluator[mcp]"`): `agent_evaluator.integrations.violation_search_mcp`
-exposes a single stdio MCP tool, `search_violations(query: str, include_blocked: bool = False)`, that
-full-text searches the same SQLite store (via an additive FTS5 index) for past Gate B/E blocks —
-including fully-blocked attempts (`include_blocked=True`) that never made it into a normal result file.
-`agent-eval opencode install --with-violation-search` registers it automatically; to register it
-manually (or for other MCP clients):
+exposes two stdio MCP tools that full-text search the same SQLite store (via an additive FTS5 index)
+for past Gate B/E blocks — including fully-blocked attempts that never made it into a normal result
+file:
+
+- **`search_violations(query)`** — free-text search over the block history. Every fully-blocked call
+  also stores a short PII-redacted excerpt of its arguments (`blocked_attempt_capture`, on by default —
+  see [Shipped defaults](#shipped-defaults-and-why-they-are-what-they-are)), indexed as
+  `blocked_violations.arg_excerpt`, so a query like `"rm -rf"` matches the **command itself**, not just
+  the generic `dangerous tool parameters` reason. Results show the excerpt inline and end with a
+  `show_violation(task_id="…")` hint.
+- **`show_violation(task_id)`** — every blocked call in one session plus its argument excerpt. When the
+  excerpt is absent (a session recorded before capture, or capture off) it falls back best-effort to
+  the host transcript (`~/.local/share/opencode/opencode.db` `part` rows for OpenCode).
+
+`agent-eval opencode install --with-violation-search` registers the server automatically; to register
+it manually (or for another MCP client):
 
 ```bash
 opencode mcp add agent-evaluator-violations -- python -m agent_evaluator.integrations.violation_search_mcp
 ```
+
+The same two operations are also available as plain CLI, no MCP client needed:
+
+```bash
+agent-eval opencode violations "rm -rf" --detail    # = search_violations, excerpt inline
+agent-eval opencode blocked-detail <task_id>        # = show_violation
+```
+
+`agent-eval opencode doctor` includes a live "blocked-attempt capture" check.
 
 ## `recommend_fix` MCP server
 
@@ -303,7 +323,7 @@ opencode run --dir /path/to/project "your message" \
 The shipped `GUARDRAIL_CONFIG` (`opencode_plugin/agent-evaluator.ts`) — its rationale is a direct
 product of live tuning against OpenCode's coarse tool granularity, but the values changed over SPEC-041.
 The authoritative current values are in that file, `CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
-default), and `CHANGELOG.md`. As of 1.0.0:
+default), and `CHANGELOG.md`. As of 1.0.4:
 
 - **`consecutive_repeat_threshold: 8`** (+ `live_loop_window: 15`, + `circuit_breaker_after: 5`).
   OpenCode routes every shell action through a single `"bash"` tool, so name-only loop detection at a
@@ -319,6 +339,11 @@ default), and `CHANGELOG.md`. As of 1.0.0:
   positives.
 - **`scope_tool_names: ["bash"]`** scopes the `dangerous_patterns` scan to the actual shell tool, so it
   can't false-positive on an unrelated tool whose *result text* happens to mention a blocked command.
+- **`blocked_attempt_capture: {enabled: true, max_chars: 240, redact_pii: true}`** (since 1.0.4). A
+  fully-blocked call stores a truncated, PII-redacted excerpt of its arguments in
+  `blocked_violations.arg_excerpt`, so `search_violations` / `agent-eval opencode violations` can match
+  and show the command a later session was blocked on. `{enabled: false}` restores the pre-1.0.4
+  behaviour (tool name / gate / reason only).
 
 The blacklist approach is still blacklist matching against known bypasses, not an allowlist — live
 testing found a model try `-rf` → `-f` → no-flag in sequence, so assume other bypasses remain possible.

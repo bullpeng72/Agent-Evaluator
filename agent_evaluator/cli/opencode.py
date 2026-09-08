@@ -86,11 +86,14 @@ def cmd_opencode(args: argparse.Namespace) -> int:
         return _rc
     print(
         f"{_B}agent-eval opencode{_R} — LiveGuardrail OpenCode Plugin\n\n"
-        f"  {_Y}install{_R}     Copy the bundled plugin into OpenCode's plugin directory\n"
-        f"  {_Y}upgrade{_R}     Re-copy the plugin after a package update (keeps "
+        f"  {_Y}install{_R}         Copy the bundled plugin into OpenCode's plugin directory\n"
+        f"  {_Y}upgrade{_R}         Re-copy the plugin after a package update (keeps "
         f"agent-evaluator.config.json)\n"
-        f"  {_Y}doctor{_R}      Verify the install works (plugin freshness + bridge round-trip)\n"
-        f"  {_Y}uninstall{_R}   Remove the plugin + MCP entries (run before 'pip uninstall')\n\n"
+        f"  {_Y}doctor{_R}          Verify the install works (freshness + bridge round-trip)\n"
+        f"  {_Y}uninstall{_R}       Remove the plugin + MCP entries (run before 'pip uninstall')\n"
+        f"  {_Y}violations{_R}      Search past Gate B/E blocks in the batch-report DB "
+        f"(--detail shows the command)\n"
+        f"  {_Y}blocked-detail{_R}  Show the exact blocked command(s) for one session (task_id)\n\n"
         f"Usage: agent-eval opencode <command> --help",
         file=sys.stderr,
     )
@@ -691,6 +694,8 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
             f"  {_G}agent-eval opencode install --force{_R}\n"
             f"  {_G}agent-eval opencode install --with-violation-search{_R}\n"
             f"  {_G}agent-eval opencode install --with-recommend-fix{_R}\n"
+            f'  {_G}agent-eval opencode violations "rm -rf" --detail{_R}\n'
+            f"  {_G}agent-eval opencode blocked-detail <task_id>{_R}\n"
         ),
     )
     op_sub = p.add_subparsers(dest="opencode_command")

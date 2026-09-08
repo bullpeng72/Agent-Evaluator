@@ -76,7 +76,7 @@ agent-eval claims list
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
 
-# CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · uninstall)
+# CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
 agent-eval opencode upgrade     # re-copy the plugin .ts after a package update (keeps agent-evaluator.config.json)
 agent-eval opencode doctor      # verify the install works: plugin freshness + Python stdio-bridge round-trip (--json/--no-live/--strict)

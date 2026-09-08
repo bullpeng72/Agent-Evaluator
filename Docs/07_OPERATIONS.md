@@ -320,7 +320,8 @@ Aggregate metrics stay correct (they are running aggregates); only the raw per-t
 
 The default `storage_backend="json"` writes one file per `save_to_file()`. For high-volume or
 long-running production, opt into the SQLite backend — it upserts tasks into a `.db`, powers the
-`search_violations` FTS5 index, and lets a restarted process pick up where it left off:
+`search_violations` / `show_violation` FTS5 indexes (including the blocked-command excerpts), and lets a
+restarted process pick up where it left off:
 
 ```python
 monitor = PerformanceMonitor(output_dir="results/", storage_backend="sqlite")

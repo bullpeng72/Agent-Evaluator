@@ -61,7 +61,8 @@ Every surface exposes some of the **6 information layers** below. The higher the
 | **`agent-eval monitor`** | Arize Phoenix web UI | `setup_otel()` opt-in | MLOps · operations | real-time traces/spans (a separate pipeline, [06_OBSERVABILITY](06_OBSERVABILITY.md)) |
 | **LiveGuardrail block message** | hook JSON / error string | just before a tool runs (Gate B/E violation) | AI runtime | block reason + `remediation` (the action) |
 | **SessionEnd summary** | Claude `systemMessage` / OpenCode synthetic transcript | session end / every turn | AI runtime · user | Gate B/E scores + violation summary |
-| **`search_violations` MCP** | plain-text string | agent calls the tool | AI runtime | past block history + `recommend_fix` hint |
+| **`search_violations` / `show_violation` MCP** | plain-text string | agent calls the tool | AI runtime | past block history + the captured command excerpt (`search_violations`) / one session's blocked calls in full (`show_violation`) + `recommend_fix` hint |
+| **`agent-eval {claude,opencode} violations` / `blocked-detail`** | terminal | manual / CI, after a session | developers · QM | the CLI equivalent of the two MCP tools above (same batch-report DB) |
 | **`recommend_fix` MCP** | plain-text string | agent calls the tool | AI runtime | static per-gate/metric remediation knowledge (L6) |
 | **`ask_insights` MCP** (SPEC-041 P31) | result-JSON path + a question | agent calls the tool | AI runtime | `insights_summary` / `insights_readiness` (path-to-green) / `insights_why_failed(task_id)` / `insights_list(filter)` — query the insight layer with structured questions (L5/L6) |
 
@@ -288,7 +289,8 @@ Claude vs OpenCode differences: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_COD
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `search_violations(query)` | natural-language query | past block history by relevance (`[blocked]` / `[observed]` prefix) + a **`recommend_fix(gate=…, metric=…)` call hint** when a violation type is detected |
+| `search_violations(query)` | natural-language query | past block history by relevance (`[blocked]` / `[observed]` prefix). Each blocked row shows the captured command excerpt inline (`blocked_attempt_capture`, SPEC-041), so a query matches the command itself. Ends with a **`recommend_fix(gate=…, metric=…)`** hint and a **`show_violation(task_id=…)`** hint |
+| `show_violation(task_id)` (SPEC-041) | a session id from a `search_violations` result | every fully-blocked call in that session + its argument excerpt; falls back to the host session transcript when the excerpt is absent |
 | `recommend_fix(gate, metric=None, value=None)` | Gate A–G + optional metric/value | static remediation knowledge — `GATE_GUIDANCE` + `NATIVE_METRIC_RULES` (whether the value violates a threshold) + `ANOMALY_METRIC_SUGGESTIONS` + MAST candidates for Gate F. No result file needed, always ends with a HOTL notice |
 | `ask_insights` (SPEC-041 P31·P62) | result-JSON path + a question | `insights_summary` / `insights_readiness` (path-to-green) / `insights_why_failed(task_id)` / `insights_contrast(task_id)` (failure ↔ nearest pass diff) / `insights_list(filter)` — query the result JSON's insight layer with structured questions (L5/L6) |
 
@@ -311,6 +313,7 @@ Claude vs OpenCode differences: [OPENCODE_VS_CLAUDE_CODE](OPENCODE_VS_CLAUDE_COD
 | LiveGuardrail block | ◐ | ○ | ◐ | ● | ◐ | ● |
 | SessionEnd summary | ○ | ○ | ◐ | ○ | ◐ | ◐ |
 | `search_violations` | ◐ | ○ | ○ | ○ | ◐ | ◐⁷ |
+| `show_violation` | ● | ○ | ○ | ○ | ○ | ○ |
 | `recommend_fix` | ○ | ○ | ○ | ○ | ○ | ● |
 
 1. `extra_metrics.insights.verdict` (one-line deployment-readiness verdict + confidence) · 2·3. `extra_metrics.insights` (verdict · gate_findings · failure_clusters · recommendations — the whole of L5/L6 is machine-readable from SPEC-041 P9) · 4. regression shown when a baseline is passed · 5. with `--explain` or automatically on failure · 6. git diff on a regression · 7. `recommend_fix` call hint
@@ -348,7 +351,8 @@ Time series:  agent-eval trend results/ --fail-on-regression   (down to the caus
 ```
 tool-call attempt
     ├─(Gate B/E violation)→  block + remediation ("change the approach + use the MCP tools")
-    │      └─ agent: search_violations("rm -rf")  →  past history + recommend_fix hint
+    │      └─ agent: search_violations("rm -rf")  →  past history + the command excerpt + hints
+    │                show_violation("<task_id>")  →  every blocked call in that session, in full
     │                recommend_fix("B", "loop_detection")  →  remediation knowledge
     ├─(5 consecutive blocks)→  circuit breaker: switch to observe-only + a "re-check the config" warning
     └─ session end →  SessionEnd summary (Gate B/E scores + violations) → next session's context

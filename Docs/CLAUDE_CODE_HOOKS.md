@@ -75,7 +75,7 @@ pip install agent-evaluator   # or from a repo checkout: pip install -e .
 agent-eval claude install                              # .claude/settings.json (project-local, default)
 # or: agent-eval claude install --global                # ~/.claude/settings.json
 # or: agent-eval claude install --force                 # reset guardrail_config.json to defaults
-# or: agent-eval claude install --with-violation-search  # + register the search_violations MCP server
+# or: agent-eval claude install --with-violation-search  # + register the search_violations / show_violation MCP server
 #     (auto-points it at results/claude_code_live_guardrail/claude_code_sessions.db — the Claude Code
 #      batch-report DB; without the arg the server would open the wrong OpenCode default and fail)
 # or: agent-eval claude install --with-recommend-fix      # + register the recommend_fix MCP server
@@ -119,6 +119,7 @@ that you're expected to edit is `guardrail_config.json`.
   },
   "tool_authorization": {},
   "circuit_breaker_after": 5,
+  "blocked_attempt_capture": {"enabled": true, "max_chars": 240, "redact_pii": true},
   "output_dir": "results/claude_code_live_guardrail"
 }
 ```
@@ -145,8 +146,15 @@ exceptions vs. OpenCode:
   the (smaller) false-positive risk. This divergence is intentional, not a bug — see the comment above
   `DEFAULT_GUARDRAIL_CONFIG` in `claude_code_hook.py` for the same reasoning in code.
 
-`output_dir` and `circuit_breaker_after` aren't `LiveGuardrail` constructor arguments — they're read by
-the hook bridge itself and popped before building the guardrail.
+- **`blocked_attempt_capture`** (since 1.0.4) makes the hook keep a truncated, PII-redacted excerpt of
+  a fully-blocked call's arguments in `<session_id>.blocked.json` → the batch report's
+  `blocked_violations.arg_excerpt`, so a later session can see *what* was blocked (see
+  [Blocked-attempt lookup](#blocked-attempt-lookup) below). `{"enabled": false}` restores the pre-1.0.4
+  behaviour (tool name / gate / reason only).
+
+`output_dir`, `circuit_breaker_after` and `blocked_attempt_capture` aren't `LiveGuardrail` constructor
+arguments — `output_dir` / `circuit_breaker_after` are read by the hook bridge itself and popped before
+building the guardrail; `blocked_attempt_capture` is passed through to `record_blocked_attempt()`.
 
 Edit the installed copy at `.claude/.agent-evaluator/guardrail_config.json`, not the package default —
 `agent-eval claude install --force` resets it and discards your edits (`agent-eval claude upgrade` only
@@ -184,6 +192,25 @@ This confirms the full loop for a short session: real `PreToolUse` interception,
 save, real state-file cleanup. It does **not** confirm behavior on a long session (see the replay-cost
 item below, still unbenchmarked) or on abnormal termination (`kill -9`).
 
+## Blocked-attempt lookup
+
+The `SessionEnd` batch report keeps a per-session audit of every fully-blocked tool call
+(`blocked_violations`). With `blocked_attempt_capture` on (the default), each row also carries a
+truncated, PII-redacted `arg_excerpt` of the command. A **later** session can then see what was blocked
+— from the CLI or via the MCP server registered by `--with-violation-search`:
+
+```bash
+agent-eval claude violations "rm -rf" --detail    # FTS the batch DB; --detail shows the command excerpt
+agent-eval claude blocked-detail <task_id>        # every blocked call in that session + its excerpt
+```
+
+`<task_id>` is the Claude Code session id. When an excerpt is missing (a session from before 1.0.4, or
+capture disabled), `blocked-detail` / the `show_violation` MCP tool fall back best-effort to the session
+transcript at `~/.claude/projects/<project-slug>/<task_id>.jsonl`. `agent-eval claude doctor` includes a
+live "blocked-attempt capture" check. Note the AC timing: because the hook folds `blocked.json` into the
+batch DB only at `SessionEnd`, a block is queryable from a **new** session, not the one that hit it (the
+resident-process AOO path can surface it mid-session — see [`AOO_STACK.md`](AOO_STACK.md)).
+
 ## Known limitations
 
 - **Per-call history replay cost grows with session length.** Every `PreToolUse`/`PostToolUse` call
@@ -206,8 +233,8 @@ item below, still unbenchmarked) or on abnormal termination (`kill -9`).
 
 - [`AOO_STACK.md`](AOO_STACK.md) — the OpenCode integration this reuses the same `LiveGuardrail` engine
   from; also documents the `tool_guard`/`live_guardrail_session()` in-process pattern, team scope claims,
-  branch guard, and the `search_violations` / `recommend_fix` / `ask_insights` MCP servers registered by
-  `--with-*` flags here too.
+  branch guard, and the `search_violations` + `show_violation` / `recommend_fix` / `ask_insights` MCP
+  servers registered by `--with-*` flags here too.
 - [`OPENCODE_VS_CLAUDE_CODE.md`](OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations, including the live-verification evidence summarized above.
 - `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic (SPEC-019).

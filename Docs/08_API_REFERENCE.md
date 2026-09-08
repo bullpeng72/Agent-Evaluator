@@ -1553,15 +1553,21 @@ agent-eval trend results/ --fail-on-regression
 agent-eval opencode install
 agent-eval opencode install --global   # global install
 agent-eval opencode install --force    # overwrite an existing install
-agent-eval opencode install --with-violation-search   # + register the search_violations MCP server
+agent-eval opencode install --with-violation-search   # + register the search_violations / show_violation MCP server
 agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
 agent-eval opencode upgrade            # refresh the plugin .ts after a package update (keeps agent-evaluator.config.json)
-agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip, --json/--no-live/--strict)
+agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip + blocked-attempt capture, --json/--no-live/--strict)
 agent-eval opencode uninstall         # remove the plugin + opencode.json mcp entries (run before pip uninstall, --purge/--dry-run/--yes)
 agent-eval claude install             # install the LiveGuardrail Claude Code CLI hooks (--global/--force, --with-violation-search/--with-recommend-fix/--with-ask-insights)
 agent-eval claude upgrade             # refresh hook matchers/interpreters + deep-merge only NEW default keys into guardrail_config.json (keeps your edits)
-agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake
+agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + blocked-attempt capture + MCP handshake
 agent-eval claude uninstall          # remove our hooks from settings.json + deregister MCP + delete session state (run before pip uninstall)
+
+# LiveGuardrail — blocked-attempt lookup (identical under `claude` and `opencode`; needs a batch-report DB)
+agent-eval claude   violations "rm -rf" --detail     # FTS past Gate B/E blocks; --detail prints the captured command excerpt
+agent-eval claude   blocked-detail <task_id>         # every blocked call in one session + its excerpt (falls back to the host transcript); --json
+agent-eval opencode violations "dangerous tool parameters"
+agent-eval opencode blocked-detail <task_id>
 
 # .aoo/claims.jsonl team scope-claim management (TeamConcurrencyConfig integration)
 agent-eval claims add src/ --developer auto   # open a claim (resolves via git config user.name)
