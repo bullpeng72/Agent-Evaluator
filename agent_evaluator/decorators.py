@@ -5254,12 +5254,14 @@ def agent_eval(
     if monitor_or_fn is None:
         # No explicit monitor: load from config file + monitor registry
         try:
-            from .eval_config import get_active_config as _get_cfg  # type: ignore[import-not-found]
-            from .eval_config import (
-                get_or_create_monitor as _get_mon,  # type: ignore[import-not-found]
-            )
-            _cfg = _get_cfg()
-            monitor = _get_mon(config=_cfg)
+            # `.eval_config` is an optional, not-yet-shipped module (see the NOTE further
+            # down). Load it dynamically so neither mypy nor Pylance flags a static import
+            # of a module that doesn't exist — the except below still handles its absence.
+            import importlib
+
+            _eval_config = importlib.import_module(".eval_config", __package__)
+            _cfg = _eval_config.get_active_config()
+            monitor = _eval_config.get_or_create_monitor(config=_cfg)
             # Apply config values conservatively: only when param is still at its SDK default
             if task_type == "qa":
                 task_type = _cfg.task_type
