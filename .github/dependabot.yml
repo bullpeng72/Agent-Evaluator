@@ -28,6 +28,13 @@ updates:
       # 메이저 버전은 수동 검증 후 반영.
       - dependency-name: "sentence-transformers"
         update-types: ["version-update:semver-major"]
+      # openai: `openai<3.0.0` 상한은 단순 버전 캡이 아니라 arize-phoenix 해석을 위한
+      # 의도된 제약이다 — pyproject.toml에 4번 반복된 주석대로, 이 캡을 유지해야 resolver가
+      # Python 3.10+에서 arize-phoenix 20.3.x로 내려온다. `<4.0.0`으로 넓히면 3.10~3.13
+      # 해석이 어긋나 httpx 미설치 등으로 CI가 깨진다(PR #18, 2026-09-04). 메이저 버전은
+      # Phoenix/OTEL extra를 함께 수동 검증한 뒤에만 올린다.
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
 
   # github-actions 생태계 — ci.yml/security.yml이 참조하는 액션 자체의 공급망 리스크 관리
   - package-ecosystem: "github-actions"
