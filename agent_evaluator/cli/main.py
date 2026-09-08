@@ -15,10 +15,9 @@ import importlib
 import os
 import re
 import sys
-from pathlib import Path
-
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from pathlib import Path
 
 try:
     __version__ = _pkg_version("agent-evaluator")
@@ -32,10 +31,10 @@ from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
 from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchmark
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
-from agent_evaluator.cli.experiment import build_experiment_subparser, cmd_experiment
 from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.diagnose import cmd_diagnose
+from agent_evaluator.cli.experiment import build_experiment_subparser, cmd_experiment
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.improve import build_improve_subparser, cmd_improve
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
@@ -511,7 +510,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
         rows.append((env_var, label, status, src))
 
     max_env = max(len(r[0]) for r in rows)
-    for env_var, label, status, src in rows:
+    for env_var, _label, status, src in rows:
         pad = " " * (max_env - len(env_var))
         src_label = f"  {_dim(f'({src})')}" if src != "not set" else ""
         print(f"  {env_var}{pad}  {status}{src_label}")

@@ -5255,7 +5255,9 @@ def agent_eval(
         # No explicit monitor: load from config file + monitor registry
         try:
             from .eval_config import get_active_config as _get_cfg  # type: ignore[import-not-found]
-            from .eval_config import get_or_create_monitor as _get_mon  # type: ignore[import-not-found]
+            from .eval_config import (
+                get_or_create_monitor as _get_mon,  # type: ignore[import-not-found]
+            )
             _cfg = _get_cfg()
             monitor = _get_mon(config=_cfg)
             # Apply config values conservatively: only when param is still at its SDK default

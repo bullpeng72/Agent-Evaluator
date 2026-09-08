@@ -130,10 +130,12 @@ class DeepEvalAdapter(MetricAdapter):
                 HallucinationMetric,
                 ToxicityMetric,
             )
+
             # LLMTestCaseParams is a deprecated alias (module __getattr__ shim) for
             # SingleTurnParams — import the real name directly so static analysis
             # resolves its members (INPUT/ACTUAL_OUTPUT/EXPECTED_OUTPUT/CONTEXT).
-            from deepeval.test_case import LLMTestCase, SingleTurnParams as LLMTestCaseParams
+            from deepeval.test_case import LLMTestCase
+            from deepeval.test_case import SingleTurnParams as LLMTestCaseParams
 
             self._available = True
             self.GEval = GEval
