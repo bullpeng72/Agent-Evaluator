@@ -4,6 +4,7 @@ chaining + `agent-eval {claude,opencode} violations|blocked-detail`, tested acro
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import sqlite3
 
@@ -343,6 +344,11 @@ class TestBlockedDetailRecovery:
 
 
 class TestMcpServer:
+    # the stdio MCP server needs the optional [mcp] extra (not in CI's [dev,serve] install)
+    pytestmark = pytest.mark.skipif(
+        importlib.util.find_spec("mcp") is None, reason="requires the [mcp] extra"
+    )
+
     @pytest.mark.asyncio
     async def test_both_tools_registered(self, tmp_path):
         from agent_evaluator.integrations.violation_search_mcp import build_server
