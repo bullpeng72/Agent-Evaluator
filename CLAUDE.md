@@ -149,6 +149,35 @@ Operational support (8, no direct Gate score contribution — report/ops only)
 > the 25 — a common miscount. `Media/Book/Appendix/A_58개지표_레퍼런스.md` is the reader-facing enumeration
 > of all 25 — keep it in sync with this list.
 
+### Framework Adapters (24)
+
+`@agent_eval(monitor, framework="<name>")` auto-extracts `tool_calls` / `chain_steps` / `tokens_used` /
+`agent_interactions` from a framework's native return object. **Pure duck typing** — the adapter never
+imports the framework, and any non-matching / malformed / junk input returns `None` (fail-safe, no raise).
+
+| Source of truth | `decorators.py` |
+|---|---|
+| Dispatch table | `_FRAMEWORK_ADAPTERS: dict[str, Callable[[Any], EvalMetadata\|None]\|None]` (`"native"` → `None` sentinel) |
+| Per-adapter metadata | `_FRAMEWORK_ADAPTER_META` (`name` · `extras` · `extracts` · `async_supported` · `description`); query via `get_framework_info(name)` |
+| Type | `FrameworkLiteral` (`native` + the 24) |
+| Impl | one `_extract_<name>_metadata(raw) -> EvalMetadata \| None` per adapter |
+
+The 24: `langchain` · `langgraph` · `crewai` · `autogen` · `dspy` · `pydanticai` · `anthropic` · `openai` ·
+`gemini` · `vertexai` · `llamaindex` · `haystack` · `ollama` · `cohere` · `groq` · `mistral` · `bedrock` ·
+`smolagents` · `semantic_kernel` · `vllm` · `huggingface` · `openai_agents` · `google_adk` · `claude_agent_sdk`.
+
+- **`framework="native"`** (default) — every `@agent_eval` wrapper still runs `_auto_detect_framework(raw)`
+  (type/attribute sniffing) and applies the matched adapter; `auto_detect_framework` is internal, not a
+  user kwarg. Pass `framework=` to force one.
+- **`claude_agent_sdk`** — must pass `framework=` explicitly (auto-detection is not supported for it).
+- **pip extras** — only `[langchain]` · `[crewai]` · `[autogen]` · `[dspy]` · `[pydanticai]` bundle the
+  framework's own package (`[full]` = all five). For the other 19 you `pip install <framework>` yourself —
+  agent-evaluator works without it via duck typing.
+- **Data-source priority** (`decorators.py`): explicit `EvalMetadata` return  >  `score_fn`/decorator args  >  framework adapter.
+- Full per-framework capability table + the "4 major frameworks" coverage summary: **`Docs/03_INTEGRATION_GUIDE.md` §12**.
+- `test_framework_adapters.py` (50 tests) exercises all 24; `[crewai,autogen]` together silently
+  downgrade pydantic to 2.11.x (see Known Dependency Constraints).
+
 ### Key Files
 
 ```

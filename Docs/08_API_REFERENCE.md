@@ -794,7 +794,9 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
 | Search/RAG | `llamaindex`, `haystack` |
 | Official agent SDKs | `openai_agents`, `google_adk`, `claude_agent_sdk` (auto-detection not supported — specify `framework=`) |
 
-Auto-detection (`auto_detect_framework=True` is on by default):
+Auto-detection is on by default — every `@agent_eval` wrapper enables it internally, so omitting
+`framework=` (leaving it `"native"`) lets `_auto_detect_framework()` pick the adapter from the
+response object's type / attributes. Pass `framework=` to force one (required for `claude_agent_sdk`):
 
 ```python
 @agent_eval(monitor, task_type="qa")  # omit framework= → auto-detected from the response's attributes
