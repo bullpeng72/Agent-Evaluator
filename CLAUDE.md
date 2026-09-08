@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.0.3 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.4 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -90,6 +90,17 @@ agent-eval claude install [--global] [--force] [--with-violation-search] [--with
 agent-eval claude upgrade       # refresh hooks/matchers + deep-merge only NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
 agent-eval claude doctor        # static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
 agent-eval claude uninstall     # remove our hooks from settings.json + deregister MCP + delete session state (run BEFORE pip uninstall; --keep-config/--purge/--dry-run/--yes)
+
+# CLI — blocked-attempt lookup (identical under `claude` and `opencode`)
+agent-eval claude   violations "rm -rf" [--detail]       # FTS the batch-report DB; --detail prints the captured command excerpt
+agent-eval opencode violations "dangerous tool parameters" --detail
+agent-eval claude   blocked-detail <task_id> [--json]    # every blocked call in one session + its arg excerpt; falls back to the host transcript
+agent-eval opencode blocked-detail <task_id>
+#   `blocked_attempt_capture` (guardrail_config.json / agent-evaluator.config.json, default {enabled:true,max_chars:240,redact_pii:true})
+#   stores a short PII-redacted excerpt of every fully-blocked call in blocked_violations.arg_excerpt — so `violations "rm -rf"`
+#   now matches on the *command* (not just the generic reason), and a later session sees what was blocked without any transcript.
+#   `{claude,opencode} doctor` live-checks capture; task_id == the host session id (Claude `~/.claude/projects/<slug>/<id>.jsonl`,
+#   OpenCode `~/.local/share/opencode/opencode.db` `part` table) is the transcript-fallback key.
 
 # Quality
 pytest
@@ -177,7 +188,8 @@ agent_evaluator/
 │   ├── claude_code_hook.py       # Claude Code CLI hook (PreToolUse/PostToolUse/SessionEnd) -> LiveGuardrail. Each call is a separate process, so it writes the tool_call history to a session state file (.claude/.agent-evaluator/sessions/<id>.json, <id>=_safe_session_id) and replays it on every call. Exceptions always fail open.
 │   │                       #  load_config search: <cwd> -> walk up -> ~/.claude -> DEFAULT. _session_config() pins the first PreToolUse settings in sessions/<id>.config.json. circuit_breaker_after (default 5) consecutive blocks -> observe-only. History is JSON Lines (append-only). run() returns an int (deny = exit 2).
 │   ├── opencode_plugin/agent-evaluator.ts  # OpenCode tool.execute.before/after hooks -> stdio bridge. GuardrailSession (circuit breaker · id->resolver pending Map · 5s timeout). All try/catch fail-open. Snapshot + report upsert on every session.idle (the bridge stays alive for the whole session). Config is a shallow merge over the adjacent agent-evaluator.config.json.
-│   ├── violation_search_mcp.py   # search_violations() stdio MCP server (opt-in [mcp]). include_blocked=True includes fully-blocked history. Results carry a recommend_fix() hint. `python -m …violation_search_mcp [db_path]`; no arg → OpenCode default (results/opencode_live_guardrail/opencode_sessions.db). `agent-eval claude install --with-violation-search` passes the Claude Code DB path explicitly. A missing/unopenable DB → plain "No violation history database …" sentence, never a raw sqlite traceback.
+│   ├── violation_search_mcp.py   # search_violations() + show_violation(task_id) stdio MCP server (opt-in [mcp]). search_violations: include_blocked + detail=True (inline command excerpt), recommend_fix() hint, and a show_violation() chaining hint carrying the blocked task_id. show_violation: every blocked row for a task_id + arg_excerpt, transcript fallback via _blocked_detail. `python -m …violation_search_mcp [db_path]`; no arg → OpenCode default (results/opencode_live_guardrail/opencode_sessions.db). `agent-eval claude install --with-violation-search` passes the Claude Code DB path explicitly. A missing/unopenable DB → plain "No violation history database …" sentence, never a raw sqlite traceback.
+│   ├── _blocked_detail.py        # SPEC-041 shared: recover_blocked_commands(task_id, host) — best-effort recovery of blocked command text from the host transcript (Claude `~/.claude/projects/*/<id>.jsonl` tool_use+is_error tool_result; OpenCode `opencode.db` `part` errored tool rows) + format_blocked_detail(). Never raises. Used by violation_search_mcp + cli/_violations_detail.
 │   ├── recommend_fix_mcp.py      # recommend_fix(gate, metric=, value=) stdio MCP. Static ontology lookup (all of Gate A–G), no result file needed. metric is normalized via canonical_metric_name().
 │   ├── ask_insights_mcp.py       # query a result JSON's insight layer, stdio MCP (--with-ask-insights). insights_summary / insights_readiness / insights_why_failed(task_id) / insights_contrast(task_id) / insights_list(filter)
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter
@@ -188,7 +200,7 @@ agent_evaluator/
 ├── cost/                  # CostTracker · AdaptivePolicy · SamplingStage
 ├── datasets/              # GoldenSetBuilder · korean_rag_dataset_generator · golden_health.py (P58)
 ├── alerts/                # AlertEngine · AlertRule · SlackHandler · WebhookHandler · EmailHandler. dispatch_anomaly_events() · dispatch_gate_result(targets, insights, ...) (for gate --notify; never raises; per-target {ok, error}).
-├── storage/               # sqlite_backend.py — save_tasks_to_db / load_tasks_from_db (storage_backend="sqlite", opt-in) · violation_search(FTS5) / search_violations() · blocked_violations (FTS5, audit of fully-blocked attempts).
+├── storage/               # sqlite_backend.py — save_tasks_to_db / load_tasks_from_db (storage_backend="sqlite", opt-in) · violation_search(FTS5) / search_violations(detail=) · blocked_violations (FTS5, audit of fully-blocked attempts; SPEC-041 adds an indexed arg_excerpt column — auto-migrated from the old 4-col shape, no SCHEMA_VERSION bump) · show_violation(task_id).
 ├── streaming/             # StreamingEvaluator · AgentEvalMiddleware — periodic anomaly scan on the flush thread + auto-wired AlertEngine.dispatch_anomaly_events.
 ├── rca/                   # Gate-regression root-cause diagnosis (RCA) + improvement history. No new verdict formulas — reuses existing logic.
 │   ├── diagnose.py        # diagnose(current, baseline=None): detect -> attribute -> cross-reference. In absolute mode (no baseline), finding["component_shortfalls"] (weakest components first + NATIVE_METRIC_RULES prescription). newly_unmeasured_gates (scored in baseline, None in current). _ranking_scale corrects per-suffix sorting (return-value units are preserved).
@@ -542,7 +554,7 @@ threat_response, context_window, latency_attribution
 
 ## Testing
 
-**170 files, 4,800+ test functions** in `tests/`.
+**171 files, 4,850+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

@@ -79,6 +79,11 @@ def cmd_opencode(args: argparse.Namespace) -> int:
         return _cmd_uninstall(args)
     if cmd == "doctor":
         return _cmd_doctor(args)
+    from agent_evaluator.cli._violations_detail import dispatch as _vd_dispatch
+
+    _rc = _vd_dispatch("opencode", cmd, args)
+    if _rc is not None:
+        return _rc
     print(
         f"{_B}agent-eval opencode{_R} — LiveGuardrail OpenCode Plugin\n\n"
         f"  {_Y}install{_R}     Copy the bundled plugin into OpenCode's plugin directory\n"
@@ -541,6 +546,7 @@ def _doctor_bridge_roundtrip(rpt: DoctorReport) -> None:
 def _cmd_doctor(args: argparse.Namespace) -> int:
     from agent_evaluator.cli._integration_health import (
         DoctorReport,
+        probe_blocked_capture,
         probe_import,
         validate_guardrail_config,
     )
@@ -606,6 +612,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     else:
         rpt.error("static", "bridge module importable", err)
 
+    user_cfg: dict | None = {}
     if sibling.exists():
         try:
             user_cfg = json.loads(sibling.read_text(encoding="utf-8"))
@@ -626,6 +633,13 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             )
     else:
         rpt.info("static", f"{_SIBLING_CONFIG}", "not present (using plugin built-in defaults)")
+
+    # SPEC-041: blocked-attempt capture → `agent-eval opencode blocked-detail` usability.
+    # The sibling config (or {} → plugin/LiveGuardrail default = enabled) drives it.
+    _bc_status, _bc_detail = probe_blocked_capture(user_cfg if isinstance(user_cfg, dict) else {})
+    {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_bc_status](
+        "live", "blocked-attempt capture", _bc_detail
+    )
 
     js_runtime = shutil.which("bun") or shutil.which("node")
     if js_runtime:
@@ -827,3 +841,8 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
     uninstall_p.add_argument(
         "--yes", "-y", dest="yes", action="store_true", help="Skip the confirmation prompt",
     )
+
+    # SPEC-041: violations / blocked-detail (identical under `agent-eval claude`).
+    from agent_evaluator.cli._violations_detail import add_violation_detail_subcommands
+
+    add_violation_detail_subcommands(op_sub, "opencode")

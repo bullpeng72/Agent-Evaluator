@@ -91,6 +91,11 @@ interface GuardrailInitConfig {
   // SPEC-041: cat/tee/echo/printf 리다이렉트·heredoc으로 파일을 만드는 순수 쓰기는
   // 명령 안의 위험 문자열을 "파일 내용"으로 보고 차단하지 않는다(기본 true).
   lenient_shell_file_write?: boolean
+  // SPEC-041: 완전 차단된 도구 호출의 인자에서 짧은(기본 240자) PII-마스킹 발췌를
+  // 만들어 세션 배치 리포트(blocked_violations 테이블)에 함께 남긴다 — 나중 세션에서
+  // `agent-eval opencode blocked-detail <task_id>` / search_violations로 "무슨 명령이
+  // 막혔는지"를 볼 수 있게 한다. {"enabled": false}로 끄면 이전 동작(도구/게이트/사유만).
+  blocked_attempt_capture?: Record<string, unknown>
 }
 
 // 아래 설정은 실제 OpenCode 1.17.9 + Ollama qwen3-coder 세션으로 라이브 테스트한 뒤
@@ -154,6 +159,9 @@ const GUARDRAIL_CONFIG: GuardrailInitConfig = {
     fail_on_dangerous: true,
   },
   tool_authorization: {},
+  // SPEC-041: 차단된 명령의 원문(발췌)을 감사 이력에 남긴다 — Claude Code 훅의
+  // DEFAULT_GUARDRAIL_CONFIG와 대칭. {"enabled": false}로 끌 수 있다.
+  blocked_attempt_capture: { enabled: true, max_chars: 240, redact_pii: true },
 }
 
 // SPEC-041: 프로젝트별 설정은 이 파일(코드)을 편집하는 대신 옆에 두는
@@ -419,11 +427,15 @@ class GuardrailSession {
 
   // SPEC-030 REQ-6: check()가 block=true를 반환했고 이 도구를 실제로 실행하지
   // 않기로 했을 때만 호출한다 — 완전 차단된 시도를 감사 이력에 남긴다.
-  async recordBlocked(taskId: string, toolName: string, verdict: LiveVerdict): Promise<void> {
+  // SPEC-041: parameters를 함께 넘기면 브리지(Python)가 짧은 PII-마스킹 발췌를 만들어
+  // 감사 이력에 저장한다 — 마스킹/절단 로직은 Python 한 곳에만 둔다(단일 소스).
+  async recordBlocked(
+    taskId: string, toolName: string, verdict: LiveVerdict, parameters?: unknown,
+  ): Promise<void> {
     await this.initPromise
     await this.send({
       op: "record_blocked", task_id: taskId, tool_name: toolName,
-      gate: verdict.gate, reason: verdict.reason,
+      gate: verdict.gate, reason: verdict.reason, parameters,
     })
   }
 
@@ -647,7 +659,9 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
         // 에러를 던지기 전에 감사 이력에 기록한다. (circuit tripped여도 감사는 계속.)
         const session = getOrCreateSession(sessionId)
         try {
-          await session.recordBlocked(sessionId, input.tool, verdict)
+          // SPEC-041: output.args = the blocked call's arguments (same value passed to
+          // check() above). The Python bridge turns it into a short PII-redacted excerpt.
+          await session.recordBlocked(sessionId, input.tool, verdict, output.args)
         } catch (err) {
           console.error(`[agent-evaluator] recordBlocked failed: ${err}`)
         }

@@ -306,3 +306,41 @@ def validate_guardrail_config(config: dict) -> tuple[bool, list[str]]:
         if "SKIPPED" in ln or "invalid" in ln
     ]
     return True, warnings
+
+
+# ---------------------------------------------------------------------------
+# SPEC-041: blocked-attempt capture live round-trip (claude + opencode doctor)
+# ---------------------------------------------------------------------------
+def probe_blocked_capture(config: dict) -> tuple[str, str]:
+    """실제 차단 1건을 흘려 ``arg_excerpt``(PII 마스킹된 명령 발췌)가 잡히는지 본다.
+
+    ``blocked_attempt_capture``가 명시적으로 꺼져 있으면 ``"info"``(정상적인 선택),
+    켜져 있는데 발췌가 안 나오거나 마스킹이 안 되면 ``"warn"``.
+
+    Returns:
+        ``(status, detail)`` — status는 ``"ok" | "warn" | "info"``.
+    """
+    from agent_evaluator.gates.live_guardrail import LiveVerdict
+    from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail
+
+    cfg = dict(config)
+    for bridge_only in ("output_dir", "circuit_breaker_after"):
+        cfg.pop(bridge_only, None)
+    cap = cfg.get("blocked_attempt_capture")
+    if isinstance(cap, dict) and not cap.get("enabled", True):
+        return "info", "blocked_attempt_capture disabled — blocked-detail falls back to transcripts"
+    try:
+        guardrail = build_guardrail(cfg)
+        entry = guardrail.record_blocked_attempt(
+            "doctor-probe", "Bash",
+            LiveVerdict(block=True, gate="B", reason="dangerous tool parameters"),
+            tool_input={"command": "rm -rf /tmp/x  # reach doctor@example.com"},
+        )
+    except Exception as exc:  # noqa: BLE001 — doctor absorbs every failure into the report
+        return "warn", f"record_blocked_attempt round-trip failed: {exc}"
+    excerpt = entry.get("arg_excerpt")
+    if not excerpt:
+        return "warn", "no arg_excerpt produced (blocked-detail will need host transcripts)"
+    if "doctor@example.com" in excerpt:
+        return "warn", "arg_excerpt is not PII-redacted"
+    return "ok", f"captures a redacted command excerpt ({len(excerpt)} chars)"

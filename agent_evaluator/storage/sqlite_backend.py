@@ -58,12 +58,46 @@ CREATE VIRTUAL TABLE IF NOT EXISTS violation_search USING fts5(task_id UNINDEXED
 """
 
 # SPEC-030 REQ-3: 완전히 차단돼(record_tool_call()이 호출되지 않아) tasks/violation_search
-# 어디에도 남지 않는 시도의 감사 이력. reason만 MATCH 전문 검색 대상 — 나머지는 UNINDEXED.
+# 어디에도 남지 않는 시도의 감사 이력. reason + arg_excerpt만 MATCH 전문 검색 대상 —
+# 나머지는 UNINDEXED. SPEC-041: arg_excerpt(차단된 인자의 짧은 PII-마스킹 발췌)를
+# 색인 컬럼으로 추가해, `search_violations "rm -rf"`처럼 *명령 문자열*로도 검색되게 한다
+# (reason에는 명령이 안 들어가므로 기존엔 불가능했다).
 _CREATE_BLOCKED_VIOLATIONS_TABLE = """
 CREATE VIRTUAL TABLE IF NOT EXISTS blocked_violations USING fts5(
-    task_id UNINDEXED, tool_name UNINDEXED, gate UNINDEXED, reason
+    task_id UNINDEXED, tool_name UNINDEXED, gate UNINDEXED, reason, arg_excerpt
 )
 """
+
+
+def _ensure_blocked_violations_schema(conn: sqlite3.Connection) -> None:
+    """(SPEC-041) ``blocked_violations``를 생성하되, ``arg_excerpt`` 없는 구(舊) 스키마는
+    데이터를 보존한 채 재생성한다.
+
+    FTS5 가상 테이블은 ``ALTER TABLE ... ADD COLUMN``을 지원하지 않으므로, 기존 행
+    (task_id/tool_name/gate/reason)을 읽어두고 DROP → 새 DDL로 CREATE → 재삽입한다
+    (``arg_excerpt=''``). ``SCHEMA_VERSION``은 올리지 않는 순수 additive 확장이다 —
+    이 함수를 거친 DB는 구 SDK로도 그대로 읽힌다(추가 컬럼 하나는 무시된다).
+    """
+    have = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='blocked_violations'"
+    ).fetchone()
+    if have is not None:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(blocked_violations)").fetchall()]
+        if cols and "arg_excerpt" not in cols:
+            old_rows = conn.execute(
+                "SELECT task_id, tool_name, gate, reason FROM blocked_violations"
+            ).fetchall()
+            conn.execute("DROP TABLE blocked_violations")
+            conn.execute(_CREATE_BLOCKED_VIOLATIONS_TABLE)
+            if old_rows:
+                conn.executemany(
+                    "INSERT INTO blocked_violations "
+                    "(task_id, tool_name, gate, reason, arg_excerpt) VALUES (?, ?, ?, ?, '')",
+                    old_rows,
+                )
+            conn.commit()
+            return
+    conn.execute(_CREATE_BLOCKED_VIOLATIONS_TABLE)
 
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
@@ -71,7 +105,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute(_CREATE_SCHEMA_VERSION_TABLE)
     conn.execute(_CREATE_TASKS_TABLE)
     conn.execute(_CREATE_VIOLATION_SEARCH_TABLE)  # SPEC-024 REQ-2: additive, 버전 증가 없음
-    conn.execute(_CREATE_BLOCKED_VIOLATIONS_TABLE)  # SPEC-030 REQ-3: additive, 버전 증가 없음
+    _ensure_blocked_violations_schema(conn)  # SPEC-030 REQ-3 + SPEC-041: additive, 버전 증가 없음
     row = conn.execute("SELECT version FROM schema_version LIMIT 1").fetchone()
     if row is None:
         conn.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
@@ -247,13 +281,14 @@ def save_tasks_to_db(path: Union[str, Path], tasks: list[TaskResult]) -> None:
             conn.execute("DELETE FROM blocked_violations WHERE task_id = ?", (t.task_id,))
             for _attempt in (t.extra or {}).get("blocked_attempts") or []:
                 conn.execute(
-                    "INSERT INTO blocked_violations (task_id, tool_name, gate, reason) "
-                    "VALUES (?, ?, ?, ?)",
+                    "INSERT INTO blocked_violations "
+                    "(task_id, tool_name, gate, reason, arg_excerpt) VALUES (?, ?, ?, ?, ?)",
                     (
                         t.task_id,
                         _attempt.get("tool_name"),
                         _attempt.get("gate"),
                         _attempt.get("reason") or "",
+                        _attempt.get("arg_excerpt") or "",
                     ),
                 )
         conn.commit()
@@ -299,6 +334,7 @@ def _match_with_phrase_fallback(
 
 def search_violations(
     path: Union[str, Path], query: str, limit: int = 10, include_blocked: bool = False,
+    detail: bool = False,
 ) -> list[dict[str, Any]]:
     """(SPEC-024 REQ-3) ``violation_search``(FTS5)에서 Gate B/E 위반 이력을 검색한다.
 
@@ -354,7 +390,8 @@ def search_violations(
             for r in results:
                 r["blocked"] = False
             _blocked_sql = """
-                SELECT b.task_id, b.tool_name, b.gate, b.reason, t.timestamp, t.task_type, t.success
+                SELECT b.task_id, b.tool_name, b.gate, b.reason, b.arg_excerpt,
+                       t.timestamp, t.task_type, t.success
                 FROM blocked_violations AS b
                 JOIN tasks AS t ON t.task_id = b.task_id
                 WHERE blocked_violations MATCH ?
@@ -363,15 +400,72 @@ def search_violations(
             """
             _blocked_rows = _match_with_phrase_fallback(conn, _blocked_sql, query, limit)
             for r in _blocked_rows:
-                results.append({
+                _item = {
                     "task_id": r[0],
                     "summary": f"{r[1]}: {r[3]}" if r[1] else r[3],
                     "gate": r[2],
-                    "timestamp": r[4],
-                    "task_type": r[5],
-                    "success": bool(r[6]),
+                    "timestamp": r[5],
+                    "task_type": r[6],
+                    "success": bool(r[7]),
                     "blocked": True,
-                })
+                }
+                # SPEC-041: with detail=True, surface the captured command excerpt so the
+                # caller doesn't have to make a second show_violation() round-trip.
+                if detail:
+                    _item["arg_excerpt"] = r[4] or ""
+                results.append(_item)
     finally:
         conn.close()
     return results
+
+
+def show_violation(path: Union[str, Path], task_id: str) -> dict[str, Any]:
+    """(SPEC-041) Return every stored blocked-attempt row for one ``task_id``.
+
+    This is the "detail" step that ``search_violations()`` (which returns ``task_id`` +
+    a generic ``reason``) leads into. No FTS query — a direct ``task_id`` filter — so it
+    also finds sessions whose ``reason`` text wouldn't match any keyword.
+
+    Args:
+        path: SQLite DB file (already written by ``save_tasks_to_db()``).
+        task_id: session / task id, e.g. from a ``search_violations()`` result.
+
+    Returns:
+        ``{"task_id", "found": bool, "timestamp", "task_type", "success",
+           "observed_summary": str|None,
+           "blocked": [{"tool_name", "gate", "reason", "arg_excerpt"}]}``.
+        ``found`` is ``False`` (and ``blocked`` empty) when the id is unknown to this DB.
+    """
+    conn = sqlite3.connect(str(path))
+    try:
+        _ensure_schema(conn)
+        trow = conn.execute(
+            "SELECT timestamp, task_type, success FROM tasks WHERE task_id = ?", (task_id,)
+        ).fetchone()
+        brows = conn.execute(
+            "SELECT tool_name, gate, reason, arg_excerpt FROM blocked_violations "
+            "WHERE task_id = ?",
+            (task_id,),
+        ).fetchall()
+        srow = conn.execute(
+            "SELECT summary FROM violation_search WHERE task_id = ?", (task_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return {
+        "task_id": task_id,
+        "found": trow is not None or bool(brows),
+        "timestamp": trow[0] if trow else None,
+        "task_type": trow[1] if trow else None,
+        "success": bool(trow[2]) if trow else None,
+        "observed_summary": srow[0] if srow else None,
+        "blocked": [
+            {
+                "tool_name": r[0],
+                "gate": r[1],
+                "reason": r[2],
+                "arg_excerpt": r[3] or "",
+            }
+            for r in brows
+        ],
+    }

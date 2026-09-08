@@ -93,6 +93,12 @@ DEFAULT_GUARDRAIL_CONFIG: dict[str, Any] = {
     # 이 브리지가 SessionEnd/PreToolUse에서 직접 쓰는 값 — build_guardrail() 전에 pop한다.
     # 0 또는 null이면 서킷 브레이커를 끈다.
     "circuit_breaker_after": 5,
+    # SPEC-041: 완전 차단된 도구 호출의 인자에서 짧은(기본 240자) PII-마스킹 발췌를
+    # 만들어 감사 이력(<id>.blocked.json → blocked_violations 테이블)에 함께 남긴다 —
+    # 나중 세션에서 `agent-eval claude blocked-detail <task_id>` / search_violations로
+    # "무슨 명령이 막혔는지"를 트랜스크립트 없이 볼 수 있게 한다. {"enabled": false}로
+    # 끄면 도구 이름·게이트·사유만 남는 이전 동작으로 돌아간다.
+    "blocked_attempt_capture": {"enabled": True, "max_chars": 240, "redact_pii": True},
     # LiveGuardrail 생성자 인자가 아니라 이 브리지 자체가 SessionEnd에서 쓰는 값 —
     # build_guardrail() 호출 전에 pop()으로 제거한다.
     "output_dir": "results/claude_code_live_guardrail",
@@ -382,7 +388,10 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
         }
 
     # 감사 이력은 서킷 브레이커 상태와 무관하게 항상 남긴다.
-    guardrail.record_blocked_attempt(session_id, tool_name, verdict)
+    # SPEC-041: tool_input을 넘겨 짧은 PII-마스킹 발췌를 함께 기록한다(설정으로 끌 수 있음).
+    _blocked_entry = guardrail.record_blocked_attempt(
+        session_id, tool_name, verdict, tool_input=tool_input
+    )
 
     # SPEC-041: 서킷 브레이커가 이미 트립됐으면(sticky, 세션 끝까지) 더 세지 않고
     # 바로 관찰 전용으로 통과시킨다.
@@ -391,15 +400,19 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
     tripped = already_tripped or (cb_after_int > 0 and consecutive >= cb_after_int)
     _write_circuit_state(circuit_path, consecutive, tripped)
 
-    _append_json_list(
-        _blocked_file(state_dir, session_id),
-        {
-            "tool_name": tool_name,
-            "gate": verdict.gate,
-            "reason": verdict.reason,
-            "enforced": not tripped,
-        },
-    )
+    _blocked_record = {
+        "tool_name": tool_name,
+        "gate": verdict.gate,
+        "reason": verdict.reason,
+        "enforced": not tripped,
+    }
+    # SPEC-041: carry the excerpt into the audit file so handle_session_end can fold it
+    # into blocked_violations without re-reading the tool_input.
+    if _blocked_entry.get("arg_excerpt") is not None:
+        _blocked_record["arg_excerpt"] = _blocked_entry["arg_excerpt"]
+        if _blocked_entry.get("arg_sha256") is not None:
+            _blocked_record["arg_sha256"] = _blocked_entry["arg_sha256"]
+    _append_json_list(_blocked_file(state_dir, session_id), _blocked_record)
 
     if tripped:
         # SPEC-041: 연속 차단이 임계값에 도달 — 남은 세션 동안 관찰 전용으로 전환한다.
@@ -545,6 +558,8 @@ def handle_session_end(payload: dict[str, Any], state_dir: Path) -> dict[str, An
             guardrail.record_blocked_attempt(
                 session_id, blocked.get("tool_name", ""),
                 LiveVerdict(block=True, gate=blocked.get("gate"), reason=blocked.get("reason")),
+                arg_excerpt=blocked.get("arg_excerpt"),
+                arg_sha256=blocked.get("arg_sha256"),
             )
         result = record_and_save({
             "task_id": session_id,

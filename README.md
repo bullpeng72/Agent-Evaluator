@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.3-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.4-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -180,12 +180,14 @@ agent_evaluator/
                       #   experiment, target, benchmark, improve, claims, monitor, opencode, claude)
 
 Evaluator_Examples/   # 32 example files (ch01–ch32)
-tests/                # 4,800+ test functions
+tests/                # 4,850+ test functions
 ```
 
 ---
 
 ## Changelog
+
+**v1.0.4** (2026-09-08) — Patch: **blocked-attempt command detail**, symmetric across Claude Code and OpenCode. A fully-blocked tool call now keeps a short PII-redacted excerpt of its arguments in the batch-report DB (`blocked_attempt_capture`, on by default), so `search_violations "rm -rf"` matches on the *command* — not just the generic reason — and a later session sees what was blocked without any transcript. New `show_violation(task_id)` MCP tool (search results chain into it automatically) and `agent-eval {claude,opencode} violations [--detail]` / `blocked-detail <task_id>` CLI, with a best-effort host-transcript fallback for pre-capture sessions. `{claude,opencode} doctor` live-checks capture. `blocked_violations` gains an indexed `arg_excerpt` column, auto-migrated from the old shape (no `schema_version` bump). No public SDK API, Config, or insight-schema changes.
 
 **v1.0.3** (2026-09-08) — Patch: `agent-eval claude install --with-violation-search` now hands the `search_violations` MCP server the Claude Code batch-report DB path (it otherwise opened the OpenCode default and failed with `unable to open database file`); `claude upgrade --with-violation-search` rewrites a stale registration and `claude doctor` flags one. `search_violations` returns a readable "no history DB yet" sentence instead of a raw SQLite traceback when the DB is missing. OpenCode was unaffected. No API, Config, or schema changes.
 

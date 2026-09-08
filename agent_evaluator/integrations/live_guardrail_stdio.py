@@ -42,9 +42,15 @@ Agent-Evaluator는 Python SDK이므로, Node/Bun 등 비-Python 런타임(예: O
         → {"ok": true}  # "output"은 선택 — SPEC-031, 생략하면 이전과 동일하게 동작
 
         {"op": "record_blocked", "task_id": "...", "tool_name": "...",
-         "gate": "B"|"E"|null, "reason": "..."}
-        → {"ok": true}  # SPEC-030 REQ-6 — check()가 block=true를 반환했고 호출자가
+         "gate": "B"|"E"|null, "reason": "...", "parameters": {...}}
+        → {"ok": true, "arg_excerpt": "..."|null}
+                         # SPEC-030 REQ-6 — check()가 block=true를 반환했고 호출자가
                          # 실제로 그 도구를 실행하지 않기로 했을 때만 보낸다.
+                         # SPEC-041 — "parameters"(선택)를 주면 짧은 PII-마스킹 발췌를
+                         # 만들어 감사 이력에 함께 저장하고 응답의 "arg_excerpt"로 돌려준다
+                         # (호출자가 자기 쪽 감사 파일에도 같은 값을 남길 수 있게).
+                         # 이미 계산된 값이 있으면 "arg_excerpt"/"arg_sha256"를 그대로
+                         # 넘겨도 된다(재직렬화·재마스킹 없이 사용).
 
         {"op": "snapshot"}
         → {"extra": {...}}  # TaskResult(extra=...)에 그대로 대입 가능 (SPEC-019 REQ-6)
@@ -139,6 +145,9 @@ def build_guardrail(init_msg: dict[str, Any]) -> LiveGuardrail:
     if "protected_write_paths" in init_msg:
         _pwp = init_msg["protected_write_paths"]
         kwargs["protected_write_paths"] = tuple(_pwp) if _pwp is not None else None
+    # SPEC-041: 차단된 시도의 인자 발췌 캡처 설정 (dict; None이면 LiveGuardrail 기본값).
+    if init_msg.get("blocked_attempt_capture") is not None:
+        kwargs["blocked_attempt_capture"] = init_msg["blocked_attempt_capture"]
     return LiveGuardrail(**kwargs)
 
 
@@ -203,8 +212,18 @@ def run(instream: TextIO = sys.stdin, outstream: TextIO = sys.stdout) -> None:
                 _verdict = LiveVerdict(
                     block=True, gate=msg.get("gate"), reason=msg.get("reason"),
                 )
-                guardrail.record_blocked_attempt(msg["task_id"], msg["tool_name"], _verdict)
-                _write(outstream, {"ok": True}, _req_id)
+                # SPEC-041: "parameters"(선택)에서 발췌를 만들거나, 이미 있으면 그대로 사용.
+                _entry = guardrail.record_blocked_attempt(
+                    msg["task_id"], msg["tool_name"], _verdict,
+                    tool_input=msg.get("parameters"),
+                    arg_excerpt=msg.get("arg_excerpt"),
+                    arg_sha256=msg.get("arg_sha256"),
+                )
+                # back-compat: keep the response {"ok": true} when nothing was captured.
+                _resp = {"ok": True}
+                if _entry.get("arg_excerpt") is not None:
+                    _resp["arg_excerpt"] = _entry["arg_excerpt"]
+                _write(outstream, _resp, _req_id)
             elif op == "snapshot":
                 _write(outstream, {"extra": guardrail.to_task_extra()}, _req_id)
             else:

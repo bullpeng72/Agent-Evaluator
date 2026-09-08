@@ -152,6 +152,11 @@ def cmd_claude(args: argparse.Namespace) -> int:
         return _cmd_uninstall(args)
     if cmd == "doctor":
         return _cmd_doctor(args)
+    from agent_evaluator.cli._violations_detail import dispatch as _vd_dispatch
+
+    _rc = _vd_dispatch("claude", cmd, args)
+    if _rc is not None:
+        return _rc
     print(
         f"{_B}agent-eval claude{_R} — LiveGuardrail Claude Code CLI hooks\n\n"
         f"  {_Y}install{_R}     Register PreToolUse/PostToolUse/SessionEnd hooks in "
@@ -834,6 +839,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         DoctorReport,
         interpreter_from_command,
         mcp_initialize_probe,
+        probe_blocked_capture,
         probe_import,
         validate_guardrail_config,
     )
@@ -933,6 +939,12 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             rpt.warn("static", "guardrail_config builds", f"{src}; SKIPPED: {' | '.join(warns)}")
         else:
             rpt.error("static", "guardrail_config builds", " | ".join(warns))
+
+        # SPEC-041: blocked-attempt capture → `agent-eval claude blocked-detail` usability.
+        _bc_status, _bc_detail = probe_blocked_capture(resolved_cfg)
+        {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_bc_status](
+            "live", "blocked-attempt capture", _bc_detail
+        )
 
     mcp_targets = (
         (_VIOLATION_SEARCH_MCP_NAME, "agent_evaluator.integrations.violation_search_mcp",
@@ -1212,3 +1224,8 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
         "--yes", "-y", dest="yes", action="store_true",
         help="Skip the confirmation prompt",
     )
+
+    # SPEC-041: violations / blocked-detail (identical under `agent-eval opencode`).
+    from agent_evaluator.cli._violations_detail import add_violation_detail_subcommands
+
+    add_violation_detail_subcommands(cl_sub, "claude")

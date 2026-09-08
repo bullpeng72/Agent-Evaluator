@@ -231,6 +231,14 @@ class LiveGuardrail:
             r"(^|/)cron\.(d|daily|hourly|weekly|monthly)/", r"(^|/)var/spool/cron/",
             r"(^|/)Library/Launch(Daemons|Agents)/",
         ),
+        # SPEC-041: when a tool call is fully blocked, record_blocked_attempt() can keep a
+        # short, PII-redacted excerpt of the offending arguments alongside the audit row so
+        # a later session can see *which* command was blocked (the audit row otherwise holds
+        # only tool_name / gate / reason). Shape:
+        #   {"enabled": bool, "max_chars": int, "redact_pii": bool}
+        # None -> the default below (enabled, 240 chars, redaction on). Pass
+        # {"enabled": False} to keep the pre-SPEC-041 behaviour (no excerpt at all).
+        blocked_attempt_capture: dict[str, Any] | None = None,
     ) -> None:
         self._loop_detection = loop_detection
         # <=0은 "제한 없음"(None)으로 정규화 — lst[-0:]가 전체를 반환하는 함정 방지.
@@ -289,6 +297,17 @@ class LiveGuardrail:
         # 명시적으로 호출해야만 채워진다.
         self._blocked_attempts: list[dict[str, Any]] = []
         self._task_id: str | None = None
+        # SPEC-041: normalize blocked_attempt_capture once (see __init__ kwarg docstring).
+        _bac = blocked_attempt_capture if isinstance(blocked_attempt_capture, dict) else {}
+        try:
+            _bac_max = int(_bac.get("max_chars", 240))
+        except (TypeError, ValueError):
+            _bac_max = 240
+        self._blocked_capture = {
+            "enabled": bool(_bac.get("enabled", True)),
+            "max_chars": _bac_max if _bac_max > 0 else 240,
+            "redact_pii": bool(_bac.get("redact_pii", True)),
+        }
 
     # SPEC-041: "순수한 파일 쓰기"로 인정하는 셸 명령 감지 (아래 _is_benign_shell_file_write).
     _PRODUCER_RE = re.compile(r"^\s*(?:cat|printf|echo)\b")          # 파일 내용 생성기
@@ -851,12 +870,53 @@ class LiveGuardrail:
                 _params = {k: v for k, v in _params.items() if k not in ("command", "cmd", "script")}
             self._tool_authorization.track_tool_call(task_id, tool_name, _params)
 
+    def _make_arg_excerpt(self, tool_input: Any) -> dict[str, str] | None:
+        """(SPEC-041) Build a short, optionally PII-redacted excerpt of blocked-call args.
+
+        Returns ``{"arg_excerpt": <text>, "arg_sha256": <hex>}`` or ``None`` when capture
+        is disabled / there is nothing to capture. Never raises — a serialization or
+        redaction failure just yields ``None`` (the audit row still gets tool/gate/reason).
+        """
+        if not self._blocked_capture["enabled"] or tool_input in (None, {}, "", [], ()):
+            return None
+        try:
+            import hashlib
+
+            if isinstance(tool_input, str):
+                serialized = tool_input
+            else:
+                serialized = json.dumps(
+                    tool_input, ensure_ascii=False, sort_keys=True, default=str
+                )
+            digest = hashlib.sha256(serialized.encode("utf-8", "replace")).hexdigest()
+            text = serialized
+            if self._blocked_capture["redact_pii"]:
+                try:
+                    from agent_evaluator.utils.pii_redaction import (
+                        DEFAULT_REDACTION_CATEGORIES,
+                        redact_pii_text,
+                    )
+
+                    text = redact_pii_text(text, DEFAULT_REDACTION_CATEGORIES) or text
+                except Exception:
+                    pass  # redaction is best-effort; fall back to the raw serialization
+            limit = self._blocked_capture["max_chars"]
+            if len(text) > limit:
+                text = text[:limit].rstrip() + "…"
+            return {"arg_excerpt": text, "arg_sha256": digest}
+        except Exception:
+            return None
+
     def record_blocked_attempt(
         self,
         task_id: str,
         tool_name: str,
         verdict: LiveVerdict,
-    ) -> None:
+        *,
+        tool_input: Any = None,
+        arg_excerpt: str | None = None,
+        arg_sha256: str | None = None,
+    ) -> dict[str, Any]:
         """완전히 차단된 시도를 감사(audit) 이력에 기록한다 (SPEC-030 REQ-1).
 
         ``check_before_tool_call()``이 ``block=True``를 반환했고, 호출자가 실제로
@@ -873,6 +933,17 @@ class LiveGuardrail:
             task_id: 세션/태스크 식별자.
             tool_name: 차단된 도구 이름.
             verdict: ``check_before_tool_call()``이 반환한 판정(``block=True``이어야 함).
+            tool_input: (SPEC-041) the blocked call's arguments. When given and capture is
+                enabled, a short PII-redacted ``arg_excerpt`` (+ ``arg_sha256`` of the full
+                serialization) is added to the audit entry. Ignored if ``arg_excerpt`` is
+                passed explicitly.
+            arg_excerpt / arg_sha256: (SPEC-041) a pre-computed excerpt — used verbatim
+                (no re-serialization / re-redaction). This is how ``handle_session_end``
+                replays excerpts already persisted in ``<id>.blocked.json``.
+
+        Returns:
+            The audit entry dict that was appended (so a bridge can persist the same
+            ``arg_excerpt`` it just produced). Additive — callers ignoring it are unaffected.
 
         Raises:
             ValueError: ``verdict.block``이 ``False``일 때 — 차단되지 않은 시도를
@@ -884,11 +955,21 @@ class LiveGuardrail:
                 f"(got block=False for tool_name={tool_name!r})"
             )
         self._task_id = task_id
-        self._blocked_attempts.append({
+        entry: dict[str, Any] = {
             "tool_name": tool_name,
             "gate": verdict.gate,
             "reason": verdict.reason,
-        })
+        }
+        if arg_excerpt is not None:
+            entry["arg_excerpt"] = arg_excerpt
+            if arg_sha256 is not None:
+                entry["arg_sha256"] = arg_sha256
+        else:
+            _ex = self._make_arg_excerpt(tool_input)
+            if _ex is not None:
+                entry.update(_ex)
+        self._blocked_attempts.append(entry)
+        return entry
 
     def refresh_team_claims(self) -> None:
         """``team_concurrency``의 클레임/공유파일 캐시를 다시 읽는다 (SPEC-032 REQ-6).

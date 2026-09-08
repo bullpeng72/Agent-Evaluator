@@ -3,10 +3,11 @@ agent_evaluator.integrations.violation_search_mcp
 =====================================================
 SPEC-024 REQ-4: ``search_violations()``(REQ-3)를 감싸는 최소 stdio MCP 서버.
 
-노출 도구는 정확히 하나 — ``search_violations(query: str) -> str``. REQ-3의 구조화
-결과(``List[Dict[str, Any]]``)를 사람이 읽기 쉬운 자연어 문자열로 변환해 반환한다
-(MCP 도구 결과는 모델에게 텍스트로 전달되므로, 구조화 dict를 그대로 넘기는 것보다
-읽기 쉬운 문자열이 다음 세션의 모델이 실제로 활용하기에 더 낫다).
+노출 도구는 둘 — ``search_violations(query: str) -> str`` (REQ-3의 구조화 결과를
+사람이 읽는 문자열로 변환) 과 ``show_violation(task_id: str) -> str`` (SPEC-041 —
+검색 결과의 task_id로 이어서 호출해 그 세션에서 차단된 명령의 원문 발췌를 본다).
+MCP 도구 결과는 모델에게 텍스트로 전달되므로, 구조화 dict를 그대로 넘기는 것보다
+읽기 쉬운 문자열이 다음 세션의 모델이 실제로 활용하기에 더 낫다.
 
 이 모듈은 세션 내내 살아있는 stdio MCP 서버다(``live_guardrail_stdio.py``와 동일한
 장수명 프로세스 모델, ``live_guardrail_report.py``의 1회성 배치 브리지와는 다르다) —
@@ -81,6 +82,7 @@ def format_results(results: list[dict[str, Any]]) -> str:
     if not results:
         return "No matching past violation history found."
     lines = ["Past violation history — search results:"]
+    _blocked_task_ids: list[str] = []
     for i, r in enumerate(results, start=1):
         # SPEC-030 REQ-5: include_blocked=True 결과에만 "blocked" 키가 있다 —
         # 관찰 모드(위반 기록만, 실행은 됨)와 완전 차단(실행 자체가 막힘)을
@@ -90,6 +92,13 @@ def format_results(results: list[dict[str, Any]]) -> str:
             f"{i}. {_prefix}[{r.get('timestamp')}] task_id={r.get('task_id')} "
             f"(task_type={r.get('task_type')}, success={r.get('success')}): {r.get('summary')}"
         )
+        # SPEC-041: with detail=True the blocked rows carry a short PII-redacted excerpt of
+        # the offending command — show it inline so no second round-trip is needed.
+        _ex = (r.get("arg_excerpt") or "").strip() if r.get("blocked") else ""
+        if _ex:
+            lines.append(f"   command: {_ex}")
+        if r.get("blocked") and r.get("task_id"):
+            _blocked_task_ids.append(str(r["task_id"]))
 
     # 가장 흔한 위반 유형 하나를 골라 recommend_fix 힌트로 연결한다.
     _blob = " ".join(str(r.get("summary") or "") for r in results).lower()
@@ -101,6 +110,14 @@ def format_results(results: list[dict[str, Any]]) -> str:
         lines.append(
             f"\nTo see how to address this, call the recommend_fix "
             f"(gate=\"{_g}\", metric=\"{_m}\") tool."
+        )
+    # SPEC-041: chain into show_violation() for the full command(s) of a blocked session —
+    # the model already has the task_id from the lines above, no human copy-paste.
+    if _blocked_task_ids:
+        _uniq = list(dict.fromkeys(_blocked_task_ids))
+        lines.append(
+            f"\nFor the exact command(s) of a blocked session, call show_violation "
+            f"(task_id=\"{_uniq[0]}\")."
         )
     return "\n".join(lines)
 
@@ -142,10 +159,40 @@ def build_server(db_path: str | None = None) -> Any:
         # 함께 검색한다 — 이 도구의 docstring이 원래부터 약속했던 "차단된 이력"
         # 검색을 실제로 이행한다.
         try:
-            results = _search_violations(_db_path, query, include_blocked=True)
+            results = _search_violations(
+                _db_path, query, include_blocked=True, detail=True
+            )
         except sqlite3.Error as exc:
             return f"Could not read the violation history database at {_db_path}: {exc}"
         return format_results(results)
+
+    @server.tool()
+    def show_violation(task_id: str) -> str:
+        """한 세션(task_id)에서 차단된 도구 호출의 **원문(발췌)**을 보여준다.
+
+        ``search_violations`` 결과의 ``task_id``를 그대로 넘겨 이어서 호출한다 —
+        차단된 명령이 무엇이었는지, 어느 Gate/사유로 막혔는지 확인할 때 쓴다.
+        감사 이력에 발췌가 없으면(캡처 이전 세션 등) 호스트 세션 트랜스크립트에서
+        best-effort로 복원한다.
+        """
+        if not os.path.exists(_db_path):
+            return (
+                f"No violation history database at {_db_path} yet — nothing to show. "
+                f"(It is created when the first LiveGuardrail-monitored session ends; if "
+                f"sessions have already ended this server is pointed at the wrong path — "
+                f"see `agent-eval claude doctor` / `agent-eval opencode doctor`.)"
+            )
+        try:
+            from agent_evaluator.storage.sqlite_backend import show_violation as _show
+        except Exception as exc:  # pragma: no cover - import guard
+            return f"Could not load show_violation: {exc}"
+        try:
+            sv = _show(_db_path, task_id)
+        except sqlite3.Error as exc:
+            return f"Could not read the violation history database at {_db_path}: {exc}"
+        from agent_evaluator.integrations._blocked_detail import format_blocked_detail
+
+        return format_blocked_detail(sv)
 
     return server
 

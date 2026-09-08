@@ -114,7 +114,8 @@ class TestBuildServerToolRegistration:
         db_path = str(tmp_path / "test.db")
         server = build_server(db_path)
         tools = await server.list_tools()
-        assert [t.name for t in tools] == ["search_violations"]
+        # SPEC-041: show_violation added alongside search_violations.
+        assert sorted(t.name for t in tools) == ["search_violations", "show_violation"]
 
 
 class TestSearchViolationsToolEndToEnd:
