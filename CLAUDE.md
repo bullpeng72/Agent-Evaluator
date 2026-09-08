@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.0.2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.3 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -82,6 +82,11 @@ agent-eval opencode upgrade     # re-copy the plugin .ts after a package update 
 agent-eval opencode doctor      # verify the install works: plugin freshness + Python stdio-bridge round-trip (--json/--no-live/--strict)
 agent-eval opencode uninstall   # remove plugin file + opencode.json mcp entries (run BEFORE pip uninstall; --purge/--dry-run/--yes)
 agent-eval claude install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
+# --with-violation-search auto-appends the Claude Code report-DB path to the MCP registration
+#   (results/claude_code_live_guardrail/claude_code_sessions.db, abs for a local install / relative for --global,
+#    honoring a custom output_dir in guardrail_config.json). Without it the server falls back to the OpenCode
+#    default and search_violations fails with "unable to open database file". Registered before this shipped?
+#    `agent-eval claude upgrade --with-violation-search` (remove+add) rewrites the args; `claude doctor` flags a stale one.
 agent-eval claude upgrade       # refresh hooks/matchers + deep-merge only NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
 agent-eval claude doctor        # static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
 agent-eval claude uninstall     # remove our hooks from settings.json + deregister MCP + delete session state (run BEFORE pip uninstall; --keep-config/--purge/--dry-run/--yes)
@@ -172,7 +177,7 @@ agent_evaluator/
 │   ├── claude_code_hook.py       # Claude Code CLI hook (PreToolUse/PostToolUse/SessionEnd) -> LiveGuardrail. Each call is a separate process, so it writes the tool_call history to a session state file (.claude/.agent-evaluator/sessions/<id>.json, <id>=_safe_session_id) and replays it on every call. Exceptions always fail open.
 │   │                       #  load_config search: <cwd> -> walk up -> ~/.claude -> DEFAULT. _session_config() pins the first PreToolUse settings in sessions/<id>.config.json. circuit_breaker_after (default 5) consecutive blocks -> observe-only. History is JSON Lines (append-only). run() returns an int (deny = exit 2).
 │   ├── opencode_plugin/agent-evaluator.ts  # OpenCode tool.execute.before/after hooks -> stdio bridge. GuardrailSession (circuit breaker · id->resolver pending Map · 5s timeout). All try/catch fail-open. Snapshot + report upsert on every session.idle (the bridge stays alive for the whole session). Config is a shallow merge over the adjacent agent-evaluator.config.json.
-│   ├── violation_search_mcp.py   # search_violations() stdio MCP server (opt-in [mcp]). include_blocked=True includes fully-blocked history. Results carry a recommend_fix() hint.
+│   ├── violation_search_mcp.py   # search_violations() stdio MCP server (opt-in [mcp]). include_blocked=True includes fully-blocked history. Results carry a recommend_fix() hint. `python -m …violation_search_mcp [db_path]`; no arg → OpenCode default (results/opencode_live_guardrail/opencode_sessions.db). `agent-eval claude install --with-violation-search` passes the Claude Code DB path explicitly. A missing/unopenable DB → plain "No violation history database …" sentence, never a raw sqlite traceback.
 │   ├── recommend_fix_mcp.py      # recommend_fix(gate, metric=, value=) stdio MCP. Static ontology lookup (all of Gate A–G), no result file needed. metric is normalized via canonical_metric_name().
 │   ├── ask_insights_mcp.py       # query a result JSON's insight layer, stdio MCP (--with-ask-insights). insights_summary / insights_readiness / insights_why_failed(task_id) / insights_contrast(task_id) / insights_list(filter)
 │   ├── metric_adapters.py # DeepEvalAdapter · RagasAdapter

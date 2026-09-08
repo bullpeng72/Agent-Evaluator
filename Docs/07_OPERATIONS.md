@@ -2,7 +2,7 @@
 
 Installation · Docker · per-environment configuration · performance tuning · troubleshooting.
 
-**v1.0.2 | Python 3.8+**
+**v1.0.3 | Python 3.8+**
 
 ---
 

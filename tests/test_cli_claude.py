@@ -20,6 +20,7 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from agent_evaluator.cli import claude as claude_cli
 
@@ -260,9 +261,10 @@ class TestArgparseWiring:
 
 
 class _FakeCompletedProcess:
-    def __init__(self, returncode: int, stderr: str = ""):
+    def __init__(self, returncode: int, stderr: str = "", stdout: str = ""):
         self.returncode = returncode
         self.stderr = stderr
+        self.stdout = stdout
 
 
 class TestWithViolationSearchMcpRegistration:
@@ -333,6 +335,139 @@ class TestWithViolationSearchMcpRegistration:
         err = capsys.readouterr().err
         assert "claude" in err.lower()
         assert "mcp add" in err
+
+
+class TestViolationSearchReportDbArg:
+    """SPEC-041: `claude install --with-violation-search` must hand the violations MCP
+    server the *Claude Code* batch-report DB path — otherwise it falls back to the OpenCode
+    default (results/opencode_live_guardrail/opencode_sessions.db) and `search_violations`
+    fails with "unable to open database file".
+    """
+
+    def _run_install(self, monkeypatch, **ns_kwargs):
+        calls = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(claude_cli.subprocess, "run", _fake_run)
+        claude_cli.cmd_claude(_ns(with_violation_search=True, **ns_kwargs))
+        return calls
+
+    def test_local_install_appends_absolute_claude_code_db_path(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".git").mkdir()  # project-root marker
+        calls = self._run_install(monkeypatch)
+
+        add = next(c for c in calls if c[:3] == ["claude", "mcp", "add"])
+        db_arg = add[-1]
+        assert db_arg.endswith("claude_code_sessions.db")
+        assert "results/claude_code_live_guardrail" in db_arg.replace("\\", "/")
+        assert Path(db_arg).is_absolute()
+        assert str(tmp_path) in db_arg
+        # module still present, path comes after it
+        assert add.index("agent_evaluator.integrations.violation_search_mcp") < len(add) - 1
+
+    def test_global_install_appends_relative_db_path(self, tmp_path, monkeypatch):
+        fake_settings = tmp_path / "settings.json"
+        fake_config = tmp_path / "guardrail_config.json"
+        monkeypatch.setattr(claude_cli, "_GLOBAL_SETTINGS", fake_settings)
+        monkeypatch.setattr(claude_cli, "_GLOBAL_CONFIG", fake_config)
+        calls = self._run_install(monkeypatch, global_install=True)
+
+        add = next(c for c in calls if c[:3] == ["claude", "mcp", "add"])
+        db_arg = add[-1]
+        assert not Path(db_arg).is_absolute()
+        assert db_arg.replace("\\", "/") == (
+            "results/claude_code_live_guardrail/claude_code_sessions.db"
+        )
+
+    def test_honors_custom_output_dir_in_existing_config(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        cfg_dir = tmp_path / ".claude" / ".agent-evaluator"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "guardrail_config.json").write_text(
+            json.dumps({"output_dir": "audit/custom"}), encoding="utf-8"
+        )
+        calls = self._run_install(monkeypatch)  # no --force -> keeps the custom config
+
+        add = next(c for c in calls if c[:3] == ["claude", "mcp", "add"])
+        assert add[-1].replace("\\", "/").endswith("audit/custom/claude_code_sessions.db")
+
+    def test_upgrade_reregisters_with_db_path(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())  # plain install first (no MCP)
+
+        calls = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _FakeCompletedProcess(0)
+
+        monkeypatch.setattr(claude_cli.subprocess, "run", _fake_run)
+        assert claude_cli.cmd_claude(_upg_ns(with_violation_search=True)) == 0
+
+        assert any(c[:3] == ["claude", "mcp", "remove"] for c in calls)
+        add = next(c for c in calls if c[:3] == ["claude", "mcp", "add"])
+        assert add[-1].endswith("claude_code_sessions.db")
+
+    def test_resolve_report_db_arg_unit(self, tmp_path):
+        # missing config -> default dir, relative for --global
+        assert claude_cli._resolve_report_db_arg(
+            tmp_path / "nope.json", is_global=True
+        ).replace("\\", "/") == "results/claude_code_live_guardrail/claude_code_sessions.db"
+        # local -> absolute
+        local = claude_cli._resolve_report_db_arg(tmp_path / "nope.json", is_global=False)
+        assert Path(local).is_absolute()
+        assert local.endswith("claude_code_sessions.db")
+        # malformed config JSON -> falls back to default, never raises
+        bad = tmp_path / "bad.json"
+        bad.write_text("{not json", encoding="utf-8")
+        assert claude_cli._resolve_report_db_arg(bad, is_global=True).endswith(
+            "claude_code_sessions.db"
+        )
+
+
+class TestDoctorViolationSearchDbArg:
+    def _install(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        claude_cli.cmd_claude(_ns())
+
+    def test_warns_when_registered_without_db_path(self, tmp_path, monkeypatch, capsys):
+        self._install(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            claude_cli, "_mcp_is_registered",
+            lambda name: name == claude_cli._VIOLATION_SEARCH_MCP_NAME,
+        )
+        monkeypatch.setattr(
+            claude_cli, "_mcp_get",
+            lambda name: (True, "Command: python\nArgs: -m "
+                          "agent_evaluator.integrations.violation_search_mcp\n"),
+        )
+        assert claude_cli.cmd_claude(_doc_ns()) == 0  # warn -> exit 0
+        out = capsys.readouterr().out
+        assert "report-DB arg" in out
+        assert "without a Claude Code DB path" in out
+        assert claude_cli.cmd_claude(_doc_ns(strict=True)) == 1  # --strict -> 1
+
+    def test_ok_when_registered_with_db_path(self, tmp_path, monkeypatch, capsys):
+        self._install(tmp_path, monkeypatch)
+        want = claude_cli._resolve_report_db_arg(
+            tmp_path / ".claude" / ".agent-evaluator" / "guardrail_config.json",
+            is_global=False,
+        )
+        monkeypatch.setattr(
+            claude_cli, "_mcp_is_registered",
+            lambda name: name == claude_cli._VIOLATION_SEARCH_MCP_NAME,
+        )
+        monkeypatch.setattr(
+            claude_cli, "_mcp_get",
+            lambda name: (True, f"Args: -m ...violation_search_mcp {want}\n"),
+        )
+        assert claude_cli.cmd_claude(_doc_ns()) == 0
+        out = capsys.readouterr().out
+        assert "without a Claude Code DB path" not in out
 
 
 class TestWithRecommendFixMcpRegistration:

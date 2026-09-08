@@ -4,7 +4,7 @@ Everything Agent-Evaluator puts on the wire when OpenTelemetry export is enabled
 spans, their attributes, the metrics, the Phoenix REST annotations, the transport, and
 what a non-Phoenix backend does and does not understand.
 
-**v1.0.2 | Python 3.8+** — companion to [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md)
+**v1.0.3 | Python 3.8+** — companion to [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md)
 (dashboard + `agent-eval monitor` walkthrough).
 
 ---

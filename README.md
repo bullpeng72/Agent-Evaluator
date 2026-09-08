@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.2-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.3-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -186,6 +186,8 @@ tests/                # 4,800+ test functions
 ---
 
 ## Changelog
+
+**v1.0.3** (2026-09-08) — Patch: `agent-eval claude install --with-violation-search` now hands the `search_violations` MCP server the Claude Code batch-report DB path (it otherwise opened the OpenCode default and failed with `unable to open database file`); `claude upgrade --with-violation-search` rewrites a stale registration and `claude doctor` flags one. `search_violations` returns a readable "no history DB yet" sentence instead of a raw SQLite traceback when the DB is missing. OpenCode was unaffected. No API, Config, or schema changes.
 
 **v1.0.2** (2026-09-04) — Phoenix / OTEL integration: `arize-phoenix` pin is now Python-version-scoped (v20 on 3.12+, `<19.0.0` on 3.10/3.11, dropped on 3.8/3.9); Phoenix annotations now delivered at span + trace + session tiers with a `?sync=true` + backoff POST and a non-Phoenix-endpoint probe; `agent-eval monitor` console output is ASCII-only (no more mojibake on non-UTF-8 consoles); new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) and a local-Ollama end-to-end example (`ch32_ollama_realtime.py`). No public SDK API, Config, or schema changes.
 

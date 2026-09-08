@@ -86,6 +86,60 @@ _VIOLATION_SEARCH_MCP_NAME = "agent-evaluator-violations"
 _RECOMMEND_FIX_MCP_NAME = "agent-evaluator-recommend-fix"
 _ASK_INSIGHTS_MCP_NAME = "agent-evaluator-ask-insights"
 
+# SPEC-041: the violations MCP server (violation_search_mcp) defaults its DB path to the
+# *OpenCode* batch-report DB (results/opencode_live_guardrail/opencode_sessions.db). A Claude
+# Code install writes its SessionEnd batch report somewhere else, so without an explicit path
+# argument `search_violations` fails with "unable to open database file". These mirror
+# claude_code_hook's SessionEnd report location (output_dir + save_filename="claude_code_sessions").
+_REPORT_DB_DEFAULT_DIR = "results/claude_code_live_guardrail"
+_REPORT_DB_FILENAME = "claude_code_sessions.db"
+_PROJECT_ROOT_MARKERS = (".git", "pyproject.toml", "setup.py", "setup.cfg")
+
+
+def _project_root(start: Path | None = None) -> Path:
+    """Walk up from *start* (cwd by default) to the nearest project-root marker.
+
+    Mirrors ``claude_code_hook._project_root_for`` so the report-DB path we hand the
+    violations MCP server matches where the SessionEnd batch report actually lands.
+    Falls back to *start* (resolved) when no marker is found.
+    """
+    try:
+        cur = (start or Path.cwd()).resolve()
+    except (OSError, RuntimeError):
+        return Path(".").resolve()
+    for cand in (cur, *cur.parents):
+        if any((cand / m).exists() for m in _PROJECT_ROOT_MARKERS):
+            return cand
+    return cur
+
+
+def _resolve_report_db_arg(config_path: Path, is_global: bool) -> str:
+    """Return the LiveGuardrail batch-report SQLite path to pass the violations MCP server.
+
+    - honours a custom ``"output_dir"`` in an existing ``guardrail_config.json``;
+    - local install → an absolute path anchored to the project root (where the SessionEnd
+      hook writes the report), so it resolves regardless of the MCP server's own cwd;
+    - ``--global`` install → a *relative* path: a global install writes one report DB per
+      project (``claude_code_hook`` anchors ``output_dir`` per session), so there is no single
+      absolute path to pin — relative still points at the Claude Code sub-dir rather than the
+      wrong OpenCode default.
+    """
+    output_dir = _REPORT_DB_DEFAULT_DIR
+    try:
+        if config_path.exists():
+            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            if isinstance(cfg, dict):
+                _od = cfg.get("output_dir")
+                if isinstance(_od, str) and _od.strip():
+                    output_dir = _od.strip()
+    except (json.JSONDecodeError, OSError):
+        pass
+
+    rel = Path(output_dir) / _REPORT_DB_FILENAME
+    if rel.is_absolute() or is_global:
+        return str(rel)
+    return str(_project_root() / rel)
+
 
 def cmd_claude(args: argparse.Namespace) -> int:
     """claude 서브커맨드 진입점."""
@@ -198,18 +252,27 @@ def _merge_settings(existing: dict, python_bin: str) -> tuple[dict, list[str], l
     return merged, added, updated
 
 
-def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
+def _register_mcp_server(
+    name: str, module: str, flag: str, scope: str,
+    extra_args: list[str] | None = None,
+) -> None:
     """``claude mcp add``로 ``module``의 stdio MCP 서버를 등록한다.
 
     ``opencode.py``의 ``_register_mcp_server()``와 동일한 원칙 — 실패해도(``claude`` CLI
     미설치, ``mcp`` extra 미설치 등) 경고만 출력하고 예외를 올리지 않는다. 설치 자체(``install``의
     본래 목적)는 이 등록 성공 여부와 무관하게 이미 끝난 뒤이므로, 이 단계의 실패로 전체 install
     명령을 실패 처리할 이유가 없다.
+
+    ``extra_args``는 ``python -m <module>`` 뒤에 그대로 붙는 위치 인자다(violation_search_mcp에
+    넘기는 DB 경로 등).
     """
-    _manual = f"claude mcp add {name} --scope {scope} -- {sys.executable} -m {module}"
+    extra_args = list(extra_args or [])
+    _tail = " ".join(["-m", module, *extra_args])
+    _manual = f"claude mcp add {name} --scope {scope} -- {sys.executable} {_tail}"
     try:
         result = subprocess.run(
-            ["claude", "mcp", "add", name, "--scope", scope, "--", sys.executable, "-m", module],
+            ["claude", "mcp", "add", name, "--scope", scope, "--",
+             sys.executable, "-m", module, *extra_args],
             capture_output=True, text=True, timeout=30,
         )
     except FileNotFoundError:
@@ -228,10 +291,17 @@ def _register_mcp_server(name: str, module: str, flag: str, scope: str) -> None:
 
     if result.returncode == 0:
         print(f"{_G}✅ MCP server registered: {name}{_R}")
+        if extra_args:
+            print(f"{_D}   args: {' '.join(extra_args)}{_R}")
     elif "already exists" in (result.stderr or "").lower():
         # 재설치/업그레이드 시 정상 상태 — 실패가 아니다. 과거엔 이걸 ⚠️ + 수동
         # 명령으로 출력해 업그레이드가 깨진 것처럼 보였다.
         print(f"{_D}   MCP server already registered: {name} — nothing to change{_R}")
+        if extra_args:
+            print(
+                f"{_D}   (run `agent-eval claude upgrade --with-violation-search` to "
+                f"refresh its args to: {' '.join(extra_args)}){_R}"
+            )
     else:
         print(
             f"{_Y}⚠️  {flag}: 'claude mcp add' failed (exit {result.returncode}) — "
@@ -282,10 +352,13 @@ def _deregister_mcp_server(name: str, scope: str) -> None:
             print(f"{_D}   {result.stderr.strip()}{_R}", file=sys.stderr)
 
 
-def _register_violation_search_mcp(scope: str) -> None:
+def _register_violation_search_mcp(
+    scope: str, config_path: Path, is_global: bool,
+) -> None:
     _register_mcp_server(
         _VIOLATION_SEARCH_MCP_NAME, "agent_evaluator.integrations.violation_search_mcp",
         "--with-violation-search", scope,
+        extra_args=[_resolve_report_db_arg(config_path, is_global)],
     )
 
 
@@ -343,7 +416,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     if getattr(args, "with_violation_search", False):
         print()
-        _register_violation_search_mcp(scope)
+        _register_violation_search_mcp(scope, config_path, is_global)
 
     if getattr(args, "with_recommend_fix", False):
         print()
@@ -388,15 +461,23 @@ def _cmd_install(args: argparse.Namespace) -> int:
 # ===========================================================================
 # upgrade — 패키지 업데이트 후 훅/설정 현행화 (사용자 편집 보존)
 # ===========================================================================
-def _mcp_is_registered(name: str) -> bool | None:
-    """``claude mcp get <name>``으로 등록 여부를 확인한다. CLI 미설치/오류면 ``None``."""
+def _mcp_get(name: str) -> tuple[bool | None, str]:
+    """``claude mcp get <name>`` — returns ``(registered, stdout)``.
+
+    ``registered`` is ``None`` when the ``claude`` CLI is missing or errored.
+    """
     try:
         r = subprocess.run(
             ["claude", "mcp", "get", name], capture_output=True, text=True, timeout=15,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return None
-    return r.returncode == 0
+        return None, ""
+    return (r.returncode == 0), (r.stdout or "")
+
+
+def _mcp_is_registered(name: str) -> bool | None:
+    """``claude mcp get <name>``으로 등록 여부를 확인한다. CLI 미설치/오류면 ``None``."""
+    return _mcp_get(name)[0]
 
 
 def _cmd_upgrade(args: argparse.Namespace) -> int:
@@ -470,7 +551,7 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
     if getattr(args, "with_violation_search", False):
         print()
         _deregister_mcp_server(_VIOLATION_SEARCH_MCP_NAME, scope)
-        _register_violation_search_mcp(scope)
+        _register_violation_search_mcp(scope, config_path, is_global)
     if getattr(args, "with_recommend_fix", False):
         print()
         _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
@@ -874,6 +955,32 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             )
         else:
             rpt.info("static", f"MCP registered: {mname}", "could not query `claude mcp get`")
+
+        # SPEC-041: the violations MCP server needs the Claude Code report-DB path as an
+        # argument, or `search_violations` opens the wrong (OpenCode) default and fails with
+        # "unable to open database file". Flag a stale registration made before this was wired.
+        if reg and mname == _VIOLATION_SEARCH_MCP_NAME:
+            _, reg_out = _mcp_get(mname)
+            want_db = _resolve_report_db_arg(config_path, is_global)
+            if not reg_out:
+                pass  # cannot inspect the registered command — nothing actionable to say
+            elif _REPORT_DB_FILENAME not in reg_out:
+                rpt.warn(
+                    "static", f"{mname}: report-DB arg",
+                    "registered without a Claude Code DB path — `search_violations` will hit "
+                    "the OpenCode default and fail. Run "
+                    "`agent-eval claude upgrade --with-violation-search`"
+                    + (" --global" if is_global else ""),
+                )
+            elif Path(want_db).is_absolute() and want_db not in reg_out:
+                rpt.info(
+                    "static", f"{mname}: report-DB arg",
+                    f"points at a different DB than this project's ({want_db}) — rerun "
+                    "`agent-eval claude upgrade --with-violation-search` from the project root "
+                    "if that is wrong",
+                )
+            else:
+                rpt.ok("static", f"{mname}: report-DB arg")
 
     # ---------- Tier 2: 라이브 ----------
     if no_live:

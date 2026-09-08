@@ -76,6 +76,22 @@
 > 규칙을 이미 위반하고 있어 저장소 전반의 용인된 상태, 이번 REQ에서 굳이 새 파일만
 > 먼저 현대화하지 않음) · `mypy` 통과.
 
+> **구현 노트 (REQ-6 후속, 2026-09-08)**: `agent-eval claude install --with-violation-search`가
+> MCP 서버를 등록할 때, `python -m agent_evaluator.integrations.violation_search_mcp` 뒤에
+> **Claude Code 배치 리포트 DB 경로를 위치 인자로 덧붙인다**. 이 인자가 없으면 서버는
+> `_default_db_path()`(OpenCode 기본값 `results/opencode_live_guardrail/opencode_sessions.db`)로
+> 폴백해 AC 설치에서는 `search_violations`가 `unable to open database file`로 실패한다.
+> 경로는 `claude_code_hook`의 SessionEnd 리포트 위치와 일치 —
+> `<output_dir>/claude_code_sessions.db`, `output_dir`은 `guardrail_config.json`의 커스텀 값을
+> 존중하고 기본값은 `results/claude_code_live_guardrail`. 로컬 설치는 프로젝트 루트 기준
+> 절대 경로(MCP 서버의 cwd와 무관하게 해석되도록), `--global` 설치는 프로젝트마다 리포트
+> DB가 갈리므로 상대 경로(적어도 OpenCode 기본값이 아닌 AC 하위 디렉터리를 가리킴).
+> `agent-eval claude upgrade --with-violation-search`(remove+add)가 옛 등록의 인자를 다시
+> 쓰고, `agent-eval claude doctor`는 DB 경로 인자 없이 등록된 서버를 경고로 표시한다.
+> 아울러 `violation_search_mcp`의 도구 자체도 DB 파일이 아직 없거나(첫 세션 종료 전) 열 수
+> 없을 때 raw sqlite 트레이스백 대신 `"No violation history database … yet"` 문장을 반환하도록
+> 했다. `tests/test_cli_claude.py`(+7) · `tests/test_violation_search_mcp.py`(+1). `ruff`/`mypy` 통과.
+
 > **초안 대비 수정 1건 (REQ-3, 2026-07-05)**: Interface 초안은 검색 결과에
 > `gate_b_score`/`gate_e_score`를 포함하는 것으로 스케치했으나, 실제 구현에서는
 > **뺐다**. 이유: Gate B/E 점수는 `gates/gate_b_behavioral/aggregate.py::compute()`처럼

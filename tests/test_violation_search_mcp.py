@@ -150,6 +150,18 @@ class TestSearchViolationsToolEndToEnd:
         assert "session-1" in content[0].text
 
     @pytest.mark.asyncio
+    async def test_missing_db_returns_plain_sentence_not_a_traceback(self, tmp_path):
+        """SPEC-041: a not-yet-created DB (or a wrong configured path) must degrade to a
+        readable sentence, not surface a raw "unable to open database file" error."""
+        db_path = str(tmp_path / "never_created" / "sessions.db")
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("search_violations", {"query": "bash"})
+        text = content[0].text
+        assert "No violation history database" in text
+        assert db_path in text
+
+    @pytest.mark.asyncio
     async def test_fully_blocked_attempt_is_found_via_mcp_tool(self, tmp_path):
         """SPEC-030 REQ-5: 이 도구의 docstring이 원래 약속한 "차단된 이력" 검색이
         실제로 동작한다 — 완전 차단된 시도(observation 모드가 아닌)가 결과에 나온다."""

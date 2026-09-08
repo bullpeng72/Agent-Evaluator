@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.3 (2026-09-08) — LiveGuardrail violation-search DB wiring
+
+Patch release. No public SDK API changes, no new/removed Configs or trackers, no `schema_version` bump.
+
+- 🐛 **`agent-eval claude install --with-violation-search` now points the `search_violations` MCP server at the Claude Code batch-report DB.** The server's built-in default is the *OpenCode* report DB (`results/opencode_live_guardrail/opencode_sessions.db`), but a Claude Code install writes its `SessionEnd` batch report to `results/claude_code_live_guardrail/claude_code_sessions.db` — so `search_violations` failed with `unable to open database file`. Both `claude install` and `claude upgrade --with-violation-search` now append the resolved DB path to the MCP registration (an absolute path anchored to the project root for a local install, a relative path for `--global`, honoring a custom `output_dir` in `guardrail_config.json`). `agent-eval claude doctor` flags a registration made before this that still lacks the path. **OpenCode is unaffected** — its plugin's report DB and the MCP server's default already match — and needs no extra configuration.
+- 🐛 **`search_violations` degrades gracefully when the history DB does not exist yet.** A not-yet-created (no monitored session has ended) or misconfigured path now returns a plain `No violation history database …` sentence instead of surfacing a raw SQLite `unable to open database file` traceback to the model.
+- 🔧 Examples dependency currency — `Evaluator_Examples/requirements.txt` refreshed.
+
 ## v1.0.2 (2026-09-04) — Phoenix / OTEL integration
 
 - 🔧 **`arize-phoenix` pin is now Python-version-scoped** (`[otel]` / `[sdk]` / `[examples]` / `[full]`):

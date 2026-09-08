@@ -33,6 +33,7 @@ OpenCode 등록::
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from typing import Any
 
@@ -126,10 +127,24 @@ def build_server(db_path: str | None = None) -> Any:
         지금 시도하려는 도구 호출(셸 명령, 파일 삭제 등)이 과거 세션에서 이미
         LiveGuardrail에 의해 차단된 적이 있는지 확인하고 싶을 때 사용하라.
         """
+        # SPEC-041: the DB file only appears after the first monitored session ends
+        # (or the configured path is simply wrong). Degrade to a plain sentence instead
+        # of surfacing a raw "unable to open database file" traceback to the model.
+        if not os.path.exists(_db_path):
+            return (
+                f"No violation history database at {_db_path} yet — it is created when the "
+                f"first LiveGuardrail-monitored session ends. Nothing to search. (If sessions "
+                f"have already ended, this server is pointed at the wrong path: register it as "
+                f"`python -m agent_evaluator.integrations.violation_search_mcp <batch-report-db>` "
+                f"with an explicit path — see `agent-eval claude doctor`.)"
+            )
         # SPEC-030 REQ-5: include_blocked=True로 완전 차단 이력(SPEC-030)까지
         # 함께 검색한다 — 이 도구의 docstring이 원래부터 약속했던 "차단된 이력"
         # 검색을 실제로 이행한다.
-        results = _search_violations(_db_path, query, include_blocked=True)
+        try:
+            results = _search_violations(_db_path, query, include_blocked=True)
+        except sqlite3.Error as exc:
+            return f"Could not read the violation history database at {_db_path}: {exc}"
         return format_results(results)
 
     return server

@@ -76,6 +76,8 @@ agent-eval claude install                              # .claude/settings.json (
 # or: agent-eval claude install --global                # ~/.claude/settings.json
 # or: agent-eval claude install --force                 # reset guardrail_config.json to defaults
 # or: agent-eval claude install --with-violation-search  # + register the search_violations MCP server
+#     (auto-points it at results/claude_code_live_guardrail/claude_code_sessions.db — the Claude Code
+#      batch-report DB; without the arg the server would open the wrong OpenCode default and fail)
 # or: agent-eval claude install --with-recommend-fix      # + register the recommend_fix MCP server
 # or: agent-eval claude install --with-ask-insights        # + register the ask_insights MCP server
 
