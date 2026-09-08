@@ -104,7 +104,9 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   [OpenCode](https://opencode.ai) — fully local, no cloud model) via `agent-eval opencode install`, or
   **AC** (Agent-Evaluator + [Claude Code](https://claude.com/claude-code) — native CLI hooks) via
   `agent-eval claude install`. Identical verdict logic; the difference is the process model (a resident
-  subprocess vs. per-call replay). →
+  subprocess vs. per-call replay). A blocked call keeps a redacted excerpt of its command, so
+  `agent-eval {claude,opencode} violations` / `blocked-detail <task_id>` (and the `show_violation` MCP
+  tool) surface *what* was blocked in a later session. →
   [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) ·
   [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) ·
   [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md)
@@ -122,7 +124,7 @@ to do. Every category is additive and independent; combine as needed.
 |---|----------|---------|---------------|
 | **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · full CLI (`gate`/`diagnose`/`abtest`/`trend`/`dataset`/`experiment`/`target`/`benchmark`/`improve`/`claims`) |
 | **2** | **SDK — dashboard + monitoring** | `pip install "agent-evaluator[sdk]"` | FastAPI dashboard (`serve`), Phoenix/OTEL (`otel`), Korean RAG PDF processing (`pdf`+`korean`) — recommended for most users |
-| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations`, `recommend_fix`, and `ask_insights` stdio MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (`recommend_fix`'s knowledge is used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
+| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations` + `show_violation`, `recommend_fix`, and `ask_insights` stdio MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (`recommend_fix`'s knowledge is used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
 | **4** | **Your agent's framework** | `pip install "agent-evaluator[langchain]"` (or `[crewai]`/`[autogen]`/`[dspy]`/`[pydanticai]`/`[eval]`) | Packages your *agent code* imports directly — agent-evaluator itself works without them via duck typing; install only what you actually use |
 | **5** | **Examples / full / dev** | `pip install "agent-evaluator[examples]"` | Everything needed to run `Evaluator_Examples/` with real (non-mock) DeepEval/Ragas/dashboard/Phoenix output. `[full]` = category 4's frameworks all at once (⚠️ 10+ min install); `[dev]` = contributor tooling |
 
@@ -147,7 +149,8 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval experiment register\|list\|score` | Register a Gate/field hypothesis, score predicted vs actual |
 | `agent-eval improve plan\|start\|verify\|patch` | Closed loop: proposal → experiment → re-verify → outcome log |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
-| `agent-eval opencode install` / `claude install` | Install the LiveGuardrail OpenCode plugin / Claude Code CLI hooks |
+| `agent-eval opencode` / `claude` `install\|upgrade\|doctor\|uninstall` | Install & manage the LiveGuardrail OpenCode plugin / Claude Code CLI hooks |
+| `agent-eval opencode` / `claude` `violations\|blocked-detail` | Search past Gate B/E blocks; show the exact blocked command for a session |
 | `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
 
 ---
@@ -187,15 +190,11 @@ tests/                # 4,850+ test functions
 
 ## Changelog
 
-**v1.0.4** (2026-09-08) — Patch: **blocked-attempt command detail**, symmetric across Claude Code and OpenCode. A fully-blocked tool call now keeps a short PII-redacted excerpt of its arguments in the batch-report DB (`blocked_attempt_capture`, on by default), so `search_violations "rm -rf"` matches on the *command* — not just the generic reason — and a later session sees what was blocked without any transcript. New `show_violation(task_id)` MCP tool (search results chain into it automatically) and `agent-eval {claude,opencode} violations [--detail]` / `blocked-detail <task_id>` CLI, with a best-effort host-transcript fallback for pre-capture sessions. `{claude,opencode} doctor` live-checks capture. `blocked_violations` gains an indexed `arg_excerpt` column, auto-migrated from the old shape (no `schema_version` bump). No public SDK API, Config, or insight-schema changes.
-
-**v1.0.3** (2026-09-08) — Patch: `agent-eval claude install --with-violation-search` now hands the `search_violations` MCP server the Claude Code batch-report DB path (it otherwise opened the OpenCode default and failed with `unable to open database file`); `claude upgrade --with-violation-search` rewrites a stale registration and `claude doctor` flags one. `search_violations` returns a readable "no history DB yet" sentence instead of a raw SQLite traceback when the DB is missing. OpenCode was unaffected. No API, Config, or schema changes.
-
-**v1.0.2** (2026-09-04) — Phoenix / OTEL integration: `arize-phoenix` pin is now Python-version-scoped (v20 on 3.12+, `<19.0.0` on 3.10/3.11, dropped on 3.8/3.9); Phoenix annotations now delivered at span + trace + session tiers with a `?sync=true` + backoff POST and a non-Phoenix-endpoint probe; `agent-eval monitor` console output is ASCII-only (no more mojibake on non-UTF-8 consoles); new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) and a local-Ollama end-to-end example (`ch32_ollama_realtime.py`). No public SDK API, Config, or schema changes.
-
-**v1.0.1** (2026-09-03) — Patch: report-generation hardening (malformed / partial / externally-produced result JSON no longer crashes the static report, `agent-eval gate`, or the dashboard results list; `NaN`/`Infinity` scrubbed on read and write), dashboard ↔ static-report value parity (hallucination rate, task count, per-task fallbacks, all 7 Gate detail tables, score-breakdown reconciliation), and completion of the English-only runtime-output pass. No API, Config, or schema changes.
-
-**v1.0.0** (2026-08-31) — General Availability: completes SPEC-041's machine-readable insight layer (`extra_metrics.insights`, ~62 schema-validated keys) plus the `target` / `benchmark` / `experiment` / `improve` CLI loop; public SDK API unchanged from `1.0.0-rc*`.
+- **v1.0.4** (2026-09-08) — Blocked-attempt command detail: a fully-blocked tool call keeps a redacted command excerpt, so `search_violations "rm -rf"` now matches the command itself; new `show_violation` MCP tool + `agent-eval {claude,opencode} violations` / `blocked-detail <task_id>` CLI; `doctor` live-checks it. Symmetric across Claude Code and OpenCode. No API/Config/schema changes.
+- **v1.0.3** (2026-09-08) — `agent-eval claude install --with-violation-search` now points the `search_violations` MCP server at the Claude Code batch-report DB (it opened the OpenCode default before); `search_violations` degrades to a readable sentence when the DB is missing. OpenCode unaffected.
+- **v1.0.2** (2026-09-04) — Phoenix / OTEL: Python-version-scoped `arize-phoenix` pin; span + trace + session annotation tiers; ASCII-only `agent-eval monitor` console; new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) + local-Ollama example.
+- **v1.0.1** (2026-09-03) — Report-generation hardening (malformed / partial result JSON no longer crashes the report, `gate`, or the dashboard) + dashboard ↔ static-report value parity + English-only runtime output.
+- **v1.0.0** (2026-08-31) — General Availability: completes the machine-readable insight layer (`extra_metrics.insights`, ~62 schema-validated keys) + the `target` / `benchmark` / `experiment` / `improve` CLI loop.
 
 Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md).
 
