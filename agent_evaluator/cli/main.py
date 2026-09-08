@@ -617,10 +617,14 @@ def _print_welcome() -> None:
     print(f"  {Y}dashboard{R}  Run the web dashboard  {D}(default port 8765){R}")
     print(f"  {Y}monitor{R}    Live monitoring  {D}(Phoenix + OTEL){R}")
     print(f"  {Y}gate{R}       CI/CD quality gating  {D}(pass/fail by threshold){R}")
+    print(f"  {Y}diagnose{R}   Gate root-cause diagnosis  {D}(RCA, informational){R}")
+    print(f"  {Y}abtest{R}     Statistical A/B comparison of 2+ result files")
     print(f"  {Y}trend{R}      Sequential evaluation trend analysis  {D}(TCR·accuracy regression){R}")
-    print(f"  {Y}dataset{R}    Golden dataset management  {D}(auto-extract from results){R}")
-    print(f"  {Y}opencode{R}   Install the LiveGuardrail OpenCode plugin")
-    print(f"  {Y}claude{R}     Install the LiveGuardrail Claude Code CLI hooks")
+    print(f"  {Y}dataset{R}    Golden datasets  {D}(build / promote / health){R}")
+    print(f"  {Y}target{R} · {Y}benchmark{R} · {Y}experiment{R} · {Y}improve{R}  "
+          f"{D}SLOs, reference frame, and the closed improvement loop (.aoo/){R}")
+    print(f"  {Y}claims{R}     Team scope claims  {D}(.aoo/claims.jsonl){R}")
+    print(f"  {Y}opencode{R} · {Y}claude{R}  Install the LiveGuardrail plugin / CLI hooks")
     print(f"  {Y}--version{R}  Show version")
     print()
     print(f"  {D}Full options: {R}{C}agent-eval --help{R}")
@@ -745,9 +749,10 @@ def main() -> None:
         description=(
             f"{B}{C}Agent Evaluator CLI{R} — AI agent evaluation framework\n"
             "\n"
-            "Manages the entire pipeline of collecting, saving, and visualizing evaluation results.\n"
-            "Supports API key setup, environment check, web dashboard, CI/CD gating,\n"
-            "golden dataset management, Phoenix live monitoring, and trend analysis."
+            "Setup, the FastAPI dashboard, live Phoenix/OTEL monitoring, CI/CD quality gating,\n"
+            "root-cause diagnosis (RCA) and statistical A/B testing, golden-dataset and trend\n"
+            "tools, project SLOs / reference frame / the closed improvement loop, team scope\n"
+            "claims, and the real-time LiveGuardrail (OpenCode plugin + Claude Code CLI hooks)."
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(
@@ -755,36 +760,35 @@ def main() -> None:
             f"  {Y}init{R}         Interactively configure OpenAI/Anthropic API keys\n"
             f"  {Y}check{R}        Show API key and configuration status\n"
             f"  {Y}dashboard{R}    Run the FastAPI web dashboard for evaluation results\n"
+            f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
             f"  {Y}gate{R}         CI/CD quality gating — pass/fail by threshold\n"
             f"  {Y}diagnose{R}     Gate root-cause diagnosis (RCA) — informational only\n"
             f"  {Y}abtest{R}       Statistical A/B comparison of 2+ result files\n"
             f"  {Y}trend{R}        Sequential evaluation trend analysis — TCR/accuracy regression\n"
-            f"  {Y}dataset{R}      Auto-extract golden datasets from production results\n"
-            f"  {Y}monitor{R}      Start Arize Phoenix + OTLP span receiver (live monitoring)\n"
-            f"  {Y}opencode{R}     Install the LiveGuardrail OpenCode plugin\n"
-            f"  {Y}claude{R}       Install the LiveGuardrail Claude Code CLI hooks\n"
+            f"  {Y}dataset{R}      Golden datasets: build / promote (HITL) / health\n"
+            f"  {Y}target{R}       Set / show project SLOs (.aoo/targets.json)\n"
+            f"  {Y}benchmark{R}    Set / show an external reference distribution\n"
+            f"  {Y}experiment{R}   Register / list / score improvement hypotheses\n"
+            f"  {Y}improve{R}      Closed improvement loop: plan / start / verify / patch\n"
             f"  {Y}claims{R}       Manage .aoo/claims.jsonl team scope claims\n"
+            f"  {Y}opencode{R} · {Y}claude{R}  LiveGuardrail plugin / CLI hooks —\n"
+            f"               install / upgrade / doctor / uninstall / violations / blocked-detail\n"
             "\n"
             f"{B}Examples:{R}\n"
             f"  {G}agent-eval init{R}\n"
             f"  {G}agent-eval check{R}\n"
-            f"  {G}agent-eval dashboard{R}\n"
-            f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
-            f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
+            f"  {G}agent-eval dashboard ./results --port 8080 --watch --no-open{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
             f"  {G}agent-eval diagnose results/ci_run.json --baseline results/baseline.json{R}\n"
-            f"  {G}agent-eval abtest results/v1.json results/v2.json{R}\n"
-            f"  {G}agent-eval trend results/ --window 10{R}\n"
-            f"  {G}agent-eval trend results/ --fail-on-regression{R}\n"
+            f"  {G}agent-eval abtest results/v1.json results/v2.json --sequential{R}\n"
+            f"  {G}agent-eval trend results/ --window 10 --fail-on-regression{R}\n"
             f"  {G}agent-eval dataset build --source results/ --max-cases 30{R}\n"
-            f"  {G}agent-eval monitor{R}\n"
-            f"  {G}agent-eval monitor --port 6007{R}\n"
+            f"  {G}agent-eval target set --gate A=0.85 --tcr 90{R}\n"
+            f"  {G}agent-eval improve plan results/v3.json --baseline results/v2.json{R}\n"
             f"  {G}agent-eval monitor --check{R}\n"
-            f"  {G}agent-eval monitor --reset{R}\n"
-            f"  {G}agent-eval monitor --reset --yes{R}\n"
-            f"  {G}agent-eval opencode install{R}\n"
-            f"  {G}agent-eval claude install{R}\n"
+            f"  {G}agent-eval opencode install --with-violation-search{R}\n"
+            f"  {G}agent-eval claude install --with-violation-search{R}\n"
             f"  {G}agent-eval claims add src/ --developer auto{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
