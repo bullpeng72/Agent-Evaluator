@@ -898,13 +898,13 @@ def main() -> None:
             "Read evaluation result JSON and determine pass/fail by threshold.\n"
             "Use as a quality gate in CI/CD pipelines (GitHub Actions, GitLab CI, etc.).\n"
             "\n"
-            f"{B}Supported metrics:{R}\n"
-            f"  {Y}--tcr{R}               Task Completion Rate (%%)\n"
-            f"  {Y}--accuracy{R}          Accuracy (%%)\n"
+            f"{B}Common thresholds{R} (see below for the full list):\n"
+            f"  {Y}--tcr{R}               Task Completion Rate (%)\n"
+            f"  {Y}--accuracy{R}          Accuracy (%)\n"
             f"  {Y}--p95-latency{R}       P95 latency upper bound (seconds)\n"
-            f"  {Y}--hallucination{R}     Hallucination rate upper bound (%%)\n"
+            f"  {Y}--hallucination{R}     Hallucination rate upper bound (%)\n"
             f"  {Y}--llm-judge{R}         LLM Judge overall score lower bound (0–5)\n"
-            f"  {Y}--fail-on-regression{R} Allowed regression vs baseline (%%)\n"
+            f"  {Y}--fail-on-regression{R} Allowed regression vs baseline (%)\n"
         ),
         epilog=(
             f"{B}Exit codes:{R}\n"
