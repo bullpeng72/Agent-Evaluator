@@ -78,7 +78,7 @@ agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overl
 
 # CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
-agent-eval opencode upgrade     # re-copy the plugin .ts after a package update (keeps agent-evaluator.config.json)
+agent-eval opencode upgrade     # re-copy the plugin .ts after a package update (keeps agent-evaluator.config.json); --with-* (re-)registers that MCP even if the .ts is unchanged
 agent-eval opencode doctor      # verify the install works: plugin freshness + Python stdio-bridge round-trip (--json/--no-live/--strict)
 agent-eval opencode uninstall   # remove plugin file + opencode.json mcp entries (run BEFORE pip uninstall; --purge/--dry-run/--yes)
 agent-eval claude install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]

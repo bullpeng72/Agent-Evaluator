@@ -413,6 +413,32 @@ class TestOpencodeUpgrade:
         assert opencode_cli.cmd_opencode(_upg_ns()) == 0
         assert "already up to date" in capsys.readouterr().out
 
+    def test_upgrade_accepts_with_flags(self):
+        parser = argparse.ArgumentParser()
+        sub = parser.add_subparsers(dest="command")
+        opencode_cli.build_opencode_subparser(sub)
+        args = parser.parse_args([
+            "opencode", "upgrade", "--with-violation-search", "--with-recommend-fix",
+            "--with-ask-insights", "--global",
+        ])
+        assert args.with_violation_search and args.with_recommend_fix
+        assert args.with_ask_insights and args.global_install
+
+    def test_with_flag_registers_mcp_even_when_plugin_current(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        opencode_cli.cmd_opencode(_ns())  # fresh install → plugin is current
+        capsys.readouterr()
+        calls = []
+        monkeypatch.setattr(
+            opencode_cli, "_register_violation_search_mcp", lambda: calls.append("vs")
+        )
+        code = opencode_cli.cmd_opencode(_upg_ns(
+            with_violation_search=True, with_recommend_fix=False, with_ask_insights=False,
+        ))
+        assert code == 0
+        assert calls == ["vs"]  # ran despite the plugin file being unchanged
+        assert "already up to date" in capsys.readouterr().out
+
 
 class TestOpencodeUninstall:
     def test_deletes_plugin_keeps_config_and_prunes_mcp(self, tmp_path, monkeypatch, capsys):

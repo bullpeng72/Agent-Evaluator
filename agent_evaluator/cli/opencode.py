@@ -361,26 +361,45 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
     content = _BUNDLED_PLUGIN.read_text(encoding="utf-8").replace(
         _PYTHON_PLACEHOLDER, sys.executable,
     )
+    _want_mcp = (
+        getattr(args, "with_violation_search", False)
+        or getattr(args, "with_recommend_fix", False)
+        or getattr(args, "with_ask_insights", False)
+    )
     if content == current:
         print(f"{_D}   Plugin already up to date ({target}){_R}")
-        return 0
+        if not _want_mcp:
+            return 0
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        print(f"{_G}✅ Refreshed plugin: {target}{_R}")
+        print(f"{_D}   python interpreter (baked in): {sys.executable}{_R}")
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    print(f"{_G}✅ Refreshed plugin: {target}{_R}")
-    print(f"{_D}   python interpreter (baked in): {sys.executable}{_R}")
+        sibling = target.parent / _SIBLING_CONFIG
+        if sibling.exists():
+            print(f"{_D}   {sibling} left untouched (your config){_R}")
 
-    sibling = target.parent / _SIBLING_CONFIG
-    if sibling.exists():
-        print(f"{_D}   {sibling} left untouched (your config){_R}")
+        missing = _missing_hooks(content)
+        if missing:
+            print(
+                f"{_RD}⚠️  Installed plugin is missing hook(s): {', '.join(missing)} — please "
+                f"file an issue.{_R}",
+                file=sys.stderr,
+            )
 
-    missing = _missing_hooks(content)
-    if missing:
-        print(
-            f"{_RD}⚠️  Installed plugin is missing hook(s): {', '.join(missing)} — please "
-            f"file an issue.{_R}",
-            file=sys.stderr,
-        )
+    # MCP servers: opt-in re-registration, same as `install --with-*`. `opencode mcp` has
+    # no `remove`, so an already-registered server is left as-is (a stale interpreter path
+    # needs `uninstall` + `install --with-*`, or a manual opencode.json edit).
+    if getattr(args, "with_violation_search", False):
+        print()
+        _register_violation_search_mcp()
+    if getattr(args, "with_recommend_fix", False):
+        print()
+        _register_recommend_fix_mcp()
+    if getattr(args, "with_ask_insights", False):
+        print()
+        _register_ask_insights_mcp()
 
     print()
     print(f"{_B}Done.{_R} Restart OpenCode (or start a new session) to load the refreshed plugin.")
@@ -766,15 +785,30 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
         description=(
             "Overwrite the installed agent-evaluator.ts with the current bundled version\n"
             "(re-baking the interpreter path). The sibling agent-evaluator.config.json is\n"
-            "NEVER touched. No-op if the file is already identical."
+            "NEVER touched. No-op if the file is already identical — unless a --with-* flag\n"
+            "is given, in which case that MCP server is (re-)registered even when the\n"
+            "plugin file is unchanged."
         ),
         epilog=(
             f"{_B}Examples:{_R}\n"
             f"  {_G}agent-eval opencode upgrade{_R}\n"
             f"  {_G}agent-eval opencode upgrade --global{_R}\n"
+            f"  {_G}agent-eval opencode upgrade --with-violation-search --with-recommend-fix{_R}\n"
         ),
     )
     _add_common_target_flags(upgrade_p)
+    upgrade_p.add_argument(
+        "--with-violation-search", dest="with_violation_search", action="store_true",
+        help="Also (re-)register the search_violations / show_violation MCP server",
+    )
+    upgrade_p.add_argument(
+        "--with-recommend-fix", dest="with_recommend_fix", action="store_true",
+        help="Also (re-)register the recommend_fix MCP server",
+    )
+    upgrade_p.add_argument(
+        "--with-ask-insights", dest="with_ask_insights", action="store_true",
+        help="Also (re-)register the ask_insights MCP server",
+    )
 
     # --- doctor ---
     doctor_p = op_sub.add_parser(
