@@ -101,58 +101,19 @@ from .decorators import (
     _FRAMEWORK_ADAPTERS,
     # H1: 사전 정의된 파라미터 묶음
     AGENT_EVAL_PRESETS,
-    # v0.9.3+: Phase 4 Harness Config 데이터클래스
-    AgentRoleConfig,
     AlertRuleBuilder,
-    ComplianceConfig,
-    ConflictResolutionConfig,
-    ConsensusConfig,
-    ContextRetentionConfig,
-    ContextWindowConfig,
-    CostPredictabilityConfig,
-    DeadlockConfig,
-    EfficiencyConfig,
-    ErrorDiagnosisConfig,
     EvalDecorator,
     EvalMetadata,
-    ExplainabilityConfig,
-    FaultToleranceConfig,
     # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
     FrameworkLiteral,
-    GoalAlignmentConfig,
-    GracefulDegradationConfig,
-    # v0.9.5+: Phase 6 Harness Config 데이터클래스
-    IdempotencyConfig,
-    # v0.9.0+: Phase 1 Harness Config 데이터클래스
-    InstructionConfig,
-    KnowledgeRetentionConfig,
-    LatencyAttributionConfig,
     # LLMJudgeConfig — LLM-as-Judge 파라미터 묶음 (v0.8.2+)
     LLMJudgeConfig,
-    LoopDetectionConfig,
-    ObservabilityConfig,
-    PlanConfig,
-    PropagationConfig,
-    ReproducibilityConfig,
-    ResourceBudgetConfig,
     # RetryConfig — 재시도 파라미터 묶음
     RetryConfig,
-    RetryConsistencyConfig,
-    # v0.9.2+: Phase 3 Harness Config 데이터클래스
-    ScopeConfig,
     # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
     SecurityConfig,
     # Task 5: SimpleTaskAlertRule + E6: AlertRuleBuilder
     SimpleTaskAlertRule,
-    # v0.9.1+: 신규 Harness Config 데이터클래스
-    SLAConfig,
-    StateConsistencyConfig,
-    SubtaskConfig,
-    ThreatResponseConfig,
-    ThreatSeverityConfig,
-    # v0.9.4+: Phase 5 Harness Config 데이터클래스
-    ToolParameterSafetyConfig,
-    TTFTVariabilityConfig,
     TurnMetadata,
     agent_eval,
     batch_eval,
@@ -173,6 +134,58 @@ from .exceptions import (
     MetricComputationError,
     StorageError,
     ValidationError,
+)
+
+# The 33 Harness Config dataclasses are DEFINED in gates/gate_x/configs.py
+# (CLAUDE.md principle 2). Import them straight from there rather than laundering
+# them through the ~8.7k-line decorators.py re-export — that indirection defeats
+# some static analysers (Pylance) which then can't see the dataclass fields.
+from .gates.gate_a_goal.configs import (
+    ContextRetentionConfig,
+    GoalAlignmentConfig,
+    InstructionConfig,
+    KnowledgeRetentionConfig,
+    PlanConfig,
+    SubtaskConfig,
+)
+from .gates.gate_b_behavioral.configs import (
+    ContextWindowConfig,
+    DeadlockConfig,
+    LoopDetectionConfig,
+    ScopeConfig,
+    StateConsistencyConfig,
+    ToolParameterSafetyConfig,
+)
+from .gates.gate_c_reliability.configs import (
+    FaultToleranceConfig,
+    GracefulDegradationConfig,
+    IdempotencyConfig,
+    ReproducibilityConfig,
+    RetryConsistencyConfig,
+)
+from .gates.gate_d_performance.configs import (
+    CostPredictabilityConfig,
+    EfficiencyConfig,
+    ResourceBudgetConfig,
+    SLAConfig,
+    TTFTVariabilityConfig,
+)
+from .gates.gate_e_security.configs import (
+    ComplianceConfig,
+    ThreatResponseConfig,
+    ThreatSeverityConfig,
+)
+from .gates.gate_f_multiagent.configs import (
+    AgentRoleConfig,
+    ConflictResolutionConfig,
+    ConsensusConfig,
+    PropagationConfig,
+)
+from .gates.gate_g_observability.configs import (
+    ErrorDiagnosisConfig,
+    ExplainabilityConfig,
+    LatencyAttributionConfig,
+    ObservabilityConfig,
 )
 
 # Import helpers with simplified names
