@@ -2,13 +2,14 @@
 
 ## v1.0.4 (2026-09-08) — blocked-attempt command detail (Claude Code + OpenCode)
 
-Patch release. No public SDK API changes, no new/removed Configs or trackers, no `schema_version` (insight-schema) bump. `blocked_violations` (the fully-blocked-attempt audit table) gains one indexed column, auto-migrated in place from the old shape.
+Patch release. No public SDK API, Config, or insight-schema changes.
 
-- ✨ **A fully-blocked tool call now records a short PII-redacted excerpt of its arguments.** `blocked_attempt_capture` (`{"enabled": true, "max_chars": 240, "redact_pii": true}` by default, in `guardrail_config.json` / `agent-evaluator.config.json`) makes `LiveGuardrail.record_blocked_attempt()` keep an `arg_excerpt` (+ a SHA-256 of the full serialization) alongside the existing `tool_name` / `gate` / `reason`. PII is masked with the existing Gate E patterns; `{"enabled": false}` restores the pre-`1.0.4` behaviour exactly. Symmetric across both hosts — the Claude Code hook passes the `PreToolUse` `tool_input`, the OpenCode plugin passes `tool.execute.before` args through the stdio bridge, and the redaction/truncation lives in one place (Python).
-- ✨ **`search_violations "rm -rf"` now matches on the command itself.** `blocked_violations` gets an indexed `arg_excerpt` column, so a free-text query hits the offending command — not only the generic `dangerous tool parameters` reason. `search_violations(..., detail=True)` returns the excerpt inline; the MCP `search_violations` tool uses it and appends a `show_violation(task_id="…")` hint so the model can chain straight into the detail without a human copy-pasting the id.
-- ✨ **New `show_violation(task_id)` MCP tool + `agent-eval {claude,opencode} violations [--detail]` / `blocked-detail <task_id>` CLI.** All four surfaces read the same schema and differ only by the default batch-report DB path. For a session recorded before capture (or with capture off), they fall back best-effort to the host session transcript — Claude Code `~/.claude/projects/<slug>/<task_id>.jsonl` (`tool_use` + an `is_error` `tool_result` whose text starts with a known verdict reason — a codebase grep that merely quotes the phrase is not matched), OpenCode `~/.local/share/opencode/opencode.db` `part` rows whose tool state errored. `task_id` == the host session id is the join key.
-- 🔧 **`agent-eval claude doctor` / `agent-eval opencode doctor` gain a "blocked-attempt capture" live check** — runs one synthetic block through `build_guardrail()` and confirms a redacted excerpt comes back (`info` when capture is deliberately disabled).
-- 🔧 stdio bridge: `record_blocked` accepts an optional `parameters` (or a pre-computed `arg_excerpt`/`arg_sha256`) and echoes the resulting excerpt back; the response stays `{"ok": true}` when nothing was captured.
+- A fully-blocked tool call now keeps a short PII-redacted excerpt of its arguments (`blocked_attempt_capture`, on by default; `{"enabled": false}` restores the old behaviour). So `search_violations "rm -rf"` matches on the **command itself**, not just the generic `dangerous tool parameters` reason.
+- New `show_violation(task_id)` MCP tool — search results chain into it automatically — plus `agent-eval {claude,opencode} violations [--detail]` / `blocked-detail <task_id>` CLI. Best-effort host-transcript fallback for sessions recorded before capture.
+- `agent-eval claude doctor` / `agent-eval opencode doctor` gain a "blocked-attempt capture" live check.
+- `blocked_violations` gains an indexed `arg_excerpt` column, auto-migrated in place from the old shape (no `schema_version` bump).
+
+35 new tests (both hosts); full suite 4,976 passing.
 
 ## v1.0.3 (2026-09-08) — LiveGuardrail violation-search DB wiring
 
