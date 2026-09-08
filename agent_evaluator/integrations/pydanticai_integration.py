@@ -199,7 +199,11 @@ class PydanticAIEvaluator:
         import time
         import uuid
 
-        from agent_evaluator.decorators import _extract_pydanticai_metadata
+        # Pylance intermittently fails to resolve symbols from the ~8.7k-line
+        # decorators.py (mypy and the runtime are fine) — silence that one editor.
+        from agent_evaluator.decorators import (  # pyright: ignore[reportAttributeAccessIssue]
+            _extract_pydanticai_metadata,
+        )
         from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
 
         if task_id is None:

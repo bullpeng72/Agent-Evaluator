@@ -130,7 +130,11 @@ class DSPyEvaluator:
         import uuid
 
         try:
-            from agent_evaluator.decorators import _extract_dspy_metadata
+            # Pylance intermittently fails to resolve symbols from the ~8.7k-line
+            # decorators.py (mypy and the runtime are fine) — silence that one editor.
+            from agent_evaluator.decorators import (  # pyright: ignore[reportAttributeAccessIssue]
+                _extract_dspy_metadata,
+            )
             from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
         except ImportError as e:
             logger.warning("DSPyEvaluator: import failed — %s", e)
