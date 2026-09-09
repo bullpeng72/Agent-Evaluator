@@ -33,8 +33,10 @@ from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchma
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
 from agent_evaluator.cli.dataset import cmd_dataset
+from agent_evaluator.cli.decisions import cmd_decisions
 from agent_evaluator.cli.diagnose import cmd_diagnose
 from agent_evaluator.cli.experiment import build_experiment_subparser, cmd_experiment
+from agent_evaluator.cli.feedback import build_feedback_subparser, cmd_feedback
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.improve import build_improve_subparser, cmd_improve
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
@@ -908,10 +910,14 @@ def main() -> None:
         ),
         epilog=(
             f"{B}Exit codes:{R}\n"
-            f"  {G}0{R}  All criteria passed\n"
-            f"  {RD}1{R}  Below threshold\n"
-            f"  {RD}2{R}  Regression detected vs previous version (when --fail-on-regression used)\n"
-            f"  {RD}3{R}  Golden set regression (--golden-set + --fail-on-golden-regression)\n"
+            f"  {G}0{R}   All criteria passed\n"
+            f"  {RD}1{R}   Below threshold\n"
+            f"  {RD}2{R}   Regression vs previous version (--fail-on-regression)\n"
+            f"  {RD}3{R}   Golden set regression (--golden-set + --fail-on-golden-regression)\n"
+            f"  {RD}4{R}   Case regression (--fail-on-case-regression) / HIGH review items "
+            f"(--max-review-high) / uncovered requirement (--require-spec-coverage)\n"
+            f"  {Y}75{R}  Verdict held for human review (--hold-on-undecided; would-be PASS, "
+            f"borderline)\n"
             "\n"
             f"{B}Examples:{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85{R}\n"
@@ -1063,6 +1069,21 @@ def main() -> None:
         ),
     )
     gate_p.add_argument(
+        "--requirements", metavar="PATH", dest="requirements",
+        help=(
+            "Plain-text requirement list ('REQ-ID: description' per line, '#' "
+            "comments ignored). Feeds insights.spec_coverage — each golden case "
+            "declares which requirements it tests via extra.covers (SPEC-043 REQ-1)."
+        ),
+    )
+    gate_p.add_argument(
+        "--require-spec-coverage", action="store_true", dest="require_spec_coverage",
+        help=(
+            "Return exit code 4 if any requirement in --requirements has no golden "
+            "case declaring it in extra.covers. Needs --requirements."
+        ),
+    )
+    gate_p.add_argument(
         "--notify", action="append", metavar="TARGET", dest="notify",
         help=(
             "Send the gate result (narrative + regressed cases + cohort winner) "
@@ -1072,6 +1093,79 @@ def main() -> None:
             "failures are reported but never change the exit code."
         ),
     )
+    gate_p.add_argument(
+        "--hold-on-undecided", action="store_true", dest="hold_on_undecided",
+        help=(
+            "Turn a would-be PASS (exit 0) into exit 75 ('hold for human review') "
+            "when insights.verdict.decision_ready is false — the binary pass-rate "
+            "Wilson CI straddles the TCR target, or the verdict flips within +/-0.05 "
+            "of the gate line (SPEC-042 REQ-2). Opt-in; 75 is a project convention "
+            "(BSD EX_TEMPFAIL), so a pipeline must handle it explicitly. Clear "
+            "fails (1/2/3/4) are unaffected."
+        ),
+    )
+    gate_p.add_argument(
+        "--decision-log", metavar="PATH", dest="decision_log",
+        help=(
+            "Append this gate run (exit code, verdict, gate scores) to a deploy-"
+            "decision ledger (append-only JSONL). Record the human's decision "
+            "afterward with `agent-eval decisions record` (SPEC-043 REQ-3). Does "
+            "not change the exit code."
+        ),
+    )
+    gate_p.add_argument(
+        "--html-out", metavar="PATH", dest="html_out",
+        help=(
+            "Also write the full HTML report to PATH (SPEC-044 REQ-7). Uses the "
+            "same baseline as the gate. Does not change the exit code."
+        ),
+    )
+    gate_p.add_argument(
+        "--html-summary", action="store_true", dest="html_summary",
+        help=(
+            "Also print a short Markdown block to stdout — verdict + path-to-green "
+            "+ the one next command — for a PR body (SPEC-044 REQ-7)."
+        ),
+    )
+
+    # decisions subcommand (SPEC-043 REQ-3 — deploy-decision ledger)
+    dec_p = sub.add_parser(
+        "decisions",
+        help="Review / record human decisions on gate runs (deploy-decision ledger)",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "The deploy-decision ledger written by `agent-eval gate --decision-log`. "
+            "`list` shows gate runs and their recorded outcomes; `record` appends a "
+            "human decision (accepted / held / overridden / rejected).\n"
+        ),
+        epilog=(
+            f"{B}Examples:{R}\n"
+            f"  {G}agent-eval decisions list .aoo/decisions.jsonl{R}\n"
+            f"  {G}agent-eval decisions list .aoo/decisions.jsonl --pending{R}\n"
+            f"  {G}agent-eval decisions record .aoo/decisions.jsonl --outcome overridden "
+            f"--by sungwoo --rationale \"borderline TCR, small eval set — shipping with a "
+            f"nightly repeat check\"{R}\n"
+        ),
+    )
+    dec_sub = dec_p.add_subparsers(dest="decisions_command", metavar="{list,record}")
+    _dl = dec_sub.add_parser("list", help="List gate runs + outcomes",
+                             formatter_class=ColoredHelpFormatter)
+    _dl.add_argument("log", help="Path to the decision-log JSONL")
+    _dl.add_argument("--pending", action="store_true",
+                     help="Only gate runs with no recorded outcome yet")
+    _dl.add_argument("--json", action="store_true", dest="as_json",
+                     help="Emit the summary as JSON")
+    _dr = dec_sub.add_parser("record", help="Append a human decision",
+                             formatter_class=ColoredHelpFormatter)
+    _dr.add_argument("log", help="Path to the decision-log JSONL")
+    _dr.add_argument("--outcome", required=True,
+                     choices=["accepted", "held", "overridden", "rejected"],
+                     help="The decision made on the gate run")
+    _dr.add_argument("--by", required=True, dest="decided_by", metavar="NAME",
+                     help="Who made the decision")
+    _dr.add_argument("--rationale", metavar="TEXT", help="Why (free text)")
+    _dr.add_argument("--gate-run-id", metavar="ID", dest="gate_run_id",
+                     help="Which gate run (default: the most recent pending one)")
 
     # diagnose subcommand (Phase 4 — RCA)
     diag_p = sub.add_parser(
@@ -1262,6 +1356,41 @@ def main() -> None:
                           help="Sibling-results dir — adds a passed_streak per stale case")
     health_p.add_argument("--json", action="store_true", dest="as_json")
 
+    rc_p = ds_sub.add_parser(
+        "review-candidates",
+        help="Review the auto-collected production golden-set candidate queue (SPEC-043 REQ-4)",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "StreamingEvaluator(golden_candidate_sink=…) appends production failures /\n"
+            "low-confidence answers / anomaly-flagged tasks to a JSON Lines queue.\n"
+            "This lists the pending ones and records a human decision on each:\n"
+            "  --accept ID   merge the candidate into a golden set (labels stay yours)\n"
+            "  --reject ID   drop it\n"
+            "  --defer  ID   leave it pending, mark it seen\n"
+            "With no --accept/--reject/--defer it just lists the pending queue.\n"
+        ),
+        epilog=(
+            f"{B}Examples:{R}\n"
+            f"  {G}agent-eval dataset review-candidates results/golden_candidates.jsonl{R}\n"
+            f"  {G}agent-eval dataset review-candidates q.jsonl --accept a1b2c3 "
+            f"--to data/golden_datasets/prod.json --by alice{R}\n"
+            f"  {G}agent-eval dataset review-candidates q.jsonl --reject a1b2c3{R}\n"
+        ),
+    )
+    rc_p.add_argument("candidates_file", metavar="CANDIDATES_JSONL",
+                      help="The golden_candidates.jsonl queue")
+    rc_p.add_argument("--accept", default=None, metavar="ID",
+                      help="Candidate id to accept into a golden set")
+    rc_p.add_argument("--reject", default=None, metavar="ID",
+                      help="Candidate id to reject")
+    rc_p.add_argument("--defer", default=None, metavar="ID",
+                      help="Candidate id to mark seen but keep pending")
+    rc_p.add_argument("--to", default=None, metavar="GOLDEN_FILE", dest="accept_to",
+                      help="Golden set file to merge an --accept'd candidate into")
+    rc_p.add_argument("--by", default=None, metavar="NAME", dest="reviewed_by",
+                      help="Who reviewed (recorded in the queue)")
+    rc_p.add_argument("--json", action="store_true", dest="as_json")
+
     # monitor subcommand
     build_monitor_subparser(sub)
 
@@ -1289,6 +1418,9 @@ def main() -> None:
     # benchmark subcommand (SPEC-041 P53)
     build_benchmark_subparser(sub)
 
+    # feedback subcommand (SPEC-043 REQ-6b)
+    build_feedback_subparser(sub)
+
     # abtest subcommand
     build_abtest_subparser(sub)
 
@@ -1310,6 +1442,7 @@ def main() -> None:
         "opencode":  cmd_opencode,
         "claude":    cmd_claude,
         "gate":      cmd_gate,
+        "decisions": cmd_decisions,
         "diagnose":  cmd_diagnose,
         "dataset":   cmd_dataset,
         "trend":     cmd_trend,
@@ -1318,6 +1451,7 @@ def main() -> None:
         "target":    cmd_target,
         "improve":   cmd_improve,
         "benchmark": cmd_benchmark,
+        "feedback":  cmd_feedback,
         "abtest":    cmd_abtest,
     }
 

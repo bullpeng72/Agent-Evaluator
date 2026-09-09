@@ -390,6 +390,316 @@ def _nondeterminism_section(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out[:15]
 
 
+def _acceptance_coverage_section(
+    tasks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """SPEC-042 REQ-1: score each task against its declared acceptance criteria
+    (``extra.acceptance_criteria`` — a list of short requirement strings).
+
+    A criterion counts as satisfied when its whole phrase appears in the response
+    (case-insensitive substring) or >= 60% of its content-word tokens do. This is
+    a **report/insight signal only — never a Gate score** (the deploy verdict
+    still comes from Gate A–G). ``None`` when no task declares criteria."""
+    by_task: list[dict[str, Any]] = []
+    total_criteria = satisfied_criteria = fully = 0
+    for t in tasks:
+        crit = _task_extra(t).get("acceptance_criteria")
+        if not isinstance(crit, (list, tuple)):
+            continue
+        items = [str(c).strip() for c in crit if str(c).strip()]
+        if not items:
+            continue
+        resp = str(t.get("response") or "")
+        resp_low = resp.lower()
+        resp_tok = _wtok(resp)
+        unmet: list[str] = []
+        sat = 0
+        for c in items:
+            c_low = c.lower()
+            c_tok = _wtok(c)
+            hit = c_low in resp_low or (
+                bool(c_tok) and len(c_tok & resp_tok) / len(c_tok) >= 0.6
+            )
+            if hit:
+                sat += 1
+            else:
+                unmet.append(c[:160])
+        total_criteria += len(items)
+        satisfied_criteria += sat
+        if sat == len(items):
+            fully += 1
+        by_task.append({
+            "task_id": str(t.get("task_id") or "—"),
+            "total": len(items),
+            "satisfied": sat,
+            "unmet": unmet[:8],
+        })
+    if not by_task:
+        return None
+    by_task.sort(key=lambda d: (d["satisfied"] - d["total"], d["task_id"]))
+    return {
+        "method": "keyword",
+        "n_tasks_with_criteria": len(by_task),
+        "total_criteria": total_criteria,
+        "satisfied_criteria": satisfied_criteria,
+        "fully_satisfied_tasks": fully,
+        "coverage_pct": round(satisfied_criteria / total_criteria * 100.0, 1)
+        if total_criteria else None,
+        "by_task": by_task[:50],
+        "note": (
+            f"{satisfied_criteria}/{total_criteria} declared acceptance criteria met "
+            f"across {len(by_task)} task(s); {fully} task(s) fully satisfied. "
+            f"Keyword match — not a Gate score."
+        ),
+    }
+
+
+def _spec_coverage_section(
+    tasks: list[dict[str, Any]],
+    requirements: list[str] | None = None,
+) -> dict[str, Any] | None:
+    """SPEC-043 REQ-1: which declared requirements have a golden case that claims
+    to test them, and which don't.
+
+    Each task may declare ``extra.covers`` — a list of requirement IDs it
+    exercises. The requirement *universe* is:
+
+      - ``requirements`` (an explicit list, from ``--requirements PATH``) when
+        given — then ``uncovered`` is meaningful; or
+      - the union of every task's ``extra.covers`` otherwise — then everything is
+        trivially covered (we only know about requirements some case names), so
+        ``uncovered`` is empty and this is informational only.
+
+    Distinct from ``acceptance_coverage`` (SPEC-042 REQ-1): that asks "did the
+    response *meet* the criterion text", this asks "does a *test* exist for the
+    requirement". ``None`` when neither an explicit list nor any ``covers`` field
+    is present."""
+    covers_by_task: list[tuple[str, list[str]]] = []
+    declared: set[str] = set()
+    for t in tasks:
+        cov = _task_extra(t).get("covers")
+        if not isinstance(cov, (list, tuple)):
+            continue
+        ids = [str(c).strip() for c in cov if str(c).strip()]
+        if not ids:
+            continue
+        covers_by_task.append((str(t.get("task_id") or "—"), ids))
+        declared.update(ids)
+
+    explicit = [str(r).strip() for r in (requirements or []) if str(r).strip()]
+    if explicit:
+        universe = list(dict.fromkeys(explicit))
+        source = "requirements_list"
+    elif declared:
+        universe = sorted(declared)
+        source = "covers_only"
+    else:
+        return None
+
+    by_requirement: dict[str, list[str]] = {}
+    for req in universe:
+        hits = [tid for tid, ids in covers_by_task if req in ids]
+        if hits:
+            by_requirement[req] = hits
+    covered = [r for r in universe if r in by_requirement]
+    uncovered = (
+        [r for r in universe if r not in by_requirement]
+        if source == "requirements_list" else []
+    )
+
+    return {
+        "source": source,
+        "requirements": universe,
+        "covered": covered,
+        "uncovered": uncovered,
+        "n_requirements": len(universe),
+        "n_covered": len(covered),
+        "n_uncovered": len(uncovered),
+        "by_requirement": by_requirement,
+        "note": (
+            f"{len(covered)}/{len(universe)} declared requirement(s) have a golden "
+            f"case that claims to test them"
+            + (f"; {len(uncovered)} uncovered: {', '.join(uncovered[:8])}"
+               if uncovered else "")
+            + (". No --requirements list — 'uncovered' cannot be computed."
+               if source == "covers_only" else ".")
+        ),
+    }
+
+
+def _deploy_decision_section(
+    decision_log_path: str | Path | None,
+) -> dict[str, Any] | None:
+    """SPEC-043 REQ-3: surface the deploy-decision ledger's governance state —
+    the last recorded gate-run + its human outcome (or ``null`` = still
+    pending), and how many gate runs are awaiting a human decision.
+
+    ``None`` when no ``decision_log_path`` or the log is empty. Read-only — this
+    section never writes to the ledger."""
+    if not decision_log_path:
+        return None
+    try:
+        from agent_evaluator.rca.decision_ledger import (
+            load_decisions,
+            summarize_decisions,
+        )
+
+        entries = load_decisions(decision_log_path)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    if not entries:
+        return None
+    s = summarize_decisions(entries)
+    if not s.get("n_gate_runs"):
+        return None
+    last = s.get("last") or {}
+    _gr = last.get("gate_run") or {}
+    _oc = last.get("outcome")
+    return {
+        "n_gate_runs": s["n_gate_runs"],
+        "n_pending": s["n_pending"],
+        "pending": s["pending"][:20],
+        "by_outcome": s["by_outcome"],
+        "last": {
+            "gate_run_id": _gr.get("id"),
+            "recorded_at": _gr.get("recorded_at"),
+            "exit_code": _gr.get("exit_code"),
+            "verdict_level": _gr.get("verdict_level"),
+            "outcome": (_oc or {}).get("outcome"),
+            "decided_by": (_oc or {}).get("decided_by"),
+            "rationale": (_oc or {}).get("rationale"),
+            "pending": _oc is None,
+        },
+        "note": (
+            f"{s['n_pending']} gate run(s) awaiting a human decision"
+            if s["n_pending"] else "all gate runs in this ledger have a recorded decision"
+        ),
+    }
+
+
+_LIFECYCLE_ORDER = ("analysis", "design", "development", "verification", "operations")
+
+
+def _lifecycle_phase_section(
+    current: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    experiments_log_path: Any,
+    recommendation_log_path: Any,
+    targets: dict[str, Any] | None,
+    decision_log_path: Any,
+    history_dir: Any,
+) -> dict[str, Any] | None:
+    """SPEC-044 REQ-2: which Harness lifecycle phase does this run belong to?
+
+    Pure framing — no new judgement. Derives ``primary`` from which inputs are
+    present (baseline / open experiments / targets / decision log / sibling
+    history), lists the ``signals`` behind that call, and ``missing`` — the
+    material this report does *not* have and why. Never raises; ``None`` only if
+    everything blows up."""
+    try:
+        signals: list[str] = []
+        missing: list[str] = []
+
+        has_baseline = isinstance(baseline, dict) and bool(baseline.get("tasks"))
+        n_open_exps = 0
+        try:
+            if experiments_log_path:
+                from agent_evaluator.rca.experiments import load_experiments
+
+                n_open_exps = len(load_experiments(experiments_log_path, status="open"))
+        except Exception:  # pragma: no cover - defensive
+            n_open_exps = 0
+        has_targets = isinstance(targets, dict) and bool(
+            targets.get("gates") or targets.get("tcr_pct") or targets.get("gate_default")
+        )
+        n_hist = 0
+        try:
+            from pathlib import Path as _P
+
+            if history_dir and _P(str(history_dir)).is_dir():
+                n_hist = sum(
+                    1 for p in _P(str(history_dir)).glob("*.json")
+                    if p.name != "baseline.json"
+                )
+        except Exception:  # pragma: no cover - defensive
+            n_hist = 0
+        n_decisions = 0
+        try:
+            if decision_log_path:
+                from agent_evaluator.rca.decision_ledger import load_decisions
+
+                n_decisions = len(load_decisions(decision_log_path))
+        except Exception:  # pragma: no cover - defensive
+            n_decisions = 0
+
+        # --- pick the primary phase --------------------------------------- #
+        if has_baseline and n_open_exps:
+            primary = "development"
+            signals.append(f"baseline present + {n_open_exps} open experiment(s)")
+        elif has_baseline and n_hist >= 3:
+            primary = "verification"
+            signals.append(f"baseline present + {n_hist} sibling run(s) — regression watch")
+        elif has_baseline:
+            primary = "verification"
+            signals.append("baseline present — comparing against a prior version")
+        elif n_decisions:
+            primary = "operations"
+            signals.append(f"deploy-decision ledger has {n_decisions} entr(y/ies)")
+        elif has_targets:
+            primary = "design"
+            signals.append("targets/SLOs pinned but no baseline yet — establishing the bar")
+        else:
+            primary = "analysis"
+            signals.append("first run — no baseline, no targets, no logs")
+
+        # --- what this report cannot show, and why ----------------------- #
+        if not has_baseline:
+            missing.append("no baseline → regression / change-attribution / trace-diff omitted")
+        if not experiments_log_path:
+            missing.append("no .aoo/experiments.jsonl → the proof panel only nudges")
+        if not has_targets:
+            missing.append("no .aoo/targets.json → verdict measured against the built-in 0.7")
+        if not decision_log_path:
+            missing.append("no --decision-log → the deploy-decision ledger is not tracked")
+
+        _art = "an" if primary[:1] in "aeiou" else "a"
+        note = (
+            f"This run reads as {_art} **{primary}** step. "
+            + "; ".join(signals) + "."
+        )
+        return {
+            "primary": primary,
+            "order": list(_LIFECYCLE_ORDER),
+            "signals": signals,
+            "missing": missing,
+            "note": note,
+        }
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+def _verdict_flip_section(current: dict[str, Any]) -> dict[str, Any] | None:
+    """SPEC-042 REQ-4: whole-eval verdict stability.
+
+    Reads the opt-in ``extra_metrics.repeat_runs`` — either a summary dict
+    (``agent_evaluator.repeat.summarize_repeated`` / ``run_repeated`` output) or
+    a raw list of K per-run result dicts (summarised here). ``None`` when absent
+    or fewer than 2 runs. Expensive check — meant for release-candidate / nightly
+    runs on an idempotent agent, not every PR."""
+    em = current.get("extra_metrics")
+    rr = em.get("repeat_runs") if isinstance(em, dict) else None
+    if isinstance(rr, dict) and isinstance(rr.get("runs"), int) and rr["runs"] >= 2:
+        return rr
+    if isinstance(rr, list):
+        try:
+            from agent_evaluator.repeat import summarize_repeated
+
+            return summarize_repeated(rr)
+        except Exception:  # pragma: no cover - defensive
+            return None
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Agent calibration & abstention quality (P39) — opt-in.
 #
@@ -605,6 +915,10 @@ def _cost_economics_section(
 _ROUTE_TCR_TOL_PP = 5.0
 _STEP_UBIQUITY = 0.9
 _RETRY_PCT_FLOOR = 5.0
+# SPEC-042 REQ-8: a task_type whose accuracy clears this by a comfortable margin
+# is a candidate for a smaller / cheaper model ("tier downshift", Harness
+# principle 5 — model size to task nature).
+_TIER_DOWNSHIFT_ACC = 0.85
 
 
 def _efficiency_opportunities_section(
@@ -767,6 +1081,63 @@ def _efficiency_opportunities_section(
             "evidence": {"retry_cost_usd": ce.get("retry_cost_usd"),
                          "clusters": [str(x) for x in rt_clusters[:5]]},
         })
+
+    # (d) tier downshift (SPEC-042 REQ-8, Harness principle 5) — a task_type that
+    #     passes with a comfortable accuracy margin yet costs about as much as the
+    #     hardest type is a candidate for a smaller / cheaper model.
+    by_type: dict[str, dict[str, Any]] = {}
+    for t in tasks:
+        tt = str(t.get("task_type") or "").strip().lower()
+        if not tt:
+            continue
+        acc = _safe_float(t.get("accuracy_score"))
+        cost = _task_token_cost(t, p_in, p_out)
+        b = by_type.setdefault(tt, {"accs": [], "costs": []})
+        if acc is not None:
+            b["accs"].append(acc)
+        if cost is not None:
+            b["costs"].append(cost)
+    typ_rows = [
+        {
+            "task_type": tt,
+            "n": len(b["accs"]),
+            "mean_accuracy": round(sum(b["accs"]) / len(b["accs"]), 3),
+            "cost_per_task_usd": round(sum(b["costs"]) / len(b["costs"]), 6),
+        }
+        for tt, b in by_type.items()
+        if len(b["accs"]) >= 3 and b["costs"]
+    ]
+    if len(typ_rows) >= 2:
+        dearest = max(typ_rows, key=lambda r: r["cost_per_task_usd"])
+        for r in sorted(typ_rows, key=lambda r: -r["cost_per_task_usd"]):
+            if (
+                r["task_type"] != dearest["task_type"]
+                and r["mean_accuracy"] >= _TIER_DOWNSHIFT_ACC
+                and r["cost_per_task_usd"] >= dearest["cost_per_task_usd"] * 0.8
+            ):
+                _headroom = r["mean_accuracy"] - _TIER_DOWNSHIFT_ACC
+                out.append({
+                    "kind": "tier_downshift",
+                    "title": f"Route '{r['task_type']}' tasks to a smaller model",
+                    "detail": (
+                        f"'{r['task_type']}' tasks pass with accuracy "
+                        f"{r['mean_accuracy']:.2f} (+{_headroom:.2f} over the 0.85 "
+                        f"comfort line, n={r['n']}) yet cost "
+                        f"${r['cost_per_task_usd']:.4f}/task — about the same as the "
+                        f"hardest type '{dearest['task_type']}' "
+                        f"(${dearest['cost_per_task_usd']:.4f}). A cheaper / smaller "
+                        f"model for this type is likely to hold accuracy. Estimate "
+                        f"the drop on a held-out slice before switching."
+                    ),
+                    "projected_saving_pct": None,
+                    "projected_saving_per_100k_usd": None,
+                    "risk": (
+                        "accuracy drop on this task type — the margin above is on "
+                        "the current model, not the smaller one; measure it"
+                    ),
+                    "evidence": {"by_task_type": typ_rows},
+                })
+                break
 
     return out or None
 
@@ -3852,6 +4223,92 @@ def _failure_lineage_section(
     }
 
 
+def _eval_set_delta_section(
+    current: dict[str, Any], baseline: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """SPEC-043 REQ-2: when the eval set itself changed between the baseline and
+    this run, split the TCR movement into "the agent changed" vs "the eval set
+    changed". Oaxaca-style decomposition on the task_ids both runs share — no
+    re-run: the baseline result JSON already carries the baseline agent's
+    per-task pass/fail, so restricting it to the common cases isolates the
+    eval-set contribution. ``None`` unless both runs stamped a
+    ``lineage.eval_set_hash`` and the two hashes differ."""
+    if not baseline:
+        return None
+    cur_lin = (current.get("extra_metrics") or {}).get("lineage") or {}
+    base_lin = (baseline.get("extra_metrics") or {}).get("lineage") or {}
+    cur_hash = cur_lin.get("eval_set_hash")
+    base_hash = base_lin.get("eval_set_hash")
+    if not cur_hash or not base_hash or cur_hash == base_hash:
+        return None
+
+    def _pass_map(report: dict[str, Any]) -> dict[str, bool]:
+        m: dict[str, bool] = {}
+        for t in report.get("tasks") or []:
+            if isinstance(t, dict) and t.get("task_id"):
+                m[str(t["task_id"])] = not _effective_fail(
+                    success=t.get("success", False),
+                    accuracy=t.get("accuracy_score"),
+                    completion=t.get("completion_score"),
+                )
+        return m
+
+    cur_pass = _pass_map(current)
+    base_pass = _pass_map(baseline)
+    if not cur_pass or not base_pass:
+        return None
+    common = sorted(set(cur_pass) & set(base_pass))
+    added = sorted(set(cur_pass) - set(base_pass))
+    removed = sorted(set(base_pass) - set(cur_pass))
+
+    base = {
+        "eval_set_hash": cur_hash,
+        "baseline_eval_set_hash": base_hash,
+        "baseline_eval_set_size": base_lin.get("eval_set_size") or len(base_pass),
+        "eval_set_size": cur_lin.get("eval_set_size") or len(cur_pass),
+        "added_cases": len(added),
+        "removed_cases": len(removed),
+        "common_cases": len(common),
+        "added_case_ids": added[:20],
+        "removed_case_ids": removed[:20],
+    }
+    if not common:
+        base["attributable"] = False
+        base["note"] = (
+            "The eval set changed and shares no task_id with the baseline — the "
+            "TCR movement cannot be split between agent and eval-set change."
+        )
+        return base
+
+    def _mean(ids: list[str], pmap: dict[str, bool]) -> float:
+        vals = [1.0 if pmap[i] else 0.0 for i in ids if i in pmap]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    base_full = _mean(list(base_pass), base_pass)
+    base_common = _mean(common, base_pass)
+    cur_full = _mean(list(cur_pass), cur_pass)
+    cur_common = _mean(common, cur_pass)
+
+    total_move = (cur_full - base_full) * 100.0
+    agent_move = (cur_common - base_common) * 100.0
+    evalset_move = total_move - agent_move
+
+    base.update({
+        "tcr_movement_pp": round(total_move, 1),
+        "attributable_to_agent_pp": round(agent_move, 1),
+        "attributable_to_eval_set_change_pp": round(evalset_move, 1),
+        "attributable": True,
+        "note": (
+            f"TCR moved {total_move:+.1f}pp overall. On the {len(common)} case(s) "
+            f"both runs share, the agent moved {agent_move:+.1f}pp; the remaining "
+            f"{evalset_move:+.1f}pp is the eval-set change "
+            f"(+{len(added)} / -{len(removed)} case(s)). Decomposition on the "
+            "common set — not a re-run of the old agent on the new set."
+        ),
+    })
+    return base
+
+
 # ---------------------------------------------------------------------------
 # Regression -> cause linkage (P38)
 #
@@ -4039,6 +4496,7 @@ def _regression_attribution_section(
     failure_lineage: dict[str, Any] | None,
     change_attribution: dict[str, Any] | None,
     metadata_slices: list[dict[str, Any]] | None,
+    eval_set_delta: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     regressed = list((failure_lineage or {}).get("regressed") or [])
     if not regressed:
@@ -4160,6 +4618,14 @@ def _regression_attribution_section(
         )
     if _top and _top["implicated_changes"]:
         parts.append("co-occurring change(s): " + "; ".join(_top["implicated_changes"]))
+    esd = eval_set_delta or {}
+    _es_pp = esd.get("attributable_to_eval_set_change_pp")
+    if esd.get("attributable") and isinstance(_es_pp, (int, float)) and abs(_es_pp) >= 1.0:
+        parts.append(
+            f"{_es_pp:+.1f}pp of the overall TCR movement is from the eval-set "
+            f"change (+{esd.get('added_cases', 0)} / -{esd.get('removed_cases', 0)} "
+            "case(s)), not the agent"
+        )
     note = ". ".join(parts) + ". One run has a single change-set — this is a " \
                               "correlation, not a temporal isolation."
 
@@ -4170,6 +4636,7 @@ def _regression_attribution_section(
             k for k in (ck.keys() if isinstance(ck, dict) else [])
         ],
         "prompt_changed": prompt_changed,
+        "eval_set_changed": bool(esd),
         "note": note,
     }
 
@@ -6341,6 +6808,69 @@ def _attach_priors(out: dict[str, Any]) -> None:
             }
 
 
+def _attach_decision_ready(
+    out: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    harness_groups: dict[str, Any],
+    targets: dict[str, Any] | None,
+) -> None:
+    """SPEC-042 REQ-2: fold a statistical "is this deploy call decisive?" flag
+    into ``verdict``.
+
+    ``verdict.decision_ready`` is ``False`` (with a ``verdict.undecided_reason``
+    string) when the call is borderline rather than clear:
+
+      - the binary task pass-rate's Wilson 95% CI straddles the TCR target
+        (reuses ``_running_verdict_section``'s decisive check), or
+      - the deploy verdict flips within ±0.05 of the gate pass line
+        (``threshold_sensitivity.knife_edge``).
+
+    A hard gate failure (``level == "not_ready"``) or absent data
+    (``"unknown"``) is always ``decision_ready = True`` — that call is not a
+    statistical one. ``agent-eval gate --hold-on-undecided`` maps
+    ``decision_ready == False`` to exit 75 ("hold for human review"). Default
+    (no flag) behaviour is unchanged: the field is advisory only.
+    """
+    v = out.get("verdict")
+    if not isinstance(v, dict):
+        return
+    v.setdefault("decision_ready", True)
+    v.setdefault("undecided_reason", None)
+
+    if v.get("level") in ("not_ready", "unknown"):
+        return
+
+    reasons: list[str] = []
+
+    rv = _safe(
+        _running_verdict_section, tasks, harness_groups, targets=targets, default={},
+    )
+    if (
+        isinstance(rv, dict)
+        and isinstance(rv.get("pass_rate_ci_pct"), list)
+        and len(rv["pass_rate_ci_pct"]) == 2
+        and not rv.get("decisive", False)
+    ):
+        lo_pp, hi_pp = rv["pass_rate_ci_pct"]
+        tgt = rv.get("target_tcr_pct")
+        _tgt_s = f"{tgt:.0f}%" if isinstance(tgt, (int, float)) else "the TCR target"
+        reasons.append(
+            f"pass-rate 95% CI [{lo_pp:.1f}%, {hi_pp:.1f}%] straddles {_tgt_s} "
+            f"on {rv.get('n_tasks')} tasks — more tasks could flip the call"
+        )
+
+    ts = out.get("threshold_sensitivity")
+    if isinstance(ts, dict) and ts.get("knife_edge"):
+        reasons.append(
+            ts.get("knife_edge_detail")
+            or "the deploy verdict flips within ±0.05 of the gate pass line"
+        )
+
+    if reasons:
+        v["decision_ready"] = False
+        v["undecided_reason"] = "; ".join(reasons)
+
+
 def _experiments_section(
     current: dict[str, Any],
     baseline: dict[str, Any] | None,
@@ -6447,7 +6977,19 @@ def _build_partial_insights(
         ),
         "calibration": _safe(_calibration_section, tasks, default=None),
         "sample_guidance": _safe(_sample_guidance_section, ci, default=None),
+        "acceptance_coverage": _safe(_acceptance_coverage_section, tasks, default=None),
+        "spec_coverage": _safe(_spec_coverage_section, tasks, default=None),
+        # SPEC-044 REQ-2: a run in progress is always an analysis-phase step.
+        "lifecycle_phase": {
+            "primary": "analysis", "order": list(_LIFECYCLE_ORDER),
+            "signals": ["mid-run partial insights"], "missing": [],
+            "note": "This is a running (partial) evaluation — treat it as an analysis step.",
+        },
     }
+    # SPEC-042 REQ-2: keep verdict.decision_ready consistent across modes. Partial
+    # mode has no threshold_sensitivity, so only the Wilson-CI straddle check runs
+    # (running_verdict already carries the same signal for early-stop).
+    _safe(_attach_decision_ready, out, tasks, hg, targets, default=None)
     out["narrative"] = _safe(_narrative_section, out, narrator, default="")
     return out
 
@@ -6470,6 +7012,8 @@ def build_insights(
     current_file: str | Path | None = None,
     cohort: list[dict[str, Any]] | None = None,
     cohort_metric: str = "tcr",
+    requirements: list[str] | None = None,
+    decision_log_path: str | Path | None = None,
     partial: bool = False,
 ) -> dict[str, Any]:
     """Compute the machine-readable insight object for a result JSON.
@@ -6504,6 +7048,10 @@ def build_insights(
             ``utils.reference.load_reference()`` shape (``.aoo/reference.json``).
             When set, ``reference_frame`` reports the run's percentile + gap to
             the frontier against it.
+        requirements: SPEC-043 REQ-1 — explicit list of requirement IDs. When
+            given, ``spec_coverage.uncovered`` lists requirement IDs that no task
+            declares in ``extra.covers``. Without it, ``spec_coverage`` falls back
+            to a covers-only (informational) view.
         partial: SPEC-041 P50 — when ``True``, return only the cheap,
             baseline-free subset for a run *in progress*: a ``running_verdict``
             (Wilson-CI pass-rate vs target + a ``decisive`` early-stop flag),
@@ -6635,6 +7183,22 @@ def build_insights(
             _security_posture_section, current, tasks, security_findings, default=None,
         ),
         "nondeterminism": _safe(_nondeterminism_section, tasks, default=None),
+        "nondeterminism_repeat": _safe(_verdict_flip_section, current, default=None),
+        "acceptance_coverage": _safe(_acceptance_coverage_section, tasks, default=None),
+        "spec_coverage": _safe(
+            _spec_coverage_section, tasks, requirements=requirements, default=None,
+        ),
+        "deploy_decision": _safe(
+            _deploy_decision_section, decision_log_path, default=None,
+        ),
+        "lifecycle_phase": _safe(
+            _lifecycle_phase_section, current, baseline, experiments_log_path,
+            recommendation_log_path, targets, decision_log_path, history_dir,
+            default=None,
+        ),
+        "eval_set_delta": _safe(
+            _eval_set_delta_section, current, baseline, default=None,
+        ),
         "calibration": _safe(_calibration_section, tasks, default=None),
         "multiagent": _safe(_multiagent_section, tasks, default=None),
         "score_breakdowns": _safe(_score_breakdowns_section, tasks, default=None),
@@ -6669,6 +7233,7 @@ def build_insights(
     }
     _safe(_attach_proposals, out, tasks, current, fixer, default=None)
     _safe(_attach_priors, out, default=None)
+    _safe(_attach_decision_ready, out, tasks, hg, targets, default=None)
     out["multiplicity_audit"] = _safe(
         _multiplicity_audit_section, out.get("slice_analysis"),
         out.get("metadata_slices"), out.get("cohort_comparison"), default=None,
@@ -6681,7 +7246,8 @@ def build_insights(
     )
     out["regression_attribution"] = _safe(
         _regression_attribution_section, tasks, out.get("failure_lineage"),
-        out.get("change_attribution"), out.get("metadata_slices"), default=None,
+        out.get("change_attribution"), out.get("metadata_slices"),
+        out.get("eval_set_delta"), default=None,
     )
     out["uncertainty_budget"] = _safe(
         _uncertainty_budget_section, out, default=None,

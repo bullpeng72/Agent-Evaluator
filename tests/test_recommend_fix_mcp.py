@@ -10,6 +10,8 @@ tests/test_recommend_fix_mcp.py
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from agent_evaluator.integrations.recommend_fix_mcp import (
@@ -123,6 +125,74 @@ class TestFormatRecommendationMetricNameNormalization:
     def test_truly_unknown_metric_still_says_no_rule(self):
         text = format_recommendation("B", "some_made_up_field")
         assert "No detailed rule" in text
+
+
+class TestPriorNoteReq3:
+    """SPEC-042 REQ-3: recommend_fix appends this project's .aoo track record."""
+
+    def _write_outcomes(self, aoo, rows):
+        aoo.mkdir(parents=True, exist_ok=True)
+        with open(aoo / "recommendation_outcomes.jsonl", "w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+    def test_no_aoo_dir_keeps_output_unchanged(self, tmp_path):
+        text = format_recommendation("E", aoo_dir=tmp_path / "does-not-exist")
+        assert "track record" not in text
+
+    def test_prior_line_for_gate_with_history(self, tmp_path):
+        aoo = tmp_path / ".aoo"
+        self._write_outcomes(aoo, [
+            {"verdict": "confirmed", "target_gate": "E",
+             "note": "tighten retry config", "gate_delta": 0.06},
+            {"verdict": "confirmed", "target_gate": "E",
+             "note": "guardrail scope change", "gate_delta": 0.04},
+            {"verdict": "confirmed", "target_gate": "E",
+             "note": "config timeout bump", "gate_delta": 0.05},
+            {"verdict": "refuted", "target_gate": "E", "note": "another config tweak"},
+        ])
+        text = format_recommendation("E", aoo_dir=aoo)
+        assert "track record" in text
+        assert "config change" in text
+        assert "3/4 confirmed" in text
+        assert "75%" in text
+        # HOTL disclaimer still last
+        assert text.rstrip().endswith("up to you.")
+
+    def test_thin_sample_is_labelled(self, tmp_path):
+        aoo = tmp_path / ".aoo"
+        self._write_outcomes(aoo, [
+            {"verdict": "confirmed", "target_gate": "A",
+             "note": "prompt rephrase", "gate_delta": 0.1},
+        ])
+        assert "thin sample" in format_recommendation("A", aoo_dir=aoo)
+
+    def test_category_filter_narrows_to_one_bucket(self, tmp_path):
+        aoo = tmp_path / ".aoo"
+        self._write_outcomes(aoo, [
+            {"verdict": "confirmed", "target_gate": "A",
+             "note": "prompt rephrase", "gate_delta": 0.1},
+            {"verdict": "refuted", "target_gate": "A", "note": "config threshold change"},
+        ])
+        text = format_recommendation("A", category="prompt_edit", aoo_dir=aoo)
+        assert "prompt edit" in text
+        assert "config change" not in text.split("track record")[1]
+
+    def test_falls_back_to_overall_when_no_gate_history(self, tmp_path):
+        aoo = tmp_path / ".aoo"
+        self._write_outcomes(aoo, [
+            {"verdict": "confirmed", "target_gate": "A",
+             "note": "prompt rephrase", "gate_delta": 0.1},
+            {"verdict": "confirmed", "target_gate": "A",
+             "note": "config tweak", "gate_delta": 0.05},
+        ])
+        text = format_recommendation("E", aoo_dir=aoo)
+        assert "no Gate E-specific history" in text
+
+    def test_build_server_accepts_aoo_dir(self, tmp_path):
+        pytest.importorskip("mcp")
+        server = build_server(str(tmp_path / ".aoo"))
+        assert server.name == "agent-evaluator-recommend-fix"
 
 
 class TestBuildServer:

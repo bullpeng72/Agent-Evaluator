@@ -814,12 +814,29 @@ def _compute_gate_insights(
                     break
         except (json.JSONDecodeError, OSError):
             continue
+    # SPEC-043 REQ-1: explicit requirement-ID list for spec_coverage.uncovered.
+    _reqs: list[str] | None = None
+    _req_path = getattr(args, "requirements", None)
+    if _req_path:
+        try:
+            _lines = Path(_req_path).read_text(encoding="utf-8").splitlines()
+            _reqs = [
+                ln.split(":", 1)[0].strip()
+                for ln in _lines
+                if ln.strip() and not ln.lstrip().startswith("#")
+            ]
+            _reqs = [r for r in _reqs if r] or None
+        except OSError:
+            _reqs = None
+
     try:
         from agent_evaluator.reporting.insights import build_insights
 
         return build_insights(
             data, baseline_result, targets=targets, reference=reference,
             golden_set_path=getattr(args, "golden_set", None),
+            requirements=_reqs,
+            decision_log_path=getattr(args, "decision_log", None),
         )
     except Exception:
         return None
@@ -1246,11 +1263,13 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # ── 케이스 회귀 / 리뷰 큐 게이트 + 알림 (SPEC-041 P26) ──────────────────
     case_regression_fail = False
     review_high_fail = False
+    spec_coverage_fail = False
     _p26_insights: dict[str, Any] | None = None
     _fail_on_case = getattr(args, "fail_on_case_regression", False)
     _max_review_high = getattr(args, "max_review_high", None)
+    _require_spec_cov = getattr(args, "require_spec_coverage", False)
     _notify_targets = getattr(args, "notify", None) or []
-    if _fail_on_case or _max_review_high is not None or _notify_targets:
+    if _fail_on_case or _max_review_high is not None or _require_spec_cov or _notify_targets:
         _p26_insights = _compute_gate_insights(data, args, baseline_path, _tg, _ref)
         _lineage = (_p26_insights or {}).get("failure_lineage")
         _regressed = (_lineage or {}).get("regressed") or []
@@ -1285,6 +1304,26 @@ def cmd_gate(args: argparse.Namespace) -> int:
                     f"(max allowed {_max_review_high}){R}",
                     file=sys.stderr,
                 )
+        # SPEC-043 REQ-1: 선언된 요구사항 중 골든 케이스가 없는 것이 있으면 exit 4
+        # (케이스 회귀와 같은 코드 — 둘 다 "평가셋 결함").
+        if _require_spec_cov:
+            _sc = (_p26_insights or {}).get("spec_coverage") or {}
+            _unc = _sc.get("uncovered") or []
+            if _sc.get("source") != "requirements_list":
+                print(
+                    f"{Y}⚠  --require-spec-coverage needs --requirements PATH "
+                    f"(a plain list of 'REQ-ID: description' lines) — skipping "
+                    f"spec-coverage check.{R}",
+                    file=sys.stderr,
+                )
+            elif _unc:
+                spec_coverage_fail = True
+                print(
+                    f"\n{RD}{B}Requirements with no golden case ({len(_unc)}):{R}",
+                    file=sys.stderr,
+                )
+                for _rid in _unc[:20]:
+                    print(f"  {RD}✗ {_rid}{R}", file=sys.stderr)
 
     # ── 종료 코드 결정 ───────────────────────────────────────────────────────
     # SPEC-025 REQ-6: --fail-on-golden-regression이 지정된 경우에만 골든셋 회귀가
@@ -1292,7 +1331,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     # 통과/실패 판정에는 영향을 주지 않는다 — 다른 옵트인 체크들과 동일한 관례).
     if getattr(args, "fail_on_golden_regression", False) and golden_regressions:
         exit_code = 3
-    elif case_regression_fail or review_high_fail:
+    elif case_regression_fail or review_high_fail or spec_coverage_fail:
         exit_code = 4
     elif regressions:
         exit_code = 2
@@ -1308,6 +1347,59 @@ def cmd_gate(args: argparse.Namespace) -> int:
         exit_code = 1
     else:
         exit_code = 0
+
+    # ── 판정 보류 (SPEC-042 REQ-2) — would-be PASS를 exit 75로 승격 ─────────
+    # 명시적 opt-in. 통과처럼 보이지만 이진 pass-rate Wilson CI가 TCR 타깃을
+    # 걸치거나 게이트 라인 ±0.05에서 판정이 뒤집히면(insights.verdict.decision_ready
+    # == False), "사람이 확인" 상태(75)로 돌린다. 명백한 실패(1~4)는 건드리지 않는다.
+    if getattr(args, "hold_on_undecided", False) and exit_code == 0:
+        if _p26_insights is None:
+            _p26_insights = _compute_gate_insights(data, args, baseline_path, _tg, _ref)
+        _v = ((_p26_insights or {}).get("verdict") or {})
+        if _v.get("decision_ready") is False:
+            exit_code = 75
+            print(
+                f"\n{Y}{B}Verdict held for human review (exit 75):{R} "
+                f"{_v.get('undecided_reason') or 'the deploy call is borderline'}",
+                file=sys.stderr,
+            )
+
+    # ── 배포 결정 원장 (SPEC-043 REQ-3) — 종료 코드에는 영향 없음 ──────────
+    # exit code + verdict + gate 점수를 append-only JSONL로 남긴다. 사람의 판정
+    # (accepted/held/overridden/rejected)은 `agent-eval decisions record`가 후속 append.
+    _decision_log = getattr(args, "decision_log", None)
+    if _decision_log:
+        try:
+            from agent_evaluator.rca.decision_ledger import record_gate_decision
+
+            _v = ((_p26_insights or {}).get("verdict") or {}) if _p26_insights else {}
+            _em = data.get("extra_metrics") or {}
+            _hg = _em.get("harness_groups") or {}
+            _scores = {
+                k: (v or {}).get("score")
+                for k, v in _hg.items()
+                if isinstance(v, dict)
+            }
+            _av = data.get("agent_version") or (_em.get("lineage") or {}).get("agent_version")
+            _entry = record_gate_decision(
+                _decision_log,
+                result_file=str(result_file),
+                agent_version=_av,
+                exit_code=exit_code,
+                verdict_level=_v.get("level"),
+                decision_ready=_v.get("decision_ready"),
+                undecided_reason=_v.get("undecided_reason"),
+                gate_scores=_scores,
+            )
+            print(
+                f"{D}Decision logged: {_decision_log} (id {_entry['id']}, exit {exit_code})."
+                + (f" Record the human decision with "
+                   f"`agent-eval decisions record {_decision_log} --outcome ...`."
+                   if exit_code in (75,) else "")
+                + f"{R}"
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"{Y}⚠  Could not write decision log: {exc}{R}", file=sys.stderr)
 
     # ── 알림 발송 (SPEC-041 P26) — 종료 코드에는 영향 없음 ──────────────────
     if _notify_targets:
@@ -1331,5 +1423,41 @@ def cmd_gate(args: argparse.Namespace) -> int:
                     f"{Y}⚠  Notification to {_row['target']} failed: {_row['error']}{R}",
                     file=sys.stderr,
                 )
+
+    # ── SPEC-044 REQ-7: --html-out / --html-summary ───────────────────────
+    _html_out = getattr(args, "html_out", None)
+    _html_summary = getattr(args, "html_summary", False)
+    if _html_out or _html_summary:
+        if _p26_insights is None:
+            _p26_insights = _compute_gate_insights(data, args, baseline_path, _tg, _ref)
+        _bl_full = _load_baseline(baseline_path)
+        if not (isinstance(_bl_full, dict) and _bl_full.get("tasks")):
+            _bl_full = None  # baseline.json (gate-scores summary) is not a result JSON
+        if _html_summary:
+            try:
+                from agent_evaluator.reporting.comprehensive_report import (
+                    report_markdown_summary,
+                )
+
+                print()
+                print(report_markdown_summary(
+                    _p26_insights or {}, result_file=str(result_file),
+                    exit_code=exit_code,
+                ))
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"{Y}⚠  Could not build --html-summary: {exc}{R}", file=sys.stderr)
+        if _html_out:
+            try:
+                from agent_evaluator.reporting.comprehensive_report import (
+                    generate_html_from_result_file,
+                )
+                from agent_evaluator.serve.loader import parse_file
+
+                _rf = parse_file(result_file)
+                _html = generate_html_from_result_file(_rf, baseline=_bl_full)
+                Path(_html_out).write_text(_html, encoding="utf-8")
+                print(f"{D}HTML report: {_html_out}{R}")
+            except Exception as exc:  # pragma: no cover - defensive
+                print(f"{Y}⚠  Could not write --html-out: {exc}{R}", file=sys.stderr)
 
     return exit_code

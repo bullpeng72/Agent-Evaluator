@@ -637,7 +637,16 @@ class LLMJudge:
             first, question, response_a, response_b, context, swap_check,
         )
 
-        self.pairwise_results.append(result)
+        # SPEC-043 REQ-6b: keep the inputs on the history entry so the pairwise
+        # comparison can be exported as a preference row later. The return value
+        # is a shallow copy WITHOUT these (back-compat — callers see the same
+        # keys as before).
+        self.pairwise_results.append({
+            **result,
+            "question": question,
+            "response_a": response_a,
+            "response_b": response_b,
+        })
 
         if result.get("error"):
             self._consecutive_errors += 1

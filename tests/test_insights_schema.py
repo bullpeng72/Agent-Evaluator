@@ -159,6 +159,27 @@ class TestBuildInsightsValidates:
         if ins.get("uncertainty_budget"):
             assert ins["uncertainty_budget"]["components"]
 
+    def test_lifecycle_phase_section(self, schema):
+        # SPEC-044 REQ-2 — framing key, always present, schema-valid
+        cur = _report(
+            {"A": {"score": 0.8, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(12)],
+        )
+        ins = build_insights(cur)
+        self._check(schema, ins)
+        lp = ins["lifecycle_phase"]
+        assert lp["primary"] == "analysis"          # first run
+        assert lp["order"][0] == "analysis" and lp["order"][-1] == "operations"
+        assert any("baseline" in m for m in lp["missing"])
+        # with a baseline it reads as verification
+        base = _report(
+            {"A": {"score": 0.9, "status": "pass", "gate": "pass", "details": {}}},
+            [_task(f"t{i}", ok=True) for i in range(12)],
+        )
+        ins2 = build_insights(cur, base)
+        self._check(schema, ins2)
+        assert ins2["lifecycle_phase"]["primary"] == "verification"
+
     def test_partial_mode_running_verdict(self, schema):
         # P50 — mid-run subset: still schema-valid, carries running_verdict
         cur = _report(

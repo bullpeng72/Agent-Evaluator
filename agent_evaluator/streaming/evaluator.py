@@ -11,6 +11,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 from typing import TYPE_CHECKING, Any
@@ -98,6 +99,13 @@ class StreamingEvaluator:
             ``alert_handler``(``AlertEngine`` 인스턴스)와 ``anomaly_detector`` 둘 다
             설정돼 있어야 동작한다 — 셋 중 하나라도 없으면(기본값) 스캔 결과는
             :attr:`_last_anomalies`에만 쌓이고 발송되지 않는다.
+        golden_candidate_sink: (SPEC-043 REQ-4, 선택) 경로를 주면 프로덕션 실패 /
+            ``candidate_confidence_threshold`` 미만 / 주기적 이상탐지에 걸린 태스크를
+            그 JSON Lines 큐에 골든셋 후보로 append한다(``reviewed: false``). 사람이
+            ``agent-eval dataset review-candidates``로 검토·편입. 미지정이면 스트리밍
+            동작 100% 불변.
+        candidate_confidence_threshold: (SPEC-043 REQ-4, 선택) ``record(confidence=)``가
+            이 값 미만이면 후보로 편입. ``golden_candidate_sink``와 함께 써야 의미 있음.
 
     Example::
         from agent_evaluator.streaming import StreamingEvaluator
@@ -115,6 +123,8 @@ class StreamingEvaluator:
         anomaly_detector: AnomalyDetector | None = None,
         anomaly_scan_interval: int = 300,
         anomaly_alert_handler: Any | None = None,
+        golden_candidate_sink: str | Path | None = None,
+        candidate_confidence_threshold: float | None = None,
     ) -> None:
         self.monitor = monitor
         self.flush_interval = flush_interval
@@ -122,6 +132,15 @@ class StreamingEvaluator:
         self.anomaly_detector = anomaly_detector
         self.anomaly_scan_interval = anomaly_scan_interval
         self.anomaly_alert_handler = anomaly_alert_handler
+        # SPEC-043 REQ-4: when set, production failures / low-confidence answers /
+        # anomaly-flagged tasks are appended to this JSON Lines queue as golden-set
+        # candidates for a human to review (`agent-eval dataset review-candidates`).
+        # None (default) -> streaming behaviour is 100% unchanged.
+        self.golden_candidate_sink = (
+            str(golden_candidate_sink) if golden_candidate_sink else None
+        )
+        self.candidate_confidence_threshold = candidate_confidence_threshold
+        self._sunk_anomaly_ids: set[str] = set()
 
         # 슬라이딩 윈도우: 1분, 5분, 1시간
         self._windows = {
@@ -161,6 +180,9 @@ class StreamingEvaluator:
         tokens_used: int = 0,
         accuracy_score: float = 0.0,
         has_error: bool = False,
+        question: str | None = None,
+        response: str | None = None,
+        confidence: float | None = None,
     ) -> None:
         """실시간 지표 기록.
 
@@ -171,6 +193,11 @@ class StreamingEvaluator:
             tokens_used: 토큰 사용량.
             accuracy_score: 정확도 점수 (0.0~1.0).
             has_error: 오류 발생 여부.
+            question: (SPEC-043 REQ-4, 선택) 이 요청의 입력 — ``golden_candidate_sink``가
+                설정돼 있고 이 태스크가 후보 조건에 걸릴 때 후보 행에 실린다.
+            response: (SPEC-043 REQ-4, 선택) 이 요청의 출력.
+            confidence: (SPEC-043 REQ-4, 선택) 에이전트 자기확신도 —
+                ``candidate_confidence_threshold`` 미만이면 골든 후보로 append.
         """
         record = StreamingRecord(
             task_id=task_id,
@@ -183,11 +210,51 @@ class StreamingEvaluator:
         for window in self._windows.values():
             window.add(record)
 
+        if self.golden_candidate_sink is not None:
+            self._maybe_sink_candidate(
+                task_id, has_error or not success, confidence, question, response,
+            )
+
         if self.alert_handler is not None:
             try:
                 self.alert_handler.evaluate(self)
             except Exception as _e:
                 logger.debug("Alert handler evaluation failed (ignored): %s", _e)
+
+    def _maybe_sink_candidate(
+        self,
+        task_id: str,
+        errored: bool,
+        confidence: float | None,
+        question: str | None,
+        response: str | None,
+    ) -> None:
+        """SPEC-043 REQ-4: append a golden-set candidate when this task errored or
+        its confidence is below ``candidate_confidence_threshold``. Best-effort —
+        a streaming record must never raise because of the sink."""
+        thr = self.candidate_confidence_threshold
+        low_conf = (
+            thr is not None and isinstance(confidence, (int, float)) and confidence < thr
+        )
+        if not errored and not low_conf:
+            return
+        trigger = "error" if errored else f"low_confidence:{confidence:.2f}"
+        try:
+            from agent_evaluator.datasets.golden_candidates import append_candidate
+
+            append_candidate(
+                self.golden_candidate_sink,  # type: ignore[arg-type]
+                question=question or "",
+                response=response or "",
+                trigger=trigger,
+                task_id=task_id,
+                extra=(
+                    {"confidence": float(confidence)}
+                    if isinstance(confidence, (int, float)) else None
+                ),
+            )
+        except Exception as _e:  # pragma: no cover - defensive
+            logger.debug("Golden-candidate sink failed (ignored): %s", _e)
 
     def get_stats(self, window: str = "5m") -> dict[str, Any]:
         """슬라이딩 윈도우 통계 반환.
@@ -234,7 +301,40 @@ class StreamingEvaluator:
         except Exception as _e:
             logger.debug("Anomaly scan failed (ignored): %s", _e)
             return
+        self._maybe_sink_anomaly_candidates()
         self._maybe_dispatch_anomalies()
+
+    def _maybe_sink_anomaly_candidates(self) -> None:
+        """SPEC-043 REQ-4: turn each new anomaly event from the periodic scan into
+        a golden-set candidate (deduped by event id). The event is an aggregate
+        signal, so there is no per-task question/response — the row carries the
+        event description as ``question`` and the metric detail in ``extra``."""
+        if self.golden_candidate_sink is None or not self._last_anomalies:
+            return
+        try:
+            from agent_evaluator.datasets.golden_candidates import append_candidate
+        except Exception:  # pragma: no cover - defensive
+            return
+        for ev in self._last_anomalies:
+            try:
+                ev_d = ev.to_dict()
+            except Exception:  # pragma: no cover - defensive
+                continue
+            ev_id = str(ev_d.get("event_id") or ev_d.get("id") or ev_d.get("metric") or "")
+            if not ev_id or ev_id in self._sunk_anomaly_ids:
+                continue
+            self._sunk_anomaly_ids.add(ev_id)
+            try:
+                append_candidate(
+                    self.golden_candidate_sink,
+                    question=str(ev_d.get("description") or ev_d.get("message") or ev_id),
+                    response="",
+                    trigger=f"anomaly:{ev_d.get('metric') or 'unknown'}",
+                    extra={k: ev_d[k] for k in ("metric", "severity", "value", "event_id")
+                           if k in ev_d},
+                )
+            except Exception as _e:  # pragma: no cover - defensive
+                logger.debug("Anomaly candidate sink failed (ignored): %s", _e)
 
     def _maybe_dispatch_anomalies(self) -> None:
         """SPEC-026 REQ-4: REQ-2의 스캔 결과(:attr:`_last_anomalies`)를 REQ-3의

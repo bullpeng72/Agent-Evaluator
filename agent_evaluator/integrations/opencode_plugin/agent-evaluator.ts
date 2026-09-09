@@ -96,6 +96,9 @@ interface GuardrailInitConfig {
   // `agent-eval opencode blocked-detail <task_id>` / search_violations로 "무슨 명령이
   // 막혔는지"를 볼 수 있게 한다. {"enabled": false}로 끄면 이전 동작(도구/게이트/사유만).
   blocked_attempt_capture?: Record<string, unknown>
+  // SPEC-042 REQ-7: 사람이 직접 수행해야 하는 명령의 부분 문자열(예: "terraform apply").
+  // 매치되면 그 호출을 차단하고 에이전트를 되돌린다(대기 아님). 비우면 꺼짐(옵트인).
+  human_only_patterns?: string[]
 }
 
 // 아래 설정은 실제 OpenCode 1.17.9 + Ollama qwen3-coder 세션으로 라이브 테스트한 뒤
@@ -206,6 +209,16 @@ const CIRCUIT_BREAKER_AFTER: number = (() => {
   return typeof v === "number" && v >= 0 ? v : 5
 })()
 delete _RESOLVED_GUARDRAIL_CONFIG.circuit_breaker_after
+
+// SPEC-042 REQ-6: 관찰 전용 자동 해제 — 트립된 뒤 도구 호출이 연속 M회 실제 실행되면
+// (tool.execute.after 도달) 관찰 전용을 풀고 다시 강제 모드로 돌아간다(Claude 훅과 대칭).
+// 키 없음 → circuit_breaker_after × 2. 0/음수 → 자동 해제 안 함(세션 내내 sticky).
+const CIRCUIT_BREAKER_RECOVER_AFTER: number = (() => {
+  const v = _RESOLVED_GUARDRAIL_CONFIG.circuit_breaker_recover_after
+  if (typeof v === "number") return v > 0 ? v : 0
+  return CIRCUIT_BREAKER_AFTER * 2
+})()
+delete _RESOLVED_GUARDRAIL_CONFIG.circuit_breaker_recover_after
 
 const EFFECTIVE_GUARDRAIL_CONFIG: GuardrailInitConfig =
   _RESOLVED_GUARDRAIL_CONFIG as GuardrailInitConfig
@@ -331,6 +344,9 @@ class GuardrailSession {
   // 세션 끝까지 유지(sticky). tripped면 tool.execute.before가 throw하지 않고 통과시킨다.
   consecutiveBlocks = 0
   circuitTripped = false
+  // SPEC-042 REQ-6: 트립된 뒤 연속으로 실제 실행된 도구 호출 수. CIRCUIT_BREAKER_RECOVER_AFTER에
+  // 도달하면 circuitTripped를 false로 되돌린다. 새 차단이 들어오면 0으로 리셋한다.
+  cleanSinceTrip = 0
 
   constructor() {
     this.proc = spawn(PYTHON_BIN, ["-m", "agent_evaluator.integrations.live_guardrail_stdio"], {
@@ -669,6 +685,9 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
         // SPEC-041 P2.4: circuit breaker — 연속 차단이 임계값에 도달하면 남은 세션
         // 동안 관찰 전용으로 전환한다(Claude 훅과 대칭). tripped면 throw하지 않고 통과.
         session.consecutiveBlocks += 1
+        // SPEC-042 REQ-6: 관찰 전용 중 통과한 위험 호출이 다시 막혔으니 복구
+        // 스트릭을 처음부터 다시 쌓게 한다.
+        session.cleanSinceTrip = 0
         if (
           !session.circuitTripped &&
           CIRCUIT_BREAKER_AFTER > 0 &&
@@ -705,9 +724,21 @@ export const AgentEvaluatorGuardrail: Plugin = async ({ client }) => {
       try {
         const sessionId = input.sessionID
         const session = getOrCreateSession(sessionId)
-        // SPEC-041 P2.4: 도구가 실제로 실행된 지점 → 연속 차단 카운터 리셋
-        // (circuitTripped는 sticky라 유지). Claude 훅 PostToolUse와 동일.
+        // SPEC-041 P2.4: 도구가 실제로 실행된 지점 → 연속 차단 카운터 리셋.
+        // SPEC-042 REQ-6: 트립 상태면 클린 호출을 세서 CIRCUIT_BREAKER_RECOVER_AFTER회에
+        // 도달하면 관찰 전용을 자동 해제한다(Claude 훅 PostToolUse와 대칭).
         session.consecutiveBlocks = 0
+        if (session.circuitTripped && CIRCUIT_BREAKER_RECOVER_AFTER > 0) {
+          session.cleanSinceTrip += 1
+          if (session.cleanSinceTrip >= CIRCUIT_BREAKER_RECOVER_AFTER) {
+            session.circuitTripped = false
+            session.cleanSinceTrip = 0
+            console.error(
+              `[agent-evaluator] circuit breaker recovered after ${CIRCUIT_BREAKER_RECOVER_AFTER} ` +
+                `consecutive clean tool calls in session ${sessionId} — enforcement is active again.`,
+            )
+          }
+        }
         await session.record(sessionId, input.tool, input.args, extractToolExecutionOutput(output))
       } catch (err) {
         console.error(`[agent-evaluator] tool.execute.after record failed: ${err}`)

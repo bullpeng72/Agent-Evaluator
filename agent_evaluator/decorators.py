@@ -498,6 +498,34 @@ def _pop_ctx(token: contextvars.Token) -> None:
     _eval_ctx_var.reset(token)
 
 
+def _enter_fault_injection(config: Any) -> Any:
+    """SPEC-043 REQ-5: activate a ``FaultInjectionConfig`` for the wrapped call so
+    every ``@tool_guard`` tool inside inherits it. ``None`` (every existing
+    caller) is a transparent no-op. Returns a token for :func:`_exit_fault_injection`.
+    Never raises — a broken import must not stop an eval run."""
+    if config is None:
+        return None
+    try:
+        from agent_evaluator.gates.fault_injection import enter_fault_injection
+
+        return enter_fault_injection(config)
+    except Exception as _e:  # pragma: no cover - defensive
+        logger.debug("fault_injection setup failed (ignored): %s", _e)
+        return None
+
+
+def _exit_fault_injection(token: Any) -> None:
+    """Undo :func:`_enter_fault_injection`. Never raises."""
+    if token is None:
+        return
+    try:
+        from agent_evaluator.gates.fault_injection import exit_fault_injection
+
+        exit_fault_injection(token)
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+
 # ---------------------------------------------------------------------------
 # 내부 헬퍼 — 반환값 처리
 # ---------------------------------------------------------------------------
@@ -3712,6 +3740,7 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
     reproducibility: ReproducibilityConfig | None = None,
     reproducibility_responses: list[str] | None = None,
     fault_tolerance: FaultToleranceConfig | None = None,
+    fault_injection: Any = None,  # SPEC-043 REQ-5: FaultInjectionConfig | None
     plan_tracking: PlanConfig | None = None,
     # v0.9.1+: 신규 Harness Config
     sla: SLAConfig | None = None,
@@ -4066,6 +4095,17 @@ def _build_and_record(  # pyright: ignore[reportGeneralTypeIssues]
                 _p1_extra["fault_tolerance"] = _ft_result
             except Exception as _e:
                 logger.debug("fault_tolerance evaluation failed (ignored): %s", _e)
+
+        # SPEC-043 REQ-5: echo the injection config onto the task so it flows into
+        # the result JSON and (deduped) into lineage.fault_injection — no scoring.
+        if fault_injection is not None:
+            try:
+                _p1_extra["fault_injection"] = (
+                    fault_injection.to_dict()
+                    if hasattr(fault_injection, "to_dict") else dict(fault_injection)
+                )
+            except Exception as _e:  # pragma: no cover - defensive
+                logger.debug("fault_injection echo failed (ignored): %s", _e)
 
         if plan_tracking is not None:
             try:
@@ -5115,6 +5155,8 @@ def agent_eval(
     threat_response: ThreatResponseConfig | None = None,
     context_window: ContextWindowConfig | None = None,
     latency_attribution: LatencyAttributionConfig | None = None,
+    # SPEC-043 REQ-5: thin fault-injection harness (Gate C/D scoring enrichment)
+    fault_injection: Any = None,  # FaultInjectionConfig | None
 ) -> Any:
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
@@ -5510,6 +5552,7 @@ def agent_eval(
             raw: Any = None          # 함수 반환값 전체 (EvalMetadata 포함 가능)
             caller_result: Any = None  # 호출자에게 반환할 값 (EvalMetadata 제거)
             eval_ctx, _ctx_token = _push_ctx()
+            _fi_token = _enter_fault_injection(fault_injection)  # SPEC-043 REQ-5
             _attempt = 0
             _errors: list[str] = []
             _wait = _retry_delay
@@ -5604,6 +5647,7 @@ def agent_eval(
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
+                _exit_fault_injection(_fi_token)  # SPEC-043 REQ-5
                 _eval_active.reset(_eval_active_token)  # 항목 F: 이중 감지 토큰 복원
                 try:
                     _NEST_DEPTH.reset(_nest_depth_token)  # M2: 중첩 깊이 복원
@@ -5669,6 +5713,7 @@ def agent_eval(
                         reproducibility=reproducibility,
                         reproducibility_responses=_repro_responses,
                         fault_tolerance=fault_tolerance,
+                        fault_injection=fault_injection,
                         plan_tracking=plan_tracking,
                         sla=sla,
                         threat_severity=threat_severity,
@@ -5734,6 +5779,7 @@ def agent_eval(
             error_msg: str | None = None
             raw: Any = None
             eval_ctx, _ctx_token = _push_ctx()
+            _fi_token = _enter_fault_injection(fault_injection)  # SPEC-043 REQ-5
             # H1: track _eval_active and _NEST_DEPTH for async wrapper (same as gen/agen wrappers)
             _async_eval_active_token = _eval_active.set(True)
             _async_nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
@@ -5900,6 +5946,7 @@ def agent_eval(
                         # SPEC-039 REQ-2: sync와 동일 지원
                         reproducibility_responses=_repro_responses,
                         fault_tolerance=fault_tolerance,
+                        fault_injection=fault_injection,
                         plan_tracking=plan_tracking,
                         sla=sla,
                         threat_severity=threat_severity,
@@ -6031,6 +6078,7 @@ def agent_eval(
                         loop_detection=loop_detection,
                         goal_alignment=goal_alignment,
                         fault_tolerance=fault_tolerance,
+                        fault_injection=fault_injection,
                         plan_tracking=plan_tracking,
                         agent_role=agent_role,
                         graceful_degradation=graceful_degradation,
@@ -6155,6 +6203,7 @@ def agent_eval(
                         loop_detection=loop_detection,
                         goal_alignment=goal_alignment,
                         fault_tolerance=fault_tolerance,
+                        fault_injection=fault_injection,
                         plan_tracking=plan_tracking,
                         agent_role=agent_role,
                         graceful_degradation=graceful_degradation,

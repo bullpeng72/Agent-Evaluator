@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.0.5 (2026-09-09) — Harness Methodology alignment · development-support framework · HTML report as instrument
+
+Feature release. All additions are **opt-in** — with defaults unchanged, the result JSON stays byte-identical and no `schema_version` bump is needed (new `insights` keys are additive, `additionalProperties: true`). Two new CLI subcommands (`decisions`, `feedback`); `agent-eval --help` now lists 18.
+
+### Harness Methodology alignment (SPEC-042)
+
+- **`agent-eval gate --hold-on-undecided`** — a would-be PASS whose pass-rate Wilson CI straddles the TCR target (or flips within ±0.05 of the gate line) returns **exit 75** ("hold for human review", BSD `EX_TEMPFAIL`). Never overrides a real fail (1–4). Surfaces as `insights.verdict.decision_ready` + `verdict.undecided_reason`.
+- **`agent_evaluator.repeat.run_repeated(fn, k)` / `summarize_repeated(runs)`** — call a full eval K times, fold into a verdict-stability summary (`flip_rate` · `tcr_stddev` · `unstable_tasks`) at `insights.nondeterminism_repeat`. Release-candidate / nightly only; idempotent agents only.
+- **`create_taskresult(acceptance_criteria=[...])`** → `insights.acceptance_coverage` ("N of M met" per task, keyword match). Display only — not a Gate score.
+- **`LiveGuardrail(human_only_patterns=[...])`** — a substring match (e.g. `"terraform apply"`) blocks the call with `gate="B"` and turns the agent back (no wait for approval).
+- **`circuit_breaker_recover_after`** (default 2× the trip threshold = 10) — that many consecutive clean tool calls auto-lifts observe-only; `0` keeps it sticky for the session.
+- **Claude Code hook: `PreToolUse` replays only the last `live_loop_window + 5` records** (windowed loop detection is the only history-dependent live check) — O(n²) → O(n). Full replay only when deadlock / privilege-escalation / tool-chain / cumulative-scope checks are configured, or at `SessionEnd`.
+- **`insights.efficiency_opportunities[].kind == "tier_downshift"`** — a `task_type` that passes with ≥0.85 margin (n≥3) while costing as much as the hardest slice gets a "try a smaller model" signal.
+- **`recommend_fix` MCP** appends this project's `.aoo` improvement track record ("config change on Gate E: 3/4 confirmed, mean Δ+0.05, n=4") when `experiments.jsonl` / `recommendation_outcomes.jsonl` carry resolved verdicts.
+
+### Development-support framework (SPEC-043)
+
+- **`create_taskresult(covers=[req_id])` + `agent-eval gate --requirements docs/REQ.txt --require-spec-coverage`** → `insights.spec_coverage`; **exit 4** if any `REQ-ID:` line has no golden case declaring it.
+- **Deploy-decision ledger** — `agent-eval gate --decision-log .aoo/decisions.jsonl` appends the gate run; **`agent-eval decisions {list,record}`** records the human outcome (`accepted` / `held` / `overridden` / `rejected`). Surfaces as `insights.deploy_decision`. Does not change the exit code.
+- **`lineage.eval_set_hash` + `insights.eval_set_delta`** — when the eval set changed between two runs, splits TCR movement into `attributable_to_agent_pp` vs `attributable_to_eval_set_change_pp` (Oaxaca-style, on the shared task_ids, no re-run).
+- **Production candidate queue** — `StreamingEvaluator(golden_candidate_sink="results/golden_candidates.jsonl", candidate_confidence_threshold=0.6)` routes errored / low-confidence / anomaly-flagged tasks to a review queue; **`agent-eval dataset review-candidates … --accept/--reject/--defer`** is the human step. Nothing auto-promotes.
+- **Thin fault-injection harness** — `agent_evaluator.gates.fault_injection` (`FaultInjectionConfig(tool_failure_rate, added_latency_ms, fail_tools, seed)` · `fault_injection_session()`), passed to `tool_guard(fault_injection=)` / `@agent_eval(fault_injection=)`. Seeded-RNG sleep/raise **after** a call already passed `check_before_tool_call()` — never touches the blocking path. Injected failures flow to Gate C/D scoring unchanged.
+- **`agent-eval {claude,opencode} test-config <cases.yaml>`** — assert the resolved guardrail config against `{tool, args?, expect: allow|deny, gate?}` cases; exit 1 on any mismatch.
+- **`agent-eval feedback export-preferences <path> --out prefs.jsonl`** — A/B preference rows (`pairwise_judge` / `annotation` / `contrast_pair`) → JSONL. Export only, no training.
+- **`agent-eval improve apply-verify <result> --proposal <gate> --eval-cmd "…"`** — applies one proposal's diff in a detached `git worktree` at HEAD, runs the eval there, scores predicted-vs-actual. **Never merges or commits.**
+
+### HTML report as a methodology instrument (SPEC-044)
+
+- Both report entry points share one `_assemble_report_body(ctx)` laying sections out in **3 tiers** — judgment (verdict + next action + readiness + scorecard) · iteration (lifecycle spine + proof panel) · evidence (6 collapsible `<details>` groups, auto-open on a fail/warn signal).
+- **`agent-eval gate --html-out PATH`** also writes the full HTML report; **`--html-summary`** prints a short Markdown block (verdict + path-to-green + the one next command) for a PR body.
+- New **`insights.lifecycle_phase`** — which Harness lifecycle phase the run reads as (`analysis` … `operations`), with `signals[]` / `missing[]`. Framing only, no new judgement.
+- `_build_report_js` is one inline `<script>`, no external library: copy buttons, expand/collapse-all, sticky mini-verdict bar, a `drawHistory()` Canvas chart of the sibling runs' per-Gate score, a light/dark toggle, a diff-mode toggle, and a `#failure-cases` text filter. The report is fully readable without the script.
+
+### Also
+
+- Report-generation hardening: malformed / partial result JSON no longer crashes the report, `gate`, or the dashboard (nested-`null` → `AttributeError`, `f"{None:+.2f}"`, NaN/Infinity strict-JSON). Dashboard ↔ static-report value parity (Hallucination Rate → mean severity `overall_rate`; Total Tasks → `ResultFile.task_count`).
+- `agent-eval --help` / the no-args landing list every subcommand; `agent-eval gate --help` `%%` rendering fixed.
+- `agent-eval opencode upgrade` accepts `--with-violation-search` / `--with-recommend-fix` / `--with-ask-insights`.
+- `__init__` imports the 33 Harness Configs straight from `gates/`; optional `.eval_config` loaded via `importlib`; ruff safe-autofixes + a tightened quality baseline.
+- CLAUDE.md gains a Framework Adapters section.
+
 ## v1.0.4 (2026-09-08) — blocked-attempt command detail (Claude Code + OpenCode)
 
 Patch release. No public SDK API, Config, or insight-schema changes.

@@ -87,12 +87,17 @@ DEFAULT_GUARDRAIL_CONFIG: dict[str, Any] = {
     # ToolParameterSafetyConfig의 커스터마이즈 가능한 목록과는 별개). 과거엔 이 키가 빠져
     # 있어 AC 기본 설치가 AOO 기본 설치보다 이 백스톱 하나만큼 약했다 — 파악 즉시 정렬.
     "tool_authorization": {},
-    # SPEC-041: 서킷 브레이커 — 한 세션에서 연속 N회 차단되면 남은 세션 동안
-    # 관찰 전용(allow + systemMessage 경고)으로 전환한다. 지속 차단은 공격보다
-    # 오설정일 확률이 압도적이므로, 무기한 락아웃 대신 안전하게 열어 준다.
-    # 이 브리지가 SessionEnd/PreToolUse에서 직접 쓰는 값 — build_guardrail() 전에 pop한다.
+    # SPEC-041: 서킷 브레이커 — 한 세션에서 연속 N회 차단되면 관찰 전용
+    # (allow + systemMessage 경고)으로 전환한다. 지속 차단은 공격보다 오설정일
+    # 확률이 압도적이므로, 무기한 락아웃 대신 안전하게 열어 준다. 이 브리지가
+    # SessionEnd/PreToolUse에서 직접 쓰는 값 — build_guardrail() 전에 pop한다.
     # 0 또는 null이면 서킷 브레이커를 끈다.
     "circuit_breaker_after": 5,
+    # SPEC-042 REQ-6: 관찰 전용 자동 해제 — 트립된 뒤 도구 호출이 연속 M회
+    # "실제 실행 성공"하면 관찰 전용을 풀고 다시 강제 모드로 돌아간다. 0 또는
+    # 음수면 자동 해제 없이 SPEC-041의 세션 내내 sticky 동작을 유지한다. 키가
+    # 아예 없는(직접 작성한 옛) 설정에서는 circuit_breaker_after × 2가 기본값이다.
+    "circuit_breaker_recover_after": 10,
     # SPEC-041: 완전 차단된 도구 호출의 인자에서 짧은(기본 240자) PII-마스킹 발췌를
     # 만들어 감사 이력(<id>.blocked.json → blocked_violations 테이블)에 함께 남긴다 —
     # 나중 세션에서 `agent-eval claude blocked-detail <task_id>` / search_violations로
@@ -109,6 +114,29 @@ _STATE_SUBDIR = Path(".claude") / ".agent-evaluator"
 # SPEC-041: 서킷 브레이커 기본 임계값 — guardrail_config.json의 "circuit_breaker_after"로
 # 덮어쓸 수 있고, 0/null이면 비활성화된다.
 _DEFAULT_CIRCUIT_BREAKER_AFTER = 5
+
+# SPEC-042 REQ-6: 트립(관찰 전용 전환) 자동 해제 임계값. 트립된 뒤 이 횟수만큼
+# 도구 호출이 연속으로 "실제 실행 성공"하면 관찰 전용을 풀고 다시 강제 모드로
+# 돌아간다. guardrail_config.json의 "circuit_breaker_recover_after"로 덮어쓸 수 있다:
+#   - 키 없음(기본)  → circuit_breaker_after × _CIRCUIT_BREAKER_RECOVER_MULT
+#   - 양의 정수 N     → N회 클린 호출 후 해제
+#   - 0 또는 음수     → 자동 해제 안 함(SPEC-041의 세션 내내 sticky 동작 유지)
+# 해제 후 다시 차단되면 clean_since_trip이 0으로 리셋되므로, 재트립은 즉시가 아니라
+# "다음 차단이 임계값에 다시 도달"할 때 일어난다 — 단, 이미 트립 이력이 있으면
+# consecutive 카운트는 유지되므로 실질적으로 한 번의 차단으로 재트립된다.
+_CIRCUIT_BREAKER_RECOVER_MULT = 2
+
+
+def _resolve_circuit_recover_after(config: dict[str, Any], cb_after_int: int) -> int:
+    """``circuit_breaker_recover_after``를 해석한다. 0/음수/비정수는 "해제 안 함"(0)."""
+    raw = config.get("circuit_breaker_recover_after")
+    if raw is None:
+        return max(cb_after_int, 0) * _CIRCUIT_BREAKER_RECOVER_MULT
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        return max(cb_after_int, 0) * _CIRCUIT_BREAKER_RECOVER_MULT
+    return val if val > 0 else 0
 
 
 def _state_dir(cwd: str) -> Path:
@@ -334,28 +362,82 @@ def _replay(guardrail: Any, task_id: str, records: list[dict[str, Any]]) -> None
         )
 
 
+# SPEC-042 REQ-5: PreToolUse 리플레이 상한.
+# Claude Code 훅은 호출마다 별도 프로세스라, 매 PreToolUse가 세션 이력 *전체*를
+# `_replay`로 재생해 왔다(호출 n번째 = n개 재생 → 세션 누적 O(n²)). 하지만
+# `check_before_tool_call()`에서 과거 이력에 의존하는 실시간 검사는 루프 감지 하나뿐이고,
+# 그것도 트레일링 윈도우(`live_loop_window`, 기본 15)만 본다 — 그 이전 이력은 판정에
+# 아무 영향이 없다. 그래서 기본 설정에서는 마지막 (window + margin)개만 재생해도 판정이
+# *완전히 동일*하다(200-call 등가성 테스트로 보장). deadlock / privilege_escalation /
+# tool_chain_attack / 누적 scope 상한(max_tool_calls·max_unique_tools)이 설정된 경우에만
+# 전체 이력이 필요하므로 그때는 전량 재생으로 폴백한다. SessionEnd 배치 리포트는
+# 여전히 전체를 재생한다(Gate G가 전체 tool_calls를 필요로 함).
+_REPLAY_TAIL_MARGIN = 5
+_DEFAULT_LIVE_LOOP_WINDOW = 15
+
+
+def _replay_tail_records(
+    config: dict[str, Any], records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """PreToolUse에서 재생할 이력 부분집합. 윈도우 검사만 활성이면 마지막 N개,
+    이력 전체가 필요한 검사가 켜져 있으면 ``records`` 그대로."""
+    scope = config.get("scope")
+    needs_full = (
+        config.get("deadlock") is not None
+        or config.get("privilege_escalation") is not None
+        or config.get("tool_chain_attack") is not None
+        or (
+            isinstance(scope, dict)
+            and (scope.get("max_tool_calls") is not None
+                 or scope.get("max_unique_tools") is not None)
+        )
+    )
+    if needs_full:
+        return records
+    win = config.get("live_loop_window")
+    try:
+        win_int = int(win) if win is not None else _DEFAULT_LIVE_LOOP_WINDOW
+    except (TypeError, ValueError):
+        win_int = _DEFAULT_LIVE_LOOP_WINDOW
+    if win_int <= 0:
+        win_int = _DEFAULT_LIVE_LOOP_WINDOW
+    tail = win_int + _REPLAY_TAIL_MARGIN
+    return records[-tail:] if len(records) > tail else records
+
+
 def _read_circuit_state(path: Path) -> dict[str, Any]:
     """서킷 브레이커 상태 파일을 읽는다.
 
     Returns:
-        ``{"consecutive_blocks": int, "tripped": bool}``. 파일이 없거나 손상됐으면
-        ``{"consecutive_blocks": 0, "tripped": False}``.
+        ``{"consecutive_blocks": int, "tripped": bool, "clean_since_trip": int}``.
+        파일이 없거나 손상됐으면 ``{"consecutive_blocks": 0, "tripped": False,
+        "clean_since_trip": 0}``. ``clean_since_trip``은 SPEC-042 REQ-6에서 추가된
+        필드로, 트립된 뒤 실제로 실행에 성공한 도구 호출의 연속 횟수다(이 값이
+        ``circuit_breaker_recover_after``에 도달하면 관찰 전용을 자동 해제한다).
+        옛 2필드 상태 파일도 그대로 읽는다(``clean_since_trip`` 기본 0).
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return {
             "consecutive_blocks": int(data.get("consecutive_blocks", 0)),
             "tripped": bool(data.get("tripped", False)),
+            "clean_since_trip": int(data.get("clean_since_trip", 0)),
         }
     except (OSError, json.JSONDecodeError, ValueError, TypeError, AttributeError):
-        return {"consecutive_blocks": 0, "tripped": False}
+        return {"consecutive_blocks": 0, "tripped": False, "clean_since_trip": 0}
 
 
-def _write_circuit_state(path: Path, consecutive_blocks: int, tripped: bool) -> None:
+def _write_circuit_state(
+    path: Path, consecutive_blocks: int, tripped: bool, clean_since_trip: int = 0
+) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps({"consecutive_blocks": consecutive_blocks, "tripped": tripped}),
+            json.dumps({
+                "consecutive_blocks": consecutive_blocks,
+                "tripped": tripped,
+                "clean_since_trip": clean_since_trip,
+            }),
             encoding="utf-8",
         )
     except OSError:
@@ -370,6 +452,8 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
     config = dict(_session_config(state_dir, session_id, create=True))
     config.pop("output_dir", None)
     cb_after = config.pop("circuit_breaker_after", _DEFAULT_CIRCUIT_BREAKER_AFTER)
+    # SPEC-042 REQ-6: 브리지 전용 키 — LiveGuardrail 인자가 아니므로 pop한다.
+    config.pop("circuit_breaker_recover_after", None)
     try:
         cb_after_int = int(cb_after)
     except (TypeError, ValueError):
@@ -379,7 +463,11 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
     circuit = _read_circuit_state(circuit_path)
 
     guardrail = build_guardrail(config)
-    _replay(guardrail, session_id, _load_json_list(_session_file(state_dir, session_id)))
+    # SPEC-042 REQ-5: 세션 전체가 아니라 판정에 실제로 필요한 이력 꼬리만 재생한다
+    # (O(n²) → O(n)). 이력 전체가 필요한 검사가 켜진 설정에서는 _replay_tail_records가
+    # 전량을 그대로 돌려주므로 동작이 바뀌지 않는다.
+    _all_records = _load_json_list(_session_file(state_dir, session_id))
+    _replay(guardrail, session_id, _replay_tail_records(config, _all_records))
 
     verdict = guardrail.check_before_tool_call(session_id, tool_name, tool_input)
     if not verdict.block:
@@ -393,12 +481,14 @@ def handle_pre_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, A
         session_id, tool_name, verdict, tool_input=tool_input
     )
 
-    # SPEC-041: 서킷 브레이커가 이미 트립됐으면(sticky, 세션 끝까지) 더 세지 않고
-    # 바로 관찰 전용으로 통과시킨다.
+    # SPEC-041: 서킷 브레이커가 이미 트립됐으면(sticky) 더 세지 않고 바로 관찰
+    # 전용으로 통과시킨다. SPEC-042 REQ-6: 새 차단이 들어오면 자동 해제용 클린
+    # 스트릭(clean_since_trip)은 0으로 리셋한다 — 관찰 전용 중 통과한 위험 호출이
+    # 다시 막혔다는 뜻이므로 복구 카운트를 처음부터 다시 쌓아야 한다.
     already_tripped = circuit["tripped"]
     consecutive = circuit["consecutive_blocks"] + 1
     tripped = already_tripped or (cb_after_int > 0 and consecutive >= cb_after_int)
-    _write_circuit_state(circuit_path, consecutive, tripped)
+    _write_circuit_state(circuit_path, consecutive, tripped, clean_since_trip=0)
 
     _blocked_record = {
         "tool_name": tool_name,
@@ -471,13 +561,46 @@ def handle_post_tool_use(payload: dict[str, Any], state_dir: Path) -> dict[str, 
     if _agent_id:
         _record["agent_id"] = _agent_id
     _append_json_list(_session_file(state_dir, session_id), _record)
-    # SPEC-041: 도구가 실제로 실행됐으므로 연속 차단 스트릭을 리셋한다 — 서킷
-    # 브레이커는 "쉬지 않고 연달아 막힌" 경우에만 트립해야 한다. 단 이미 트립된
-    # 상태(tripped)는 유지한다 — 트립 후 관찰 전용으로 통과한 호출의 PostToolUse가
-    # 브레이커를 되돌리면 안 되므로.
+    # SPEC-041: 도구가 실제로 실행됐으므로 연속 차단 스트릭(consecutive_blocks)을
+    # 리셋한다 — 서킷 브레이커는 "쉬지 않고 연달아 막힌" 경우에만 트립해야 한다.
+    # SPEC-042 REQ-6: 이미 트립된 상태라도 실행에 성공한 호출을 셈해서
+    # (clean_since_trip) circuit_breaker_recover_after회에 도달하면 관찰 전용을
+    # 자동 해제한다. 자동 해제가 꺼져 있으면(recover_after<=0) SPEC-041의 세션
+    # 내내 sticky 동작 그대로다.
     circuit_path = _circuit_file(state_dir, session_id)
-    if circuit_path.exists():
-        _write_circuit_state(circuit_path, 0, _read_circuit_state(circuit_path)["tripped"])
+    if not circuit_path.exists():
+        return {}
+
+    circuit = _read_circuit_state(circuit_path)
+    if not circuit["tripped"]:
+        _write_circuit_state(circuit_path, 0, False, clean_since_trip=0)
+        return {}
+
+    # 트립 상태 — 자동 해제 조건 확인.
+    _cfg = _session_config(state_dir, session_id, create=False)
+    try:
+        _cb_after_int = int(_cfg.get("circuit_breaker_after", _DEFAULT_CIRCUIT_BREAKER_AFTER))
+    except (TypeError, ValueError):
+        _cb_after_int = _DEFAULT_CIRCUIT_BREAKER_AFTER
+    recover_after = _resolve_circuit_recover_after(_cfg, _cb_after_int)
+
+    # PostToolUse가 왔다 = 도구가 실제로 실행됐다(가드레일이 막지 않았다). 실행이
+    # 에러로 끝났어도 "연속 차단 패턴"은 아니므로 클린 호출로 센다 — OpenCode
+    # tool.execute.after와 동일한 정의(호스트 간 대칭).
+    if recover_after <= 0:
+        _write_circuit_state(circuit_path, 0, True, clean_since_trip=circuit["clean_since_trip"])
+        return {}
+
+    new_clean = circuit["clean_since_trip"] + 1
+    if new_clean >= recover_after:
+        _write_circuit_state(circuit_path, 0, False, clean_since_trip=0)
+        return {
+            "systemMessage": (
+                f"✅ LiveGuardrail circuit breaker recovered after {new_clean} consecutive "
+                f"clean tool calls — enforcement is active again for the rest of this session."
+            ),
+        }
+    _write_circuit_state(circuit_path, 0, True, clean_since_trip=new_clean)
     return {}
 
 

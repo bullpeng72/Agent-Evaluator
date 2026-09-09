@@ -290,6 +290,26 @@ Where `recommend_fix` gives static per-gate advice, `ask_insights` reads *this r
 opencode mcp add agent-evaluator-ask-insights -- python -m agent_evaluator.integrations.ask_insights_mcp
 ```
 
+## Task nature ↔ model tier (Harness principle 5)
+
+Harness principle 5 — *match the model size to the nature of the work* — is easy to state and easy to
+forget once a stack is running. In the AOO loop the levers are:
+
+- **Judge tier**: `PerformanceMonitor(judge_model=…, judge_escalation_model=…, judge_escalation_threshold=…)`.
+  Run a small local judge by default and escalate only borderline cases to a larger one. A small judge
+  that agrees with a human golden set (check with `agent-eval` LLM-Judge calibration) is cheaper *and*
+  no less trustworthy for the easy majority.
+- **Agent tier per task type**: the eval knows which task types are hard. `insights.efficiency_opportunities`
+  now emits a `tier_downshift` opportunity (SPEC-042 REQ-8) when a task type passes with a comfortable
+  accuracy margin (≥ 0.85, n ≥ 3) yet costs about as much per task as the hardest type — a signal to try
+  a smaller model for that type. It is advisory only: the margin is measured on the *current* model, so
+  estimate the drop on a held-out slice before switching. The SDK does not (and cannot) force the tier —
+  model selection lives in your OpenCode / Ollama config; the insight just tells you where to look.
+
+There is no separate "tier config" in agent-evaluator: the batch report surfaces the opportunity, you
+change the model in the stack, then re-run and compare versions (`agent_version` grouping) to confirm
+the accuracy held.
+
 ## Known gotchas from live OpenCode validation
 
 The plugin was live-tested end to end against a real OpenCode `1.17.9` + local Ollama `qwen3-coder`

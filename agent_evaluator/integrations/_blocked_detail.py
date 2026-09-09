@@ -43,6 +43,7 @@ _BLOCK_REASON_PREFIXES: tuple[str, ...] = (
     "protected write",
     "team scope claim",
     "protected branch",
+    "human_only:",
 )
 # For the OpenCode path the plugin wraps the reason: "[agent-evaluator] blocked by Gate B: …"
 _BLOCK_MARKERS: tuple[str, ...] = _BLOCK_REASON_PREFIXES + (

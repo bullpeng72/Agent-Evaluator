@@ -34,12 +34,16 @@ def cmd_dataset(args: argparse.Namespace) -> int:
         return _cmd_promote(args)
     if cmd == "health":
         return _cmd_health(args)
+    if cmd == "review-candidates":
+        return _cmd_review_candidates(args)
     # 서브커맨드 미지정 — 도움말 출력
     print(
         f"{_B}agent-eval dataset{_R} — Golden Dataset Management\n\n"
-        f"  {_Y}build{_R}     Auto-extract golden set candidates from production results\n"
-        f"  {_Y}promote{_R}   Promote a result file's human-review queue into golden cases\n"
-        f"  {_Y}health{_R}    Assess a golden set against a run — mode coverage, stale cases\n\n"
+        f"  {_Y}build{_R}              Auto-extract golden set candidates from results\n"
+        f"  {_Y}promote{_R}            Promote a result file's review queue into golden cases\n"
+        f"  {_Y}health{_R}             Assess a golden set against a run (coverage, stale)\n"
+        f"  {_Y}review-candidates{_R}  Review the auto-collected production candidate queue "
+        f"(SPEC-043 REQ-4)\n\n"
         f"Usage: agent-eval dataset build --help",
         file=sys.stderr,
     )
@@ -100,6 +104,113 @@ def _cmd_health(args: argparse.Namespace) -> int:
         print(f"  {_Y}~ stale:{_R} {s['reason']} — {s['question'][:80]}")
     for r in (health.get("redundant_cases") or [])[:8]:
         print(f"  {_Y}~ duplicate:{_R} case {r['case_index']} ≈ case {r['duplicate_of']}")
+    return 0
+
+
+def _cmd_review_candidates(args: argparse.Namespace) -> int:
+    """``agent-eval dataset review-candidates <jsonl>`` (SPEC-043 REQ-4).
+
+    Lists the pending production candidate queue, or records one human decision
+    (``--accept`` / ``--reject`` / ``--defer``). ``--accept`` also merges the
+    candidate into a golden set via ``GoldenSetBuilder`` (labels stay the
+    reviewer's job — every merged case is flagged ``needs_human_review``).
+    """
+    qp = Path(args.candidates_file)
+    from agent_evaluator.datasets.golden_candidates import (
+        load_candidates,
+        pending_candidates,
+        record_candidate_review,
+        summarize_candidates,
+    )
+
+    entries = load_candidates(qp)
+    decision_flags = [
+        ("accept", getattr(args, "accept", None)),
+        ("reject", getattr(args, "reject", None)),
+        ("defer", getattr(args, "defer", None)),
+    ]
+    chosen = [(d, cid) for d, cid in decision_flags if isinstance(cid, str) and cid]
+    if len(chosen) > 1:
+        print(f"{_RD}❌  Pass only one of --accept / --reject / --defer.{_R}",
+              file=sys.stderr)
+        return 1
+
+    # --- list mode ------------------------------------------------------------ #
+    if not chosen:
+        summary = summarize_candidates(entries)
+        if getattr(args, "as_json", False):
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+            return 0
+        print(f"\n  {_B}Production golden-set candidates — {qp.name}{_R}")
+        print(f"  {summary['n_candidates']} collected, {summary['n_pending']} pending, "
+              f"{summary['n_reviewed']} reviewed")
+        if summary["by_trigger"]:
+            bits = ", ".join(f"{k}: {v}" for k, v in summary["by_trigger"].items())
+            print(f"  triggers — {bits}")
+        for p in summary["pending"][:30]:
+            print(f"  {_Y}•{_R} {p['id']}  {_B}{p['trigger']}{_R}  {p['question'][:90]}")
+        if not summary["pending"]:
+            print(f"  {_G}✓ nothing pending{_R}")
+        else:
+            print(f"\n  Review with: {_G}agent-eval dataset review-candidates "
+                  f"{qp.name} --accept <id> --to <golden.json>{_R}")
+        return 0
+
+    # --- decision mode ------------------------------------------------------- #
+    decision, cid = chosen[0]
+    cand = next(
+        (e for e in entries if e.get("kind") == "candidate" and e.get("id") == cid),
+        None,
+    )
+    if cand is None:
+        print(f"{_RD}❌  No candidate with id {cid!r} in {qp}.{_R}", file=sys.stderr)
+        return 1
+    if cid not in {p.get("id") for p in pending_candidates(entries)}:
+        print(f"{_Y}⚠  Candidate {cid} was already reviewed — recording again.{_R}",
+              file=sys.stderr)
+
+    if decision == "accept":
+        golden_target = getattr(args, "accept_to", None)
+        if not golden_target:
+            print(f"{_RD}❌  --accept needs --to <golden.json> to merge into.{_R}",
+                  file=sys.stderr)
+            return 1
+        case = {
+            "question": cand.get("question") or "",
+            "ground_truth": "",
+            "context": "",
+            "source_candidate_id": cid,
+            "trigger": cand.get("trigger"),
+            "promoted_from": qp.name,
+            "promoted_at": datetime.now().isoformat(),
+            "needs_human_review": True,
+        }
+        try:
+            from agent_evaluator.datasets.builder import GoldenSetBuilder
+
+            gt = Path(golden_target)
+            builder = GoldenSetBuilder(
+                source_dir=str(qp.parent), output_dir=str(gt.parent or "."),
+            )
+            saved = builder.merge_to_golden(
+                [case], version="prod-candidate", output_name=gt.name,
+            )
+        except Exception as exc:
+            print(f"{_RD}❌  Failed to merge into the golden set: {exc}{_R}",
+                  file=sys.stderr)
+            return 1
+        print(f"  {_G}✓ merged candidate {cid} into {saved}{_R} "
+              f"(flagged needs_human_review — add the label)")
+
+    try:
+        record_candidate_review(
+            qp, candidate_id=cid, decision=decision,
+            reviewed_by=getattr(args, "reviewed_by", None),
+        )
+    except ValueError as exc:
+        print(f"{_RD}❌  {exc}{_R}", file=sys.stderr)
+        return 1
+    print(f"  {_G}✓ recorded {decision} on {cid}{_R}")
     return 0
 
 

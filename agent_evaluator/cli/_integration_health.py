@@ -14,9 +14,11 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import shlex
 import subprocess
 from dataclasses import dataclass, field
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # 체크리스트 모델
@@ -292,7 +294,7 @@ def validate_guardrail_config(config: dict) -> tuple[bool, list[str]]:
     from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail
 
     cfg = dict(config)
-    for bridge_only in ("output_dir", "circuit_breaker_after"):
+    for bridge_only in ("output_dir", "circuit_breaker_after", "circuit_breaker_recover_after"):
         cfg.pop(bridge_only, None)
     err_buf = io.StringIO()
     try:
@@ -324,7 +326,7 @@ def probe_blocked_capture(config: dict) -> tuple[str, str]:
     from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail
 
     cfg = dict(config)
-    for bridge_only in ("output_dir", "circuit_breaker_after"):
+    for bridge_only in ("output_dir", "circuit_breaker_after", "circuit_breaker_recover_after"):
         cfg.pop(bridge_only, None)
     cap = cfg.get("blocked_attempt_capture")
     if isinstance(cap, dict) and not cap.get("enabled", True):
@@ -344,3 +346,209 @@ def probe_blocked_capture(config: dict) -> tuple[str, str]:
     if "doctor@example.com" in excerpt:
         return "warn", "arg_excerpt is not PII-redacted"
     return "ok", f"captures a redacted command excerpt ({len(excerpt)} chars)"
+
+
+# ---------------------------------------------------------------------------
+# SPEC-043 REQ-6a: guardrail_config 케이스 기반 검증
+#
+# `{claude,opencode} doctor`는 고정 시나리오(무해→allow, `rm -rf`→deny 등)만 태운다.
+# 이 헬퍼는 프로젝트가 자기 금지/정상 명령 목록을 케이스 파일로 적어 두고, 해석된
+# 자기 config가 실제로 그 판정을 내는지 assert하게 한다 (가드레일의 red-green TDD).
+# 새 채점 로직 없음 — 이미 있는 `LiveGuardrail.check_before_tool_call`을 그대로 태운다.
+# ---------------------------------------------------------------------------
+def load_config_cases(path: str) -> list[dict[str, Any]]:
+    """test-config 케이스 파일(YAML 또는 JSON)을 파싱해 정규화한다.
+
+    형태: ``{"cases": [{tool, args?, expect: "allow"|"deny", gate?, name?}]}``
+    또는 최상위 리스트. 빈 파일 / 빈 ``cases`` → ``[]``.
+
+    Raises:
+        ValueError: 파일이 없거나 형식이 잘못된 경우 (사람이 읽을 메시지).
+    """
+    if not os.path.exists(path):
+        raise ValueError(f"case file not found: {path}")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+
+    data: Any = None
+    if path.endswith((".yaml", ".yml")):
+        try:
+            import yaml as _yaml  # type: ignore
+
+            data = _yaml.safe_load(text)
+        except ImportError:
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "the case file has a .yaml/.yml extension but PyYAML is not "
+                    "installed and it is not valid JSON either — run "
+                    "`pip install pyyaml` or use a .json case file "
+                    f"({exc})"
+                ) from exc
+    else:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"the case file is not valid JSON: {exc}") from exc
+
+    cases = data.get("cases") if isinstance(data, dict) else data
+    if cases is None:
+        return []
+    if not isinstance(cases, list):
+        raise ValueError("expected a `cases` list (or a bare top-level list)")
+
+    out: list[dict[str, Any]] = []
+    for i, c in enumerate(cases):
+        if not isinstance(c, dict):
+            raise ValueError(f"case #{i + 1} is not a mapping")
+        tool = c.get("tool")
+        expect = str(c.get("expect", "")).strip().lower()
+        if not tool or expect not in ("allow", "deny"):
+            raise ValueError(
+                f"case #{i + 1} needs a non-empty `tool` and `expect: allow|deny`"
+            )
+        args = c.get("args")
+        out.append(
+            {
+                "name": str(c.get("name") or tool),
+                "tool": str(tool),
+                "args": args if isinstance(args, dict) else {},
+                "expect": expect,
+                "gate": (str(c["gate"]).strip().upper() if c.get("gate") else None),
+            }
+        )
+    return out
+
+
+def run_config_tests(
+    resolved_cfg: dict[str, Any], cases: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool, list[str]]:
+    """각 케이스를 해석된 config로 만든 LiveGuardrail에 태워 기대 vs 실제를 대조한다.
+
+    ``check_before_tool_call``은 순수 조회(``_tool_calls`` 불변)라 guardrail 하나를
+    재사용해도 케이스 간 상태가 새지 않는다.
+
+    Returns:
+        ``(rows, all_passed, skipped_config_blocks)`` — 각 row는 ``{name, tool,
+        expect, actual, gate_expect, gate_actual, ok, reason}``.
+        ``skipped_config_blocks``는 ``build_guardrail``이 오타/잘못된 값 때문에
+        건너뛴 config 블록의 경고 줄들 — 이게 비어 있지 않으면 케이스는 *부분*
+        config로 돌았다는 뜻이라 호출자가 눈에 띄게 알려야 한다.
+
+    Raises:
+        ValueError: config로 guardrail 자체가 만들어지지 않는 경우.
+    """
+    from agent_evaluator.integrations.live_guardrail_stdio import build_guardrail
+
+    cfg = dict(resolved_cfg)
+    for bridge_only in (
+        "output_dir", "circuit_breaker_after", "circuit_breaker_recover_after",
+    ):
+        cfg.pop(bridge_only, None)
+
+    err_buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err_buf):
+            guardrail = build_guardrail(cfg)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"could not build a guardrail from this config: {exc}") from exc
+    skipped = [
+        ln.strip() for ln in err_buf.getvalue().splitlines()
+        if "SKIPPED" in ln
+    ]
+
+    rows: list[dict[str, Any]] = []
+    all_ok = True
+    for c in cases:
+        try:
+            verdict = guardrail.check_before_tool_call("test-config", c["tool"], c["args"])
+            actual = "deny" if verdict.block else "allow"
+            gate_actual = verdict.gate if verdict.block else None
+            reason = verdict.reason if verdict.block else ""
+        except Exception as exc:  # noqa: BLE001 — a failed row, never a raise
+            actual, gate_actual, reason = "error", None, str(exc)
+        expect_ok = actual == c["expect"]
+        gate_ok = c["gate"] is None or gate_actual == c["gate"]
+        ok = expect_ok and gate_ok
+        all_ok = all_ok and ok
+        rows.append(
+            {
+                "name": c["name"], "tool": c["tool"],
+                "expect": c["expect"], "actual": actual,
+                "gate_expect": c["gate"], "gate_actual": gate_actual,
+                "ok": ok, "reason": reason,
+            }
+        )
+    return rows, all_ok, skipped
+
+
+def render_config_test_table(
+    rows: list[dict[str, Any]], *, color: bool = True,
+) -> str:
+    """run_config_tests의 rows를 사람이 읽을 표로 렌더한다."""
+    b = "\033[1m" if color else ""
+    d = "\033[2m" if color else ""
+    g = "\033[32m" if color else ""
+    rd = "\033[31m" if color else ""
+    r = "\033[0m" if color else ""
+
+    if not rows:
+        return f"{d}no cases — nothing to check{r}"
+
+    lines = [f"{b}{'':2} {'case':<28} {'tool':<10} {'expect':<7} {'actual':<7} gate{r}"]
+    for row in rows:
+        icon = f"{g}PASS{r}" if row["ok"] else f"{rd}FAIL{r}"
+        gate = ""
+        if row["gate_expect"] or row["gate_actual"]:
+            gate = f"{row['gate_expect'] or '-'}→{row['gate_actual'] or '-'}"
+        lines.append(
+            f"{icon} {row['name'][:28]:<28} {row['tool'][:10]:<10} "
+            f"{row['expect']:<7} {row['actual']:<7} {gate}"
+        )
+        if not row["ok"] and row["reason"]:
+            lines.append(f"      {d}{row['reason'][:120]}{r}")
+
+    n_fail = sum(1 for x in rows if not x["ok"])
+    lines.append("")
+    lines.append(
+        f"{g}all {len(rows)} case(s) passed{r}" if not n_fail
+        else f"{rd}{n_fail} of {len(rows)} case(s) failed{r}"
+    )
+    return "\n".join(lines)
+
+
+def cmd_test_config_common(
+    cases_path: str, resolved_cfg: dict[str, Any], *, as_json: bool, color: bool,
+) -> int:
+    """`{claude,opencode} test-config`의 공유 본체. exit 1 on any mismatch / bad file."""
+    try:
+        cases = load_config_cases(cases_path)
+    except ValueError as exc:
+        print(f"\033[31merror:\033[0m {exc}" if color else f"error: {exc}")
+        return 1
+    try:
+        rows, all_ok, skipped = run_config_tests(resolved_cfg, cases)
+    except ValueError as exc:
+        print(f"\033[31merror:\033[0m {exc}" if color else f"error: {exc}")
+        return 1
+
+    if as_json:
+        print(json.dumps(
+            {"cases": rows, "passed": all_ok, "n_cases": len(rows),
+             "n_failed": sum(1 for x in rows if not x["ok"]),
+             "skipped_config_blocks": skipped},
+            indent=2,
+        ))
+    else:
+        y = "\033[33m" if color else ""
+        r = "\033[0m" if color else ""
+        for ln in skipped:
+            print(f"{y}⚠  {ln}{r}")
+        if skipped:
+            print(
+                f"{y}   → cases below ran against a PARTIAL config "
+                f"(fix the block(s) above){r}"
+            )
+        print(render_config_test_table(rows, color=color))
+    return 0 if all_ok else 1

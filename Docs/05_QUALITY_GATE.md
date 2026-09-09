@@ -2,7 +2,7 @@
 
 Threshold configuration · quality gating · CI/CD integration.
 
-**v1.0.4 | Python 3.8+**
+**v1.0.5 | Python 3.8+**
 
 ---
 
@@ -153,6 +153,7 @@ Passing `--golden-set` without `--fail-on-golden-regression` only reports regres
 | `--baseline-result` + `--fail-on-case-regression` | file path + flag | **exit 4** if a task that passed in the previous run fails now |
 | `--max-cost-per-task` | `float` ($) | fail if `total_cost / task count` exceeds this (cost SLO) |
 | `--max-review-high` | `int` | **exit 4** if the number of HIGH items in `insights.review_queue` exceeds this |
+| `--hold-on-undecided` | flag | **exit 75** ("hold for human review") when the run *would* pass (exit 0) but `insights.verdict.decision_ready` is false — the binary pass-rate Wilson CI straddles the TCR target, or the verdict flips within ±0.05 of the gate line (SPEC-042 REQ-2). Opt-in; 75 (BSD `EX_TEMPFAIL`) is a project convention a pipeline must handle explicitly. Clear fails (1/2/3/4) are never overridden. |
 | `--notify` | `slack://...` \| `webhook://...` | after the verdict, send the narrative + regressions + cohort winner to the target channel (never raises) |
 | `--digest` | flag | also print the PM / QA / engineer briefs after the table |
 

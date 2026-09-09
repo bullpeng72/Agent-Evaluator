@@ -3293,11 +3293,50 @@ class PerformanceMonitor:
         if self._config_snapshot is not None:
             _lineage_prompt["config_snapshot"] = self._config_snapshot
 
+        # SPEC-043 REQ-2: eval-set identity — a stable hash of (question, ground_truth)
+        # per task, sorted, so a baseline comparison can tell "the agent got worse"
+        # apart from "the eval set got harder" (insights.eval_set_delta).
+        _eval_set: dict[str, Any] = {}
+        try:
+            import hashlib
+
+            _pairs = sorted(
+                (str(getattr(t, "question", "") or ""),
+                 str(getattr(t, "ground_truth", "") or ""))
+                for t in self.tcr_tracker.tasks
+            )
+            _blob = "\x1e".join(f"{q}\x1f{g}" for q, g in _pairs)
+            _eval_set["eval_set_hash"] = hashlib.sha1(  # noqa: S324 — identity, not security
+                _blob.encode("utf-8", "replace")
+            ).hexdigest()[:16]
+            _eval_set["eval_set_size"] = len(_pairs)
+        except Exception:  # pragma: no cover - defensive
+            _eval_set = {}
+
+        # SPEC-043 REQ-5: if any task ran under fault injection, surface the config
+        # (deduped) so the run is marked "this result had faults injected".
+        _fi_lineage: dict[str, Any] = {}
+        try:
+            _fi_seen: list[dict[str, Any]] = []
+            for t in self.tcr_tracker.tasks:
+                _ex = getattr(t, "extra", None)
+                _fi = _ex.get("fault_injection") if isinstance(_ex, dict) else None
+                if isinstance(_fi, dict) and _fi not in _fi_seen:
+                    _fi_seen.append(_fi)
+            if len(_fi_seen) == 1:
+                _fi_lineage["fault_injection"] = _fi_seen[0]
+            elif _fi_seen:
+                _fi_lineage["fault_injection"] = _fi_seen
+        except Exception:  # pragma: no cover - defensive
+            _fi_lineage = {}
+
         return {
             "sdk_version": self._sdk_version,
             "git_commit": self._git_commit,
             "prompt_version": self._prompt_version,
             "agent_version": self._agent_version,
+            **_eval_set,
+            **_fi_lineage,
             **_lineage_prompt,
             "reproducibility_manifest": self._build_reproducibility_manifest(),
             # SPEC-029: agent_version="auto"의 불투명한 dirty-hash에 사람이 읽을 수 있는
@@ -3501,6 +3540,19 @@ class PerformanceMonitor:
                 extra_metrics["lineage"] = _lineage
         except Exception as _lin_exc:
             logger.debug("lineage assembly failed (ignored): %s", _lin_exc)
+
+        # SPEC-043 REQ-6b: surface the raw pairwise-judge history so
+        # `agent-eval feedback export-preferences` can turn it into a preference
+        # dataset. Absent unless judge_pairwise() was actually called.
+        try:
+            _pw = list(getattr(self.llm_judge, "pairwise_results", []) or [])
+            _pw = [r for r in _pw if isinstance(r, dict) and not r.get("skipped")]
+            if _pw:
+                if extra_metrics is None:
+                    extra_metrics = {}
+                extra_metrics["llm_judge_pairwise"] = _pw
+        except Exception as _pw_exc:  # pragma: no cover - defensive
+            logger.debug("pairwise-judge history assembly failed (ignored): %s", _pw_exc)
 
         report = EvaluationReport(
             period="current_session",

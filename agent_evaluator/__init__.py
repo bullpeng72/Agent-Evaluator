@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -201,6 +201,9 @@ from .integrations.framework_integrations import (
 
 # Task 6: QuickEval — 원스톱 평가 Facade
 from .quick_eval import CompareResult, HarnessEvaluationGate, QuickEval
+
+# SPEC-042 REQ-4: whole-eval verdict-stability (repeat the eval K times)
+from .repeat import run_repeated, summarize_repeated
 
 # Transparency
 from .utils.transparency_manager import (
@@ -463,6 +466,10 @@ __all__ = [
     'QuickEval',
     'HarnessEvaluationGate',
     'CompareResult',
+
+    # SPEC-042 REQ-4: whole-eval verdict-stability
+    'run_repeated',
+    'summarize_repeated',
 
     # Golden Set Builder (Phase 3-A — lazy)
     'GoldenSetBuilder',

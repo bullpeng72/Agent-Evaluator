@@ -7,7 +7,7 @@ modes actually being seen, or flags near-duplicates. This module answers those:
 
     assess_golden_health(golden, result_data, *, history_dir=None) -> {
         n_cases, coverage_pct, uncovered_failure_modes[], stale_cases[],
-        redundant_cases[], note
+        redundant_cases[], pending_production_candidates?, note
     }
 
 Pure stdlib. ``uncovered_failure_modes`` is the load-bearing signal — a golden
@@ -191,6 +191,9 @@ def assess_golden_health(
     coverage_pct = (round(covered_modes / considered * 100.0, 1)
                     if considered else None)
 
+    # 4. SPEC-043 REQ-4: pending auto-collected production candidates ---------- #
+    pending_candidates = _count_pending_candidates(golden, history_dir)
+
     bits = [f"{len(cases)} golden case(s)"]
     if uncovered:
         bits.append(f"{len(uncovered)} current failure mode(s) not exercised by any "
@@ -201,8 +204,11 @@ def assess_golden_health(
         bits.append(f"{len(stale)} case(s) look stale / trivial")
     if redundant:
         bits.append(f"{len(redundant)} near-duplicate case(s)")
+    if pending_candidates:
+        bits.append(f"{pending_candidates} production candidate(s) awaiting review "
+                    f"(`agent-eval dataset review-candidates`)")
 
-    return {
+    out: dict[str, Any] = {
         "n_cases": len(cases),
         "coverage_pct": coverage_pct,
         "n_modes_considered": considered,
@@ -211,3 +217,38 @@ def assess_golden_health(
         "redundant_cases": redundant[:20],
         "note": "; ".join(bits),
     }
+    if pending_candidates:
+        out["pending_production_candidates"] = pending_candidates
+    return out
+
+
+def _count_pending_candidates(
+    golden: Any, history_dir: str | Path | None,
+) -> int:
+    """Best-effort: a ``golden_candidates.jsonl`` (SPEC-043 REQ-4) next to the
+    golden set or in ``history_dir`` — how many candidates have no review yet."""
+    seen: set[str] = set()
+    dirs: list[Path] = []
+    if isinstance(golden, (str, Path)):
+        dirs.append(Path(golden).parent)
+    if history_dir:
+        dirs.append(Path(history_dir))
+    total = 0
+    for d in dirs:
+        p = d / "golden_candidates.jsonl"
+        key = str(p.resolve()) if p.exists() else str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not p.is_file():
+            continue
+        try:
+            from agent_evaluator.datasets.golden_candidates import (
+                load_candidates,
+                pending_candidates,
+            )
+
+            total += len(pending_candidates(load_candidates(p)))
+        except Exception:  # pragma: no cover - defensive
+            continue
+    return total

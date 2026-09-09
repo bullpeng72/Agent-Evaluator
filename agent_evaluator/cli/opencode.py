@@ -79,6 +79,8 @@ def cmd_opencode(args: argparse.Namespace) -> int:
         return _cmd_uninstall(args)
     if cmd == "doctor":
         return _cmd_doctor(args)
+    if cmd == "test-config":
+        return _cmd_test_config(args)
     from agent_evaluator.cli._violations_detail import dispatch as _vd_dispatch
 
     _rc = _vd_dispatch("opencode", cmd, args)
@@ -90,6 +92,8 @@ def cmd_opencode(args: argparse.Namespace) -> int:
         f"  {_Y}upgrade{_R}         Re-copy the plugin after a package update (keeps "
         f"agent-evaluator.config.json)\n"
         f"  {_Y}doctor{_R}          Verify the install works (freshness + bridge round-trip)\n"
+        f"  {_Y}test-config{_R}     Assert agent-evaluator.config.json against a case file "
+        f"(allow/deny expectations)\n"
         f"  {_Y}uninstall{_R}       Remove the plugin + MCP entries (run before 'pip uninstall')\n"
         f"  {_Y}violations{_R}      Search past Gate B/E blocks in the batch-report DB "
         f"(--detail shows the command)\n"
@@ -204,7 +208,12 @@ def _deregister_mcp_servers(names: list[str], *, is_global: bool) -> None:
 
 def _register_recommend_fix_mcp() -> None:
     """(``--with-recommend-fix``) ``opencode mcp add``로 ``recommend_fix`` stdio MCP
-    서버를 등록한다 — ``search_violations``와 나란히 등록하는 정적 지식 조회 도구다."""
+    서버를 등록한다 — ``search_violations``와 나란히 등록하는 정적 지식 조회 도구다.
+
+    SPEC-042 REQ-3의 track record는 ``.aoo`` 로그에서 읽는데, OpenCode 플러그인은
+    프로젝트 cwd에 상주하므로 서버 기본값(``.aoo`` 상대경로)이 그대로 맞다 —
+    ``violation_search_mcp``가 OpenCode에서 DB 경로를 명시하지 않고 기본값에 의존하는
+    것과 같은 이유(Claude 훅과 달리 매 호출마다 별도 프로세스가 아님)."""
     _register_mcp_server(
         _RECOMMEND_FIX_MCP_NAME,
         "agent_evaluator.integrations.recommend_fix_mcp",
@@ -687,6 +696,36 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     return rpt.exit_code(strict=strict)
 
 
+def _cmd_test_config(args: argparse.Namespace) -> int:
+    """SPEC-043 REQ-6a: run a case file against agent-evaluator.config.json.
+
+    The OpenCode plugin merges the sibling ``agent-evaluator.config.json`` over its
+    built-in defaults; here we take the sibling as-is (``{}`` when absent →
+    LiveGuardrail defaults), which is what ``doctor`` validates too.
+    """
+    from agent_evaluator.cli._integration_health import cmd_test_config_common
+
+    is_global: bool = getattr(args, "global_install", False)
+    target = _GLOBAL_TARGET if is_global else _LOCAL_TARGET
+    if not is_global and not target.exists() and _GLOBAL_TARGET.exists():
+        target = _GLOBAL_TARGET
+    sibling = target.parent / _SIBLING_CONFIG
+
+    resolved_cfg: dict = {}
+    if sibling.exists():
+        try:
+            loaded = json.loads(sibling.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"error: {sibling} is not valid JSON: {exc}", file=sys.stderr)
+            return 1
+        if isinstance(loaded, dict):
+            resolved_cfg = loaded
+    return cmd_test_config_common(
+        args.cases, resolved_cfg,
+        as_json=getattr(args, "json", False), color=_USE_COLOR,
+    )
+
+
 def _add_common_target_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--global", dest="global_install", action="store_true",
@@ -838,6 +877,39 @@ def build_opencode_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
     doctor_p.add_argument("--json", action="store_true", help="Emit the report as JSON (for CI)")
     doctor_p.add_argument(
         "--strict", action="store_true", help="Exit 1 on warnings too, not just errors",
+    )
+
+    # --- test-config (SPEC-043 REQ-6a) ---
+    test_cfg_p = op_sub.add_parser(
+        "test-config",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Assert agent-evaluator.config.json against a YAML/JSON case file",
+        description=(
+            "Runs each case through a LiveGuardrail built from this project's\n"
+            "agent-evaluator.config.json and diffs the verdict against the case's `expect`.\n\n"
+            "Case file (YAML or JSON):\n"
+            "  cases:\n"
+            "    - name: block refunds\n"
+            "      tool: bash\n"
+            "      args: {command: \"refund --user 42\"}\n"
+            "      expect: deny\n"
+            "      gate: B        # optional — also assert the blocking gate\n"
+            "    - tool: bash\n"
+            "      args: {command: \"ls -la\"}\n"
+            "      expect: allow\n\n"
+            "Exit 1 on any mismatch or a malformed file; exit 0 when all cases pass\n"
+            "(an empty case list passes). Meant to be a CI step."
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval opencode test-config .opencode/guardrail_cases.yaml{_R}\n"
+            f"  {_G}agent-eval opencode test-config cases.json --json{_R}\n"
+        ),
+    )
+    _add_common_target_flags(test_cfg_p)
+    test_cfg_p.add_argument("cases", help="Path to the YAML/JSON case file")
+    test_cfg_p.add_argument(
+        "--json", action="store_true", help="Emit results as JSON (for CI)",
     )
 
     # --- uninstall ---

@@ -2,106 +2,323 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agent-evaluator.dev/schemas/insights.v1.schema.json",
   "title": "Agent-Evaluator insights v1.0",
-  "description": "extra_metrics.insights 출력 계약 (SPEC-041 P9~P20). reporting/insights.py::build_insights()의 반환 dict가 이 스키마를 위반해서는 안 된다. 필드를 추가할 때는 새 키를 optional로 두고 이 파일을 함께 수정한다 — 기존 키를 deprecation 없이 rename/삭제하지 않는다. 모든 object는 additionalProperties:true (전방 호환). nullable 섹션은 해당 신호가 없으면 null이다.",
+  "description": "extra_metrics.insights \ucd9c\ub825 \uacc4\uc57d (SPEC-041 P9~P20). reporting/insights.py::build_insights()\uc758 \ubc18\ud658 dict\uac00 \uc774 \uc2a4\ud0a4\ub9c8\ub97c \uc704\ubc18\ud574\uc11c\ub294 \uc548 \ub41c\ub2e4. \ud544\ub4dc\ub97c \ucd94\uac00\ud560 \ub54c\ub294 \uc0c8 \ud0a4\ub97c optional\ub85c \ub450\uace0 \uc774 \ud30c\uc77c\uc744 \ud568\uaed8 \uc218\uc815\ud55c\ub2e4 \u2014 \uae30\uc874 \ud0a4\ub97c deprecation \uc5c6\uc774 rename/\uc0ad\uc81c\ud558\uc9c0 \uc54a\ub294\ub2e4. \ubaa8\ub4e0 object\ub294 additionalProperties:true (\uc804\ubc29 \ud638\ud658). nullable \uc139\uc158\uc740 \ud574\ub2f9 \uc2e0\ud638\uac00 \uc5c6\uc73c\uba74 null\uc774\ub2e4.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "detection_mode", "verdict", "metric_confidence"],
+  "required": [
+    "schema_version",
+    "detection_mode",
+    "verdict",
+    "metric_confidence"
+  ],
   "properties": {
-    "schema_version": { "type": "string" },
-    "detection_mode": { "enum": ["absolute_threshold", "regression_vs_baseline", "partial"] },
-    "partial": { "type": "boolean" },
-    "n_tasks": { "type": "integer" },
+    "schema_version": {
+      "type": "string"
+    },
+    "detection_mode": {
+      "enum": [
+        "absolute_threshold",
+        "regression_vs_baseline",
+        "partial"
+      ]
+    },
+    "partial": {
+      "type": "boolean"
+    },
+    "n_tasks": {
+      "type": "integer"
+    },
     "running_verdict": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_tasks": { "type": "integer" },
-        "pass_rate_pct": { "type": ["number", "null"] },
-        "pass_rate_ci_pct": { "type": "array", "items": { "type": "number" } },
-        "accuracy_pct": { "type": ["number", "null"] },
-        "target_tcr_pct": { "type": "number" },
-        "gates_below_target": { "type": "array", "items": { "type": "string" } },
-        "decisive": { "type": "boolean" },
-        "verdict": { "enum": ["ready", "not_ready", "undecided"] },
-        "reason": { "type": "string" }
+        "n_tasks": {
+          "type": "integer"
+        },
+        "pass_rate_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pass_rate_ci_pct": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "accuracy_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "target_tcr_pct": {
+          "type": "number"
+        },
+        "gates_below_target": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decisive": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "enum": [
+            "ready",
+            "not_ready",
+            "undecided"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     },
-    "narrative": { "type": "string" },
+    "narrative": {
+      "type": "string"
+    },
     "narrative_audit": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "claims_checked": { "type": "boolean" },
-        "clean": { "type": "boolean" },
-        "adjustments": { "type": "array", "items": { "type": "string" } }
+        "claims_checked": {
+          "type": "boolean"
+        },
+        "clean": {
+          "type": "boolean"
+        },
+        "adjustments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "briefs": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "pm": { "type": "string" },
-        "qa": { "type": "string" },
-        "engineer": { "type": "array", "items": { "type": "string" } }
+        "pm": {
+          "type": "string"
+        },
+        "qa": {
+          "type": "string"
+        },
+        "engineer": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-
     "verdict": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["level", "headline"],
+      "required": [
+        "level",
+        "headline"
+      ],
       "properties": {
-        "level": { "enum": ["not_ready", "caution", "ready", "unknown"] },
-        "headline": { "type": "string" },
-        "failing_gates": { "type": "array", "items": { "type": "string" } },
-        "warning_gates": { "type": "array", "items": { "type": "string" } },
-        "passing_gates": { "type": "array", "items": { "type": "string" } },
-        "below_user_target_gates": { "type": "array", "items": { "type": "string" } },
-        "targets_source": { "enum": ["user", "builtin"] },
-        "targets": { "type": ["object", "null"] },
-        "confidence": { "type": ["string", "null"], "enum": ["high", "medium", "low", null] },
-        "confidence_reasons": { "type": "array", "items": { "type": "string" } },
+        "level": {
+          "enum": [
+            "not_ready",
+            "caution",
+            "ready",
+            "unknown"
+          ]
+        },
+        "headline": {
+          "type": "string"
+        },
+        "failing_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warning_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "passing_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "below_user_target_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "targets_source": {
+          "enum": [
+            "user",
+            "builtin"
+          ]
+        },
+        "targets": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            null
+          ]
+        },
+        "confidence_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decision_ready": {
+          "type": "boolean"
+        },
+        "undecided_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "next_actions": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "gate": { "type": ["string", "null"] },
-              "field": { "type": ["string", "null"] },
-              "health": { "type": ["number", "null"] },
-              "action": { "type": "string" },
-              "derived_from": { "type": ["object", "null"], "additionalProperties": true }
+              "gate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "field": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "health": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "action": {
+                "type": "string"
+              },
+              "derived_from": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": true
+              }
             }
           }
         }
       }
     },
-
     "readiness": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "target_gate_score": { "type": "number" },
-        "targets_source": { "enum": ["user", "builtin"] },
-        "per_gate_targets": { "type": ["object", "null"] },
-        "current_tcr_pct": { "type": ["number", "null"] },
-        "current_accuracy_pct": { "type": ["number", "null"] },
+        "target_gate_score": {
+          "type": "number"
+        },
+        "targets_source": {
+          "enum": [
+            "user",
+            "builtin"
+          ]
+        },
+        "per_gate_targets": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "current_tcr_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "current_accuracy_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "gaps": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["gate"],
+            "required": [
+              "gate"
+            ],
             "properties": {
-              "gate": { "type": "string" },
-              "gate_name": { "type": "string" },
-              "score": { "type": ["number", "null"] },
-              "target": { "type": "number" },
-              "gap": { "type": ["number", "null"] },
-              "blocking": { "type": "boolean" },
-              "projected_score_after_plan": { "type": "number" },
-              "estimate": { "type": "boolean" }
+              "gate": {
+                "type": "string"
+              },
+              "gate_name": {
+                "type": "string"
+              },
+              "score": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "target": {
+                "type": "number"
+              },
+              "gap": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "blocking": {
+                "type": "boolean"
+              },
+              "projected_score_after_plan": {
+                "type": "number"
+              },
+              "estimate": {
+                "type": "boolean"
+              }
             }
           }
         },
@@ -110,26 +327,82 @@
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["rank", "signature", "count"],
+            "required": [
+              "rank",
+              "signature",
+              "count"
+            ],
             "properties": {
-              "rank": { "type": "integer" },
-              "signature": { "type": "string" },
-              "task_type": { "type": ["string", "null"] },
-              "task_types": { "type": "array", "items": { "type": "string" } },
-              "count": { "type": "integer" },
-              "impact_pct": { "type": "number" },
-              "example_task_ids": { "type": "array", "items": { "type": "string" } },
-              "effort_hint": { "type": "string" },
-              "targets_gates": { "type": "array", "items": { "type": "string" } },
-              "projected_tcr_after_pct": { "type": "number" },
-              "projected_accuracy_after_pct": { "type": "number" },
-              "cumulative_tcr_gain_pp": { "type": "number" },
-              "effort_weight": { "type": "number" },
-              "projected_gate_scores": { "type": "object" },
-              "projected_gate_scores_ci": { "type": "object" },
-              "gate_moves": { "type": "object" },
-              "roi": { "type": "number" },
-              "derived_from": { "type": ["object", "null"], "additionalProperties": true }
+              "rank": {
+                "type": "integer"
+              },
+              "signature": {
+                "type": "string"
+              },
+              "task_type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "task_types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "count": {
+                "type": "integer"
+              },
+              "impact_pct": {
+                "type": "number"
+              },
+              "example_task_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "effort_hint": {
+                "type": "string"
+              },
+              "targets_gates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "projected_tcr_after_pct": {
+                "type": "number"
+              },
+              "projected_accuracy_after_pct": {
+                "type": "number"
+              },
+              "cumulative_tcr_gain_pp": {
+                "type": "number"
+              },
+              "effort_weight": {
+                "type": "number"
+              },
+              "projected_gate_scores": {
+                "type": "object"
+              },
+              "projected_gate_scores_ci": {
+                "type": "object"
+              },
+              "gate_moves": {
+                "type": "object"
+              },
+              "roi": {
+                "type": "number"
+              },
+              "derived_from": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": true
+              }
             }
           }
         },
@@ -137,160 +410,413 @@
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "ready_after_n_items": { "type": ["integer", "null"] },
-            "plan_fixes_projected": { "type": "integer" },
-            "projected_gate_scores": { "type": "object" },
-            "remaining_structural_blockers": { "type": "array", "items": { "type": "string" } },
-            "p_ready": { "type": ["number", "null"] },
-            "likely_fix_count": { "type": ["integer", "null"] },
-            "note": { "type": "string" }
+            "ready_after_n_items": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "plan_fixes_projected": {
+              "type": "integer"
+            },
+            "projected_gate_scores": {
+              "type": "object"
+            },
+            "remaining_structural_blockers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "p_ready": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "likely_fix_count": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "note": {
+              "type": "string"
+            }
           }
         }
       }
     },
-
     "insight_changes": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "new_clusters": { "type": "array", "items": { "type": "string" } },
-        "resolved_clusters": { "type": "array", "items": { "type": "string" } },
-        "trust_change": { "type": ["object", "null"] },
-        "new_security_findings": { "type": "array" },
-        "verdict_change": { "type": ["object", "null"] },
-        "newly_failing_gates": { "type": "array", "items": { "type": "string" } },
-        "newly_passing_gates": { "type": "array", "items": { "type": "string" } },
-        "still_below_gates": { "type": "array", "items": { "type": "string" } }
+        "new_clusters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolved_clusters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trust_change": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "new_security_findings": {
+          "type": "array"
+        },
+        "verdict_change": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "newly_failing_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "newly_passing_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "still_below_gates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-
     "freshness": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "baseline_age_days": { "type": ["integer", "null"] },
-        "eval_set_identical_to_baseline": { "type": ["boolean", "null"] },
-        "n_tasks": { "type": "integer" },
-        "warnings": { "type": "array", "items": { "type": "string" } }
+        "baseline_age_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "eval_set_identical_to_baseline": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "n_tasks": {
+          "type": "integer"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-
     "longitudinal": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_runs": { "type": "integer" },
-        "run_files": { "type": "array", "items": { "type": "string" } },
+        "n_runs": {
+          "type": "integer"
+        },
+        "run_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "recurring_failures": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "signature": { "type": "string" },
-              "in_n_runs": { "type": "integer" },
-              "of_runs": { "type": "integer" },
-              "flap_transitions": { "type": "integer" },
-              "currently_failing": { "type": "boolean" },
-              "kind": { "type": "string" },
-              "note": { "type": "string" }
+              "signature": {
+                "type": "string"
+              },
+              "in_n_runs": {
+                "type": "integer"
+              },
+              "of_runs": {
+                "type": "integer"
+              },
+              "flap_transitions": {
+                "type": "integer"
+              },
+              "currently_failing": {
+                "type": "boolean"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
             }
           }
         },
-        "eval_set_stability": { "type": ["object", "null"] },
-        "cadence": { "type": ["object", "null"] }
+        "eval_set_stability": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "cadence": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       }
     },
-
     "threshold_sensitivity": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "current_line": { "type": "number" },
-        "swept_verdict_at_current_line": { "type": "string" },
-        "knife_edge": { "type": "boolean" },
-        "knife_edge_detail": { "type": "string" },
-        "gate_line_sweep": { "type": "array" },
-        "accuracy_threshold_sweep": { "type": "array" },
-        "n_gates_measured": { "type": "integer" },
-        "n_tasks_with_accuracy": { "type": "integer" }
+        "current_line": {
+          "type": "number"
+        },
+        "swept_verdict_at_current_line": {
+          "type": "string"
+        },
+        "knife_edge": {
+          "type": "boolean"
+        },
+        "knife_edge_detail": {
+          "type": "string"
+        },
+        "gate_line_sweep": {
+          "type": "array"
+        },
+        "accuracy_threshold_sweep": {
+          "type": "array"
+        },
+        "n_gates_measured": {
+          "type": "integer"
+        },
+        "n_tasks_with_accuracy": {
+          "type": "integer"
+        }
       }
     },
-
     "reference_frame": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "label": { "type": ["string", "null"] },
-        "source": { "type": ["string", "null"] },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "metrics": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "metric": { "type": "string" },
-              "value": { "type": "number" },
-              "reference_median": { "type": ["number", "null"] },
-              "reference_frontier": { "type": ["number", "null"] },
-              "percentile": { "type": ["integer", "null"] },
-              "gap": { "type": ["number", "null"] },
-              "gap_to_frontier": { "type": ["number", "null"] },
-              "verdict": { "enum": ["above reference", "at reference", "below reference"] }
+              "metric": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              },
+              "reference_median": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "reference_frontier": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "percentile": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "gap": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "gap_to_frontier": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "above reference",
+                  "at reference",
+                  "below reference"
+                ]
+              }
             }
           }
         },
-        "below_reference": { "type": "array", "items": { "type": "string" } },
-        "furthest_from_frontier": { "type": ["object", "null"] },
-        "summary": { "type": "string" }
+        "below_reference": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "furthest_from_frontier": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
       }
     },
-
     "metric_confidence": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["n_tasks"],
+      "required": [
+        "n_tasks"
+      ],
       "properties": {
-        "n_tasks": { "type": "integer", "minimum": 0 },
-        "tcr_pct": { "type": "number" },
-        "accuracy_pct": { "type": "number" },
-        "tcr_ci_pct": { "$ref": "#/$defs/pair" },
-        "accuracy_ci_pct": { "$ref": "#/$defs/pair" },
-        "tcr_ci_halfwidth": { "type": "number" },
-        "tcr_ci_degenerate": { "type": "boolean" },
-        "tcr_constant_value": { "type": "number" },
-        "accuracy_ci_degenerate": { "type": "boolean" }
+        "n_tasks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tcr_pct": {
+          "type": "number"
+        },
+        "accuracy_pct": {
+          "type": "number"
+        },
+        "tcr_ci_pct": {
+          "$ref": "#/$defs/pair"
+        },
+        "accuracy_ci_pct": {
+          "$ref": "#/$defs/pair"
+        },
+        "tcr_ci_halfwidth": {
+          "type": "number"
+        },
+        "tcr_ci_degenerate": {
+          "type": "boolean"
+        },
+        "tcr_constant_value": {
+          "type": "number"
+        },
+        "accuracy_ci_degenerate": {
+          "type": "boolean"
+        }
       }
     },
-
     "metric_signal": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "metrics_analysed": { "type": "array", "items": { "type": "string" } },
-        "n_tasks": { "type": "integer" },
-        "correlations": { "type": "array" },
-        "redundant_pairs": { "type": "array" },
-        "outcome_correlation": { "type": ["array", "null"] },
-        "note": { "type": "string" }
+        "metrics_analysed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "n_tasks": {
+          "type": "integer"
+        },
+        "correlations": {
+          "type": "array"
+        },
+        "redundant_pairs": {
+          "type": "array"
+        },
+        "outcome_correlation": {
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "judge_robustness": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_runs": { "type": "integer" },
-        "models": { "type": "array", "items": { "type": "string" } },
-        "n_comparable_tasks": { "type": "integer" },
+        "n_runs": {
+          "type": "integer"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "n_comparable_tasks": {
+          "type": "integer"
+        },
         "verdict_stability_across_models": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "stable": { "type": "boolean" },
-            "per_model_overall_mean": { "type": "object" },
-            "max_mean_gap": { "type": "number" },
-            "bucket_agreement_rate": { "type": "number" }
+            "stable": {
+              "type": "boolean"
+            },
+            "per_model_overall_mean": {
+              "type": "object"
+            },
+            "max_mean_gap": {
+              "type": "number"
+            },
+            "bucket_agreement_rate": {
+              "type": "number"
+            }
           }
         },
         "judge_sensitive_tasks": {
@@ -299,55 +825,132 @@
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "task_id": { "type": "string" },
-              "models": { "type": "array", "items": { "type": "string" } },
-              "scores": { "type": "array", "items": { "type": "number" } },
-              "spread": { "type": "number" },
-              "bucket_flip": { "type": "boolean" }
+              "task_id": {
+                "type": "string"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scores": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "spread": {
+                "type": "number"
+              },
+              "bucket_flip": {
+                "type": "boolean"
+              }
             }
           }
         },
-        "n_sensitive": { "type": "integer" },
-        "judge_cost_usd": { "type": "number" },
-        "judge_cost_share_pct": { "type": ["number", "null"] },
-        "note": { "type": "string" }
+        "n_sensitive": {
+          "type": "integer"
+        },
+        "judge_cost_usd": {
+          "type": "number"
+        },
+        "judge_cost_share_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "evaluator_trust": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "trust_level": { "enum": ["high", "medium", "low"] },
-        "trust_reasons": { "type": "array", "items": { "type": "string" } },
-        "judge_vs_heuristic": {
-          "type": ["object", "null"],
-          "additionalProperties": true,
-          "properties": {
-            "n_comparable": { "type": "integer" },
-            "agreement_rate": { "type": "number" },
-            "mean_abs_diff": { "type": "number" },
-            "disagreements": { "type": "array" }
+        "trust_level": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "trust_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         },
-        "judge_calibration": { "type": ["object", "null"] },
-        "judge_self_consistency": { "type": ["object", "null"] }
+        "judge_vs_heuristic": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "n_comparable": {
+              "type": "integer"
+            },
+            "agreement_rate": {
+              "type": "number"
+            },
+            "mean_abs_diff": {
+              "type": "number"
+            },
+            "disagreements": {
+              "type": "array"
+            }
+          }
+        },
+        "judge_calibration": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "judge_self_consistency": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       }
     },
-
     "review_queue": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_items": { "type": "integer", "minimum": 0 },
-        "systemic_note": { "type": ["string", "null"] },
+        "n_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "systemic_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "by_priority": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "high": { "type": "integer" },
-            "medium": { "type": "integer" },
-            "low": { "type": "integer" }
+            "high": {
+              "type": "integer"
+            },
+            "medium": {
+              "type": "integer"
+            },
+            "low": {
+              "type": "integer"
+            }
           }
         },
         "items": {
@@ -355,459 +958,1103 @@
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": ["task_id", "priority", "reasons"],
+            "required": [
+              "task_id",
+              "priority",
+              "reasons"
+            ],
             "properties": {
-              "task_id": { "type": "string" },
-              "priority": { "enum": ["high", "medium", "low"] },
-              "reasons": { "type": "array", "items": { "type": "string" } }
+              "task_id": {
+                "type": "string"
+              },
+              "priority": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
       }
     },
-
     "gate_findings": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "gate": { "type": "string" },
-          "score": { "type": ["number", "null"] },
-          "baseline_score": { "type": ["number", "null"] },
+          "gate": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "baseline_score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "component_shortfalls": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": true,
               "properties": {
-                "field": { "type": "string" },
-                "value": { "type": ["number", "null"] },
-                "health": { "type": ["number", "null"] },
-                "guidance": { "type": "string" },
-                "config_hint": { "type": ["object", "null"] }
+                "field": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "health": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "guidance": {
+                  "type": "string"
+                },
+                "config_hint": {
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                }
               }
             }
           },
-          "top_detail_deltas": { "type": "array" }
+          "top_detail_deltas": {
+            "type": "array"
+          }
         }
       }
     },
-
     "failure_clusters": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "signature": { "type": "string" },
-          "task_type": { "type": "string" },
-          "count": { "type": "integer" },
-          "impact_pct": { "type": "number" },
-          "example_task_ids": { "type": "array", "items": { "type": "string" } }
+          "signature": {
+            "type": "string"
+          },
+          "task_type": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "impact_pct": {
+            "type": "number"
+          },
+          "example_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-
     "failure_segments": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["label", "task_ids", "n"],
+        "required": [
+          "label",
+          "task_ids",
+          "n"
+        ],
         "properties": {
-          "label": { "type": "string" },
-          "keywords": { "type": "array", "items": { "type": "string" } },
-          "task_ids": { "type": "array", "items": { "type": "string" } },
-          "n": { "type": "integer" },
-          "share_of_failures_pct": { "type": "number" },
-          "impact_pct": { "type": "number" },
-          "dominant_reason": { "type": "string" },
-          "example_question": { "type": "string" },
-          "catch_all": { "type": "boolean" }
+          "label": {
+            "type": "string"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "n": {
+            "type": "integer"
+          },
+          "share_of_failures_pct": {
+            "type": "number"
+          },
+          "impact_pct": {
+            "type": "number"
+          },
+          "dominant_reason": {
+            "type": "string"
+          },
+          "example_question": {
+            "type": "string"
+          },
+          "catch_all": {
+            "type": "boolean"
+          }
         }
       }
     },
-
     "failure_explanations": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id", "claims"],
+        "required": [
+          "task_id",
+          "claims"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "question": { "type": "string" },
-          "ground_truth": { "type": "string" },
+          "task_id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "ground_truth": {
+            "type": "string"
+          },
           "claims": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": true,
               "properties": {
-                "text": { "type": "string" },
-                "verdict": { "type": "string" },
-                "source": { "type": "string" }
+                "text": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
               }
             }
           },
-          "wrong_claim": { "type": ["string", "null"] },
-          "wrong_claim_verdict": { "type": ["string", "null"] },
-          "wrong_claim_source": { "type": ["string", "null"] },
-          "explained_by": { "enum": ["template", "explainer"] }
+          "wrong_claim": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wrong_claim_verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wrong_claim_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "explained_by": {
+            "enum": [
+              "template",
+              "explainer"
+            ]
+          }
         }
       }
     },
-
     "failure_triggers": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id", "kind"],
+        "required": [
+          "task_id",
+          "kind"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "kind": { "type": "string" },
-          "detail": { "type": "string" },
-          "taxonomy_code": { "type": "string" }
+          "task_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "taxonomy_code": {
+            "type": "string"
+          }
         }
       }
     },
-
     "failure_taxonomy": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_failures": { "type": "integer" },
-        "n_classified": { "type": "integer" },
-        "n_modes": { "type": "integer" },
+        "n_failures": {
+          "type": "integer"
+        },
+        "n_classified": {
+          "type": "integer"
+        },
+        "n_modes": {
+          "type": "integer"
+        },
         "by_mode": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "code": { "type": "string" },
-              "name": { "type": "string" },
-              "owner": { "enum": ["prompt", "config", "data", "model", "infra"] },
-              "remediation": { "type": "string" },
-              "n": { "type": "integer" },
-              "share_of_failures_pct": { "type": "number" },
-              "mean_confidence": { "type": "number" },
-              "example_task_ids": { "type": "array", "items": { "type": "string" } }
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "owner": {
+                "enum": [
+                  "prompt",
+                  "config",
+                  "data",
+                  "model",
+                  "infra"
+                ]
+              },
+              "remediation": {
+                "type": "string"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "share_of_failures_pct": {
+                "type": "number"
+              },
+              "mean_confidence": {
+                "type": "number"
+              },
+              "example_task_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
-        "owner_mix": { "type": "object" },
-        "dominant_mode": { "type": ["object", "null"] },
-        "taxonomy_version": { "type": "integer" }
+        "owner_mix": {
+          "type": "object"
+        },
+        "dominant_mode": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "taxonomy_version": {
+          "type": "integer"
+        }
       }
     },
-
     "contrast_pairs": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "fail_task_id": { "type": "string" },
-          "fail_question": { "type": "string" },
-          "pass_task_id": { "type": "string" },
-          "pass_question": { "type": "string" },
-          "question_similarity": { "type": "number" },
-          "differences": { "type": "object" },
-          "likely_differentiator": { "type": "string" }
+          "fail_task_id": {
+            "type": "string"
+          },
+          "fail_question": {
+            "type": "string"
+          },
+          "pass_task_id": {
+            "type": "string"
+          },
+          "pass_question": {
+            "type": "string"
+          },
+          "question_similarity": {
+            "type": "number"
+          },
+          "differences": {
+            "type": "object"
+          },
+          "likely_differentiator": {
+            "type": "string"
+          }
         }
       }
     },
-
     "ablation_hints": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "target_kind": { "enum": ["prompt_line", "config_knob"] },
-          "target": { "type": "string" },
-          "prompt_line_index": { "type": ["integer", "null"] },
-          "taxonomy_code": { "type": "string" },
-          "mode_name": { "type": "string" },
-          "n_tasks": { "type": "integer" },
-          "rationale": { "type": "string" },
-          "example_task_ids": { "type": "array", "items": { "type": "string" } }
+          "target_kind": {
+            "enum": [
+              "prompt_line",
+              "config_knob"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "prompt_line_index": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "taxonomy_code": {
+            "type": "string"
+          },
+          "mode_name": {
+            "type": "string"
+          },
+          "n_tasks": {
+            "type": "integer"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "example_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-
     "failure_lineage": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "regressed": { "type": "array", "items": { "type": "string" } },
-        "persistent": { "type": "array", "items": { "type": "string" } },
-        "new": { "type": "array", "items": { "type": "string" } },
-        "fixed": { "type": "array", "items": { "type": "string" } }
+        "regressed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "persistent": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "new": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fixed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
-
     "recommendations": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
-          "gate": { "type": "string" },
-          "status": { "enum": ["fail", "warn"] },
-          "label": { "type": "string" },
-          "guidance": { "type": "string" },
-          "shortfalls": { "type": "array" },
-          "code_snippet": { "type": ["string", "null"] },
-          "experiment": { "type": ["object", "null"] },
-          "past_outcomes": { "type": ["object", "null"] },
-          "baseline_verdict": { "type": ["object", "null"] },
-          "derived_from": { "type": ["object", "null"], "additionalProperties": true },
-          "prior": { "type": ["object", "null"], "additionalProperties": true },
+          "gate": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "fail",
+              "warn"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "guidance": {
+            "type": "string"
+          },
+          "shortfalls": {
+            "type": "array"
+          },
+          "code_snippet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "experiment": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "past_outcomes": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "baseline_verdict": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "derived_from": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "prior": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
           "proposal": {
-            "type": ["object", "null"],
+            "type": [
+              "object",
+              "null"
+            ],
             "additionalProperties": true,
             "properties": {
-              "kind": { "enum": ["prompt_edit", "config_change", "data_fix"] },
-              "before": { "type": "string" },
-              "after": { "type": "string" },
-              "rationale": { "type": "string" },
-              "evidence_task_ids": { "type": "array", "items": { "type": "string" } },
-              "authored_by": { "enum": ["template", "fixer"] }
-            }
-          }
-        }
-      }
-    },
-
-    "latency_budget": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "n_tasks": { "type": "integer" },
-        "tool_ms": { "type": "number" },
-        "model_ms": { "type": "number" },
-        "network_ms": { "type": "number" },
-        "unattributed_ms": { "type": "number" },
-        "bottleneck": { "type": "string" },
-        "bottleneck_share": { "type": "number" }
-      }
-    },
-
-    "rag_localization": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "n_rag_tasks": { "type": "integer" },
-        "n_borderline": { "type": "integer" },
-        "borderline_task_ids": { "type": "array", "items": { "type": "string" } },
-        "by_class": { "type": "object", "additionalProperties": { "type": "integer" } },
-        "dominant_failure": { "type": ["string", "null"] },
-        "remediation_by_class": { "type": "object", "additionalProperties": { "type": "string" } },
-        "unsupported_claim_examples": { "type": "array" }
-      }
-    },
-
-    "slice_analysis": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": ["task_type", "n"],
-        "properties": {
-          "task_type": { "type": "string" },
-          "n": { "type": "integer" },
-          "tcr_pct": { "type": "number" },
-          "tcr_ci_pct": { "$ref": "#/$defs/pair" },
-          "accuracy_pct": { "type": "number" },
-          "baseline_tcr_pct": { "type": "number" },
-          "tcr_delta_pp": { "type": "number" },
-          "tcr_delta_ci_pp": { "$ref": "#/$defs/pair" },
-          "significant": { "type": "boolean" },
-          "p_value": { "type": "number" },
-          "likely_noise": { "type": "boolean" }
-        }
-      }
-    },
-
-    "multiplicity_audit": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "n_comparisons": { "type": "integer" },
-        "alpha": { "type": "number" },
-        "n_nominally_significant": { "type": "integer" },
-        "n_significant_after_bh": { "type": "integer" },
-        "expected_false_positives": { "type": "number" },
-        "sections": { "type": "array", "items": { "type": "string" } },
-        "flagged": { "type": "array" },
-        "tests": { "type": "array" },
-        "note": { "type": "string" }
-      }
-    },
-
-    "metadata_slices": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": ["dimension", "slices"],
-        "properties": {
-          "dimension": { "type": "string" },
-          "slices": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "additionalProperties": true,
-              "required": ["value", "n"],
-              "properties": {
-                "value": { "type": "string" },
-                "n": { "type": "integer" },
-                "tcr_pct": { "type": "number" },
-                "tcr_ci_pct": { "$ref": "#/$defs/pair" },
-                "accuracy_pct": { "type": "number" },
-                "baseline_tcr_pct": { "type": "number" },
-                "tcr_delta_pp": { "type": "number" },
-                "tcr_delta_ci_pp": { "$ref": "#/$defs/pair" },
-                "significant": { "type": "boolean" }
+              "kind": {
+                "enum": [
+                  "prompt_edit",
+                  "config_change",
+                  "data_fix"
+                ]
+              },
+              "before": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              },
+              "evidence_task_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "authored_by": {
+                "enum": [
+                  "template",
+                  "fixer"
+                ]
               }
             }
           }
         }
       }
     },
-
-    "sample_guidance": {
-      "type": ["object", "null"],
+    "latency_budget": {
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_tasks": { "type": "integer" },
-        "tcr_ci_halfwidth_pp": { "type": "number" },
-        "target_halfwidth_pp": { "type": "number" },
-        "recommended_n": { "type": "integer" },
-        "additional_tasks": { "type": "integer" },
-        "degenerate": { "type": "boolean" },
-        "message": { "type": "string" }
+        "n_tasks": {
+          "type": "integer"
+        },
+        "tool_ms": {
+          "type": "number"
+        },
+        "model_ms": {
+          "type": "number"
+        },
+        "network_ms": {
+          "type": "number"
+        },
+        "unattributed_ms": {
+          "type": "number"
+        },
+        "bottleneck": {
+          "type": "string"
+        },
+        "bottleneck_share": {
+          "type": "number"
+        }
       }
     },
-
-    "reproducibility_manifest": {
-      "type": ["object", "null"],
-      "additionalProperties": true
-    },
-
-    "cost_economics": {
-      "type": ["object", "null"],
+    "rag_localization": {
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "total_cost_usd": { "type": "number" },
-        "cost_source": { "enum": ["per_task_tokens", "aggregate_uniform_split"] },
-        "n_tasks": { "type": "integer" },
-        "n_successful": { "type": "integer" },
-        "cost_per_task_usd": { "type": "number" },
-        "cost_per_successful_task_usd": { "type": ["number", "null"] },
-        "wasted_cost_usd": { "type": "number" },
-        "wasted_cost_pct": { "type": "number" },
-        "retry_cost_usd": { "type": "number" },
-        "retry_cost_pct": { "type": "number" },
-        "projection": {
+        "n_rag_tasks": {
+          "type": "integer"
+        },
+        "n_borderline": {
+          "type": "integer"
+        },
+        "borderline_task_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "by_class": {
           "type": "object",
-          "additionalProperties": true,
-          "properties": {
-            "calls": { "type": "integer" },
-            "total_usd": { "type": "number" },
-            "wasted_usd": { "type": "number" }
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "dominant_failure": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remediation_by_class": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "unsupported_claim_examples": {
+          "type": "array"
+        }
+      }
+    },
+    "slice_analysis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "task_type",
+          "n"
+        ],
+        "properties": {
+          "task_type": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer"
+          },
+          "tcr_pct": {
+            "type": "number"
+          },
+          "tcr_ci_pct": {
+            "$ref": "#/$defs/pair"
+          },
+          "accuracy_pct": {
+            "type": "number"
+          },
+          "baseline_tcr_pct": {
+            "type": "number"
+          },
+          "tcr_delta_pp": {
+            "type": "number"
+          },
+          "tcr_delta_ci_pp": {
+            "$ref": "#/$defs/pair"
+          },
+          "significant": {
+            "type": "boolean"
+          },
+          "p_value": {
+            "type": "number"
+          },
+          "likely_noise": {
+            "type": "boolean"
           }
         }
       }
     },
-
+    "multiplicity_audit": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_comparisons": {
+          "type": "integer"
+        },
+        "alpha": {
+          "type": "number"
+        },
+        "n_nominally_significant": {
+          "type": "integer"
+        },
+        "n_significant_after_bh": {
+          "type": "integer"
+        },
+        "expected_false_positives": {
+          "type": "number"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "flagged": {
+          "type": "array"
+        },
+        "tests": {
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "metadata_slices": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "dimension",
+          "slices"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "slices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": [
+                "value",
+                "n"
+              ],
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "n": {
+                  "type": "integer"
+                },
+                "tcr_pct": {
+                  "type": "number"
+                },
+                "tcr_ci_pct": {
+                  "$ref": "#/$defs/pair"
+                },
+                "accuracy_pct": {
+                  "type": "number"
+                },
+                "baseline_tcr_pct": {
+                  "type": "number"
+                },
+                "tcr_delta_pp": {
+                  "type": "number"
+                },
+                "tcr_delta_ci_pp": {
+                  "$ref": "#/$defs/pair"
+                },
+                "significant": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sample_guidance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_tasks": {
+          "type": "integer"
+        },
+        "tcr_ci_halfwidth_pp": {
+          "type": "number"
+        },
+        "target_halfwidth_pp": {
+          "type": "number"
+        },
+        "recommended_n": {
+          "type": "integer"
+        },
+        "additional_tasks": {
+          "type": "integer"
+        },
+        "degenerate": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "reproducibility_manifest": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "cost_economics": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "total_cost_usd": {
+          "type": "number"
+        },
+        "cost_source": {
+          "enum": [
+            "per_task_tokens",
+            "aggregate_uniform_split"
+          ]
+        },
+        "n_tasks": {
+          "type": "integer"
+        },
+        "n_successful": {
+          "type": "integer"
+        },
+        "cost_per_task_usd": {
+          "type": "number"
+        },
+        "cost_per_successful_task_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "wasted_cost_usd": {
+          "type": "number"
+        },
+        "wasted_cost_pct": {
+          "type": "number"
+        },
+        "retry_cost_usd": {
+          "type": "number"
+        },
+        "retry_cost_pct": {
+          "type": "number"
+        },
+        "projection": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "calls": {
+              "type": "integer"
+            },
+            "total_usd": {
+              "type": "number"
+            },
+            "wasted_usd": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
     "security_findings": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id", "tracker", "threat_type", "severity"],
+        "required": [
+          "task_id",
+          "tracker",
+          "threat_type",
+          "severity"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "tracker": { "type": "string" },
-          "threat_type": { "type": "string" },
-          "severity": { "type": "string" },
-          "cwe": { "type": ["string", "array", "null"] },
-          "detail": { "type": "string" },
-          "succeeded": { "enum": ["yes", "likely", "no", "unknown"] },
-          "kind": { "type": "string" },
-          "components": { "type": "array", "items": { "type": "string" } }
+          "task_id": {
+            "type": "string"
+          },
+          "tracker": {
+            "type": "string"
+          },
+          "threat_type": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "cwe": {
+            "type": [
+              "string",
+              "array",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "succeeded": {
+            "enum": [
+              "yes",
+              "likely",
+              "no",
+              "unknown"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-
     "score_breakdowns": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id"],
+        "required": [
+          "task_id"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "task_type": { "type": "string" },
-          "accuracy": { "type": ["number", "null"] },
-          "completion": { "type": ["number", "null"] },
-          "accuracy_components": { "type": "object" },
-          "accuracy_weakest": { "type": ["string", "null"] },
-          "accuracy_note": { "type": "string" },
-          "judge_overall": { "type": ["number", "null"] },
-          "judge_reasoning": { "type": ["string", "null"] },
-          "judge_dimensions": { "type": "object" },
-          "weakest_signal": { "type": ["string", "null"] }
+          "task_id": {
+            "type": "string"
+          },
+          "task_type": {
+            "type": "string"
+          },
+          "accuracy": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "completion": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "accuracy_components": {
+            "type": "object"
+          },
+          "accuracy_weakest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accuracy_note": {
+            "type": "string"
+          },
+          "judge_overall": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "judge_reasoning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "judge_dimensions": {
+            "type": "object"
+          },
+          "weakest_signal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
-
     "trajectories": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id"],
+        "required": [
+          "task_id"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "source": { "type": "string" },
-          "n_spans": { "type": "integer" },
-          "total_ms": { "type": "number" },
-          "critical_path": { "type": "array", "items": { "type": "string" } },
-          "bottleneck": { "type": ["object", "null"] },
-          "total_cost_usd": { "type": ["number", "null"] },
-          "total_tokens": { "type": ["integer", "null"] }
+          "task_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "n_spans": {
+            "type": "integer"
+          },
+          "total_ms": {
+            "type": "number"
+          },
+          "critical_path": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bottleneck": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "total_cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "total_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
         }
       }
     },
-
     "experiments": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["hypothesis", "verdict"],
+        "required": [
+          "hypothesis",
+          "verdict"
+        ],
         "properties": {
-          "experiment_id": { "type": ["string", "null"] },
-          "hypothesis": { "type": "string" },
-          "target_gate": { "type": ["string", "null"] },
-          "target_field": { "type": ["string", "null"] },
-          "predicted": { "type": ["number", "null"] },
-          "actual": { "type": ["number", "null"] },
-          "verdict": { "type": "string" },
-          "status": { "type": "string" },
-          "note": { "type": ["string", "null"] }
+          "experiment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hypothesis": {
+            "type": "string"
+          },
+          "target_gate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "predicted": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "actual": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
-
     "improvement_priors": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
         "by_bucket": {
@@ -816,185 +2063,745 @@
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "gate": { "type": "string" },
-              "category": { "type": "string" },
-              "n": { "type": "integer" },
-              "confirmed": { "type": "integer" },
-              "refuted": { "type": "integer" },
-              "confirm_rate": { "type": ["number", "null"] },
-              "mean_confirmed_delta": { "type": ["number", "null"] },
-              "verdict": { "enum": ["works_well", "mixed", "ineffective", "insufficient_data"] }
+              "gate": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "confirmed": {
+                "type": "integer"
+              },
+              "refuted": {
+                "type": "integer"
+              },
+              "confirm_rate": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "mean_confirmed_delta": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "works_well",
+                  "mixed",
+                  "ineffective",
+                  "insufficient_data"
+                ]
+              }
             }
           }
         },
-        "by_category": { "type": "object" },
-        "overall": { "type": "object" },
-        "note": { "type": "string" }
+        "by_category": {
+          "type": "object"
+        },
+        "overall": {
+          "type": "object"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "trace_diffs": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id", "verdict"],
+        "required": [
+          "task_id",
+          "verdict"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "question": { "type": "string" },
-          "compared": { "type": "array", "items": { "type": "string" } },
-          "verdict": { "type": "string" },
-          "score_delta": { "type": "object" },
-          "response_diff": { "type": "object" },
-          "trajectory_diff": { "type": "object" },
-          "per_version": { "type": "array" }
+          "task_id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "compared": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "score_delta": {
+            "type": "object"
+          },
+          "response_diff": {
+            "type": "object"
+          },
+          "trajectory_diff": {
+            "type": "object"
+          },
+          "per_version": {
+            "type": "array"
+          }
         }
       }
     },
-
     "nondeterminism": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": true,
-        "required": ["task_id", "reproducibility_score", "run_count"],
+        "required": [
+          "task_id",
+          "reproducibility_score",
+          "run_count"
+        ],
         "properties": {
-          "task_id": { "type": "string" },
-          "reproducibility_score": { "type": "number" },
-          "run_count": { "type": "integer" },
-          "variance": { "type": "number" },
-          "sample_responses": { "type": "array", "items": { "type": "string" } }
+          "task_id": {
+            "type": "string"
+          },
+          "reproducibility_score": {
+            "type": "number"
+          },
+          "run_count": {
+            "type": "integer"
+          },
+          "variance": {
+            "type": "number"
+          },
+          "sample_responses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
-
-    "conversation": {
-      "type": ["object", "null"],
+    "nondeterminism_repeat": {
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_sessions": { "type": "integer" },
-        "avg_overall_score": { "type": ["number", "null"] },
-        "avg_context_retention": { "type": ["number", "null"] },
+        "runs": {
+          "type": "integer"
+        },
+        "gate_pass_count": {
+          "type": "integer"
+        },
+        "gate_verdicts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "flip_rate": {
+          "type": "number"
+        },
+        "majority_verdict": {
+          "type": "string"
+        },
+        "tcr_values": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "tcr_mean": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tcr_stddev": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unstable_tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "n_unstable_tasks": {
+          "type": "integer"
+        },
+        "deterministic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "acceptance_coverage": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "n_tasks_with_criteria": {
+          "type": "integer"
+        },
+        "total_criteria": {
+          "type": "integer"
+        },
+        "satisfied_criteria": {
+          "type": "integer"
+        },
+        "fully_satisfied_tasks": {
+          "type": "integer"
+        },
+        "coverage_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "by_task": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "spec_coverage": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "source": {
+          "enum": [
+            "requirements_list",
+            "covers_only"
+          ]
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "covered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "uncovered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "n_requirements": {
+          "type": "integer"
+        },
+        "n_covered": {
+          "type": "integer"
+        },
+        "n_uncovered": {
+          "type": "integer"
+        },
+        "by_requirement": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "deploy_decision": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_gate_runs": {
+          "type": "integer"
+        },
+        "n_pending": {
+          "type": "integer"
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "by_outcome": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "last": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "lifecycle_phase": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "primary": {
+          "type": "string",
+          "enum": [
+            "analysis",
+            "design",
+            "development",
+            "verification",
+            "operations"
+          ]
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "eval_set_delta": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "eval_set_hash": {
+          "type": "string"
+        },
+        "baseline_eval_set_hash": {
+          "type": "string"
+        },
+        "baseline_eval_set_size": {
+          "type": "integer"
+        },
+        "eval_set_size": {
+          "type": "integer"
+        },
+        "added_cases": {
+          "type": "integer"
+        },
+        "removed_cases": {
+          "type": "integer"
+        },
+        "common_cases": {
+          "type": "integer"
+        },
+        "added_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed_case_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tcr_movement_pp": {
+          "type": "number"
+        },
+        "attributable_to_agent_pp": {
+          "type": "number"
+        },
+        "attributable_to_eval_set_change_pp": {
+          "type": "number"
+        },
+        "attributable": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "conversation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_sessions": {
+          "type": "integer"
+        },
+        "avg_overall_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "avg_context_retention": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "sessions": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "session_id": { "type": ["string", "null"] },
-              "turns": { "type": "integer" },
-              "overall_score": { "type": ["number", "null"] },
-              "context_retention": { "type": ["number", "null"] },
-              "topic_coherence": { "type": ["number", "null"] },
-              "nonanswer_turns": { "type": "integer" }
+              "session_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "turns": {
+                "type": "integer"
+              },
+              "overall_score": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "context_retention": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "topic_coherence": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "nonanswer_turns": {
+                "type": "integer"
+              }
             }
           }
         },
-        "best_session": { "type": ["object", "null"] },
+        "best_session": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "turn_quality_trajectory": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "turn": { "type": "integer" },
-              "n": { "type": "integer" },
-              "context_ref": { "type": ["number", "null"] },
-              "avg_response_chars": { "type": ["number", "null"] },
-              "repetition": { "type": ["number", "null"] },
-              "nonanswer_rate": { "type": ["number", "null"] }
+              "turn": {
+                "type": "integer"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "context_ref": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "avg_response_chars": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "repetition": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "nonanswer_rate": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
             }
           }
         },
-        "degradation_after_turn": { "type": ["integer", "null"] },
-        "worst_session": { "type": ["object", "null"] }
+        "degradation_after_turn": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "worst_session": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       }
     },
-
     "eval_set_quality": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_tasks": { "type": "integer" },
-        "task_type_histogram": { "type": "object", "additionalProperties": { "type": "integer" } },
-        "near_duplicate_clusters": { "type": "array" },
-        "coverage_warnings": { "type": "array", "items": { "type": "string" } },
-        "suspicious_ground_truth": { "type": "array" },
-        "capability_coverage": { "type": ["object", "null"] },
-        "contamination": { "type": "array" },
-        "targeted_additions": { "type": "array" }
+        "n_tasks": {
+          "type": "integer"
+        },
+        "task_type_histogram": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "near_duplicate_clusters": {
+          "type": "array"
+        },
+        "coverage_warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suspicious_ground_truth": {
+          "type": "array"
+        },
+        "capability_coverage": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "contamination": {
+          "type": "array"
+        },
+        "targeted_additions": {
+          "type": "array"
+        }
       }
     },
-
     "eval_representativeness": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "measured_tcr_pct": { "type": ["number", "null"] },
-        "prod_weighted_tcr_estimate_pct": { "type": ["number", "null"] },
-        "query_coverage": { "type": ["object", "null"] },
+        "measured_tcr_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prod_weighted_tcr_estimate_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "query_coverage": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "distributions": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "key": { "type": "string" },
-              "distribution_distance": { "type": "number" },
-              "coverage_gaps": { "type": "array" },
-              "over_represented": { "type": "array" },
-              "prod_weighted_tcr_estimate_pct": { "type": ["number", "null"] }
+              "key": {
+                "type": "string"
+              },
+              "distribution_distance": {
+                "type": "number"
+              },
+              "coverage_gaps": {
+                "type": "array"
+              },
+              "over_represented": {
+                "type": "array"
+              },
+              "prod_weighted_tcr_estimate_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
             }
           }
         },
-        "note": { "type": "string" }
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "golden_health": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_cases": { "type": "integer" },
-        "coverage_pct": { "type": ["number", "null"] },
-        "n_modes_considered": { "type": "integer" },
+        "n_cases": {
+          "type": "integer"
+        },
+        "pending_production_candidates": {
+          "type": "integer"
+        },
+        "coverage_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_modes_considered": {
+          "type": "integer"
+        },
         "uncovered_failure_modes": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "code": { "type": "string" },
-              "name": { "type": "string" },
-              "n_failures": { "type": ["integer", "null"] },
-              "owner": { "type": ["string", "null"] },
-              "remediation": { "type": ["string", "null"] }
+              "code": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "n_failures": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "owner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "remediation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         },
-        "stale_cases": { "type": "array" },
-        "redundant_cases": { "type": "array" },
-        "note": { "type": "string" }
+        "stale_cases": {
+          "type": "array"
+        },
+        "redundant_cases": {
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "cohort_comparison": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "metric": { "type": "string" },
-        "n_versions": { "type": "integer" },
+        "metric": {
+          "type": "string"
+        },
+        "n_versions": {
+          "type": "integer"
+        },
         "versions": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "label": { "type": "string" },
-              "n_tasks": { "type": "integer" },
-              "tcr_pct": { "type": ["number", "null"] },
-              "gate_scores": { "type": "object" },
-              "overall": { "type": ["number", "null"] }
+              "label": {
+                "type": "string"
+              },
+              "n_tasks": {
+                "type": "integer"
+              },
+              "tcr_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "gate_scores": {
+                "type": "object"
+              },
+              "overall": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
             }
           }
         },
@@ -1004,164 +2811,424 @@
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "a": { "type": "string" },
-              "b": { "type": "string" },
-              "delta_pp": { "type": "number" },
-              "p_value": { "type": ["number", "null"] },
-              "p_value_fdr": { "type": ["number", "null"] },
-              "significant_fdr": { "type": "boolean" },
-              "ci_pp": { "type": ["array", "null"] }
+              "a": {
+                "type": "string"
+              },
+              "b": {
+                "type": "string"
+              },
+              "delta_pp": {
+                "type": "number"
+              },
+              "p_value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "p_value_fdr": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "significant_fdr": {
+                "type": "boolean"
+              },
+              "ci_pp": {
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
             }
           }
         },
-        "by_task_type": { "type": "array" },
-        "winner": { "type": ["object", "null"] }
-      }
-    },
-
-    "change_attribution": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "prompt_changed": { "type": "boolean" },
-        "prompt_diff": { "type": ["object", "null"] },
-        "config_changed": { "type": "boolean" },
-        "config_diff": { "type": ["object", "null"] },
-        "git": { "type": ["object", "null"] },
-        "largest_gate_move": { "type": ["object", "null"] },
-        "note": { "type": "string" }
-      }
-    },
-
-    "security_posture": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "n_findings": { "type": "integer" },
-        "n_tasks_affected": { "type": "integer" },
-        "n_compound": { "type": "integer" },
-        "by_severity": { "type": "object" },
-        "tools_implicated": { "type": "array" },
-        "landed_or_likely": { "type": "array" },
-        "any_landed": { "type": "boolean" }
-      }
-    },
-
-    "multiagent": {
-      "type": ["object", "null"],
-      "additionalProperties": true,
-      "properties": {
-        "n_tasks_with_agent_data": { "type": "integer" },
-        "n_agents": { "type": "integer" },
-        "per_agent": { "type": "array" },
-        "handoffs": { "type": "array" },
-        "communication_graph": { "type": "array" },
-        "bottleneck_agent": { "type": ["string", "null"] },
-        "repeated_agents": { "type": "array", "items": { "type": "string" } },
-        "mast_candidates": { "type": "array" }
-      }
-    },
-
-    "efficiency_opportunities": {
-      "type": ["array", "null"],
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": ["kind", "title"],
-        "properties": {
-          "kind": { "enum": ["model_routing", "step_gating", "retry_reduction"] },
-          "title": { "type": "string" },
-          "detail": { "type": "string" },
-          "projected_saving_pct": { "type": ["number", "null"] },
-          "projected_saving_per_100k_usd": { "type": ["number", "null"] },
-          "risk": { "type": "string" },
-          "evidence": { "type": "object" }
+        "by_task_type": {
+          "type": "array"
+        },
+        "winner": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       }
     },
-
-    "uncertainty_budget": {
-      "type": ["object", "null"],
+    "change_attribution": {
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "overall_confidence": { "type": ["string", "null"] },
-        "dominant_source": { "type": ["string", "null"] },
-        "tied_top": { "type": ["integer", "null"] },
-        "n_sources": { "type": "integer" },
+        "prompt_changed": {
+          "type": "boolean"
+        },
+        "prompt_diff": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "config_changed": {
+          "type": "boolean"
+        },
+        "config_diff": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "git": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "largest_gate_move": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "security_posture": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_findings": {
+          "type": "integer"
+        },
+        "n_tasks_affected": {
+          "type": "integer"
+        },
+        "n_compound": {
+          "type": "integer"
+        },
+        "by_severity": {
+          "type": "object"
+        },
+        "tools_implicated": {
+          "type": "array"
+        },
+        "landed_or_likely": {
+          "type": "array"
+        },
+        "any_landed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "multiagent": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "n_tasks_with_agent_data": {
+          "type": "integer"
+        },
+        "n_agents": {
+          "type": "integer"
+        },
+        "per_agent": {
+          "type": "array"
+        },
+        "handoffs": {
+          "type": "array"
+        },
+        "communication_graph": {
+          "type": "array"
+        },
+        "bottleneck_agent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repeated_agents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mast_candidates": {
+          "type": "array"
+        }
+      }
+    },
+    "efficiency_opportunities": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "kind",
+          "title"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "model_routing",
+              "step_gating",
+              "retry_reduction",
+              "tier_downshift"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "projected_saving_pct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "projected_saving_per_100k_usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "risk": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "uncertainty_budget": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "overall_confidence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dominant_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tied_top": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "n_sources": {
+          "type": "integer"
+        },
         "components": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "source": { "enum": ["sampling", "judge", "staleness", "borderline"] },
-              "contribution_pct": { "type": "number" },
-              "description": { "type": "string" },
-              "cheapest_lever": { "type": "string" },
-              "lever_cost": { "type": "string" },
-              "projected_reduction": { "type": "string" }
+              "source": {
+                "enum": [
+                  "sampling",
+                  "judge",
+                  "staleness",
+                  "borderline"
+                ]
+              },
+              "contribution_pct": {
+                "type": "number"
+              },
+              "description": {
+                "type": "string"
+              },
+              "cheapest_lever": {
+                "type": "string"
+              },
+              "lever_cost": {
+                "type": "string"
+              },
+              "projected_reduction": {
+                "type": "string"
+              }
             }
           }
         },
-        "note": { "type": "string" }
+        "note": {
+          "type": "string"
+        }
       }
     },
-
     "calibration": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_with_confidence": { "type": "integer" },
-        "ece": { "type": ["number", "null"] },
-        "mce": { "type": ["number", "null"] },
-        "brier": { "type": ["number", "null"] },
-        "mean_confidence": { "type": "number" },
-        "empirical_accuracy": { "type": "number" },
-        "confidence_gap": { "type": "number" },
-        "verdict": { "enum": ["overconfident", "underconfident", "well-calibrated"] },
-        "reliability_bins": { "type": "array" },
-        "risk_coverage": { "type": "array" },
-        "confidence_is_informative": { "type": "boolean" },
-        "confidence_signal": { "enum": ["informative", "flat", "inverted"] },
-        "abstention": { "type": ["object", "null"] }
+        "n_with_confidence": {
+          "type": "integer"
+        },
+        "ece": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mce": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "brier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mean_confidence": {
+          "type": "number"
+        },
+        "empirical_accuracy": {
+          "type": "number"
+        },
+        "confidence_gap": {
+          "type": "number"
+        },
+        "verdict": {
+          "enum": [
+            "overconfident",
+            "underconfident",
+            "well-calibrated"
+          ]
+        },
+        "reliability_bins": {
+          "type": "array"
+        },
+        "risk_coverage": {
+          "type": "array"
+        },
+        "confidence_is_informative": {
+          "type": "boolean"
+        },
+        "confidence_signal": {
+          "enum": [
+            "informative",
+            "flat",
+            "inverted"
+          ]
+        },
+        "abstention": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
       }
     },
-
     "regression_attribution": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": true,
       "properties": {
-        "n_regressed_tasks": { "type": "integer" },
+        "n_regressed_tasks": {
+          "type": "integer"
+        },
         "clusters": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": true,
             "properties": {
-              "signature": { "type": "string" },
-              "n": { "type": "integer" },
-              "task_ids": { "type": "array", "items": { "type": "string" } },
-              "category": { "type": "string" },
-              "slice_concentration": { "type": "array" },
-              "implicated_changes": { "type": "array", "items": { "type": "string" } }
+              "signature": {
+                "type": "string"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "task_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "category": {
+                "type": "string"
+              },
+              "slice_concentration": {
+                "type": "array"
+              },
+              "implicated_changes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
-        "changed_config_keys": { "type": "array", "items": { "type": "string" } },
-        "prompt_changed": { "type": "boolean" },
-        "note": { "type": "string" }
+        "changed_config_keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt_changed": {
+          "type": "boolean"
+        },
+        "eval_set_changed": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
-
-    "shared_cause_explanations": { "type": "array" },
-    "newly_unmeasured_gates": { "type": "array", "items": { "type": "string" } },
-    "experiment_metadata": { "type": ["object", "null"] }
+    "shared_cause_explanations": {
+      "type": "array"
+    },
+    "newly_unmeasured_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "experiment_metadata": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
   },
-
   "$defs": {
     "pair": {
       "type": "array",
-      "items": { "type": "number" },
+      "items": {
+        "type": "number"
+      },
       "minItems": 2,
       "maxItems": 2
     }

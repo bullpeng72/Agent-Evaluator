@@ -148,6 +148,9 @@ def build_guardrail(init_msg: dict[str, Any]) -> LiveGuardrail:
     # SPEC-041: 차단된 시도의 인자 발췌 캡처 설정 (dict; None이면 LiveGuardrail 기본값).
     if init_msg.get("blocked_attempt_capture") is not None:
         kwargs["blocked_attempt_capture"] = init_msg["blocked_attempt_capture"]
+    # SPEC-042 REQ-7: 사람이 직접 수행해야 하는 명령 패턴(리스트). 없으면 꺼짐.
+    if init_msg.get("human_only_patterns") is not None:
+        kwargs["human_only_patterns"] = tuple(init_msg["human_only_patterns"])
     return LiveGuardrail(**kwargs)
 
 

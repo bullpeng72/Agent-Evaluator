@@ -56,6 +56,13 @@ from agent_evaluator.gates.branch_guard import (
     is_branch_protected,
     matches_git_mutation,
 )
+
+# SPEC-043 REQ-5: re-exported here so callers import them next to `tool_guard`.
+from agent_evaluator.gates.fault_injection import (  # noqa: F401
+    FaultInjectionConfig,
+    FaultInjectionError,
+    fault_injection_session,
+)
 from agent_evaluator.gates.gate_b_behavioral import evaluators as gate_b_evaluators
 from agent_evaluator.gates.gate_b_behavioral.configs import (
     DeadlockConfig,
@@ -239,8 +246,19 @@ class LiveGuardrail:
         # None -> the default below (enabled, 240 chars, redaction on). Pass
         # {"enabled": False} to keep the pre-SPEC-041 behaviour (no excerpt at all).
         blocked_attempt_capture: dict[str, Any] | None = None,
+        # SPEC-042 REQ-7: substrings that mark a call a human must run directly
+        # (e.g. "terraform apply", "alembic upgrade"). Matched case-insensitively
+        # against the serialized tool arguments. On a hit the call is blocked with
+        # a "human_only" reason and recorded in the audit trail — the agent is
+        # turned back, NOT made to wait. None / [] -> off (behaviour unchanged).
+        human_only_patterns: list[str] | tuple[str, ...] | None = None,
     ) -> None:
         self._loop_detection = loop_detection
+        self._human_only_patterns = tuple(
+            p.strip().lower()
+            for p in (human_only_patterns or ())
+            if isinstance(p, str) and p.strip()
+        )
         # <=0은 "제한 없음"(None)으로 정규화 — lst[-0:]가 전체를 반환하는 함정 방지.
         self._live_loop_window = (
             live_loop_window if (live_loop_window is None or live_loop_window > 0) else None
@@ -600,6 +618,33 @@ class LiveGuardrail:
                 ),
                 detail={"target": _protected, "tool_name": tool_name},
             )
+
+        # SPEC-042 REQ-7: categorical "a human must do this" revert. Not a wait —
+        # the call is blocked and the agent is turned back. Conservative substring
+        # match on the serialized args (same spirit as branch_guard).
+        if self._human_only_patterns:
+            try:
+                _hay = (
+                    json.dumps(parameters, default=str, ensure_ascii=False)
+                    if isinstance(parameters, dict) else str(parameters or "")
+                ).lower()
+            except (TypeError, ValueError):
+                _hay = str(parameters or "").lower()
+            _hit = next((p for p in self._human_only_patterns if p in _hay), None)
+            if _hit is not None:
+                return LiveVerdict(
+                    block=True,
+                    gate="B",
+                    reason=(
+                        f"human_only: {_hit!r} is reserved for a human to run "
+                        f"directly (tool={tool_name}, task_id={task_id})"
+                    ),
+                    remediation=(
+                        "This action is configured as human-only — perform it "
+                        "yourself instead of having the agent run it."
+                    ),
+                    detail={"pattern": _hit, "tool_name": tool_name},
+                )
 
         if self._loop_detection is not None:
             # SPEC-041: 트레일링 윈도우로만 루프를 본다(latch 방지). 배치 snapshot()은
@@ -1206,6 +1251,7 @@ def tool_guard(
     audit_blocked: bool = False,
     fail_closed: bool = False,
     capture_output: Callable[[Any], dict[str, Any]] | None = None,
+    fault_injection: Any = None,  # SPEC-043 REQ-5: FaultInjectionConfig | None
 ) -> Callable:
     """도구 함수를 :class:`LiveGuardrail`로 비침습적으로 감싸는 데코레이터 (SPEC-039 REQ-6).
 
@@ -1236,6 +1282,12 @@ def tool_guard(
             생략되고(기존과 동일한 낙관적 기본값), 예외가 발생하지 않고 정상
             반환됐다는 사실만으로 ``success``를 추론하지 않는다 — 반환값 형태가
             도구마다 제각각이라 매직 추론은 하지 않는다(SPEC-039 설계 결정).
+        fault_injection: (SPEC-043 REQ-5, 선택) :class:`FaultInjectionConfig` —
+            차단 검사(``check_before_tool_call``)를 통과한 호출에 한해 시드 고정
+            RNG로 확률적으로 지연을 넣거나 :class:`FaultInjectionError`를 던진다.
+            생략하면 감싸는 :func:`fault_injection_session` (예:
+            ``@agent_eval(fault_injection=...)``)의 설정을 상속. 차단 로직은
+            건드리지 않는다.
 
     Raises:
         GuardrailBlockedError: 호출이 차단됐을 때. ``.verdict``에 판정 상세가 담긴다.
@@ -1250,6 +1302,30 @@ def tool_guard(
         with live_guardrail_session(guardrail, task_id="s1"):
             bash("ls -la")
     """
+
+    # SPEC-043 REQ-5: one injector per decorator instance so its seeded RNG
+    # yields a single deterministic sequence across every call. When the arg is
+    # omitted, `_resolve_injector()` falls back to the ambient
+    # `fault_injection_session()` (set by `@agent_eval(fault_injection=...)`).
+    _own_injector: Any = None
+    if fault_injection is not None:
+        try:
+            from agent_evaluator.gates.fault_injection import _FaultInjector
+
+            if not fault_injection.is_noop():
+                _own_injector = _FaultInjector(fault_injection)
+        except Exception:  # pragma: no cover - defensive
+            _own_injector = None
+
+    def _resolve_injector() -> Any:
+        if _own_injector is not None:
+            return _own_injector
+        try:
+            from agent_evaluator.gates.fault_injection import active_injector
+
+            return active_injector()
+        except Exception:  # pragma: no cover - defensive
+            return None
 
     def decorator(func: Callable) -> Callable:
         _name = tool_name or func.__name__
@@ -1299,12 +1375,17 @@ def tool_guard(
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 ctx = _resolve_ctx()
+                injector = _resolve_injector()
                 if ctx is None:
+                    if injector is not None:
+                        injector.before_call(_name)  # SPEC-043 REQ-5
                     return await func(*args, **kwargs)
                 guardrail, task_id = ctx
                 params = _bind_call_params(func, args, kwargs)
                 _check(guardrail, task_id, params)
                 try:
+                    if injector is not None:
+                        injector.before_call(_name)  # SPEC-043 REQ-5 — after _check
                     result = await func(*args, **kwargs)
                 except BaseException:
                     _record_failure(guardrail, task_id, params)
@@ -1317,12 +1398,17 @@ def tool_guard(
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             ctx = _resolve_ctx()
+            injector = _resolve_injector()
             if ctx is None:
+                if injector is not None:
+                    injector.before_call(_name)  # SPEC-043 REQ-5
                 return func(*args, **kwargs)
             guardrail, task_id = ctx
             params = _bind_call_params(func, args, kwargs)
             _check(guardrail, task_id, params)
             try:
+                if injector is not None:
+                    injector.before_call(_name)  # SPEC-043 REQ-5 — after _check, never blocks
                 result = func(*args, **kwargs)
             except BaseException:
                 _record_failure(guardrail, task_id, params)

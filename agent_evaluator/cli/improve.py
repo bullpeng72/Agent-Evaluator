@@ -23,6 +23,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -462,6 +466,196 @@ def _cmd_patch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _select_proposal(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    """Match ``--proposal`` against ``<gate>`` or ``<gate>:<kind>`` / ``<gate>_<kind>``."""
+    k = key.strip().lower()
+    for r in rows:
+        gate = str(r.get("gate") or "").lower()
+        kind = str(r.get("kind") or "").lower()
+        if k in (gate, f"{gate}:{kind}", f"{gate}_{kind}"):
+            return r
+    return None
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True, text=True, check=False,
+    )
+
+
+def _cmd_apply_verify(args: argparse.Namespace) -> int:
+    """SPEC-043 REQ-7: apply one proposal's diff in an isolated git worktree, run
+    the caller's eval command there, and score predicted-vs-actual. Never merges
+    or commits — the human inspects the worktree and decides."""
+    baseline = _load_result(args.result_file)
+    if baseline is None:
+        return 1
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    top = _git(repo, "rev-parse", "--show-toplevel")
+    if top.returncode != 0:
+        print(_err(f"{repo} is not a git repository (needed for an isolated worktree)."))
+        return 1
+    repo_root = Path(top.stdout.strip())
+
+    ins = _insights(baseline, _load_result(getattr(args, "baseline", None)))
+    rows = _proposals(ins, None)
+    if not rows:
+        print(f"{D}No proposals in {args.result_file} — nothing to apply.{R}")
+        return 1
+    row = _select_proposal(rows, args.proposal)
+    if row is None:
+        avail = ", ".join(
+            f"{r['gate']}:{r.get('kind')}" for r in rows
+        )
+        print(_err(f"No proposal matches {args.proposal!r}. Available: {avail}"))
+        return 1
+    if row.get("kind") == "data_fix":
+        print(_err("This proposal is a data / eval-set fix — not a code diff. "
+                   "Apply it to your eval set manually, then `improve verify`."))
+        return 1
+
+    # 1. register the experiment so `score_experiments` has a prediction to check
+    from agent_evaluator.rca.experiments import (
+        register_experiment,
+        resolve_experiment,
+        score_experiments,
+    )
+
+    pd = row.get("predicted_delta")
+    exp = register_experiment(
+        args.log,
+        target_gate=row["gate"],
+        predicted_delta=float(pd) if isinstance(pd, (int, float)) else 0.05,
+        target_field=row.get("target_field"),
+        note=_exp_note(row),
+        baseline_ref=args.result_file,
+    )
+    eid = exp["experiment_id"]
+    print(_ok(f"Registered experiment {eid} (Gate {row['gate']})"))
+
+    # 2. isolated worktree at HEAD
+    worktree = Path(tempfile.mkdtemp(prefix="ae-improve-"))
+    add = _git(repo_root, "worktree", "add", "--detach", str(worktree), "HEAD")
+    if add.returncode != 0:
+        print(_err(f"git worktree add failed: {add.stderr.strip()}"))
+        shutil.rmtree(worktree, ignore_errors=True)
+        return 1
+    cleanup = not getattr(args, "keep_worktree", False)
+    try:
+        # 3. generate + apply the diff inside the worktree
+        lineage = (baseline.get("extra_metrics") or {}).get("lineage") or {}
+        if row.get("kind") == "prompt_edit":
+            diff, msg = _patch_prompt_edit(
+                row, worktree, getattr(args, "prompt_file", None), lineage,
+            )
+        else:
+            diff, msg = _patch_config_change(row, worktree)
+        if not diff:
+            print(_err(f"Could not build a diff to apply: {msg or 'no change produced'}"))
+            return 1
+        patch_file = worktree / ".ae-improve.patch"
+        patch_file.write_text(diff, encoding="utf-8")
+        applied = _git(worktree, "apply", str(patch_file))
+        if applied.returncode != 0:
+            print(_err(f"git apply failed in the worktree: {applied.stderr.strip()}"))
+            return 1
+        patch_file.unlink(missing_ok=True)
+        print(_ok(f"Applied the {row.get('kind')} diff in {worktree}"))
+
+        # 4. run the caller's eval command there
+        started = time.time()
+        print(f"{D}$ {args.eval_cmd}   (cwd={worktree}){R}")
+        proc = subprocess.run(
+            args.eval_cmd, shell=True, cwd=str(worktree), check=False,
+        )
+        if proc.returncode != 0:
+            print(f"{Y}⚠  eval command exited {proc.returncode} — scoring whatever "
+                  f"result it produced.{R}")
+
+        # 5. locate the new result JSON
+        new_path = _locate_new_result(
+            worktree, getattr(args, "new_result", None), started,
+        )
+        if new_path is None:
+            print(_err("Could not find a result JSON produced by --eval-cmd. "
+                       "Pass --new-result <path relative to the worktree>."))
+            return 1
+        new_result = _load_result(str(new_path))
+        if new_result is None:
+            return 1
+        print(_ok(f"Scoring {new_path.relative_to(worktree)}"))
+
+        # 6. score predicted vs actual
+        scored = score_experiments(
+            [exp], new_result, baseline, min_effect=getattr(args, "min_effect", 0.02),
+        )
+        srow = scored[0] if scored else {}
+        verdict = srow.get("verdict", "inconclusive")
+        act = srow.get("actual_delta")
+        vc = _VERDICT_COLOR.get(verdict, "")
+        print(f"\n{B}Gate {row['gate']}"
+              + (f".{row['target_field']}" if row.get("target_field") else "")
+              + f"  predicted {pd if isinstance(pd, (int, float)) else '~0.05'}  "
+              + f"actual {(f'{act:+.3f}' if isinstance(act, (int, float)) else '-')}  "
+              + f"{vc}{verdict}{R}")
+
+        if getattr(args, "persist", False) and verdict in (
+            "confirmed", "partially_confirmed", "refuted",
+        ):
+            resolve_experiment(
+                args.log, eid, actual_delta=act, verdict=verdict,
+                note=f"improve apply-verify vs {Path(args.result_file).name}",
+            )
+            _record_outcome(
+                Path(args.result_file).parent / "recommendation_outcomes.jsonl",
+                {**srow, "experiment_id": eid, "target_gate": row["gate"],
+                 "target_field": row.get("target_field"),
+                 "predicted_delta": exp.get("predicted_delta"), "verdict": verdict},
+                args.result_file, baseline, new_result,
+            )
+            print(_ok(f"Resolved {eid}; appended a recommendation outcome"))
+        else:
+            print(f"{D}Experiment {eid} left open — pass --persist to resolve it.{R}")
+
+        print(f"\n{B}Worktree:{R} {worktree}")
+        print(f"{D}Nothing was merged or committed. Inspect it, then remove with{R}")
+        print(f"{D}  git -C {repo_root} worktree remove --force {worktree}{R}")
+        cleanup = cleanup and False  # keep it so the human can look
+        return 0
+    finally:
+        if cleanup:
+            _git(repo_root, "worktree", "remove", "--force", str(worktree))
+            shutil.rmtree(worktree, ignore_errors=True)
+
+
+def _locate_new_result(
+    worktree: Path, hint: str | None, since: float,
+) -> Path | None:
+    if hint:
+        p = Path(hint)
+        if not p.is_absolute():
+            p = worktree / hint
+        return p if p.is_file() else None
+    # No hint: only look under <worktree>/results/ for a JSON written during the
+    # run — scanning the worktree root would pick up checked-out result files
+    # (e.g. the baseline itself) that the eval command never touched.
+    rdir = worktree / "results"
+    if not rdir.is_dir():
+        return None
+    candidates: list[tuple[float, Path]] = []
+    for fp in rdir.glob("*.json"):
+        try:
+            mt = fp.stat().st_mtime
+        except OSError:
+            continue
+        if mt >= since - 1.0:
+            candidates.append((mt, fp))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda t: t[0])[1]
+
+
 def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
     p = sub.add_parser(
         "improve",
@@ -471,7 +665,9 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "Turn the insight layer's per-gate proposals into a tracked\n"
             "improvement workflow. `plan` shows them, `start` registers each as\n"
             "an experiment and writes an apply-me stub, `verify` scores the\n"
-            "prediction once a new run exists, `patch` emits a unified diff.\n"
+            "prediction once a new run exists, `patch` emits a unified diff,\n"
+            "`apply-verify` runs the whole apply→eval→verify chain in an\n"
+            "isolated git worktree (never merges).\n"
         ),
         epilog=(
             "Examples:\n"
@@ -480,10 +676,12 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "  agent-eval improve verify results/v4.json --baseline results/v3.json "
             "--persist\n"
             "  agent-eval improve patch results/v3.json --repo .\n"
+            "  agent-eval improve apply-verify results/v3.json --proposal A "
+            "--eval-cmd 'python eval.py' --persist\n"
         ),
     )
     isub = p.add_subparsers(dest="improve_command",
-                            metavar="{plan,start,verify,patch}")
+                            metavar="{plan,start,verify,patch,apply-verify}")
 
     pl = isub.add_parser("plan", help="Show the ordered improvement plan")
     pl.add_argument("result_file", help="Evaluation result JSON to plan from")
@@ -526,14 +724,56 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
     pt.add_argument("--out", default=None, metavar="DIR",
                     help="Write <gate>_<kind>.patch files here instead of stdout")
 
+    av = isub.add_parser(
+        "apply-verify",
+        help="Apply one proposal's diff in an isolated git worktree, run an eval, score it",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "SPEC-043 REQ-7 — the manual apply→re-run→verify chain in one command.\n"
+            "Registers the proposal as an experiment, applies its diff to a fresh\n"
+            "detached `git worktree` at HEAD, runs --eval-cmd there, finds the\n"
+            "result JSON it wrote, and scores predicted-vs-actual. NEVER merges or\n"
+            "commits — the worktree is left for you to inspect and remove.\n"
+        ),
+        epilog=(
+            "Examples:\n"
+            "  agent-eval improve apply-verify results/v3.json --proposal A "
+            "--eval-cmd 'python eval.py'\n"
+            "  agent-eval improve apply-verify results/v3.json --proposal E:config_change "
+            "--eval-cmd 'make eval' --new-result results/latest.json --persist\n"
+        ),
+    )
+    av.add_argument("result_file", help="The result the proposal came from (= verify baseline)")
+    av.add_argument("--proposal", required=True, metavar="ID",
+                    help="Which proposal: <gate> or <gate>:<kind> (e.g. A, E:config_change)")
+    av.add_argument("--eval-cmd", required=True, metavar="CMD", dest="eval_cmd",
+                    help="Shell command to run in the worktree; it must write a result JSON")
+    av.add_argument("--new-result", default=None, metavar="PATH", dest="new_result",
+                    help="Where --eval-cmd writes the result JSON (rel to the worktree, "
+                         "or absolute). Default: newest results/*.json it produced")
+    av.add_argument("--repo", default=".", metavar="DIR", help="Repo root (default: .)")
+    av.add_argument("--baseline", default=None, metavar="PATH",
+                    help="Prior result JSON for baseline-aware proposal selection")
+    av.add_argument("--prompt-file", default=None, metavar="PATH", dest="prompt_file",
+                    help="System-prompt file for a prompt_edit proposal")
+    av.add_argument("--persist", action="store_true",
+                    help="Resolve the experiment + append a recommendation outcome")
+    av.add_argument("--min-effect", type=float, default=0.02, dest="min_effect",
+                    metavar="D", help="|delta| below this is noise (default: 0.02)")
+    av.add_argument("--keep-worktree", action="store_true", dest="keep_worktree",
+                    help="Also keep the worktree when an earlier step fails "
+                         "(on success it is always kept)")
+    av.add_argument("--log", default=_DEFAULT_LOG, metavar="PATH",
+                    help=f"Experiments log (default: {_DEFAULT_LOG})")
+
 
 def cmd_improve(args: argparse.Namespace) -> int:
     handlers = {"plan": _cmd_plan, "start": _cmd_start, "verify": _cmd_verify,
-                "patch": _cmd_patch}
+                "patch": _cmd_patch, "apply-verify": _cmd_apply_verify}
     cmd = getattr(args, "improve_command", None)
     handler = handlers.get(cmd) if cmd is not None else None
     if handler is None:
-        print(_err("Specify: agent-eval improve {plan,start,verify,patch}"))
+        print(_err("Specify: agent-eval improve {plan,start,verify,patch,apply-verify}"))
         print(f"{D}For details: agent-eval improve --help{R}")
         return 1
     return handler(args)

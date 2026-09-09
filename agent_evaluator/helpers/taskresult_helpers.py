@@ -595,6 +595,8 @@ def create_taskresult_from_execution(
     model_name: str = "",
     metadata: dict[str, Any] | None = None,
     extra: dict[str, Any] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    covers: list[str] | None = None,
     use_korean_tokenizer: bool = False,
     **extra_fields: Any,
 ):
@@ -625,6 +627,13 @@ def create_taskresult_from_execution(
         metadata: 추가 메타데이터 dict (D6). ``TaskResult.extra`` 필드에 병합된다.
             ``extra`` 와 동시에 지정 시 ``metadata`` 가 ``extra`` 를 덮어쓴다.
         extra: ``TaskResult.extra`` 기본값. ``metadata`` 보다 낮은 우선순위.
+        acceptance_criteria: (SPEC-042 REQ-1, 선택) 이 태스크가 충족해야 하는
+            짧은 요구사항 문자열 목록. ``extra["acceptance_criteria"]``에 실려
+            ``insights.acceptance_coverage`` / 리포트에 "N개 중 M개 충족"으로
+            표시된다. **게이트 점수엔 영향 없음** — 표시 전용.
+        covers: (SPEC-043 REQ-1, 선택) 이 골든 케이스가 검증하는 요구사항 ID
+            목록. ``extra["covers"]``에 실려 ``insights.spec_coverage``가
+            "어느 요구사항에 테스트가 있고 없는지"를 계산한다. 게이트 점수 무관.
         **extra_fields: ``TaskResult`` 의 선택적 필드를 직접 주입한다 (Item T).
             예: ``framework="langchain"``, ``tokens_used={"input": 10, "output": 20, "total": 30}``,
             ``errors=["some error"]``, ``tool_calls=[...]``.
@@ -739,6 +748,20 @@ def create_taskresult_from_execution(
         else:
             merged_extra = dict(metadata)
         extra = merged_extra
+
+    # SPEC-042 REQ-1: acceptance_criteria(선언된 인수 조건 목록)를 extra에 싣는다.
+    # 게이트 점수엔 영향 없음 — insights.acceptance_coverage / 리포트 표시 전용.
+    if acceptance_criteria:
+        _ac = [str(c).strip() for c in acceptance_criteria if str(c).strip()]
+        if _ac:
+            extra = {**(extra or {}), "acceptance_criteria": _ac}
+
+    # SPEC-043 REQ-1: covers(이 케이스가 검증하는 요구사항 ID 목록)를 extra에 싣는다.
+    # insights.spec_coverage(요구사항↔골든 케이스 커버리지) 전용 — 게이트 점수 무관.
+    if covers:
+        _cv = [str(c).strip() for c in covers if str(c).strip()]
+        if _cv:
+            extra = {**(extra or {}), "covers": _cv}
 
     # 7. TaskResult 생성 (기본값 dict 먼저 구성)
     _base_kwargs: dict[str, Any] = dict(

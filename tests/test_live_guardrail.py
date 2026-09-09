@@ -1249,6 +1249,53 @@ class TestToolGuardDecorator:
         assert g.check_before_tool_call("t", "bash", {"command": Weird()}).block is True
 
 
+class TestHumanOnlyPatternsReq7:
+    """SPEC-042 REQ-7: categorical 'a human must run this' revert (no wait)."""
+
+    def test_off_by_default(self):
+        g = LiveGuardrail()
+        assert g.check_before_tool_call(
+            "t", "bash", {"command": "terraform apply"}).block is False
+
+    def test_matching_pattern_blocks_with_human_only_reason(self):
+        g = LiveGuardrail(human_only_patterns=["terraform apply", "alembic upgrade"])
+        v = g.check_before_tool_call("t", "bash", {"command": "cd infra && terraform apply -auto-approve"})
+        assert v.block is True
+        assert v.gate == "B"
+        assert (v.reason or "").startswith("human_only:")
+        assert v.detail["pattern"] == "terraform apply"
+
+    def test_case_insensitive(self):
+        g = LiveGuardrail(human_only_patterns=["Terraform Apply"])
+        assert g.check_before_tool_call(
+            "t", "bash", {"command": "TERRAFORM APPLY"}).block is True
+
+    def test_non_matching_call_passes(self):
+        g = LiveGuardrail(human_only_patterns=["terraform apply"])
+        assert g.check_before_tool_call(
+            "t", "bash", {"command": "terraform plan"}).block is False
+
+    def test_blank_patterns_filtered_out(self):
+        g = LiveGuardrail(human_only_patterns=["  ", "", None, "deploy prod"])  # type: ignore[list-item]
+        assert g._human_only_patterns == ("deploy prod",)
+
+    def test_unserializable_params_do_not_raise(self):
+        class Weird:
+            def __repr__(self):
+                return "run deploy prod now"
+
+        g = LiveGuardrail(human_only_patterns=["deploy prod"])
+        assert g.check_before_tool_call("t", "bash", {"command": Weird()}).block is True
+
+    def test_recorded_in_blocked_audit_trail(self):
+        g = LiveGuardrail(human_only_patterns=["terraform apply"])
+        v = g.check_before_tool_call("t", "bash", {"command": "terraform apply"})
+        g.record_blocked_attempt("t", "bash", v, tool_input={"command": "terraform apply"})
+        snap = g.snapshot()
+        assert any(b.get("gate") == "B" and "human_only" in (b.get("reason") or "")
+                   for b in snap["blocked_attempts"])
+
+
 class TestConstructorParamHardening:
     def test_negative_max_tool_output_chars_clamped_to_zero(self):
         g = LiveGuardrail(max_tool_output_chars=-100)

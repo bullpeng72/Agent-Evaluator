@@ -371,6 +371,165 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 .bd-always{font-size:10px;color:#6b7280;font-style:italic}
 .bd-result{font-size:12px;color:#374151;background:#f8fafc;border-radius:6px;padding:8px 14px;border-left:3px solid #94a3b8;margin-top:2px}
 .bd-result strong{font-size:15px;font-weight:800}
+
+/* ===== SPEC-044 — methodology instrument ===== */
+/* next-action card */
+.next-action{border-left-width:6px}
+.next-action.ok{border-left-color:#10b981;background:#f0fdf4}
+.next-action.warn{border-left-color:#f59e0b;background:#fffbeb}
+.next-action.fail{border-left-color:#ef4444;background:#fef2f2}
+.next-action .na-src{font-size:12px;color:#6b7280;margin:0 0 8px}
+/* copy-able command block */
+pre.cmd{background:#0f172a;color:#e2e8f0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.5;padding:12px 14px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;margin:8px 0}
+.cmd-note{font-size:12px;color:#475569;margin:4px 0 0}
+.copy-btn{position:absolute;top:6px;right:6px;background:#334155;color:#e2e8f0;border:0;border-radius:6px;font-size:11px;padding:3px 9px;cursor:pointer;font-family:inherit}
+.copy-btn:hover{background:#475569}
+/* spec front matter */
+.spec-frontmatter p{font-size:13px;margin:4px 0;color:#374151}
+.spec-frontmatter .sf-warn{color:#b45309;font-weight:600}
+.spec-frontmatter .sf-ok{color:#047857;font-weight:600}
+/* regression check */
+.regression-check ul{margin:6px 0 6px 20px;font-size:13px;color:#374151}
+.regression-check.none .rc-none{font-size:13px;color:#6b7280}
+.rc-verdict{font-size:13px;font-weight:800;padding:2px 8px;border-radius:8px}
+.rc-verdict.ok{background:#d1fae5;color:#065f46}
+.rc-verdict.fail{background:#fee2e2;color:#991b1b}
+/* fault-injection badge */
+.fault-badge{background:#fff7ed;border:1px solid #fdba74;border-left:5px solid #ea580c;border-radius:8px;padding:12px 16px;margin:0 0 20px;font-size:13px;color:#9a3412}
+/* lifecycle spine */
+.lifecycle-spine{background:#f8fafc;border-left-color:#6366f1}
+.ls-strip{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-bottom:8px}
+.ls-step{font-size:12px;font-weight:600;color:#64748b;background:#fff;
+  border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px}
+.ls-step.on{color:#3730a3;background:#eef2ff;border-color:#c7d2fe}
+.ls-arrow{color:#cbd5e1;font-size:12px}
+.ls-sig{font-size:12px;color:#475569;margin:0}
+.ls-missing{margin-top:8px}
+.ls-missing summary{font-size:12px;color:#6b7280;cursor:pointer}
+.ls-missing ul{margin:6px 0 0 18px;font-size:12px;color:#6b7280}
+/* design contract */
+.design-contract tr.dc-unmeasured td{color:#9ca3af}
+.design-contract .dc-off{color:#9ca3af;font-size:12px}
+.design-contract .dc-was{color:#b45309;font-size:12px;font-weight:600}
+/* proof panel */
+.proof-panel{border-left-color:#0ea5e9}
+.proof-panel .pp-prior{font-size:12px;color:#475569;margin:8px 0 0}
+.pp-confirmed,.pp-partially_confirmed{color:#047857;font-weight:700}
+.pp-refuted{color:#b91c1c;font-weight:700}
+.pp-inconclusive,.pp-pending,.pp-open{color:#92400e}
+/* evidence groups (collapsible) */
+.ev-controls{display:flex;gap:8px;margin:8px 0 16px}
+.ev-controls button{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;
+  border-radius:6px;font-size:12px;padding:5px 12px;cursor:pointer;font-family:inherit}
+.ev-controls button:hover{background:#e0e7ff}
+details.evidence-group{border:1px solid #e2e8f0;border-radius:10px;
+  margin:0 0 14px;background:#fff;overflow:hidden}
+details.evidence-group>summary{cursor:pointer;list-style:none;padding:14px 18px;
+  display:flex;align-items:center;gap:12px;font-weight:600;color:#1e2030;
+  background:#f8fafc;user-select:none}
+details.evidence-group>summary::-webkit-details-marker{display:none}
+details.evidence-group>summary::before{content:"\\25B8";color:#94a3b8;
+  font-size:12px;transition:transform .12s}
+details.evidence-group[open]>summary::before{transform:rotate(90deg)}
+details.evidence-group>summary .evgrp-name{font-size:14px}
+details.evidence-group>summary .evgrp-meta{font-size:11px;font-weight:500;color:#94a3b8}
+.evgrp-tag{font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px}
+.evgrp-tag.warn{background:#fef3c7;color:#92400e}
+.evgrp-tag.fail{background:#fee2e2;color:#991b1b}
+.evgrp-body{padding:18px}
+.evgrp-body>.gate-section:last-child{margin-bottom:0}
+/* sticky mini-verdict bar */
+.mini-verdict{position:fixed;left:0;right:0;bottom:0;z-index:40;
+  background:#0f172af2;backdrop-filter:blur(4px);color:#e2e8f0;padding:8px 16px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;
+  box-shadow:0 -1px 6px rgba(0,0,0,.2)}
+.mini-verdict .mv-gates{display:flex;gap:4px}
+.mv-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;
+  background:#334155;color:#cbd5e1}
+.mv-badge.badge-ok{background:#065f46;color:#d1fae5}
+.mv-badge.badge-warn{background:#92400e;color:#fef3c7}
+.mv-badge.badge-fail{background:#991b1b;color:#fee2e2}
+.mv-action{opacity:.9}
+/* in-page nav */
+.report-toc{position:sticky;top:0;z-index:20;background:#fffffff2;
+  backdrop-filter:blur(4px);border:1px solid #e5e7eb;border-radius:10px;
+  padding:8px 10px;margin:0 0 24px;display:flex;flex-wrap:wrap;gap:2px 4px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.report-toc a{color:#475569;text-decoration:none;padding:2px 8px;
+  border-radius:6px;white-space:nowrap;font-size:12px}
+.report-toc a:hover{background:#eef2ff;color:#3730a3}
+.toc-lbl{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;
+  letter-spacing:.5px;padding:2px 4px}
+/* report controls (theme / diff) */
+.report-controls{position:fixed;top:10px;right:10px;z-index:60;display:flex;gap:6px}
+.report-controls button{background:#1e293b;color:#e2e8f0;border:1px solid #334155;
+  border-radius:8px;font-size:12px;padding:5px 10px;cursor:pointer;
+  font-family:inherit}
+.report-controls button:hover{background:#334155}
+.ff-filter{margin:0 0 10px;display:flex;gap:8px;align-items:center;font-size:12px}
+.ff-filter input{flex:1;max-width:340px;padding:6px 10px;border:1px solid #d1d5db;
+  border-radius:8px;font:inherit}
+.ff-filter .ff-count{color:#6b7280}
+/* diff mode — hide evidence groups with no baseline movement */
+body.diff-mode details.evidence-group:not([data-has-change]){display:none}
+body.diff-mode .advanced-only{display:none}
+
+/* ---- dark theme (explicit toggle only; the report defaults light) ---- */
+:root[data-theme="dark"] body{background:#0f1115;color:#e6e8ee}
+:root[data-theme="dark"] .container{background:#15181d}
+:root[data-theme="dark"] .gate-section{background:#1b1f26;color:#d6d9df}
+:root[data-theme="dark"] .gate-section h2,
+:root[data-theme="dark"] .gate-section h3{color:#e6e8ee;border-bottom-color:#2a2f39}
+:root[data-theme="dark"] .sc-card,
+:root[data-theme="dark"] .kpi,
+:root[data-theme="dark"] .rec,
+:root[data-theme="dark"] .ibox,
+:root[data-theme="dark"] .score-breakdown,
+:root[data-theme="dark"] .mtable{background:#1e232b;border-color:#2a2f39;
+  box-shadow:none}
+:root[data-theme="dark"] .mtable th,
+:root[data-theme="dark"] .bd-table th{background:#252b34;color:#9aa4b2;
+  border-bottom-color:#2a2f39}
+:root[data-theme="dark"] .mtable td,
+:root[data-theme="dark"] .htable td,
+:root[data-theme="dark"] .bd-table td{border-bottom-color:#262b34;color:#c7ccd4}
+:root[data-theme="dark"] .mtable tr:hover td{background:#232932}
+:root[data-theme="dark"] .kpi-val{color:#e6e8ee}
+:root[data-theme="dark"] .kpi-lbl,
+:root[data-theme="dark"] .sc-card .sc-name,
+:root[data-theme="dark"] .bd-result{color:#9aa4b2}
+:root[data-theme="dark"] .bd-result,
+:root[data-theme="dark"] .bd-formula{background:#252b34}
+:root[data-theme="dark"] .not-tested,
+:root[data-theme="dark"] .inactive-banner{background:#1b1f26;border-color:#2f3540;
+  color:#8b93a1}
+:root[data-theme="dark"] .lifecycle-spine,
+:root[data-theme="dark"] .ls-step{background:#1b1f26}
+:root[data-theme="dark"] .ls-step{color:#9aa4b2;border-color:#2a2f39}
+:root[data-theme="dark"] .ls-step.on{background:#20264a;border-color:#3b4576;
+  color:#c7d2fe}
+:root[data-theme="dark"] details.evidence-group{background:#15181d;
+  border-color:#2a2f39}
+:root[data-theme="dark"] details.evidence-group>summary{background:#1b1f26;
+  color:#e6e8ee}
+:root[data-theme="dark"] .report-toc{background:#15181def;border-color:#2a2f39}
+:root[data-theme="dark"] .report-toc a{color:#9aa4b2}
+:root[data-theme="dark"] .report-toc a:hover{background:#20264a;color:#c7d2fe}
+:root[data-theme="dark"] .ibox.ok{background:#122c22}
+:root[data-theme="dark"] .ibox.warn{background:#2c2410}
+:root[data-theme="dark"] .ibox.fail{background:#301c1c}
+:root[data-theme="dark"] .footer{border-top-color:#2a2f39;color:#6b7280}
+
+@media print{
+  details.evidence-group,details.ls-missing{border:0}
+  details.evidence-group>summary{background:none;padding:0 0 6px}
+  details>*:not(summary){display:block!important}
+  .evgrp-body{padding:0}
+  .copy-btn,.ev-controls,.mini-verdict,.report-controls,.ff-filter{display:none!important}
+}
+@media (prefers-reduced-motion:reduce){
+  details.evidence-group>summary::before{transition:none}
+}
 </style>
 </head>
 <body>
@@ -3046,6 +3205,62 @@ def _build_history_trend(results_dir: Any, current_file: Any = None) -> str:
         f'(last {summ["n_runs"]} runs in this directory)</span></h2>'
         f'{_range}'
         '<table class="mtable"><tbody>' + rows + '</tbody></table>'
+        + _build_history_chart(results_dir, current_file)
+        + '</div>'
+    )
+
+
+_HIST_CHART_COLORS = {
+    "A": "#2563eb", "B": "#7c3aed", "C": "#059669", "D": "#d97706",
+    "E": "#dc2626", "F": "#0891b2", "G": "#65a30d",
+}
+
+
+def _build_history_chart(results_dir: Any, current_file: Any = None) -> str:
+    """SPEC-044 REQ-7: a small client-side multi-line chart of the per-Gate score
+    across the sibling runs — the minimum replacement for the dashboard's
+    "history" tab. Data is embedded; `_build_report_js` draws it on a `<canvas>`
+    (no charting library). Empty (and this whole block absent) when < 3 runs."""
+    if not results_dir:
+        return ""
+    try:
+        from agent_evaluator.reporting.history import scan_history
+
+        hist = scan_history(results_dir, exclude=current_file)
+    except Exception:
+        return ""
+    if len(hist) < 3:
+        return ""
+    labels = [
+        str(r.get("file", "")).rsplit(".", 1)[0]
+        or str(r.get("timestamp", ""))[:16]
+        or str(i)
+        for i, r in enumerate(hist)
+    ]
+    series: dict[str, list[Any]] = {}
+    for g in "ABCDEFG":
+        vals = [
+            (float(s) if isinstance((s := (r.get("gate_scores") or {}).get(g)),
+                                    (int, float)) else None)
+            for r in hist
+        ]
+        if any(v is not None for v in vals):
+            series[g] = vals
+    if not series:
+        return ""
+    payload = json.dumps({"labels": labels, "series": series,
+                          "colors": _HIST_CHART_COLORS})
+    legend = "".join(
+        f'<span style="color:{_HIST_CHART_COLORS[g]};font-weight:700;'
+        f'margin-right:10px">&#9679; {g}</span>'
+        for g in series
+    )
+    return (
+        '<div style="margin-top:14px">'
+        f'<div style="font-size:11px;margin-bottom:4px">{legend}</div>'
+        '<canvas id="ae-history-canvas" width="880" height="240" '
+        'style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px"></canvas>'
+        f'<script type="application/json" id="ae-history-data">{payload}</script>'
         '</div>'
     )
 
@@ -3492,6 +3707,12 @@ def _build_golden_health(gh: dict[str, Any] | None) -> str:
     dup = len(gh.get("redundant_cases") or [])
     dup_html = (f'<p style="font-size:12px;color:#6b7280">{dup} near-duplicate '
                 f'case(s).</p>' if dup else "")
+    ppc = gh.get("pending_production_candidates")
+    ppc_html = (
+        f'<p style="font-size:12px;color:#d97706"><strong>{ppc}</strong> production '
+        f'candidate(s) awaiting review — <code>agent-eval dataset '
+        f'review-candidates</code>.</p>' if ppc else ""
+    )
     return (
         '<div class="gate-section" id="golden-health" '
         'style="border-left-color:#0d9488">'
@@ -3502,7 +3723,7 @@ def _build_golden_health(gh: dict[str, Any] | None) -> str:
         f'{cp if cp is not None else "—"}%</span> '
         f'<span style="color:#9ca3af">({gh.get("n_cases")} cases, '
         f'{gh.get("n_modes_considered")} modes in this run)</span></p>'
-        f'{unc_html}{stale_html}{dup_html}</div>'
+        f'{ppc_html}{unc_html}{stale_html}{dup_html}</div>'
     )
 
 
@@ -4115,11 +4336,194 @@ def _build_security_findings(current: dict[str, Any] | None) -> str:
     )
 
 
-def _build_nondeterminism(tasks: list[Any] | None) -> str:
-    """P19: localize a low Gate C reproducibility score to the tasks that
-    diverged, with the variant texts when the run kept them."""
-    if not tasks:
+def _build_acceptance_coverage(cov: dict[str, Any] | None) -> str:
+    """SPEC-042 REQ-1: declared acceptance criteria met per task (display only)."""
+    if not isinstance(cov, dict) or not cov.get("n_tasks_with_criteria"):
         return ""
+    tot = cov.get("total_criteria") or 0
+    sat = cov.get("satisfied_criteria") or 0
+    pct = cov.get("coverage_pct")
+    full = cov.get("fully_satisfied_tasks") or 0
+    nt = cov.get("n_tasks_with_criteria")
+    color = "#10b981" if (pct is not None and pct >= 90) else "#f59e0b"
+    rows = ""
+    for d in (cov.get("by_task") or [])[:25]:
+        unmet = d.get("unmet") or []
+        unmet_html = "".join(
+            f'<div style="font-size:11px;color:#b45309;padding-left:10px">'
+            f'✗ {_esc(_clip(u, 140))}</div>'
+            for u in unmet
+        ) if unmet else ""
+        _tid = _esc(str(d.get("task_id", "")))
+        _sat = f'{d.get("satisfied", 0)}/{d.get("total", 0)} met'
+        rows += (
+            f'<div style="margin:4px 0;padding:5px 8px;background:#fafafa;'
+            f'border-radius:5px">'
+            f'<span style="font-family:monospace;font-size:11px">{_tid}</span> '
+            f'<span style="font-size:12px">{_sat}</span>'
+            f'{unmet_html}</div>'
+        )
+    return (
+        '<div class="gate-section" id="acceptance-coverage" '
+        f'style="border-left-color:{color}">'
+        '<h2 style="color:#1e2030">Acceptance Criteria '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'({sat}/{tot} met' + (f", {pct:.0f}%" if pct is not None else "") + ')</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        f'Declared per-task requirements (<code>extra.acceptance_criteria</code>) — '
+        f'{full}/{nt} task(s) fully satisfied. Keyword match; not a Gate score.</p>'
+        f'{rows}</div>'
+    )
+
+
+def _build_spec_coverage(sc: dict[str, Any] | None) -> str:
+    """SPEC-043 REQ-1: which declared requirements have a golden case."""
+    if not isinstance(sc, dict) or not sc.get("n_requirements"):
+        return ""
+    nc, nu, nr = sc.get("n_covered", 0), sc.get("n_uncovered", 0), sc.get("n_requirements", 0)
+    color = "#ef4444" if nu else "#10b981"
+    unc = sc.get("uncovered") or []
+    unc_html = "".join(
+        f'<li style="font-size:12px;color:#b45309">{_esc(str(u))}</li>' for u in unc[:30]
+    )
+    unc_block = (
+        f'<p style="font-size:12px;font-weight:600;color:#b45309;margin:6px 0 2px">'
+        f'Uncovered ({nu}):</p><ul style="margin:0 0 0 18px">{unc_html}</ul>'
+        if unc else ""
+    )
+    src = sc.get("source")
+    src_note = ("" if src == "requirements_list"
+                else " No --requirements list — uncovered cannot be computed.")
+    return (
+        '<div class="gate-section" id="spec-coverage" '
+        f'style="border-left-color:{color}">'
+        '<h2 style="color:#1e2030">Requirement Coverage '
+        f'<span style="font-size:13px;color:#6b7280">({nc}/{nr} tested)</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        f'Declared requirements with a golden case that claims to test them '
+        f'(<code>extra.covers</code>).{src_note}</p>'
+        f'{unc_block}</div>'
+    )
+
+
+def _build_deploy_decision(dd: dict[str, Any] | None) -> str:
+    """SPEC-043 REQ-3: the deploy-decision ledger's governance state."""
+    if not isinstance(dd, dict) or not dd.get("n_gate_runs"):
+        return ""
+    np_ = dd.get("n_pending", 0)
+    color = "#f59e0b" if np_ else "#10b981"
+    last = dd.get("last") or {}
+    _oc = last.get("outcome")
+    _rat = str(last.get("rationale") or "")
+    _rat_html = f' — {_esc(_clip(_rat, 200))}' if _rat else ""
+    _resolved = (
+        f'<strong>{_esc(str(_oc))}</strong> '
+        f'by {_esc(str(last.get("decided_by") or "?"))}{_rat_html}'
+    )
+    last_line = (
+        f'Last: gate run <code>{_esc(str(last.get("gate_run_id") or "?"))}</code> '
+        f'(exit {last.get("exit_code")}, '
+        f'{_esc(str(last.get("verdict_level") or "—"))}) — '
+        + (_resolved if _oc
+           else '<span style="color:#b45309"><strong>PENDING</strong></span>')
+    )
+    by_oc = dd.get("by_outcome") or {}
+    by_oc_s = ", ".join(f"{k}: {v}" for k, v in by_oc.items())
+    return (
+        '<div class="gate-section" id="deploy-decision" '
+        f'style="border-left-color:{color}">'
+        '<h2 style="color:#1e2030">Deploy Decisions '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'({dd.get("n_gate_runs")} run(s), {np_} pending)</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        f'{_esc(str(dd.get("note") or ""))}'
+        + (f' &nbsp;·&nbsp; {_esc(by_oc_s)}' if by_oc_s else '')
+        + '</p>'
+        f'<p style="font-size:12px">{last_line}</p></div>'
+    )
+
+
+def _build_eval_set_delta(esd: dict[str, Any] | None) -> str:
+    """SPEC-043 REQ-2: TCR movement split into agent-change vs eval-set-change."""
+    if not isinstance(esd, dict) or not esd.get("eval_set_hash"):
+        return ""
+    color = "#6366f1"
+    rows = [
+        f'Eval set changed: <code>{_esc(str(esd.get("baseline_eval_set_hash")))}</code> '
+        f'&rarr; <code>{_esc(str(esd.get("eval_set_hash")))}</code> '
+        f'(+{esd.get("added_cases", 0)} / &minus;{esd.get("removed_cases", 0)} case(s), '
+        f'{esd.get("common_cases", 0)} shared)'
+    ]
+    if esd.get("attributable"):
+        rows.append(
+            f'TCR moved <strong>{esd.get("tcr_movement_pp"):+.1f}pp</strong> overall '
+            f'&nbsp;=&nbsp; agent <strong>{esd.get("attributable_to_agent_pp"):+.1f}pp</strong> '
+            f'+ eval-set change '
+            f'<strong>{esd.get("attributable_to_eval_set_change_pp"):+.1f}pp</strong>'
+        )
+    return (
+        '<div class="gate-section" id="eval-set-delta" '
+        f'style="border-left-color:{color}">'
+        '<h2 style="color:#1e2030">Eval-Set Change Attribution</h2>'
+        + "".join(f'<p style="font-size:12px;margin:2px 0">{r}</p>' for r in rows)
+        + '<p style="color:#6b7280;font-size:12px;margin:6px 0 0">'
+        f'{_esc(str(esd.get("note") or ""))}</p></div>'
+    )
+
+
+def _build_verdict_stability(repeat: dict[str, Any] | None) -> str:
+    """SPEC-042 REQ-4: whole-eval verdict stability across K repeat runs."""
+    if not isinstance(repeat, dict) or not isinstance(repeat.get("runs"), int):
+        return ""
+    k = repeat["runs"]
+    fr = repeat.get("flip_rate")
+    det = repeat.get("deterministic")
+    nu = repeat.get("n_unstable_tasks") or 0
+    sd = repeat.get("tcr_stddev")
+    verdicts = repeat.get("gate_verdicts") or []
+    head_color = "#10b981" if det else "#f59e0b"
+    rows = ""
+    for u in (repeat.get("unstable_tasks") or [])[:20]:
+        rows += (
+            f'<tr><td style="font-family:monospace;font-size:11px">'
+            f'{_esc(str(u.get("task_id", "")))}</td>'
+            f'<td style="font-size:12px">passed {u.get("pass_count", "?")}/'
+            f'{u.get("runs", k)} runs</td></tr>'
+        )
+    table = (
+        f'<table style="width:100%;border-collapse:collapse;margin-top:6px">'
+        f'<tr><th style="text-align:left;font-size:11px;color:#6b7280">Task</th>'
+        f'<th style="text-align:left;font-size:11px;color:#6b7280">Stability</th></tr>'
+        f'{rows}</table>' if rows else ""
+    )
+    return (
+        '<div class="gate-section" id="verdict-stability" '
+        f'style="border-left-color:{head_color}">'
+        '<h2 style="color:#1e2030">Verdict Stability '
+        f'<span style="font-size:13px;color:#6b7280">({k} repeat runs)</span></h2>'
+        '<p style="color:#6b7280;font-size:13px;margin:0 0 6px">'
+        'The same eval run K times. '
+        + ("The deploy verdict and every task were stable across runs."
+           if det else
+           f'Verdict flip rate {fr:.0%} ({"·".join(str(v) for v in verdicts)}); '
+           f'{_count_noun(nu, "task")} non-deterministic'
+           + (f'; TCR stddev {sd:.2f}pp' if isinstance(sd, (int, float)) else "")
+           + '.')
+        + '</p>'
+        f'{table}</div>'
+    )
+
+
+def _build_nondeterminism(tasks: list[Any] | None,
+                          repeat: dict[str, Any] | None = None) -> str:
+    """P19: localize a low Gate C reproducibility score to the tasks that
+    diverged, with the variant texts when the run kept them.
+
+    SPEC-042 REQ-4: when ``repeat`` (``insights.nondeterminism_repeat``) is
+    present, a whole-eval verdict-stability block is prepended."""
+    _stab = _build_verdict_stability(repeat)
+    if not tasks:
+        return _stab
     try:
         from agent_evaluator.reporting.insights import _nondeterminism_section
 
@@ -4127,7 +4531,7 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
     except Exception:
         nd = None
     if not nd:
-        return ""
+        return _stab
     blocks = ""
     for d in nd:
         samples = "".join(
@@ -4142,7 +4546,7 @@ def _build_nondeterminism(tasks: list[Any] | None) -> str:
             f'{d.get("run_count", "?")} runs (variance {d.get("variance", 0):.3f})</div>'
             f'{samples}</div>'
         )
-    return (
+    return _stab + (
         '<div class="gate-section" id="nondeterminism" style="border-left-color:#f59e0b">'
         f'<h2 style="color:#1e2030">Non-Determinism '
         f'<span style="font-size:13px;color:#6b7280">({len(nd)} task(s))</span></h2>'
@@ -4157,6 +4561,7 @@ _EFF_KIND_LABEL = {
     "model_routing": ("Model routing", "#0ea5e9"),
     "step_gating": ("Step gating", "#7c3aed"),
     "retry_reduction": ("Retry reduction", "#d97706"),
+    "tier_downshift": ("Tier downshift", "#0891b2"),
 }
 
 
@@ -4906,6 +5311,11 @@ _TOC_LABELS = {
     "metric-signal": "Metric signal", "judge-robustness": "Judge robustness",
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
+    "acceptance-coverage": "Acceptance",
+    "spec-coverage": "Req coverage",
+    "deploy-decision": "Decisions",
+    "eval-set-delta": "Eval-set change",
+    "verdict-stability": "Verdict stability",
     "nondeterminism": "Non-determinism", "eval-set-quality": "Eval set",
     "golden-health": "Golden set", "eval-representativeness": "vs Prod",
     "failure-cases": "Failures", "failure-taxonomy": "Failure modes",
@@ -4925,6 +5335,15 @@ _TOC_LABELS = {
     "history-trend": "Trend", "change-ledger": "Ledger",
     "reference-frame": "Reference", "threshold-sensitivity": "Sensitivity",
     "conclusion": "Conclusion",
+    # SPEC-044
+    "next-action": "Next action", "spec-frontmatter": "Req coverage",
+    "design-contract": "Design contract",
+    "regression-check": "Regression check", "lifecycle-spine": "Lifecycle",
+    "proof-panel": "Prove it",
+    "evgrp-gates": "Gate detail", "evgrp-failure": "Failure analysis",
+    "evgrp-evalset": "Eval-set quality", "evgrp-stats": "Statistical rigor",
+    "evgrp-version": "Version & longitudinal",
+    "evgrp-governance": "Governance & track record",
 }
 
 
@@ -4938,19 +5357,13 @@ def _build_toc(full_html: str) -> str:
         seen.add(sid)
         label = _TOC_LABELS.get(sid, sid.replace("-", " ").title())
         links.append(
-            f'<a href="#{sid}" style="color:#475569;text-decoration:none;'
-            f'padding:2px 8px;border-radius:6px;white-space:nowrap;font-size:12px">'
-            f'{_esc(label)}</a>'
+            f'<a href="#{sid}">{_esc(label)}</a>'
         )
     if len(links) < 4:
         return ""
     return (
-        '<div style="position:sticky;top:0;z-index:20;background:#fffffff2;'
-        'backdrop-filter:blur(4px);border:1px solid #e5e7eb;border-radius:10px;'
-        'padding:8px 10px;margin:0 0 24px;display:flex;flex-wrap:wrap;gap:2px 4px;'
-        'box-shadow:0 1px 3px rgba(0,0,0,.06)">'
-        '<span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:'
-        'uppercase;letter-spacing:.5px;padding:2px 4px">Jump to</span>'
+        '<div class="report-toc">'
+        '<span class="toc-lbl">Jump to</span>'
         + "".join(links) + '</div>'
     )
 
@@ -5425,6 +5838,20 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
     except Exception:
         pass
 
+    # SPEC-042 REQ-2: a would-be pass whose deploy call is statistically
+    # borderline (pass-rate CI straddles the target, or knife-edge). Surfaced as
+    # a caution banner — `agent-eval gate --hold-on-undecided` maps this to exit 75.
+    hold_html = ""
+    if (verdict_obj or {}).get("decision_ready") is False:
+        _hr = _esc((verdict_obj or {}).get("undecided_reason") or "the deploy call is borderline")
+        hold_html = (
+            '<p style="font-size:12px;margin-top:6px">'
+            '<span style="display:inline-block;padding:1px 8px;border-radius:10px;'
+            'font-weight:700;background:#f59e0b22;color:#b45309;border:1px solid #f59e0b66">'
+            'HOLD FOR REVIEW</span>'
+            f'<span style="color:#6b7280"> — {_hr}</span></p>'
+        )
+
     _tcr_ci = _fmt_ci_pct(ci.get("tcr_ci"))
     _acc_ci = _fmt_ci_pct(ci.get("acc_ci"))
     return (
@@ -5434,6 +5861,7 @@ def _build_executive_summary(harness_groups: dict, diagnosis: dict[str, Any] | N
         f'<p style="font-size:16px;font-weight:800;color:{vcolor};margin-bottom:2px">{verdict}</p>'
         f'<p style="font-size:13px;color:#4b5563">{_esc(detail)}</p>'
         f'{conf_html}'
+        f'{hold_html}'
         f'<p style="font-size:12px;color:#6b7280;margin-top:4px">'
         f'{total_tasks} tasks · TCR {tcr:.1f}%{_tcr_ci} · Accuracy {acc:.1f}%{_acc_ci}</p>'
         f'{actions_html}'
@@ -6344,6 +6772,789 @@ def _build_header(total_tasks: int, tcr: float, acc: float,
     )
 
 
+# ===========================================================================
+# SPEC-044 — the report as a methodology instrument
+#
+# No new judgement lives here. Every helper below *re-presents* a value that
+# `build_insights()` / `harness_groups` already computed — it re-orders it into a
+# judgment tier / an iteration tier / collapsible evidence groups, and frames
+# where this run sits in the Harness lifecycle. `_assemble_report_body(ctx)` is
+# the single ordered section list both `generate_*` entry points share.
+# ===========================================================================
+
+_EVIDENCE_GROUPS: tuple[tuple[str, str], ...] = (
+    ("evgrp-gates", "Gate detail"),
+    ("evgrp-failure", "Failure analysis"),
+    ("evgrp-evalset", "Eval-set quality"),
+    ("evgrp-stats", "Statistical rigor"),
+    ("evgrp-version", "Version &amp; longitudinal"),
+    ("evgrp-governance", "Governance &amp; track record"),
+)
+
+
+def _wrap_evidence_group(gid: str, label: str, sections: list[str],
+                         *, has_change: bool = False) -> str:
+    """One collapsible `<details>` around a purpose-group of evidence sections.
+
+    Empty sections drop out; a group with nothing left is not rendered at all.
+    A group that carries a Gate fail/warn (or *is* the failure-analysis group)
+    auto-opens and its `<summary>` shows a presence marker — not a count. A
+    count would double-count (a failing Gate shows as both a section-header
+    ``badge-fail`` and an h2 ``>FAIL</span>``) and over-count (priority labels
+    like ``badge-warn">LOW`` are not warnings)."""
+    kept = [s for s in sections if isinstance(s, str) and s.strip()]
+    if not kept:
+        return ""
+    body = "".join(kept)
+    # only real Gate-status / verdict markers — not priority/severity labels
+    fail_hit = (
+        ">FAIL</span>" in body or 'ibox fail"' in body
+        or "rc-verdict fail" in body
+    )
+    warn_hit = ">WARN</span>" in body or 'ibox warn"' in body
+    is_failures = gid == "evgrp-failure"
+
+    if fail_hit:
+        tag = '<span class="evgrp-tag fail">&#10007; needs review</span>'
+    elif warn_hit or is_failures:
+        tag = '<span class="evgrp-tag warn">&#9888; needs review</span>'
+    else:
+        tag = ""
+    open_attr = " open" if (fail_hit or warn_hit or is_failures) else ""
+    # SPEC-044 REQ-6: diff mode keeps only groups that move against a baseline.
+    change_attr = ' data-has-change="1"' if has_change else ""
+    return (
+        f'<details class="evidence-group" id="{gid}"{open_attr}{change_attr}>'
+        f'<summary><span class="evgrp-name">{label}</span>'
+        f'<span class="evgrp-meta">{len(kept)} section(s)</span>{tag}</summary>'
+        f'<div class="evgrp-body">{body}</div></details>'
+    )
+
+
+def _cmd_block(cmd: str, note: str = "") -> str:
+    """A copy-able CLI line. `_build_report_js` adds the button; without JS it is
+    still a readable `<pre>`."""
+    pre = (
+        f'<pre class="cmd" data-cmd>{_esc(cmd)}</pre>'
+    )
+    return (f'{pre}<p class="cmd-note">{_esc(note)}</p>' if note else pre)
+
+
+def _build_fault_injection_banner(fault_injection: Any) -> str:
+    """SPEC-044 REQ-5: this result had faults injected — say so up top so Gate
+    C / D scores are not read as clean-condition numbers."""
+    if not fault_injection:
+        return ""
+    items = fault_injection if isinstance(fault_injection, list) else [fault_injection]
+    descs: list[str] = []
+    for c in items:
+        if not isinstance(c, dict):
+            continue
+        bits: list[str] = []
+        if c.get("seed") is not None:
+            bits.append(f"seed={c['seed']}")
+        if c.get("fail_tools"):
+            bits.append(f"fail_tools={c['fail_tools']}")
+        if c.get("tool_failure_rate"):
+            bits.append(f"rate={c['tool_failure_rate']}")
+        if c.get("added_latency_ms"):
+            bits.append(f"+{c['added_latency_ms']}ms")
+        descs.append(", ".join(bits) or "active")
+    return (
+        '<div class="fault-badge">&#9888; <strong>FAULT-INJECTED</strong> &mdash; '
+        + "; ".join(_esc(d) for d in descs)
+        + '. Gate C / Gate D are measured under injected faults, not clean '
+        'conditions.</div>'
+    )
+
+
+def _next_action(insights: dict[str, Any] | None) -> dict[str, Any] | None:
+    """SPEC-044 REQ-3: exit-code / decision_ready → the single next action.
+
+    Pure — re-uses ``verdict`` (no threshold recomputed). Returns
+    ``{cls, title, command, note, targets_line}`` or ``None`` when there is no
+    verdict. Shared by ``_build_next_action`` (HTML) and
+    ``report_markdown_summary`` (markdown for ``gate --html-summary``)."""
+    ins = insights or {}
+    v = ins.get("verdict") or {}
+    level = v.get("level")
+    if level not in ("ready", "caution", "not_ready"):
+        return None
+    dr = v.get("decision_ready")
+
+    if v.get("targets_source") == "user":
+        _g = ", ".join(
+            f"{k}>={val}" for k, val in ((v.get("targets") or {}).get("gates") or {}).items()
+        )
+        targets_line = "Measured against your .aoo/targets.json" + (f" ({_g})" if _g else "")
+    else:
+        targets_line = "Measured against the built-in 0.7 bar."
+
+    fails = v.get("failing_gates") or []
+    warns = v.get("warning_gates") or []
+
+    if level == "ready" and dr is not False:
+        return {
+            "cls": "ok", "title": "Ready to ship — record the decision",
+            "command": ("agent-eval decisions record --outcome accepted --by <you> "
+                        "--decision-log .aoo/decisions.jsonl"),
+            "note": ("The deploy-decision ledger keeps who accepted / held / "
+                     "overrode, and why (SPEC-043 REQ-3)."),
+            "targets_line": targets_line,
+        }
+    if dr is False:
+        reason = v.get("undecided_reason") or "the pass-rate CI straddles the target"
+        sg = ins.get("sample_guidance") or {}
+        more = sg.get("more_tasks_for_5pp") or sg.get("recommended_additional")
+        more_txt = f"add ~{more} more evaluation tasks" if more else "add more tasks"
+        return {
+            "cls": "warn", "title": "Borderline — hold for a human",
+            "command": ('python -c "from agent_evaluator.repeat import run_repeated, '
+                        'summarize_repeated; print(summarize_repeated(run_repeated('
+                        'eval_fn, 5)))"'),
+            "note": (f"{reason}. Confirm verdict stability with a K× repeat, or "
+                     f"{more_txt}. `agent-eval gate --hold-on-undecided` maps this "
+                     "to exit 75."),
+            "targets_line": targets_line,
+        }
+    gate = (fails or warns or ["A"])[0]
+    return {
+        "cls": "fail",
+        "title": "Not ready — run the fix in an isolated worktree",
+        "command": (f"agent-eval improve apply-verify <result>.json --proposal "
+                    f"{gate} --eval-cmd '<your eval command>'"),
+        "note": (f"Applies the top proposal for Gate {gate} in a detached git "
+                 "worktree, runs your eval there, and scores predicted-vs-actual. "
+                 "Never merges (SPEC-043 REQ-7)."),
+        "targets_line": targets_line,
+    }
+
+
+def _build_next_action(insights: dict[str, Any] | None,
+                       harness_groups: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-3: the next-action card (HTML). See ``_next_action``."""
+    na = _next_action(insights)
+    if not na:
+        return ""
+    icon = {"ok": "&#10003; ", "warn": "&#9208; ", "fail": "&#10007; "}.get(na["cls"], "")
+    return (
+        f'<div class="gate-section next-action {na["cls"]}" id="next-action">'
+        f'<h2>{icon}{_esc(na["title"])}</h2>'
+        f'<p class="na-src">{_esc(na["targets_line"])}</p>'
+        + _cmd_block(na["command"], na["note"]) + '</div>'
+    )
+
+
+def _build_spec_frontmatter(insights: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-4: requirement / acceptance coverage as a one-line front
+    matter (the full sections stay in the evidence tier)."""
+    ins = insights or {}
+    sc = ins.get("spec_coverage") or {}
+    ac = ins.get("acceptance_coverage") or {}
+    if not sc and not ac:
+        return ""
+    rows: list[str] = []
+    if sc:
+        n_req = sc.get("n_requirements", 0)
+        unc = sc.get("uncovered") or []
+        if sc.get("source") == "requirements_list":
+            if unc:
+                _lst = ", ".join(_esc(x) for x in unc[:8])
+                rows.append(
+                    f'<span class="sf-warn">&#9888; {len(unc)} of {n_req} requirement(s) '
+                    f'have no golden case: {_lst}</span> &mdash; '
+                    '<code>gate --require-spec-coverage</code> fails (exit 4) on this'
+                )
+            else:
+                rows.append(
+                    f'<span class="sf-ok">&#10003; all {n_req} declared requirement(s) '
+                    'are exercised by a golden case</span>'
+                )
+        else:
+            rows.append(
+                f'{sc.get("n_covered", 0)} requirement(s) declared via '
+                '<code>extra.covers</code> (pass <code>--requirements</code> for a '
+                'gap check against the full list)'
+            )
+    if ac:
+        met = ac.get("n_met") if "n_met" in ac else ac.get("total_met")
+        total = ac.get("n_criteria") if "n_criteria" in ac else ac.get("total_criteria")
+        if met is not None and total:
+            rows.append(f'acceptance criteria: {met} of {total} met (keyword match)')
+    if not rows:
+        return ""
+    return (
+        '<div class="gate-section spec-frontmatter" id="spec-frontmatter">'
+        '<h2>&#128203; Requirement coverage</h2>'
+        + "".join(f'<p>{r}</p>' for r in rows)
+        + '</div>'
+    )
+
+
+# Gate → the Config groups whose absence explains a `score is None`.
+_GATE_CONFIGS: dict[str, tuple[str, ...]] = {
+    "A": ("InstructionConfig", "GoalAlignmentConfig", "PlanConfig", "SubtaskConfig",
+          "ContextRetentionConfig", "KnowledgeRetentionConfig"),
+    "B": ("LoopDetectionConfig", "ScopeConfig", "ToolParameterSafetyConfig",
+          "ContextWindowConfig", "StateConsistencyConfig", "DeadlockConfig"),
+    "C": ("ReproducibilityConfig", "FaultToleranceConfig", "GracefulDegradationConfig",
+          "RetryConsistencyConfig", "IdempotencyConfig"),
+    "D": ("SLAConfig", "EfficiencyConfig", "ResourceBudgetConfig",
+          "TTFTVariabilityConfig", "CostPredictabilityConfig"),
+    "E": ("ThreatSeverityConfig", "ComplianceConfig", "ThreatResponseConfig"),
+    "F": ("ConsensusConfig", "PropagationConfig", "AgentRoleConfig",
+          "ConflictResolutionConfig"),
+    "G": ("ExplainabilityConfig", "ObservabilityConfig", "ErrorDiagnosisConfig",
+          "LatencyAttributionConfig"),
+}
+_GATE_NAMES = {
+    "A": "Goal Achievement", "B": "Behavioral Integrity", "C": "Reliability",
+    "D": "Performance Contract", "E": "Security Boundary",
+    "F": "Multi-Agent Coordination", "G": "Observability",
+}
+
+
+def _build_design_contract(harness_groups: dict[str, Any] | None,
+                           insights: dict[str, Any] | None,
+                           lineage: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-4: did the eval measure the Gates the spec needs? A table of
+    measured vs unmeasured Gate A–G, the Config each unmeasured Gate would need,
+    and any Gate that was scored in the baseline but is ``None`` now
+    (``newly_unmeasured_gates`` — likely a Config mistake)."""
+    hg = harness_groups or {}
+    if not hg:
+        return ""
+    snap = lineage.get("config_snapshot") if isinstance(lineage, dict) else None
+    snap_keys = ""
+    if isinstance(snap, dict):
+        snap_keys = " ".join(str(k) for k in snap.keys()).lower()
+    elif isinstance(snap, (list, tuple)):
+        snap_keys = " ".join(str(k) for k in snap).lower()
+    newly = set(str(x) for x in (insights or {}).get("newly_unmeasured_gates") or [])
+
+    rows: list[str] = []
+    n_measured = 0
+    for gk in ("A", "B", "C", "D", "E", "F", "G"):
+        g = hg.get(gk) or {}
+        score = g.get("score")
+        measured = isinstance(score, (int, float))
+        if measured:
+            n_measured += 1
+            st = str(g.get("status") or "").upper() or "—"
+            cfg_seen = [
+                c for c in _GATE_CONFIGS[gk]
+                if snap_keys and c.lower() in snap_keys
+            ]
+            cfg_txt = (", ".join(cfg_seen) if cfg_seen
+                       else ("config not recorded" if not snap_keys else "—"))
+            rows.append(
+                f'<tr><td><strong>Gate {gk}</strong> {_esc(_GATE_NAMES[gk])}</td>'
+                f'<td class="num">{score:.2f}</td><td>{st}</td>'
+                f'<td style="font-size:11px;color:#6b7280">{_esc(cfg_txt)}</td></tr>'
+            )
+        else:
+            was = gk in newly
+            tag = ('<span class="dc-was">&#9888; was measured in the baseline</span>'
+                   if was else '<span class="dc-off">&#9881; Not configured</span>')
+            cfgs = " / ".join(_GATE_CONFIGS[gk][:3]) + (
+                " …" if len(_GATE_CONFIGS[gk]) > 3 else "")
+            rows.append(
+                f'<tr class="dc-unmeasured"><td><strong>Gate {gk}</strong> '
+                f'{_esc(_GATE_NAMES[gk])}</td><td class="num">—</td><td>{tag}</td>'
+                f'<td style="font-size:11px;color:#6b7280">set one of: {_esc(cfgs)}</td></tr>'
+            )
+
+    note = (
+        f'{n_measured} of 7 Gates measured. '
+        + ("A Gate that dropped to unmeasured since the baseline is usually a "
+           "Config that got removed by mistake." if newly else
+           "An unmeasured Gate is a design gap only if the spec needs that "
+           "quality — otherwise it is fine.")
+    )
+    if not snap_keys:
+        note += (" Config attribution is best-effort — pass "
+                 "<code>PerformanceMonitor(config_snapshot=...)</code> to make it exact.")
+    return (
+        '<div class="gate-section design-contract" id="design-contract">'
+        '<h2>&#128208; Design contract &mdash; measured vs configured</h2>'
+        f'<p style="font-size:12px;color:#6b7280;margin:0 0 8px">{note}</p>'
+        '<table class="mtable"><thead><tr><th>Gate</th><th>Score</th>'
+        '<th>Status</th><th>Config</th></tr></thead><tbody>'
+        + "".join(rows) + '</tbody></table></div>'
+    )
+
+
+def _build_regression_check(insights: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-5: one PASS/FAIL over every regression signal + the exact
+    `--fail-on-*` flag that would gate it in CI."""
+    ins = insights or {}
+    fl = ins.get("failure_lineage") or {}
+    esd = ins.get("eval_set_delta") or {}
+    regressed = list(fl.get("regressed") or [])
+    esd_pp = esd.get("attributable_to_eval_set_change_pp")
+
+    has_baseline = bool(fl) or bool(esd) or bool(ins.get("change_attribution"))
+    if not has_baseline:
+        return (
+            '<div class="gate-section regression-check none" id="regression-check">'
+            '<h2>Regression check</h2>'
+            '<p class="rc-none">No baseline provided &mdash; pass '
+            '<code>save_to_file(baseline_path=...)</code> or '
+            '<code>gate --baseline-result prev.json</code> to enable it.</p></div>'
+        )
+
+    findings: list[str] = []
+    flags: list[str] = []
+    if regressed:
+        findings.append(
+            f'{len(regressed)} task(s) passed in the baseline and fail now'
+        )
+        flags.append("--fail-on-case-regression")
+    if isinstance(esd_pp, (int, float)) and abs(esd_pp) >= 1.0:
+        findings.append(
+            f'the eval set changed &mdash; {esd_pp:+.1f}pp of the TCR movement is '
+            'from added/removed cases, not the agent'
+        )
+    failed = bool(regressed)
+    cls = "fail" if failed else "ok"
+    verdict = "&#10007; FAIL" if failed else "&#10003; PASS"
+    body = (
+        "".join(f'<li>{f}</li>' for f in findings)
+        or "<li>no regressed cases against the baseline</li>"
+    )
+    flag_line = ""
+    if flags:
+        flag_line = _cmd_block(
+            "agent-eval gate <result>.json --baseline-result <prev>.json "
+            + " ".join(flags),
+            "CI would exit non-zero on this regression.",
+        )
+    return (
+        f'<div class="gate-section regression-check {cls}" id="regression-check">'
+        f'<h2>Regression check &nbsp;<span class="rc-verdict {cls}">{verdict}</span></h2>'
+        f'<ul>{body}</ul>{flag_line}</div>'
+    )
+
+
+def _build_lifecycle_spine(insights: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-2: where this run sits in analysis → design → development →
+    verification → operations, and what material the report lacks."""
+    lp = (insights or {}).get("lifecycle_phase") or {}
+    primary = lp.get("primary")
+    order = lp.get("order") or [
+        "analysis", "design", "development", "verification", "operations",
+    ]
+    if primary not in order:
+        return ""
+    _label = {
+        "analysis": "Analysis", "design": "Design", "development": "Development",
+        "verification": "Verification", "operations": "Operations",
+    }
+    steps = "".join(
+        f'<span class="ls-step{" on" if p == primary else ""}">{_label.get(p, p)}</span>'
+        + ("<span class=\"ls-arrow\">&rarr;</span>" if i < len(order) - 1 else "")
+        for i, p in enumerate(order)
+    )
+    sig = "; ".join(_esc(s) for s in (lp.get("signals") or []))
+    miss = "".join(f'<li>{_esc(m)}</li>' for m in (lp.get("missing") or []))
+    miss_block = (
+        f'<details class="ls-missing"><summary>Not in this report</summary>'
+        f'<ul>{miss}</ul></details>' if miss else ""
+    )
+    return (
+        '<div class="gate-section lifecycle-spine" id="lifecycle-spine">'
+        f'<div class="ls-strip">{steps}</div>'
+        f'<p class="ls-sig">{sig}</p>{miss_block}</div>'
+    )
+
+
+def _build_proof_panel(insights: dict[str, Any] | None) -> str:
+    """SPEC-044 REQ-5: the "prove it" moment (Harness principle 2). Predicted vs
+    actual for any open/just-scored experiment, plus this project's track
+    record. Nudge to register a hypothesis when there is none."""
+    ins = insights or {}
+    exps = ins.get("experiments") or []
+    priors = ins.get("improvement_priors") or {}
+    rows: list[str] = []
+    for e in exps[:4]:
+        if not isinstance(e, dict):
+            continue
+        pred, act = e.get("predicted"), e.get("actual")
+        vd = e.get("verdict") or e.get("status") or "pending"
+        _p = f"{pred:+.3f}" if isinstance(pred, (int, float)) else "?"
+        _a = f"{act:+.3f}" if isinstance(act, (int, float)) else "&mdash;"
+        rows.append(
+            f'<tr><td>{_esc(e.get("hypothesis") or e.get("target_gate") or "?")}</td>'
+            f'<td class="num">{_p}</td><td class="num">{_a}</td>'
+            f'<td class="pp-{_esc(str(vd))}">{_esc(str(vd))}</td></tr>'
+        )
+    prior_line = ""
+    _by = priors.get("by_gate_category") or priors.get("tracks") or []
+    if isinstance(_by, list) and _by:
+        t = _by[0]
+        cr = t.get("confirm_rate")
+        prior_line = (
+            f'<p class="pp-prior">Track record &mdash; '
+            f'{_esc(str(t.get("category", "")).replace("_", " "))} on Gate '
+            f'{_esc(str(t.get("gate", "")))}: '
+            + (f'{cr * 100:.0f}% confirmed' if isinstance(cr, (int, float)) else 'no decisive runs')
+            + (f', mean &Delta;{t["mean_delta"]:+.3f}' if isinstance(t.get("mean_delta"), (int, float)) else '')
+            + f', n={t.get("n", "?")}</p>'
+        )
+    if not rows:
+        return (
+            '<div class="gate-section proof-panel" id="proof-panel">'
+            '<h2>&#129514; Prove it</h2>'
+            '<p>No hypothesis is registered for this change. Register one so the '
+            'next run can score predicted-vs-actual:</p>'
+            + _cmd_block("agent-eval improve start <result>.json --yes")
+            + prior_line + '</div>'
+        )
+    return (
+        '<div class="gate-section proof-panel" id="proof-panel">'
+        '<h2>&#129514; Prove it &mdash; predicted vs actual</h2>'
+        '<table class="mtable"><thead><tr><th>Hypothesis</th><th>Predicted &Delta;</th>'
+        '<th>Actual &Delta;</th><th>Verdict</th></tr></thead><tbody>'
+        + "".join(rows) + '</tbody></table>' + prior_line + '</div>'
+    )
+
+
+def _build_report_js(*, has_baseline: bool = False) -> str:
+    """SPEC-044 REQ-6: a small, dependency-free interaction layer — collapsible
+    groups, copy buttons, expand/collapse all, a sticky mini-verdict bar,
+    auto-opening the containing `<details>` on in-page navigation, a
+    light/dark toggle, a diff-mode toggle (baseline runs only), and a
+    failure-table text filter. The report is fully readable with this script
+    removed."""
+    return ("""<script>
+(function(){
+  "use strict";
+  var HAS_BASELINE = """ + ("true" if has_baseline else "false") + """;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- copy buttons on every .cmd block --------------------------------- //
+  function addCopy(pre){
+    var btn = document.createElement("button");
+    btn.className = "copy-btn"; btn.type = "button"; btn.textContent = "Copy";
+    btn.addEventListener("click", function(){
+      var txt = pre.textContent || "";
+      var done = function(){ btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = "Copy"; }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(done, fallback);
+      } else { fallback(); }
+      function fallback(){
+        try {
+          var ta = document.createElement("textarea"); ta.value = txt;
+          document.body.appendChild(ta); ta.select();
+          document.execCommand("copy"); document.body.removeChild(ta); done();
+        } catch(e){ btn.style.display = "none"; }
+      }
+    });
+    pre.style.position = "relative";
+    pre.appendChild(btn);
+  }
+  document.querySelectorAll("pre.cmd[data-cmd]").forEach(addCopy);
+
+  // ---- expand / collapse all evidence groups -------------------------- //
+  var groups = Array.prototype.slice.call(document.querySelectorAll("details.evidence-group"));
+  if (groups.length) {
+    var bar = document.createElement("div");
+    bar.className = "ev-controls";
+    bar.innerHTML = '<button type="button" data-all="open">Expand all evidence</button>' +
+                    '<button type="button" data-all="close">Collapse all</button>';
+    if (groups[0].parentNode) groups[0].parentNode.insertBefore(bar, groups[0]);
+    bar.addEventListener("click", function(e){
+      var t = e.target.getAttribute("data-all");
+      if (!t) return;
+      groups.forEach(function(d){ d.open = (t === "open"); });
+    });
+  }
+
+  // ---- open the containing collapsible on hash / TOC navigation --------- //
+  function revealHash(){
+    var id = (location.hash || "").replace("#", "");
+    if (!id) return;
+    var el = document.getElementById(id);
+    while (el) {
+      if (el.tagName === "DETAILS") el.open = true;
+      el = el.parentElement;
+    }
+    var target = document.getElementById(id);
+    if (target && target.scrollIntoView) target.scrollIntoView({behavior: reduce ? "auto" : "smooth", block: "start"});
+  }
+  window.addEventListener("hashchange", revealHash);
+  document.addEventListener("click", function(e){
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (a) setTimeout(revealHash, 0);
+  });
+  if (location.hash) setTimeout(revealHash, 60);
+
+  // ---- sticky mini-verdict bar -------------------------------------- //
+  var exec = document.getElementById("exec-summary");
+  var scEl = document.querySelector(".scorecard");
+  if (exec && scEl && "IntersectionObserver" in window) {
+    var mini = document.createElement("div");
+    mini.className = "mini-verdict"; mini.setAttribute("hidden", "");
+    var badges = "";
+    document.querySelectorAll(".sc-card").forEach(function(c){
+      var g = (c.querySelector(".sc-gate") || {}).textContent || "";
+      var b = c.querySelector(".badge");
+      var cls = b ? (b.className.match(/badge-\\w+/) || [""])[0] : "";
+      badges += '<span class="mv-badge ' + cls + '">' + g.trim() + "</span>";
+    });
+    var na = document.getElementById("next-action");
+    var naH = na ? (na.querySelector("h2") || {}).textContent || "" : "";
+    mini.innerHTML = '<span class="mv-gates">' + badges + "</span>" +
+                     (naH ? '<span class="mv-action">' + naH.replace(/^[^A-Za-z]+/, "") + "</span>" : "");
+    document.body.appendChild(mini);
+    new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ mini.hidden = en.isIntersecting; });
+    }, {rootMargin: "-40px 0px 0px 0px"}).observe(exec);
+  }
+
+  // ---- longitudinal Canvas chart (SPEC-044 REQ-7) ---------------- //
+  function drawHistory(){
+    var cv = document.getElementById("ae-history-canvas");
+    var dataEl = document.getElementById("ae-history-data");
+    if (!cv || !dataEl || !cv.getContext) return;
+    var d; try { d = JSON.parse(dataEl.textContent || "{}"); } catch(e){ return; }
+    var labels = d.labels || [], series = d.series || {}, colors = d.colors || {};
+    var gates = Object.keys(series);
+    if (!gates.length || labels.length < 2) return;
+    var ctx = cv.getContext("2d"),
+        W = cv.width, H = cv.height,
+        padL = 34, padR = 10, padT = 12, padB = 22,
+        pw = W - padL - padR, ph = H - padT - padB, n = labels.length;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = "#e5e7eb"; ctx.fillStyle = "#9ca3af";
+    ctx.font = "10px -apple-system,sans-serif"; ctx.textBaseline = "middle";
+    [0, 0.25, 0.5, 0.75, 1].forEach(function(t){
+      var y = padT + ph * (1 - t);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillText(t.toFixed(2), 2, y);
+    });
+    function xAt(i){ return padL + (n === 1 ? pw / 2 : pw * i / (n - 1)); }
+    function yAt(v){ return padT + ph * (1 - Math.max(0, Math.min(1, v))); }
+    gates.forEach(function(g){
+      var vals = series[g];
+      ctx.strokeStyle = colors[g] || "#334155"; ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      var started = false;
+      vals.forEach(function(v, i){
+        if (v === null || v === undefined) { started = false; return; }
+        var x = xAt(i), y = yAt(v);
+        if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+      });
+      ctx.stroke();
+      var last = vals[vals.length - 1];
+      if (last !== null && last !== undefined) {
+        ctx.fillStyle = colors[g] || "#334155";
+        ctx.beginPath(); ctx.arc(xAt(n - 1), yAt(last), 2.6, 0, 7); ctx.fill();
+      }
+    });
+    ctx.fillStyle = "#9ca3af"; ctx.textAlign = "center";
+    ctx.fillText(String(labels[0]).slice(0, 14), xAt(0), H - 8);
+    ctx.fillText(String(labels[n - 1]).slice(0, 14), xAt(n - 1), H - 8);
+  }
+  drawHistory();
+
+  // ---- report controls: theme + diff mode ---------------------- //
+  var controls = document.createElement("div");
+  controls.className = "report-controls";
+  var themeBtn = document.createElement("button");
+  themeBtn.type = "button"; themeBtn.textContent = "◐ Dark";
+  themeBtn.addEventListener("click", function(){
+    var root = document.documentElement;
+    var dark = root.getAttribute("data-theme") === "dark";
+    if (dark) { root.removeAttribute("data-theme"); themeBtn.textContent = "◐ Dark"; }
+    else { root.setAttribute("data-theme", "dark"); themeBtn.textContent = "◑ Light"; drawHistory(); }
+  });
+  controls.appendChild(themeBtn);
+  if (HAS_BASELINE) {
+    var diffBtn = document.createElement("button");
+    diffBtn.type = "button"; diffBtn.textContent = "Diff only";
+    diffBtn.addEventListener("click", function(){
+      var on = document.body.classList.toggle("diff-mode");
+      diffBtn.textContent = on ? "Show all" : "Diff only";
+      if (on) groups.forEach(function(d){ if (d.hasAttribute("data-has-change")) d.open = true; });
+    });
+    controls.appendChild(diffBtn);
+  }
+  document.body.appendChild(controls);
+
+  // ---- failure-table text filter (SPEC-044 REQ-6) -------------- //
+  (function failureFilter(){
+    var host = document.getElementById("failure-cases");
+    var table = host && host.querySelector("table");
+    if (!table) return;
+    var tbody = table.tBodies[0];
+    if (!tbody || tbody.rows.length < 4) return;
+    var rows = Array.prototype.slice.call(tbody.rows);
+    var box = document.createElement("div");
+    box.className = "ff-filter";
+    box.innerHTML = '<label for="ff-in">Filter failures</label>' +
+      '<input id="ff-in" type="search" placeholder="cluster, reason, task id, Gate…" autocomplete="off">' +
+      '<span class="ff-count"></span>';
+    table.parentNode.insertBefore(box, table);
+    var input = box.querySelector("input"), count = box.querySelector(".ff-count");
+    function apply(){
+      var q = input.value.trim().toLowerCase(), shown = 0;
+      rows.forEach(function(r){
+        // keep the ">details" expando rows glued to their parent
+        if (r.querySelector("td[colspan]") && !r.querySelector("table")) { return; }
+        var hit = !q || (r.textContent || "").toLowerCase().indexOf(q) !== -1;
+        r.style.display = hit ? "" : "none";
+        var nxt = r.nextElementSibling;
+        while (nxt && nxt.querySelector && nxt.querySelector("td[colspan]")) {
+          nxt.style.display = hit ? "" : "none"; nxt = nxt.nextElementSibling;
+        }
+        if (hit) shown++;
+      });
+      count.textContent = q ? (shown + " / " + rows.length) : "";
+    }
+    input.addEventListener("input", apply);
+  })();
+})();
+</script>""")
+
+
+def _assemble_report_body(ctx: dict[str, Any]) -> list[str]:
+    """SPEC-044 REQ-8/1: the single ordered section list both `generate_*` entry
+    points share (they used to carry a ~65-line near-duplicate `parts` list).
+
+    Three tiers: a judgment tier (always visible, above the fold), an iteration
+    tier (how this run advances the loop), and six collapsible evidence groups.
+    ``ctx`` carries everything the `_build_*` helpers need already computed by the
+    caller; the two divergent bits (``gate_e_html``, ``operational_html``) come
+    in pre-rendered."""
+    ins = ctx["insights"]
+    hg = ctx["harness_groups"]
+    g = ctx["get"]  # ins.get shortcut
+
+    judgment = [
+        _build_css(),
+        _build_header(ctx["total_tasks"], ctx["tcr"], ctx["acc"], ctx["latency"],
+                      hg, ctx["ci_data"]),
+        _build_fault_injection_banner(ctx.get("fault_injection")),
+        _build_narrative_banner(ctx["narrative"]),
+        _build_narrative_audit_note(g("narrative_audit")),
+        _build_freshness_banner(g("freshness")),
+        _build_executive_summary(hg, ctx["diag_result"], ctx["tcr"], ctx["acc"],
+                                 ctx["total_tasks"], ctx["ci_data"], g("verdict")),
+        _build_next_action(ins, hg),
+        _build_spec_frontmatter(ins),
+        _build_regression_check(ins),
+        _build_readiness(g("readiness")),
+        _build_scorecard(hg),
+        _build_briefs(g("briefs")),
+    ]
+
+    iteration = [
+        _build_lifecycle_spine(ins),
+        _build_proof_panel(ins),
+    ]
+
+    grp_gates = [
+        _build_gate_a(ctx["tcr"], ctx["success_rate"], ctx["acc"],
+                      ctx["accuracy_metrics"], hg.get("A", {}), ctx["quality_metrics"]),
+        _build_gate_b(ctx["tool_selection_stats"], ctx["has_agentic"], hg.get("B", {})),
+        _build_gate_c(ctx["retry_metrics"], hg.get("C", {}), ctx["hallucination_data"],
+                      ctx["llm_judge_data"]),
+        _build_gate_d(ctx["latency_stats"], ctx["token_stats"], hg.get("D", {}),
+                      ctx["tasks_list"], ctx["ins_input"]),
+        ctx["gate_e_html"],
+        _build_gate_f(ctx["coordination_stats"], ctx["workflow_stats"],
+                      ctx["has_agentic"], hg.get("F", {})),
+        _build_gate_g(ctx["quality_metrics"], ctx["llm_judge_data"], hg.get("G", {})),
+        _build_advanced_section(ctx["adv_metrics"], ctx["rag_metrics"],
+                                ctx["has_advanced"], ctx["has_rag"],
+                                ctx["has_conversation"], ctx["conversation_sessions"]),
+        _build_multiagent(g("multiagent")),
+        _build_conversation(g("conversation")),
+    ]
+
+    grp_failure = [
+        # NOTE: RAG-localization + failure-segments render *inside* failure_cases_html.
+        ctx["failure_cases_html"],
+        _build_failure_taxonomy(g("failure_taxonomy")),
+        _build_failure_explanations(g("failure_explanations")),
+        _build_contrast_pairs(g("contrast_pairs")),
+        _build_ablation_hints(g("ablation_hints")),
+    ]
+
+    grp_evalset = [
+        _build_design_contract(hg, ins, ctx.get("lineage")),
+        _build_spec_coverage(g("spec_coverage")),
+        _build_acceptance_coverage(g("acceptance_coverage")),
+        _build_eval_set_quality(ctx["tasks_list"], ctx["baseline"], hg,
+                                g("eval_set_quality")),
+        _build_golden_health(g("golden_health")),
+        _build_eval_representativeness(g("eval_representativeness")),
+        _build_slice_analysis(ctx["tasks_list"], ctx["baseline"]),
+        _build_metadata_slices(g("metadata_slices")),
+    ]
+
+    grp_stats = [
+        _build_sample_guidance(g("sample_guidance")),
+        _build_multiplicity_audit(g("multiplicity_audit")),
+        _build_uncertainty_budget(g("uncertainty_budget")),
+        _build_calibration(g("calibration")),
+        _build_threshold_sensitivity(g("threshold_sensitivity")),
+        _build_metric_signal(g("metric_signal")),
+        _build_judge_robustness(g("judge_robustness")),
+        _build_evaluator_reliability(ctx["tasks_list"], ctx["current_dict"]),
+        _build_nondeterminism(ctx["tasks_list"], g("nondeterminism_repeat")),
+        _build_reference_frame(g("reference_frame")),
+    ]
+
+    grp_version = [
+        _build_cohort_comparison(g("cohort_comparison")),
+        _build_trace_diffs(g("trace_diffs")),
+        _build_change_attribution(g("change_attribution")),
+        _build_regression_attribution(g("regression_attribution")),
+        _build_eval_set_delta(g("eval_set_delta")),
+        _build_history_trend(ctx["res_dir"], ctx["cur_file"]),
+        _build_longitudinal(g("longitudinal")),
+        _build_insight_changes(g("insight_changes")),
+    ]
+
+    grp_gov = [
+        _build_recommendations(hg, ctx["tcr"], ctx["acc"], ctx["hall_rate"],
+                               ctx["latency"], ctx["quality_metrics"],
+                               diagnosis=ctx["diag_result"],
+                               recommendation_log_path=ctx["recommendation_log_path"],
+                               baseline=ctx["baseline"], current=ctx["current_dict"],
+                               insights_recs=g("recommendations")),
+        ctx["diagnosis_html"],
+        _build_deploy_decision(g("deploy_decision")),
+        _build_experiments(g("experiments")),
+        _build_improvement_priors(g("improvement_priors")),
+        _build_change_ledger(ctx["res_dir"]),
+        _build_reproducibility_manifest(g("reproducibility_manifest")),
+        ctx["operational_html"],
+        _build_review_queue(ctx["tasks_list"], ctx["current_dict"], ctx["baseline"]),
+        _build_security_findings(ctx["ins_input"]),
+        _build_efficiency_opportunities(g("efficiency_opportunities")),
+    ]
+
+    parts: list[str] = judgment + iteration
+    _grp_map = {
+        "evgrp-gates": grp_gates, "evgrp-failure": grp_failure,
+        "evgrp-evalset": grp_evalset, "evgrp-stats": grp_stats,
+        "evgrp-version": grp_version, "evgrp-governance": grp_gov,
+    }
+    _has_baseline = bool(ctx.get("baseline"))
+    for gid, glabel in _EVIDENCE_GROUPS:
+        # diff mode surfaces the groups that carry baseline movement
+        _hc = _has_baseline and gid in ("evgrp-version", "evgrp-failure")
+        parts.append(_wrap_evidence_group(gid, glabel, _grp_map[gid], has_change=_hc))
+    parts.append(_build_conclusion(ctx["total_tasks"], ctx["tcr"], ctx["acc"],
+                                   ctx["hall_rate"], hg, ctx["ci_data"]))
+    parts.append(_build_report_js(has_baseline=_has_baseline))
+    parts.append('</div></body></html>')
+    return parts
+
+
 # ---------------------------------------------------------------------------
 # generate_comprehensive_html_report(monitor)
 # ---------------------------------------------------------------------------
@@ -6613,12 +7824,22 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
             _reference = load_reference()  # .aoo/reference.json (SPEC-041 P53)
         except Exception:
             _reference = None
+        _dlp = Path(".aoo/decisions.jsonl")
+        _decision_log = _dlp if _dlp.is_file() else None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
             reference=_reference, history_dir=_res_dir, current_file=_cur_file,
+            decision_log_path=_decision_log,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
+    except Exception:
+        pass
+    _fault_injection = None
+    _lineage_dict: dict[str, Any] = {}
+    try:
+        _lineage_dict = (_ins_input.get("extra_metrics") or {}).get("lineage") or {}
+        _fault_injection = _lineage_dict.get("fault_injection")
     except Exception:
         pass
     failure_cases_html = ""
@@ -6660,72 +7881,34 @@ def generate_comprehensive_html_report(monitor, baseline: dict[str, Any] | None 
     except Exception:
         pass
 
-    # Build HTML
-    parts = [
-        _build_css(),
-        _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
-        _build_narrative_banner(_narrative),
-        _build_narrative_audit_note(_insights_obj.get("narrative_audit")),
-        _build_freshness_banner(_insights_obj.get("freshness")),
-        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
-        _build_readiness(_insights_obj.get("readiness")),
-        _build_briefs(_insights_obj.get("briefs")),
-        _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
-        _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, _ins_input),
-        _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
-        _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
-        _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
-        _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
-        operational_html,
-        _build_slice_analysis(_tasks_list, baseline),
-        _build_metadata_slices(_insights_obj.get("metadata_slices")),
-        _build_multiplicity_audit(_insights_obj.get("multiplicity_audit")),
-        _build_sample_guidance(_insights_obj.get("sample_guidance")),
-        _build_metric_signal(_insights_obj.get("metric_signal")),
-        _build_judge_robustness(_insights_obj.get("judge_robustness")),
-        _build_evaluator_reliability(_tasks_list, current_dict),
-        _build_review_queue(_tasks_list, current_dict, baseline),
-        _build_security_findings(_ins_input),
-        _build_nondeterminism(_tasks_list),
-        _build_uncertainty_budget(_insights_obj.get("uncertainty_budget")),
-        _build_calibration(_insights_obj.get("calibration")),
-        _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
-        _build_eval_set_quality(_tasks_list, baseline, harness_groups,
-                                _insights_obj.get("eval_set_quality")),
-        _build_golden_health(_insights_obj.get("golden_health")),
-        _build_eval_representativeness(_insights_obj.get("eval_representativeness")),
-        failure_cases_html,
-        _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
-        _build_ablation_hints(_insights_obj.get("ablation_hints")),
-        _build_contrast_pairs(_insights_obj.get("contrast_pairs")),
-        _build_failure_explanations(_insights_obj.get("failure_explanations")),
-        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
-                               diagnosis=diag_result,
-                               recommendation_log_path=recommendation_log_path,
-                               baseline=baseline, current=current_dict,
-                               insights_recs=_insights_obj.get("recommendations")),
-        _build_multiagent(_insights_obj.get("multiagent")),
-        _build_conversation(_insights_obj.get("conversation")),
-        _build_experiments(_insights_obj.get("experiments")),
-        _build_improvement_priors(_insights_obj.get("improvement_priors")),
-        _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
-        _build_trace_diffs(_insights_obj.get("trace_diffs")),
-        _build_longitudinal(_insights_obj.get("longitudinal")),
-        _build_insight_changes(_insights_obj.get("insight_changes")),
-        _build_regression_attribution(_insights_obj.get("regression_attribution")),
-        _build_change_attribution(_insights_obj.get("change_attribution")),
-        _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
-        diagnosis_html,
-        _build_history_trend(_res_dir, _cur_file),
-        _build_change_ledger(_res_dir),
-        _build_reference_frame(_insights_obj.get("reference_frame")),
-        _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
-        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
-        '</div></body></html>',
-    ]
+    # Build HTML — SPEC-044: one shared 3-tier assembler (`_assemble_report_body`).
+    _ctx = {
+        "insights": _insights_obj,
+        "get": _insights_obj.get,
+        "harness_groups": harness_groups,
+        "total_tasks": total_tasks, "tcr": tcr, "acc": acc, "latency": latency,
+        "ci_data": ci_data, "narrative": _narrative, "diag_result": diag_result,
+        "success_rate": success_rate, "accuracy_metrics": accuracy_metrics,
+        "quality_metrics": quality_metrics, "retry_metrics": retry_metrics,
+        "hallucination_data": hallucination_data, "llm_judge_data": llm_judge_data,
+        "latency_stats": latency_stats, "token_stats": token_stats,
+        "ins_input": _ins_input, "tool_selection_stats": tool_selection_stats,
+        "has_agentic": has_agentic, "coordination_stats": coordination_stats,
+        "workflow_stats": workflow_stats, "adv_metrics": adv_metrics,
+        "rag_metrics": rag_metrics, "has_advanced": has_advanced,
+        "has_rag": has_rag, "has_conversation": has_conversation,
+        "conversation_sessions": conversation_sessions, "tasks_list": _tasks_list,
+        "baseline": baseline, "current_dict": current_dict, "res_dir": _res_dir,
+        "cur_file": _cur_file, "hall_rate": hall_rate,
+        "recommendation_log_path": recommendation_log_path,
+        "failure_cases_html": failure_cases_html,
+        "gate_e_html": _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
+        "operational_html": operational_html,
+        "diagnosis_html": diagnosis_html,
+        "fault_injection": _fault_injection,
+        "lineage": _lineage_dict,
+    }
+    parts = _assemble_report_body(_ctx)
     _toc = _build_toc(''.join(x for x in parts if isinstance(x, str)))
     if _toc:
         parts.insert(2, _toc)
@@ -6954,12 +8137,22 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
             _reference = load_reference()  # .aoo/reference.json (SPEC-041 P53)
         except Exception:
             _reference = None
+        _dlp = Path(".aoo/decisions.jsonl")
+        _decision_log = _dlp if _dlp.is_file() else None
         _insights_obj = _build_insights(
             _ins_input, baseline, recommendation_log_path=recommendation_log_path,
             experiments_log_path=experiments_log_path, cohort=cohort, targets=_targets,
             reference=_reference, history_dir=_res_dir, current_file=_cur_file,
+            decision_log_path=_decision_log,
         ) or {}
         _narrative = _insights_obj.get("narrative", "")
+    except Exception:
+        pass
+    _fault_injection = None
+    _lineage_dict: dict[str, Any] = {}
+    try:
+        _lineage_dict = (_ins_input.get("extra_metrics") or {}).get("lineage") or {}
+        _fault_injection = _lineage_dict.get("fault_injection")
     except Exception:
         pass
     failure_cases_html = ""
@@ -6986,76 +8179,94 @@ def generate_html_from_result_file(rf, baseline: dict[str, Any] | None = None,
     except Exception:
         pass
 
-    # Build HTML
-    parts = [
-        _build_css(),
-        _build_header(total_tasks, tcr, acc, latency, harness_groups, ci_data),
-        _build_narrative_banner(_narrative),
-        _build_narrative_audit_note(_insights_obj.get("narrative_audit")),
-        _build_freshness_banner(_insights_obj.get("freshness")),
-        _build_executive_summary(harness_groups, diag_result, tcr, acc, total_tasks, ci_data, _insights_obj.get("verdict")),
-        _build_readiness(_insights_obj.get("readiness")),
-        _build_briefs(_insights_obj.get("briefs")),
-        _build_scorecard(harness_groups),
-        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, harness_groups.get("A", {}), quality_metrics),
-        _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
-        _build_gate_c(retry_metrics, harness_groups.get("C", {}), hallucination_data, llm_judge_data),
-        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {}), _tasks_list, _ins_input),
-        _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
-        _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
-        _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
-        _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
-        operational_html,
-        _build_slice_analysis(_tasks_list, baseline),
-        _build_metadata_slices(_insights_obj.get("metadata_slices")),
-        _build_multiplicity_audit(_insights_obj.get("multiplicity_audit")),
-        _build_sample_guidance(_insights_obj.get("sample_guidance")),
-        _build_metric_signal(_insights_obj.get("metric_signal")),
-        _build_judge_robustness(_insights_obj.get("judge_robustness")),
-        _build_evaluator_reliability(_tasks_list, current_dict),
-        _build_review_queue(_tasks_list, current_dict, baseline),
-        _build_security_findings(_ins_input),
-        _build_nondeterminism(_tasks_list),
-        _build_uncertainty_budget(_insights_obj.get("uncertainty_budget")),
-        _build_calibration(_insights_obj.get("calibration")),
-        _build_efficiency_opportunities(_insights_obj.get("efficiency_opportunities")),
-        _build_eval_set_quality(_tasks_list, baseline, harness_groups,
-                                _insights_obj.get("eval_set_quality")),
-        _build_golden_health(_insights_obj.get("golden_health")),
-        _build_eval_representativeness(_insights_obj.get("eval_representativeness")),
-        failure_cases_html,
-        _build_failure_taxonomy(_insights_obj.get("failure_taxonomy")),
-        _build_ablation_hints(_insights_obj.get("ablation_hints")),
-        _build_contrast_pairs(_insights_obj.get("contrast_pairs")),
-        _build_failure_explanations(_insights_obj.get("failure_explanations")),
-        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics,
-                               diagnosis=diag_result,
-                               recommendation_log_path=recommendation_log_path,
-                               baseline=baseline, current=current_dict,
-                               insights_recs=_insights_obj.get("recommendations")),
-        _build_multiagent(_insights_obj.get("multiagent")),
-        _build_conversation(_insights_obj.get("conversation")),
-        _build_experiments(_insights_obj.get("experiments")),
-        _build_improvement_priors(_insights_obj.get("improvement_priors")),
-        _build_cohort_comparison(_insights_obj.get("cohort_comparison")),
-        _build_trace_diffs(_insights_obj.get("trace_diffs")),
-        _build_longitudinal(_insights_obj.get("longitudinal")),
-        _build_insight_changes(_insights_obj.get("insight_changes")),
-        _build_regression_attribution(_insights_obj.get("regression_attribution")),
-        _build_change_attribution(_insights_obj.get("change_attribution")),
-        _build_reproducibility_manifest(_insights_obj.get("reproducibility_manifest")),
-        diagnosis_html,
-        _build_history_trend(_res_dir, _cur_file),
-        _build_change_ledger(_res_dir),
-        _build_reference_frame(_insights_obj.get("reference_frame")),
-        _build_threshold_sensitivity(_insights_obj.get("threshold_sensitivity")),
-        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups, ci_data),
-        '</div></body></html>',
-    ]
+    # Build HTML — SPEC-044: shared 3-tier assembler.
+    _ctx = {
+        "insights": _insights_obj,
+        "get": _insights_obj.get,
+        "harness_groups": harness_groups,
+        "total_tasks": total_tasks, "tcr": tcr, "acc": acc, "latency": latency,
+        "ci_data": ci_data, "narrative": _narrative, "diag_result": diag_result,
+        "success_rate": success_rate, "accuracy_metrics": accuracy_metrics,
+        "quality_metrics": quality_metrics, "retry_metrics": retry_metrics,
+        "hallucination_data": hallucination_data, "llm_judge_data": llm_judge_data,
+        "latency_stats": latency_stats, "token_stats": token_stats,
+        "ins_input": _ins_input, "tool_selection_stats": tool_selection_stats,
+        "has_agentic": has_agentic, "coordination_stats": coordination_stats,
+        "workflow_stats": workflow_stats, "adv_metrics": adv_metrics,
+        "rag_metrics": rag_metrics, "has_advanced": has_advanced,
+        "has_rag": has_rag, "has_conversation": has_conversation,
+        "conversation_sessions": conversation_sessions, "tasks_list": _tasks_list,
+        "baseline": baseline, "current_dict": current_dict, "res_dir": _res_dir,
+        "cur_file": _cur_file, "hall_rate": hall_rate,
+        "recommendation_log_path": recommendation_log_path,
+        "failure_cases_html": failure_cases_html,
+        "gate_e_html": _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
+        "operational_html": operational_html,
+        "diagnosis_html": diagnosis_html,
+        "fault_injection": _fault_injection,
+        "lineage": _lineage_dict,
+    }
+    parts = _assemble_report_body(_ctx)
     _toc = _build_toc(''.join(x for x in parts if isinstance(x, str)))
     if _toc:
         parts.insert(2, _toc)
     return ''.join(parts)
+
+
+# ---------------------------------------------------------------------------
+# SPEC-044 REQ-7 — `agent-eval gate --html-summary`: a short Markdown block
+# (verdict + path-to-green headline + the one next command) for a PR body / the
+# `--notify` payload. Re-uses `verdict` / `readiness` / `_next_action` — no new
+# judgement.
+# ---------------------------------------------------------------------------
+def report_markdown_summary(insights: dict[str, Any] | None, *,
+                            result_file: str | None = None,
+                            exit_code: int | None = None) -> str:
+    ins = insights or {}
+    v = ins.get("verdict") or {}
+    level = v.get("level")
+    verb = {"ready": "Ship", "caution": "Ship with caution",
+            "not_ready": "Hold"}.get(str(level), "Review")
+    head = v.get("headline") or verb
+    lines: list[str] = [f"## Gate verdict — {head}", ""]
+
+    _dec = verb + (f" (exit {exit_code})" if exit_code is not None else "")
+    lines.append(f"- **Decision:** {_dec}")
+    fg = v.get("failing_gates") or []
+    if fg:
+        lines.append(f"- **Bottleneck:** Gate {', '.join(str(x) for x in fg[:3])}")
+    if v.get("confidence"):
+        lines.append(f"- **Confidence:** {str(v['confidence']).upper()}")
+    if v.get("decision_ready") is False:
+        lines.append(f"- **Decision-ready:** no — {v.get('undecided_reason') or 'borderline'}")
+    if result_file:
+        lines.append(f"- **Result:** `{result_file}`")
+
+    na = _next_action(ins)
+    if na:
+        lines += ["", "### Next", "", "```", na["command"], "```",
+                  "", _strip_html(na["note"])]
+
+    rd = ins.get("readiness") or {}
+    plan = rd.get("fix_plan") or []
+    if plan:
+        lines += ["", "### Path to green"]
+        for step in plan[:4]:
+            _sig = step.get("signature") or step.get("cluster") or "cluster"
+            _gain = step.get("standalone_tcr_gain_pp") or step.get("tcr_gain_pp")
+            _cum = step.get("cumulative_projected_tcr_pct")
+            bit = f"- {_strip_html(str(_sig))}"
+            if isinstance(_gain, (int, float)):
+                bit += f" → +{_gain:.0f}pp"
+            if isinstance(_cum, (int, float)):
+                bit += f" (cum. → {_cum:.0f}% TCR)"
+            lines.append(bit)
+
+    return "\n".join(lines)
+
+
+def _strip_html(s: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", str(s))).strip()
 
 
 # ---------------------------------------------------------------------------

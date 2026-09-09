@@ -1,12 +1,12 @@
 # API Reference
 
-Full API documentation for Agent Evaluator v1.0.4.
+Full API documentation for Agent Evaluator v1.0.5.
 
 ---
 
 ## Version info
 
-- **Version:** v1.0.4
+- **Version:** v1.0.5
 - **Python:** 3.8+
 - **Last updated:** 2026-09-08
 
@@ -1708,4 +1708,4 @@ FrameworkLiteral,   # a Literal of the 24 frameworks (plus "native")
 
 ---
 
-*Agent Evaluator v1.0.4 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [example directory](../Evaluator_Examples/)*
+*Agent Evaluator v1.0.5 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [example directory](../Evaluator_Examples/)*

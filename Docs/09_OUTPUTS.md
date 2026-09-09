@@ -2,7 +2,7 @@
 
 A systematic map of the result JSON · HTML report · CLI · dashboard · AI-runtime outputs.
 
-**v1.0.4 | Python 3.8+**
+**v1.0.5 | Python 3.8+**
 
 ---
 
@@ -108,9 +108,22 @@ With `storage_backend="sqlite"`, a `.db` (schema in [04_DATA_GUIDE](04_DATA_GUID
 
 ## 4. Static HTML report — single result
 
-`generate_comprehensive_html_report(monitor)` / `generate_html_from_result_file(rf)` — self-contained HTML with no external CDN dependency. **The primary report for developers and QM.**
+`generate_comprehensive_html_report(monitor)` / `generate_html_from_result_file(rf)` — self-contained HTML, no external CDN, one inline `<script>` (dependency-free; the report is fully readable with it removed). **The primary report for developers and QM.**
 
-### Section order (top → bottom)
+### Structure (SPEC-044) — canonical order in `comprehensive_report._assemble_report_body(ctx)`
+
+Both entry points call the one shared assembler. It lays the ~65 sections out in **three tiers**:
+
+1. **Judgment tier** (always visible, above the fold): header (+ a `FAULT-INJECTED` badge when `lineage.fault_injection` is set) → narrative + narrative-audit + freshness → executive summary (+ exit-code / `decision_ready`) → **`next-action`** (the single next command: `decisions record` on ready, `run_repeated` / hold on borderline, `improve apply-verify` on not-ready) → **`spec-frontmatter`** (requirement / acceptance coverage, one line) → **`regression-check`** (one PASS/FAIL over every regression signal + the exact `--fail-on-*` flag) → readiness (Path to Green) → scorecard → briefs.
+2. **Iteration tier** (visible): **`lifecycle-spine`** (analysis → design → development → verification → operations, this run's `insights.lifecycle_phase.primary` highlighted, `missing[]` = material this report lacks) → **`proof-panel`** (predicted vs actual for any open experiment + this project's track record, or a nudge to `improve start`).
+3. **Evidence tier** — six collapsible `<details class="evidence-group">`, each auto-opens when it holds a Gate fail/warn marker (or *is* the failure-analysis group) and its `<summary>` shows `N section(s)` + a presence marker (`⚠ / ✗ needs review`), not a count; an empty group is not rendered:
+   `evgrp-gates` (Gate A–G detail, advanced, multi-agent, conversation) · `evgrp-failure` (failure cases + RAG-localization + segments, taxonomy, explanations, contrast pairs, ablation hints) · `evgrp-evalset` (spec / acceptance coverage, eval-set quality, golden health, vs-prod, slices, metadata slices) · `evgrp-stats` (sample guidance, multiplicity audit, uncertainty budget, calibration, threshold sensitivity, metric signal, judge robustness, evaluator trust, non-determinism, reference frame) · `evgrp-version` (cohort compare, trace diff, change / regression attribution, eval-set delta, trend, longitudinal, insight diff) · `evgrp-governance` (recommendations, RCA diagnosis, deploy-decision ledger, experiments, improvement priors, change ledger, reproducibility manifest, operational signals, review queue, security findings, efficiency opportunities).
+
+Then Conclusion → the inline `<script>` (collapsible toggles, copy buttons on every `.cmd` block, expand/collapse-all, a sticky mini-verdict bar, auto-opening the containing `<details>` on TOC / hash navigation, a light/dark toggle stamping `data-theme` on `<html>`, a diff-mode toggle — baseline runs only — that hides evidence groups without baseline movement, and a `#failure-cases` text filter). `@media print` forces every `<details>` open. The report is fully readable with the `<script>` removed.
+
+The table below is the pre-SPEC-044 flat order, kept for the per-section content / condition detail — the *ordering* is now `_assemble_report_body`'s.
+
+### Section content reference (flat order pre-SPEC-044)
 
 | # | Section (`id`) | Layer | Content | Condition |
 |---|----------------|-------|---------|-----------|
@@ -145,6 +158,14 @@ With `storage_backend="sqlite"`, a `.db` (schema in [04_DATA_GUIDE](04_DATA_GUID
 | 8·2 | **Reproducibility Manifest** (`reproducibility`) | **L6** | what it takes to reproduce this run's *evaluation* — model_name · model_params (temperature/top_p/seed) · judge_model · dataset_ref · evaluator_config (+sha1) · dependency_versions (SPEC-041 P28) | when `lineage.reproducibility_manifest` exists |
 | 8b | **Trend** (`history-trend`) | **L4** | scans sibling result JSONs in the same directory for per-gate inline sparklines + `first→last (slope)` + a `↓ N runs in a row` badge (SPEC-041 P13) | when the directory has ≥3 runs |
 | 8c | **Change Ledger** (`change-ledger`) | **L6** | `recommendation_outcomes.jsonl` — recorded_at · change · gate · verdict · Δ score · note (SPEC-041 P13) | when that file has entries |
+| — | **Next action** (`next-action`) | **L6** | SPEC-044 REQ-3 — one next command from `verdict.level` + `decision_ready` (`decisions record` / `run_repeated` hold / `improve apply-verify`), copy-able, with the targets provenance line | always (when a verdict exists) |
+| — | **Requirement coverage** (`spec-frontmatter`) | **L6** | SPEC-044 REQ-4 — uncovered requirement IDs + `--require-spec-coverage` note + acceptance "N of M met" | when `spec_coverage` / `acceptance_coverage` present |
+| — | **Design contract** (`design-contract`, in `evgrp-evalset`) | **L4** | SPEC-044 REQ-4 — measured vs unmeasured Gate A–G table + the Config each unmeasured Gate needs + `newly_unmeasured_gates` ("was measured in the baseline"). Config attribution from `lineage.config_snapshot` | when `harness_groups` present |
+| — | **Trend chart** (`ae-history-canvas`, in `history-trend`) | **L4** | SPEC-044 REQ-7 — a client-side multi-line Canvas chart of each Gate's score across the sibling runs (no charting lib) | when the directory has ≥3 runs |
+| — | **Regression check** (`regression-check`) | **L4** | SPEC-044 REQ-5 — one PASS/FAIL over case-regression + `eval_set_delta` + change, with the exact `agent-eval gate --fail-on-*` flag | always (grey "no baseline" line without one) |
+| — | **Lifecycle** (`lifecycle-spine`) | **L6** | SPEC-044 REQ-2 — `insights.lifecycle_phase`: analysis → … → operations strip + `signals[]` + a "Not in this report" list | when `lifecycle_phase` present |
+| — | **Prove it** (`proof-panel`) | **L6** | SPEC-044 REQ-5 — predicted vs actual for open experiments + `improvement_priors` track record, or an `improve start` nudge | always |
+| — | **fault-injection badge** (in header) | **L5** | SPEC-044 REQ-5 — "Gate C / D measured under injected faults" when `lineage.fault_injection` is set | when fault injection ran |
 | 9 | Conclusion (`conclusion`) | L2 | **Grade + confidence** · total tasks · TCR/Acc/Hall + **TCR/Accuracy 95% CI** · N/7 PASS · generation info | always |
 
 ### When a baseline is passed (`save_to_file(baseline_path=...)` / `QuickEval.save(baseline_path=...)`)
@@ -202,7 +223,7 @@ Every CLI supports color (on a TTY) + a `--json` option (for piping, where appli
 | 4 | case regression / review queue over the cap (SPEC-041 P26) — `--fail-on-case-regression` (a task that passed in the baseline fails now; needs a full result JSON via `--baseline-result`) or `--max-review-high N` (`insights.review_queue.by_priority.high > N`). Priority: golden(3) > case/review(4) > regression(2). |
 | 1 | cost SLO exceeded (SPEC-041 P28) — `--max-cost-per-task USD` (`total_cost` / task count exceeded). The same exit 1 as any other missed threshold. |
 
-`--junit-xml PATH` → XML for CI-system integration. `--notify slack://… / webhook://… / https://…` (repeatable, SPEC-041 P26) → after the exit code is decided, sends `insights.narrative` + `failure_lineage.regressed` + `cohort_comparison.winner` to Slack/webhook (`alerts.dispatch_gate_result()`; a send failure is reported only, the exit code is unchanged). Detail: [05_QUALITY_GATE](05_QUALITY_GATE.md).
+`--junit-xml PATH` → XML for CI-system integration. `--notify slack://… / webhook://… / https://…` (repeatable, SPEC-041 P26) → after the exit code is decided, sends `insights.narrative` + `failure_lineage.regressed` + `cohort_comparison.winner` to Slack/webhook (`alerts.dispatch_gate_result()`; a send failure is reported only, the exit code is unchanged). `--html-out PATH` (SPEC-044 REQ-7) → also write the full HTML report to PATH (same baseline as the gate). `--html-summary` (SPEC-044 REQ-7) → also print a short Markdown block to stdout — `## Gate verdict` + Decision/Bottleneck/Confidence + `### Next` (the one command) + `### Path to green` — for a PR body. Both are opt-in and leave the exit code / other output byte-identical. Detail: [05_QUALITY_GATE](05_QUALITY_GATE.md).
 
 ### `agent-eval diagnose` — Gate-regression root-cause diagnosis (RCA)
 

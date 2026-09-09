@@ -152,6 +152,8 @@ def cmd_claude(args: argparse.Namespace) -> int:
         return _cmd_uninstall(args)
     if cmd == "doctor":
         return _cmd_doctor(args)
+    if cmd == "test-config":
+        return _cmd_test_config(args)
     from agent_evaluator.cli._violations_detail import dispatch as _vd_dispatch
 
     _rc = _vd_dispatch("claude", cmd, args)
@@ -164,6 +166,8 @@ def cmd_claude(args: argparse.Namespace) -> int:
         f"  {_Y}upgrade{_R}         Refresh hooks/config after a package update "
         f"(keeps your guardrail_config.json edits)\n"
         f"  {_Y}doctor{_R}          Verify the install actually works (static + live round-trip)\n"
+        f"  {_Y}test-config{_R}     Assert your guardrail_config against a case file "
+        f"(allow/deny expectations)\n"
         f"  {_Y}uninstall{_R}       Remove the hooks/MCP servers (run before 'pip uninstall')\n"
         f"  {_Y}violations{_R}      Search past Gate B/E blocks in the batch-report DB "
         f"(--detail shows the command)\n"
@@ -370,10 +374,22 @@ def _register_violation_search_mcp(
     )
 
 
-def _register_recommend_fix_mcp(scope: str) -> None:
+def _resolve_aoo_arg(is_global: bool) -> list[str]:
+    """SPEC-042 REQ-3: the .aoo dir the recommend_fix MCP server reads its
+    improvement track record from. Local install → an absolute
+    ``<project_root>/.aoo`` (resolves regardless of the server's cwd). Global
+    install → nothing: one global server serves many projects, so let it fall
+    back to ``.aoo`` relative to whatever cwd it is spawned in."""
+    if is_global:
+        return []
+    return [str(_project_root() / ".aoo")]
+
+
+def _register_recommend_fix_mcp(scope: str, is_global: bool = False) -> None:
     _register_mcp_server(
         _RECOMMEND_FIX_MCP_NAME, "agent_evaluator.integrations.recommend_fix_mcp",
         "--with-recommend-fix", scope,
+        extra_args=_resolve_aoo_arg(is_global),
     )
 
 
@@ -428,7 +444,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     if getattr(args, "with_recommend_fix", False):
         print()
-        _register_recommend_fix_mcp(scope)
+        _register_recommend_fix_mcp(scope, is_global)
 
     if getattr(args, "with_ask_insights", False):
         print()
@@ -454,6 +470,9 @@ def _cmd_install(args: argparse.Namespace) -> int:
         f"so an early transient repeat can't latch the whole session.\n"
         f"  - circuit_breaker_after (default 5) flips the session to observe-only after that "
         f"many consecutive blocks — a miscalibrated config warns instead of locking you out.\n"
+        f"  - circuit_breaker_recover_after (default 10, i.e. 2x circuit_breaker_after) lifts "
+        f"observe-only again after that many consecutive clean tool calls; 0 keeps it sticky "
+        f"for the whole session (the pre-SPEC-042 behavior).\n"
         f"  - tool_parameter_safety.scope_tool_names is [\"Bash\"] by default, so Write/Edit "
         f"file bodies are never length-checked or pattern-scanned.\n"
         f"  - shell file creation (cat/tee/echo/printf > FILE, heredocs, '| tee') is treated "
@@ -563,7 +582,7 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
     if getattr(args, "with_recommend_fix", False):
         print()
         _deregister_mcp_server(_RECOMMEND_FIX_MCP_NAME, scope)
-        _register_recommend_fix_mcp(scope)
+        _register_recommend_fix_mcp(scope, is_global)
     if getattr(args, "with_ask_insights", False):
         print()
         _deregister_mcp_server(_ASK_INSIGHTS_MCP_NAME, scope)
@@ -997,6 +1016,20 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             else:
                 rpt.ok("static", f"{mname}: report-DB arg")
 
+        # SPEC-042 REQ-3: recommend_fix reads this project's improvement track
+        # record from a .aoo path passed as an argument. A registration made
+        # before this was wired still works — it just omits the track-record
+        # line — so this is info, not a warning.
+        if reg and mname == _RECOMMEND_FIX_MCP_NAME and not is_global:
+            _, reg_out = _mcp_get(mname)
+            if reg_out and ".aoo" not in reg_out:
+                rpt.info(
+                    "static", f"{mname}: .aoo arg",
+                    "registered without a .aoo path — recommend_fix still works but "
+                    "omits this project's track record. Run "
+                    "`agent-eval claude upgrade --with-recommend-fix` from the project root",
+                )
+
     # ---------- Tier 2: 라이브 ----------
     if no_live:
         rpt.info("live", "skipped (--no-live)")
@@ -1030,6 +1063,27 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     else:
         print(rpt.render_text(color=_USE_COLOR))
     return rpt.exit_code(strict=strict)
+
+
+def _cmd_test_config(args: argparse.Namespace) -> int:
+    """SPEC-043 REQ-6a: run a case file against this project's resolved guardrail_config."""
+    from agent_evaluator.cli._integration_health import cmd_test_config_common
+
+    is_global: bool = getattr(args, "global_install", False)
+    config_path = _GLOBAL_CONFIG if is_global else _LOCAL_CONFIG
+    if not is_global and not config_path.exists() and _GLOBAL_CONFIG.exists():
+        config_path = _GLOBAL_CONFIG
+    try:
+        from agent_evaluator.integrations.claude_code_hook import load_config
+
+        resolved_cfg = dict(load_config(config_path.parent))
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: could not resolve guardrail_config: {exc}", file=sys.stderr)
+        return 1
+    return cmd_test_config_common(
+        args.cases, resolved_cfg,
+        as_json=getattr(args, "json", False), color=_USE_COLOR,
+    )
 
 
 def _add_common_target_flags(parser: argparse.ArgumentParser) -> None:
@@ -1188,6 +1242,39 @@ def build_claude_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
     )
     doctor_p.add_argument(
         "--strict", action="store_true", help="Exit 1 on warnings too, not just errors",
+    )
+
+    # --- test-config (SPEC-043 REQ-6a) ---
+    test_cfg_p = cl_sub.add_parser(
+        "test-config",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Assert the resolved guardrail_config against a YAML/JSON case file",
+        description=(
+            "Runs each case through a LiveGuardrail built from this project's resolved\n"
+            "guardrail_config and diffs the verdict against the case's `expect`.\n\n"
+            "Case file (YAML or JSON):\n"
+            "  cases:\n"
+            "    - name: block refunds\n"
+            "      tool: Bash\n"
+            "      args: {command: \"refund --user 42\"}\n"
+            "      expect: deny\n"
+            "      gate: B        # optional — also assert the blocking gate\n"
+            "    - tool: Bash\n"
+            "      args: {command: \"ls -la\"}\n"
+            "      expect: allow\n\n"
+            "Exit 1 on any mismatch or a malformed file; exit 0 when all cases pass\n"
+            "(an empty case list passes). Meant to be a CI step."
+        ),
+        epilog=(
+            f"{_B}Examples:{_R}\n"
+            f"  {_G}agent-eval claude test-config .claude/guardrail_cases.yaml{_R}\n"
+            f"  {_G}agent-eval claude test-config cases.json --json{_R}\n"
+        ),
+    )
+    _add_common_target_flags(test_cfg_p)
+    test_cfg_p.add_argument("cases", help="Path to the YAML/JSON case file")
+    test_cfg_p.add_argument(
+        "--json", action="store_true", help="Emit results as JSON (for CI)",
     )
 
     # --- uninstall ---

@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.4-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.0.5-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -190,6 +190,7 @@ tests/                # 4,850+ test functions
 
 ## Changelog
 
+- **v1.0.5** (2026-09-09) — Harness Methodology alignment + development-support framework + HTML report as instrument. All opt-in (defaults unchanged, no `schema_version` bump). `gate --hold-on-undecided` (exit 75, hold for human) · `gate --requirements … --require-spec-coverage` (exit 4) · `gate --decision-log` + new `agent-eval decisions` (deploy-decision ledger) · `gate --html-out` / `--html-summary` (SPEC-044: 3-tier report + PR-body Markdown + `insights.lifecycle_phase`) · `run_repeated()` → `insights.nondeterminism_repeat` · `FaultInjectionConfig` (never touches the blocking path) · `human_only_patterns` · `circuit_breaker_recover_after` · `tier_downshift` signal · `dataset review-candidates` (production → golden) · `improve apply-verify` (isolated `git worktree`, never merges) · new `agent-eval feedback export-preferences` · `{claude,opencode} test-config`. `agent-eval --help` now lists 18.
 - **v1.0.4** (2026-09-08) — Blocked-attempt command detail: a fully-blocked tool call keeps a redacted command excerpt, so `search_violations "rm -rf"` now matches the command itself; new `show_violation` MCP tool + `agent-eval {claude,opencode} violations` / `blocked-detail <task_id>` CLI; `doctor` live-checks it. Symmetric across Claude Code and OpenCode. No API/Config/schema changes.
 - **v1.0.3** (2026-09-08) — `agent-eval claude install --with-violation-search` now points the `search_violations` MCP server at the Claude Code batch-report DB (it opened the OpenCode default before); `search_violations` degrades to a readable sentence when the DB is missing. OpenCode unaffected.
 - **v1.0.2** (2026-09-04) — Phoenix / OTEL: Python-version-scoped `arize-phoenix` pin; span + trace + session annotation tiers; ASCII-only `agent-eval monitor` console; new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) + local-Ollama example.

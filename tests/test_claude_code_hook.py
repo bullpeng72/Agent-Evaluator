@@ -651,6 +651,99 @@ class TestCircuitBreaker:
             result = hook.handle_pre_tool_use(self._block_payload(i), state_dir)
             assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
 
+    # ---- SPEC-042 REQ-6: tripped auto-recovery ----
+
+    _CLEAN = {
+        "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "ls"},
+        "tool_result": {"type": "text", "content": "ok"},
+    }
+
+    def _cfg(self, **extra):
+        return json.dumps({
+            "tool_parameter_safety": {
+                "dangerous_patterns": [r"\brm\s+-rf?\s+/"],
+                "scope_tool_names": ["Bash"], "fail_on_dangerous": True,
+            },
+            **extra,
+        })
+
+    def _trip(self, state_dir, n=2):
+        for i in range(n):
+            hook.handle_pre_tool_use(self._block_payload(i), state_dir)
+
+    def test_tripped_auto_recovers_after_clean_calls(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            self._cfg(circuit_breaker_after=2, circuit_breaker_recover_after=3)
+        )
+        self._trip(state_dir, 2)  # 2nd block trips → observe-only
+        # first two clean calls: still tripped, no recovery message
+        assert not hook.handle_post_tool_use(self._CLEAN, state_dir).get("systemMessage")
+        assert not hook.handle_post_tool_use(self._CLEAN, state_dir).get("systemMessage")
+        # third clean call → recovered
+        out = hook.handle_post_tool_use(self._CLEAN, state_dir)
+        assert "recovered" in out.get("systemMessage", "").lower()
+        st = hook._read_circuit_state(hook._circuit_file(state_dir, "s1"))
+        assert st["tripped"] is False and st["clean_since_trip"] == 0
+        # enforcement is back
+        res = hook.handle_pre_tool_use(self._block_payload(9), state_dir)
+        assert res["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def test_recover_after_defaults_to_double_threshold(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            self._cfg(circuit_breaker_after=2)  # no recover key → default 2*2 = 4
+        )
+        self._trip(state_dir, 2)
+        for _ in range(3):
+            hook.handle_post_tool_use(self._CLEAN, state_dir)
+        assert hook._read_circuit_state(hook._circuit_file(state_dir, "s1"))["tripped"] is True
+        out = hook.handle_post_tool_use(self._CLEAN, state_dir)  # 4th
+        assert "recovered" in out.get("systemMessage", "").lower()
+
+    def test_recover_after_zero_keeps_sticky(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            self._cfg(circuit_breaker_after=2, circuit_breaker_recover_after=0)
+        )
+        self._trip(state_dir, 2)
+        for _ in range(10):
+            assert not hook.handle_post_tool_use(self._CLEAN, state_dir).get("systemMessage")
+        # still observe-only
+        res = hook.handle_pre_tool_use(self._block_payload(9), state_dir)
+        assert res["hookSpecificOutput"]["permissionDecision"] == "allow"
+        assert "circuit breaker" in res.get("systemMessage", "").lower()
+
+    def test_block_during_observe_only_resets_clean_streak(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(
+            self._cfg(circuit_breaker_after=2, circuit_breaker_recover_after=3)
+        )
+        self._trip(state_dir, 2)
+        hook.handle_post_tool_use(self._CLEAN, state_dir)
+        hook.handle_post_tool_use(self._CLEAN, state_dir)  # clean_since_trip = 2
+        # a blocked attempt slips in (observe-only allows it) → streak resets to 0
+        res = hook.handle_pre_tool_use(self._block_payload(50), state_dir)
+        assert res["hookSpecificOutput"]["permissionDecision"] == "allow"
+        assert hook._read_circuit_state(
+            hook._circuit_file(state_dir, "s1"))["clean_since_trip"] == 0
+        # now need 3 fresh clean calls
+        hook.handle_post_tool_use(self._CLEAN, state_dir)
+        hook.handle_post_tool_use(self._CLEAN, state_dir)
+        assert hook._read_circuit_state(hook._circuit_file(state_dir, "s1"))["tripped"] is True
+        out = hook.handle_post_tool_use(self._CLEAN, state_dir)
+        assert "recovered" in out.get("systemMessage", "").lower()
+
+    def test_circuit_state_helpers_roundtrip_and_backcompat(self, tmp_path):
+        p = tmp_path / "s.circuit.json"
+        hook._write_circuit_state(p, 3, True, clean_since_trip=2)
+        assert hook._read_circuit_state(p) == {
+            "consecutive_blocks": 3, "tripped": True, "clean_since_trip": 2,
+        }
+        # old 2-field file still reads (clean_since_trip defaults to 0)
+        p.write_text(json.dumps({"consecutive_blocks": 1, "tripped": False}))
+        assert hook._read_circuit_state(p)["clean_since_trip"] == 0
+
 
 class TestLoopLatchIsGone:
     """SPEC-041: 실시간 루프 판정이 트레일링 윈도우로만 이뤄져 latch되지 않는다."""
@@ -676,6 +769,86 @@ class TestLoopLatchIsGone:
             {"session_id": "s1", "tool_name": "Write", "tool_input": {}}, state_dir,
         )
         assert result["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+
+class TestReplayTailReq5:
+    """SPEC-042 REQ-5: PreToolUse replays only the history tail (O(n^2) -> O(n)),
+    provably equivalent when the only history-dependent check is windowed loop
+    detection."""
+
+    def test_tail_slice_default_config(self):
+        recs = [{"tool_name": f"t{i}"} for i in range(200)]
+        out = hook._replay_tail_records({"live_loop_window": 15}, recs)
+        assert out == recs[-20:]          # window 15 + margin 5
+        assert len(out) == 20
+
+    def test_tail_slice_no_window_uses_default(self):
+        recs = [{"tool_name": f"t{i}"} for i in range(200)]
+        out = hook._replay_tail_records({}, recs)
+        assert len(out) == hook._DEFAULT_LIVE_LOOP_WINDOW + hook._REPLAY_TAIL_MARGIN
+
+    def test_full_replay_when_deadlock_configured(self):
+        recs = [{"tool_name": f"t{i}"} for i in range(200)]
+        assert hook._replay_tail_records({"deadlock": {}}, recs) == recs
+
+    def test_full_replay_when_cumulative_scope_cap(self):
+        recs = [{"tool_name": f"t{i}"} for i in range(50)]
+        assert hook._replay_tail_records({"scope": {"max_tool_calls": 10}}, recs) == recs
+        assert hook._replay_tail_records(
+            {"scope": {"forbidden_tools": ["X"]}}, recs) == recs[-20:]
+
+    def test_short_session_returns_everything(self):
+        recs = [{"tool_name": f"t{i}"} for i in range(5)]
+        assert hook._replay_tail_records({"live_loop_window": 15}, recs) == recs
+
+    def _cfg(self, tmp_path):
+        state_dir = _state_dir(tmp_path)
+        (state_dir / "guardrail_config.json").write_text(json.dumps({
+            "loop_detection": {"consecutive_repeat_threshold": 3, "on_loop_detected": "fail"},
+            "live_loop_window": 6,
+        }))
+        return state_dir
+
+    def _seed(self, state_dir, records):
+        sf = hook._session_file(state_dir, "s1")
+        for r in records:
+            hook._append_json_list(sf, r)
+
+    def test_loop_at_end_of_long_session_still_blocks(self, tmp_path):
+        state_dir = self._cfg(tmp_path)
+        # 190 varied calls, then 2 identical Bash calls — a 3rd identical one loops
+        self._seed(state_dir, [{"tool_name": f"cmd{i % 7}", "parameters": {"i": i}}
+                               for i in range(190)])
+        self._seed(state_dir, [{"tool_name": "Bash", "parameters": {"command": "ls"}}] * 2)
+        res = hook.handle_pre_tool_use(
+            {"session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "ls"}},
+            state_dir,
+        )
+        assert res["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "loop_detection" in res["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_old_repeat_before_tail_does_not_block(self, tmp_path):
+        state_dir = self._cfg(tmp_path)
+        self._seed(state_dir, [{"tool_name": "Bash", "parameters": {"command": "ls"}}] * 5)
+        self._seed(state_dir, [{"tool_name": f"cmd{i}", "parameters": {}} for i in range(50)])
+        res = hook.handle_pre_tool_use(
+            {"session_id": "s1", "tool_name": "Write", "tool_input": {}}, state_dir,
+        )
+        assert res["hookSpecificOutput"]["permissionDecision"] == "allow"
+
+    def test_tail_equivalent_to_full_replay_for_verdict(self, tmp_path, monkeypatch):
+        """The tail slice yields the same PreToolUse verdict as replaying all 200."""
+        state_dir = self._cfg(tmp_path)
+        recs = [{"tool_name": f"cmd{i % 5}", "parameters": {"i": i}} for i in range(198)]
+        recs += [{"tool_name": "Bash", "parameters": {"command": "x"}}] * 2
+        self._seed(state_dir, recs)
+        payload = {"session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "x"}}
+
+        tail_res = hook.handle_pre_tool_use(dict(payload), state_dir)
+        monkeypatch.setattr(hook, "_replay_tail_records", lambda _c, r: r)
+        full_res = hook.handle_pre_tool_use(dict(payload), state_dir)
+        assert (tail_res["hookSpecificOutput"]["permissionDecision"]
+                == full_res["hookSpecificOutput"]["permissionDecision"] == "deny")
 
 
 class TestFileContentCreationNotBlocked:
