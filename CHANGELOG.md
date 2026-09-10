@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.6 (2026-09-10) — maintenance: module split · CLI help accuracy
+
+Maintenance release. **No behaviour, public-API, or `schema_version` change** — the result JSON stays byte-identical. Every documented import path is preserved.
+
+### Internal structure
+
+- **`decorators.py` split** (8,721 → 6,034 lines). Two new modules, both re-exported from `decorators.py`:
+  - **`agent_evaluator/framework_adapters.py`** — the 24 `_extract_<fw>_metadata` adapters, `_FRAMEWORK_ADAPTERS` / `_FRAMEWORK_ADAPTER_META`, `_auto_detect_framework`, `_safe_adapter_call`, `get_framework_info`.
+  - **`agent_evaluator/_eval_shared.py`** — `EvalMetadata`, `TurnMetadata`, `_split_raw` / `_normalize_task_type`, and the raw-response readers (`_is_*_response` / `_extract_*_tokens`).
+  - Dependency graph is acyclic (`_eval_shared` ← `framework_adapters` ← `decorators`). `from agent_evaluator.decorators import EvalMetadata` / `_extract_langchain_metadata` / `_FRAMEWORK_ADAPTERS` / … all still work.
+
+### Fixes
+
+- **`agent-eval --help`** — the command summary block now lists `decisions` and `feedback` (previously only in the auto-generated usage line), and shows `dataset review-candidates` / `improve apply-verify` / `{claude,opencode} test-config`.
+- **`_integration_health.py`** — `render_config_test_table` annotated `list[str]`, clearing 3 `reportArgumentType` warnings.
+
 ## v1.0.5 (2026-09-09) — Harness Methodology alignment · development-support framework · HTML report as instrument
 
 Feature release. All additions are **opt-in** — with defaults unchanged, the result JSON stays byte-identical and no `schema_version` bump is needed (new `insights` keys are additive, `additionalProperties: true`). Two new CLI subcommands (`decisions`, `feedback`); `agent-eval --help` now lists 18.

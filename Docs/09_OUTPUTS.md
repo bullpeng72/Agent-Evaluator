@@ -2,7 +2,7 @@
 
 A systematic map of the result JSON · HTML report · CLI · dashboard · AI-runtime outputs.
 
-**v1.0.5 | Python 3.8+**
+**v1.0.6 | Python 3.8+**
 
 ---
 

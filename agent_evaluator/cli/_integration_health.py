@@ -496,7 +496,9 @@ def render_config_test_table(
     if not rows:
         return f"{d}no cases — nothing to check{r}"
 
-    lines = [f"{b}{'':2} {'case':<28} {'tool':<10} {'expect':<7} {'actual':<7} gate{r}"]
+    lines: list[str] = [
+        f"{b}{'':2} {'case':<28} {'tool':<10} {'expect':<7} {'actual':<7} gate{r}"
+    ]
     for row in rows:
         icon = f"{g}PASS{r}" if row["ok"] else f"{rd}FAIL{r}"
         gate = ""

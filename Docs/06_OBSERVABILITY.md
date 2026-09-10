@@ -2,7 +2,7 @@
 
 Using the dashboard · Phoenix OTEL real-time monitoring.
 
-**v1.0.5 | Python 3.8+**
+**v1.0.6 | Python 3.8+**
 
 ---
 

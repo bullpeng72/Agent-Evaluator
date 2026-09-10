@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.0.5 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.0.6 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -178,12 +178,13 @@ Operational support (8, no direct Gate score contribution — report/ops only)
 `agent_interactions` from a framework's native return object. **Pure duck typing** — the adapter never
 imports the framework, and any non-matching / malformed / junk input returns `None` (fail-safe, no raise).
 
-| Source of truth | `decorators.py` |
+| Source of truth | `framework_adapters.py` (the 24 adapters + dispatch tables + auto-detection; re-exported by `decorators.py` so `from agent_evaluator.decorators import _extract_<fw>_metadata` / `_FRAMEWORK_ADAPTERS` / `get_framework_info` still work) |
 |---|---|
 | Dispatch table | `_FRAMEWORK_ADAPTERS: dict[str, Callable[[Any], EvalMetadata\|None]\|None]` (`"native"` → `None` sentinel) |
 | Per-adapter metadata | `_FRAMEWORK_ADAPTER_META` (`name` · `extras` · `extracts` · `async_supported` · `description`); query via `get_framework_info(name)` |
-| Type | `FrameworkLiteral` (`native` + the 24) |
+| Type | `FrameworkLiteral` (`native` + the 24) — stays in `decorators.py` |
 | Impl | one `_extract_<name>_metadata(raw) -> EvalMetadata \| None` per adapter |
+| Shared plumbing | `EvalMetadata` · `TurnMetadata` · `_split_raw` · `_normalize_task_type` · the raw-response readers (`_is_*_response` / `_extract_*_tokens`) live in `_eval_shared.py` (imported by both `decorators.py` and `framework_adapters.py`; also re-exported from `decorators.py`) |
 
 The 24: `langchain` · `langgraph` · `crewai` · `autogen` · `dspy` · `pydanticai` · `anthropic` · `openai` ·
 `gemini` · `vertexai` · `llamaindex` · `haystack` · `ollama` · `cohere` · `groq` · `mistral` · `bedrock` ·
@@ -205,7 +206,9 @@ The 24: `langchain` · `langgraph` · `crewai` · `autogen` · `dspy` · `pydant
 
 ```
 agent_evaluator/
-├── decorators.py          # agent_eval · batch_eval · conversation_eval · EvalMetadata · TurnMetadata · EvalDecorator · AlertRuleBuilder (the 33 Harness Configs are defined in gates/gate_x/configs.py — re-exported here)
+├── decorators.py          # agent_eval · batch_eval · conversation_eval · EvalDecorator · AlertRuleBuilder · presets (the 33 Harness Configs are defined in gates/gate_x/configs.py — re-exported here)
+├── _eval_shared.py        # EvalMetadata · TurnMetadata · _split_raw · _normalize_task_type · raw-response readers (extracted from decorators.py; re-exported there)
+├── framework_adapters.py  # the 24 _extract_<fw>_metadata adapters + _FRAMEWORK_ADAPTERS / _FRAMEWORK_ADAPTER_META + _auto_detect_framework + get_framework_info (extracted from decorators.py; re-exported there)
 ├── gates/                 # per-Gate packages (A–G, 7 total)
 │   ├── base.py            # infra shared by every Gate — _status · _gate_pass_verdict() · evaluate_gate_scores() (the score/threshold/status -> passed loop shared by HarnessEvaluationGate · QuickEval.gate() · cli/gate.py)
 │   ├── shared_metrics.py  # RunningAverage etc. running-aggregate primitives + per-Gate SharedAgg classes
@@ -615,7 +618,7 @@ fault_injection (SPEC-043 REQ-5 — FaultInjectionConfig; sync/async wrappers on
 
 ## Testing
 
-**182 files, 5,200+ test functions** in `tests/`.
+**184 files, 5,200+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
