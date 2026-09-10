@@ -42,8 +42,7 @@ def cmd_dataset(args: argparse.Namespace) -> int:
         f"  {_Y}build{_R}              Auto-extract golden set candidates from results\n"
         f"  {_Y}promote{_R}            Promote a result file's review queue into golden cases\n"
         f"  {_Y}health{_R}             Assess a golden set against a run (coverage, stale)\n"
-        f"  {_Y}review-candidates{_R}  Review the auto-collected production candidate queue "
-        f"(SPEC-043 REQ-4)\n\n"
+        f"  {_Y}review-candidates{_R}  Review the auto-collected production candidate queue\n\n"
         f"Usage: agent-eval dataset build --help",
         file=sys.stderr,
     )

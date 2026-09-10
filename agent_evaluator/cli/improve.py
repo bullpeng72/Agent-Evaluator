@@ -405,10 +405,10 @@ def _patch_config_change(row: dict[str, Any], repo: Path) -> tuple[str, str]:
     add = " ".join((row.get("after") or "").split())     # kwargs on one logical line
     if seg.rstrip().endswith(")"):
         head = seg.rstrip()[:-1].rstrip().rstrip(",")
-        new_seg = (f"{head},\n    # SPEC-041 improve: proposed for Gate "
+        new_seg = (f"{head},\n    # agent-eval improve: proposed for Gate "
                    f"{row.get('gate')}\n    {add}\n)")
     else:  # unexpected shape — fall back to a trailing note
-        new_seg = seg + f"  # SPEC-041 improve: {add}"
+        new_seg = seg + f"  # agent-eval improve: {add}"
     if new_seg == seg or seg not in src:
         return ("", "could not rewrite the decorator call; add manually:\n"
                 + row.get("after", ""))
@@ -729,7 +729,7 @@ def build_improve_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         help="Apply one proposal's diff in an isolated git worktree, run an eval, score it",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "SPEC-043 REQ-7 — the manual apply→re-run→verify chain in one command.\n"
+            "The manual apply→re-run→verify chain in one command.\n"
             "Registers the proposal as an experiment, applies its diff to a fresh\n"
             "detached `git worktree` at HEAD, runs --eval-cmd there, finds the\n"
             "result JSON it wrote, and scores predicted-vs-actual. NEVER merges or\n"

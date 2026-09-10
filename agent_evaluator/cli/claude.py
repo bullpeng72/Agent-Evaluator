@@ -472,7 +472,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
         f"many consecutive blocks — a miscalibrated config warns instead of locking you out.\n"
         f"  - circuit_breaker_recover_after (default 10, i.e. 2x circuit_breaker_after) lifts "
         f"observe-only again after that many consecutive clean tool calls; 0 keeps it sticky "
-        f"for the whole session (the pre-SPEC-042 behavior).\n"
+        f"for the whole session (the earlier behavior).\n"
         f"  - tool_parameter_safety.scope_tool_names is [\"Bash\"] by default, so Write/Edit "
         f"file bodies are never length-checked or pattern-scanned.\n"
         f"  - shell file creation (cat/tee/echo/printf > FILE, heredocs, '| tee') is treated "

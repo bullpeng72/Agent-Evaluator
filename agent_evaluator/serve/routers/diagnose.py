@@ -40,7 +40,7 @@ def get_diagnosis(
     show_diff: bool = Query(False, description="Resolve git commit range via lineage.git_commit"),
     cohort_ids: Optional[str] = Query(  # noqa: UP045
         None, description="Comma-separated result file ids for an N-version comparison "
-                          "(SPEC-041 P22 — insights.cohort_comparison)",
+                          "(see insights.cohort_comparison)",
     ),
 ) -> Dict[str, Any]:  # noqa: UP006
     """``agent-eval diagnose``와 동일한 판정을 대시보드용 JSON으로 반환한다.

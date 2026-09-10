@@ -329,8 +329,8 @@ def _cmd_install(args: argparse.Namespace) -> int:
     print()
     print(
         f"{_Y}💡 Tuning tip:{_R} loop_detection.consecutive_repeat_threshold (plugin default 8) "
-        f"fires only on N *identical* calls in a row — same tool name AND same arguments "
-        f"(SPEC-041); a varied `bash` → `bash` → `bash` sequence with different commands is not a "
+        f"fires only on N *identical* calls in a row — same tool name AND same arguments; "
+        f"a varied `bash` → `bash` → `bash` sequence with different commands is not a "
         f"loop. live_loop_window (default 15) also bounds the check to the last N calls. Raise the "
         f"threshold further only if you still see a legitimate genuinely-repeated call (e.g. "
         f"re-running the same failing test) getting flagged."

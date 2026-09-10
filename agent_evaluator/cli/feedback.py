@@ -70,7 +70,7 @@ def build_feedback_subparser(sub: argparse._SubParsersAction) -> None:  # type: 
         help="Feedback / preference signals (export-preferences)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "SPEC-043 REQ-6b. `export-preferences` turns the A/B signals already in\n"
+            "`export-preferences` turns the A/B signals already in\n"
             "your result files — pairwise judge verdicts, human annotations, and\n"
             "fail↔pass contrast pairs — into one JSON Lines preference dataset.\n"
             "Export only: reward models / fine-tuning are out of scope."

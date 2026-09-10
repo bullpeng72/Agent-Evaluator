@@ -114,7 +114,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         raise RuntimeError(
             f"agent_evaluator SQLite storage: schema_version mismatch — "
             f"DB has version {row[0]}, this SDK expects version {SCHEMA_VERSION}. "
-            "Automatic migration is not supported (SPEC-016 Non-Goals) — save to a new file "
+            "Automatic migration is not supported — save to a new file "
             "or use a compatible SDK version."
         )
 

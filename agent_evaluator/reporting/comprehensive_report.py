@@ -372,7 +372,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-hei
 .bd-result{font-size:12px;color:#374151;background:#f8fafc;border-radius:6px;padding:8px 14px;border-left:3px solid #94a3b8;margin-top:2px}
 .bd-result strong{font-size:15px;font-weight:800}
 
-/* ===== SPEC-044 — methodology instrument ===== */
+/* ===== methodology instrument ===== */
 /* next-action card */
 .next-action{border-left-width:6px}
 .next-action.ok{border-left-color:#10b981;background:#f0fdf4}
@@ -6899,7 +6899,7 @@ def _next_action(insights: dict[str, Any] | None) -> dict[str, Any] | None:
             "command": ("agent-eval decisions record --outcome accepted --by <you> "
                         "--decision-log .aoo/decisions.jsonl"),
             "note": ("The deploy-decision ledger keeps who accepted / held / "
-                     "overrode, and why (SPEC-043 REQ-3)."),
+                     "overrode, and why."),
             "targets_line": targets_line,
         }
     if dr is False:
@@ -6925,7 +6925,7 @@ def _next_action(insights: dict[str, Any] | None) -> dict[str, Any] | None:
                     f"{gate} --eval-cmd '<your eval command>'"),
         "note": (f"Applies the top proposal for Gate {gate} in a detached git "
                  "worktree, runs your eval there, and scores predicted-vs-actual. "
-                 "Never merges (SPEC-043 REQ-7)."),
+                 "Never merges."),
         "targets_line": targets_line,
     }
 
@@ -7312,7 +7312,7 @@ def _build_report_js(*, has_baseline: bool = False) -> str:
     }, {rootMargin: "-40px 0px 0px 0px"}).observe(exec);
   }
 
-  // ---- longitudinal Canvas chart (SPEC-044 REQ-7) ---------------- //
+  // ---- longitudinal Canvas chart ---------------- //
   function drawHistory(){
     var cv = document.getElementById("ae-history-canvas");
     var dataEl = document.getElementById("ae-history-data");
@@ -7382,7 +7382,7 @@ def _build_report_js(*, has_baseline: bool = False) -> str:
   }
   document.body.appendChild(controls);
 
-  // ---- failure-table text filter (SPEC-044 REQ-6) -------------- //
+  // ---- failure-table text filter -------------- //
   (function failureFilter(){
     var host = document.getElementById("failure-cases");
     var table = host && host.querySelector("table");

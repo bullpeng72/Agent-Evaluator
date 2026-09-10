@@ -123,7 +123,7 @@ def _prior_note(gate_key: str, category: str | None, aoo_dir: str | Path | None)
     if not lines:
         return ""
     return (
-        "\n[track record — this project's .aoo logs, SPEC-042 REQ-3]\n"
+        "\n[track record — this project's .aoo logs]\n"
         + "\n".join(f"  {ln}" for ln in lines)
     )
 

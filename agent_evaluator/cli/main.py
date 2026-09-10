@@ -951,7 +951,7 @@ def main() -> None:
         "--max-cost-per-task", type=float, metavar="USD", dest="max_cost_per_task",
         help=(
             "Maximum average cost per task in USD (total_cost / task count) — "
-            "a cost SLO gate (SPEC-041 P28)."
+            "a cost SLO gate."
         ),
     )
     gate_p.add_argument(
@@ -1042,7 +1042,7 @@ def main() -> None:
         "--digest", action="store_true", dest="digest",
         help=(
             "Also print the audience-targeted briefs (PM one-liner / QA "
-            "paragraph / engineer checklist) after the gate table (SPEC-041 P34)."
+            "paragraph / engineer checklist) after the gate table."
         ),
     )
     gate_p.add_argument(
@@ -1073,7 +1073,7 @@ def main() -> None:
         help=(
             "Plain-text requirement list ('REQ-ID: description' per line, '#' "
             "comments ignored). Feeds insights.spec_coverage — each golden case "
-            "declares which requirements it tests via extra.covers (SPEC-043 REQ-1)."
+            "declares which requirements it tests via extra.covers."
         ),
     )
     gate_p.add_argument(
@@ -1099,7 +1099,7 @@ def main() -> None:
             "Turn a would-be PASS (exit 0) into exit 75 ('hold for human review') "
             "when insights.verdict.decision_ready is false — the binary pass-rate "
             "Wilson CI straddles the TCR target, or the verdict flips within +/-0.05 "
-            "of the gate line (SPEC-042 REQ-2). Opt-in; 75 is a project convention "
+            "of the gate line. Opt-in; 75 is a project convention "
             "(BSD EX_TEMPFAIL), so a pipeline must handle it explicitly. Clear "
             "fails (1/2/3/4) are unaffected."
         ),
@@ -1109,14 +1109,14 @@ def main() -> None:
         help=(
             "Append this gate run (exit code, verdict, gate scores) to a deploy-"
             "decision ledger (append-only JSONL). Record the human's decision "
-            "afterward with `agent-eval decisions record` (SPEC-043 REQ-3). Does "
+            "afterward with `agent-eval decisions record`. Does "
             "not change the exit code."
         ),
     )
     gate_p.add_argument(
         "--html-out", metavar="PATH", dest="html_out",
         help=(
-            "Also write the full HTML report to PATH (SPEC-044 REQ-7). Uses the "
+            "Also write the full HTML report to PATH. Uses the "
             "same baseline as the gate. Does not change the exit code."
         ),
     )
@@ -1124,7 +1124,7 @@ def main() -> None:
         "--html-summary", action="store_true", dest="html_summary",
         help=(
             "Also print a short Markdown block to stdout — verdict + path-to-green "
-            "+ the one next command — for a PR body (SPEC-044 REQ-7)."
+            "+ the one next command — for a PR body."
         ),
     )
 
@@ -1290,7 +1290,7 @@ def main() -> None:
         help="Promote a result file's human-review queue into golden regression cases",
         formatter_class=ColoredHelpFormatter,
         description=(
-            "Turn the tasks in a result file's insights.review_queue (SPEC-041 P15) —\n"
+            "Turn the tasks in a result file's insights.review_queue —\n"
             "the ones whose automated verdict is least trustworthy (judge/heuristic\n"
             "disagreement, suspicious labels, regressed failures, borderline scores) —\n"
             "into golden dataset cases, closing the failure -> regression-test loop.\n"
@@ -1358,7 +1358,7 @@ def main() -> None:
 
     rc_p = ds_sub.add_parser(
         "review-candidates",
-        help="Review the auto-collected production golden-set candidate queue (SPEC-043 REQ-4)",
+        help="Review the auto-collected production golden-set candidate queue",
         formatter_class=ColoredHelpFormatter,
         description=(
             "StreamingEvaluator(golden_candidate_sink=…) appends production failures /\n"

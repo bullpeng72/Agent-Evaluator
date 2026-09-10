@@ -6620,8 +6620,8 @@ def conversation_eval(
         _w_conv.warn(
             f"conversation_eval: {_conv_ignored_harness} is not reflected in the current evaluation "
             "(conversation_eval records to a ConversationSession, not a TaskResult, and the "
-            "path that evaluates these Harness Config parameters is not implemented yet — "
-            "SPEC-039 REQ-5 Non-Goals). They remain in the signature but have no effect.",
+            "path that evaluates these Harness Config parameters is not implemented yet). "
+            "They remain in the signature but have no effect.",
             UserWarning, stacklevel=2,
         )
 
