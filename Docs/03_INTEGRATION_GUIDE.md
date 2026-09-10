@@ -243,6 +243,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `security` | SecurityConfig\|None | `None` | temporarily enable the 5 security trackers (set a whitelist with `SecurityConfig(allowed_tools=[...])`) |
 | `llm_judge` | LLMJudgeConfig\|None | `None` | LLMJudge settings (`LLMJudgeConfig(model=..., criteria=[...])`) |
 | `enable_anomaly_detection` | bool | `False` | temporarily enable AnomalyDetector |
+| `fault_injection` | FaultInjectionConfig\|None | `None` | (v1.0.5) seeded fault-injection harness — sleep/raise *before* a tool call that already passed the guardrail, to exercise Gate C/D degradation paths. `FaultInjectionConfig(tool_failure_rate=, added_latency_ms=, latency_jitter_ms=, fail_tools=[...], seed=)`. Sync/async `@agent_eval` wrappers only; never touches the blocking path. Echoed to `task.extra["fault_injection"]`. |
 
 ### `@batch_eval` — all parameters
 

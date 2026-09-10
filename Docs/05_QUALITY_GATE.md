@@ -146,14 +146,19 @@ agent-eval gate results/run_latest.json \
 
 Passing `--golden-set` without `--fail-on-golden-regression` only reports regressions to stderr and does not affect the exit code (the same convention as other opt-in checks) — the dedicated exit code `3` is returned only when the flag is set. If the golden-set file is missing or fails to parse (a path typo, etc.), it does not pass silently — it fails immediately with exit 1.
 
-#### Case regression · cost SLO · review-queue gate (SPEC-041 P26·P28·P34)
+#### Case regression · cost SLO · review-queue · spec-coverage · decision-log gate (SPEC-041 P26·P28·P34 · SPEC-042 · SPEC-043 · SPEC-044)
 
 | Option | Format | Description |
 |--------|--------|-------------|
 | `--baseline-result` + `--fail-on-case-regression` | file path + flag | **exit 4** if a task that passed in the previous run fails now |
 | `--max-cost-per-task` | `float` ($) | fail if `total_cost / task count` exceeds this (cost SLO) |
 | `--max-review-high` | `int` | **exit 4** if the number of HIGH items in `insights.review_queue` exceeds this |
+| `--fail-on-gate-warn` | flag | treat a Gate status of `warn` (below target but not near zero) as a failure — not a new gate, just promotes `warn` → non-zero exit |
 | `--hold-on-undecided` | flag | **exit 75** ("hold for human review") when the run *would* pass (exit 0) but `insights.verdict.decision_ready` is false — the binary pass-rate Wilson CI straddles the TCR target, or the verdict flips within ±0.05 of the gate line (SPEC-042 REQ-2). Opt-in; 75 (BSD `EX_TEMPFAIL`) is a project convention a pipeline must handle explicitly. Clear fails (1/2/3/4) are never overridden. |
+| `--requirements PATH` + `--require-spec-coverage` | file path + flag | **exit 4** if any `REQ-ID: description` line in `PATH` has no golden case declaring it in `extra.covers` (SPEC-043 REQ-1). Surfaces as `insights.spec_coverage`; `create_taskresult(covers=[req_id])` / `EvalMetadata(extra={"covers": [...]})` populates the case side. Without `--requirements`, the check falls back to a covers-only (informational) view. |
+| `--decision-log PATH` | file path | append `{kind:"gate_run", exit_code, verdict_level, decision_ready, gate_scores, result_file, agent_version}` to the append-only deploy-decision ledger at `PATH` (SPEC-043 REQ-3). **Does not change the exit code.** Pair with `agent-eval decisions record PATH --outcome {accepted\|held\|overridden\|rejected} --by NAME [--rationale TEXT]` and `agent-eval decisions list PATH [--pending]`. Surfaces as `insights.deploy_decision`. |
+| `--html-out PATH` | file path | also write the full 3-tier HTML report (same baseline as the gate) to `PATH` (SPEC-044 REQ-7). Exit code unchanged. |
+| `--html-summary` | flag | also print a short Markdown block to stdout — verdict + path-to-green + the one next command — for a PR body (SPEC-044 REQ-7). Exit code unchanged. |
 | `--notify` | `slack://...` \| `webhook://...` | after the verdict, send the narrative + regressions + cohort winner to the target channel (never raises) |
 | `--digest` | flag | also print the PM / QA / engineer briefs after the table |
 
@@ -164,8 +169,15 @@ agent-eval gate result.json \
   --baseline-result results/prev_run.json --fail-on-case-regression \
   --max-cost-per-task 0.05 \
   --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X \
+  --requirements docs/REQUIREMENTS.txt --require-spec-coverage \
+  --decision-log .aoo/decisions.jsonl \
+  --html-out report.html --html-summary \
   --digest
 ```
+
+##### Exit-code map (all gating methods share it)
+
+`0` pass · `1` absolute threshold missed (or cost SLO) · `2` composite-score regression (`--fail-on-regression`) · `3` golden-set regression · `4` case regression / review-queue over limit / uncovered requirement · `75` hold for human review (`--hold-on-undecided`). Split the CI steps by exit code so the pipeline can route `4` (coverage/quality gap) and `75` (needs a human decision) differently from `1`–`3`.
 
 ---
 

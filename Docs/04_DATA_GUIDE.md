@@ -162,6 +162,36 @@ breaks:
 4. `agent-eval dataset health <golden>.json --against <latest>.json` periodically checks the golden set
    still covers the failure modes production is producing.
 
+#### Production → candidate queue (SPEC-043 REQ-4)
+
+`dataset promote` mines a *batch* run's review queue. For *streaming production* traffic, opt into a
+candidate sink and review it separately:
+
+```python
+from agent_evaluator.streaming import StreamingEvaluator
+ev = StreamingEvaluator(monitor,
+    golden_candidate_sink="results/golden_candidates.jsonl",
+    candidate_confidence_threshold=0.6)   # a task that errors / sits below the bar / trips a periodic
+                                          # AnomalyDetector scan is appended as {question, response, trigger, reviewed:false}
+```
+
+```bash
+agent-eval dataset review-candidates results/golden_candidates.jsonl            # list the pending queue
+agent-eval dataset review-candidates q.jsonl --accept <id> --to data/golden_datasets/prod.json --by alice   # merge one (--reject / --defer also)
+```
+
+Nothing auto-promotes — `--accept` is a human step and the label stays yours. `insights.golden_health`
+then carries `pending_production_candidates: N`.
+
+#### Tying a golden case to a requirement (SPEC-043 REQ-1)
+
+`create_taskresult(..., covers=["REQ-004", "REQ-008"])` (or `EvalMetadata(extra={"covers": [...]})`)
+records which requirements a golden case tests. `agent-eval gate result.json --requirements
+docs/REQUIREMENTS.txt --require-spec-coverage` then fails CI (**exit 4**) if any `REQ-ID: description`
+line has no case declaring it — surfaced as `insights.spec_coverage`. `acceptance_criteria=[...]`
+(SPEC-042 REQ-1) similarly records short pass conditions per case, shown as `insights.acceptance_coverage`
+("N of M met", keyword match) — **display only, not a Gate score**.
+
 > `GoldenSetBuilder` only sees `results/` sessions already instrumented with `PerformanceMonitor`. To mine
 > cases from ordinary conversations that ran without `@agent_eval` (e.g. a Claude Code session) — an
 > optional, core-independent personal tool — see

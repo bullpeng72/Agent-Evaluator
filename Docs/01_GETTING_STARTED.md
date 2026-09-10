@@ -312,6 +312,12 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 ```bash
 # Exit 1 if TCR < 85% or Accuracy < 70%
 agent-eval gate results/eval.json --tcr 85 --accuracy 70
+
+# v1.0.5 additions — see 05_QUALITY_GATE.md for the full exit-code map
+agent-eval gate results/eval.json --tcr 85 --hold-on-undecided        # exit 75: hold a borderline PASS for a human
+agent-eval gate results/eval.json --requirements docs/REQUIREMENTS.txt --require-spec-coverage  # exit 4 if a requirement has no golden case
+agent-eval gate results/eval.json --decision-log .aoo/decisions.jsonl # append the deploy decision to the ledger
+agent-eval gate results/eval.json --html-out report.html --html-summary  # full HTML report + a Markdown block for the PR body
 ```
 
 ```python

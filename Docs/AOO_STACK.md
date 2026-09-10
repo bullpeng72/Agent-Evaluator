@@ -343,7 +343,7 @@ opencode run --dir /path/to/project "your message" \
 The shipped `GUARDRAIL_CONFIG` (`opencode_plugin/agent-evaluator.ts`) — its rationale is a direct
 product of live tuning against OpenCode's coarse tool granularity, but the values changed over SPEC-041.
 The authoritative current values are in that file, `CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
-default), and `CHANGELOG.md`. As of 1.0.4:
+default), and `CHANGELOG.md`. As of 1.0.5:
 
 - **`consecutive_repeat_threshold: 8`** (+ `live_loop_window: 15`, + `circuit_breaker_after: 5`).
   OpenCode routes every shell action through a single `"bash"` tool, so name-only loop detection at a
@@ -364,6 +364,19 @@ default), and `CHANGELOG.md`. As of 1.0.4:
   `blocked_violations.arg_excerpt`, so `search_violations` / `agent-eval opencode violations` can match
   and show the command a later session was blocked on. `{enabled: false}` restores the pre-1.0.4
   behaviour (tool name / gate / reason only).
+- **`circuit_breaker_recover_after`** (since 1.0.5, default = `circuit_breaker_after` × 2 = 10). After
+  the circuit breaker trips into observe-only, this many *consecutive* clean tool calls auto-lift
+  observe-only and restore enforcement — so a transient mis-config that clears itself doesn't leave the
+  rest of the session unguarded. `0` keeps observe-only sticky for the whole session.
+- **`human_only_patterns`** (since 1.0.5, default `[]` — opt-in). A list of substrings (e.g.
+  `"terraform apply"`, `"prod deploy"`); a case-insensitive match on the serialized tool arguments
+  blocks the call with `gate="B"` and reason `human_only:` and turns the agent back — **not a wait for
+  approval, a hard "do this yourself"**. Use it for whole task categories you never delegate.
+
+`agent-eval opencode test-config <cases.yaml>` (since 1.0.5) asserts the resolved
+`agent-evaluator.config.json` against a case file (`cases: [{tool, args?, expect: allow|deny, gate?}]`)
+run through `check_before_tool_call` — exit 1 on any mismatch, exit 0 when all pass. Put it in CI so a
+loosened guardrail config is caught in review.
 
 The blacklist approach is still blacklist matching against known bypasses, not an allowlist — live
 testing found a model try `-rf` → `-f` → no-flag in sequence, so assume other bypasses remain possible.

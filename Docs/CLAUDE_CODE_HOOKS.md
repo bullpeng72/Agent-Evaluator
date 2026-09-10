@@ -23,9 +23,14 @@ shared memory — confirmed against Claude Code's own hook documentation, not as
 
 So a resident-process bridge doesn't fit here. Instead, each hook invocation:
 
-1. Reads the session's confirmed tool-call history back from a small JSON file.
-2. Builds a fresh `LiveGuardrail` and replays that history through `record_tool_call()` (a normal public
+1. Reads the session's confirmed tool-call history back from a small JSON file (append-only JSON Lines).
+2. Builds a fresh `LiveGuardrail` and replays history through `record_tool_call()` (a normal public
    method — `LiveGuardrail` itself has no new code for this) to reconstruct its judgment state.
+   **Since 1.0.5 (SPEC-042 REQ-5), `PreToolUse` replays only the last `live_loop_window + 5` records
+   (`_replay_tail_records`) — O(n²) → O(n) over a long session** — because windowed loop detection is
+   the only history-dependent live check. Full replay still happens when `deadlock` /
+   `privilege_escalation` / `tool_chain_attack` / a cumulative-scope cap is configured, and at
+   `SessionEnd` (the batch report needs every `tool_call`).
 3. Runs the actual check/record for *this* call.
 4. Writes the updated history back to the file.
 
@@ -151,10 +156,25 @@ exceptions vs. OpenCode:
   `blocked_violations.arg_excerpt`, so a later session can see *what* was blocked (see
   [Blocked-attempt lookup](#blocked-attempt-lookup) below). `{"enabled": false}` restores the pre-1.0.4
   behaviour (tool name / gate / reason only).
+- **`circuit_breaker_recover_after`** (since 1.0.5, default `circuit_breaker_after` × 2 = 10) — this
+  many *consecutive* clean tool calls after a trip auto-lift observe-only and restore enforcement, so a
+  transient mis-config that clears itself doesn't leave the rest of the session unguarded. `0` keeps
+  observe-only sticky for the whole session.
+- **`human_only_patterns`** (since 1.0.5, default `[]` — opt-in) — a list of substrings; a
+  case-insensitive match on the serialized tool arguments blocks with `gate="B"` / reason `human_only:`
+  and turns the agent back — **not a wait for approval, a hard "do this yourself"**. For whole task
+  categories you never delegate (e.g. `"terraform apply"`).
 
-`output_dir`, `circuit_breaker_after` and `blocked_attempt_capture` aren't `LiveGuardrail` constructor
-arguments — `output_dir` / `circuit_breaker_after` are read by the hook bridge itself and popped before
-building the guardrail; `blocked_attempt_capture` is passed through to `record_blocked_attempt()`.
+`output_dir`, `circuit_breaker_after`, `circuit_breaker_recover_after` and `blocked_attempt_capture`
+aren't `LiveGuardrail` constructor arguments — the first three are read by the hook bridge itself and
+popped before building the guardrail; `blocked_attempt_capture` is passed through to
+`record_blocked_attempt()`. `human_only_patterns` **is** a `build_guardrail` / `LiveGuardrail` option.
+
+`agent-eval claude test-config <cases.yaml>` (since 1.0.5) asserts the resolved `guardrail_config`
+against a YAML/JSON case file — `cases: [{tool, args?, expect: allow|deny, gate?, name?}]` run through
+`check_before_tool_call`; exit 1 on any mismatch or a malformed file, exit 0 when all pass. Any SKIPPED
+config block is surfaced as a partial-config warning. Put it in CI to catch a loosened guardrail config
+in review.
 
 Edit the installed copy at `.claude/.agent-evaluator/guardrail_config.json`, not the package default —
 `agent-eval claude install --force` resets it and discards your edits (`agent-eval claude upgrade` only

@@ -422,6 +422,12 @@ ls -la results/
 
 # 5. Quality-gate smoke test
 agent-eval gate results/sample.json --tcr 0 --accuracy 0   # always-passes test
+
+# 6. (v1.0.5) Record the deploy decision to the ledger and hold borderline PASSes
+agent-eval gate results/run.json --tcr 85 --accuracy 70 \
+    --hold-on-undecided \                     # exit 75 if a would-be PASS is statistically borderline
+    --decision-log .aoo/decisions.jsonl       # append {exit_code, verdict, gate_scores}; exit code unchanged
+agent-eval decisions record .aoo/decisions.jsonl --outcome accepted --by release-lead --rationale "..."
 ```
 
 ---

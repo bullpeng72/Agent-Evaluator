@@ -243,10 +243,13 @@ result = create_taskresult(
     context=None,
     framework="openai",
     model_name="gpt-5-nano",
+    # optional — SPEC-042/043
+    acceptance_criteria=["cites the source passage", "answer in ≤2 sentences"],  # SPEC-042 REQ-1 — rides in extra["acceptance_criteria"]; surfaces as insights.acceptance_coverage ("N of M met" per task, keyword match). NOT a Gate score.
+    covers=["REQ-004", "REQ-008"],                                              # SPEC-043 REQ-1 — which requirements this golden case tests; rides in extra["covers"]; read by insights.spec_coverage / gate --require-spec-coverage. NOT a Gate score.
 )
 ```
 
-`create_taskresult()` computes `accuracy_score` and `completion_score` automatically. The `success`, `attempts`, `errors`, and `timestamp` fields are also given automatic defaults.
+`create_taskresult()` computes `accuracy_score` and `completion_score` automatically. The `success`, `attempts`, `errors`, and `timestamp` fields are also given automatic defaults. `acceptance_criteria` / `covers` are also settable via `EvalMetadata(extra={"acceptance_criteria": [...], "covers": [...]})`.
 
 #### Serialization / deserialization
 
@@ -1479,6 +1482,43 @@ modes = mast_failure_modes_for_gate_f_metric("avg_conflict_resolution")
 
 CLI: `agent-eval diagnose`; dashboard: the 🔧 Improve tab exposes the same result.
 
+### Verdict stability — `run_repeated` / `summarize_repeated` (SPEC-042 REQ-4)
+
+Run a full eval K times and fold the runs into a verdict-stability summary. Release-candidate / nightly only (K× cost); idempotent agents only. No new scoring — "pass" = all measured Gates ≥ 0.7.
+
+```python
+from agent_evaluator.repeat import run_repeated, summarize_repeated
+
+runs = run_repeated(eval_fn, k=5)          # k <= 1 → does not call eval_fn, returns None
+summary = summarize_repeated(runs)
+# {k, flip_rate, majority_verdict, tcr_stddev, unstable_tasks: [task_id, ...], ...}
+
+cur["extra_metrics"]["repeat_runs"] = summary   # then save_to_file() → insights.nondeterminism_repeat
+```
+
+`agent-eval gate --hold-on-undecided` (§15) is the CI-side companion — it maps a borderline `verdict.decision_ready == false` to exit 75.
+
+### Fault injection — `FaultInjectionConfig` (SPEC-043 REQ-5)
+
+A thin, seeded fault-injection harness. Passed to `tool_guard(fault_injection=)` or `@agent_eval(fault_injection=)` — a seeded-RNG sleep/raise **before** a tool call that already passed `check_before_tool_call()`. **Never touches the blocking path.** Injected failures flow to Gate C/D scoring unchanged; echoed to `task.extra.fault_injection` → `lineage.fault_injection`.
+
+```python
+from agent_evaluator.gates.fault_injection import FaultInjectionConfig
+
+@agent_eval(monitor, task_type="qa",
+    fault_injection=FaultInjectionConfig(
+        tool_failure_rate=0.3,      # fraction of eligible calls that raise FaultInjectionError
+        added_latency_ms=800,       # fixed sleep before the call
+        latency_jitter_ms=200,      # ± jitter
+        fail_tools=["kb_search"],   # restrict injected failures to these tool names (None = any)
+        seed=1,                     # deterministic sequence per instance
+    ),
+)
+def my_agent(question, ground_truth=""): ...
+```
+
+Also `fault_injection_session()` / `enter_fault_injection` / `exit_fault_injection` (contextvar bridge) for non-decorator paths.
+
 ---
 
 ## 15. CLI reference
@@ -1509,8 +1549,20 @@ agent-eval gate result.json --baseline-result prev_run.json --fail-on-case-regre
 agent-eval gate result.json --max-cost-per-task 0.05     # cost SLO gate: fail if total_cost / task count exceeds this (P28)
 agent-eval gate result.json --max-review-high 0 --notify slack://hooks.slack.com/services/T/B/X   # exit 4 on HIGH review items + post the narrative / regressions / cohort winner
 agent-eval gate result.json --digest                     # also print the PM / QA / engineer briefs after the table (P34)
+agent-eval gate result.json --fail-on-gate-warn           # treat a Gate status 'warn' as a failure (promotes warn → non-zero exit)
+agent-eval gate result.json --requirements docs/REQUIREMENTS.txt --require-spec-coverage   # exit 4 if a declared REQ-ID has no golden case in extra.covers (SPEC-043 REQ-1; insights.spec_coverage)
+agent-eval gate result.json --hold-on-undecided           # exit 75 ("hold for human") if a would-be PASS has insights.verdict.decision_ready == false (SPEC-042 REQ-2)
+agent-eval gate result.json --decision-log .aoo/decisions.jsonl   # append {exit_code, verdict, gate_scores} to the deploy-decision ledger (SPEC-043 REQ-3); exit code unchanged
+agent-eval gate result.json --html-out report.html --html-summary   # also write the full 3-tier HTML report + print a short Markdown block for a PR body (SPEC-044 REQ-7); exit code unchanged
 # note: if .aoo/targets.json exists (from `agent-eval target set`), `gate` auto-loads it as the
 # thresholds unless --gate-thresholds / --tcr / --accuracy are given explicitly (P43) — no flag
+
+# Deploy-decision ledger — record who accepted / held / overrode / rejected a gate run, and why (SPEC-043 REQ-3)
+agent-eval decisions list .aoo/decisions.jsonl [--pending] [--json]   # review the ledger; --pending = gate runs with no recorded human outcome
+agent-eval decisions record .aoo/decisions.jsonl --outcome {accepted|held|overridden|rejected} --by NAME [--rationale TEXT] [--gate-run-id ID]   # append the human decision (links to the latest pending run by default)
+
+# Export A/B preference rows from result JSONs (export only — no training) (SPEC-043 REQ-6b)
+agent-eval feedback export-preferences results/ --out prefs.jsonl
 
 # Gate-regression root-cause diagnosis (RCA — detect → attribute → cross-reference, the HOTL principle)
 agent-eval diagnose result.json
@@ -1535,6 +1587,7 @@ agent-eval improve plan v3.json --baseline v2.json      # print per-gate proposa
 agent-eval improve start v3.json --yes                  # register each proposal as an experiment + write .aoo/improve/*.md stubs
 agent-eval improve verify v4.json --baseline v3.json --persist   # score predicted vs actual + resolve experiments
 agent-eval improve patch v3.json --repo .               # emit a unified diff per proposal (prompt file / @agent_eval decorator) — never applied (P61)
+agent-eval improve apply-verify v3.json --proposal C --eval-cmd "python eval.py" --persist   # apply a proposal's diff in a detached `git worktree` at HEAD, run --eval-cmd there, score predicted vs actual (SPEC-043 REQ-7). NEVER merges/commits; the worktree is left for you to inspect. --proposal is <gate> or <gate>:<kind>
 
 # Statistical A/B comparison (2 files → Welch's t-test, 3+ → N-way + FDR correction)
 # If you first need to find the two runs to compare, see workflow C (optional) in CTX_SESSION_SEARCH.md
@@ -1547,6 +1600,8 @@ agent-eval dataset build --source results/ --max-cases 30
 agent-eval dataset build --source results/ --strategy high_value --output data/golden.json
 agent-eval dataset promote result.json --min-priority high     # HITL review queue → golden regression cases (P15)
 agent-eval dataset health golden.json --against v3.json        # golden-set coverage vs current failure modes + stale / duplicate cases (P58)
+agent-eval dataset review-candidates results/golden_candidates.jsonl   # list the auto-collected production candidate queue (SPEC-043 REQ-4)
+agent-eval dataset review-candidates q.jsonl --accept <id> --to data/golden_datasets/prod.json --by alice   # merge one candidate into a golden set (--reject / --defer also); the queue is fed by StreamingEvaluator(golden_candidate_sink=..., candidate_confidence_threshold=...)
 
 # Trend analysis of sequential evaluation results (TCR / accuracy regression detection)
 agent-eval trend results/ --fail-on-regression
@@ -1559,10 +1614,12 @@ agent-eval opencode install --with-violation-search   # + register the search_vi
 agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
 agent-eval opencode upgrade            # refresh the plugin .ts after a package update (keeps agent-evaluator.config.json)
 agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip + blocked-attempt capture, --json/--no-live/--strict)
+agent-eval opencode test-config cases.yaml   # assert agent-evaluator.config.json against a case file — cases: [{tool, args?, expect: allow|deny, gate?, name?}]; exit 1 on any mismatch (SPEC-043 REQ-6a)
 agent-eval opencode uninstall         # remove the plugin + opencode.json mcp entries (run before pip uninstall, --purge/--dry-run/--yes)
 agent-eval claude install             # install the LiveGuardrail Claude Code CLI hooks (--global/--force, --with-violation-search/--with-recommend-fix/--with-ask-insights)
 agent-eval claude upgrade             # refresh hook matchers/interpreters + deep-merge only NEW default keys into guardrail_config.json (keeps your edits)
 agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + blocked-attempt capture + MCP handshake
+agent-eval claude test-config cases.yaml   # assert the resolved guardrail_config against a case file (same shape as opencode test-config); exit 1 on any mismatch (SPEC-043 REQ-6a)
 agent-eval claude uninstall          # remove our hooks from settings.json + deregister MCP + delete session state (run before pip uninstall)
 
 # LiveGuardrail — blocked-attempt lookup (identical under `claude` and `opencode`; needs a batch-report DB)

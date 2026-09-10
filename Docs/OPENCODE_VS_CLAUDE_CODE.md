@@ -35,7 +35,8 @@ Every other difference stems from "which process model the same engine was wired
 | GUARDRAIL_CONFIG location | **`agent-evaluator.config.json`** next to the plugin (SPEC-041 — shallow-merged over the `.ts` inline defaults; editing the `.ts` directly is lost on reinstall) | a separate **JSON file** (`guardrail_config.json`) — the hook script itself does not need copying |
 | `--global` target | `~/.config/opencode/plugin/` | `~/.claude/settings.json` |
 | MCP-registration command | `opencode mcp add <name> -- <cmd>` (no scope concept; no `mcp remove`, so `uninstall` edits `opencode.json` directly) | `claude mcp add <name> --scope {local\|user} -- <cmd>` (more fine-grained) |
-| Lifecycle subcommands | `install` · `upgrade` · `doctor` · `uninstall` · `violations` · `blocked-detail` | `install` · `upgrade` · `doctor` · `uninstall` · `violations` · `blocked-detail` |
+| Lifecycle subcommands | `install` · `upgrade` · `doctor` · `test-config` · `uninstall` · `violations` · `blocked-detail` | `install` · `upgrade` · `doctor` · `test-config` · `uninstall` · `violations` · `blocked-detail` |
+| Config red-green test (1.0.5) | `agent-eval opencode test-config <cases.yaml>` — assert `agent-evaluator.config.json` against `cases: [{tool, args?, expect: allow\|deny, gate?}]` via `check_before_tool_call`; exit 1 on a mismatch | `agent-eval claude test-config <cases.yaml>` — same, against the resolved `guardrail_config` |
 | Blocked-command lookup (1.0.4) | `agent-eval opencode violations` / `blocked-detail` + the `search_violations` / `show_violation` MCP tools — **queryable mid-session** (resident report process upserts on every `session.idle`) | same commands / tools — **queryable only from a *later* session** (`SessionEnd` folds `blocked.json` into the batch DB) |
 
 ## Mapping of the 3 hooks
