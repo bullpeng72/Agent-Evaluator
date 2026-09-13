@@ -27,7 +27,7 @@ class LoopDetectionConfig:
     # N회 연속 동일 도구 호출 시 루프 감지. 도구 "이름"만 비교하고 파라미터는 안 본다 —
     # 실 OpenCode+Ollama 라이브 세션에서 3(구 기본값)은 셸 동작 전체가 단일 "bash" 도구로
     # 기록되는 환경에서 정상적인 3연속 서로 다른 명령("ls" → "cat" → "ls")까지 루프로
-    # 오탐시켰다(Docs/AOO_STACK.md 참고). 이런 도구 단위가 굵은(coarse-grained) 에이전트가
+    # 오탐시켰다(Docs/08_AOO_STACK.md 참고). 이런 도구 단위가 굵은(coarse-grained) 에이전트가
     # 드물지 않아 6으로 상향 — 다만 도구가 세분화된 에이전트라면 이 기본값이 오히려 둔감할
     # 수 있으니, 실제 진짜 무한루프를 놓친다면 더 낮춰서 사용할 것.
     consecutive_repeat_threshold: int = 6

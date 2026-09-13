@@ -4,6 +4,7 @@ tests/test_live_guardrail.py
 SPEC-019 Rollout 1-3단계(Gate B 4종 + Gate E 3종) 검증:
 agent_evaluator.gates.live_guardrail.LiveGuardrail.
 """
+import json
 from typing import Any
 
 import pytest
@@ -1189,6 +1190,51 @@ class TestToolGuardDecorator:
         ba = g.snapshot()["blocked_attempts"]
         assert len(ba) == 1 and ba[0]["tool_name"] == "bash" and ba[0]["gate"] == "B"
 
+    def test_audit_blocked_captures_arg_excerpt(self):
+        """SPEC-045 REQ-2: tool_guard's own record_blocked_attempt() call now passes
+        tool_input, so the audit entry carries an arg_excerpt — matching what the
+        Claude Code / OpenCode host bridges already capture. Previously this recorded
+        only tool_name/gate/reason with no excerpt at all."""
+        g = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+-rf"], scope_tool_names=["bash"],
+                fail_on_dangerous=True,
+            ),
+        )
+
+        @tool_guard("bash", audit_blocked=True)
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1"):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /tmp/x")
+        ba = g.snapshot()["blocked_attempts"]
+        assert "rm -rf /tmp/x" in ba[0].get("arg_excerpt", "")
+
+    def test_audit_blocked_defaults_true(self):
+        """SPEC-045 REQ-1: audit_blocked을 아예 안 넘겨도(기본값) 감사 이력에 남는다.
+
+        v1.1.0 이전엔 기본값이 False라 host 없는 일반 에이전트에서 차단이 조용히
+        사라졌다 — 이 테스트가 그 회귀를 막는다.
+        """
+        g = LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+-rf"], scope_tool_names=["bash"],
+                fail_on_dangerous=True,
+            ),
+        )
+
+        @tool_guard("bash")  # audit_blocked 생략 — 기본값(True)에 의존
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1"):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /")
+        ba = g.snapshot()["blocked_attempts"]
+        assert len(ba) == 1 and ba[0]["tool_name"] == "bash" and ba[0]["gate"] == "B"
+
     @pytest.mark.asyncio
     async def test_async_tool_guard_full_lifecycle(self):
         """SPEC-041: tool_guard의 async 경로 — check → 실행 → record, 차단, 예외 시
@@ -1318,3 +1364,235 @@ class TestConstructorParamHardening:
         assert g.check_before_tool_call("t1", tn, {"command": "ls"}).block is False
         g.record_tool_call("t1", tn, {"command": "ls"})
         assert g.snapshot() is not None
+
+
+class TestOnBlockCallback:
+    """SPEC-045 REQ-3 (방어선 3): on_block — immediate, out-of-band, independent of
+    whatever the calling agent code does with GuardrailBlockedError. Async (background
+    thread), short timeout, exceptions always swallowed."""
+
+    def _v(self, gate="B", reason="dangerous tool parameters"):
+        from agent_evaluator.gates.live_guardrail import LiveVerdict
+
+        return LiveVerdict(block=True, gate=gate, reason=reason)
+
+    def test_on_block_receives_the_audit_payload(self):
+        import threading as _threading
+
+        received: list[dict] = []
+        done = _threading.Event()
+
+        def _cb(payload):
+            received.append(payload)
+            done.set()
+
+        g = LiveGuardrail(on_block=_cb)
+        g.record_blocked_attempt("t1", "Bash", self._v(), tool_input={"command": "x"})
+        assert done.wait(timeout=2)
+        assert received[0]["tool_name"] == "Bash"
+        assert received[0]["gate"] == "B"
+        assert received[0]["task_id"] == "t1"
+        assert "arg_excerpt" in received[0]
+
+    def test_on_block_runs_off_the_calling_thread_never_blocking_it(self):
+        """A slow callback must not add latency to record_blocked_attempt()'s caller."""
+        import time as _time
+
+        def _slow_cb(payload):
+            _time.sleep(1.0)
+
+        g = LiveGuardrail(on_block=_slow_cb)
+        t0 = _time.monotonic()
+        g.record_blocked_attempt("t1", "Bash", self._v())
+        elapsed = _time.monotonic() - t0
+        assert elapsed < 0.5  # nowhere near the callback's 1s sleep
+
+    def test_on_block_exception_is_swallowed_fail_open(self):
+        def _broken_cb(payload):
+            raise RuntimeError("boom")
+
+        g = LiveGuardrail(on_block=_broken_cb)
+        # must not raise, and must not crash the caller
+        entry = g.record_blocked_attempt("t1", "Bash", self._v())
+        assert entry["tool_name"] == "Bash"
+
+    def test_no_on_block_is_backcompat(self):
+        """Default (None) — zero behaviour change; nothing extra happens."""
+        g = LiveGuardrail()
+        entry = g.record_blocked_attempt("t1", "Bash", self._v())
+        assert entry["tool_name"] == "Bash"
+
+    def test_non_callable_on_block_is_ignored_not_an_error(self):
+        g = LiveGuardrail(on_block="not-a-function")  # type: ignore[arg-type]
+        entry = g.record_blocked_attempt("t1", "Bash", self._v())
+        assert entry["tool_name"] == "Bash"
+
+    def test_webhook_on_block_posts_json(self, monkeypatch):
+        from agent_evaluator.gates.live_guardrail import webhook_on_block
+
+        captured = {}
+
+        class _FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def _fake_urlopen(req, timeout=None):
+            captured["url"] = req.full_url
+            captured["timeout"] = timeout
+            captured["data"] = json.loads(req.data.decode("utf-8"))
+            captured["headers"] = dict(req.header_items())
+            return _FakeResp()
+
+        import urllib.request
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        cb = webhook_on_block("https://example.invalid/hook", timeout=1.5)
+        cb({"tool_name": "Bash", "gate": "B", "reason": "r", "task_id": "t1"})
+
+        assert captured["url"] == "https://example.invalid/hook"
+        assert captured["timeout"] == 1.5
+        assert captured["data"]["tool_name"] == "Bash"
+
+    def test_webhook_on_block_used_end_to_end_via_record_blocked_attempt(self, monkeypatch):
+        """webhook_on_block()의 반환값을 그대로 on_block에 넘겨도 정상 동작한다."""
+        import threading as _threading
+
+        from agent_evaluator.gates.live_guardrail import webhook_on_block
+
+        done = _threading.Event()
+        captured = {}
+
+        class _FakeResp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def _fake_urlopen(req, timeout=None):
+            captured["data"] = json.loads(req.data.decode("utf-8"))
+            done.set()
+            return _FakeResp()
+
+        import urllib.request
+
+        monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+        g = LiveGuardrail(on_block=webhook_on_block("https://example.invalid/hook"))
+        g.record_blocked_attempt("t1", "Bash", self._v())
+        assert done.wait(timeout=2)
+        assert captured["data"]["tool_name"] == "Bash"
+
+
+class TestLiveGuardrailSessionAuditFlush:
+    """SPEC-045 REQ-2: live_guardrail_session(audit_log_path=...) — a durability
+    safety net for host-less generic agents whose own exception handling around
+    GuardrailBlockedError might be silent."""
+
+    def _guardrail(self):
+        return LiveGuardrail(
+            tool_parameter_safety=ToolParameterSafetyConfig(
+                dangerous_patterns=[r"\brm\s+-rf"], scope_tool_names=["bash"],
+                fail_on_dangerous=True,
+            ),
+        )
+
+    def test_no_path_no_flush_backcompat(self, tmp_path):
+        """audit_log_path를 안 주면(기본) 기존 동작과 100% 동일 — 아무 파일도 안 남는다."""
+        g = self._guardrail()
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1"):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /")
+        assert list(tmp_path.iterdir()) == []
+
+    def test_blocked_attempt_flushed_on_normal_exit(self, tmp_path):
+        g = self._guardrail()
+        log = tmp_path / "sessions" / "s1.blocked.json"
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1", audit_log_path=log):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /")
+
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        rec = json.loads(lines[0])
+        assert rec["tool_name"] == "bash" and rec["gate"] == "B" and rec["enforced"] is True
+
+    def test_flushed_even_when_caller_swallows_the_exception(self, tmp_path):
+        """호출자의 except가 GuardrailBlockedError를 조용히 삼켜도(로그도 안 남겨도)
+        finally에서 flush는 여전히 일어난다 — 이게 이 기능의 핵심 목적이다."""
+        g = self._guardrail()
+        log = tmp_path / "s1.blocked.json"
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1", audit_log_path=log):
+            try:
+                bash("rm -rf /")
+            except Exception:
+                pass  # 완전한 침묵 — 로그도, 재발생도 없음
+
+        assert log.exists()
+        assert "rm -rf" in log.read_text(encoding="utf-8")
+
+    def test_no_blocked_attempts_writes_nothing(self, tmp_path):
+        g = self._guardrail()
+        log = tmp_path / "s1.blocked.json"
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1", audit_log_path=log):
+            bash("ls -la")  # 정상 호출, 차단 없음
+
+        assert not log.exists()
+
+    def test_reentry_on_shared_guardrail_only_flushes_new_entries(self, tmp_path):
+        """같은 guardrail 인스턴스를 두 번째 with 블록에서 재사용해도, 첫 블록에서
+        이미 flush한 항목이 두 번째 flush에서 중복 기록되지 않는다."""
+        g = self._guardrail()
+        log = tmp_path / "shared.blocked.json"
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        with live_guardrail_session(g, task_id="s1", audit_log_path=log):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /a")
+        with live_guardrail_session(g, task_id="s2", audit_log_path=log):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /b")
+
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+
+    def test_write_failure_does_not_raise(self, monkeypatch):
+        """디스크 쓰기가 실패해도(fail-open) with 블록 종료 자체는 절대 깨지지 않는다."""
+        g = self._guardrail()
+
+        @tool_guard("bash")
+        def bash(command: str) -> str:
+            return "ok"
+
+        # 디렉터리 자체를 파일 경로로 줘서 mkdir/open이 실패하게 만든다.
+        with live_guardrail_session(g, task_id="s1", audit_log_path="/dev/null/impossible"):
+            with pytest.raises(GuardrailBlockedError):
+                bash("rm -rf /")
+        # 여기까지 예외 없이 도달하면 성공 — flush 실패가 조용히 무시됐다는 뜻.

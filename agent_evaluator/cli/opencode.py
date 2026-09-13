@@ -579,6 +579,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         DoctorReport,
         probe_blocked_capture,
         probe_import,
+        probe_violation_audit_db,
         validate_guardrail_config,
     )
 
@@ -670,6 +671,13 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     _bc_status, _bc_detail = probe_blocked_capture(user_cfg if isinstance(user_cfg, dict) else {})
     {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_bc_status](
         "live", "blocked-attempt capture", _bc_detail
+    )
+
+    # SPEC-045 REQ-9: surface whether there is anything to browse at all — closes the
+    # "user doesn't even think to check" gap, not just "can't browse without a keyword".
+    _audit_status, _audit_detail = probe_violation_audit_db("opencode")
+    {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_audit_status](
+        "static", "violation/blocked-attempt audit", _audit_detail
     )
 
     js_runtime = shutil.which("bun") or shutil.which("node")

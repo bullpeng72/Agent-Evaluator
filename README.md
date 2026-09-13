@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.6-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -84,7 +84,7 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   contract, stats, versioning, governance). Pass a baseline and it adds the regressed/new/fixed
   failure-set diff plus prompt/config **change attribution**. `agent-eval gate --html-summary` prints a
   short Markdown block (verdict + path + the one next command) for a PR body.
-  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md#4-static-html-report--single-result)
+  → [`Docs/13_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/13_OUTPUTS.md#4-static-html-report--single-result)
 - **CI/CD quality gating** — `agent-eval gate result.json --tcr 85 --accuracy 70`, plus baseline
   regression detection, per-version baselines, golden-set regression gating, `--require-spec-coverage`
   (exit 4 if a declared requirement has no golden case), and `--hold-on-undecided` (exit 75 — "hold for
@@ -105,7 +105,7 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   and `agent-eval experiment` / `agent-eval improve` register a hypothesis → apply → re-verify loop
   (`improve apply-verify` runs the apply in a throw-away `git worktree` and never merges).
   Schema-validated, never raises.
-  → [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md)
+  → [`Docs/13_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/13_OUTPUTS.md)
 - **Development-support layer** (all opt-in, no default behavior change) —
   `create_taskresult(covers=[req_id])` ties golden cases to requirements; a **deploy-decision ledger**
   (`gate --decision-log` + `agent-eval decisions record`) records who accepted / held / overrode a gate
@@ -114,17 +114,25 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   into `insights.nondeterminism_repeat`; a `StreamingEvaluator(golden_candidate_sink=)` queue routes
   production errors / low-confidence answers to `agent-eval dataset review-candidates` for human
   promotion. → [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/05_QUALITY_GATE.md)
-- **Real-time guardrail — two reference stacks** — the same `LiveGuardrail` engine blocks a single
-  tool call *before* it runs (Gate B/E), wired into either **AOO** (Agent-Evaluator + Ollama +
-  [OpenCode](https://opencode.ai) — fully local, no cloud model) via `agent-eval opencode install`, or
-  **AC** (Agent-Evaluator + [Claude Code](https://claude.com/claude-code) — native CLI hooks) via
-  `agent-eval claude install`. Identical verdict logic; the difference is the process model (a resident
-  subprocess vs. per-call replay). A blocked call keeps a redacted excerpt of its command, so
-  `agent-eval {claude,opencode} violations` / `blocked-detail <task_id>` (and the `show_violation` MCP
-  tool) surface *what* was blocked in a later session. →
-  [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) ·
-  [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) ·
-  [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md)
+- **Real-time guardrail — two reference stacks, plus a host-less mode** — the same `LiveGuardrail`
+  engine blocks a single tool call *before* it runs (Gate B/E), wired into either **AOO**
+  (Agent-Evaluator + Ollama + [OpenCode](https://opencode.ai) — fully local, no cloud model) via
+  `agent-eval opencode install`, or **AC** (Agent-Evaluator + [Claude Code](https://claude.com/claude-code)
+  — native CLI hooks) via `agent-eval claude install`; identical verdict logic, the difference is the
+  process model (a resident subprocess vs. per-call replay). No host at all? `tool_guard()` +
+  `live_guardrail_session()` wrap any Python agent loop directly, and (1.1.0) `audit_blocked=True` is
+  now the default, `audit_log_path=` flushes a durable record on exit even if the caller's own error
+  handling is silent, and `on_block=webhook_on_block(url)` fires an out-of-band alert the instant a call
+  is blocked. A blocked call keeps a redacted excerpt of its command, so `agent-eval {claude,opencode}
+  violations` (with no query — 1.1.0 — browses recent history; a keyword narrows it) /
+  `blocked-detail <task_id>` (and the `list_violations` / `show_violation` MCP tools) surface *what* was
+  blocked; `doctor` now also reports the audit DB's row count proactively, and the HTML report shows
+  blocked attempts directly (`insights.blocked_attempts_audit`) even though they never move Gate B/E
+  scores. →
+  [`Docs/06_LIVEGUARDRAIL.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/06_LIVEGUARDRAIL.md) ·
+  [`Docs/07_CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/07_CLAUDE_CODE_HOOKS.md) ·
+  [`Docs/08_AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/08_AOO_STACK.md) ·
+  [`Docs/09_OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OPENCODE_VS_CLAUDE_CODE.md)
 - **Dashboard** — `agent-eval dashboard` (FastAPI): Harness Gate breakdown, File Compare with pairwise
   LLM Judge, anomaly/cost tracking, and a 🔧 Improve tab surfacing the RCA engine.
 
@@ -179,8 +187,9 @@ that is not the focus.
 
 ### Direction
 
-The trajectory across the 1.0.x line has moved from **"score the agent"** toward **"drive the whole
-build-and-improve loop, with the human's judgment on record"**:
+The trajectory from 1.0.0 has moved from **"score the agent"** toward **"drive the whole
+build-and-improve loop, with the human's judgment on record"** — and, most recently, toward making the
+real-time guardrail trustworthy even with no host process watching it:
 
 - **1.0.0** — the machine-readable `insights` layer + the `target` / `benchmark` / `experiment` /
   `improve` CLI loop.
@@ -189,6 +198,12 @@ build-and-improve loop, with the human's judgment on record"**:
   deploy-decision ledger, thin fault injection, a production → golden candidate queue,
   `improve apply-verify`), and the **HTML report re-cast as a methodology instrument** — three tiers
   (judgment / iteration / evidence), a lifecycle-phase read, and `--html-summary` for a PR body.
+- **1.1.0** — *`LiveGuardrail` discovery/durability hardening*: a blocked call is durable and
+  discoverable by default now, even for a host-less custom agent loop with no Claude Code/OpenCode
+  bridge and no visible message (`tool_guard(audit_blocked=True)` default, `audit_log_path=` crash-safe
+  flush, `on_block=webhook_on_block(...)` out-of-band alert) — plus keyword-free `violations`/
+  `list_violations` browsing and an HTML report section for everyone, since a blocked attempt never
+  moves Gate B/E scores and a clean scorecard alone would hide it.
 
 **Explicit non-goals** — the boundary is a deliberate design choice, not a missing feature: it does not
 author or parse specs (EARS), does not provide a sandbox (E2B / Firecracker — that is the team's
@@ -228,13 +243,13 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval trend <dir>` | Regression detection across sequential results |
 | `agent-eval dataset build\|promote\|health\|review-candidates` | Golden-dataset extraction / HITL promotion / coverage health / production-candidate review queue |
 | `agent-eval feedback export-preferences` | Export A/B preference rows (pairwise-judge / annotation / contrast-pair) to JSONL — export only |
-| `agent-eval target set\|show` | Pin project SLOs (`.aoo/targets.json`) — used by `gate` and the report's "below target" lines |
-| `agent-eval benchmark set\|show` | Pin an external reference distribution (`.aoo/reference.json`) for percentile + gap-to-frontier |
+| `agent-eval target set\|show\|clear` | Pin project SLOs (`.aoo/targets.json`) — used by `gate` and the report's "below target" lines |
+| `agent-eval benchmark set\|show\|clear` | Pin an external reference distribution (`.aoo/reference.json`) for percentile + gap-to-frontier |
 | `agent-eval experiment register\|list\|score` | Register a Gate/field hypothesis, score predicted vs actual |
 | `agent-eval improve plan\|start\|verify\|patch\|apply-verify` | Closed loop: proposal → experiment → re-verify → outcome log (`apply-verify` applies in an isolated `git worktree`, never merges) |
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
 | `agent-eval opencode` / `claude` `install\|upgrade\|doctor\|test-config\|uninstall` | Install & manage the LiveGuardrail OpenCode plugin / Claude Code CLI hooks (`test-config` asserts the resolved guardrail config against a case file) |
-| `agent-eval opencode` / `claude` `violations\|blocked-detail` | Search past Gate B/E blocks; show the exact blocked command for a session |
+| `agent-eval opencode` / `claude` `violations\|blocked-detail` | Search (or, with no query, browse most-recent-first) past Gate B/E blocks; show the exact blocked command for a session |
 | `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
 
 ---
@@ -267,18 +282,19 @@ agent_evaluator/
                       #   feedback, experiment, target, benchmark, improve, claims, monitor, opencode, claude)
 
 Evaluator_Examples/   # 32 example files (ch01–ch32)
-tests/                # 5,200+ test functions
+tests/                # 5,150+ test functions
 ```
 
 ---
 
 ## Changelog
 
+- **v1.1.0** (2026-09-11) — LiveGuardrail discovery/durability hardening for host-less generic agents (SPEC-045), plus keyword-free browsing and HTML report surfacing for everyone. `tool_guard(audit_blocked=True)` is now the default (was `False`) — a blocked call now always leaves an audit trail even with no host and no visible message — and it now also captures an `arg_excerpt`, matching the Claude Code/OpenCode host bridges. New `LiveGuardrail(on_block=...)` / `webhook_on_block(url)` — fires immediately on a block, off-thread, short timeout, exceptions swallowed (fail-open) — an out-of-band safety net independent of the calling agent's own error handling. `live_guardrail_session(audit_log_path=...)` flushes any blocked attempts to an append-only JSONL file on exit (success or exception). New `list_violations()` / MCP `list_violations` tool / `agent-eval {claude,opencode} violations` with no query — browse recent blocked/observed history without knowing a keyword first (`--since`/`--gate` to narrow); `{claude,opencode} doctor` now proactively reports the audit DB's row count instead of waiting to be asked. `blocked_attempt_capture.max_chars` 240→500, new opt-in `report_max_chars` (longer, HTML-report-only). New `insights.blocked_attempts_audit` — an above-the-fold report banner + a Governance evidence-group section (auto-opened) so a session with clean Gate B/E scores still visibly shows a blocked attempt (blocked attempts are deliberately excluded from Gate scoring). All additive/opt-in beyond the `tool_guard`/`max_chars` default changes; no `schema_version` bump.
 - **v1.0.6** (2026-09-10) — Maintenance. Internal module split: `decorators.py` (8.7k → 6.0k lines) — the 24 framework adapters + dispatch tables → `agent_evaluator/framework_adapters.py`, the shared eval types (`EvalMetadata`, `TurnMetadata`) + raw-response readers → `agent_evaluator/_eval_shared.py`, both fully re-exported from `decorators.py` (every `from agent_evaluator.decorators import …` path unchanged). `agent-eval --help` command summary now lists all 18 subcommands (`decisions` / `feedback` were missing) + shows `dataset review-candidates` / `improve apply-verify` / `{claude,opencode} test-config`. No behaviour, API, or `schema_version` change; result JSON byte-identical.
 - **v1.0.5** (2026-09-09) — Harness Methodology alignment + development-support framework + HTML report as instrument. All opt-in (defaults unchanged, no `schema_version` bump). `gate --hold-on-undecided` (exit 75, hold for human) · `gate --requirements … --require-spec-coverage` (exit 4) · `gate --decision-log` + new `agent-eval decisions` (deploy-decision ledger) · `gate --html-out` / `--html-summary` (SPEC-044: 3-tier report + PR-body Markdown + `insights.lifecycle_phase`) · `run_repeated()` → `insights.nondeterminism_repeat` · `FaultInjectionConfig` (never touches the blocking path) · `human_only_patterns` · `circuit_breaker_recover_after` · `tier_downshift` signal · `dataset review-candidates` (production → golden) · `improve apply-verify` (isolated `git worktree`, never merges) · new `agent-eval feedback export-preferences` · `{claude,opencode} test-config`. `agent-eval --help` now lists 18.
 - **v1.0.4** (2026-09-08) — Blocked-attempt command detail: a fully-blocked tool call keeps a redacted command excerpt, so `search_violations "rm -rf"` now matches the command itself; new `show_violation` MCP tool + `agent-eval {claude,opencode} violations` / `blocked-detail <task_id>` CLI; `doctor` live-checks it. Symmetric across Claude Code and OpenCode. No API/Config/schema changes.
 - **v1.0.3** (2026-09-08) — `agent-eval claude install --with-violation-search` now points the `search_violations` MCP server at the Claude Code batch-report DB (it opened the OpenCode default before); `search_violations` degrades to a readable sentence when the DB is missing. OpenCode unaffected.
-- **v1.0.2** (2026-09-04) — Phoenix / OTEL: Python-version-scoped `arize-phoenix` pin; span + trace + session annotation tiers; ASCII-only `agent-eval monitor` console; new [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) + local-Ollama example.
+- **v1.0.2** (2026-09-04) — Phoenix / OTEL: Python-version-scoped `arize-phoenix` pin; span + trace + session annotation tiers; ASCII-only `agent-eval monitor` console; new [`Docs/11_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/11_OTEL_DATA_REFERENCE.md) + local-Ollama example.
 - **v1.0.1** (2026-09-03) — Report-generation hardening (malformed / partial result JSON no longer crashes the report, `gate`, or the dashboard) + dashboard ↔ static-report value parity + English-only runtime output.
 - **v1.0.0** (2026-08-31) — General Availability: completes the machine-readable insight layer (`extra_metrics.insights`, ~62 schema-validated keys) + the `target` / `benchmark` / `experiment` / `improve` CLI loop.
 
@@ -295,15 +311,16 @@ Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://g
 | [`Docs/03_INTEGRATION_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/03_INTEGRATION_GUIDE.md) | 24 framework adapters, auto-detection |
 | [`Docs/04_DATA_GUIDE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/04_DATA_GUIDE.md) | Golden datasets, evaluation data design |
 | [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/05_QUALITY_GATE.md) | Harness Gates, CI/CD gating, RCA diagnosis |
-| [`Docs/06_OBSERVABILITY.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/06_OBSERVABILITY.md) | Dashboard, alerts, anomaly detection |
-| [`Docs/07_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/07_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
-| [`Docs/08_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/08_API_REFERENCE.md) | Full public API reference |
-| [`Docs/09_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
-| [`Docs/10_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OTEL_DATA_REFERENCE.md) | Every span, attribute, metric & Phoenix annotation sent over OpenTelemetry |
-| [`Docs/AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
-| [`Docs/CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
-| [`Docs/OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |
-| [`Docs/CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) |
+| [`Docs/06_LIVEGUARDRAIL.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/06_LIVEGUARDRAIL.md) | `LiveGuardrail` subsystem reference — all usage modes + v1.1.0 discovery/durability hardening |
+| [`Docs/07_CLAUDE_CODE_HOOKS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/07_CLAUDE_CODE_HOOKS.md) | **AC stack** (Agent-Evaluator + Claude Code) — the same guardrail via native Claude Code CLI hooks |
+| [`Docs/08_AOO_STACK.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/08_AOO_STACK.md) | **AOO stack** (Agent-Evaluator + Ollama + OpenCode) — the fully-local real-time-guardrail reference integration |
+| [`Docs/09_OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OPENCODE_VS_CLAUDE_CODE.md) | AOO vs AC — detailed side-by-side comparison |
+| [`Docs/10_OBSERVABILITY.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/10_OBSERVABILITY.md) | Dashboard, alerts, anomaly detection |
+| [`Docs/11_OTEL_DATA_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/11_OTEL_DATA_REFERENCE.md) | Every span, attribute, metric & Phoenix annotation sent over OpenTelemetry |
+| [`Docs/12_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/12_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
+| [`Docs/13_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/13_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
+| [`Docs/14_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/14_API_REFERENCE.md) | Full public API reference |
+| [`Docs/15_CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/15_CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) — no Agent-Evaluator dependency |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md) | Version history |
 
 Also available in-app once the dashboard is running: `agent-eval dashboard` → **SDK Reference**

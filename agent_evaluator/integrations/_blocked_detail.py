@@ -52,6 +52,27 @@ _BLOCK_MARKERS: tuple[str, ...] = _BLOCK_REASON_PREFIXES + (
 )
 
 
+# SPEC-045 REQ-7: the stored arg_excerpt is captured at the LARGER of max_chars /
+# report_max_chars (gates/live_guardrail.py::_make_arg_excerpt) so the deep-detail
+# view (show_violation / blocked-detail / the HTML report) never loses anything. A
+# scannable list/search context (many rows on screen at once) still wants a shorter
+# cut — this is the single shared place that does that second, display-time trim.
+_CLI_LIST_DISPLAY_CHARS = 500
+
+
+def truncate_excerpt(text: str, limit: int = _CLI_LIST_DISPLAY_CHARS) -> str:
+    """Trim an already-captured excerpt for a scannable (list/search) display context.
+
+    Capture already happened at the larger of the two configured ceilings — this never
+    re-reads storage, it just shortens *this render's* copy. Full detail remains
+    available via show_violation()/blocked-detail (no truncation there) or the HTML
+    report (report_max_chars, longer).
+    """
+    if limit <= 0 or len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
 def _looks_like_block(text: str) -> bool:
     t = (text or "").lstrip().lstrip("→").lstrip()
     return (

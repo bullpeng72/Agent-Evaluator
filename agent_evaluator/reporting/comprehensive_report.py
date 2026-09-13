@@ -4376,6 +4376,61 @@ def _build_acceptance_coverage(cov: dict[str, Any] | None) -> str:
     )
 
 
+def _build_blocked_attempts_audit(audit: dict[str, Any] | None) -> str:
+    """SPEC-045 REQ-7/8: LiveGuardrail's ``insights.blocked_attempts_audit``, rendered.
+
+    Gate B/E scores never move because of a blocked attempt (``gates/live_guardrail.py``
+    — deliberately excluded from scoring), so a session can show all-green Gate scores
+    while still having had something quietly turned back. This section exists so that
+    signal isn't lost — it renders an ``ibox warn`` callout whenever there is at least
+    one blocked attempt, which also makes the surrounding governance evidence group
+    auto-open (``_wrap_evidence_group`` scans rendered HTML for exactly this marker —
+    no separate plumbing needed). Each row shows the full captured excerpt (already
+    captured at ``report_max_chars`` — longer than the CLI list/search display) plus the
+    exact CLI command to pull the complete detail for that session.
+    """
+    if not isinstance(audit, dict) or not audit.get("total"):
+        return ""
+    total = audit["total"]
+    sessions = audit.get("sessions_affected", 0)
+    by_gate = audit.get("by_gate") or {}
+    by_tool = audit.get("by_tool") or {}
+    _bg = " · ".join(f"Gate {k}: {v}" for k, v in sorted(by_gate.items()))
+    _bt = ", ".join(f"{k} ({v})" for k, v in sorted(by_tool.items()))
+    rows = ""
+    for it in (audit.get("items") or [])[:25]:
+        tid = _esc(str(it.get("task_id") or ""))
+        ex = _esc(_clip(str(it.get("arg_excerpt") or ""), 2000))
+        rows += (
+            '<div style="margin:4px 0;padding:5px 8px;background:#fffbeb;'
+            'border-radius:5px">'
+            f'<span style="font-family:monospace;font-size:11px">{tid}</span> '
+            f'<span style="font-size:12px;color:#b45309">'
+            f'[{_esc(str(it.get("gate") or ""))}] {_esc(str(it.get("tool_name") or ""))}</span>'
+            f'<div style="font-size:11px;color:#6b7280">{_esc(str(it.get("reason") or ""))}</div>'
+            + (f'<div style="font-family:monospace;font-size:11px;color:#374151;'
+               f'margin-top:2px;white-space:pre-wrap;word-break:break-all">'
+               f'{ex}</div>' if ex else "")
+            + f'<div style="font-size:10px;color:#9ca3af;margin-top:2px">'
+              f'agent-eval claude blocked-detail {tid}</div>'
+            '</div>'
+        )
+    return (
+        '<div class="gate-section" id="blocked-attempts-audit" style="border-left-color:#f59e0b">'
+        f'<h2 style="color:#b45309">Blocked Attempts (LiveGuardrail) '
+        f'<span style="font-size:13px;color:#6b7280">'
+        f'({total} across {sessions} session(s))</span></h2>'
+        '<div class="ibox warn"><p style="margin:0;font-size:13px">'
+        f'{total} tool call(s) were blocked in real time by LiveGuardrail'
+        + (f' — {_esc(_bg)}' if _bg else '')
+        + '. These never affect Gate B/E scores (a clean score does not mean nothing '
+          'was blocked here) — this is audit-trail visibility only.'
+        + (f' Tools involved: {_esc(_bt)}.' if _bt else '')
+        + '</p></div>'
+        f'{rows}</div>'
+    )
+
+
 def _build_spec_coverage(sc: dict[str, Any] | None) -> str:
     """SPEC-043 REQ-1: which declared requirements have a golden case."""
     if not isinstance(sc, dict) or not sc.get("n_requirements"):
@@ -5311,6 +5366,7 @@ _TOC_LABELS = {
     "metric-signal": "Metric signal", "judge-robustness": "Judge robustness",
     "evaluator-reliability": "Evaluator trust",
     "review-queue": "Review queue", "security-findings": "Security",
+    "blocked-attempts-audit": "Blocked attempts",
     "acceptance-coverage": "Acceptance",
     "spec-coverage": "Req coverage",
     "deploy-decision": "Decisions",
@@ -5436,6 +5492,28 @@ def _build_freshness_banner(fr: dict[str, Any] | None) -> str:
         '<div style="font-weight:700;color:#92400e;font-size:13px">⏳ Freshness</div>'
         f'<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.6;color:#92400e">'
         f'{items}</ul></div>'
+    )
+
+
+def _build_blocked_attempts_banner(audit: dict[str, Any] | None) -> str:
+    """SPEC-045 REQ-8: a one-line above-the-fold banner — Gate B/E scores stay green
+    even when a call was blocked (blocked attempts are deliberately excluded from
+    scoring), so without this a reader who only checks the scorecard would never learn
+    a dangerous call was turned back this session. Points at the full detail in the
+    Governance evidence group (``#blocked-attempts-audit``) rather than duplicating it.
+    """
+    if not isinstance(audit, dict) or not audit.get("total"):
+        return ""
+    total = audit["total"]
+    sessions = audit.get("sessions_affected", 0)
+    return (
+        '<div class="gate-section" id="blocked-attempts-banner" '
+        'style="border-left-color:#b45309;background:#fffbeb">'
+        f'<a href="#blocked-attempts-audit" style="text-decoration:none;color:#92400e">'
+        f'<span style="font-weight:700;font-size:13px">⚠ {total} tool call(s) blocked '
+        f'this run</span> <span style="font-size:12px">'
+        f'(LiveGuardrail, {sessions} session(s) — see Governance for detail)</span></a>'
+        '</div>'
     )
 
 
@@ -7439,6 +7517,7 @@ def _assemble_report_body(ctx: dict[str, Any]) -> list[str]:
         _build_narrative_banner(ctx["narrative"]),
         _build_narrative_audit_note(g("narrative_audit")),
         _build_freshness_banner(g("freshness")),
+        _build_blocked_attempts_banner(g("blocked_attempts_audit")),
         _build_executive_summary(hg, ctx["diag_result"], ctx["tcr"], ctx["acc"],
                                  ctx["total_tasks"], ctx["ci_data"], g("verdict")),
         _build_next_action(ins, hg),
@@ -7534,6 +7613,7 @@ def _assemble_report_body(ctx: dict[str, Any]) -> list[str]:
         ctx["operational_html"],
         _build_review_queue(ctx["tasks_list"], ctx["current_dict"], ctx["baseline"]),
         _build_security_findings(ctx["ins_input"]),
+        _build_blocked_attempts_audit(g("blocked_attempts_audit")),
         _build_efficiency_opportunities(g("efficiency_opportunities")),
     ]
 

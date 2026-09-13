@@ -1,8 +1,8 @@
 # OpenCode setup vs Claude Code setup — a detailed comparison
 
 A measurement-based comparison of the two setups you can attach Agent-Evaluator's real-time
-`LiveGuardrail` to: the [AOO Stack](AOO_STACK.md) (Agent-Evaluator + Ollama + OpenCode) and the
-[Claude Code CLI hooks](CLAUDE_CODE_HOOKS.md) (Agent-Evaluator + Claude Code). **The verdict logic
+`LiveGuardrail` to: the [AOO Stack](08_AOO_STACK.md) (Agent-Evaluator + Ollama + OpenCode) and the
+[Claude Code CLI hooks](07_CLAUDE_CODE_HOOKS.md) (Agent-Evaluator + Claude Code). **The verdict logic
 itself is completely identical** (`agent_evaluator/gates/live_guardrail.py`, zero new detection logic)
 — what this document covers is only the difference in how that verdict engine is wired into each tool.
 
@@ -13,7 +13,7 @@ itself is completely identical** (`agent_evaluator/gates/live_guardrail.py`, zer
 | | OpenCode setup (AOO) | Claude Code setup |
 |---|---|---|
 | Model backend | **local Ollama** (no cloud dependency) | Anthropic cloud Claude |
-| Design goal | "closed-loop **local** agentic dev" (the original `AOO_STACK.md` definition) | not local execution — cloud-model based |
+| Design goal | "closed-loop **local** agentic dev" (the original `08_AOO_STACK.md` definition) | not local execution — cloud-model based |
 
 Every other difference stems from "which process model the same engine was wired into."
 
@@ -58,7 +58,7 @@ only difference is `output_dir` (`results/opencode_live_guardrail/` vs
 - OpenCode handles all shell-related actions as a **single lowercase `"bash"` tool** → `loop_detection`
   (which compares only the tool *name*) originally had a high risk of false-positiving different
   commands as repeat calls (the real story of raising the SDK default `consecutive_repeat_threshold`
-  from 3→6 is in `AOO_STACK.md`).
+  from 3→6 is in `08_AOO_STACK.md`).
 - Claude Code has **inherently granular tools** — `Bash` / `Edit` / `Write` / `Read` / `Glob`, etc. —
   so at the same threshold=6 the false-positive risk is lower in theory — though not a benchmarked figure.
 - This difference actually splits the `on_loop_detected` value of the two default configs — the
@@ -66,7 +66,7 @@ only difference is `output_dir` (`results/opencode_live_guardrail/` vs
   default (`"record"`, observe only), while the Claude Code hook's `DEFAULT_GUARDRAIL_CONFIG`
   explicitly uses `"fail"` (block). This is not a bug but a deliberate choice reflecting the tool-
   granularity difference above — for the full rationale see
-  [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md#default-guardrail-config).
+  [07_CLAUDE_CODE_HOOKS.md](07_CLAUDE_CODE_HOOKS.md#default-guardrail-config).
 
 ## Verification maturity
 
@@ -99,7 +99,7 @@ Confirmed 4 ways:
    recorded accurately down to `stdout` / `exit_code` / `success` (confirming the SPEC-031 `output`
    field works).
 
-Detailed record: [the "Known gotchas" section of `AOO_STACK.md`](AOO_STACK.md#known-gotchas-from-live-opencode-validation)
+Detailed record: [the "Known gotchas" section of `08_AOO_STACK.md`](08_AOO_STACK.md#known-gotchas-from-live-opencode-validation)
 (the 2026-08-26 re-confirmation paragraph).
 
 **Claude Code live-verification detail** (confirmed by running it directly, not a fabricated payload):
@@ -134,14 +134,14 @@ did not handle those two keys, so neither integration supported them; now they a
 `_CONFIG_CLASSES` and both accept them), so filling `branch_guard` / `team_concurrency` keys into the
 `init` message (the `GUARDRAIL_CONFIG` TS constant for OpenCode, `guardrail_config.json` for Claude
 Code) makes them work as is. Using Python `LiveGuardrail()` directly (`tool_guard` /
-`live_guardrail_session()`, see [AOO_STACK.md](AOO_STACK.md#why-a-subprocess-bridge)) is still valid,
+`live_guardrail_session()`, see [08_AOO_STACK.md](08_AOO_STACK.md#why-a-subprocess-bridge)) is still valid,
 but it means the standard install path alone is now sufficient.
 
 The two bridges sharing the same function does not automatically make each install's **defaults**
 (the `GUARDRAIL_CONFIG` TS constant vs `DEFAULT_GUARDRAIL_CONFIG`) the same — a real case was
 `tool_authorization: {}` (a Gate E hardcoded backstop) being in the OpenCode default from the start
 but missing from the Claude Code default (aligned as soon as it was found, see
-[CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md#default-guardrail-config)). When adding a new key to only
+[07_CLAUDE_CODE_HOOKS.md](07_CLAUDE_CODE_HOOKS.md#default-guardrail-config)). When adding a new key to only
 one bridge's default, review the other bridge's default too.
 
 ## Cleanup on an abnormal exit
@@ -178,6 +178,7 @@ one bridge's default, review the other bridge's default too.
 
 | Goal | Document |
 |------|----------|
-| OpenCode integration detail | [AOO_STACK.md](AOO_STACK.md) |
-| Claude Code integration detail | [CLAUDE_CODE_HOOKS.md](CLAUDE_CODE_HOOKS.md) |
+| `LiveGuardrail` subsystem reference (all usage modes + v1.1.0 discovery/durability hardening) | [06_LIVEGUARDRAIL.md](06_LIVEGUARDRAIL.md) |
+| OpenCode integration detail | [08_AOO_STACK.md](08_AOO_STACK.md) |
+| Claude Code integration detail | [07_CLAUDE_CODE_HOOKS.md](07_CLAUDE_CODE_HOOKS.md) |
 | The original LiveGuardrail verdict logic | `agent_evaluator/gates/live_guardrail.py` (SPEC-019) |

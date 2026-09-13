@@ -2,7 +2,7 @@
 
 The shortest path from installing Agent Evaluator to your first evaluation, saving results, and launching the dashboard.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -255,7 +255,7 @@ Every `save_to_file()` / `eval.save()` writes **two files**:
 | File | What it is |
 |------|------------|
 | `<name>.json` | the machine-readable result — every task, all 58 metrics, the Gate A–G scores, and (under `extra_metrics.insights`) a ~62-key deployment-readiness verdict. Consumed by `agent-eval gate` / `diagnose` / the dashboard. |
-| `<name>.html` | a **self-contained, server-less report** you can open in any browser or attach to a PR. It opens with a one-line deployment-readiness verdict + confidence badge, then Next actions 1·2·3, a **Path to Green** (the gap to each failing gate + an impact-ordered fix plan), per-gate Score Breakdown, the worst failure cases (each with a tool-call trajectory), and Recommendations with paste-ready `@agent_eval` snippets. Full section list: [`09_OUTPUTS.md` §4](09_OUTPUTS.md#4-static-html-report--single-result). |
+| `<name>.html` | a **self-contained, server-less report** you can open in any browser or attach to a PR. It opens with a one-line deployment-readiness verdict + confidence badge, then Next actions 1·2·3, a **Path to Green** (the gap to each failing gate + an impact-ordered fix plan), per-gate Score Breakdown, the worst failure cases (each with a tool-call trajectory), and Recommendations with paste-ready `@agent_eval` snippets. Full section list: [`13_OUTPUTS.md` §4](13_OUTPUTS.md#4-static-html-report--single-result). |
 
 Pass `save_to_file("eval", baseline_path="results/prev.json")` and the HTML report adds a regression/new/fixed failure-set diff and prompt/config change attribution.
 
@@ -364,9 +364,9 @@ my_agent("What is the capital of Korea?", ground_truth="Seoul")
 | Full decorator parameters + framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Golden dataset construction · Korean RAG evaluation | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
 | Quality threshold configuration · CI/CD integration | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| Dashboard tabs in detail · Phoenix monitoring | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
-| Docker · per-environment configuration · performance tuning | [07_OPERATIONS.md](07_OPERATIONS.md) |
-| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
-| Result JSON · report · CLI · dashboard · AI-runtime output taxonomy | [09_OUTPUTS.md](09_OUTPUTS.md) |
-| OpenTelemetry data reference — spans, attributes, metrics, annotations | [10_OTEL_DATA_REFERENCE.md](10_OTEL_DATA_REFERENCE.md) |
+| Dashboard tabs in detail · Phoenix monitoring | [10_OBSERVABILITY.md](10_OBSERVABILITY.md) |
+| Docker · per-environment configuration · performance tuning | [12_OPERATIONS.md](12_OPERATIONS.md) |
+| Full API reference | [14_API_REFERENCE.md](14_API_REFERENCE.md) |
+| Result JSON · report · CLI · dashboard · AI-runtime output taxonomy | [13_OUTPUTS.md](13_OUTPUTS.md) |
+| OpenTelemetry data reference — spans, attributes, metrics, annotations | [11_OTEL_DATA_REFERENCE.md](11_OTEL_DATA_REFERENCE.md) |
 | Runnable example files | [Evaluator_Examples/](../Evaluator_Examples/) |

@@ -2,7 +2,7 @@
 
 The full decorator API reference · 24 framework integrations · comparison with other evaluation tools.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -612,4 +612,4 @@ flush_conversation("user_123")
 | All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
 | Golden dataset · Korean RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| Full API reference | [14_API_REFERENCE.md](14_API_REFERENCE.md) |

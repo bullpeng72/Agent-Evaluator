@@ -454,6 +454,76 @@ def _acceptance_coverage_section(
     }
 
 
+def _blocked_attempts_audit_section(
+    tasks: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """SPEC-045 REQ-7: surface LiveGuardrail's ``blocked_attempts`` in the report layer.
+
+    ``extra.blocked_attempts`` (``gates/live_guardrail.py::snapshot()``/
+    ``to_task_extra()``) is captured into every task's ``extra`` whenever a tool call
+    was fully blocked (Gate B/E), but until now nothing ever read it back out — the
+    audit trail existed, yet a human reviewing the HTML report (Gate scores all green,
+    since ``blocked_attempts`` deliberately never feeds Gate B/E scoring —
+    ``gates/live_guardrail.py`` around ``self._blocked_attempts``) had no way to learn a
+    dangerous call was quietly turned back. This section closes that — passive
+    discovery, not a new Gate score.
+
+    Generic over origin: identical whether ``tasks`` came from a live-guardrail host
+    bridge (Claude Code / OpenCode ``live_guardrail_report.py`` at SessionEnd) or a
+    plain batch ``@agent_eval`` run whose tool code used ``tool_guard()`` +
+    ``EvalMetadata(extra=guardrail.to_task_extra())`` — this function only ever reads
+    ``task.extra``, it never special-cases the source.
+
+    Returns:
+        ``None`` when no task carries any blocked attempts (the common case — nothing
+        to render). Otherwise a dict with per-gate/per-tool counts and the individual
+        items (most recent first, capped at 50) — each item's ``arg_excerpt`` is
+        whatever was captured (up to ``report_max_chars``, longer than the CLI
+        list/search display truncation — see ``live_guardrail.py`` SPEC-045 REQ-7).
+    """
+    items: list[dict[str, Any]] = []
+    by_gate: dict[str, int] = {}
+    by_tool: dict[str, int] = {}
+    sessions: set[str] = set()
+    for t in tasks:
+        attempts = _task_extra(t).get("blocked_attempts")
+        if not isinstance(attempts, (list, tuple)) or not attempts:
+            continue
+        task_id = str(t.get("task_id") or "—")
+        for a in attempts:
+            if not isinstance(a, dict):
+                continue
+            gate = str(a.get("gate") or "?")
+            tool = str(a.get("tool_name") or "?")
+            sessions.add(task_id)
+            by_gate[gate] = by_gate.get(gate, 0) + 1
+            by_tool[tool] = by_tool.get(tool, 0) + 1
+            items.append({
+                "task_id": task_id,
+                "timestamp": t.get("timestamp"),
+                "tool_name": tool,
+                "gate": gate,
+                "reason": str(a.get("reason") or "")[:300],
+                "arg_excerpt": str(a.get("arg_excerpt") or "")[:2000],
+            })
+    if not items:
+        return None
+    items.sort(key=lambda d: str(d.get("timestamp") or ""), reverse=True)
+    return {
+        "total": len(items),
+        "sessions_affected": len(sessions),
+        "by_gate": dict(sorted(by_gate.items())),
+        "by_tool": dict(sorted(by_tool.items())),
+        "items": items[:50],
+        "note": (
+            f"{len(items)} tool call(s) blocked by LiveGuardrail across "
+            f"{len(sessions)} session(s) — never scored against Gate B/E, this is "
+            f"audit-trail visibility only. Use `blocked-detail <task_id>` / "
+            f"`show_violation` for the full captured excerpt."
+        ),
+    }
+
+
 def _spec_coverage_section(
     tasks: list[dict[str, Any]],
     requirements: list[str] | None = None,
@@ -6979,6 +7049,7 @@ def _build_partial_insights(
         "sample_guidance": _safe(_sample_guidance_section, ci, default=None),
         "acceptance_coverage": _safe(_acceptance_coverage_section, tasks, default=None),
         "spec_coverage": _safe(_spec_coverage_section, tasks, default=None),
+        "blocked_attempts_audit": _safe(_blocked_attempts_audit_section, tasks, default=None),
         # SPEC-044 REQ-2: a run in progress is always an analysis-phase step.
         "lifecycle_phase": {
             "primary": "analysis", "order": list(_LIFECYCLE_ORDER),
@@ -7188,6 +7259,7 @@ def build_insights(
         "spec_coverage": _safe(
             _spec_coverage_section, tasks, requirements=requirements, default=None,
         ),
+        "blocked_attempts_audit": _safe(_blocked_attempts_audit_section, tasks, default=None),
         "deploy_decision": _safe(
             _deploy_decision_section, decision_log_path, default=None,
         ),

@@ -42,7 +42,9 @@ import hashlib
 import inspect
 import json
 import re
+import threading
 import warnings
+from pathlib import Path
 from typing import Any, Callable
 
 from agent_evaluator.core.trackers.security import (
@@ -242,10 +244,28 @@ class LiveGuardrail:
         # short, PII-redacted excerpt of the offending arguments alongside the audit row so
         # a later session can see *which* command was blocked (the audit row otherwise holds
         # only tool_name / gate / reason). Shape:
-        #   {"enabled": bool, "max_chars": int, "redact_pii": bool}
-        # None -> the default below (enabled, 240 chars, redaction on). Pass
-        # {"enabled": False} to keep the pre-SPEC-041 behaviour (no excerpt at all).
+        #   {"enabled": bool, "max_chars": int, "report_max_chars": int, "redact_pii": bool}
+        # SPEC-045 REQ-7 (v1.1.0): two length knobs. max_chars is the CLI list/search
+        # display budget (default 500, up from 240 in <1.1.0). report_max_chars is an
+        # opt-in, separate, longer budget for the HTML report / blocked-detail deep-dive
+        # view — omit it and it equals max_chars (no surprise widening of an explicitly
+        # narrowed max_chars). Capture always stores at the LARGER of the two — CLI
+        # output truncates the stored text further at display time, the report shows up
+        # to the full report_max_chars. None -> max_chars=500, report_max_chars=max_chars.
+        # Pass {"enabled": False} to keep the pre-SPEC-041 behaviour (no excerpt at all).
         blocked_attempt_capture: dict[str, Any] | None = None,
+        # SPEC-045 REQ-3 (v1.1.0, 방어선 3): a fully silent agent (no host, no visible
+        # message, exception handling that swallows GuardrailBlockedError) still needs
+        # SOME signal to leave the process — this fires immediately, out-of-band, the
+        # moment a call is blocked, independent of whatever the calling code does next.
+        # Called from record_blocked_attempt() with the same audit entry dict
+        # ({"tool_name", "gate", "reason", ["arg_excerpt", "arg_sha256"]} + "task_id").
+        # Always run on a daemon background thread and with every exception swallowed —
+        # a slow/broken webhook must NEVER add latency to, or crash, the caller's
+        # already-blocked tool call. Use webhook_on_block(url) for the common HTTP case
+        # (short timeout baked in); pass any other callable for a custom sink (Slack,
+        # a queue, a log line). None (default) -> off, no behaviour change.
+        on_block: Callable[[dict[str, Any]], None] | None = None,
         # SPEC-042 REQ-7: substrings that mark a call a human must run directly
         # (e.g. "terraform apply", "alembic upgrade"). Matched case-insensitively
         # against the serialized tool arguments. On a hit the call is blocked with
@@ -316,16 +336,38 @@ class LiveGuardrail:
         self._blocked_attempts: list[dict[str, Any]] = []
         self._task_id: str | None = None
         # SPEC-041: normalize blocked_attempt_capture once (see __init__ kwarg docstring).
+        # SPEC-045 REQ-7: two length knobs, not one — max_chars(목록/검색 표시용,
+        # v1.1.0에서 240→500으로 상향)와 report_max_chars(HTML 리포트 전용, 옵트인으로
+        # 더 길게 — 생략하면 max_chars와 동일해 기존 동작/명시적으로 좁힌 max_chars의
+        # 의도를 그대로 존중한다). 실제 저장(캡처)은 항상 둘 중 큰 쪽까지 해두고, 각
+        # 출력 표면(CLI 목록/검색 vs. 리포트/blocked-detail)이 표시 시점에 필요한
+        # 만큼만 잘라 쓴다 — 컬럼/스키마를 늘리지 않고 "저장은 한 번, 표시는 표면마다
+        # 다르게"로 해결한다. Claude Code hook / OpenCode 플러그인은 report_max_chars를
+        # 2000으로 명시해 HTML 리포트 쪽만 더 길게 켠다(claude_code_hook.py /
+        # opencode_plugin/agent-evaluator.ts 참조).
         _bac = blocked_attempt_capture if isinstance(blocked_attempt_capture, dict) else {}
         try:
-            _bac_max = int(_bac.get("max_chars", 240))
+            _bac_max = int(_bac.get("max_chars", 500))
         except (TypeError, ValueError):
-            _bac_max = 240
+            _bac_max = 500
+        _bac_max = _bac_max if _bac_max > 0 else 500
+        try:
+            _bac_report_max = (
+                int(_bac["report_max_chars"]) if "report_max_chars" in _bac else _bac_max
+            )
+        except (TypeError, ValueError):
+            _bac_report_max = _bac_max
         self._blocked_capture = {
             "enabled": bool(_bac.get("enabled", True)),
-            "max_chars": _bac_max if _bac_max > 0 else 240,
+            "max_chars": _bac_max,
+            "report_max_chars": _bac_report_max if _bac_report_max > 0 else _bac_max,
             "redact_pii": bool(_bac.get("redact_pii", True)),
         }
+        # SPEC-045 REQ-3: stored as-is — record_blocked_attempt() is responsible for
+        # invoking it safely (background thread, exceptions swallowed). Never called
+        # from check_before_tool_call() itself (same "pure query" boundary as
+        # record_blocked_attempt() generally — see its own docstring).
+        self._on_block = on_block if callable(on_block) else None
 
     # SPEC-041: "순수한 파일 쓰기"로 인정하는 셸 명령 감지 (아래 _is_benign_shell_file_write).
     _PRODUCER_RE = re.compile(r"^\s*(?:cat|printf|echo)\b")          # 파일 내용 생성기
@@ -945,7 +987,12 @@ class LiveGuardrail:
                     text = redact_pii_text(text, DEFAULT_REDACTION_CATEGORIES) or text
                 except Exception:
                     pass  # redaction is best-effort; fall back to the raw serialization
-            limit = self._blocked_capture["max_chars"]
+            # SPEC-045 REQ-7: capture at the larger of the two configured ceilings —
+            # display-time truncation (CLI list/search vs. report) happens downstream
+            # from this one stored value, so nothing narrower is lost at capture time.
+            limit = max(
+                self._blocked_capture["max_chars"], self._blocked_capture["report_max_chars"]
+            )
             if len(text) > limit:
                 text = text[:limit].rstrip() + "…"
             return {"arg_excerpt": text, "arg_sha256": digest}
@@ -1014,6 +1061,8 @@ class LiveGuardrail:
             if _ex is not None:
                 entry.update(_ex)
         self._blocked_attempts.append(entry)
+        if self._on_block is not None:
+            _dispatch_on_block(self._on_block, {**entry, "task_id": task_id})
         return entry
 
     def refresh_team_claims(self) -> None:
@@ -1184,6 +1233,65 @@ _guardrail_ctx_var: contextvars.ContextVar[tuple[LiveGuardrail, str] | None] = (
 )
 
 
+def _dispatch_on_block(callback: Callable[[dict[str, Any]], None], payload: dict[str, Any]) -> None:
+    """(SPEC-045 REQ-3) Run an ``on_block`` callback safely — background thread,
+    every exception swallowed.
+
+    This is the ONE place ``on_block`` is ever invoked from (``record_blocked_attempt``)
+    — the safety wrapper applies uniformly no matter what the callback does (a webhook
+    POST, a Slack post, a log line, a queue push). A slow or broken callback must never
+    add latency to, or crash, the caller's already-blocked tool call — the calling
+    thread returns immediately regardless of how long ``callback`` takes or whether it
+    raises.
+    """
+    def _run() -> None:
+        try:
+            callback(payload)
+        except Exception:
+            pass  # fail-open — matches the rest of LiveGuardrail's error policy
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def webhook_on_block(
+    url: str, *, headers: dict[str, str] | None = None, timeout: float = 3.0
+) -> Callable[[dict[str, Any]], None]:
+    """(SPEC-045 REQ-3) Convenience ``on_block`` factory — POST the blocked-attempt
+    payload as JSON to ``url``.
+
+    Deliberately separate from ``alerts.handlers.WebhookHandler`` — that one takes an
+    ``AlertEvent`` (a different shape, a 10s timeout tuned for post-hoc batch/anomaly
+    alerts) and is invoked through ``AlertEngine``'s rule-based dispatch. This is a raw,
+    minimal poster for the immediate real-time block signal, with a short timeout by
+    design (the default 3s already runs off the calling thread via
+    :func:`_dispatch_on_block` — the timeout exists to free the background thread
+    promptly, not to protect the caller, which is never blocked either way).
+
+    Args:
+        url: webhook URL (Slack Incoming Webhook, a generic HTTP endpoint, etc.).
+        headers: extra HTTP headers (optional).
+        timeout: request timeout in seconds (default 3.0 — short; this already runs
+            off-thread, so this bounds only how long the background thread lingers).
+
+    Example::
+
+        guardrail = LiveGuardrail(
+            ..., on_block=webhook_on_block(os.environ["SLACK_WEBHOOK_URL"]),
+        )
+    """
+    import urllib.request
+
+    def _post(payload: dict[str, Any]) -> None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        all_headers = {"Content-Type": "application/json"}
+        all_headers.update(headers or {})
+        req = urllib.request.Request(url, data=data, headers=all_headers, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout):
+            pass
+
+    return _post
+
+
 class GuardrailBlockedError(Exception):
     """:meth:`tool_guard`로 감싼 함수 호출이 차단됐을 때 발생 (SPEC-039 REQ-6).
 
@@ -1198,8 +1306,45 @@ class GuardrailBlockedError(Exception):
         super().__init__(verdict.reason or "blocked by LiveGuardrail")
 
 
+def _flush_blocked_attempts_audit(
+    guardrail: LiveGuardrail, path: str | Path, since_index: int
+) -> None:
+    """(SPEC-045 REQ-2) Best-effort append-only JSONL flush of the blocked attempts
+    recorded during one ``live_guardrail_session()`` block.
+
+    Same one-entry-per-line shape as the Claude Code hook's ``<id>.blocked.json``
+    (``tool_name``/``gate``/``reason``/``enforced``/``arg_excerpt``/``arg_sha256``) so
+    the same downstream tooling can fold it in later. This is the durability safety
+    net for a host-less generic agent: Claude Code / OpenCode have a host process that
+    calls ``record_blocked_attempt()`` and persists the result regardless of what the
+    agent's own code does with the ``GuardrailBlockedError`` it raises — a bare
+    ``tool_guard()``/``live_guardrail_session()`` user has no such host, so if the
+    caller's own exception handling silently swallows the error, NOTHING durable would
+    otherwise exist once the process exits. Runs in ``finally``, so it fires on both a
+    normal exit and an exception propagating out of the ``with`` block.
+
+    Never raises (fail-open, matching the rest of LiveGuardrail's error policy) — a
+    write failure here must not crash an already-exiting session.
+    """
+    try:
+        attempts = guardrail.snapshot().get("blocked_attempts") or []
+        new_attempts = attempts[since_index:]
+        if not new_attempts:
+            return
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "a", encoding="utf-8") as fh:
+            for a in new_attempts:
+                if isinstance(a, dict):
+                    fh.write(json.dumps({**a, "enforced": True}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 @contextlib.contextmanager
-def live_guardrail_session(guardrail: LiveGuardrail, task_id: str):
+def live_guardrail_session(
+    guardrail: LiveGuardrail, task_id: str, *, audit_log_path: str | Path | None = None
+):
     """이 ``with`` 블록 안에서 실행되는 :func:`tool_guard` 함수 호출이 자동으로 이
     ``guardrail``/``task_id``를 쓰게 한다 (SPEC-039 REQ-6).
 
@@ -1211,17 +1356,34 @@ def live_guardrail_session(guardrail: LiveGuardrail, task_id: str):
     Args:
         guardrail: 이 세션에 쓸 :class:`LiveGuardrail` 인스턴스.
         task_id: 이 세션의 태스크/세션 식별자.
+        audit_log_path: (SPEC-045 REQ-2, 옵트인) 주어지면 이 ``with`` 블록이
+            끝날 때(정상 종료든 예외든 — ``finally``) 이 블록 안에서 새로
+            차단된 시도들을 JSON Lines로 이 경로에 append한다. Claude Code/
+            OpenCode는 호스트가 대신 이 역할을 해주지만, 호스트 없는 일반
+            에이전트는 그 안전망이 없다 — 호출자의 예외 처리가 조용히
+            ``GuardrailBlockedError``를 삼켜도 최소한 이 파일엔 흔적이
+            남는다. 실패해도 예외를 올리지 않는다(fail-open).
 
     Example::
 
         with live_guardrail_session(guardrail, task_id="session-1"):
             bash("ls -la")
+
+        # 호스트 없는 일반 에이전트에서 크래시 세이프 감사 이력까지 원하면:
+        with live_guardrail_session(
+            guardrail, task_id="session-1",
+            audit_log_path=".agent-evaluator/sessions/session-1.blocked.json",
+        ):
+            bash("ls -la")
     """
     token = _guardrail_ctx_var.set((guardrail, task_id))
+    _start = len(guardrail._blocked_attempts)
     try:
         yield guardrail
     finally:
         _guardrail_ctx_var.reset(token)
+        if audit_log_path:
+            _flush_blocked_attempts_audit(guardrail, audit_log_path, since_index=_start)
 
 
 def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> dict[str, Any]:
@@ -1248,7 +1410,7 @@ def _bind_call_params(func: Callable, args: tuple, kwargs: dict) -> dict[str, An
 def tool_guard(
     tool_name: str | None = None,
     *,
-    audit_blocked: bool = False,
+    audit_blocked: bool = True,
     fail_closed: bool = False,
     capture_output: Callable[[Any], dict[str, Any]] | None = None,
     fault_injection: Any = None,  # SPEC-043 REQ-5: FaultInjectionConfig | None
@@ -1267,8 +1429,16 @@ def tool_guard(
     Args:
         tool_name: ``check_before_tool_call()``/``record_tool_call()``에 넘길 도구
             이름. 생략하면 데코레이트된 함수의 ``__name__``을 쓴다.
-        audit_blocked: ``True``면 차단된 시도를 ``record_blocked_attempt()``로
-            감사 이력에도 남긴다(기본 ``False`` — SPEC-030과 동일하게 옵트인).
+        audit_blocked: ``True``(SPEC-045 REQ-1, 기본값)면 차단된 시도를
+            ``record_blocked_attempt()``로 감사 이력에도 남긴다. 이 호출은 인메모리
+            리스트 append 1건 + 짧은 PII 마스킹 발췌 계산뿐이라(파일/DB I/O 없음)
+            기본으로 켜도 비용이 사실상 0에 가깝다 — 반면 꺼두면(``False``) 차단이
+            일어나도 어디에도 흔적이 남지 않아 "무엇이 왜 막혔는지 완전히 조용히
+            사라지는" 문제가 생긴다(host 없는 일반 에이전트에서 특히 치명적 — Claude
+            Code/OpenCode처럼 호스트가 대신 기록해주는 안전망이 없기 때문). 정말 감사
+            이력이 필요 없는 극히 드문 경우에만 명시적으로 ``False``로 끌 것
+            (SPEC-030 도입 당시엔 옵트인이었으나 이 트레이드오프가 안 맞아 v1.1.0에서
+            기본값을 뒤집었다).
         fail_closed: 활성 ``live_guardrail_session()``이 없는 상태에서 호출되면
             ``True``일 때 :class:`RuntimeError`를 발생시킨다. ``False``(기본)면
             ``RuntimeWarning``만 내고 가드 없이 원본 함수를 그대로 실행한다
@@ -1351,7 +1521,15 @@ def tool_guard(
             verdict = guardrail.check_before_tool_call(task_id, _name, params)
             if verdict.block:
                 if audit_blocked:
-                    guardrail.record_blocked_attempt(task_id, _name, verdict)
+                    # SPEC-045 REQ-2: pass tool_input so the same PII-redacted excerpt
+                    # capture the Claude Code / OpenCode host bridges get (tool_input=
+                    # tool_input in their own record_blocked_attempt() calls) also
+                    # applies here — without this, tool_guard's audit trail had
+                    # tool_name/gate/reason but never *which* command, undermining the
+                    # whole point of capture for a host-less generic agent.
+                    guardrail.record_blocked_attempt(
+                        task_id, _name, verdict, tool_input=params
+                    )
                 raise GuardrailBlockedError(verdict)
             return verdict
 

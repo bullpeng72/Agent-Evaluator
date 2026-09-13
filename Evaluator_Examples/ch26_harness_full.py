@@ -367,7 +367,7 @@ class ContentWriterAdapter:
                 task_type="document_creation",
                 has_error=has_error, error_message=error_msg,
                 extra={
-                    "phase": "content_writing",   # Gate G: 단계별 지연 기여도
+                    "phase": "content_writing",   # 참고용 태그(Gate 미기여) — 실제 LatencyAttributionConfig는 tool_latencies/model_latency_ms/network_latency_ms를 읽음
                     "section_id": section.id,
                     "word_count": result.word_count if result else 0,
                     "audience_level": getattr(curriculum, "audience_level", ""),

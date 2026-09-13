@@ -98,12 +98,16 @@ DEFAULT_GUARDRAIL_CONFIG: dict[str, Any] = {
     # 음수면 자동 해제 없이 SPEC-041의 세션 내내 sticky 동작을 유지한다. 키가
     # 아예 없는(직접 작성한 옛) 설정에서는 circuit_breaker_after × 2가 기본값이다.
     "circuit_breaker_recover_after": 10,
-    # SPEC-041: 완전 차단된 도구 호출의 인자에서 짧은(기본 240자) PII-마스킹 발췌를
-    # 만들어 감사 이력(<id>.blocked.json → blocked_violations 테이블)에 함께 남긴다 —
-    # 나중 세션에서 `agent-eval claude blocked-detail <task_id>` / search_violations로
-    # "무슨 명령이 막혔는지"를 트랜스크립트 없이 볼 수 있게 한다. {"enabled": false}로
-    # 끄면 도구 이름·게이트·사유만 남는 이전 동작으로 돌아간다.
-    "blocked_attempt_capture": {"enabled": True, "max_chars": 240, "redact_pii": True},
+    # SPEC-041: 완전 차단된 도구 호출의 인자에서 짧은 PII-마스킹 발췌를 만들어 감사
+    # 이력(<id>.blocked.json → blocked_violations 테이블)에 함께 남긴다 — 나중 세션에서
+    # `agent-eval claude blocked-detail <task_id>` / search_violations로 "무슨 명령이
+    # 막혔는지"를 트랜스크립트 없이 볼 수 있게 한다. {"enabled": false}로 끄면 도구
+    # 이름·게이트·사유만 남는 이전 동작으로 돌아간다.
+    # SPEC-045 REQ-7 (v1.1.0): max_chars 240→500(목록/검색 표시용), report_max_chars
+    # 신설(HTML 리포트/blocked-detail 전용, 더 긺) — OpenCode 플러그인 기본값과 대칭.
+    "blocked_attempt_capture": {
+        "enabled": True, "max_chars": 500, "report_max_chars": 2000, "redact_pii": True,
+    },
     # LiveGuardrail 생성자 인자가 아니라 이 브리지 자체가 SessionEnd에서 쓰는 값 —
     # build_guardrail() 호출 전에 pop()으로 제거한다.
     "output_dir": "results/claude_code_live_guardrail",

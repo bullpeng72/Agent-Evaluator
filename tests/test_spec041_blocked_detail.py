@@ -46,6 +46,30 @@ class TestCaptureInLiveGuardrail:
         )
         assert e["arg_excerpt"].endswith("…") and len(e["arg_excerpt"]) <= 16
 
+    def test_report_max_chars_overrides_capture_ceiling(self):
+        """SPEC-045 REQ-7: report_max_chars(옵트인)가 max_chars보다 크면 캡처는 그
+        큰 쪽까지 저장한다 — CLI 목록/검색은 그 저장값을 display 시점에 더 잘라 쓰고
+        (truncate_excerpt), 리포트/blocked-detail은 저장된 만큼 그대로 보여준다."""
+        long_path = "x" * 300
+        g = LiveGuardrail(
+            blocked_attempt_capture={"max_chars": 20, "report_max_chars": 250, "redact_pii": False}
+        )
+        e = g.record_blocked_attempt(
+            "t", "Bash", _v(), tool_input={"command": _RF + long_path}
+        )
+        # 저장은 report_max_chars(250)까지 — max_chars(20)로 잘리지 않는다.
+        assert len(e["arg_excerpt"]) > 20
+        assert len(e["arg_excerpt"]) <= 251  # +1 for the trailing "…"
+
+    def test_report_max_chars_omitted_falls_back_to_max_chars(self):
+        """report_max_chars를 안 주면 명시적으로 좁힌 max_chars 의도를 그대로 존중한다
+        (자동으로 더 크게 캡처하지 않음 — 놀람 방지)."""
+        g = LiveGuardrail(blocked_attempt_capture={"max_chars": 15, "redact_pii": False})
+        e = g.record_blocked_attempt(
+            "t", "Bash", _v(), tool_input={"command": _RF + "/a/very/long/path/x"}
+        )
+        assert e["arg_excerpt"].endswith("…") and len(e["arg_excerpt"]) <= 16
+
     def test_precomputed_excerpt_used_verbatim(self):
         g = LiveGuardrail()
         e = g.record_blocked_attempt(
@@ -355,7 +379,8 @@ class TestMcpServer:
 
         srv = build_server(str(tmp_path / "s.db"))
         names = sorted(t.name for t in await srv.list_tools())
-        assert names == ["search_violations", "show_violation"]
+        # SPEC-045 REQ-5: list_violations added as the keyword-free entry point.
+        assert names == ["list_violations", "search_violations", "show_violation"]
 
     @pytest.mark.asyncio
     async def test_search_hint_and_show_violation(self, tmp_path):
@@ -419,6 +444,11 @@ class TestCliParity:
         assert ns.task_id == "abc"
         ns2 = parser.parse_args([host, "violations", "rm -rf", "--detail"])
         assert ns2.query == "rm -rf" and ns2.detail is True
+        # SPEC-045 REQ-6: query is now optional — omitting it selects browse mode.
+        ns3 = parser.parse_args([host, "violations"])
+        assert ns3.query is None
+        ns4 = parser.parse_args([host, "violations", "--since", "2026-09-08", "--gate", "B"])
+        assert ns4.query is None and ns4.since == "2026-09-08" and ns4.gate == "B"
 
     @pytest.mark.parametrize("host", ["claude", "opencode"])
     def test_run_blocked_detail_exit_codes(self, host, tmp_path, capsys):
@@ -444,6 +474,36 @@ class TestCliParity:
         rc = run_violations(host, "x", db=str(tmp_path / "absent.db"))
         assert rc == 1
         assert "No batch-report database" in capsys.readouterr().out
+
+    @pytest.mark.parametrize("host", ["claude", "opencode"])
+    def test_run_violations_browse_mode_no_query(self, host, tmp_path, capsys):
+        """SPEC-045 REQ-6: query 생략 시 키워드 없이 최근 이력을 나열한다."""
+        from agent_evaluator.cli._violations_detail import run_violations
+
+        db = str(tmp_path / f"{host}.db")
+        t = create_taskresult(
+            task_id="S", task_type="qa", question="q", response="r",
+            extra={"blocked_attempts": [
+                {"tool_name": "Bash", "gate": "B", "reason": "dangerous tool parameters"},
+            ]},
+        )
+        sb.save_tasks_to_db(db, [t])
+
+        rc = run_violations(host, None, db=db)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "S" in out and "no keyword filter" in out
+
+    @pytest.mark.parametrize("host", ["claude", "opencode"])
+    def test_run_violations_browse_mode_empty_db_message(self, host, tmp_path, capsys):
+        from agent_evaluator.cli._violations_detail import run_violations
+
+        db = str(tmp_path / f"{host}.db")
+        sb.save_tasks_to_db(db, [])  # schema only
+
+        rc = run_violations(host, None, db=db)
+        assert rc == 0
+        assert "nothing to list" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------- doctor
@@ -473,3 +533,58 @@ class TestDoctorProbe:
         ).stdout
         data = json.loads(out)
         assert any(c["label"] == "blocked-attempt capture" for c in data["checks"])
+
+    @pytest.mark.parametrize("host", ["claude", "opencode"])
+    def test_doctor_reports_violation_audit_db_check(self, host):
+        """SPEC-045 REQ-9: doctor는 감사 DB의 존재/건수를 능동적으로 알려준다."""
+        import subprocess
+        import sys
+
+        out = subprocess.run(
+            [sys.executable, "-m", "agent_evaluator.cli.main", host, "doctor", "--json"],
+            capture_output=True, text=True, timeout=90,
+        ).stdout
+        data = json.loads(out)
+        assert any(c["label"] == "violation/blocked-attempt audit" for c in data["checks"])
+
+
+class TestProbeViolationAuditDb:
+    """SPEC-045 REQ-9: probe_violation_audit_db() — doctor의 존재 신호 헬퍼."""
+
+    def test_no_db_yet_is_info_not_a_problem(self, tmp_path, monkeypatch):
+        from agent_evaluator.cli._integration_health import probe_violation_audit_db
+
+        monkeypatch.delenv("AGENT_EVALUATOR_OUTPUT_DIR", raising=False)
+        monkeypatch.setenv("AGENT_EVALUATOR_OUTPUT_DIR", str(tmp_path / "nope"))
+        st, detail = probe_violation_audit_db("claude")
+        assert st == "info"
+        assert "no audit DB yet" in detail
+
+    def test_db_with_rows_reports_counts_and_points_at_violations_command(
+        self, tmp_path, monkeypatch
+    ):
+        from agent_evaluator.cli._integration_health import probe_violation_audit_db
+
+        monkeypatch.setenv("AGENT_EVALUATOR_OUTPUT_DIR", str(tmp_path))
+        t = create_taskresult(
+            task_id="S", task_type="qa", question="q", response="r",
+            extra={"blocked_attempts": [
+                {"tool_name": "Bash", "gate": "B", "reason": "dangerous tool parameters"},
+            ]},
+        )
+        sb.save_tasks_to_db(str(tmp_path / "claude_code_sessions.db"), [t])
+
+        st, detail = probe_violation_audit_db("claude")
+        assert st == "info"
+        assert "1 blocked" in detail
+        assert "agent-eval claude violations" in detail
+
+    def test_empty_db_no_rows_is_info(self, tmp_path, monkeypatch):
+        from agent_evaluator.cli._integration_health import probe_violation_audit_db
+
+        monkeypatch.setenv("AGENT_EVALUATOR_OUTPUT_DIR", str(tmp_path))
+        sb.save_tasks_to_db(str(tmp_path / "claude_code_sessions.db"), [])  # schema only
+
+        st, detail = probe_violation_audit_db("claude")
+        assert st == "info"
+        assert "no violation/blocked rows yet" in detail

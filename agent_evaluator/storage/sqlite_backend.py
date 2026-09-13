@@ -419,6 +419,111 @@ def search_violations(
     return results
 
 
+def list_violations(
+    path: Union[str, Path],
+    *,
+    include_blocked: bool = True,
+    include_observed: bool = True,
+    since: str | None = None,
+    gate: str | None = None,
+    tool_name: str | None = None,
+    limit: int = 20,
+    detail: bool = False,
+) -> list[dict[str, Any]]:
+    """(SPEC-045 REQ-4) List recent violation/blocked-attempt history — no keyword needed.
+
+    ``search_violations()`` requires a query the caller must already suspect (an FTS5
+    ``MATCH``); this is the missing first rung for "I don't know what, if anything, was
+    blocked" — a plain ``SELECT ... ORDER BY timestamp DESC``, no full-text matching at
+    all. Same per-row shape as :func:`search_violations` (so :func:`format_results` in
+    ``violation_search_mcp.py`` renders both), but sorted by recency, not BM25 relevance
+    — this is a browse, not a search.
+
+    Args:
+        path: SQLite DB file (already written by ``save_tasks_to_db()``).
+        include_blocked: include ``blocked_violations`` rows (fully-blocked attempts).
+        include_observed: include ``violation_search`` rows (observed/scored violations).
+        since: ISO-8601 timestamp lower bound (inclusive), e.g. ``"2026-09-08"``.
+        gate: filter to this gate (``"B"``/``"E"``). Applies to blocked rows only — the
+            observed table has no ``gate`` column, so ``include_observed`` rows are
+            unaffected by this filter (returned regardless) unless you also pass
+            ``include_observed=False``.
+        tool_name: filter to this tool. Same blocked-only caveat as ``gate``.
+        limit: max rows per sub-query (blocked/observed each get their own ``limit``).
+        detail: when ``True``, blocked rows carry ``arg_excerpt`` (already captured at
+            the larger of ``max_chars``/``report_max_chars`` — see ``live_guardrail.py``).
+            Callers doing a scannable list display should further trim it with
+            :func:`agent_evaluator.integrations._blocked_detail.truncate_excerpt`.
+
+    Returns:
+        Same shape as :func:`search_violations`, timestamp-descending. Empty list when
+        there is nothing to show (not an error — an empty audit trail is a valid state).
+    """
+    conn = sqlite3.connect(str(path))
+    try:
+        _ensure_schema(conn)
+        results: list[dict[str, Any]] = []
+        if include_observed:
+            _clauses = ["1=1"]
+            _params: list[Any] = []
+            if since:
+                _clauses.append("t.timestamp >= ?")
+                _params.append(since)
+            _sql = f"""
+                SELECT v.task_id, v.summary, t.timestamp, t.task_type, t.success
+                FROM violation_search AS v
+                JOIN tasks AS t ON t.task_id = v.task_id
+                WHERE {" AND ".join(_clauses)}
+                ORDER BY t.timestamp DESC
+                LIMIT ?
+            """
+            for r in conn.execute(_sql, (*_params, limit)).fetchall():
+                results.append(
+                    {
+                        "task_id": r[0], "summary": r[1], "timestamp": r[2],
+                        "task_type": r[3], "success": bool(r[4]), "blocked": False,
+                    }
+                )
+        if include_blocked:
+            _clauses = ["1=1"]
+            _params = []
+            if since:
+                _clauses.append("t.timestamp >= ?")
+                _params.append(since)
+            if gate:
+                _clauses.append("b.gate = ?")
+                _params.append(gate)
+            if tool_name:
+                _clauses.append("b.tool_name = ?")
+                _params.append(tool_name)
+            _sql = f"""
+                SELECT b.task_id, b.tool_name, b.gate, b.reason, b.arg_excerpt,
+                       t.timestamp, t.task_type, t.success
+                FROM blocked_violations AS b
+                JOIN tasks AS t ON t.task_id = b.task_id
+                WHERE {" AND ".join(_clauses)}
+                ORDER BY t.timestamp DESC
+                LIMIT ?
+            """
+            for r in conn.execute(_sql, (*_params, limit)).fetchall():
+                _item = {
+                    "task_id": r[0],
+                    "summary": f"{r[1]}: {r[3]}" if r[1] else r[3],
+                    "gate": r[2],
+                    "timestamp": r[5],
+                    "task_type": r[6],
+                    "success": bool(r[7]),
+                    "blocked": True,
+                }
+                if detail:
+                    _item["arg_excerpt"] = r[4] or ""
+                results.append(_item)
+        results.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
+    finally:
+        conn.close()
+    return results
+
+
 def show_violation(path: Union[str, Path], task_id: str) -> dict[str, Any]:
     """(SPEC-041) Return every stored blocked-attempt row for one ``task_id``.
 

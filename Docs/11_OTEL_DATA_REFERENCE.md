@@ -4,7 +4,7 @@ Everything Agent-Evaluator puts on the wire when OpenTelemetry export is enabled
 spans, their attributes, the metrics, the Phoenix REST annotations, the transport, and
 what a non-Phoenix backend does and does not understand.
 
-**v1.0.6 | Python 3.8+** — companion to [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md)
+**v1.1.0 | Python 3.8+** — companion to [`10_OBSERVABILITY.md`](10_OBSERVABILITY.md)
 (dashboard + `agent-eval monitor` walkthrough).
 
 ---
@@ -428,7 +428,7 @@ setup_otel(enabled=False)
 - `setup_otel()` **must** run before `PerformanceMonitor(...)` is constructed.
 - Child step spans: `PerformanceMonitor(enable_otel_child_spans=True)`.
 - Per-viewer auto-reload of new Phoenix projects: a browser-console snippet is in
-  [`06_OBSERVABILITY.md` §7](06_OBSERVABILITY.md).
+  [`10_OBSERVABILITY.md` §7](10_OBSERVABILITY.md).
 
 ---
 
@@ -483,7 +483,7 @@ omitted because neither evaluator ran.
 | Topic | Doc |
 |-------|-----|
 | End-to-end runnable example — a local **Ollama** model streaming real spans / metrics / annotations to Phoenix, all 7 Gates + JSON + HTML + dashboard | [`../Evaluator_Examples/ch32_ollama_realtime.py`](../Evaluator_Examples/ch32_ollama_realtime.py) |
-| Dashboard, `agent-eval monitor` walkthrough, Phoenix per-tab guide | [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md) |
-| Result JSON / HTML report / CLI / dashboard output taxonomy | [`09_OUTPUTS.md`](09_OUTPUTS.md) |
-| Install variants, per-environment config | [`07_OPERATIONS.md`](07_OPERATIONS.md) |
-| `setup_otel()` / `PerformanceMonitor` API | [`08_API_REFERENCE.md`](08_API_REFERENCE.md) |
+| Dashboard, `agent-eval monitor` walkthrough, Phoenix per-tab guide | [`10_OBSERVABILITY.md`](10_OBSERVABILITY.md) |
+| Result JSON / HTML report / CLI / dashboard output taxonomy | [`13_OUTPUTS.md`](13_OUTPUTS.md) |
+| Install variants, per-environment config | [`12_OPERATIONS.md`](12_OPERATIONS.md) |
+| `setup_otel()` / `PerformanceMonitor` API | [`14_API_REFERENCE.md`](14_API_REFERENCE.md) |

@@ -38,6 +38,8 @@ import sqlite3
 import sys
 from typing import Any
 
+from agent_evaluator.integrations._blocked_detail import truncate_excerpt
+from agent_evaluator.storage.sqlite_backend import list_violations as _list_violations
 from agent_evaluator.storage.sqlite_backend import search_violations as _search_violations
 
 _DEFAULT_OUTPUT_DIR = "results/opencode_live_guardrail"
@@ -67,21 +69,34 @@ _VIOLATION_TO_GATE_METRIC: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def format_results(results: list[dict[str, Any]]) -> str:
+def format_results(
+    results: list[dict[str, Any]],
+    *,
+    header: str = "Past violation history — search results:",
+    empty_message: str = "No matching past violation history found.",
+) -> str:
     """(REQ-4) REQ-3의 구조화 검색 결과를 사람이 읽기 쉬운 문자열로 변환한다.
 
+    SPEC-045 REQ-4/5: ``header``/``empty_message``를 열어둬 ``list_violations()``
+    (키워드 없는 브라우징)도 동일한 렌더링을 재사용한다 — 정렬 기준(최신순 vs
+    관련도순)만 다르고 한 줄 형식·``[BLOCKED]``/``[OBSERVED]`` 접두어·발췌 표시·
+    recommend_fix/show_violation 체이닝 힌트는 완전히 동일하게 유지된다.
+
     Args:
-        results: :func:`agent_evaluator.storage.sqlite_backend.search_violations`
-            의 반환값.
+        results: :func:`agent_evaluator.storage.sqlite_backend.search_violations` 또는
+            :func:`agent_evaluator.storage.sqlite_backend.list_violations`의 반환값.
+        header: 결과가 있을 때 첫 줄에 쓸 문구(호출 맥락에 맞게 오버라이드).
+        empty_message: 결과가 없을 때 낼 문장 — 모델이 결과를 지어내지 않도록 항상
+            명시적으로 "없다"고 말한다.
 
     Returns:
-        결과가 없으면 명시적으로 "없다"고 말하는 문장(모델이 결과를 지어내지
-        않도록) — 결과가 있으면 관련도 순으로 번호를 매긴 사람이 읽을 수 있는 목록.
-        결과에서 위반 유형이 식별되면 이어서 호출할 ``recommend_fix`` 힌트를 덧붙인다.
+        결과가 없으면 ``empty_message`` — 결과가 있으면 번호를 매긴 사람이 읽을 수
+        있는 목록. 결과에서 위반 유형이 식별되면 이어서 호출할 ``recommend_fix``
+        힌트를 덧붙인다.
     """
     if not results:
-        return "No matching past violation history found."
-    lines = ["Past violation history — search results:"]
+        return empty_message
+    lines = [header]
     _blocked_task_ids: list[str] = []
     for i, r in enumerate(results, start=1):
         # SPEC-030 REQ-5: include_blocked=True 결과에만 "blocked" 키가 있다 —
@@ -94,9 +109,11 @@ def format_results(results: list[dict[str, Any]]) -> str:
         )
         # SPEC-041: with detail=True the blocked rows carry a short PII-redacted excerpt of
         # the offending command — show it inline so no second round-trip is needed.
+        # SPEC-045 REQ-7: the stored excerpt may be captured at report_max_chars (longer,
+        # for the HTML report) — trim it back down for this scannable list/search context.
         _ex = (r.get("arg_excerpt") or "").strip() if r.get("blocked") else ""
         if _ex:
-            lines.append(f"   command: {_ex}")
+            lines.append(f"   command: {truncate_excerpt(_ex)}")
         if r.get("blocked") and r.get("task_id"):
             _blocked_task_ids.append(str(r["task_id"]))
 
@@ -136,25 +153,63 @@ def build_server(db_path: str | None = None) -> Any:
     _db_path = db_path or _default_db_path()
     server = FastMCP("agent-evaluator-violations")
 
+    def _no_db_message(action: str) -> str:
+        return (
+            f"No violation history database at {_db_path} yet — it is created when the "
+            f"first LiveGuardrail-monitored session ends. Nothing to {action}. (If sessions "
+            f"have already ended, this server is pointed at the wrong path: register it as "
+            f"`python -m agent_evaluator.integrations.violation_search_mcp <batch-report-db>` "
+            f"with an explicit path — see `agent-eval claude doctor`.)"
+        )
+
+    @server.tool()
+    def list_violations(limit: int = 20, since: str | None = None, gate: str | None = None) -> str:
+        """과거 세션에서 무엇이(혹은 무언가가 있기는 했는지) 차단/관찰됐는지 **전혀
+        모를 때 가장 먼저** 호출한다 — search_violations()와 달리 키워드가 필요 없다.
+
+        키워드 없이 최근 이력을 최신순으로 나열한다. 흥미로운 항목을 발견하면
+        search_violations()로 좁히거나, show_violation(task_id)로 그 세션의 전체
+        상세(원문 발췌)를 본다 — list_violations → search_violations → show_violation
+        순서로 쓰는 3단 조회 체인의 시작점이다.
+
+        Args:
+            limit: 최대 반환 건수(관찰/차단 이력 각각).
+            since: ISO-8601 타임스탬프 하한(예: "2026-09-08"). 생략하면 전체 기간.
+            gate: "B" 또는 "E"로 좁힌다(차단 이력에만 적용 — 관찰 이력은 gate 컬럼이
+                없어 이 필터와 무관하게 반환된다).
+        """
+        if not os.path.exists(_db_path):
+            return _no_db_message("list")
+        try:
+            results = _list_violations(
+                _db_path, include_blocked=True, detail=True,
+                since=since, gate=gate, limit=limit,
+            )
+        except sqlite3.Error as exc:
+            return f"Could not read the violation history database at {_db_path}: {exc}"
+        return format_results(
+            results,
+            header=(
+                "Recent violation/blocked-attempt history (most recent first, "
+                "no keyword filter):"
+            ),
+            empty_message="No violation/blocked-attempt history recorded yet — nothing to list.",
+        )
+
     @server.tool()
     def search_violations(query: str) -> str:
         """과거 세션에서 Gate B(행동 무결성)·Gate E(보안 경계) 위반으로 차단된
         이력을 자연어로 검색한다.
 
         지금 시도하려는 도구 호출(셸 명령, 파일 삭제 등)이 과거 세션에서 이미
-        LiveGuardrail에 의해 차단된 적이 있는지 확인하고 싶을 때 사용하라.
+        LiveGuardrail에 의해 차단된 적이 있는지 확인하고 싶을 때 사용하라. 뭘
+        찾아야 할지조차 모르면 이 도구 대신 list_violations()부터 호출할 것.
         """
         # SPEC-041: the DB file only appears after the first monitored session ends
         # (or the configured path is simply wrong). Degrade to a plain sentence instead
         # of surfacing a raw "unable to open database file" traceback to the model.
         if not os.path.exists(_db_path):
-            return (
-                f"No violation history database at {_db_path} yet — it is created when the "
-                f"first LiveGuardrail-monitored session ends. Nothing to search. (If sessions "
-                f"have already ended, this server is pointed at the wrong path: register it as "
-                f"`python -m agent_evaluator.integrations.violation_search_mcp <batch-report-db>` "
-                f"with an explicit path — see `agent-eval claude doctor`.)"
-            )
+            return _no_db_message("search")
         # SPEC-030 REQ-5: include_blocked=True로 완전 차단 이력(SPEC-030)까지
         # 함께 검색한다 — 이 도구의 docstring이 원래부터 약속했던 "차단된 이력"
         # 검색을 실제로 이행한다.

@@ -2,7 +2,7 @@
 
 Golden-dataset construction · Korean RAG evaluation · PDF pipeline.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -195,7 +195,7 @@ line has no case declaring it — surfaced as `insights.spec_coverage`. `accepta
 > `GoldenSetBuilder` only sees `results/` sessions already instrumented with `PerformanceMonitor`. To mine
 > cases from ordinary conversations that ran without `@agent_eval` (e.g. a Claude Code session) — an
 > optional, core-independent personal tool — see
-> [Workflow B in `CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md#workflow-b--mining-golden-set-raw-material-from-uninstrumented-past-sessions).
+> [Workflow B in `15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md#workflow-b--mining-golden-set-raw-material-from-uninstrumented-past-sessions).
 
 ---
 
@@ -725,5 +725,5 @@ if dataset_id:
 | All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
 | Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
-| ctx session search (optional personal workflow) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |
+| Full API reference | [14_API_REFERENCE.md](14_API_REFERENCE.md) |
+| ctx session search (optional personal workflow) | [15_CTX_SESSION_SEARCH.md](15_CTX_SESSION_SEARCH.md) |

@@ -16,7 +16,7 @@ Gate scoring, LiveGuardrail, RCA (`diagnose`), or A/B (`abtest`) depends on ctx 
 - ctx already indexes this project's Claude Code sessions (source `~/.claude/projects`, provider
   `claude`) — 211 sessions / 108,301 events per this environment's `ctx status`.
 - **Note this is a different provider from the constraint already live-verified in
-  [AOO_STACK.md's "ctx self-correction feedback loop" section](AOO_STACK.md#ctx-self-correction-feedback-loop)**:
+  [08_AOO_STACK.md's "ctx self-correction feedback loop" section](08_AOO_STACK.md#ctx-self-correction-feedback-loop)**:
   that section found that ctx's (v0.19.0) **OpenCode** importer pulls only session **metadata (title,
   token count)** and not the actual message / tool_call content (which is why `search_violations` fills
   that gap). Querying this project's local index (`~/.ctx/work.sqlite`) directly via SQL to write this
@@ -34,9 +34,11 @@ Gate scoring, LiveGuardrail, RCA (`diagnose`), or A/B (`abtest`) depends on ctx 
 > **For a *blocked* command specifically, ctx is not the first stop.** Since 1.0.4 the LiveGuardrail
 > batch report stores a PII-redacted excerpt of every fully-blocked call, so
 > `agent-eval {claude,opencode} blocked-detail <task_id>` (or the `show_violation` MCP tool) returns the
-> command directly. It only falls back to reading the host session transcript
-> (`~/.claude/projects/<slug>/<task_id>.jsonl`) when that excerpt is absent — ctx is a further, optional
-> fallback beyond that.
+> command directly. If you don't even have a `task_id` yet, `agent-eval {claude,opencode} violations`
+> with no query (1.1.0) lists recent blocked/observed history first — see
+> [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110). It only falls back to
+> reading the host session transcript (`~/.claude/projects/<slug>/<task_id>.jsonl`) when that excerpt is
+> absent — ctx is a further, optional fallback beyond that.
 
 ## Prerequisites
 
@@ -128,5 +130,5 @@ find "two runs worth comparing" for you.
 |------|----------|
 | Gate-regression root-cause diagnosis | [05_QUALITY_GATE.md §8](05_QUALITY_GATE.md#8-gate-regression-root-cause-diagnosis-agent-eval-diagnose) |
 | Golden-dataset structure | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
-| Statistical A/B testing | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
-| The existing live verification of the OpenCode LiveGuardrail + ctx feedback loop | [AOO_STACK.md](AOO_STACK.md#ctx-self-correction-feedback-loop) |
+| Statistical A/B testing | [14_API_REFERENCE.md](14_API_REFERENCE.md) |
+| The existing live verification of the OpenCode LiveGuardrail + ctx feedback loop | [08_AOO_STACK.md](08_AOO_STACK.md#ctx-self-correction-feedback-loop) |

@@ -1,7 +1,7 @@
 # Claude Code CLI Hooks — Real-Time LiveGuardrail
 
 `agent-eval claude install` wires the same `LiveGuardrail` engine used by the
-[OpenCode integration](AOO_STACK.md) into [Claude Code](https://claude.com/claude-code) CLI's own
+[OpenCode integration](08_AOO_STACK.md) into [Claude Code](https://claude.com/claude-code) CLI's own
 `PreToolUse`/`PostToolUse`/`SessionEnd` hooks — a tool call gets checked *before* it executes (real-time
 Gate B/E), and the whole session folds into the normal batch Gate A–G pipeline once it ends.
 
@@ -124,7 +124,7 @@ that you're expected to edit is `guardrail_config.json`.
   },
   "tool_authorization": {},
   "circuit_breaker_after": 5,
-  "blocked_attempt_capture": {"enabled": true, "max_chars": 240, "redact_pii": true},
+  "blocked_attempt_capture": {"enabled": true, "max_chars": 500, "report_max_chars": 2000, "redact_pii": true},
   "output_dir": "results/claude_code_live_guardrail"
 }
 ```
@@ -154,8 +154,10 @@ exceptions vs. OpenCode:
 - **`blocked_attempt_capture`** (since 1.0.4) makes the hook keep a truncated, PII-redacted excerpt of
   a fully-blocked call's arguments in `<session_id>.blocked.json` → the batch report's
   `blocked_violations.arg_excerpt`, so a later session can see *what* was blocked (see
-  [Blocked-attempt lookup](#blocked-attempt-lookup) below). `{"enabled": false}` restores the pre-1.0.4
-  behaviour (tool name / gate / reason only).
+  [Blocked-attempt lookup](#blocked-attempt-lookup) below). `max_chars` (default 500, up from 240) is the
+  capture budget the CLI/MCP list-and-search views show; `report_max_chars` (1.1.0, opt-in, default
+  2000) is a longer ceiling reserved for the HTML report and `blocked-detail` — omit it and it equals
+  `max_chars`. `{"enabled": false}` restores the pre-1.0.4 behaviour (tool name / gate / reason only).
 - **`circuit_breaker_recover_after`** (since 1.0.5, default `circuit_breaker_after` × 2 = 10) — this
   many *consecutive* clean tool calls after a trip auto-lift observe-only and restore enforcement, so a
   transient mis-config that clears itself doesn't leave the rest of the session unguarded. `0` keeps
@@ -220,16 +222,34 @@ truncated, PII-redacted `arg_excerpt` of the command. A **later** session can th
 — from the CLI or via the MCP server registered by `--with-violation-search`:
 
 ```bash
-agent-eval claude violations "rm -rf" --detail    # FTS the batch DB; --detail shows the command excerpt
-agent-eval claude blocked-detail <task_id>        # every blocked call in that session + its excerpt
+agent-eval claude violations                       # 1.1.0: browse recent history, no keyword needed
+agent-eval claude violations "rm -rf" --detail      # FTS the batch DB; --detail shows the command excerpt
+agent-eval claude blocked-detail <task_id>          # every blocked call in that session + its excerpt
 ```
+
+You don't need to already suspect a keyword — `agent-eval claude violations` with no query (1.1.0) lists
+the most recent blocked/observed rows first (`--since`/`--gate` to narrow); the MCP server exposes the
+same thing as a `list_violations` tool alongside `search_violations`/`show_violation`. `agent-eval claude
+doctor` (1.1.0) also surfaces the audit DB's row count and most recent timestamp proactively, so you
+don't have to run `violations` speculatively just to find out whether there's anything to look at. Full
+design (including the discovery/durability problem this solves) in
+[`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
 
 `<task_id>` is the Claude Code session id. When an excerpt is missing (a session from before 1.0.4, or
 capture disabled), `blocked-detail` / the `show_violation` MCP tool fall back best-effort to the session
 transcript at `~/.claude/projects/<project-slug>/<task_id>.jsonl`. `agent-eval claude doctor` includes a
 live "blocked-attempt capture" check. Note the AC timing: because the hook folds `blocked.json` into the
 batch DB only at `SessionEnd`, a block is queryable from a **new** session, not the one that hit it (the
-resident-process AOO path can surface it mid-session — see [`AOO_STACK.md`](AOO_STACK.md)).
+resident-process AOO path can surface it mid-session — see [`08_AOO_STACK.md`](08_AOO_STACK.md)). The HTML
+report generated at `SessionEnd` also now shows blocked attempts directly (an above-the-fold banner + a
+Governance-group section, auto-opened) — see
+[`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
+
+Want a notification the moment a session with blocked attempts ends, not just a passive report? Set
+`AGENT_EVALUATOR_ALERT_WEBHOOK_URL` — `record_and_save()` (shared with the OpenCode bridge) sends one
+Slack message per session that had any blocked attempts. See
+[Blocked-attempt Slack alerts in `08_AOO_STACK.md`](08_AOO_STACK.md#blocked-attempt-slack-alerts-opt-in) for
+the full mechanism (and how it differs from the lower-level, per-block `on_block=` hook).
 
 ## Known limitations
 
@@ -251,11 +271,14 @@ resident-process AOO path can surface it mid-session — see [`AOO_STACK.md`](AO
 
 ## Related docs
 
-- [`AOO_STACK.md`](AOO_STACK.md) — the OpenCode integration this reuses the same `LiveGuardrail` engine
+- [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md) — the `LiveGuardrail` subsystem reference: all three usage
+  modes, the v1.1.0 discovery/durability hardening (`on_block`, `audit_log_path`, `list_violations`, the
+  HTML report's `blocked_attempts_audit` section), and the full config knob reference.
+- [`08_AOO_STACK.md`](08_AOO_STACK.md) — the OpenCode integration this reuses the same `LiveGuardrail` engine
   from; also documents the `tool_guard`/`live_guardrail_session()` in-process pattern, team scope claims,
   branch guard, and the `search_violations` + `show_violation` / `recommend_fix` / `ask_insights` MCP
   servers registered by `--with-*` flags here too.
-- [`OPENCODE_VS_CLAUDE_CODE.md`](OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
+- [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations, including the live-verification evidence summarized above.
 - `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic (SPEC-019).
 - `agent_evaluator/integrations/claude_code_hook.py` — this bridge's implementation.

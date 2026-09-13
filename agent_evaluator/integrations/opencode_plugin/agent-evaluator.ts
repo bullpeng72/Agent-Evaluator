@@ -164,7 +164,9 @@ const GUARDRAIL_CONFIG: GuardrailInitConfig = {
   tool_authorization: {},
   // SPEC-041: 차단된 명령의 원문(발췌)을 감사 이력에 남긴다 — Claude Code 훅의
   // DEFAULT_GUARDRAIL_CONFIG와 대칭. {"enabled": false}로 끌 수 있다.
-  blocked_attempt_capture: { enabled: true, max_chars: 240, redact_pii: true },
+  // SPEC-045 REQ-7 (v1.1.0): max_chars 240→500(목록/검색 표시용), report_max_chars
+  // 신설(HTML 리포트/blocked-detail 전용, 더 긺) — Python 쪽 기본값과 대칭.
+  blocked_attempt_capture: { enabled: true, max_chars: 500, report_max_chars: 2000, redact_pii: true },
 }
 
 // SPEC-041: 프로젝트별 설정은 이 파일(코드)을 편집하는 대신 옆에 두는

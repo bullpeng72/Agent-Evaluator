@@ -115,7 +115,10 @@ class TestBuildServerToolRegistration:
         server = build_server(db_path)
         tools = await server.list_tools()
         # SPEC-041: show_violation added alongside search_violations.
-        assert sorted(t.name for t in tools) == ["search_violations", "show_violation"]
+        # SPEC-045 REQ-5: list_violations added as the keyword-free entry point.
+        assert sorted(t.name for t in tools) == [
+            "list_violations", "search_violations", "show_violation",
+        ]
 
 
 class TestSearchViolationsToolEndToEnd:
@@ -174,3 +177,47 @@ class TestSearchViolationsToolEndToEnd:
         text = content[0].text
         assert "session-blocked" in text
         assert "[BLOCKED]" in text
+
+
+class TestListViolationsToolEndToEnd:
+    """SPEC-045 REQ-5: 키워드 없이 나열하는 발견(discovery) 진입점."""
+
+    @pytest.mark.asyncio
+    async def test_no_args_lists_everything_recent_first(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        save_tasks_to_db(
+            db_path, [_blocked_task("session-blocked"), _violating_task("session-observed")]
+        )
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("list_violations", {})
+        text = content[0].text
+        assert "session-blocked" in text
+        assert "session-observed" in text
+        assert "[BLOCKED]" in text and "[OBSERVED]" in text
+
+    @pytest.mark.asyncio
+    async def test_gate_filter_narrows_to_blocked_rows_only(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        save_tasks_to_db(db_path, [_blocked_task("session-blocked")])
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("list_violations", {"gate": "B"})
+        assert "session-blocked" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_empty_db_gives_explicit_no_results_message(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        save_tasks_to_db(db_path, [])  # creates schema, no rows
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("list_violations", {})
+        assert "No violation/blocked-attempt history" in content[0].text
+
+    @pytest.mark.asyncio
+    async def test_missing_db_returns_plain_sentence(self, tmp_path):
+        db_path = str(tmp_path / "never_created" / "sessions.db")
+
+        server = build_server(db_path)
+        content, _ = await server.call_tool("list_violations", {})
+        assert "No violation history database" in content[0].text

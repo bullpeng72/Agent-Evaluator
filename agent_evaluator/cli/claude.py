@@ -863,6 +863,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         mcp_initialize_probe,
         probe_blocked_capture,
         probe_import,
+        probe_violation_audit_db,
         validate_guardrail_config,
     )
 
@@ -967,6 +968,13 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_bc_status](
             "live", "blocked-attempt capture", _bc_detail
         )
+
+    # SPEC-045 REQ-9: surface whether there is anything to browse at all — closes the
+    # "user doesn't even think to check" gap, not just "can't browse without a keyword".
+    _audit_status, _audit_detail = probe_violation_audit_db("claude")
+    {"ok": rpt.ok, "warn": rpt.warn, "info": rpt.info, "error": rpt.error}[_audit_status](
+        "static", "violation/blocked-attempt audit", _audit_detail
+    )
 
     mcp_targets = (
         (_VIOLATION_SEARCH_MCP_NAME, "agent_evaluator.integrations.violation_search_mcp",

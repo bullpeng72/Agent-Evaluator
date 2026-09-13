@@ -59,7 +59,7 @@ from agent_evaluator.gates.live_guardrail import (
 
 guardrail = LiveGuardrail(scope=ScopeConfig(forbidden_tools=["webfetch"], fail_on_violation=True))
 
-@tool_guard(audit_blocked=True)
+@tool_guard()  # audit_blocked=True is the default since 1.1.0 — see below
 def bash(command: str) -> str:
     return run_shell(command)
 
@@ -69,6 +69,12 @@ with live_guardrail_session(guardrail, task_id="session-1"):
     except GuardrailBlockedError as e:
         print(f"blocked (Gate {e.verdict.gate}): {e.verdict.reason}")
 ```
+
+> **No host here — nothing captures a block for you unless the library does it by default.** Unlike the
+> OpenCode/Claude Code bridges above, a bare Python agent loop has no process watching for a block and
+> writing it down. `tool_guard(audit_blocked=True)` (the default since 1.1.0) is the first of several
+> durability/discovery layers built specifically for this host-less case — full write-up in
+> [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
 
 No new detection logic here either — same Gate B/E evaluators, just applied without the OpenCode
 plugin/stdio round-trip. `fail_closed=False` (default) means a call outside an active
@@ -196,6 +202,17 @@ no new notification logic), and the webhook URL is read directly by this Python 
 passed through the Node plugin or written into `GUARDRAIL_CONFIG`. A failed send (bad URL, network error)
 never blocks the session report from saving.
 
+> **Not the same mechanism as `LiveGuardrail(on_block=...)` (1.1.0).** This alert is a **session-end,
+> aggregated** summary — `record_and_save()` (`live_guardrail_report.py`) is shared by both the OpenCode
+> bridge and the Claude Code hook's `SessionEnd`, so it fires either way, but only once that point is
+> reached — a session that never gets there (crash, `kill -9`) sends nothing. `on_block=webhook_on_block(url)`
+> is the lower-level, bridge-independent alternative: it fires **immediately per block**, from inside
+> `LiveGuardrail` itself, on a background thread — the fail-safe of last resort for a fully host-less
+> agent with no bridge at all (a custom Python loop using `tool_guard()`/`check_before_tool_call()`
+> directly). Use this env var for the aggregated end-of-session view under either host; use `on_block`
+> when you need a signal independent of whether *any* session-end code ever runs. Full comparison in
+> [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
+
 ## Team scope claims — `.aoo/claims.jsonl` (SPEC-032/034/036/037/038)
 
 When multiple sessions (or teammates) touch the same repo concurrently, `TeamConcurrencyConfig`
@@ -226,7 +243,7 @@ and `BranchGuardConfig`/`get_current_branch()`/`is_branch_protected()` checks as
 `-dirty-<hash>` suffix appended when tracked files have uncommitted changes. This matters specifically
 for AOO's rhythm — you typically fix code and restart a session without committing between iterations,
 so tagging by commit SHA alone would collapse many distinct iterations into one tag. The dirty-hash
-suffix keeps them distinguishable. See [the "Version comparison" section of `Docs/08_API_REFERENCE.md`](08_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098)
+suffix keeps them distinguishable. See [the "Version comparison" section of `Docs/14_API_REFERENCE.md`](14_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098)
 for the general (non-AOO) mechanics.
 
 ## `search_violations` / `show_violation` MCP server
@@ -342,8 +359,8 @@ opencode run --dir /path/to/project "your message" \
 
 The shipped `GUARDRAIL_CONFIG` (`opencode_plugin/agent-evaluator.ts`) — its rationale is a direct
 product of live tuning against OpenCode's coarse tool granularity, but the values changed over SPEC-041.
-The authoritative current values are in that file, `CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
-default), and `CHANGELOG.md`. As of 1.0.5:
+The authoritative current values are in that file, `07_CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
+default), and `CHANGELOG.md`. As of 1.1.0:
 
 - **`consecutive_repeat_threshold: 8`** (+ `live_loop_window: 15`, + `circuit_breaker_after: 5`).
   OpenCode routes every shell action through a single `"bash"` tool, so name-only loop detection at a
@@ -359,11 +376,15 @@ default), and `CHANGELOG.md`. As of 1.0.5:
   positives.
 - **`scope_tool_names: ["bash"]`** scopes the `dangerous_patterns` scan to the actual shell tool, so it
   can't false-positive on an unrelated tool whose *result text* happens to mention a blocked command.
-- **`blocked_attempt_capture: {enabled: true, max_chars: 240, redact_pii: true}`** (since 1.0.4). A
-  fully-blocked call stores a truncated, PII-redacted excerpt of its arguments in
-  `blocked_violations.arg_excerpt`, so `search_violations` / `agent-eval opencode violations` can match
-  and show the command a later session was blocked on. `{enabled: false}` restores the pre-1.0.4
-  behaviour (tool name / gate / reason only).
+- **`blocked_attempt_capture: {enabled: true, max_chars: 500, report_max_chars: 2000, redact_pii: true}`**
+  (since 1.0.4; `max_chars` raised from 240 and `report_max_chars` added in 1.1.0). A fully-blocked call
+  stores a truncated, PII-redacted excerpt of its arguments in `blocked_violations.arg_excerpt`, so
+  `search_violations` / `agent-eval opencode violations` can match and show the command a later session
+  was blocked on. Capture is stored at the *larger* of the two length knobs — `max_chars` is what the CLI
+  list/search views show (500, up from 240), `report_max_chars` is an opt-in longer ceiling reserved for
+  the HTML report / `blocked-detail` deep-dive (omit it and it just equals `max_chars`). `{enabled: false}`
+  restores the pre-1.0.4 behaviour (tool name / gate / reason only). Full design in
+  [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
 - **`circuit_breaker_recover_after`** (since 1.0.5, default = `circuit_breaker_after` × 2 = 10). After
   the circuit breaker trips into observe-only, this many *consecutive* clean tool calls auto-lift
   observe-only and restore enforcement — so a transient mis-config that clears itself doesn't leave the
@@ -377,6 +398,11 @@ default), and `CHANGELOG.md`. As of 1.0.5:
 `agent-evaluator.config.json` against a case file (`cases: [{tool, args?, expect: allow|deny, gate?}]`)
 run through `check_before_tool_call` — exit 1 on any mismatch, exit 0 when all pass. Put it in CI so a
 loosened guardrail config is caught in review.
+
+`agent-eval opencode doctor` (1.1.0) now also reports the batch-report audit DB's row count and most
+recent timestamp proactively (`violation/blocked-attempt audit` check) — you don't have to already
+suspect something was blocked to find out; see
+[`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
 
 The blacklist approach is still blacklist matching against known bypasses, not an allowlist — live
 testing found a model try `-rf` → `-f` → no-flag in sequence, so assume other bypasses remain possible.
@@ -426,6 +452,10 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
 
 ## Related docs
 
+- [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md) — the `LiveGuardrail` subsystem reference: all three usage
+  modes (host-integrated / `tool_guard` / raw `check_before_tool_call`), the v1.1.0 discovery/durability
+  hardening (`on_block`, `audit_log_path`, `list_violations`, the HTML report's `blocked_attempts_audit`
+  section), and the full config knob reference.
 - `Docs/specs/SPEC-019-live-guardrail-api.md` — `LiveGuardrail` design.
 - `Docs/specs/SPEC-024-local-ade-memory-layer.md` — `search_violations` design.
 - `Docs/specs/SPEC-027-git-based-agent-version-tagging.md` — `agent_version="auto"` design.
@@ -441,12 +471,12 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
   (SPEC-028 REQ-1).
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — the long-lived, protocol-agnostic (not
   OpenCode-specific) stdio bridge used throughout a session.
-- [`CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md) — optional, non-core individual workflows that pivot
+- [`15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md) — optional, non-core individual workflows that pivot
   from a Gate regression/golden-set/A-B question into `ctx`'s cross-session search (Claude Code provider
   only — confirms this doc's OpenCode-importer gap does *not* apply the same way there).
-- [`CLAUDE_CODE_HOOKS.md`](CLAUDE_CODE_HOOKS.md) — the same `LiveGuardrail` engine wired into Claude Code
+- [`07_CLAUDE_CODE_HOOKS.md`](07_CLAUDE_CODE_HOOKS.md) — the same `LiveGuardrail` engine wired into Claude Code
   CLI's own hooks instead of an OpenCode plugin.
-- [`OPENCODE_VS_CLAUDE_CODE.md`](OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
+- [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations.
 - `agent_evaluator/integrations/live_guardrail_report.py` — the one-shot, session-end batch-integration
   bridge, with opt-in `success`/`execution_time`/`agent_version` fields (SPEC-028).

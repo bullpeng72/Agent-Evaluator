@@ -1,14 +1,14 @@
 # API Reference
 
-Full API documentation for Agent Evaluator v1.0.6.
+Full API documentation for Agent Evaluator v1.1.0.
 
 ---
 
 ## Version info
 
-- **Version:** v1.0.6
+- **Version:** v1.1.0
 - **Python:** 3.8+
-- **Last updated:** 2026-09-10
+- **Last updated:** 2026-09-11
 
 ---
 
@@ -1590,7 +1590,7 @@ agent-eval improve patch v3.json --repo .               # emit a unified diff pe
 agent-eval improve apply-verify v3.json --proposal C --eval-cmd "python eval.py" --persist   # apply a proposal's diff in a detached `git worktree` at HEAD, run --eval-cmd there, score predicted vs actual (SPEC-043 REQ-7). NEVER merges/commits; the worktree is left for you to inspect. --proposal is <gate> or <gate>:<kind>
 
 # Statistical A/B comparison (2 files → Welch's t-test, 3+ → N-way + FDR correction)
-# If you first need to find the two runs to compare, see workflow C (optional) in CTX_SESSION_SEARCH.md
+# If you first need to find the two runs to compare, see workflow C (optional) in 15_CTX_SESSION_SEARCH.md
 agent-eval abtest v1.json v2.json --metric accuracy_score
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference
 agent-eval abtest v1.json v2.json v3.json                   # N-way
@@ -1613,16 +1613,17 @@ agent-eval opencode install --force    # overwrite an existing install
 agent-eval opencode install --with-violation-search   # + register the search_violations / show_violation MCP server
 agent-eval opencode install --with-recommend-fix       # + register the recommend_fix MCP server
 agent-eval opencode upgrade            # refresh the plugin .ts after a package update (keeps agent-evaluator.config.json)
-agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip + blocked-attempt capture, --json/--no-live/--strict)
+agent-eval opencode doctor            # verify the install works (static + Python stdio-bridge round-trip + blocked-attempt capture + audit-DB row count, --json/--no-live/--strict)
 agent-eval opencode test-config cases.yaml   # assert agent-evaluator.config.json against a case file — cases: [{tool, args?, expect: allow|deny, gate?, name?}]; exit 1 on any mismatch (SPEC-043 REQ-6a)
 agent-eval opencode uninstall         # remove the plugin + opencode.json mcp entries (run before pip uninstall, --purge/--dry-run/--yes)
 agent-eval claude install             # install the LiveGuardrail Claude Code CLI hooks (--global/--force, --with-violation-search/--with-recommend-fix/--with-ask-insights)
 agent-eval claude upgrade             # refresh hook matchers/interpreters + deep-merge only NEW default keys into guardrail_config.json (keeps your edits)
-agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + blocked-attempt capture + MCP handshake
+agent-eval claude doctor             # static checks + live hook round-trip (allow/deny/batch-report) + blocked-attempt capture + audit-DB row count + MCP handshake
 agent-eval claude test-config cases.yaml   # assert the resolved guardrail_config against a case file (same shape as opencode test-config); exit 1 on any mismatch (SPEC-043 REQ-6a)
 agent-eval claude uninstall          # remove our hooks from settings.json + deregister MCP + delete session state (run before pip uninstall)
 
 # LiveGuardrail — blocked-attempt lookup (identical under `claude` and `opencode`; needs a batch-report DB)
+agent-eval claude   violations                       # v1.1.0: browse recent history, no keyword needed (--since/--gate to narrow)
 agent-eval claude   violations "rm -rf" --detail     # FTS past Gate B/E blocks; --detail prints the captured command excerpt
 agent-eval claude   blocked-detail <task_id>         # every blocked call in one session + its excerpt (falls back to the host transcript); --json
 agent-eval opencode violations "dangerous tool parameters"
@@ -1652,7 +1653,7 @@ html = generate_comprehensive_html_report(monitor, baseline=None)   # -> str (se
 ```
 
 Pass `baseline` (a prior result dict) and the report adds the regressed/new/fixed failure-set diff,
-change attribution, and a version-comparison table. See [`09_OUTPUTS.md` §4–§5](09_OUTPUTS.md#4-static-html-report--single-result)
+change attribution, and a version-comparison table. See [`13_OUTPUTS.md` §4–§5](13_OUTPUTS.md#4-static-html-report--single-result)
 for the full section list.
 
 To re-render from an already-saved JSON without a monitor, use the dashboard (`agent-eval dashboard`
@@ -1686,7 +1687,7 @@ insights = build_insights(
 This re-shapes existing verdicts (`rca.diagnose()`, `utils.confidence`, `ontology.metric_registry`,
 the gate aggregates) into one object; it introduces **no new scoring formulas**. It is attached to
 every result JSON under `extra_metrics.insights` by `save_to_file()`. Full key-by-key reference:
-[`09_OUTPUTS.md` §3](09_OUTPUTS.md#3-result-json-save_to_file) and `Docs/specs/SPEC-041-insight-delivery.md`.
+[`13_OUTPUTS.md` §3](13_OUTPUTS.md#3-result-json-save_to_file) and `Docs/specs/SPEC-041-insight-delivery.md`.
 Schema: `agent_evaluator/schemas/insights.schema.json`.
 
 Related helper modules (also submodule-only): `agent_evaluator.utils.targets` (`.aoo/targets.json`),
@@ -1760,9 +1761,9 @@ MetricComputationError, StorageError, FrameworkNotInstalledError,
 FrameworkLiteral,   # a Literal of the 24 frameworks (plus "native")
 ```
 
-> `setup_otel` is public (used in §1 / [06_OBSERVABILITY.md](06_OBSERVABILITY.md)) but not in `__all__` —
+> `setup_otel` is public (used in §1 / [10_OBSERVABILITY.md](10_OBSERVABILITY.md)) but not in `__all__` —
 > import it explicitly: `from agent_evaluator import setup_otel`.
 
 ---
 
-*Agent Evaluator v1.0.6 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [example directory](../Evaluator_Examples/)*
+*Agent Evaluator v1.1.0 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [example directory](../Evaluator_Examples/)*

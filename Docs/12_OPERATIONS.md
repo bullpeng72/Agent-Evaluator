@@ -2,7 +2,7 @@
 
 Installation · Docker · per-environment configuration · performance tuning · troubleshooting.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -424,9 +424,11 @@ ls -la results/
 agent-eval gate results/sample.json --tcr 0 --accuracy 0   # always-passes test
 
 # 6. (v1.0.5) Record the deploy decision to the ledger and hold borderline PASSes
+# --hold-on-undecided: exit 75 if a would-be PASS is statistically borderline
+# --decision-log: append {exit_code, verdict, gate_scores}; exit code unchanged
 agent-eval gate results/run.json --tcr 85 --accuracy 70 \
-    --hold-on-undecided \                     # exit 75 if a would-be PASS is statistically borderline
-    --decision-log .aoo/decisions.jsonl       # append {exit_code, verdict, gate_scores}; exit code unchanged
+    --hold-on-undecided \
+    --decision-log .aoo/decisions.jsonl
 agent-eval decisions record .aoo/decisions.jsonl --outcome accepted --by release-lead --rationale "..."
 ```
 
@@ -436,5 +438,5 @@ agent-eval decisions record .aoo/decisions.jsonl --outcome accepted --by release
 |------|----------|
 | Installation · basic usage | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| Dashboard · Phoenix monitoring | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
-| Full API reference | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| Dashboard · Phoenix monitoring | [10_OBSERVABILITY.md](10_OBSERVABILITY.md) |
+| Full API reference | [14_API_REFERENCE.md](14_API_REFERENCE.md) |

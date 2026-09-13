@@ -2,7 +2,7 @@
 
 Using the dashboard · Phoenix OTEL real-time monitoring.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -134,7 +134,7 @@ dashboard's Improve tab shows, in a fixed top-to-bottom reading order:
 
 To re-render one from an already-saved JSON (no re-run), use the dashboard's **📤 Export** tab or
 `GET /html/{file_id}`; from code, `generate_comprehensive_html_report(monitor)` after populating the
-monitor. Full section-by-section reference: [`09_OUTPUTS.md` §4](09_OUTPUTS.md#4-static-html-report--single-result).
+monitor. Full section-by-section reference: [`13_OUTPUTS.md` §4](13_OUTPUTS.md#4-static-html-report--single-result).
 
 ---
 
@@ -175,7 +175,7 @@ Tabs filled automatically just by calling `save_to_file()` after applying `@agen
 
 | Menu | How it works |
 |------|--------------|
-| 📂 **File Compare** | 2+ `results/*.json` files → pick two in the dropdown. Auto-group by the `prompt_version` / `agent_version` tag via the **Group by** dropdown; with two files selected, the **⚖️ Pairwise Judge** sub-tab (win-rate comparison) and **📄 Export HTML** (download the comparison as a single file) appear — see the ["version comparison" section of `08_API_REFERENCE.md`](08_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098) |
+| 📂 **File Compare** | 2+ `results/*.json` files → pick two in the dropdown. Auto-group by the `prompt_version` / `agent_version` tag via the **Group by** dropdown; with two files selected, the **⚖️ Pairwise Judge** sub-tab (win-rate comparison) and **📄 Export HTML** (download the comparison as a single file) appear — see the ["version comparison" section of `14_API_REFERENCE.md`](14_API_REFERENCE.md#version-comparison--prompt_version--agent_version-v098) |
 | 🗂️ **Case Review** | approve / reject candidate cases extracted by `agent-eval dataset build` |
 | 📚 **Golden Dataset** | `data/golden_datasets/*.json` or `GoldenSetBuilder` |
 | 📤 **Export** | 3 formats: raw JSON / per-task CSV / standalone HTML report |
@@ -753,6 +753,6 @@ agent-eval monitor --attach http://localhost:6006
 | All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
 | Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
-| Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [09_OUTPUTS.md](09_OUTPUTS.md) |
-| Every span / attribute / metric / annotation sent over OpenTelemetry | [10_OTEL_DATA_REFERENCE.md](10_OTEL_DATA_REFERENCE.md) |
-| Docker · per-environment configuration | [07_OPERATIONS.md](07_OPERATIONS.md) |
+| Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [13_OUTPUTS.md](13_OUTPUTS.md) |
+| Every span / attribute / metric / annotation sent over OpenTelemetry | [11_OTEL_DATA_REFERENCE.md](11_OTEL_DATA_REFERENCE.md) |
+| Docker · per-environment configuration | [12_OPERATIONS.md](12_OPERATIONS.md) |

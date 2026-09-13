@@ -2288,6 +2288,43 @@
         }
       }
     },
+    "blocked_attempts_audit": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "sessions_affected": {
+          "type": "integer"
+        },
+        "by_gate": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_tool": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
     "spec_coverage": {
       "type": [
         "object",

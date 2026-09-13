@@ -8,14 +8,19 @@ SPEC-016: 영속성 저장소 옵션 — SQLite 백엔드 (JSON 파일 전용의
 다중 writer 동시쓰기와 증분(upsert) 쓰기를 지원한다.
 
 SPEC-024 REQ-3: ``search_violations()`` — Gate B/E 위반 이력 전문 검색(FTS5, REQ-2).
+SPEC-045 REQ-4: ``list_violations()`` — 키워드 없는 최신순 브라우징(FTS MATCH 없음).
 """
 from __future__ import annotations
 
 from .sqlite_backend import (
     SCHEMA_VERSION,
+    list_violations,
     load_tasks_from_db,
     save_tasks_to_db,
     search_violations,
 )
 
-__all__ = ["save_tasks_to_db", "load_tasks_from_db", "search_violations", "SCHEMA_VERSION"]
+__all__ = [
+    "save_tasks_to_db", "load_tasks_from_db", "search_violations", "list_violations",
+    "SCHEMA_VERSION",
+]

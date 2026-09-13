@@ -348,6 +348,45 @@ def probe_blocked_capture(config: dict) -> tuple[str, str]:
     return "ok", f"captures a redacted command excerpt ({len(excerpt)} chars)"
 
 
+def probe_violation_audit_db(host: str) -> tuple[str, str]:
+    """(SPEC-045 REQ-9) 배치-리포트 DB에 쌓인 차단/관찰 이력의 존재를 doctor에
+    표면화한다.
+
+    지금까지 "지난 세션에 뭐가 차단됐는지"를 확인하려면 사용자가 먼저 "확인해봐야
+    하나?"를 스스로 판단하고 ``violations``/``list_violations``를 능동적으로 실행해야
+    했다 — doctor가 매번 이 존재 신호를 먼저 던져주면 그 판단 자체가 필요 없어진다
+    (수동 발견 → 능동 안내). DB가 아직 없으면 정상 상태(첫 세션이 아직 안 끝남)이므로
+    ``info``만 낸다 — 이건 오류가 아니다.
+
+    Returns:
+        ``(status, detail)`` — status는 항상 ``"info"``거나(정상/발견 신호) 읽기 실패
+        시에만 ``"warn"``. 빈 감사 이력을 문제로 취급하지 않는다.
+    """
+    import sqlite3
+
+    from agent_evaluator.cli._violations_detail import resolve_db_path
+
+    db_path = resolve_db_path(host)
+    if not os.path.exists(db_path):
+        return "info", f"no audit DB yet at {db_path} (created when the first session ends)"
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            n_blocked = conn.execute("SELECT COUNT(*) FROM blocked_violations").fetchone()[0]
+            n_observed = conn.execute("SELECT COUNT(*) FROM violation_search").fetchone()[0]
+            most_recent = conn.execute("SELECT MAX(timestamp) FROM tasks").fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        return "warn", f"could not read {db_path}: {exc}"
+    if not (n_blocked or n_observed):
+        return "info", "audit DB exists but has no violation/blocked rows yet"
+    return "info", (
+        f"{n_blocked} blocked, {n_observed} observed row(s) (most recent: {most_recent}) "
+        f"— run `agent-eval {host} violations` to browse"
+    )
+
+
 # ---------------------------------------------------------------------------
 # SPEC-043 REQ-6a: guardrail_config 케이스 기반 검증
 #

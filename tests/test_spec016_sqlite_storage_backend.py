@@ -21,6 +21,7 @@ import pytest
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.storage import (
     SCHEMA_VERSION,
+    list_violations,
     load_tasks_from_db,
     save_tasks_to_db,
     search_violations,
@@ -586,4 +587,108 @@ class TestSearchViolationsIncludeBlocked:
         save_tasks_to_db(db_path, tasks)
 
         results = search_violations(db_path, "bash", limit=2, include_blocked=True)
+        assert len(results) == 2
+
+
+class TestListViolations:
+    """SPEC-045 REQ-4: list_violations() — 키워드 없는 브라우징(no FTS MATCH at all)."""
+
+    def _violating_task(self, task_id: str, timestamp: str | None = None):
+        t = create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra={
+                "tool_parameter_safety": {
+                    "safety_score": 0.75, "dangerous_calls": ["bash"],
+                    "violations": ["dangerous_pattern:bash:rm_shell_command"],
+                    "checked_calls": 1, "violation_count": 1,
+                },
+            },
+        )
+        return t
+
+    def _blocked_task(self, task_id: str, gate: str = "B", tool_name: str = "bash"):
+        return create_taskresult(
+            task_id=task_id, question="q", response="r",
+            ground_truth="r", execution_time=0.5, task_type="tool_use",
+            extra={"blocked_attempts": [
+                {"tool_name": tool_name, "gate": gate, "reason": "dangerous tool parameters"},
+            ]},
+        )
+
+    def test_empty_db_returns_empty_list_not_error(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [])  # schema only, no rows
+
+        assert list_violations(db_path) == []
+
+    def test_wildcard_style_queries_are_unnecessary_now(self, tmp_path):
+        """search_violations()는 '*'/''/' '/'%' 같은 와일드카드로 전체 나열이 안 됐다
+        (전부 빈 리스트) — list_violations()는 애초에 MATCH를 안 쓰므로 이 문제가
+        구조적으로 없다: 인자 없이 호출하면 그냥 전부 나온다."""
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task("session-1")])
+
+        assert list_violations(db_path, include_blocked=True) != []
+
+    def test_lists_both_observed_and_blocked_without_a_query(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [
+            self._violating_task("session-observed"),
+            self._blocked_task("session-blocked"),
+        ])
+
+        results = list_violations(db_path)
+        by_task = {r["task_id"]: r for r in results}
+        assert by_task["session-observed"]["blocked"] is False
+        assert by_task["session-blocked"]["blocked"] is True
+
+    def test_sorted_by_timestamp_descending_not_relevance(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task(f"session-{i}") for i in range(3)])
+        # 각 태스크의 timestamp는 create_taskresult 호출 순서대로 단조 증가(실시간 기록)
+        results = list_violations(db_path)
+        timestamps = [r["timestamp"] for r in results]
+        assert timestamps == sorted(timestamps, reverse=True)
+
+    def test_gate_filter_applies_to_blocked_rows_only(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [
+            self._blocked_task("session-b", gate="B"),
+            self._blocked_task("session-e", gate="E"),
+        ])
+
+        results = list_violations(db_path, gate="B", include_observed=False)
+        assert {r["task_id"] for r in results} == {"session-b"}
+
+    def test_tool_name_filter(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [
+            self._blocked_task("session-bash", tool_name="bash"),
+            self._blocked_task("session-write", tool_name="write"),
+        ])
+
+        results = list_violations(db_path, tool_name="write", include_observed=False)
+        assert {r["task_id"] for r in results} == {"session-write"}
+
+    def test_since_filters_out_older_rows(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task("session-1")])
+
+        # 미래 시각을 하한으로 주면 방금 기록한 행도 제외된다.
+        results = list_violations(db_path, since="2999-01-01T00:00:00")
+        assert results == []
+
+    def test_detail_false_omits_arg_excerpt_key(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task("session-1")])
+
+        results = list_violations(db_path, detail=False)
+        assert "arg_excerpt" not in results[0]
+
+    def test_limit_applies_independently_per_subquery(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        save_tasks_to_db(db_path, [self._blocked_task(f"session-{i}") for i in range(5)])
+
+        results = list_violations(db_path, limit=2, include_observed=False)
         assert len(results) == 2

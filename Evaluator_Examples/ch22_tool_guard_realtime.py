@@ -19,6 +19,21 @@ Book Chapter 22 — 보안 관련 실시간 제어: 실행 전에 막는 마지�
 섹션 6: §22.7 — audit_blocked=True로 완전 차단 이력을 감사 저장소에 남기고,
         세션 종료 시 SQLite 배치 리포트에 편입해 search_violations(include_blocked=True)로
         인시던트 대응 자료로 검색한다
+섹션 7: 5개 세션을 하나의 PerformanceMonitor에 모아 표준 Harness Gate A–G
+        JSON+HTML 리포트로 편입한다
+
+v1.1.0 — §22.10의 "호스트 없는 에이전트를 위한 4단계 방어선"을 그대로 실행 가능한
+코드로 보여준다(OpenCode/Claude Code 같은 호스트가 없는 순수 Python 루프에서
+차단이 조용히 사라지지 않게 하는 하드닝):
+섹션 8:  방어선 1 상세 — blocked_attempt_capture의 max_chars/report_max_chars.
+         캡처는 항상 둘 중 큰 값 기준 한 번뿐이고, 화면마다 표시만 다르게 자른다
+섹션 9:  방어선 2 — live_guardrail_session(audit_log_path=...). 호출자의 예외
+         처리가 허술해도, with 블록이 끝나면(성공이든 예외든) 여기 남는다
+섹션 10: 방어선 3 — LiveGuardrail(on_block=...). 차단이 기록되는 순간 데몬
+         스레드에서 콜백이 실행된다 — 느리거나 죽은 콜백도 호출자를 지연시키지 않는다
+         (실전에서는 webhook_on_block(url)으로 실제 Slack/웹훅에 연결한다)
+섹션 11: 방어선 4 — list_violations(). 키워드 없이 최신순으로 그냥 나열한다 —
+         `search_violations`처럼 이미 뭘 찾는지 몰라도 된다
 
 Python이 아닌 런타임(OpenCode/Claude Code 등)과의 연결(stdio 브리지)은 §22.5를
 참고하라 — 이 파일은 순수 Python 도구 함수에 데코레이터를 붙이는 패턴만 다룬다.
@@ -30,8 +45,10 @@ Python이 아닌 런타임(OpenCode/Claude Code 등)과의 연결(stdio 브리�
     python Evaluator_Examples/ch22_tool_guard_realtime.py
 
 결과:
-    results/ch22_tool_guard_realtime.db (섹션 6 — 감사 이력)
-    results/ch22_tool_guard_realtime.json + .html (섹션 7 — Harness Gate A–G 리포트)
+    results/ch22_tool_guard_realtime.db (섹션 6/8/10 — 감사 이력, 섹션 11이 다시 읽음)
+    results/ch22_session9.blocked.json (섹션 9 — audit_log_path crash-safe 로그)
+    results/ch22_tool_guard_realtime.json + .html (섹션 7 — Harness Gate A–G 리포트;
+        session-4의 차단 이력이 Governance 섹션에 이미 노출된다)
 """
 
 import asyncio
@@ -46,7 +63,11 @@ from agent_evaluator.gates.live_guardrail import (
     live_guardrail_session,
     tool_guard,
 )
-from agent_evaluator.storage.sqlite_backend import save_tasks_to_db, search_violations
+from agent_evaluator.storage.sqlite_backend import (
+    list_violations,
+    save_tasks_to_db,
+    search_violations,
+)
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR = _PROJECT_ROOT / "results"
@@ -96,7 +117,7 @@ def _new_guardrail() -> LiveGuardrail:
 guardrail = _new_guardrail()
 
 
-@tool_guard(audit_blocked=True, fail_closed=True)
+@tool_guard(audit_blocked=True, fail_closed=True)  # audit_blocked=True는 v1.1.0부터 기본값
 def bash(command: str) -> subprocess.CompletedProcess:
     # 이 함수는 LiveGuardrail을 전혀 모른다 — 원래 있던 구현 그대로다.
     return subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -306,3 +327,158 @@ print(f"  저장 완료: {report_json} (+ .html)")
 
 print("\n결과 저장 완료:", _DB_PATH, "+ results/ch22_tool_guard_realtime.json/.html")
 print("확인: agent-eval dashboard results/")
+print(
+    "  (session-4의 차단 이력은 이미 저장된 HTML 리포트에 노출돼 있다 — Gate B/E 점수는"
+    " 여전히 초록불이어도 Governance 섹션이 자동으로 펼쳐진다. §22.10 참고)"
+)
+
+# ===========================================================================
+# 섹션 8: blocked_attempt_capture — max_chars/report_max_chars (§22.10 방어선 1 상세)
+# ===========================================================================
+# v1.1.0: 캡처 예산이 두 단계로 나뉜다 — max_chars(목록/검색용 표시 예산, 기본
+# 240→500)와 report_max_chars(리포트/blocked-detail 전용, 옵트인, 생략 시
+# max_chars와 동일). 캡처 자체는 항상 둘 중 큰 값 기준으로 딱 한 번 일어나고,
+# 화면마다 표시만 다르게 자른다 — 아래는 일부러 두 값을 다르게 잡아 그 차이를
+# 실제 길이로 확인한다.
+print("\n=== 섹션 8: blocked_attempt_capture — max_chars/report_max_chars ===")
+
+capture_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=[r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f"],
+        scope_tool_names=["bash"],
+        fail_on_dangerous=True,
+    ),
+    blocked_attempt_capture={
+        "enabled": True,
+        "max_chars": 40,           # 일부러 짧게 — CLI 목록/검색 화면 표시용 예산
+        "report_max_chars": 200,   # 리포트/blocked-detail 전용은 더 길게
+        "redact_pii": True,
+    },
+)
+
+
+@tool_guard(tool_name="bash", fail_closed=True)
+def bash_capture_demo(command: str) -> subprocess.CompletedProcess:
+    return subprocess.run(command, shell=True, capture_output=True, text=True)
+
+
+_long_target = "/very/long/nested/path/segment" * 10  # 220자 넘겨 실제로 잘리게 만든다
+with live_guardrail_session(capture_guardrail, task_id="session-8"):
+    try:
+        bash_capture_demo(command=f"rm -rf {_long_target}")
+    except GuardrailBlockedError:
+        pass
+
+_captured = capture_guardrail.snapshot()["blocked_attempts"][0]["arg_excerpt"]
+print(f"  캡처된 발췌 길이: {len(_captured)}자 (report_max_chars=200 기준으로 저장됨)")
+print(f"  발췌: {_captured!r}")
+print("  CLI 목록/검색 화면은 이 저장값을 truncate_excerpt()로 max_chars=40까지 한 번 더 자른다.")
+
+save_tasks_to_db(_DB_PATH, [create_taskresult(
+    task_id="session-8", question="max_chars/report_max_chars 데모",
+    response="capture length demo", execution_time=0.2, task_type="tool_use",
+    extra=capture_guardrail.snapshot(),
+)])
+
+# ===========================================================================
+# 섹션 9: audit_log_path — 세션이 죽어도 남는 기록 (§22.10 방어선 2)
+# ===========================================================================
+print("\n=== 섹션 9: audit_log_path — crash-safe 감사 로그 ===")
+
+_audit_log_path = _OUTPUT_DIR / "ch22_session9.blocked.json"
+_audit_log_path.unlink(missing_ok=True)  # 이전 실행 결과 정리
+
+durability_guardrail = _new_guardrail()
+
+
+@tool_guard(tool_name="bash", fail_closed=True)  # scope_tool_names=["bash"]와 이름을 맞춘다
+def bash_durable(command: str) -> subprocess.CompletedProcess:
+    return subprocess.run(command, shell=True, capture_output=True, text=True)
+
+
+with live_guardrail_session(
+    durability_guardrail, task_id="session-9", audit_log_path=_audit_log_path,
+):
+    try:
+        bash_durable(command="rm -rf /tmp/whatever")
+    except GuardrailBlockedError:
+        pass  # 호출자가 여기서 로그도 안 남기고 조용히 삼켜도 — with 블록이 끝나면 flush된다
+
+if _audit_log_path.exists():
+    _lines = _audit_log_path.read_text(encoding="utf-8").strip().splitlines()
+    print(f"  {_audit_log_path.name}에 {len(_lines)}줄 flush됨 (with 블록 종료 시 자동):")
+    for line in _lines:
+        print(f"    {line}")
+else:
+    print("  경고: 감사 로그 파일이 생성되지 않았습니다.")
+
+# ===========================================================================
+# 섹션 10: on_block — 프로세스를 안 믿는 즉시 알림 (§22.10 방어선 3)
+# ===========================================================================
+# 실전에서는 on_block=webhook_on_block(os.environ["SLACK_WEBHOOK_URL"])처럼 실제
+# 웹훅에 연결한다. 이 예제는 외부 네트워크 의존 없이 같은 메커니즘(데몬 스레드,
+# 즉시 실행, 예외 무시, 호출자 비지연)을 보여주기 위해 콜백을 리스트에 append하는
+# 것으로 대신한다 — webhook_on_block도 내부적으로 정확히 이 래퍼를 함께 쓴다.
+print("\n=== 섹션 10: on_block — 아웃오브밴드 알림 ===")
+
+import time  # noqa: E402
+
+_alerts: list = []
+
+
+def _on_block_demo(payload: dict) -> None:
+    time.sleep(0.3)  # 느리거나 죽은 웹훅을 흉내 — 이게 호출자를 지연시키지 않음을 아래서 확인한다
+    _alerts.append(payload)
+
+
+alert_guardrail = LiveGuardrail(
+    tool_parameter_safety=ToolParameterSafetyConfig(
+        dangerous_patterns=[r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f"],
+        scope_tool_names=["bash"],
+        fail_on_dangerous=True,
+    ),
+    on_block=_on_block_demo,
+    # 실전 대체: on_block=webhook_on_block(os.environ["SLACK_WEBHOOK_URL"], timeout=3.0)
+)
+
+
+@tool_guard(tool_name="bash", fail_closed=True)
+def bash_alerted(command: str) -> subprocess.CompletedProcess:
+    return subprocess.run(command, shell=True, capture_output=True, text=True)
+
+
+with live_guardrail_session(alert_guardrail, task_id="session-10"):
+    _t0 = time.monotonic()
+    try:
+        bash_alerted(command="rm -rf /some/path")
+    except GuardrailBlockedError:
+        pass
+    _elapsed_ms = (time.monotonic() - _t0) * 1000
+    print(f"  차단 호출 자체는 {_elapsed_ms:.1f}ms만에 반환됨 (콜백의 300ms 지연과 무관)")
+
+time.sleep(0.5)  # 데모 출력을 위해 백그라운드 스레드가 콜백을 마칠 시간을 준다(실전엔 불필요)
+print(f"  {len(_alerts)}건의 아웃오브밴드 알림 수신: {_alerts}")
+
+save_tasks_to_db(_DB_PATH, [create_taskresult(
+    task_id="session-10", question="on_block 데모",
+    response="out-of-band alert demo", execution_time=0.2, task_type="tool_use",
+    extra=alert_guardrail.snapshot(),
+)])
+
+# ===========================================================================
+# 섹션 11: list_violations — 키워드 없이 찾기 (§22.10 방어선 4)
+# ===========================================================================
+print("\n=== 섹션 11: list_violations — 키워드 없는 브라우징 ===")
+
+# 지금까지 이 DB(session-4/8/10)에 뭐가 쌓였는지, "rm -rf" 같은 키워드를 몰라도
+# 확인할 수 있다 — search_violations와 달리 FTS MATCH를 아예 쓰지 않는다.
+recent = list_violations(_DB_PATH, include_blocked=True, limit=10)
+print(f"  list_violations(...) — 최신순 {len(recent)}건 (쿼리 없이):")
+for r in recent:
+    print(f"    - task_id={r['task_id']}  blocked={r['blocked']}  {r['timestamp']}")
+
+print(
+    "  CLI/MCP로는 각각 `agent-eval {claude,opencode} violations`(쿼리 생략)와 MCP "
+    "list_violations 도구가 같은 일을 한다. `agent-eval {claude,opencode} doctor`는 "
+    "이 DB의 건수·최근 시각을 먼저 알려줘서 \"확인해봐야 하나\"를 스스로 판단할 필요가 없다."
+)

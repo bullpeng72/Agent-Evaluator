@@ -67,23 +67,52 @@ def _no_db_msg(db_path: str, host: str) -> str:
 
 
 def run_violations(
-    host: str, query: str, *, detail: bool = False, db: str | None = None, limit: int = 10
+    host: str,
+    query: str | None,
+    *,
+    detail: bool = False,
+    db: str | None = None,
+    limit: int = 10,
+    since: str | None = None,
+    gate: str | None = None,
 ) -> int:
+    """SPEC-045 REQ-6: ``query``가 없으면(생략) 키워드 없는 브라우징 모드로 동작한다.
+
+    ``query``가 주어지면 기존 ``search_violations()`` 경로(FTS5 키워드 검색)를 그대로
+    쓴다 — 이 분기는 100% 하위호환(기존 호출 방식 무변경).
+    """
     from agent_evaluator.integrations.violation_search_mcp import format_results
-    from agent_evaluator.storage.sqlite_backend import search_violations
+    from agent_evaluator.storage.sqlite_backend import list_violations, search_violations
 
     db_path = resolve_db_path(host, db)
     if not os.path.exists(db_path):
         print(_no_db_msg(db_path, host))
         return 1
     try:
-        results = search_violations(
-            db_path, query, limit=limit, include_blocked=True, detail=detail
-        )
+        if query:
+            results = search_violations(
+                db_path, query, limit=limit, include_blocked=True, detail=detail
+            )
+            text = format_results(results)
+        else:
+            results = list_violations(
+                db_path, limit=limit, include_blocked=True, detail=detail,
+                since=since, gate=gate,
+            )
+            text = format_results(
+                results,
+                header=(
+                    "Recent violation/blocked-attempt history (most recent first, "
+                    "no keyword filter):"
+                ),
+                empty_message=(
+                    "No violation/blocked-attempt history recorded yet — nothing to list."
+                ),
+            )
     except Exception as exc:  # noqa: BLE001 - surface any read failure verbatim
         print(f"{_RD}Could not read {db_path}: {exc}{_R}")
         return 1
-    print(format_results(results))
+    print(text)
     return 0
 
 
@@ -128,20 +157,43 @@ def add_violation_detail_subcommands(host_sub, host: str) -> None:
     """
     v = host_sub.add_parser(
         "violations",
-        help="Search past blocked/observed Gate B/E violations (like the search_violations MCP)",
+        help=(
+            "List/search past blocked/observed Gate B/E violations "
+            "(like the search_violations MCP)"
+        ),
         description=(
             "Full-text search the LiveGuardrail batch-report DB for past Gate B/E "
-            "violations. --detail also prints the captured command excerpt for blocked rows."
+            "violations. --detail also prints the captured command excerpt for blocked rows. "
+            "Omit the query entirely to browse the most recent history instead (SPEC-045 "
+            "REQ-6) — no keyword needed; use --since/--gate to narrow."
         ),
         epilog=(
+            f'{_G}agent-eval {host} violations{_R}'
+            f'                          # browse recent, no keyword\n'
+            f'{_G}agent-eval {host} violations --since 2026-09-08{_R}\n'
+            f'{_G}agent-eval {host} violations --gate B --detail{_R}\n'
             f'{_G}agent-eval {host} violations "rm -rf"{_R}\n'
             f'{_G}agent-eval {host} violations "dangerous tool parameters" --detail{_R}\n'
         ),
     )
-    v.add_argument("query", help="free-text query (keywords; command text also matches now)")
+    v.add_argument(
+        "query", nargs="?", default=None,
+        help=(
+            "free-text query (keywords; command text also matches now). "
+            "Omit to browse recent history."
+        ),
+    )
     v.add_argument("--detail", action="store_true", help="show the captured command excerpt")
     v.add_argument("--db", default=None, help="override the batch-report DB path")
     v.add_argument("--limit", type=int, default=10, help="max rows per sub-query (default 10)")
+    v.add_argument(
+        "--since", default=None,
+        help="ISO-8601 timestamp lower bound, browse mode only (e.g. 2026-09-08)",
+    )
+    v.add_argument(
+        "--gate", choices=["B", "E"], default=None,
+        help="filter to this gate, browse mode only (applies to blocked rows)",
+    )
 
     b = host_sub.add_parser(
         "blocked-detail",
@@ -161,7 +213,10 @@ def add_violation_detail_subcommands(host_sub, host: str) -> None:
 def dispatch(host: str, cmd: str | None, args) -> int | None:
     """Return an exit code if *cmd* is one of ours, else ``None`` (not handled)."""
     if cmd == "violations":
-        return run_violations(host, args.query, detail=args.detail, db=args.db, limit=args.limit)
+        return run_violations(
+            host, args.query, detail=args.detail, db=args.db, limit=args.limit,
+            since=args.since, gate=args.gate,
+        )
     if cmd == "blocked-detail":
         return run_blocked_detail(host, args.task_id, db=args.db, as_json=args.as_json)
     return None

@@ -2,9 +2,9 @@
 
 A reference for the formulas, output keys, and thresholds of Agent Evaluator's **58 metrics**.
 
-**v1.0.6 | 25 Native Trackers + 33 Harness Config = 58 metrics | 7 Gates (A–G) decide deployment readiness**
+**v1.1.0 | 25 Native Trackers + 33 Harness Config = 58 metrics | 7 Gates (A–G) decide deployment readiness**
 
-> For individual tracker API signatures, see [08_API_REFERENCE.md](08_API_REFERENCE.md).
+> For individual tracker API signatures, see [14_API_REFERENCE.md](14_API_REFERENCE.md).
 > For applying the decorator approach, see [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md).
 
 
@@ -63,8 +63,9 @@ Each of Gates A–G reduces to **one score in [0, 1]** and a status:
 - A component measured on **fewer than its `min_samples`** is dropped from the score and listed under
   `insufficient_data_warnings`; if a gate ends up with ≤2 measured components and a sub-0.9 score, the
   report flags it as low-representativeness.
-- `agent-eval gate` treats `score ≥ 0.70` as passing by default; pass `--fail-on-gate-warn` to also
-  fail a `warn`, or `--gate-thresholds "E:0.95"` for a per-gate bar. All three verdict entry points
+- `agent-eval gate` treats `score ≥ 0.70` as passing by default; pass `--gate-thresholds "E:0.95"` for
+  a per-gate bar, and `--fail-on-gate-warn` alongside it to also fail a `warn` status — `--fail-on-gate-warn`
+  has no effect unless `--gate-thresholds` is also given. All three verdict entry points
   (`HarnessEvaluationGate`, `QuickEval.gate()`, the CLI) share one loop — see [05_QUALITY_GATE.md](05_QUALITY_GATE.md).
 
 ---
@@ -99,7 +100,7 @@ Each of Gates A–G reduces to **one score in [0, 1]** and a status:
 
 > **C+G**: `HallucinationDetector` contributes a score to both Gate C (reliability — factual faithfulness of the output, `_rel_vals`) and Gate G (observability — hallucination-rate monitoring, `_obs_vals`). If the actual detection count (`_detections`) is 0, it contributes to neither gate.
 
-> **Operational-only trackers** (do not contribute to any Gate score — the 13 in the table above plus these 9 make up all 25 Native Trackers): `RetryCorrectionTracker` (tracks retry counts and patterns) · `TokenEconomyTracker` (tracks and reports token cost) · `WorkflowExecutionTracker` (tracks chain steps and branches) · `MultimodalMetricsTracker` (aggregates image/audio/video/text usage shares; reads `extra["image_count"]` / `extra["audio_duration_seconds"]` / `extra["video_frames"]` automatically) · `ImplicitFeedbackTracker` (implicit user feedback — copy, thumbs_up, regenerate, etc.) · `ConversationSession` / `ConversationMetrics` (multi-turn conversation quality) · `AnomalyDetector` (Z-score / IQR anomaly detection) · `CostTracker` / `AdaptivePolicy` (external-evaluation cost budgeting) · `SamplingStage` (adaptive sampling stages) · `StreamingEvaluator` (real-time streaming evaluation). Their data appears in the report and dashboard but is not part of the Gate A–G score computation — see [`06_OBSERVABILITY.md`](06_OBSERVABILITY.md) for detail.
+> **Operational-only trackers** (do not contribute to any Gate score — the 13 in the table above plus these 9 make up all 25 Native Trackers): `RetryCorrectionTracker` (tracks retry counts and patterns) · `TokenEconomyTracker` (tracks and reports token cost) · `WorkflowExecutionTracker` (tracks chain steps and branches) · `MultimodalMetricsTracker` (aggregates image/audio/video/text usage shares; reads `extra["image_count"]` / `extra["audio_duration_seconds"]` / `extra["video_frames"]` automatically) · `ImplicitFeedbackTracker` (implicit user feedback — copy, thumbs_up, regenerate, etc.) · `ConversationSession` / `ConversationMetrics` (multi-turn conversation quality) · `AnomalyDetector` (Z-score / IQR anomaly detection) · `CostTracker` / `AdaptivePolicy` (external-evaluation cost budgeting) · `SamplingStage` (adaptive sampling stages) · `StreamingEvaluator` (real-time streaming evaluation). Their data appears in the report and dashboard but is not part of the Gate A–G score computation — see [`10_OBSERVABILITY.md`](10_OBSERVABILITY.md) for detail.
 
 > LLMJudge (L3) ships in the base install. DeepEval and Ragas require `pip install agent-evaluator[eval]`.
 
@@ -261,7 +262,7 @@ Detects loop patterns where the same tool call or response repeats.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `consecutive_repeat_threshold` | `int` | `6` | detect a loop after N consecutive identical tool calls — compares the tool name only (parameters ignored). For agents with coarse-grained tools (e.g. OpenCode, where all shell activity is captured as a single "bash" tool), a low value produces false positives on normal behavior, so it is raised to 6 (see Docs/AOO_STACK.md) |
+| `consecutive_repeat_threshold` | `int` | `6` | detect a loop after N consecutive identical tool calls — compares the tool name only (parameters ignored). For agents with coarse-grained tools (e.g. OpenCode, where all shell activity is captured as a single "bash" tool), a low value produces false positives on normal behavior, so it is raised to 6 (see Docs/08_AOO_STACK.md) |
 | `window_size` | `int` | `5` | sliding-window size |
 | `duplicate_in_window_threshold` | `int` | `3` | allowed number of duplicate tool calls within the window (2 causes false positives on normal multi-step agents) |
 | `check_response_loop` | `bool` | `False` | additionally check for loops in the response text |
@@ -1535,4 +1536,4 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 ---
 
 > Full hands-on example: `Evaluator_Examples/ch03_harness_basics.py`
-> API signature detail: `Docs/08_API_REFERENCE.md`
+> API signature detail: `Docs/14_API_REFERENCE.md`

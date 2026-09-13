@@ -2,7 +2,7 @@
 
 Threshold configuration · quality gating · CI/CD integration.
 
-**v1.0.6 | Python 3.8+**
+**v1.1.0 | Python 3.8+**
 
 ---
 
@@ -330,6 +330,7 @@ result = gate.evaluate()
 > - `latency` is measured at **P95 (95th percentile)**, not the mean.
 > - `quality` is on a **0–5 scale**, not 0–10.
 > - `hallucination`, `output_leakage`, `privilege_escalation`, and `tool_chain_attack` are better when lower (the "below bar" direction is inverted).
+> - These are the **metric keys** used by `QuickEval.gate()` (Method 2, e.g. `quality=3.5`) and `monitor.thresholds` (Method 3, e.g. `{"latency": 5.0}`) — they are not all 1:1 CLI flag names. The `agent-eval gate` CLI (Method 1) only exposes `tcr`/`accuracy`/`hallucination`/`llm-judge`/`cost-per-task` directly as flags (`--tcr`, `--accuracy`, `--hallucination`, `--llm-judge`, `--max-cost-per-task`), and latency as **`--p95-latency`** (not `--latency`). The CLI has **no `--quality` flag** at all — to gate on the 0–5 quality score, use `QuickEval.gate(quality=...)` or `monitor.thresholds = {"quality": ...}` instead.
 
 ---
 
@@ -565,11 +566,11 @@ agent-eval diagnose results/latest.json --json
 
 The output includes the detection mode (`detection_mode`), the list of detected gates, each gate's `top_detail_deltas` (the detail metrics that moved most vs. the baseline), any related violations if a SQLite violation history exists, and — for Gate F — MAST (Cemri et al., NeurIPS 2025) failure-mode candidates. When Gates C and D are detected together, a check that first verifies whether SLA is the shared cause is also shown.
 
-Python API: `agent_evaluator.rca.diagnose()` — for the detailed signature see the ["RCA diagnosis + recommendation history" section of `08_API_REFERENCE.md`](08_API_REFERENCE.md#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology). The dashboard 🔧 Improve tab visualizes the same result.
+Python API: `agent_evaluator.rca.diagnose()` — for the detailed signature see the ["RCA diagnosis + recommendation history" section of `14_API_REFERENCE.md`](14_API_REFERENCE.md#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology). The dashboard 🔧 Improve tab visualizes the same result.
 
 > To trace the git commit `--show-diff` points to back to "who wrote it, in which conversation" — an
 > optional, core-independent personal tool — see
-> [Workflow A in `CTX_SESSION_SEARCH.md`](CTX_SESSION_SEARCH.md#workflow-a--gate-regression--git-commit--source-session-trace-back).
+> [Workflow A in `15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md#workflow-a--gate-regression--git-commit--source-session-trace-back).
 
 ---
 
@@ -763,6 +764,6 @@ Manage `gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.jso
 | All 58 metrics in detail | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
 | Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Golden dataset · Korean RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
-| Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [09_OUTPUTS.md](09_OUTPUTS.md) |
-| Docker · per-environment configuration | [07_OPERATIONS.md](07_OPERATIONS.md) |
-| ctx session search (optional personal workflow) | [CTX_SESSION_SEARCH.md](CTX_SESSION_SEARCH.md) |
+| Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [13_OUTPUTS.md](13_OUTPUTS.md) |
+| Docker · per-environment configuration | [12_OPERATIONS.md](12_OPERATIONS.md) |
+| ctx session search (optional personal workflow) | [15_CTX_SESSION_SEARCH.md](15_CTX_SESSION_SEARCH.md) |
