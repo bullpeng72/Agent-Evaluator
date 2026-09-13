@@ -53,6 +53,19 @@ class TestIsBranchProtected:
         assert is_branch_protected("random-branch", cfg) is True
         assert is_branch_protected("feature/x", cfg) is False
 
+    def test_require_branch_prefix_accepts_list_of_prefixes(self):
+        # A JSON-loaded config deserializes this key to a list, not a tuple —
+        # str.startswith(list) used to raise TypeError here (regression guard).
+        cfg = BranchGuardConfig(require_branch_prefix=["feat/", "fix/", "chore/"])
+        assert is_branch_protected("quickfix", cfg) is True
+        assert is_branch_protected("feat/x", cfg) is False
+        assert is_branch_protected("fix/y", cfg) is False
+
+    def test_require_branch_prefix_accepts_tuple_of_prefixes(self):
+        cfg = BranchGuardConfig(require_branch_prefix=("feat/", "fix/"))
+        assert is_branch_protected("random-branch", cfg) is True
+        assert is_branch_protected("feat/x", cfg) is False
+
     def test_custom_protected_branches(self):
         cfg = BranchGuardConfig(protected_branches=("release",))
         assert is_branch_protected("release", cfg) is True

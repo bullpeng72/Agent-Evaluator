@@ -32,7 +32,11 @@ class BranchGuardConfig:
     """
     protected_branches: tuple[str, ...] = ("main", "master")
     git_mutation_patterns: tuple[str, ...] = (r"git\s+commit", r"git\s+push")
-    require_branch_prefix: str | None = None
+    # A single prefix ("feature/") or several (["feat/", "fix/", "chore/"]) — both
+    # accepted. A JSON config with a list here used to reach str.startswith(list)
+    # and raise TypeError, silently fail-caught upstream so the whole check was a
+    # no-op; is_branch_protected() below now normalizes either shape first.
+    require_branch_prefix: str | tuple[str, ...] | list[str] | None = None
     # SPEC-041: OpenCode는 "bash", Claude Code는 "Bash" — 둘 다 넣는다.
     # LiveGuardrail.check_before_tool_call()의 매칭도 대소문자 무시라 커스텀
     # 도구 이름 대소문자가 달라도 동작한다.
@@ -74,8 +78,11 @@ def is_branch_protected(branch: str | None, config: BranchGuardConfig) -> bool:
         return False
     if branch in config.protected_branches:
         return True
-    if config.require_branch_prefix and not branch.startswith(config.require_branch_prefix):
-        return True
+    _prefixes = config.require_branch_prefix
+    if _prefixes:
+        _prefix_tuple = (_prefixes,) if isinstance(_prefixes, str) else tuple(_prefixes)
+        if not branch.startswith(_prefix_tuple):
+            return True
     return False
 
 
