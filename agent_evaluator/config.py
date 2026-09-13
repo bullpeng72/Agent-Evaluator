@@ -291,6 +291,9 @@ def init_from_app(
             )
             if raise_on_missing:
                 raise ConfigurationError(msg)
-            print(f"\033[33m⚠️  {msg}\033[0m", file=sys.stderr)
+            if sys.stderr.isatty():
+                print(f"\033[33m⚠️  {msg}\033[0m", file=sys.stderr)
+            else:
+                print(f"⚠️  {msg}", file=sys.stderr)
 
     return status

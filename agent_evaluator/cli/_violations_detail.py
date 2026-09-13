@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
-_G = "\033[32m"
-_R = "\033[0m"
-_D = "\033[2m"
-_RD = "\033[31m"
+_USE_COLOR = sys.stdout.isatty()
+_G = "\033[32m" if _USE_COLOR else ""
+_R = "\033[0m" if _USE_COLOR else ""
+_D = "\033[2m" if _USE_COLOR else ""
+_RD = "\033[31m" if _USE_COLOR else ""
 
 _PROJECT_ROOT_MARKERS = (".git", "pyproject.toml", "setup.py", "setup.cfg")
 
