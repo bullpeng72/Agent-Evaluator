@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.0 (2026-09-11) — LiveGuardrail discovery & durability hardening
+
+Feature release. Opt-in beyond two default changes (`tool_guard(audit_blocked=True)`, arg-excerpt capture on a host-less block) — everything else leaves the result JSON byte-identical, no `schema_version` bump.
+
+- **`tool_guard(audit_blocked=True)` is now the default** (was `False`) — a blocked call now always leaves an audit trail even with no host and no visible message; it also now captures an `arg_excerpt`, matching the Claude Code/OpenCode host bridges.
+- ✨ **`LiveGuardrail(on_block=...)` / `webhook_on_block(url, timeout=3.0)`** — fires immediately on a block, on a daemon background thread, every exception swallowed (fail-open) — an out-of-band safety net independent of the calling agent's own error handling.
+- ✨ **`live_guardrail_session(audit_log_path=...)`** — flushes any blocked attempts recorded in that `with` block to an append-only JSONL file on exit (success or exception); a length-watermark avoids double-flushing on guardrail reuse.
+- ✨ **`list_violations()`** (+ MCP `list_violations` tool + `agent-eval {claude,opencode} violations` with no query) — browse recent blocked/observed history without needing a keyword first (`--since`/`--gate` to narrow). `search_violations` remains the keyword path.
+- ✨ **`{claude,opencode} doctor`** now proactively reports the audit DB's row count and most-recent timestamp instead of waiting to be asked.
+- 🔧 **`blocked_attempt_capture.max_chars` 240 → 500**, new opt-in `report_max_chars` (a longer capture ceiling for the HTML report / `blocked-detail` deep-dive; defaults to `max_chars`).
+- ✨ **`insights.blocked_attempts_audit`** — an above-the-fold HTML report banner + a Governance evidence-group section (auto-opened) so a session with clean Gate B/E scores still visibly shows a blocked attempt; blocked attempts are deliberately excluded from Gate scoring.
+
 ## v1.0.6 (2026-09-10) — maintenance: module split · CLI help accuracy
 
 Maintenance release. **No behaviour, public-API, or `schema_version` change** — the result JSON stays byte-identical. Every documented import path is preserved.
