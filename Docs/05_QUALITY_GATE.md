@@ -568,10 +568,6 @@ The output includes the detection mode (`detection_mode`), the list of detected 
 
 Python API: `agent_evaluator.rca.diagnose()` — for the detailed signature see the ["RCA diagnosis + recommendation history" section of `14_API_REFERENCE.md`](14_API_REFERENCE.md#14-rca-diagnosis--recommendation-history-agent_evaluatorrca--ontology). The dashboard 🔧 Improve tab visualizes the same result.
 
-> To trace the git commit `--show-diff` points to back to "who wrote it, in which conversation" — an
-> optional, core-independent personal tool — see
-> [Workflow A in `15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md#workflow-a--gate-regression--git-commit--source-session-trace-back).
-
 ---
 
 ## 9. Defining SLOs and the closed improvement loop
@@ -766,4 +762,3 @@ Manage `gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.jso
 | Golden dataset · Korean RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
 | Full output taxonomy (JSON · report · CLI · dashboard · AI runtime) | [13_OUTPUTS.md](13_OUTPUTS.md) |
 | Docker · per-environment configuration | [12_OPERATIONS.md](12_OPERATIONS.md) |
-| ctx session search (optional personal workflow) | [15_CTX_SESSION_SEARCH.md](15_CTX_SESSION_SEARCH.md) |

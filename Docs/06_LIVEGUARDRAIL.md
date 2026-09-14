@@ -216,8 +216,6 @@ scannable-list case. The report and `blocked-detail`/`show_violation` show the f
   servers.
 - [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — side-by-side comparison of the two host
   integrations.
-- [`15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md) — where `ctx` (optional, personal session search) fits
-  relative to `search_violations`/`list_violations` for a blocked command specifically.
 - [`13_OUTPUTS.md`](13_OUTPUTS.md) — the full output-surface map, including `insights.blocked_attempts_audit`
   and the MCP tool table.
 - `Docs/specs/SPEC-019-live-guardrail-api.md` — original `LiveGuardrail` design.

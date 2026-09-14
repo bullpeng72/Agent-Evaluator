@@ -192,11 +192,6 @@ line has no case declaring it — surfaced as `insights.spec_coverage`. `accepta
 (SPEC-042 REQ-1) similarly records short pass conditions per case, shown as `insights.acceptance_coverage`
 ("N of M met", keyword match) — **display only, not a Gate score**.
 
-> `GoldenSetBuilder` only sees `results/` sessions already instrumented with `PerformanceMonitor`. To mine
-> cases from ordinary conversations that ran without `@agent_eval` (e.g. a Claude Code session) — an
-> optional, core-independent personal tool — see
-> [Workflow B in `15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md#workflow-b--mining-golden-set-raw-material-from-uninstrumented-past-sessions).
-
 ---
 
 ### C. KoreanRAGDatasetGenerator (PDF → golden dataset)
@@ -726,4 +721,3 @@ if dataset_id:
 | Decorators · framework integration | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | Quality thresholds · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
 | Full API reference | [14_API_REFERENCE.md](14_API_REFERENCE.md) |
-| ctx session search (optional personal workflow) | [15_CTX_SESSION_SEARCH.md](15_CTX_SESSION_SEARCH.md) |

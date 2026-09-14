@@ -471,9 +471,6 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
   (SPEC-028 REQ-1).
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — the long-lived, protocol-agnostic (not
   OpenCode-specific) stdio bridge used throughout a session.
-- [`15_CTX_SESSION_SEARCH.md`](15_CTX_SESSION_SEARCH.md) — optional, non-core individual workflows that pivot
-  from a Gate regression/golden-set/A-B question into `ctx`'s cross-session search (Claude Code provider
-  only — confirms this doc's OpenCode-importer gap does *not* apply the same way there).
 - [`07_CLAUDE_CODE_HOOKS.md`](07_CLAUDE_CODE_HOOKS.md) — the same `LiveGuardrail` engine wired into Claude Code
   CLI's own hooks instead of an OpenCode plugin.
 - [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the

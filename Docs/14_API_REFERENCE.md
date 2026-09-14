@@ -1590,7 +1590,6 @@ agent-eval improve patch v3.json --repo .               # emit a unified diff pe
 agent-eval improve apply-verify v3.json --proposal C --eval-cmd "python eval.py" --persist   # apply a proposal's diff in a detached `git worktree` at HEAD, run --eval-cmd there, score predicted vs actual (SPEC-043 REQ-7). NEVER merges/commits; the worktree is left for you to inspect. --proposal is <gate> or <gate>:<kind>
 
 # Statistical A/B comparison (2 files → Welch's t-test, 3+ → N-way + FDR correction)
-# If you first need to find the two runs to compare, see workflow C (optional) in 15_CTX_SESSION_SEARCH.md
 agent-eval abtest v1.json v2.json --metric accuracy_score
 agent-eval abtest v1.json v2.json --sequential --tau 0.05   # mSPRT always-valid inference
 agent-eval abtest v1.json v2.json v3.json                   # N-way

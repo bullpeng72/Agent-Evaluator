@@ -320,7 +320,6 @@ Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://g
 | [`Docs/12_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/12_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
 | [`Docs/13_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/13_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
 | [`Docs/14_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/14_API_REFERENCE.md) | Full public API reference |
-| [`Docs/15_CTX_SESSION_SEARCH.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/15_CTX_SESSION_SEARCH.md) | Optional cross-session search workflows (`ctx`) — no Agent-Evaluator dependency |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md) | Version history |
 
 Also available in-app once the dashboard is running: `agent-eval dashboard` → **SDK Reference**
