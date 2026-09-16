@@ -79,6 +79,11 @@ docs/_build/
 # Generated evaluation results
 results/
 
+# 프로젝트별 로컬 상태 (claims/targets/decisions/experiments/tasks/team 등) —
+# agent-eval claims/target/decisions/autopilot 등이 실행 디렉토리에 생성한다.
+# 이 SDK 저장소 자체를 대상으로 실행한 테스트 산출물이 실수로 섞여 들어가는 것도 막는다.
+.aoo/
+
 # OpenCode 로컬 플러그인 설치본 (agent-eval opencode install) —
 # 설치 시점의 Python 인터프리터 절대경로가 머신별로 새겨지므로 공유 저장소에 부적절
 .opencode/

@@ -29,6 +29,7 @@ except PackageNotFoundError:
 
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
+from agent_evaluator.cli.autopilot import build_autopilot_subparser, cmd_autopilot
 from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchmark
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
@@ -625,6 +626,7 @@ def _print_welcome() -> None:
     print(f"  {Y}target{R} · {Y}benchmark{R} · {Y}experiment{R} · {Y}improve{R}  "
           f"{D}SLOs, reference frame, and the closed improvement loop (.aoo/){R}")
     print(f"  {Y}claims{R}     Team scope claims  {D}(.aoo/claims.jsonl){R}")
+    print(f"  {Y}autopilot{R}  Harness Autopilot M0  {D}(multi-task/team registry, dashboard){R}")
     print(f"  {Y}opencode{R} · {Y}claude{R}  Install the LiveGuardrail plugin / CLI hooks")
     print(f"  {Y}--version{R}  Show version")
     print()
@@ -1426,6 +1428,9 @@ def main() -> None:
     # abtest subcommand
     build_abtest_subparser(sub)
 
+    # autopilot subcommand (Harness Autopilot M0, SPEC-AP-001)
+    build_autopilot_subparser(sub)
+
     parser.add_argument(
         "--version", action="store_true",
         help="Show package version",
@@ -1455,6 +1460,7 @@ def main() -> None:
         "benchmark": cmd_benchmark,
         "feedback":  cmd_feedback,
         "abtest":    cmd_abtest,
+        "autopilot": cmd_autopilot,
     }
 
     if args.command is None:
