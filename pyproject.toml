@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-evaluator"
-version = "1.1.0"
+version = "1.1.1"
 description = "Production-ready evaluation framework for AI agents — 58 metrics (25 native + 33 Harness Config) across 7 evaluation gates: goal achievement, behavioral integrity, reliability, performance, security, multi-agent coordination, and observability"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -334,6 +334,16 @@ Changelog = "https://github.com/bullpeng72/Agent-Evaluator/blob/Agent-Evaluator/
 
 [project.scripts]
 agent-eval = "agent_evaluator.cli.main:main"
+
+# cli/main.py는 이 그룹에 등록된 엔트리 포인트만 알면 되고, 각 플러그인 모듈을
+# 직접 import하지 않는다(agent_evaluator/cli/main.py의 _load_cli_plugins() 참고).
+# 각 값은 `register(sub: argparse._SubParsersAction) -> Callable[[Namespace], int]`
+# 시그니처를 따라야 한다 — 서브파서를 등록하고 핸들러를 반환한다.
+# Harness Autopilot(SPEC-AP-001)이 나중에 별도 배포판(예: harness-autopilot 패키지가
+# agent-evaluator를 의존성으로 갖는 형태)으로 분리되더라도, 이 선언을 그 패키지의
+# pyproject.toml로 그대로 옮기기만 하면 되고 agent-evaluator 쪽은 코드 변경이 없다.
+[project.entry-points."agent_evaluator.cli_plugins"]
+autopilot = "agent_evaluator.cli.autopilot:register"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent_evaluator"]

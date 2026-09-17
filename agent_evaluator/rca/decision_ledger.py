@@ -110,7 +110,21 @@ def record_decision_outcome(
 
 
 def load_decisions(log_path: Union[str, Path]) -> list[dict[str, Any]]:
-    """Every entry in write order. Missing file -> ``[]``. Corrupt lines skipped."""
+    """Every entry in write order. Missing file -> ``[]``. Corrupt lines skipped.
+
+    .. important:: **Stable contract — relied on directly by Harness Autopilot.**
+        ``agent_evaluator/gates/autopilot_state.py::detect_repeated_undecided()``
+        and ``agent_evaluator/serve/autopilot_app.py`` (ops page) call this
+        function directly and filter on ``kind == "gate_run"``, then read
+        ``exit_code`` / ``undecided_reason`` / ``id`` / ``verdict_level`` /
+        ``outcome``. Changing this return shape (list-of-dict, these field
+        names, missing-file -> ``[]``, mixed ``gate_run``/``outcome`` entries
+        returned together) silently breaks Autopilot's threshold-review
+        detection. Contract test: ``tests/test_autopilot_sdk_contract.py::
+        TestDecisionLedgerContractForAutopilot``. If Autopilot is ever split
+        into its own distribution, this function becomes part of the public
+        API surface that package depends on.
+    """
     path = Path(log_path)
     if not path.exists():
         return []

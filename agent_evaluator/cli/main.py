@@ -18,6 +18,7 @@ import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
+from typing import Callable
 
 try:
     __version__ = _pkg_version("agent-evaluator")
@@ -29,7 +30,6 @@ except PackageNotFoundError:
 
 from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
-from agent_evaluator.cli.autopilot import build_autopilot_subparser, cmd_autopilot
 from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchmark
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
 from agent_evaluator.cli.claude import build_claude_subparser, cmd_claude
@@ -743,6 +743,59 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# CLI 플러그인 로더 — entry-points 그룹 "agent_evaluator.cli_plugins"
+#
+# 대부분의 서브커맨드(gate/dashboard/claims/...)는 이 파일이 직접 import한다 —
+# 전부 이 SDK 자체의 핵심 기능이라 바꿀 이유가 없다. 반면 Harness Autopilot
+# (agent_evaluator/cli/autopilot.py)은 성격이 다르다 — 하니스 메서드론이라는
+# 특정 워크플로를 자동화하는, 아직 실험 단계인 별개 도구다. 언젠가 별도
+# 배포판(예: agent-evaluator를 의존성으로 갖는 harness-autopilot 패키지)으로
+# 분리될 가능성을 열어두기 위해, 이 파일은 autopilot 모듈을 직접 import하지
+# 않고 entry-points로만 찾는다 — 분리될 때 pyproject.toml의 entry-points
+# 선언만 그 패키지로 옮기면 되고, main.py는 코드 변경이 필요 없다.
+# ---------------------------------------------------------------------------
+
+_CLI_PLUGIN_GROUP = "agent_evaluator.cli_plugins"
+
+
+def _load_cli_plugins(
+    sub: argparse._SubParsersAction,  # type: ignore[type-arg]
+) -> dict[str, Callable[[argparse.Namespace], int]]:
+    """entry-points 그룹에 등록된 CLI 확장을 찾아 서브파서를 붙이고 핸들러를 모은다.
+
+    각 엔트리 포인트는 ``register(sub) -> Callable[[Namespace], int]`` 시그니처의
+    함수를 가리켜야 한다 — 서브파서를 등록한 뒤 그 명령의 핸들러를 반환한다
+    (``agent_evaluator/cli/autopilot.py::register`` 참고). 플러그인 하나가
+    깨져도(오래된 설치, 잘못된 엔트리 포인트 등) 나머지 CLI는 그대로
+    동작해야 하므로 예외를 삼키고 경고만 출력한다.
+    """
+    handlers: dict[str, Callable[[argparse.Namespace], int]] = {}
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:  # pragma: no cover - importlib.metadata는 3.8+ 표준 라이브러리
+        return handlers
+
+    try:
+        eps = entry_points(group=_CLI_PLUGIN_GROUP)
+    except TypeError:
+        # Python 3.8/3.9: entry_points()는 group= 키워드를 지원하지 않는다
+        # (importlib.metadata의 group= 키워드 지원은 3.10부터). 이 폴백은 그
+        # 버전대에서만 실제로 실행되고, 그때의 반환 타입은 dict-like라 최신
+        # 스텁(SelectableGroups.get())과 시그니처가 다르다 — 버전별 스텁 불일치.
+        eps = entry_points().get(_CLI_PLUGIN_GROUP, [])  # type: ignore[arg-type]
+
+    for ep in eps:
+        try:
+            register_fn = ep.load()
+            handler = register_fn(sub)
+        except Exception as exc:
+            print(f"Warning: failed to load CLI plugin {ep.name!r}: {exc}", file=sys.stderr)
+            continue
+        handlers[ep.name] = handler
+    return handlers
+
+
+# ---------------------------------------------------------------------------
 # argparse entry point
 # ---------------------------------------------------------------------------
 
@@ -1428,8 +1481,8 @@ def main() -> None:
     # abtest subcommand
     build_abtest_subparser(sub)
 
-    # autopilot subcommand (Harness Autopilot M0, SPEC-AP-001)
-    build_autopilot_subparser(sub)
+    # 플러그인 CLI 확장 (Harness Autopilot 등) — entry-points로 검색·등록
+    plugin_handlers = _load_cli_plugins(sub)
 
     parser.add_argument(
         "--version", action="store_true",
@@ -1460,7 +1513,7 @@ def main() -> None:
         "benchmark": cmd_benchmark,
         "feedback":  cmd_feedback,
         "abtest":    cmd_abtest,
-        "autopilot": cmd_autopilot,
+        **plugin_handlers,
     }
 
     if args.command is None:

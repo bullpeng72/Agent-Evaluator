@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.1.1 (2026-09-17) — Harness Autopilot: HITL approval queue
+
+Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand (SPEC-AP-001): a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none).
+
+### New: `agent-eval autopilot`
+
+- ✨ **Multi-task / multi-team registry** — `.aoo/tasks/<id>.json` + `.aoo/team.json`, AC/AOO platform-neutral. `install` / `doctor` / `new-task` / `add-member`.
+- ✨ **Local dashboard** (`agent-eval autopilot dashboard`, port 8766) — task board, team management, HITL approval queue, and an ops view (claims / decisions / rejection-rate), server-rendered against real `.aoo/` files (no JS).
+- ✨ **HITL approval queue** (`.aoo/approvals.jsonl`) — `approvals {open,list,decide}`. Checklist auto-scoring + `[NEEDS CLARIFICATION: ...]` tag detection keep a draft out of the human queue until it's ready. `required_approvals` (default 2 for `deploy`/`release_hold`) enforces dual sign-off by two distinct approvers.
+- ✨ **`approvals scan-thresholds`** — detects a repeated `--hold-on-undecided` exit-75 reason (5+ occurrences) in `.aoo/decisions.jsonl` and idempotently opens a `threshold_review` approval (4-step checklist). No new scoring — reads the existing decision ledger only.
+- ✨ **`skills detect`** — read-only detection of repeated approval-checklist shapes as skill candidates (never auto-generates a `SKILL.md`; creation stays a human step).
+- ✨ **`phase transition --require-approval KIND`** — opt-in gate that refuses a task's phase transition unless an approval of that kind is `approved` for that task.
+- ✨ **Principle-6 self-check** — the ops page shows the rolling approval rejection rate and flags a "rubber-stamp" warning once 5+ decisions have a 0% rejection rate.
+- 🔧 **CLI plugin architecture** — `agent-eval autopilot` now registers through a new `agent_evaluator.cli_plugins` entry-points group (`pyproject.toml`) instead of a hardcoded import in `cli/main.py`, so it can move to a separate distribution later without touching `main.py`.
+- 📝 4 new Skills (`unattended-session-recovery`, `checklist-confidence-audit`, `threshold-realism-review`, `sync-drift-check`) and `Docs/specs/SPEC-AP-001-harness-autopilot-interface.md`, documenting the SDK-internal contract (`team_concurrency`/`decision_ledger`) and `.aoo/*.jsonl` formats Autopilot depends on.
+
+### Fixes found during this round's self-audits
+
+- 🐛 `open_threshold_reviews()` deduplicated on a title string with the repeat count baked in, so a card could be duplicated once the same reason recurred past its original count.
+- 🐛 `transition_phase()`'s new approval-gate check ran before the task-existence check, producing a misleading error message when the task itself didn't exist.
+- 🐛 The dashboard's decide form hard-coded `decided_by="local-reviewer"`, making dual-approval structurally impossible through the UI (every approver looked like the same person).
+- 🐛 A task's `blocking_on` field was never updated by anything, so the board's "pending approval" badge never lit up; it's now computed live from the approval queue instead.
+
 ## v1.1.0 (2026-09-11) — LiveGuardrail discovery & durability hardening
 
 Feature release. Opt-in beyond two default changes (`tool_guard(audit_blocked=True)`, arg-excerpt capture on a host-less block) — everything else leaves the result JSON byte-identical, no `schema_version` bump.

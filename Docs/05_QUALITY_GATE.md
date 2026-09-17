@@ -2,7 +2,7 @@
 
 Threshold configuration · quality gating · CI/CD integration.
 
-**v1.1.0 | Python 3.8+**
+**v1.1.1 | Python 3.8+**
 
 ---
 

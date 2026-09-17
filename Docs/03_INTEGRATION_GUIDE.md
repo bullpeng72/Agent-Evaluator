@@ -2,7 +2,7 @@
 
 The full decorator API reference · 24 framework integrations · comparison with other evaluation tools.
 
-**v1.1.0 | Python 3.8+**
+**v1.1.1 | Python 3.8+**
 
 ---
 

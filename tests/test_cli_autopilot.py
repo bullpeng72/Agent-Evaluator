@@ -12,18 +12,29 @@ from __future__ import annotations
 
 import argparse
 
+import pytest
+
 from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_add_member,
+    _cmd_autopilot_approvals_decide,
+    _cmd_autopilot_approvals_list,
+    _cmd_autopilot_approvals_open,
     _cmd_autopilot_dashboard,
     _cmd_autopilot_doctor,
     _cmd_autopilot_install,
     _cmd_autopilot_new_task,
+    _cmd_autopilot_phase_transition,
     cmd_autopilot,
 )
 from agent_evaluator.gates.autopilot_state import (
     add_team_member,
+    create_task,
+    decide_approval,
     load_all_tasks,
+    load_approvals,
+    load_task,
     load_team,
+    open_approval,
 )
 
 
@@ -163,6 +174,342 @@ class TestAddMember:
         assert code == 1
 
 
+class TestApprovalsOpen:
+    def test_open_clean_checklist_is_pending(self, tmp_path, capsys):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["EARS 표기:ok"], root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "ready for review" in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "pending"
+
+    def test_open_with_needs_clarification_body_file_stays_draft(self, tmp_path, capsys):
+        body = tmp_path / "spec.md"
+        body.write_text("[NEEDS CLARIFICATION: 담당자 미지정]", encoding="utf-8")
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=str(body), checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "DRAFT" in out
+        assert "담당자 미지정" in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "draft"
+
+    def test_open_missing_body_file_fails(self, tmp_path):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=str(tmp_path / "nope.md"), checklist_item=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_open_invalid_kind_fails(self, tmp_path):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="bogus", phase=1, title="t",
+            body_file=None, checklist_item=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_checklist_item_without_status_defaults_to_pending(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["그냥 라벨만"], root=str(tmp_path),
+        ))
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "draft"  # pending 상태 항목이 있으니 draft
+
+    def test_adr_review_auto_adds_model_tier_checklist_item(self, tmp_path, capsys):
+        """§9.5.4 순위5(원칙5 최소 기록) — adr_review는 자동으로 체크리스트가
+
+        하나 늘어난다. 그 항목은 pending으로 시작하므로, 나머지가 전부 ok여도
+        draft에 머문다 — 이게 바로 "명시하라"는 요구를 구조로 강제하는 지점이다.
+        """
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="adr_review", phase=2, title="t",
+            body_file=None, checklist_item=["Gate 매핑:ok"], root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "자동 추가됨" in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        labels = [c["label"] for c in approvals[0]["checklist"]]
+        assert any("모델 tier" in label for label in labels)
+        assert approvals[0]["status"] == "draft"  # 자동 추가 항목이 pending이라
+
+    def test_adr_review_does_not_duplicate_existing_model_tier_item(self, tmp_path, capsys):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="adr_review", phase=2, title="t",
+            body_file=None, checklist_item=["모델 tier 배정 이미 적음:ok"], root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "자동 추가됨" not in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert len(approvals[0]["checklist"]) == 1
+
+    def test_spec_review_does_not_get_model_tier_item(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["EARS 표기:ok"], root=str(tmp_path),
+        ))
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        labels = [c["label"] for c in approvals[0]["checklist"]]
+        assert not any("모델 tier" in label for label in labels)
+
+
+class TestPhaseTransition:
+    """§9.5.4 순위1 — 옵트인 Phase 전이 게이트의 CLI 배선."""
+
+    def test_transition_without_gate(self, tmp_path, capsys):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Phase 1" in out
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-014")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_transition_blocked_without_approval(self, tmp_path):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval="spec_review", root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_transition_allowed_after_approval(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        approval = open_approval(
+            approvals_path, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(approvals_path, approval["id"], decision="approved", decided_by="pm")
+
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval="spec_review", root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Gated on an approved" in out
+        task = load_task(tasks_dir, "ST-014")
+        assert task is not None
+        assert task["current_phase"] == 2
+
+    def test_transition_missing_task_fails_gracefully(self, tmp_path):
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="nope", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+
+class TestApprovalsListAndDecide:
+    def test_list_pending_only_by_default(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-001", kind="spec_review", phase=1, title="ready",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-002", kind="spec_review", phase=1, title="not-ready",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert "ready" in out
+        assert "not-ready" not in out
+
+    def test_list_all_includes_draft(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-002", kind="spec_review", phase=1, title="not-ready",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=True, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert "not-ready" in out
+
+    def test_decide_approve_then_disappears_from_pending(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-001", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+
+        code = _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="pm-park",
+            rationale="ok", root=str(tmp_path),
+        ))
+        assert code == 0
+
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert "No pending approvals" in out
+
+    def test_decide_unknown_id_fails(self, tmp_path):
+        code = _cmd_autopilot_approvals_decide(_ns(
+            approval_id="nope", decision="approved", decided_by="x",
+            rationale=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+
+class TestMultiPersonApprovalCli:
+    """§6 M4 2인 승인 — `approvals open --required-approvals` + decide 배선."""
+
+    def test_deploy_open_reports_two_required_approvers(self, tmp_path, capsys):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="deploy", phase=8, title="배포 승인",
+            body_file=None, checklist_item=None, required_approvals=None, root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Requires 2 distinct approvers" in out
+
+    def test_first_decide_reports_still_pending_progress(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="deploy", phase=8, title="배포 승인",
+            body_file=None, checklist_item=None, required_approvals=None, root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        capsys.readouterr()
+
+        code = _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="lead-kim",
+            rationale=None, root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "1/2" in out
+        assert "still needs 1 more" in out
+        # 아직 확정이 아니니 pending 목록에 그대로 있어야 한다
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        assert "배포 승인" in capsys.readouterr().out
+
+    def test_second_distinct_approver_finalizes_via_cli(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="deploy", phase=8, title="배포 승인",
+            body_file=None, checklist_item=None, required_approvals=None, root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="lead-kim",
+            rationale=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+
+        code = _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="sec-choi",
+            rationale=None, root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Recorded: approved" in out
+
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        assert "No pending approvals" in capsys.readouterr().out
+
+    def test_required_approvals_flag_overrides_default(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="deploy", phase=8, title="긴급 배포",
+            body_file=None, checklist_item=None, required_approvals=1, root=str(tmp_path),
+        ))
+        approval = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]
+        assert approval["required_approvals"] == 1
+
+
+class TestSkillsDetect:
+    def test_no_candidates_when_empty(self, tmp_path, capsys):
+        from agent_evaluator.cli.autopilot import _cmd_autopilot_skills_detect
+
+        code = _cmd_autopilot_skills_detect(_ns(min_occurrences=3, root=str(tmp_path)))
+        assert code == 0
+        assert "No repeated checklist pattern" in capsys.readouterr().out
+
+    def test_reports_repeated_pattern(self, tmp_path, capsys):
+        from agent_evaluator.cli.autopilot import _cmd_autopilot_skills_detect
+
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        checklist = [{"label": "EARS 표기", "status": "ok"}]
+        for i in range(3):
+            open_approval(p, task_id=f"ST-{i}", kind="spec_review", phase=1, title="t",
+                          checklist=checklist)
+        code = _cmd_autopilot_skills_detect(_ns(min_occurrences=3, root=str(tmp_path)))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "spec_review" in out
+        assert "EARS 표기" in out
+        assert "nothing was created" in out
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        code = cmd_autopilot(_ns(
+            autopilot_command="skills", skills_command="detect",
+            min_occurrences=3, root=str(tmp_path),
+        ))
+        assert code == 0
+
+    def test_dispatch_no_skills_subcommand_fails(self):
+        from agent_evaluator.cli.autopilot import _cmd_autopilot_skills
+        assert _cmd_autopilot_skills(_ns(skills_command=None)) == 1
+
+
+class TestApprovalsScanThresholds:
+    def _log(self, decisions_path, reason, n=5):
+        from agent_evaluator.rca.decision_ledger import record_gate_decision
+        for _ in range(n):
+            record_gate_decision(
+                decisions_path, result_file="r.json", agent_version="v1", exit_code=75,
+                verdict_level="not_ready", decision_ready=False, undecided_reason=reason,
+            )
+
+    def test_no_pattern_reports_nothing(self, tmp_path, capsys):
+        from agent_evaluator.cli.autopilot import _cmd_autopilot_approvals_scan_thresholds
+
+        code = _cmd_autopilot_approvals_scan_thresholds(
+            _ns(min_occurrences=5, root=str(tmp_path))
+        )
+        assert code == 0
+        assert "No repeated exit-75 pattern" in capsys.readouterr().out
+
+    def test_opens_review_and_shows_up_in_pending_list(self, tmp_path, capsys):
+        from agent_evaluator.cli.autopilot import _cmd_autopilot_approvals_scan_thresholds
+
+        self._log(tmp_path / ".aoo" / "decisions.jsonl", "반복되는 사유")
+        code = _cmd_autopilot_approvals_scan_thresholds(
+            _ns(min_occurrences=5, root=str(tmp_path))
+        )
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "Threshold review opened" in out
+
+        # 회귀 방지: gate_on_checklist=False 버그(§ 발견분)가 고쳐졌는지 — pending 큐에 바로 뜸
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        assert "반복되는 사유" in capsys.readouterr().out
+
+    def test_dispatch_via_approvals(self, tmp_path):
+        self._log(tmp_path / ".aoo" / "decisions.jsonl", "사유")
+        code = cmd_autopilot(_ns(
+            autopilot_command="approvals", approvals_command="scan-thresholds",
+            min_occurrences=5, root=str(tmp_path),
+        ))
+        assert code == 0
+
+
 class TestDashboardWiring:
     def test_dashboard_reports_missing_uvicorn_gracefully(self, tmp_path, monkeypatch):
         # uvicorn이 없는 환경을 흉내낸다 — ImportError를 일으키지 않고 exit 1로 처리되는지만 확인.
@@ -195,41 +542,399 @@ class TestCmdAutopilotDispatch:
         assert (tmp_path / ".aoo" / "tasks").is_dir()
 
 
-class TestAutopilotAppRealData:
+class TestEntryPointRegistration:
+    """cli/main.py가 이 모듈을 직접 import하지 않고 entry-points로만 찾을 수 있는지.
+
+    ``pyproject.toml``의 ``[project.entry-points."agent_evaluator.cli_plugins"]``가
+    ``autopilot = "agent_evaluator.cli.autopilot:register"``를 선언한다 — 이
+    모듈이 언젠가 별도 배포판으로 분리돼도 ``cli/main.py``가 그대로 동작하는지
+    보장하려는 계약이다. 여기서는 그 계약의 두 절반을 각각 확인한다:
+    ① ``register()`` 자체가 시그니처대로 동작하는가,
+    ② 실제로 설치된 패키지 메타데이터에 그 엔트리 포인트가 잡히는가.
+    """
+
+    def test_register_adds_subparser_and_returns_handler(self):
+        from agent_evaluator.cli.autopilot import cmd_autopilot, register
+
+        parser = argparse.ArgumentParser()
+        sub = parser.add_subparsers(dest="command")
+        handler = register(sub)
+
+        assert handler is cmd_autopilot
+        # 서브파서가 실제로 붙었는지 — "autopilot ..." 인자를 파싱할 수 있어야 한다
+        args = parser.parse_args(["autopilot", "doctor", "--root", "."])
+        assert args.command == "autopilot"
+        assert args.autopilot_command == "doctor"
+
+    def test_installed_entry_point_metadata_resolves_to_register(self):
+        """pip install -e .로 설치된 실제 메타데이터에 잡히는지 확인.
+
+        이 테스트가 실패한다면 ``pyproject.toml``을 고친 뒤 재설치
+        (``pip install -e .``)를 안 한 것일 가능성이 크다 — entry_points는
+        빌드 메타데이터(.dist-info)에 있어서 소스만 고쳐서는 반영되지 않는다.
+        """
+        from importlib.metadata import entry_points
+
+        try:
+            eps = list(entry_points(group="agent_evaluator.cli_plugins"))
+        except TypeError:
+            eps = list(entry_points().get("agent_evaluator.cli_plugins", []))
+
+        names = [ep.name for ep in eps]
+        assert "autopilot" in names, (
+            "entry point not found in installed metadata — did you run "
+            "'pip install -e .' after changing pyproject.toml?"
+        )
+
+        autopilot_ep = next(ep for ep in eps if ep.name == "autopilot")
+        loaded = autopilot_ep.load()
+        assert loaded.__name__ == "register"
+        assert loaded.__module__ == "agent_evaluator.cli.autopilot"
+
+    def test_load_cli_plugins_wires_autopilot_into_handlers(self):
+        from agent_evaluator.cli.autopilot import cmd_autopilot
+        from agent_evaluator.cli.main import _load_cli_plugins
+
+        parser = argparse.ArgumentParser()
+        sub = parser.add_subparsers(dest="command")
+        handlers = _load_cli_plugins(sub)
+
+        assert handlers.get("autopilot") is cmd_autopilot
+        # main.py가 더 이상 하드코딩 import 없이도 서브파서를 붙였는지 확인
+        args = parser.parse_args(["autopilot", "doctor", "--root", "."])
+        assert args.autopilot_command == "doctor"
+
+
+@pytest.fixture
+def autopilot_client(tmp_path):
+    """설치된 .aoo/ 위에 create_autopilot_app()을 얹은 TestClient (M0/M0.5 대시보드)."""
+    try:
+        from fastapi.testclient import TestClient
+    except ImportError:
+        pytest.skip("fastapi[serve] extra not installed")
+
+    from agent_evaluator.serve.autopilot_app import create_autopilot_app
+
+    _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
+    app = create_autopilot_app(root=tmp_path)
+    client = TestClient(app)
+    client.tmp_path = tmp_path  # type: ignore[attr-defined]
+    return client
+
+
+class TestAutopilotAppJsonApi:
     """create_autopilot_app()이 실제 .aoo/ 파일을 읽는지(M0 완료조건) 확인한다."""
 
-    def test_dashboard_app_serves_real_tasks_and_team(self, tmp_path):
-        fastapi_testclient = None
-        try:
-            from fastapi.testclient import TestClient
-            fastapi_testclient = TestClient
-        except ImportError:
-            import pytest
-            pytest.skip("fastapi[serve] extra not installed")
-
-        from agent_evaluator.cli.autopilot import _cmd_autopilot_install
-        from agent_evaluator.gates.autopilot_state import add_team_member, create_task
-        from agent_evaluator.serve.autopilot_app import create_autopilot_app
-
-        _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
-        create_task(
-            tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac"
-        )
+    def test_api_tasks_and_team_serve_real_data(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
         add_team_member(
             tmp_path / ".aoo" / "team.json", member_id="jm", name="정민", roles=["분석"]
         )
 
-        app = create_autopilot_app(root=tmp_path)
-        client = fastapi_testclient(app)
-
-        r = client.get("/api/tasks")
+        r = autopilot_client.get("/api/tasks")
         assert r.status_code == 200
         assert r.json()[0]["task_id"] == "ST-014"
 
-        r = client.get("/api/team")
+        r = autopilot_client.get("/api/team")
         assert r.json()[0]["name"] == "정민"
 
-        r = client.get("/")
+    def test_api_claims_reads_real_claims_jsonl(self, autopilot_client):
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        tmp_path = autopilot_client.tmp_path
+        append_claim(
+            tmp_path / ".aoo" / "claims.jsonl", claim_id="c-1", developer="수아",
+            scope=["src/x.py"], started_at="2026-09-16T00:00:00+00:00", status="active",
+        )
+        r = autopilot_client.get("/api/claims")
+        assert r.json()[0]["developer"] == "수아"
+
+    def test_api_approvals_reads_real_approvals(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.get("/api/approvals")
+        assert r.json()[0]["task_id"] == "ST-014"
+
+
+class TestAutopilotBoardPage:
+    def test_board_lists_real_tasks(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
+        r = autopilot_client.get("/")
         assert r.status_code == 200
         assert "ST-014" in r.text
+        assert "반품정책" in r.text
+
+    def test_board_empty_state(self, autopilot_client):
+        r = autopilot_client.get("/")
+        assert "아직 과제가 없습니다" in r.text
+
+    def test_board_shows_pending_badge_from_live_approvals_not_dead_field(self, autopilot_client):
+        """회귀 테스트 — task['blocking_on']은 create_task()가 [] 그대로 두고 아무도
+
+        갱신하지 않는 죽은 필드였다(승인 큐가 실제로 생겨도 배지가 절대 안 뜸).
+        이제 "이 과제를 task_id로 건 pending 승인이 있는가"를 매번 직접 센다.
+        """
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
+        # 새로 만든 과제엔 blocking_on == [] — 죽은 필드로 판정했다면 배지가 안 뜬다.
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="SPEC 검토", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.get("/")
+        assert 'class="badge pending">승인 대기' in r.text
+
+    def test_board_no_badge_when_no_pending_approval(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
+        r = autopilot_client.get("/")
+        assert 'class="badge pending">승인 대기' not in r.text
+
+    def test_post_tasks_creates_task_and_redirects(self, autopilot_client):
+        r = autopilot_client.post(
+            "/tasks", data={"title": "새 과제", "platform": "aoo"}, follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/"
+
+        tasks = load_all_tasks(autopilot_client.tmp_path / ".aoo" / "tasks")
+        assert len(tasks) == 1
+        assert tasks[0]["title"] == "새 과제"
+        assert tasks[0]["platform"] == "AOO"
+
+    def test_post_tasks_with_explicit_id_and_owners(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        add_team_member(
+            tmp_path / ".aoo" / "team.json", member_id="jm", name="정민", roles=["분석"]
+        )
+        autopilot_client.post(
+            "/tasks",
+            data={"title": "t", "platform": "ac", "task_id": "ST-099", "analysis": "정민"},
+            follow_redirects=False,
+        )
+        task = load_all_tasks(tmp_path / ".aoo" / "tasks")[0]
+        assert task["task_id"] == "ST-099"
+        assert task["owners"]["analysis"] == "정민"
+
+    def test_task_detail_page_renders(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
+        r = autopilot_client.get("/tasks/ST-014")
+        assert r.status_code == 200
+        assert "반품정책" in r.text
+
+    def test_task_detail_missing_returns_404(self, autopilot_client):
+        r = autopilot_client.get("/tasks/NOPE")
+        assert r.status_code == 404
+
+
+class TestAutopilotTeamPage:
+    def test_team_page_lists_members(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        add_team_member(
+            tmp_path / ".aoo" / "team.json", member_id="jm", name="정민", roles=["분석"]
+        )
+        r = autopilot_client.get("/team")
         assert "정민" in r.text
+        assert "GitHub 반영 필요" in r.text  # synced=False 기본값이 화면에 드러나는지
+
+    def test_post_team_adds_member_and_redirects(self, autopilot_client):
+        r = autopilot_client.post(
+            "/team", data={"member_id": "yj", "name": "유진", "role": "설계"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/team"
+
+        members = load_team(autopilot_client.tmp_path / ".aoo" / "team.json")
+        assert members[0]["name"] == "유진"
+        assert members[0]["roles"] == ["설계"]
+        assert members[0]["synced"] is False
+
+    def test_post_team_duplicate_id_does_not_500(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        add_team_member(
+            tmp_path / ".aoo" / "team.json", member_id="yj", name="유진", roles=["설계"]
+        )
+        r = autopilot_client.post(
+            "/team", data={"member_id": "yj", "name": "유진2", "role": "개발"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303  # 조용히 무시하고 페이지로 돌아감(M0.5 범위)
+        members = load_team(tmp_path / ".aoo" / "team.json")
+        assert len(members) == 1  # 중복 추가되지 않음
+
+
+class TestAutopilotApprovalsPage:
+    def test_non_gating_checklist_items_render_without_blocking_style(self, autopilot_client):
+        """gate_on_checklist=False인 pending 항목은 경고색(.blocking)을 받지 않는다."""
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="PORTFOLIO", kind="threshold_review",
+            phase=7, title="임계값 재검토",
+            checklist=[{"label": "1단계", "status": "pending"}],
+            gate_on_checklist=False,
+        )
+        r = autopilot_client.get("/approvals")
+        assert "임계값 재검토" in r.text
+        assert 'class="blocking"' not in r.text
+
+    def test_approvals_page_lists_pending(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="ST-014 SPEC 검토", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.get("/approvals")
+        assert "ST-014 SPEC 검토" in r.text
+
+    def test_approvals_page_separates_drafts(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="아직 초안", checklist=[{"label": "a", "status": "pending"}],
+        )
+        r = autopilot_client.get("/approvals")
+        assert "아직 초안" in r.text
+        assert "초안 — 아직 사람 큐에 안 올라옴" in r.text
+
+    def test_post_decide_approves_and_redirects(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "pm-park", "rationale": "ok"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/approvals"
+
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "approved"
+
+    def test_approved_item_disappears_from_pending_view(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="결정될 항목", checklist=[{"label": "a", "status": "ok"}],
+        )
+        autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "pm-park"},
+        )
+        r = autopilot_client.get("/approvals")
+        assert "승인 대기 중인 항목이 없습니다" in r.text
+
+    def test_decide_form_has_no_hardcoded_reviewer_field(self, autopilot_client):
+        """회귀 테스트 — 예전엔 decided_by가 hidden input에 "local-reviewer"로
+
+        고정돼 있어서, 대시보드로 누가 결정하든 전부 같은 사람으로 기록됐다
+        (감사 추적이 사실상 무의미했고, 2인 승인은 이 상태로는 절대 못 채운다
+        — 같은 문자열이라 서로 다른 승인자로 안 쳐준다). 이제 실제 입력칸이다.
+        """
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.get("/approvals")
+        assert 'value="local-reviewer"' not in r.text
+        assert 'name="decided_by"' in r.text
+        assert "required" in r.text
+
+    def test_two_person_approval_stays_pending_after_one_decide(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="deploy",
+            phase=8, title="배포 승인",
+        )
+        autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "lead-kim"},
+        )
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "pending"
+
+        r = autopilot_client.get("/approvals")
+        assert "배포 승인" in r.text
+        assert "승인 1/2명" in r.text
+        assert "lead-kim" in r.text
+
+    def test_two_person_approval_finalizes_after_second_distinct_decider(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="deploy",
+            phase=8, title="배포 승인",
+        )
+        autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "lead-kim"},
+        )
+        autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "sec-choi"},
+        )
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "approved"
+
+        r = autopilot_client.get("/approvals")
+        assert "승인 대기 중인 항목이 없습니다" in r.text
+
+
+class TestAutopilotOpsPage:
+    def test_ops_page_renders_with_no_data(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert r.status_code == 200
+        assert "활성 클레임 없음" in r.text
+        assert "기록된 게이트 실행이 없음" in r.text
+        assert "아직 결정된 승인이 없음" in r.text
+
+    def test_ops_page_shows_rejection_rate(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        a = open_approval(
+            approvals_path, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(approvals_path, a["id"], decision="approved", decided_by="pm")
+
+        r = autopilot_client.get("/ops")
+        assert "반려율 0%" in r.text
+
+    def test_ops_page_flags_rubber_stamp_risk_at_five_zero_rejections(self, autopilot_client):
+        """5건 이상 결정됐는데 반려가 0건이면 부록 H.7 경고가 떠야 한다."""
+        tmp_path = autopilot_client.tmp_path
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        for i in range(5):
+            a = open_approval(
+                approvals_path, task_id=f"ST-{i}", kind="spec_review", phase=1, title="t",
+                checklist=[{"label": "a", "status": "ok"}],
+            )
+            decide_approval(approvals_path, a["id"], decision="approved", decided_by="pm")
+
+        r = autopilot_client.get("/ops")
+        assert "반려율 0%" in r.text
+        assert "고무도장" in r.text
+
+    def test_ops_page_no_rubber_stamp_warning_below_five_decisions(self, autopilot_client):
+        """4건까지는 반려 0건이어도 아직 경고를 띄우지 않는다(표본 부족)."""
+        tmp_path = autopilot_client.tmp_path
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        for i in range(4):
+            a = open_approval(
+                approvals_path, task_id=f"ST-{i}", kind="spec_review", phase=1, title="t",
+                checklist=[{"label": "a", "status": "ok"}],
+            )
+            decide_approval(approvals_path, a["id"], decision="approved", decided_by="pm")
+
+        r = autopilot_client.get("/ops")
+        assert "반려율 0%" in r.text
+        assert "고무도장" not in r.text

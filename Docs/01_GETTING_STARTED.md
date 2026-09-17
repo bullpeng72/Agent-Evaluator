@@ -2,7 +2,7 @@
 
 The shortest path from installing Agent Evaluator to your first evaluation, saving results, and launching the dashboard.
 
-**v1.1.0 | Python 3.8+**
+**v1.1.1 | Python 3.8+**
 
 ---
 

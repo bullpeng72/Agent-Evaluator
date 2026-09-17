@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.0 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -94,6 +94,22 @@ agent-eval claims add src/ --developer auto      # open a claim (owner="auto" ->
 agent-eval claims list
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
+
+# CLI — Harness Autopilot (SPEC-AP-001, agent_evaluator/{gates/autopilot_state.py,cli/autopilot.py,serve/autopilot_app.py})
+#   HITL approval queue layered on top of this SDK's own Gate/decision/claims data — not an SDLC pipeline.
+#   Registered via the "agent_evaluator.cli_plugins" entry-points group (pyproject.toml), not a hardcoded
+#   import in cli/main.py — Docs/specs/SPEC-AP-001-harness-autopilot-interface.md has the full contract.
+agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks/, .aoo/team.json, Skill placement
+agent-eval autopilot doctor                      # health-check the skeleton
+agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
+agent-eval autopilot new-task --title "..." --platform ac --analysis <member>
+agent-eval autopilot add-member --id yj --name 유진 --role 설계
+agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval spec_review  # opt-in gate
+agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \
+    --body-file docs/SPEC.md --checklist-item "EARS 표기:ok"   # auto-scores checklist + [NEEDS CLARIFICATION] tags
+agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved --by pm-park
+agent-eval autopilot approvals scan-thresholds   # repeated exit-75 reason (5+) -> auto threshold_review card
+agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 
 # CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · test-config · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
@@ -234,6 +250,7 @@ agent_evaluator/
 │   ├── fault_injection.py  # SPEC-043 REQ-5 — thin fault-injection harness. FaultInjectionConfig(tool_failure_rate · added_latency_ms · latency_jitter_ms · fail_tools · seed) · FaultInjectionError(RuntimeError) · _FaultInjector (seeded RNG, one deterministic sequence per instance) · fault_injection_session()/enter_/exit_fault_injection (contextvar bridge). Passed to tool_guard(fault_injection=) or @agent_eval(fault_injection=) — seeded-RNG sleep/raise BEFORE a tool call that already passed check_before_tool_call(); NEVER touches the blocking path. Echoed to task extra.fault_injection → lineage.fault_injection (deduped). Injected failures flow to Gate C/D scoring unchanged.
 │   ├── team_concurrency.py # TeamConcurrencyConfig · load_active_claims() · check_scope_claim() · append_claim() · audit_claims() — .aoo/claims.jsonl scope claims. owner (="auto" -> git user.name) excludes your own claims.
 │   ├── branch_guard.py     # BranchGuardConfig · get_current_branch() · is_branch_protected() — LiveGuardrail blocks a direct commit/push to a protected branch before it happens (fail-open).
+│   ├── autopilot_state.py  # Harness Autopilot (SPEC-AP-001) — .aoo/tasks/*.json · team.json · approvals.jsonl. open_approval()/decide_approval() (checklist auto-score + [NEEDS CLARIFICATION] gate + required_approvals dual sign-off) · open_threshold_reviews() (repeated exit-75 -> approval card, reads decisions.jsonl only) · transition_phase(required_approval_kind=) opt-in gate · compute_rejection_rate() (H.7 self-check). No new Gate scoring — Docs/specs/SPEC-AP-001-harness-autopilot-interface.md has the SDK contract this depends on.
 │   ├── gate_a_goal/        # configs.py (6 Config) · evaluators.py (eval_instruction_adherence, etc.) · aggregate.py (blends TCR + Accuracy + ResponseQuality; details.avg_goal_alignment / avg_plan_coherence are re-referenced by Gate B for diagnosis)
 │   ├── gate_b_behavioral/  # configs.py (6) · evaluators.py (+_extract_decoded_candidates: decode base64/hex dangerous commands and re-match) · aggregate.py. forbidden_tools / scope_tool_names matching is case-insensitive.
 │   ├── gate_c_reliability/ # configs.py (5) · evaluators.py · aggregate.py. compute_sla_shared_data(tasks) is the source of the SLA shared data (consumed by Gate D); compute() returns (group_dict, shared_raw) — shared_raw.hall_rate / avg_llm_faithfulness are reused by Gate G.
@@ -291,7 +308,8 @@ agent_evaluator/
 └── serve/
     ├── server.py          # FastAPI dashboard. create_app coerces results_dir to a Path. Routes include /dashboard, /sdk-docs, /api/docs.
     ├── templates/dashboard2.html.j2  # the only /dashboard template. File Compare tab (group_by · Pairwise Judge · Export HTML) + Improve tab (renders top_detail_deltas ↔ component_shortfalls depending on whether a baseline is present).
-    └── routers/           # alerts · anomaly · config · conversation · cost · data · diagnose · export · feedback · golden · stream · transparency · webhook. data.py: list_results / compare_results. diagnose.py: GET /api/diagnose/{file_id}. export.py: GET /html/compare (registered before /html/{file_id}).
+    ├── routers/           # alerts · anomaly · config · conversation · cost · data · diagnose · export · feedback · golden · stream · transparency · webhook. data.py: list_results / compare_results. diagnose.py: GET /api/diagnose/{file_id}. export.py: GET /html/compare (registered before /html/{file_id}).
+    └── autopilot_app.py   # create_autopilot_app(root) — separate FastAPI app (port 8766, not server.py's 8765). Server-rendered HTML, no JS. Task board · team management · HITL approval queue · ops page (claims/decisions/rejection-rate card). Reads .aoo/{tasks,team.json,approvals.jsonl,claims.jsonl,decisions.jsonl} directly.
 ```
 
 ### Harness Gate Config Groups (33 total)
@@ -635,7 +653,7 @@ fault_injection (SPEC-043 REQ-5 — FaultInjectionConfig; sync/async wrappers on
 
 ## Testing
 
-**184 files, 5,150+ test functions** in `tests/`.
+**189 files, 5,316+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

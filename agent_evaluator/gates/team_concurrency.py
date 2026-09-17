@@ -112,6 +112,15 @@ def load_active_claims(claims_path: Union[str, Path]) -> list[dict[str, Any]]:
 
     Returns:
         활성 클레임 dict 리스트(각각 ``claim_id``/``developer``/``scope``/... 포함).
+
+    .. important:: **안정 계약 — Harness Autopilot이 그대로 의존한다.**
+        ``agent_evaluator/serve/autopilot_app.py``(``_safe_claims``/운영 현황
+        화면)가 이 함수를 직접 호출해 ``developer``/``scope``/``claim_id`` 필드를
+        렌더링한다. 반환 모양(리스트-of-dict, 이 세 필드명, 파일 없음→빈
+        리스트)을 바꾸면 Autopilot이 조용히 깨진다 — 계약 테스트는
+        ``tests/test_autopilot_sdk_contract.py::TestClaimsContractForAutopilot``.
+        Autopilot이 나중에 별도 패키지로 분리되면 이 함수가 그 패키지가 기대는
+        공개 API의 일부가 된다.
     """
     latest_by_id: dict[str, dict[str, Any]] = {}
     path = Path(claims_path)
