@@ -145,7 +145,9 @@ class TestSetTaskStatus:
         updated = set_task_status(tasks_dir, "ST-001", "archived", reason="done")
         assert updated["status"] == "archived"
         assert updated["status_reason"] == "done"
-        assert load_task(tasks_dir, "ST-001")["status"] == "archived"
+        reloaded = load_task(tasks_dir, "ST-001")
+        assert reloaded is not None
+        assert reloaded["status"] == "archived"
 
     def test_rejects_unknown_status(self, tmp_path):
         tasks_dir = tmp_path / ".aoo" / "tasks"
