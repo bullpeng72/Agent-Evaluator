@@ -68,21 +68,33 @@ class TestLedgerModule:
         assert rows == [e]
         assert rows[0]["kind"] == "gate_run"
 
-    def test_outcome_links_to_latest_pending(self, tmp_path):
+    def test_outcome_links_to_sole_pending(self, tmp_path):
         log = _log(tmp_path)
         e1 = record_gate_decision(log, result_file="a", agent_version=None,
                                   exit_code=75, verdict_level="ready",
                                   decision_ready=False)
-        e2 = record_gate_decision(log, result_file="b", agent_version=None,
-                                  exit_code=75, verdict_level="ready",
-                                  decision_ready=False)
         o = record_decision_outcome(log, outcome="overridden", decided_by="sw",
                                     rationale="small eval set")
-        assert o["gate_run_id"] == e2["id"]        # latest pending
+        assert o["gate_run_id"] == e1["id"]
         s = summarize_decisions(load_decisions(log))
-        assert s["n_pending"] == 1
-        assert s["pending"][0]["id"] == e1["id"]
+        assert s["n_pending"] == 0
         assert s["by_outcome"] == {"overridden": 1}
+
+    def test_multiple_pending_without_explicit_id_raises(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §6 — 2건 이상 미결이면 "최신"을
+
+        조용히 고르지 않고 명시를 요구한다(concurrent gate runs에서 잘못된
+        gate_run에 결정이 붙는 걸 막는다).
+        """
+        log = _log(tmp_path)
+        record_gate_decision(log, result_file="a", agent_version=None,
+                             exit_code=75, verdict_level="ready",
+                             decision_ready=False)
+        record_gate_decision(log, result_file="b", agent_version=None,
+                             exit_code=75, verdict_level="ready",
+                             decision_ready=False)
+        with pytest.raises(ValueError, match="ambiguous"):
+            record_decision_outcome(log, outcome="overridden", decided_by="sw")
 
     def test_explicit_gate_run_id(self, tmp_path):
         log = _log(tmp_path)
@@ -123,7 +135,8 @@ class TestLedgerModule:
         e2 = record_gate_decision(log, result_file="b", agent_version=None,
                                   exit_code=75, verdict_level="ready",
                                   decision_ready=False)
-        record_decision_outcome(log, outcome="held", decided_by="sw")
+        record_decision_outcome(log, outcome="held", decided_by="sw",
+                                gate_run_id=e2["id"])
         s = summarize_decisions(load_decisions(log))
         assert s["last"]["gate_run"]["id"] == e2["id"]
         assert s["last"]["outcome"]["outcome"] == "held"

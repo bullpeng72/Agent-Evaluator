@@ -22,17 +22,21 @@ from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_approvals_open,
     _cmd_autopilot_approvals_update,
     _cmd_autopilot_dashboard,
+    _cmd_autopilot_decisions,
     _cmd_autopilot_doctor,
     _cmd_autopilot_install,
     _cmd_autopilot_list_members,
     _cmd_autopilot_list_tasks,
     _cmd_autopilot_new_task,
+    _cmd_autopilot_phase_check,
     _cmd_autopilot_phase_policy_set,
     _cmd_autopilot_phase_policy_show,
     _cmd_autopilot_phase_transition,
     _cmd_autopilot_remove_member,
     _cmd_autopilot_set_task_status,
     _cmd_autopilot_show_task,
+    _cmd_autopilot_skills_detect,
+    _cmd_autopilot_skills_scaffold,
     _cmd_autopilot_update_member,
     cmd_autopilot,
 )
@@ -45,6 +49,7 @@ from agent_evaluator.gates.autopilot_state import (
     load_task,
     load_team,
     open_approval,
+    save_task,
 )
 
 
@@ -107,6 +112,45 @@ class TestDoctor:
         out = capsys.readouterr().out
         assert "unsynced" in out
         assert "지훈" in out
+
+    def test_doctor_warns_on_stale_phase(self, tmp_path, capsys):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §3, LIMITS L4."""
+        _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        capsys.readouterr()
+        _cmd_autopilot_doctor(_ns(root=str(tmp_path), stale_days=7.0))
+        out = capsys.readouterr().out
+        assert "ST-001" in out
+        assert "has been in phase 0" in out
+
+    def test_doctor_stale_days_zero_disables_check(self, tmp_path, capsys):
+        _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        capsys.readouterr()
+        _cmd_autopilot_doctor(_ns(root=str(tmp_path), stale_days=0))
+        out = capsys.readouterr().out
+        assert "has been in phase" not in out
+
+    def test_doctor_without_stale_days_arg_still_works(self, tmp_path):
+        """하위호환 — 기존 Namespace 호출(stale_days 없음)이 안 깨짐."""
+        _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
+        assert _cmd_autopilot_doctor(_ns(root=str(tmp_path))) == 0
 
 
 class TestNewTask:
@@ -489,6 +533,42 @@ class TestApprovalsOpen:
         approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
         labels = [c["label"] for c in approvals[0]["checklist"]]
         assert not any("모델 tier" in label for label in labels)
+
+    def test_no_checklist_gate_flag_bypasses_gating(self, tmp_path):
+        """Appendix M 발견 1 — scan-thresholds가 여는 threshold_review는
+
+        gate_on_checklist=False라 pending 상태로 열리지만, 사람이 CLI로
+        같은 kind를 열면 이 옵션을 켤 방법이 없어 draft에 갇혔다(Ch35).
+        """
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            body_file=None, checklist_item=["할 일:pending"],
+            no_checklist_gate=True, root=str(tmp_path),
+        ))
+        assert code == 0
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "pending"
+        assert approvals[0]["gate_on_checklist"] is False
+
+    def test_without_no_checklist_gate_flag_still_gates_by_default(self, tmp_path):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            body_file=None, checklist_item=["할 일:pending"],
+            no_checklist_gate=False, root=str(tmp_path),
+        ))
+        assert code == 0
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "draft"
+
+    def test_missing_no_checklist_gate_arg_defaults_to_gated(self, tmp_path):
+        """하위호환 — 기존 Namespace 호출에 이 필드가 없어도 안 깨짐."""
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        assert code == 0
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "draft"
 
 
 class TestPhaseTransition:
@@ -978,15 +1058,11 @@ class TestMultiPersonApprovalCli:
 
 class TestSkillsDetect:
     def test_no_candidates_when_empty(self, tmp_path, capsys):
-        from agent_evaluator.cli.autopilot import _cmd_autopilot_skills_detect
-
         code = _cmd_autopilot_skills_detect(_ns(min_occurrences=3, root=str(tmp_path)))
         assert code == 0
         assert "No repeated checklist pattern" in capsys.readouterr().out
 
     def test_reports_repeated_pattern(self, tmp_path, capsys):
-        from agent_evaluator.cli.autopilot import _cmd_autopilot_skills_detect
-
         p = tmp_path / ".aoo" / "approvals.jsonl"
         checklist = [{"label": "EARS 표기", "status": "ok"}]
         for i in range(3):
@@ -1009,6 +1085,165 @@ class TestSkillsDetect:
     def test_dispatch_no_skills_subcommand_fails(self):
         from agent_evaluator.cli.autopilot import _cmd_autopilot_skills
         assert _cmd_autopilot_skills(_ns(skills_command=None)) == 1
+
+
+class TestSkillsScaffold:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §7 — 후보 발견 후 스캐폴딩 명령 부재."""
+
+    def _seed_candidate(self, tmp_path, n=3):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        checklist = [{"label": "EARS 표기", "status": "ok"}]
+        for i in range(n):
+            open_approval(p, task_id=f"ST-{i}", kind="spec_review", phase=1, title="t",
+                          checklist=checklist)
+        return p
+
+    def test_no_candidate_fails(self, tmp_path):
+        code = _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        assert code == 1
+
+    def test_scaffold_writes_stub(self, tmp_path):
+        self._seed_candidate(tmp_path)
+        code = _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="new-skill", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        assert code == 0
+        stub = tmp_path / "Skills" / "new-skill" / "SKILL.md"
+        assert stub.is_file()
+        text = stub.read_text(encoding="utf-8")
+        assert "name: new-skill" in text
+        assert "EARS 표기" in text
+
+    def test_scaffold_refuses_to_overwrite_without_force(self, tmp_path):
+        self._seed_candidate(tmp_path)
+        _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        code = _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        assert code == 1
+
+    def test_scaffold_force_overwrites(self, tmp_path):
+        self._seed_candidate(tmp_path)
+        _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        code = _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind=None, min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=True,
+        ))
+        assert code == 0
+
+    def test_scaffold_filters_by_kind(self, tmp_path):
+        self._seed_candidate(tmp_path)
+        code = _cmd_autopilot_skills_scaffold(_ns(
+            root=str(tmp_path), name="s", kind="adr_review", min_occurrences=3,
+            out=str(tmp_path / "Skills"), force=False,
+        ))
+        assert code == 1  # only spec_review candidates exist
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        self._seed_candidate(tmp_path)
+        code = cmd_autopilot(_ns(
+            autopilot_command="skills", skills_command="scaffold",
+            name="s", kind=None, min_occurrences=3, out=str(tmp_path / "Skills"),
+            force=False, root=str(tmp_path),
+        ))
+        assert code == 0
+
+
+class TestPhaseCheck:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §3, LIMITS L4."""
+
+    def test_no_stale_tasks(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_phase_check(_ns(root=str(tmp_path), stale_days=7.0))
+        assert code == 0
+        assert "No task" in capsys.readouterr().out
+
+    def test_reports_stale_task(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        code = _cmd_autopilot_phase_check(_ns(root=str(tmp_path), stale_days=7.0))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert "ST-001" in out
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        code = cmd_autopilot(_ns(
+            autopilot_command="phase", phase_command="check",
+            stale_days=7.0, root=str(tmp_path),
+        ))
+        assert code == 0
+
+
+class TestAutopilotDecisionsCli:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §6 — decisions가 autopilot 하위가
+
+    아닌 별도 최상위 명령이었다."""
+
+    def test_list_defaults_log_to_aoo_decisions(self, tmp_path, capsys):
+        code = _cmd_autopilot_decisions(_ns(
+            decisions_command="list", log=None, pending=False, as_json=False,
+            root=str(tmp_path),
+        ))
+        assert code == 0
+        out = capsys.readouterr().out
+        assert str(tmp_path / ".aoo" / "decisions.jsonl") in out
+
+    def test_record_and_list_round_trip(self, tmp_path, capsys):
+        from agent_evaluator.rca.decision_ledger import record_gate_decision
+
+        log = tmp_path / ".aoo" / "decisions.jsonl"
+        record_gate_decision(
+            log, result_file="r.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        capsys.readouterr()
+        code = _cmd_autopilot_decisions(_ns(
+            decisions_command="record", log=None, outcome="overridden",
+            decided_by="pm", rationale=None, gate_run_id=None, root=str(tmp_path),
+        ))
+        assert code == 0
+        assert "Recorded" in capsys.readouterr().out
+
+    def test_no_subcommand_fails(self, tmp_path):
+        code = _cmd_autopilot_decisions(_ns(decisions_command=None, root=str(tmp_path)))
+        assert code == 1
+
+    def test_explicit_log_override(self, tmp_path, capsys):
+        custom = tmp_path / "custom_decisions.jsonl"
+        code = _cmd_autopilot_decisions(_ns(
+            decisions_command="list", log=str(custom), pending=False, as_json=False,
+            root=str(tmp_path),
+        ))
+        assert code == 0
+        assert str(custom) in capsys.readouterr().out
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        code = cmd_autopilot(_ns(
+            autopilot_command="decisions", decisions_command="list", log=None,
+            pending=False, as_json=False, root=str(tmp_path),
+        ))
+        assert code == 0
 
 
 class TestApprovalsScanThresholds:
@@ -1482,3 +1717,34 @@ class TestAutopilotOpsPage:
         r = autopilot_client.get("/ops")
         assert "반려율 0%" in r.text
         assert "고무도장" not in r.text
+
+    def test_ops_page_notes_stuck_in_draft(self, autopilot_client):
+        """LIMITS_T-5E1FD6.md L6 — draft에 갇힌 반려가 반려율에 안 잡히는
+
+        사각지대를 표면화한다."""
+        tmp_path = autopilot_client.tmp_path
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        a = open_approval(
+            approvals_path, task_id="ST-1", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(approvals_path, a["id"], decision="approved", decided_by="pm")
+        open_approval(
+            approvals_path, task_id="ST-2", kind="spec_review", phase=1, title="stuck",
+            checklist=[{"label": "a", "status": "pending"}],
+        )
+
+        r = autopilot_client.get("/ops")
+        assert "draft 상태로 대기 중인 승인 1건" in r.text
+
+    def test_ops_page_no_draft_note_when_nothing_stuck(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        a = open_approval(
+            approvals_path, task_id="ST-1", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(approvals_path, a["id"], decision="approved", decided_by="pm")
+
+        r = autopilot_client.get("/ops")
+        assert "draft 상태로 대기 중인 승인" not in r.text

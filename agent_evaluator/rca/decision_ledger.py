@@ -81,8 +81,12 @@ def record_decision_outcome(
     """Append one ``outcome`` entry.
 
     ``outcome`` must be one of :data:`VALID_OUTCOMES`. When ``gate_run_id`` is
-    omitted, it links to the most recent ``gate_run`` that has no outcome yet;
-    ``ValueError`` if there is none.
+    omitted, it links to the most recent ``gate_run`` that has no outcome
+    yet — but only when there is exactly one such pending run.
+    ``ValueError`` if there is none, or if there are two or more (a team
+    running ``gate --decision-log`` concurrently can leave several pending
+    runs; silently picking "the latest" risks recording the outcome against
+    the wrong gate run — docs/AUTOPILOT_IMPROVEMENTS.md §6).
     """
     if outcome not in VALID_OUTCOMES:
         raise ValueError(
@@ -95,7 +99,13 @@ def record_decision_outcome(
                 "no pending gate_run in the ledger to attach this outcome to "
                 "(pass --gate-run-id explicitly)"
             )
-        gate_run_id = pending[-1]
+        if len(pending) > 1:
+            raise ValueError(
+                f"{len(pending)} pending gate_run entries found "
+                f"({', '.join(pending)}) — which one this outcome belongs to "
+                f"is ambiguous, pass --gate-run-id explicitly"
+            )
+        gate_run_id = pending[0]
     entry: dict[str, Any] = {
         "kind": "outcome",
         "gate_run_id": gate_run_id,

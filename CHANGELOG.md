@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.1.4 (2026-09-21) — Harness Autopilot: phase-drift detection + decisions namespace + skill scaffolding
+
+Third follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Closes out the remaining `docs/AUTOPILOT_IMPROVEMENTS.md` backlog items plus two findings from a fresh source-level audit (Appendix M "Autopilot 완전독해" style read of `autopilot_state.py`) that weren't yet on that list.
+
+### New: phase-drift detection (LIMITS L4)
+
+- ✨ **`doctor --stale-days N`** (default 7, 0 disables) and standalone **`phase check`** — flag an active task that has sat in its current `phase` for `N`+ days. This is the first signal at all that a task's declared phase may have silently fallen behind the actual work — the exact drift that recurred twice, undetected, in the AOO Stack workbook (Part VIII and Part X were both a phase behind their real progress). Pure elapsed-time signal read from the task's own `phase_history` — no new instrumentation, no git calls.
+
+### Fixed: `gate_on_checklist` had no CLI switch
+
+- 🐛 `open_threshold_reviews()` (the `scan-thresholds` auto-open path) has always passed `gate_on_checklist=False` internally, but `agent-eval autopilot approvals open` (the manual path) had no way to set it — so a human manually opening a kind that's normally auto-opened (e.g. `threshold_review`) got gated behavior with no documented way out, and could get stuck in `draft` unexpectedly. New **`approvals open --no-checklist-gate`** exposes the existing SDK parameter.
+
+### Fixed: `detect_skill_candidates()` counted redrafts as repetition
+
+- 🐛 A single approval redrafted N times after a checklist mistake (each redraft gets a new `id`, since only an undecided approval can be edited in place) used to count as "N independent occurrences" of that checklist shape — indistinguishable from N different tasks genuinely needing the same procedure. `count` is now the number of **distinct `task_id`s**, not raw approval-entry count. Trade-off: the rare case of one task legitimately needing the same shape twice now also collapses to 1 — accepted, since redraft noise is far more common.
+
+### New: `agent-eval autopilot skills scaffold`
+
+- ✨ **`skills scaffold --name NAME [--kind KIND] [--out DIR] [--force]`** — writes a `Skills/<name>/SKILL.md` stub from the top detected candidate (repeated checklist labels become a numbered procedure draft), with `TODO` markers left for the description, the reasoning, and each step's concrete execution. Not a finished skill — a starting skeleton instead of a blank page; human review and the existing dedup-against-`Skills/` step are unchanged.
+
+### New: `agent-eval autopilot decisions` (namespace alias)
+
+- ✨ **`autopilot decisions {list,record}`** — the deploy-decision ledger commands, now also reachable under the `autopilot` tree they conceptually belong to (`--log` defaults to `.aoo/decisions.jsonl`, matching every other autopilot command's `.aoo/`-relative convention). The original top-level `agent-eval decisions ...` is unchanged and still works — this is an additional path, not a replacement.
+
+### Fixed: `decisions record` silently picked "the latest" pending gate run
+
+- 🐛 `record_decision_outcome()` without an explicit `--gate-run-id`, when 2+ gate runs were pending, used to silently attach the outcome to the most recent one. A team running `gate --decision-log` concurrently could end up with a decision recorded against the wrong gate run with no warning. It now raises (listing the pending IDs) whenever there is more than one candidate, requiring an explicit `--gate-run-id`. Still auto-links when exactly one run is pending — unchanged for the common case.
+
+### New: `agent-eval claims enable-live-check`
+
+- ✨ **`claims enable-live-check --config PATH [--owner auto] [--claims-path PATH]`** — merges a `{"team_concurrency": {...}}` block into an existing `guardrail_config.json` / `agent-evaluator.config.json` via the same safe deep-merge `claude upgrade`/`opencode upgrade` use (never overwrites a key you already set). Until now, turning on real-time claim-overlap checking required hand-editing that JSON directly, and it went unused for that reason in real usage.
+
+### New: rejection-rate blind spot made visible (LIMITS L6)
+
+- ✨ `compute_rejection_rate()` gains a `stuck_in_draft` count (surfaced on the Autopilot ops page) — not a new rate, just a number. The existing rejection rate only counts *decided* approvals, so a project whose real rejections all happen at the `draft` stage (checklist-driven redrafts) can show a suspicious 0% rate and trigger the "rubber-stamp" warning for the wrong reason. This count sits next to that rate so the two states aren't confused.
+
+### Compatibility
+
+All of the above is additive. Existing `Namespace`/dict-shaped call sites without the new fields keep working via `getattr(..., default)` throughout; `record_decision_outcome()`'s behavior with exactly 0 or 1 pending run is unchanged (only the 2+-pending case, previously silent, now raises).
+
 ## v1.1.3 (2026-09-20) — Harness Autopilot: task lifecycle + approval withdrawal + safer defaults
 
 Second follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Continues working through the same real-usage backlog (`docs/AUTOPILOT_IMPROVEMENTS.md` in the AOO Stack workbook repo) after v1.1.2's Top 3.

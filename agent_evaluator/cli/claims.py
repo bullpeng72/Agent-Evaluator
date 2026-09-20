@@ -8,15 +8,19 @@ agent-eval claims — `.aoo/claims.jsonl` 팀 스코프 클레임 관리 (SPEC-0
 한 줄로 같은 작업을 하게 한다.
 
 서브커맨드:
-    add      — 새 클레임을 연다 (append_claim, status="active"). 겹치는 활성
-               클레임이 있으면 non-blocking 경고를 낸다(차단은 여전히 audit의 몫).
-    list     — 활성 클레임을 표로 보여준다 (load_active_claims). --developer로 필터.
-    release  — 클레임을 해제한다 (append_claim, status="released")
-    audit    — TTL 초과·스코프 겹침 위반을 점검한다 (audit_claims, CI용)
+    add               — 새 클레임을 연다 (append_claim, status="active"). 겹치는 활성
+                        클레임이 있으면 non-blocking 경고를 낸다(차단은 여전히 audit의 몫).
+    list              — 활성 클레임을 표로 보여준다 (load_active_claims). --developer로 필터.
+    release           — 클레임을 해제한다 (append_claim, status="released")
+    audit             — TTL 초과·스코프 겹침 위반을 점검한다 (audit_claims, CI용)
+    enable-live-check — TeamConcurrencyConfig를 기존 guardrail 설정 JSON에 병합한다
+                        (docs/AUTOPILOT_IMPROVEMENTS.md §5 — 지금까지 수동 JSON 편집만
+                        가능해서 이 기능이 실전에서 켜진 적이 없었다).
 """
 from __future__ import annotations
 
 import argparse
+import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -180,6 +184,59 @@ def _cmd_claims_audit(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_claims_enable_live_check(args: argparse.Namespace) -> int:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §5 — ``TeamConcurrencyConfig``를 켜는
+
+    CLI/마법사가 없어, 실시간 클레임 겹침 검사는 지금까지 guardrail 설정
+    JSON을 손으로 편집해야만 켤 수 있었다(Appendix M 발견 3 — 실제로 이
+    기능이 한 번도 켜진 적 없는 프로젝트가 그 결과였다). 새 판정 로직이
+    아니다 — ``live_guardrail_stdio.py``가 이미 읽는
+    ``{"team_concurrency": {...}}`` 키를 기존 설정 파일에 안전하게
+    병합할 뿐이다(``deep_merge_defaults`` — 사용자가 이미 넣은 키는 절대
+    덮어쓰지 않는다, ``claude upgrade``/``opencode upgrade``와 같은 패턴).
+    """
+    from agent_evaluator.cli._integration_health import deep_merge_defaults
+
+    config_path = Path(args.config)
+    if not config_path.is_file():
+        print(_err(
+            f"{config_path} not found — run 'agent-eval claude install' or "
+            f"'agent-eval opencode install' first, then point --config at the "
+            f"resulting guardrail_config.json / agent-evaluator.config.json"
+        ))
+        return 1
+
+    try:
+        user_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(_err(f"{config_path} is not valid JSON: {exc}"))
+        return 1
+    if not isinstance(user_config, dict):
+        print(_err(f"{config_path} does not contain a JSON object at the top level"))
+        return 1
+
+    defaults = {"team_concurrency": {"owner": args.owner, "claims_path": args.claims_path}}
+    merged, added = deep_merge_defaults(user_config, defaults)
+    if not added:
+        print(
+            f"{D}{config_path} already has a 'team_concurrency' key — nothing to add "
+            f"(edit it directly to change settings).{R}"
+        )
+        return 0
+
+    config_path.write_text(
+        json.dumps(merged, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    print(_ok(f"Enabled real-time claim-overlap checking in {config_path}"))
+    for path in added:
+        print(f"  {D}+ {path}{R}")
+    print(
+        f"{D}Restart the live session (OpenCode plugin process, or the next Claude "
+        f"Code hook call) for this to take effect.{R}"
+    )
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # argparse 서브파서 빌더 (main.py에서 호출)
 # ---------------------------------------------------------------------------
@@ -263,6 +320,26 @@ def build_claims_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
         help="Flag active claims older than this as violations (default: 8.0)",
     )
 
+    elc_p = claims_sub.add_parser(
+        "enable-live-check",
+        help="Merge TeamConcurrencyConfig into an existing guardrail config JSON "
+             "(real-time claim-overlap checking — until now, manual-JSON-only)",
+    )
+    elc_p.add_argument(
+        "--config", required=True, metavar="PATH",
+        help="guardrail_config.json (Claude Code) or agent-evaluator.config.json "
+             "(OpenCode) to merge into",
+    )
+    elc_p.add_argument(
+        "--owner", default="auto",
+        help="TeamConcurrencyConfig.owner — 'auto' resolves via git config user.name "
+             "at guardrail-startup time (default: auto)",
+    )
+    elc_p.add_argument(
+        "--claims-path", default=".aoo/claims.jsonl", dest="claims_path", metavar="PATH",
+        help="TeamConcurrencyConfig.claims_path (default: .aoo/claims.jsonl)",
+    )
+
 
 def cmd_claims(args: argparse.Namespace) -> int:
     """claims 서브커맨드 핸들러 — claims_command에 따라 분기한다."""
@@ -271,11 +348,14 @@ def cmd_claims(args: argparse.Namespace) -> int:
         "list": _cmd_claims_list,
         "release": _cmd_claims_release,
         "audit": _cmd_claims_audit,
+        "enable-live-check": _cmd_claims_enable_live_check,
     }
     claims_command = getattr(args, "claims_command", None)
     handler = handlers.get(claims_command) if claims_command is not None else None
     if handler is None:
-        print(_err("Specify a claims subcommand: add | list | release | audit"))
+        print(_err(
+            "Specify a claims subcommand: add | list | release | audit | enable-live-check"
+        ))
         print(f"{D}For details: agent-eval claims --help{R}")
         return 1
     return handler(args)

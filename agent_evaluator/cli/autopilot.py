@@ -8,16 +8,21 @@ agent-evaluator의 평가 데이터를 팀의 HITL 승인 절차에 잇는 경�
     doctor         — 헬스체크(디렉토리·스키마 확인, 미동기화 팀원 경고)
     dashboard      — 로컬 대시보드 — claims/decisions/approvals 실데이터 렌더
     new-task       — 터미널에서 과제 등록(대시보드 "+ 새 과제"의 CLI 대응, 설계서 §8)
-    list-tasks     — 등록된 과제 전체 목록
-    show-task      — 과제 하나의 상세(owners·phase_history)
+    list-tasks     — 등록된 과제 전체 목록(active만, --all로 archived/cancelled 포함)
+    show-task      — 과제 하나의 상세(owners·phase_history·status)
+    set-task-status — 과제 생명주기(active/archived/cancelled) — current_phase와 별도 축
     add-member     — 팀원 등록(.aoo/team.json)
     remove-member  — 팀원 삭제
     update-member  — 팀원 필드 수정(역할·이름·github·synced 등)
     list-members   — 등록된 팀원 전체 목록
     phase          — Phase 전이, 옵트인으로 승인 상태에 게이트(§9.5.4 순위1).
-                     ``phase policy``로 이 게이트를 프로젝트 정책 파일로 선언 가능
-    approvals      — HITL 승인 큐 — open/list/decide/update/scan-thresholds
-    skills         — 승인 이력에서 반복 체크리스트 패턴 탐지(읽기 전용)
+                     ``phase policy``로 이 게이트를 프로젝트 정책 파일로 선언 가능.
+                     ``phase check``로 오래 정체된 phase를 찾음(LIMITS L4)
+    approvals      — HITL 승인 큐 — open/list/decide/update/cancel/scan-thresholds
+    decisions      — 배포 결정 원장(``agent-eval decisions`` alias,
+                     --log 기본값 .aoo/decisions.jsonl)
+    skills         — 승인 이력에서 반복 체크리스트 패턴 탐지(읽기 전용) +
+                     scaffold로 SKILL.md 초안 생성
 
 GitHub Actions 상태머신·에이전트 러너 무인 트리거는 구현하지 않는다 — §1.1
 재정의로 영구히 범위 밖이다(BMAD·Spec Kit·OpenHands가 이미 더 큰 규모로
@@ -48,6 +53,7 @@ from agent_evaluator.gates.autopilot_state import (
     VALID_TASK_STATUSES,
     add_team_member,
     cancel_approval,
+    check_phase_staleness,
     create_task,
     decide_approval,
     detect_skill_candidates,
@@ -60,6 +66,7 @@ from agent_evaluator.gates.autopilot_state import (
     open_approval,
     open_threshold_reviews,
     remove_team_member,
+    render_skill_stub,
     set_phase_policy,
     set_task_status,
     transition_phase,
@@ -175,6 +182,20 @@ def _cmd_autopilot_doctor(args: argparse.Namespace) -> int:
             phase_int = phase if isinstance(phase, int) else -1
             label = PHASE_LABELS.get(phase_int, str(phase))
             print(f"    {D}{tid}{R}  [{plat}]  Phase {phase} · {label}")
+
+        stale_days = getattr(args, "stale_days", 7.0)
+        if stale_days > 0:
+            stale = check_phase_staleness(tasks_dir, stale_days=stale_days)
+            for s in stale:
+                print(
+                    _warn(
+                        f"{s['task_id']} has been in phase {s['current_phase']} "
+                        f"({s['phase_label']}) for {s['days_in_phase']:.1f} day(s) "
+                        f"(since {s['entered_at']}) — verify this still matches "
+                        f"the actual work, or transition it (docs/"
+                        f"AUTOPILOT_IMPROVEMENTS.md §3, LIMITS L4)."
+                    )
+                )
     else:
         healthy = False
         print(_err(".aoo/tasks/ not found — run 'agent-eval autopilot install' first"))
@@ -570,15 +591,36 @@ def _cmd_autopilot_phase_policy(args: argparse.Namespace) -> int:
     return handler(args)
 
 
+def _cmd_autopilot_phase_check(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    tasks_dir = root / ".aoo" / "tasks"
+    stale = check_phase_staleness(tasks_dir, stale_days=args.stale_days)
+
+    if not stale:
+        print(f"{D}No task has been stuck in its current phase for "
+              f"{args.stale_days:g}+ day(s).{R}")
+        return 0
+
+    print(f"{B}Phase staleness — {tasks_dir} (threshold: {args.stale_days:g} day(s)){R}")
+    for s in stale:
+        print(
+            f"  {Y}{s['task_id']:<14}{R} phase {s['current_phase']} · "
+            f"{s['phase_label']}  {D}{s['days_in_phase']:.1f}d since "
+            f"{s['entered_at']}{R}"
+        )
+    return 0
+
+
 def _cmd_autopilot_phase(args: argparse.Namespace) -> int:
     handlers = {
         "transition": _cmd_autopilot_phase_transition,
         "policy": _cmd_autopilot_phase_policy,
+        "check": _cmd_autopilot_phase_check,
     }
     phase_command = getattr(args, "phase_command", None)
     handler = handlers.get(phase_command) if phase_command is not None else None
     if handler is None:
-        print(_err("Specify a phase subcommand: transition | policy"))
+        print(_err("Specify a phase subcommand: transition | policy | check"))
         return 1
     return handler(args)
 
@@ -704,6 +746,7 @@ def _cmd_autopilot_approvals_open(args: argparse.Namespace) -> int:
             checklist=checklist,
             body_text=body_text,
             required_approvals=getattr(args, "required_approvals", None),
+            gate_on_checklist=not getattr(args, "no_checklist_gate", False),
         )
     except ValueError as exc:
         print(_err(str(exc)))
@@ -936,6 +979,11 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     doctor_p = ap_sub.add_parser("doctor", help="Health-check the Autopilot installation")
     doctor_p.add_argument("--root", default=".", metavar="DIR")
+    doctor_p.add_argument(
+        "--stale-days", type=float, default=7.0, dest="stale_days",
+        help="Warn when an active task has sat in its current phase this many "
+             "days or longer (default: 7; 0 disables the check)",
+    )
 
     dash_p = ap_sub.add_parser(
         "dashboard", help="Local dashboard (task board · team · approvals · ops)"
@@ -1054,6 +1102,41 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     phpw_p = php_sub.add_parser("show", help="Show the current phase policy")
     phpw_p.add_argument("--root", default=".", metavar="DIR")
 
+    phc_p = ph_sub.add_parser(
+        "check",
+        help="List active tasks stuck in their current phase (no forgotten "
+             "transition, LIMITS L4 — pure elapsed-time signal, read-only)",
+    )
+    phc_p.add_argument(
+        "--stale-days", type=float, default=7.0, dest="stale_days",
+        help="Flag a task that has been in its current phase this many days "
+             "or longer (default: 7)",
+    )
+    phc_p.add_argument("--root", default=".", metavar="DIR")
+
+    dec_p = ap_sub.add_parser(
+        "decisions",
+        help="Deploy-decision ledger (alias for `agent-eval decisions`, "
+             "defaults --log to .aoo/decisions.jsonl)",
+    )
+    dec_sub = dec_p.add_subparsers(dest="decisions_command", metavar="{list,record}")
+    decl_p = dec_sub.add_parser("list", help="List gate runs + outcomes")
+    decl_p.add_argument("--log", default=None, help="Override .aoo/decisions.jsonl")
+    decl_p.add_argument("--pending", action="store_true",
+                        help="Only gate runs with no recorded outcome yet")
+    decl_p.add_argument("--json", action="store_true", dest="as_json",
+                        help="Emit the summary as JSON")
+    decl_p.add_argument("--root", default=".", metavar="DIR")
+    decr_p = dec_sub.add_parser("record", help="Append a human decision")
+    decr_p.add_argument("--log", default=None, help="Override .aoo/decisions.jsonl")
+    decr_p.add_argument("--outcome", required=True,
+                        choices=["accepted", "held", "overridden", "rejected"])
+    decr_p.add_argument("--by", required=True, dest="decided_by", metavar="NAME")
+    decr_p.add_argument("--rationale", metavar="TEXT", default=None)
+    decr_p.add_argument("--gate-run-id", metavar="ID", dest="gate_run_id", default=None,
+                        help="Required when more than one gate_run is pending")
+    decr_p.add_argument("--root", default=".", metavar="DIR")
+
     ap_p = ap_sub.add_parser(
         "approvals", help="HITL approval queue (.aoo/approvals.jsonl) — open/list/decide"
     )
@@ -1078,6 +1161,14 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "--required-approvals", type=int, default=None, dest="required_approvals",
         help="Distinct approvers needed before this counts as approved "
              "(default: 2 for deploy/release_hold, 1 otherwise)",
+    )
+    apo_p.add_argument(
+        "--no-checklist-gate", action="store_true", dest="no_checklist_gate",
+        help="Checklist is shown but does not block review (use when the checklist "
+             "is a follow-up procedure list, not an entry condition — this is what "
+             "'scan-thresholds' uses internally for threshold_review; without this "
+             "flag a manually-opened approval of the same kind stays gated, "
+             "docs/AUTOPILOT_IMPROVEMENTS.md §Appendix-M-finding-1)",
     )
     apo_p.add_argument("--root", default=".", metavar="DIR")
 
@@ -1136,6 +1227,27 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     skd_p.add_argument("--root", default=".", metavar="DIR")
 
+    sks_p = sk_sub.add_parser(
+        "scaffold",
+        help="Write a SKILL.md stub from a detected candidate (TODOs left for a human)",
+    )
+    sks_p.add_argument("--name", required=True, help="kebab-case skill name")
+    sks_p.add_argument(
+        "--kind", default=None, choices=list(VALID_APPROVAL_KINDS),
+        help="Scaffold from the top candidate of this approval kind "
+             "(default: the single highest-count candidate overall)",
+    )
+    sks_p.add_argument(
+        "--min-occurrences", type=int, default=3, dest="min_occurrences",
+        help="Same threshold as 'skills detect' (default: 3)",
+    )
+    sks_p.add_argument(
+        "--out", default="Skills", metavar="DIR",
+        help="Parent directory to write <out>/<name>/SKILL.md into (default: Skills)",
+    )
+    sks_p.add_argument("--force", action="store_true", help="Overwrite an existing stub")
+    sks_p.add_argument("--root", default=".", metavar="DIR")
+
 
 def _cmd_autopilot_skills_detect(args: argparse.Namespace) -> int:
     root = Path(args.root)
@@ -1158,14 +1270,68 @@ def _cmd_autopilot_skills_detect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot_skills_scaffold(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    approvals_path = root / ".aoo" / "approvals.jsonl"
+    candidates = detect_skill_candidates(approvals_path, min_occurrences=args.min_occurrences)
+
+    if args.kind is not None:
+        candidates = [c for c in candidates if c["kind"] == args.kind]
+    if not candidates:
+        print(_err(
+            f"no skill candidate found "
+            f"(threshold: {args.min_occurrences}+"
+            + (f", kind={args.kind}" if args.kind else "")
+            + ") — run 'agent-eval autopilot skills detect' first"
+        ))
+        return 1
+
+    out_path = Path(args.out) / args.name / "SKILL.md"
+    if out_path.exists() and not args.force:
+        print(_err(f"{out_path} already exists — pass --force to overwrite"))
+        return 1
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_skill_stub(candidates[0], args.name), encoding="utf-8")
+    print(_ok(f"Skill stub written: {out_path}"))
+    print(
+        f"  {D}Based on {candidates[0]['count']}x repeated kind={candidates[0]['kind']} "
+        f"checklist. TODO markers are left for a human — fill in the description, "
+        f"the reasoning, and each step's concrete procedure before treating this "
+        f"as a real skill (원칙4, 방법론서 §26.6 자격확인).{R}"
+    )
+    return 0
+
+
 def _cmd_autopilot_skills(args: argparse.Namespace) -> int:
-    handlers = {"detect": _cmd_autopilot_skills_detect}
+    handlers = {"detect": _cmd_autopilot_skills_detect, "scaffold": _cmd_autopilot_skills_scaffold}
     skills_command = getattr(args, "skills_command", None)
     handler = handlers.get(skills_command) if skills_command is not None else None
     if handler is None:
-        print(_err("Specify a skills subcommand: detect"))
+        print(_err("Specify a skills subcommand: detect | scaffold"))
         return 1
     return handler(args)
+
+
+def _cmd_autopilot_decisions(args: argparse.Namespace) -> int:
+    """`agent-eval decisions`의 얇은 alias(SPEC-AP-001 백로그 §6 —
+
+    개념적으로 Autopilot의 일부인데 CLI 트리가 최상위 명령으로 분리돼
+    있었다). 구현은 그대로 `cli/decisions.py`를 재사용하고(원칙4 — 새
+    로직 없음), `--log`를 안 주면 autopilot의 다른 명령들과 같은 관례로
+    `.aoo/decisions.jsonl`을 기본값으로 채운다. 기존 최상위
+    `agent-eval decisions ...`는 그대로 남아 있다 — 이건 대체가 아니라
+    추가 경로다.
+    """
+    from agent_evaluator.cli.decisions import cmd_decisions
+
+    sub = getattr(args, "decisions_command", None)
+    if sub not in ("list", "record"):
+        print(_err("Specify a decisions subcommand: list | record"))
+        return 1
+    if not getattr(args, "log", None):
+        args.log = str(Path(args.root) / ".aoo" / "decisions.jsonl")
+    return cmd_decisions(args)
 
 
 def cmd_autopilot(args: argparse.Namespace) -> int:
@@ -1184,6 +1350,7 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
         "list-members": _cmd_autopilot_list_members,
         "phase": _cmd_autopilot_phase,
         "approvals": _cmd_autopilot_approvals,
+        "decisions": _cmd_autopilot_decisions,
         "skills": _cmd_autopilot_skills,
     }
     autopilot_command = getattr(args, "autopilot_command", None)
@@ -1192,7 +1359,8 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
         print(_err(
             "Specify an autopilot subcommand: install | doctor | dashboard | "
             "new-task | list-tasks | show-task | set-task-status | add-member | "
-            "remove-member | update-member | list-members | phase | approvals | skills"
+            "remove-member | update-member | list-members | phase | approvals | "
+            "decisions | skills"
         ))
         print(f"{D}For details: agent-eval autopilot --help{R}")
         return 1

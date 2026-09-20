@@ -567,6 +567,7 @@ def _rejection_rate_card(rejection: dict[str, Any]) -> str:
     total = rejection.get("total", 0)
     rate = rejection.get("rejection_rate")
     window = rejection.get("window")
+    stuck_in_draft = rejection.get("stuck_in_draft", 0)
 
     if total == 0:
         body = '<p class="empty">아직 결정된 승인이 없음 — 반려율을 아직 계산할 수 없음</p>'
@@ -584,10 +585,20 @@ def _rejection_rate_card(rejection: dict[str, Any]) -> str:
             f'{rejection.get("rejected_or_changes_requested", 0)}건{note}</p>'
         )
 
+    # LIMITS_T-5E1FD6.md L6 — 이 반려율은 확정된 승인만 본다. 체크리스트를
+    # 못 넘겨 draft에 갇힌 항목(실제로는 반려에 가까운 상태)은 분모 밖이라
+    # 위 숫자만 보면 사각지대를 놓친다 — 새 비율이 아니라 개수로만 옆에 붙인다.
+    draft_note = (
+        f'<p class="tm">draft 상태로 대기 중인 승인 {stuck_in_draft}건 — 위 반려율에는 '
+        f'포함되지 않음(체크리스트 미충족으로 재드래프트되는 것도 실질적 반려일 수 있음)</p>'
+        if stuck_in_draft else ""
+    )
+
     return f"""
 <div class="card">
   <h2>원칙6 자가점검 — 승인 반려율</h2>
   {body}
+  {draft_note}
 </div>"""
 
 

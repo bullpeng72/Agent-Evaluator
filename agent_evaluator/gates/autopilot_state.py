@@ -239,6 +239,71 @@ def transition_phase(
     return task
 
 
+def check_phase_staleness(
+    tasks_dir: Union[str, Path], stale_days: float = 7.0
+) -> list[dict[str, Any]]:
+    """현재 phase에 오래 머문 활성 과제를 찾는다(SPEC-AP-001 백로그 §3 —
+    docs/AUTOPILOT_IMPROVEMENTS.md, LIMITS_T-5E1FD6.md L4).
+
+    ``transition_phase()``에 조건을 안 넘기면(옵트인) 전이 자체를 그냥
+    깜빡해도 아무 신호가 없다 — AOO Stack 실습서에서 이 정확한 실수가
+    같은 프로젝트에서 두 번 재발했다(Part VIII 전체가 phase 4 활동인데
+    task는 phase 3에 머묾, 그 다음 Part도 같은 식으로 재발). ``doctor``가
+    현재 phase 숫자만 보여줄 뿐 "이 숫자가 얼마나 오래 안 바뀌었는지"는
+    아예 안 쟀다는 게 그 공백의 원인이었다.
+
+    이미 ``phase_history[-1]["entered_at"]``에 있는 값만 다시 읽는다(원칙4
+    — git 커밋 시각 같은 새 계측을 붙이지 않는다). 순수 경과시간 신호라
+    "이 phase에 정말 아직 작업 중인가"까지는 알 수 없다 — 그건 사람이
+    판단할 몫이고, 이 함수는 그 판단이 필요하다는 것만 표면화한다.
+
+    ``archived``/``cancelled`` 과제는 건너뛴다 — 끝났거나 중단된 과제가
+    "정체"로 잡히는 건 오탐이다.
+
+    Args:
+        tasks_dir: ``.aoo/tasks`` 디렉터리.
+        stale_days: 이 일수 이상 같은 phase에 머문 과제를 정체로 본다.
+
+    Returns:
+        ``[{"task_id", "current_phase", "phase_label", "entered_at",
+        "days_in_phase"}]``, ``days_in_phase`` 내림차순. 비어 있으면 정체
+        없음. ``phase_history``가 없거나 타임스탬프를 못 읽는 과제는
+        조용히 건너뛴다(예외 전파 방지 — TTL 감사와 같은 패턴,
+        ``team_concurrency.audit_claims()`` 참고).
+    """
+    now = datetime.now(timezone.utc)
+    stale: list[dict[str, Any]] = []
+    for task in load_all_tasks(tasks_dir):
+        if task.get("status", "active") != "active":
+            continue
+        history: list[dict[str, Any]] = task.get("phase_history") or []
+        if not history:
+            continue
+        entered_at = history[-1].get("entered_at")
+        if not entered_at:
+            continue
+        try:
+            entered = datetime.fromisoformat(entered_at)
+        except ValueError:
+            continue
+        if entered.tzinfo is None:
+            entered = entered.replace(tzinfo=timezone.utc)
+        days = (now - entered).total_seconds() / 86400
+        if days < stale_days:
+            continue
+        phase = task.get("current_phase")
+        phase_int = phase if isinstance(phase, int) else -1
+        stale.append({
+            "task_id": task.get("task_id"),
+            "current_phase": phase,
+            "phase_label": PHASE_LABELS.get(phase_int, str(phase)),
+            "entered_at": entered_at,
+            "days_in_phase": round(days, 1),
+        })
+    stale.sort(key=lambda s: -cast(float, s["days_in_phase"]))
+    return stale
+
+
 # ---------------------------------------------------------------------------
 # 팀원 레지스트리 — .aoo/team.json (§4.6)
 # ---------------------------------------------------------------------------
@@ -796,14 +861,24 @@ def compute_rejection_rate(
     없다 — ``.aoo/approvals.jsonl``에 이미 있는 결정 이력만 다시 읽는다
     (원칙4). ``pending``/``draft``(아직 결정 안 됨)는 분모에서 뺀다.
 
+    ``stuck_in_draft``(LIMITS_T-5E1FD6.md L6): 반려율의 분모는 확정된
+    승인만 본다는 바로 그 설계 때문에, 체크리스트를 못 넘겨 계속
+    ``draft``에 머무는 항목은 안 잡힌다 — 실측(AOO 실습서 Ch35)에서 이
+    프로젝트의 진짜 반려는 전부 draft 단계(콜론 문법 실수로 3번 재드래프트)
+    에서 일어났는데, 반려율은 그걸 하나도 못 보고 0%로 나와 "형식적
+    승인(고무도장) 위험" 오탐을 냈다. 이 필드는 새 비율을 만들지 않는다
+    (원칙4) — 현재 ``draft`` 상태인 승인 개수를 그대로 셀 뿐이다. 반려율이
+    낮게 나올 때 이 숫자도 함께 봐야 "진짜 반려가 적다"와 "반려가 draft
+    단계에서 안 보이게 일어나고 있다"를 구별할 수 있다.
+
     Returns:
-        ``{"window", "total", "rejected_or_changes_requested", "rejection_rate"}``.
-        ``rejection_rate``는 결정된 항목이 하나도 없으면 ``None``이다
-        ("0%"과 "아직 아무도 결정 안 함"은 다른 상태다).
+        ``{"window", "total", "rejected_or_changes_requested", "rejection_rate",
+        "stuck_in_draft"}``. ``rejection_rate``는 결정된 항목이 하나도 없으면
+        ``None``이다("0%"과 "아직 아무도 결정 안 함"은 다른 상태다).
     """
+    all_approvals = load_approvals(approvals_path)
     decided = [
-        a
-        for a in load_approvals(approvals_path)
+        a for a in all_approvals
         if a.get("status") in ("approved", "rejected", "changes_requested")
     ]
     decided.sort(key=lambda a: a.get("decided_at") or "")
@@ -812,12 +887,14 @@ def compute_rejection_rate(
     total = len(recent)
     non_approved = sum(1 for a in recent if a.get("status") != "approved")
     rate = (non_approved / total) if total else None
+    stuck_in_draft = sum(1 for a in all_approvals if a.get("status") == "draft")
 
     return {
         "window": window,
         "total": total,
         "rejected_or_changes_requested": non_approved,
         "rejection_rate": rate,
+        "stuck_in_draft": stuck_in_draft,
     }
 
 
@@ -840,27 +917,91 @@ def detect_skill_candidates(
     적고 있었다는 뜻이기 때문이다. 파일을 만들지는 않는다(설계서 §26.6이
     요구하는 사람 검토·기존 17개와 중복 대조는 이 함수 밖의 몫이다).
 
+    ``count``는 승인 **항목(id) 개수가 아니라 서로 다른 task_id의 개수**다
+    (SPEC-AP-001 백로그 §7 — AOO 실습서 Ch38이 실측으로 발견: 승인 항목
+    하나가 체크리스트 오류로 반려·재오픈되면 매번 새 ``id``가 생기는데
+    (``update_approval_checklist()``는 결정 전 승인만 수정하지, 이미
+    ``rejected``/``changes_requested``로 끝난 건 새로 열어야 한다), 이걸
+    그대로 세면 "같은 task가 한 승인을 4번 재시도한 것"과 "4개의 다른
+    task가 독립적으로 같은 체크리스트가 필요했던 것"을 구별 못 한다 —
+    전자는 반복 패턴이 아니라 재드래프트 churn이다. 같은 task_id 안에서
+    난 반복은 1회로만 센다. 트레이드오프: 한 task가 정말로 같은 체크리스트
+    모양을 두 번 독립적으로 필요로 한 드문 경우도 1회로 합쳐진다 —
+    "재드래프트를 반복으로 오인하지 않는다"는 원래 문제 쪽이 훨씬 흔하므로
+    이쪽을 택했다.
+
     Returns:
         ``[{"kind", "labels": tuple[str, ...], "count", "approval_ids"}]``,
-        ``count`` 내림차순.
+        ``count``(distinct task_id 수) 내림차순. ``approval_ids``는 그
+        모양을 만든 모든 승인 id(재드래프트 포함, 근거 인용용).
     """
     from collections import defaultdict
 
-    groups: dict[tuple[str, tuple[str, ...]], list[str]] = defaultdict(list)
+    groups: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for a in load_approvals(approvals_path):
         labels = tuple(sorted(c.get("label", "") for c in a.get("checklist") or []))
         if not labels:
             continue
         key = (a.get("kind", ""), labels)
-        groups[key].append(a.get("id", ""))
+        groups[key][a.get("task_id", "")].append(a.get("id", ""))
 
-    candidates = [
-        {"kind": kind, "labels": labels, "count": len(ids), "approval_ids": ids}
-        for (kind, labels), ids in groups.items()
-        if len(ids) >= min_occurrences
-    ]
+    candidates = []
+    for (kind, labels), by_task in groups.items():
+        if len(by_task) < min_occurrences:
+            continue
+        approval_ids = [aid for ids in by_task.values() for aid in ids]
+        candidates.append(
+            {"kind": kind, "labels": labels, "count": len(by_task), "approval_ids": approval_ids}
+        )
     candidates.sort(key=lambda c: -cast(int, c["count"]))
     return candidates
+
+
+def render_skill_stub(candidate: dict[str, Any], name: str) -> str:
+    """``detect_skill_candidates()`` 후보 하나를 SKILL.md 초안 텍스트로
+
+    렌더링한다(SPEC-AP-001 백로그 §7 — 후보가 나와도 SKILL.md를 손으로
+    처음부터 써야 했다). 반복된 체크리스트 라벨을 절차 초안으로 그대로
+    채우지만, ``description``과 각 절차의 구체적 실행 방법은 사람이
+    채워야 할 자리로 명시적으로 ``TODO``로 남긴다 — 이 함수는 빈 페이지
+    에서 시작하지 않게 할 뿐, 사람 검토(방법론서 §26.6 자격확인 — 기존
+    스킬과 중복 대조)를 대체하지 않는다.
+
+    파일을 쓰지 않는 순수 함수다 — 어디에 저장할지는 호출자(CLI)의 몫이다.
+
+    Args:
+        candidate: ``detect_skill_candidates()``가 반환한 항목 하나
+            (``{"kind", "labels", "count", "approval_ids"}``).
+        name: 새 스킬 디렉터리/frontmatter에 쓸 kebab-case 이름.
+
+    Returns:
+        기존 ``Skills/*/SKILL.md``와 같은 frontmatter 형식의 마크다운 텍스트.
+    """
+    labels = candidate.get("labels") or ()
+    kind = candidate.get("kind", "")
+    count = candidate.get("count", 0)
+    approval_ids = ", ".join(candidate.get("approval_ids") or [])
+    steps = "\n".join(f"{i}. {label}" for i, label in enumerate(labels, 1)) or "1. (TODO)"
+    return (
+        "---\n"
+        f"name: {name}\n"
+        "description: TODO — one line, plus 1-2 trigger phrases a user might "
+        "say (see an existing Skills/*/SKILL.md for the format)\n"
+        "aoo_dependency: full\n"
+        "---\n\n"
+        f"# {name}\n\n"
+        "TODO — 이 스킬이 왜 필요한지 한 단락으로 설명한다. 근거: "
+        f"`{kind}` 승인이 {count}회에 걸쳐 정확히 같은 체크리스트를 반복했다 "
+        f"(approval ids: {approval_ids}).\n\n"
+        "## 점검 절차\n\n"
+        f"{steps}\n\n"
+        "TODO — 각 단계를 실제 명령이나 판단 기준으로 구체화한다.\n\n"
+        "> 절차 정본: `agent-eval autopilot skills detect`가 찾은 반복 패턴. "
+        "만들기 전에 기존 Skills/의 스킬과 중복이 아닌지 반드시 확인한다"
+        "(원칙4, 방법론서 §26.6).\n"
+    )
 
 
 def detect_repeated_undecided(

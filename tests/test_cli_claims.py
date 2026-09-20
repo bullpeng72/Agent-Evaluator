@@ -18,6 +18,7 @@ from unittest.mock import patch
 from agent_evaluator.cli.claims import (
     _cmd_claims_add,
     _cmd_claims_audit,
+    _cmd_claims_enable_live_check,
     _cmd_claims_list,
     _cmd_claims_release,
     cmd_claims,
@@ -294,6 +295,75 @@ class TestClaimsAudit:
         code = _cmd_claims_audit(_ns(claims_path=str(claims_path), ttl_hours=8760.0))
         assert code == 1
         assert "Overlapping scope" in capsys.readouterr().out
+
+
+class TestClaimsEnableLiveCheck:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §5 — TeamConcurrencyConfig를 켜는
+
+    CLI/마법사가 없어 수동 JSON 편집만 가능했다."""
+
+    def test_merges_team_concurrency_into_existing_config(self, tmp_path):
+        cfg = tmp_path / "agent-evaluator.config.json"
+        cfg.write_text(json.dumps({"loop_detection": {"consecutive_repeat_threshold": 3}}))
+
+        code = _cmd_claims_enable_live_check(_ns(
+            config=str(cfg), owner="auto", claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 0
+        data = json.loads(cfg.read_text())
+        assert data["team_concurrency"] == {"owner": "auto", "claims_path": ".aoo/claims.jsonl"}
+        assert data["loop_detection"] == {"consecutive_repeat_threshold": 3}  # preserved
+
+    def test_missing_config_file_fails(self, tmp_path):
+        code = _cmd_claims_enable_live_check(_ns(
+            config=str(tmp_path / "nope.json"), owner="auto",
+            claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 1
+
+    def test_invalid_json_fails(self, tmp_path):
+        cfg = tmp_path / "bad.json"
+        cfg.write_text("{not json")
+        code = _cmd_claims_enable_live_check(_ns(
+            config=str(cfg), owner="auto", claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 1
+
+    def test_existing_owner_value_is_not_overwritten(self, tmp_path):
+        """이미 있는 하위 키(owner)는 절대 덮어쓰지 않는다 — claims_path처럼
+
+        없는 하위 키만 채운다(``deep_merge_defaults`` 그대로, 재귀 병합)."""
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text(json.dumps({"team_concurrency": {"owner": "sw"}}))
+
+        code = _cmd_claims_enable_live_check(_ns(
+            config=str(cfg), owner="auto", claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 0
+        data = json.loads(cfg.read_text())
+        assert data["team_concurrency"]["owner"] == "sw"  # untouched
+        assert data["team_concurrency"]["claims_path"] == ".aoo/claims.jsonl"  # filled in
+
+    def test_fully_configured_team_concurrency_reports_nothing_to_add(self, tmp_path, capsys):
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text(json.dumps(
+            {"team_concurrency": {"owner": "sw", "claims_path": ".aoo/claims.jsonl"}}
+        ))
+
+        code = _cmd_claims_enable_live_check(_ns(
+            config=str(cfg), owner="auto", claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 0
+        assert "nothing to add" in capsys.readouterr().out
+
+    def test_dispatch_via_cmd_claims(self, tmp_path):
+        cfg = tmp_path / "cfg.json"
+        cfg.write_text("{}")
+        code = cmd_claims(_ns(
+            claims_command="enable-live-check", config=str(cfg), owner="auto",
+            claims_path=".aoo/claims.jsonl",
+        ))
+        assert code == 0
 
 
 class TestClaimsDispatcher:

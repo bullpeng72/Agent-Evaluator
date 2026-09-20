@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.3 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.4 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -40,7 +40,9 @@ agent-eval gate result.json --hold-on-undecided         # exit 75 (hold for huma
 agent-eval gate result.json --requirements docs/REQUIREMENTS.txt --require-spec-coverage  # exit 4 if any 'REQ-ID: desc' line has no golden case declaring it in extra.covers (SPEC-043 REQ-1; insights.spec_coverage)
 agent-eval gate result.json --decision-log .aoo/decisions.jsonl    # append {exit_code, verdict, gate_scores} to the deploy-decision ledger (SPEC-043 REQ-3); does not change exit code
 agent-eval decisions list .aoo/decisions.jsonl [--pending] [--json]   # review the ledger; --pending = gate runs with no recorded human outcome
-agent-eval decisions record .aoo/decisions.jsonl --outcome {accepted|held|overridden|rejected} --by NAME [--rationale TEXT] [--gate-run-id ID]  # append the human decision (links to latest pending run by default)
+agent-eval decisions record .aoo/decisions.jsonl --outcome {accepted|held|overridden|rejected} --by NAME [--rationale TEXT] [--gate-run-id ID]  # append the human decision
+#   (links to the sole pending run when --gate-run-id is omitted; raises if there are 0 or 2+ pending runs —
+#   concurrent `gate --decision-log` runs used to silently pick "the latest," risking the wrong gate run)
 agent-eval gate result.json --digest                    # also print PM / QA / engineer briefs after the table (P34)
 agent-eval gate result.json --html-out report.html      # SPEC-044 REQ-7: also write the full HTML report to that path (same baseline as the gate); exit code unchanged
 agent-eval gate result.json --html-summary              # SPEC-044 REQ-7: also print a short Markdown block (verdict + path-to-green + the one next command) to stdout, for a PR body
@@ -96,13 +98,20 @@ agent-eval claims add src/ --developer auto      # open a claim (owner="auto" ->
 agent-eval claims list [--developer alice]       # filter to one developer's active claims
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
+agent-eval claims enable-live-check --config .opencode/plugin/agent-evaluator.config.json [--owner auto]
+#   merges {"team_concurrency": {...}} into an existing guardrail config JSON (Claude's guardrail_config.json
+#   or OpenCode's agent-evaluator.config.json) via a safe deep-merge (never overwrites a key you already set) —
+#   until this existed, turning on real-time claim-overlap checking required hand-editing that JSON.
 
 # CLI — Harness Autopilot (SPEC-AP-001, agent_evaluator/{gates/autopilot_state.py,cli/autopilot.py,serve/autopilot_app.py})
 #   HITL approval queue layered on top of this SDK's own Gate/decision/claims data — not an SDLC pipeline.
 #   Registered via the "agent_evaluator.cli_plugins" entry-points group (pyproject.toml), not a hardcoded
 #   import in cli/main.py — Docs/specs/SPEC-AP-001-harness-autopilot-interface.md has the full contract.
 agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks/, .aoo/team.json, Skill placement
-agent-eval autopilot doctor                      # health-check the skeleton
+agent-eval autopilot doctor [--stale-days 7]     # health-check the skeleton; also warns when an active task has
+#   sat in its current phase >= --stale-days (0 disables) — the only signal that a task's declared phase may
+#   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook
+#   with zero warning before this existed). Same check standalone: `phase check`.
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
 #   6 owner roles total (was analysis/design only) — any subset may be given.
@@ -124,10 +133,15 @@ agent-eval autopilot phase policy set --to 2 --require-approval spec_review   # 
 #   drift in real use — see the AOO workbook Ch35->38). `phase policy show` / `--clear` manage it; an explicit
 #   --require-approval on `phase transition` always overrides the policy for that one call.
 agent-eval autopilot phase policy show
+agent-eval autopilot phase check [--stale-days 7]   # list active tasks stuck in their current phase (read-only,
+#   same signal `doctor` warns about inline — LIMITS L4).
 agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \
     --body-file docs/SPEC.md --checklist-item "EARS 표기:ok"   # auto-scores checklist + [NEEDS CLARIFICATION] tags
 #   --checklist-item splits on the LAST colon (a label containing its own colon, e.g. "역할: 설명:ok", used to
 #   truncate the label at the first one) and rejects any STATUS that isn't ok|pending|flag outright.
+#   --no-checklist-gate opens it the same way `scan-thresholds` opens an auto threshold_review (checklist shown
+#   but not gating "ready for review") — without this flag a manually-opened approval of a kind that's normally
+#   auto-opened (e.g. threshold_review) stays gated and can get stuck in draft even when that's not intended.
 agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved --by pm-park
 agent-eval autopilot approvals update ap-a1b2c3d4 --checklist-item "EARS 표기:ok"   # flip an existing item's
 #   status on an open (draft/pending) approval instead of opening a brand-new approval from scratch to fix one
@@ -141,7 +155,15 @@ agent-eval autopilot approvals list               # pending only by default; nud
 #   (either "no pending, but N draft(s) exist — run with --all" or a footer note when results exist alongside
 #   hidden drafts) so a draft stuck on its checklist doesn't silently sit unnoticed.
 agent-eval autopilot approvals scan-thresholds   # repeated exit-75 reason (5+) -> auto threshold_review card
+agent-eval autopilot decisions list [--pending] [--json]   # alias for `agent-eval decisions` under the
+agent-eval autopilot decisions record --outcome accepted --by NAME   # autopilot namespace — same implementation,
+#   --log defaults to .aoo/decisions.jsonl (`agent-eval decisions` itself still works unchanged).
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
+#   count is now per distinct task_id, not per approval entry — a single task redrafting the same checklist
+#   shape N times (e.g. fixing a colon-parsing typo) no longer looks like an N-times-repeated cross-task pattern.
+agent-eval autopilot skills scaffold --name my-skill [--kind spec_review] [--out Skills] [--force]
+#   writes Skills/<name>/SKILL.md from the top detected candidate, with TODO markers for the description/
+#   reasoning/per-step procedure — a starting skeleton, not a finished skill; human review still required.
 
 # CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · test-config · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]

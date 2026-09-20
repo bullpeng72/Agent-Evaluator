@@ -19,6 +19,7 @@ from agent_evaluator.gates.autopilot_state import (
     PORTFOLIO_TASK_ID,
     add_team_member,
     cancel_approval,
+    check_phase_staleness,
     compute_rejection_rate,
     create_task,
     decide_approval,
@@ -36,6 +37,7 @@ from agent_evaluator.gates.autopilot_state import (
     open_approval,
     open_threshold_reviews,
     remove_team_member,
+    render_skill_stub,
     save_task,
     save_team,
     score_checklist,
@@ -190,6 +192,65 @@ class TestTransitionPhase:
     def test_save_task_requires_task_id(self, tmp_path):
         with pytest.raises(ValueError, match="task_id"):
             save_task(tmp_path / ".aoo" / "tasks", {"title": "no id"})
+
+
+class TestCheckPhaseStaleness:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §3, LIMITS_T-5E1FD6.md L4 — phase가
+
+    실제 작업과 맞는지 확인하는 신호가 아예 없어 AOO 실습서에서 같은
+    실수가 두 번 재발했다.
+    """
+
+    def test_fresh_phase_is_not_stale(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        assert check_phase_staleness(tasks_dir, stale_days=7.0) == []
+
+    def test_old_entered_at_is_flagged(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        stale = check_phase_staleness(tasks_dir, stale_days=7.0)
+        assert len(stale) == 1
+        assert stale[0]["task_id"] == "ST-001"
+        assert stale[0]["current_phase"] == 0
+        assert stale[0]["days_in_phase"] > 365
+
+    def test_archived_task_is_skipped(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        task["status"] = "archived"
+        save_task(tasks_dir, task)
+
+        assert check_phase_staleness(tasks_dir, stale_days=7.0) == []
+
+    def test_missing_phase_history_is_skipped_not_raised(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"] = []
+        save_task(tasks_dir, task)
+
+        assert check_phase_staleness(tasks_dir, stale_days=7.0) == []
+
+    def test_sorted_most_stale_first(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        create_task(tasks_dir, task_id="ST-002", title="b", platform="ac")
+        t1 = load_task(tasks_dir, "ST-001")
+        t1["phase_history"][-1]["entered_at"] = "2023-01-01T00:00:00+00:00"
+        save_task(tasks_dir, t1)
+        t2 = load_task(tasks_dir, "ST-002")
+        t2["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, t2)
+
+        stale = check_phase_staleness(tasks_dir, stale_days=7.0)
+        assert [s["task_id"] for s in stale] == ["ST-002", "ST-001"]
 
 
 class TestTransitionPhaseApprovalGate:
@@ -381,6 +442,41 @@ class TestComputeRejectionRate:
         )
         result = compute_rejection_rate(p)
         assert result["total"] == 0
+
+    def test_stuck_in_draft_surfaces_the_blind_spot(self, tmp_path):
+        """LIMITS_T-5E1FD6.md L6 — draft 단계 반려가 반려율 분모에 안 잡혀
+
+        "고무도장" 오탐을 낼 수 있다는 사각지대를, 새 비율 없이 개수로만
+        보여준다."""
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        a1 = open_approval(
+            p, task_id="ST-1", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(p, a1["id"], decision="approved", decided_by="pm")
+        # 체크리스트 미충족으로 draft에 갇힌 것 2건 — 이 실제 반려는
+        # rejection_rate엔 전혀 반영되지 않는다.
+        open_approval(
+            p, task_id="ST-2", kind="spec_review", phase=1, title="draft1",
+            checklist=[{"label": "a", "status": "pending"}],
+        )
+        open_approval(
+            p, task_id="ST-3", kind="spec_review", phase=1, title="draft2",
+            checklist=[{"label": "a", "status": "flag"}],
+        )
+        result = compute_rejection_rate(p)
+        assert result["rejection_rate"] == 0.0  # 확정 승인만 보면 반려 0건
+        assert result["stuck_in_draft"] == 2    # 그러나 사각지대에 2건이 있다
+
+    def test_stuck_in_draft_is_zero_when_nothing_is_draft(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        a1 = open_approval(
+            p, task_id="ST-1", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(p, a1["id"], decision="approved", decided_by="pm")
+        result = compute_rejection_rate(p)
+        assert result["stuck_in_draft"] == 0
 
     def test_window_limits_to_most_recent(self, tmp_path):
         p = tmp_path / ".aoo" / "approvals.jsonl"
@@ -950,6 +1046,72 @@ class TestDetectSkillCandidates:
 
     def test_empty_when_no_approvals_file(self, tmp_path):
         assert detect_skill_candidates(tmp_path / "nope.jsonl") == []
+
+    def test_redrafts_on_the_same_task_count_once(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §7, AOO 실습서 Ch38 실측 — 같은
+
+        task가 체크리스트 오류로 승인을 3번 재드래프트(매번 새 id)해도
+        "3회 반복 패턴"이 아니라 "task 1개"로 세야 한다.
+        """
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        checklist = [{"label": "a", "status": "flag"}]
+        for _ in range(3):
+            open_approval(
+                p, task_id="ST-014", kind="threshold_review", phase=7, title="재드래프트",
+                checklist=checklist,
+            )
+        assert detect_skill_candidates(p, min_occurrences=2) == []
+        assert detect_skill_candidates(p, min_occurrences=1)[0]["count"] == 1
+
+    def test_same_shape_across_different_tasks_still_counts_as_repeated(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        checklist = [{"label": "a", "status": "ok"}]
+        for i in range(3):
+            open_approval(
+                p, task_id=f"ST-{i}", kind="spec_review", phase=1, title="t",
+                checklist=checklist,
+            )
+        candidates = detect_skill_candidates(p, min_occurrences=3)
+        assert len(candidates) == 1
+        assert candidates[0]["count"] == 3
+
+
+class TestRenderSkillStub:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §7 — 후보 발견 후 스캐폴딩 명령 부재."""
+
+    def test_stub_has_frontmatter_and_name(self):
+        candidate = {
+            "kind": "spec_review", "labels": ("EARS 표기", "Gate 매핑"),
+            "count": 3, "approval_ids": ["ap-1", "ap-2", "ap-3"],
+        }
+        text = render_skill_stub(candidate, "my-new-skill")
+        assert text.startswith("---\nname: my-new-skill\n")
+        assert "aoo_dependency: full" in text
+        assert "# my-new-skill" in text
+
+    def test_stub_lists_labels_as_numbered_steps(self):
+        candidate = {
+            "kind": "spec_review", "labels": ("a", "b"), "count": 3,
+            "approval_ids": ["ap-1", "ap-2", "ap-3"],
+        }
+        text = render_skill_stub(candidate, "s")
+        assert "1. a" in text
+        assert "2. b" in text
+
+    def test_stub_leaves_todo_markers_for_a_human(self):
+        candidate = {"kind": "spec_review", "labels": ("a",), "count": 3, "approval_ids": []}
+        text = render_skill_stub(candidate, "s")
+        assert "TODO" in text
+
+    def test_stub_cites_the_source_evidence(self):
+        candidate = {
+            "kind": "adr_review", "labels": ("x",), "count": 4,
+            "approval_ids": ["ap-a", "ap-b"],
+        }
+        text = render_skill_stub(candidate, "s")
+        assert "adr_review" in text
+        assert "4" in text
+        assert "ap-a" in text and "ap-b" in text
 
 
 class TestDetectRepeatedUndecided:
