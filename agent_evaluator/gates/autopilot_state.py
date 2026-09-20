@@ -256,6 +256,88 @@ def add_team_member(
     return member
 
 
+def remove_team_member(team_path: Union[str, Path], member_id: str) -> dict[str, Any]:
+    """Remove a team member by id (SPEC-AP-001 백로그 — team.json은 지금까지 등록만
+    가능하고 삭제할 방법이 없었다, docs/AUTOPILOT_IMPROVEMENTS.md §1).
+
+    ``team.json``은 append-only가 아니라 단일 스냅숏 파일이므로(§4.6), 다른
+    ``.aoo/*.jsonl`` 원장과 달리 정말로 목록에서 제거한다 — 이력을 남기고
+    싶으면 호출 전에 파일을 백업하거나 git으로 추적한다.
+
+    Returns:
+        제거된 팀원 dict.
+
+    Raises:
+        ValueError: 그 id의 팀원이 없으면.
+    """
+    members = load_team(team_path)
+    idx = next((i for i, m in enumerate(members) if m.get("id") == member_id), None)
+    if idx is None:
+        raise ValueError(f"team member id not found: {member_id}")
+    removed = members.pop(idx)
+    save_team(team_path, members)
+    return removed
+
+
+def update_team_member(
+    team_path: Union[str, Path],
+    member_id: str,
+    *,
+    name: str | None = None,
+    roles: list[str] | None = None,
+    github: str | None = None,
+    codeowner_scopes: list[str] | None = None,
+    synced: bool | None = None,
+) -> dict[str, Any]:
+    """등록된 팀원의 필드를 수정한다(SPEC-AP-001 백로그 §1 — 등록 후 역할·이름·
+    github·codeowner_scope를 고칠 방법이 없었다).
+
+    ``None``으로 남긴 인자는 기존 값을 그대로 둔다 — 바꾸고 싶은 필드만
+    넘기면 된다. 특히 ``synced``는 이 함수가 생기기 전까지 등록 시점의
+    ``False``에서 절대 바뀌지 않았다(§4.6 경고가 매번 반복되던 이유) —
+    GitHub CODEOWNERS를 실제로 갱신한 뒤 ``synced=True``로 직접 표시할 수
+    있다.
+
+    Args:
+        team_path: ``.aoo/team.json`` 경로.
+        member_id: 수정할 팀원의 id.
+        name: 새 이름(선택).
+        roles: 새 역할 목록(선택) — 기존 목록을 통째로 대체한다.
+        github: 새 github 핸들(선택).
+        codeowner_scopes: 새 codeowner scope 목록(선택) — 통째로 대체.
+        synced: GitHub CODEOWNERS 동기화 여부를 직접 표시(선택).
+
+    Returns:
+        수정된 팀원 dict.
+
+    Raises:
+        ValueError: 그 id의 팀원이 없거나, ``roles``에 알 수 없는 역할이 있으면.
+    """
+    members = load_team(team_path)
+    idx = next((i for i, m in enumerate(members) if m.get("id") == member_id), None)
+    if idx is None:
+        raise ValueError(f"team member id not found: {member_id}")
+
+    member = dict(members[idx])
+    if name is not None:
+        member["name"] = name
+    if roles is not None:
+        for r in roles:
+            if r not in VALID_ROLES:
+                raise ValueError(f"unknown role: {r!r} (expected one of {VALID_ROLES})")
+        member["roles"] = list(roles)
+    if github is not None:
+        member["github"] = github
+    if codeowner_scopes is not None:
+        member["codeowner_scopes"] = list(codeowner_scopes)
+    if synced is not None:
+        member["synced"] = synced
+
+    members[idx] = member
+    save_team(team_path, members)
+    return member
+
+
 def members_by_role(team_path: Union[str, Path], role: str) -> list[dict[str, Any]]:
     return [m for m in load_team(team_path) if role in m.get("roles", [])]
 
@@ -296,6 +378,80 @@ VALID_DECISIONS = ("approved", "rejected", "changes_requested")
 # 다른 kind는 지금까지처럼 1명이면 충분하다(하위호환 — required_approvals=1일
 # 때의 동작은 이 기능을 추가하기 전과 완전히 동일하다).
 _DEFAULT_REQUIRED_APPROVALS: dict[str, int] = {"deploy": 2, "release_hold": 2}
+
+
+# ---------------------------------------------------------------------------
+# Phase 게이트 정책 — .aoo/phase_policy.json (SPEC-AP-001 백로그 §3)
+# ---------------------------------------------------------------------------
+#
+# transition_phase()의 required_approval_kind는 그 호출 하나에만 적용되는
+# opt-in 인자다 — 매번 --require-approval을 타이핑하는 걸 사람이 잊으면
+# 그대로 조건 없이 전이된다(실제로 두 번 재발한 phase 드리프트의 근본 원인,
+# docs/AUTOPILOT_IMPROVEMENTS.md §3). 이 정책 파일은 "이 phase로 들어갈 땐
+# 항상 이 kind 승인이 필요하다"를 프로젝트 단위로 한 번 선언해 두는 것뿐이다
+# — 새 판정 로직이 아니라, CLI가 --require-approval을 대신 채워 넣는
+# 편의일 뿐이다(원칙4). 파일이 없거나 그 phase에 항목이 없으면 지금까지와
+# 완전히 동일하게 동작한다(기본값 없음, opt-in 그대로).
+
+
+def load_phase_policy(policy_path: Union[str, Path]) -> dict[int, str]:
+    """``.aoo/phase_policy.json``을 읽는다. ``{phase_number: approval_kind}``.
+
+    파일이 없거나, JSON이 깨졌거나, 알 수 없는 ``kind``가 있으면 그 항목만
+    조용히 무시한다(fail-open — 정책이 없던 것과 똑같이 동작).
+    """
+    path = Path(policy_path)
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    gates = data.get("gates", {})
+    if not isinstance(gates, dict):
+        return {}
+    result: dict[int, str] = {}
+    for k, v in gates.items():
+        try:
+            phase_num = int(k)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(v, str) and v in VALID_APPROVAL_KINDS:
+            result[phase_num] = v
+    return result
+
+
+def set_phase_policy(
+    policy_path: Union[str, Path], to_phase: int, kind: str | None
+) -> dict[int, str]:
+    """``to_phase``로 들어갈 때 필요한 승인 ``kind``를 정하거나(``kind`` 문자열),
+    지운다(``kind=None``).
+
+    Returns:
+        갱신된 전체 정책 dict.
+
+    Raises:
+        ValueError: ``kind``가 ``None``이 아닌데 ``VALID_APPROVAL_KINDS``에
+            없으면.
+    """
+    if kind is not None and kind not in VALID_APPROVAL_KINDS:
+        raise ValueError(f"kind must be one of {VALID_APPROVAL_KINDS}, got {kind!r}")
+    policy = load_phase_policy(policy_path)
+    if kind is None:
+        policy.pop(to_phase, None)
+    else:
+        policy[to_phase] = kind
+    path = Path(policy_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {"gates": {str(k): v for k, v in sorted(policy.items())}},
+            ensure_ascii=False, indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    return policy
+
 
 _NEEDS_CLARIFICATION_RE = re.compile(r"\[NEEDS CLARIFICATION:\s*([^\]]+)\]")
 
@@ -487,6 +643,70 @@ def decide_approval(
     base["decided_at"] = _now()
     if decision == "approved" and required > 1:
         base["approvals_recorded"] = recorded
+    _append_approval_event(approvals_path, base)
+    return base
+
+
+def update_approval_checklist(
+    approvals_path: Union[str, Path],
+    approval_id: str,
+    updates: list[dict[str, str]],
+) -> dict[str, Any]:
+    """열려 있는 승인의 체크리스트 항목 상태를 수정한다(SPEC-AP-001 백로그 §4 —
+    docs/AUTOPILOT_IMPROVEMENTS.md).
+
+    지금까지는 항목 하나가 ``pending``/``flag``로 걸려 ``draft``에 갇힌 뒤
+    그 이슈가 실제로 해소돼도, 고칠 방법이 **새 승인을 처음부터 다시 여는
+    것**뿐이었다 — 이 함수가 그 재드래프트를 대체한다. ``decide_approval()``
+    과 같은 append-only 패턴으로 새 이벤트 줄을 남기고, 체크리스트만
+    ``score_checklist()``(새 판정 로직 아님, 원칙4)로 재채점한다.
+
+    Args:
+        approvals_path: ``.aoo/approvals.jsonl`` 경로.
+        approval_id: 수정할 승인의 id.
+        updates: ``[{"label": str, "status": "ok"|"pending"|"flag"}, ...]``.
+            각 ``label``은 기존 체크리스트 항목과 **정확히 일치**해야 한다 —
+            이 함수는 수정 전용이지 항목 추가용이 아니다(새 항목이
+            필요하면 ``open_approval()``로 새로 연다).
+
+    Returns:
+        갱신된 승인의 새 상태(``open_approval()``과 같은 모양).
+
+    Raises:
+        ValueError: 승인이 없거나, 이미 결정됐거나(``approved``/``rejected``/
+            ``changes_requested`` — 확정된 승인은 불변이다), ``updates``의
+            ``label``이 기존 체크리스트와 하나도 안 맞으면.
+    """
+    existing = {a["id"]: a for a in load_approvals(approvals_path)}
+    if approval_id not in existing:
+        raise ValueError(f"approval not found: {approval_id}")
+
+    base = dict(existing[approval_id])
+    if base.get("status") not in ("draft", "pending"):
+        raise ValueError(
+            f"cannot update {approval_id!r} — already decided "
+            f"(status={base.get('status')!r}); a decided approval is final"
+        )
+
+    checklist = [dict(c) for c in (base.get("checklist") or [])]
+    by_label = {c.get("label"): i for i, c in enumerate(checklist)}
+    for u in updates:
+        label = u.get("label")
+        if label not in by_label:
+            raise ValueError(
+                f"no checklist item labeled {label!r} on {approval_id!r} — "
+                f"update_approval_checklist() only changes existing items, "
+                f"it does not add new ones"
+            )
+        checklist[by_label[label]]["status"] = u.get("status", "pending")
+
+    score = score_checklist(checklist)
+    checklist_ready = score["ready_for_review"] or not base.get("gate_on_checklist", True)
+    ready = checklist_ready and not base.get("needs_clarification")
+
+    base["checklist"] = checklist
+    base["checklist_score"] = score
+    base["status"] = "pending" if ready else "draft"
     _append_approval_event(approvals_path, base)
     return base
 

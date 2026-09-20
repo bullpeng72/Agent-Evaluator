@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.2 (2026-09-20) — Harness Autopilot: CRUD completion + checklist/phase-gate fixes
+
+Feature/fix release for `agent-eval autopilot` (v1.1.1's M0), entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook; see that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the full backlog this release works through.
+
+### New: team/task CRUD (previously create-only)
+
+- ✨ **`remove-member` / `update-member` / `list-members`** — `team.json` had `add-member` only; a team member could never be removed, corrected (role/name/github/codeowner_scope), or listed with detail. `update-member` also adds the only way to flip `synced` to `true` after actually updating GitHub CODEOWNERS (it started `false` at registration and had no path to change).
+- ✨ **`list-tasks` / `show-task`** — no command previously listed all registered tasks or showed one task's `owners`/`phase_history` without opening the JSON file directly.
+
+### Fixed: `--checklist-item` colon parsing (real, previously-shipped bug)
+
+- 🐛 `--checklist-item "LABEL:STATUS"` split on the **first** colon, silently truncating any label that contained its own colon (e.g. `"역할: 설명:ok"` → label `"역할"`, status `" 설명:ok"`, which then never matches `ok`/`pending`/`flag` and blocks forever with no error). Now splits on the **last** colon.
+- 🐛 An invalid `STATUS` (anything other than `ok`/`pending`/`flag`, e.g. a typo like `okk`) used to silently become a permanently-blocking checklist item. It's now rejected immediately at parse time.
+
+### New: `approvals update` — fixes the "redraft from scratch" pattern
+
+- ✨ **`approvals update <id> --checklist-item LABEL:STATUS`** — flips the status of an existing item on an open (`draft`/`pending`) approval and re-scores the checklist (promoting `draft`→`pending` once clean), instead of the only previous option: opening an entirely new approval from scratch every time one item's status needed to change. Errors clearly on an unknown label or an already-decided approval (decided approvals stay immutable).
+
+### New: `phase policy` — a declarative alternative to a per-call flag
+
+- ✨ **`phase policy set --to N --require-approval KIND`** (+ `show` / `--clear`) — `.aoo/phase_policy.json` declares once that entering phase `N` always requires an approved `KIND`, instead of relying on remembering `--require-approval` on every single `phase transition` call. `phase transition` now consults the policy automatically when `--require-approval` is omitted; an explicit flag on the call still overrides the policy. This was the root cause of a real phase getting silently stuck behind actual work twice in the same project (nothing enforced the gate because nobody happened to type the flag that time).
+
+### Compatibility
+
+All of the above is additive. `transition_phase()`/`open_approval()`/`decide_approval()` behavior is byte-for-byte unchanged when the new arguments/files aren't used; `team.json`'s schema is unchanged (CRUD only mutates existing fields).
+
 ## v1.1.1 (2026-09-17) — Harness Autopilot: HITL approval queue
 
 Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand (SPEC-AP-001): a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none).

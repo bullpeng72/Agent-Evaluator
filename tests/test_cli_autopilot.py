@@ -19,11 +19,19 @@ from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_approvals_decide,
     _cmd_autopilot_approvals_list,
     _cmd_autopilot_approvals_open,
+    _cmd_autopilot_approvals_update,
     _cmd_autopilot_dashboard,
     _cmd_autopilot_doctor,
     _cmd_autopilot_install,
+    _cmd_autopilot_list_members,
+    _cmd_autopilot_list_tasks,
     _cmd_autopilot_new_task,
+    _cmd_autopilot_phase_policy_set,
+    _cmd_autopilot_phase_policy_show,
     _cmd_autopilot_phase_transition,
+    _cmd_autopilot_remove_member,
+    _cmd_autopilot_show_task,
+    _cmd_autopilot_update_member,
     cmd_autopilot,
 )
 from agent_evaluator.gates.autopilot_state import (
@@ -151,6 +159,52 @@ class TestNewTask:
         assert code == 1
 
 
+class TestListAndShowTask:
+    """SPEC-AP-001 백로그 §2 — 다중 task 조회 명령 부재."""
+
+    def test_list_tasks_shows_all(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_new_task(_ns(
+            title="b", platform="aoo", priority="normal", task_id="ST-002",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_list_tasks(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "ST-001" in out
+        assert "ST-002" in out
+
+    def test_list_tasks_empty(self, tmp_path, capsys):
+        code = _cmd_autopilot_list_tasks(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "No tasks" in out
+
+    def test_show_task_reports_phase_history(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-001", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_show_task(_ns(task_id="ST-001", root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "phase 0" in out
+        assert "phase 1" in out
+
+    def test_show_task_missing_fails(self, tmp_path):
+        code = _cmd_autopilot_show_task(_ns(task_id="nope", root=str(tmp_path)))
+        assert code == 1
+
+
 class TestAddMember:
     def test_add_member_success(self, tmp_path):
         code = _cmd_autopilot_add_member(_ns(
@@ -172,6 +226,81 @@ class TestAddMember:
             root=str(tmp_path),
         ))
         assert code == 1
+
+
+class TestRemoveMember:
+    def test_remove_success(self, tmp_path, capsys):
+        _cmd_autopilot_add_member(_ns(
+            member_id="yj", name="유진", roles=["설계"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_remove_member(_ns(member_id="yj", root=str(tmp_path)))
+        assert code == 0
+        assert load_team(tmp_path / ".aoo" / "team.json") == []
+
+    def test_remove_unknown_fails(self, tmp_path):
+        code = _cmd_autopilot_remove_member(_ns(member_id="ghost", root=str(tmp_path)))
+        assert code == 1
+
+
+class TestUpdateMember:
+    def test_update_role(self, tmp_path):
+        _cmd_autopilot_add_member(_ns(
+            member_id="yj", name="유진", roles=["설계"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_member(_ns(
+            member_id="yj", name=None, roles=["개발"], github=None, codeowner_scopes=None,
+            mark_synced=False, mark_unsynced=False, root=str(tmp_path),
+        ))
+        assert code == 0
+        members = load_team(tmp_path / ".aoo" / "team.json")
+        assert members[0]["roles"] == ["개발"]
+
+    def test_mark_synced(self, tmp_path):
+        _cmd_autopilot_add_member(_ns(
+            member_id="yj", name="유진", roles=["설계"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        _cmd_autopilot_update_member(_ns(
+            member_id="yj", name=None, roles=None, github=None, codeowner_scopes=None,
+            mark_synced=True, mark_unsynced=False, root=str(tmp_path),
+        ))
+        members = load_team(tmp_path / ".aoo" / "team.json")
+        assert members[0]["synced"] is True
+
+    def test_update_unknown_fails(self, tmp_path):
+        code = _cmd_autopilot_update_member(_ns(
+            member_id="ghost", name="X", roles=None, github=None, codeowner_scopes=None,
+            mark_synced=False, mark_unsynced=False, root=str(tmp_path),
+        ))
+        assert code == 1
+
+
+class TestListMembers:
+    def test_list_shows_all(self, tmp_path, capsys):
+        _cmd_autopilot_add_member(_ns(
+            member_id="yj", name="유진", roles=["설계"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        _cmd_autopilot_add_member(_ns(
+            member_id="ms", name="민수", roles=["개발"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_list_members(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "유진" in out
+        assert "민수" in out
+        assert "unsynced" in out
+
+    def test_list_empty(self, tmp_path, capsys):
+        code = _cmd_autopilot_list_members(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "No team members" in out
 
 
 class TestApprovalsOpen:
@@ -314,6 +443,86 @@ class TestPhaseTransition:
         assert code == 1
 
 
+class TestPhasePolicyCli:
+    """SPEC-AP-001 백로그 §3 — 정책 파일이 --require-approval 없이도
+    phase transition을 게이트한다."""
+
+    def test_set_then_transition_is_gated_by_policy(self, tmp_path, capsys):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        code = _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval="spec_review", clear=False, root=str(tmp_path),
+        ))
+        assert code == 0
+
+        # --require-approval을 안 줘도 정책이 대신 게이트해야 한다
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        assert code == 1  # 아직 승인이 없으니 막힘
+
+    def test_policy_satisfied_allows_transition(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        approval = open_approval(
+            approvals_path, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(approvals_path, approval["id"], decision="approved", decided_by="pm")
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval="spec_review", clear=False, root=str(tmp_path),
+        ))
+
+        capsys.readouterr()
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "phase policy" in out
+
+    def test_explicit_flag_overrides_policy(self, tmp_path):
+        """--require-approval을 직접 주면 정책이 뭐든 그걸 우선한다."""
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval="spec_review", clear=False, root=str(tmp_path),
+        ))
+        # 정책은 spec_review를 요구하지만, 명시적으로 아무 게이트도 안 건다
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=3, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        assert code == 0  # phase 3엔 정책이 없으므로 안 막힘
+
+    def test_clear_removes_policy(self, tmp_path):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval="spec_review", clear=False, root=str(tmp_path),
+        ))
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval=None, clear=True, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        assert code == 0  # 정책을 지웠으니 다시 안 막힘
+
+    def test_show_empty_policy(self, tmp_path, capsys):
+        code = _cmd_autopilot_phase_policy_show(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "No phase policy" in out
+
+    def test_set_without_kind_or_clear_fails(self, tmp_path):
+        code = _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval=None, clear=False, root=str(tmp_path),
+        ))
+        assert code == 1
+
+
 class TestApprovalsListAndDecide:
     def test_list_pending_only_by_default(self, tmp_path, capsys):
         _cmd_autopilot_approvals_open(_ns(
@@ -364,6 +573,88 @@ class TestApprovalsListAndDecide:
             rationale=None, root=str(tmp_path),
         ))
         assert code == 1
+
+
+class TestApprovalsUpdate:
+    """SPEC-AP-001 백로그 §4 — CLI 배선(agent-eval autopilot approvals update)."""
+
+    def test_update_promotes_draft_to_pending(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            body_file=None, checklist_item=["항목:pending"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+
+        capsys.readouterr()
+        code = _cmd_autopilot_approvals_update(_ns(
+            approval_id=approval_id, checklist_item=["항목:ok"], root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "Now ready for review" in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "pending"
+
+    def test_update_unknown_label_fails(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            body_file=None, checklist_item=["실제항목:pending"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        code = _cmd_autopilot_approvals_update(_ns(
+            approval_id=approval_id, checklist_item=["없는항목:ok"], root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_update_decided_approval_fails(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="pm",
+            rationale=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_approvals_update(_ns(
+            approval_id=approval_id, checklist_item=["a:flag"], root=str(tmp_path),
+        ))
+        assert code == 1
+
+
+class TestChecklistItemParsing:
+    """실제 버그(AOO 실습서 Ch 35) — LABEL:STATUS가 첫 콜론에서만 분리돼
+    라벨 안에 콜론이 있으면 깨졌다."""
+
+    def test_label_containing_its_own_colon_is_preserved(self, tmp_path):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t", body_file=None,
+            checklist_item=["설계자: 통계적으로 달성 가능한 임계값인가 판단:pending"],
+            root=str(tmp_path),
+        ))
+        assert code == 0
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        label = approvals[0]["checklist"][0]["label"]
+        status = approvals[0]["checklist"][0]["status"]
+        assert label == "설계자: 통계적으로 달성 가능한 임계값인가 판단"
+        assert status == "pending"
+
+    def test_label_with_no_colon_defaults_to_pending(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t", body_file=None,
+            checklist_item=["콜론이 아예 없는 라벨"], root=str(tmp_path),
+        ))
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["checklist"][0]["label"] == "콜론이 아예 없는 라벨"
+        assert approvals[0]["checklist"][0]["status"] == "pending"
+
+    def test_invalid_status_is_rejected(self, tmp_path):
+        code = _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t", body_file=None,
+            checklist_item=["항목:okk"], root=str(tmp_path),
+        ))
+        assert code == 1
+        assert load_approvals(tmp_path / ".aoo" / "approvals.jsonl") == []
 
 
 class TestMultiPersonApprovalCli:

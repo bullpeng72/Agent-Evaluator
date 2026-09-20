@@ -28,16 +28,21 @@ from agent_evaluator.gates.autopilot_state import (
     load_all_tasks,
     load_approvals,
     load_pending_approvals,
+    load_phase_policy,
     load_task,
     load_team,
     members_by_role,
     open_approval,
     open_threshold_reviews,
+    remove_team_member,
     save_task,
     save_team,
     score_checklist,
+    set_phase_policy,
     task_path,
     transition_phase,
+    update_approval_checklist,
+    update_team_member,
 )
 
 
@@ -247,6 +252,48 @@ class TestTransitionPhaseApprovalGate:
         assert "approved" not in str(exc_info.value)
 
 
+class TestPhasePolicy:
+    """SPEC-AP-001 백로그 §3 — --require-approval을 매 호출 사람이 기억해야
+    하는 opt-in이라, phase 드리프트가 두 번 재발했다(AOO 실습서 Ch35→38).
+    이 정책 파일은 그 기억을 코드로 옮긴다."""
+
+    def test_missing_file_returns_empty_policy(self, tmp_path):
+        assert load_phase_policy(tmp_path / "nope.json") == {}
+
+    def test_set_then_load_round_trips(self, tmp_path):
+        p = tmp_path / "phase_policy.json"
+        set_phase_policy(p, 4, "threshold_review")
+        assert load_phase_policy(p) == {4: "threshold_review"}
+
+    def test_set_rejects_unknown_kind(self, tmp_path):
+        p = tmp_path / "phase_policy.json"
+        with pytest.raises(ValueError, match="kind must be one of"):
+            set_phase_policy(p, 4, "bogus_kind")
+
+    def test_clear_removes_entry(self, tmp_path):
+        p = tmp_path / "phase_policy.json"
+        set_phase_policy(p, 4, "threshold_review")
+        set_phase_policy(p, 4, None)
+        assert load_phase_policy(p) == {}
+
+    def test_multiple_phases_do_not_clobber(self, tmp_path):
+        p = tmp_path / "phase_policy.json"
+        set_phase_policy(p, 2, "adr_review")
+        set_phase_policy(p, 6, "skill_merge")
+        assert load_phase_policy(p) == {2: "adr_review", 6: "skill_merge"}
+
+    def test_corrupt_json_returns_empty(self, tmp_path):
+        p = tmp_path / "phase_policy.json"
+        p.write_text("{not json", encoding="utf-8")
+        assert load_phase_policy(p) == {}
+
+    def test_unknown_kind_in_file_is_ignored(self, tmp_path):
+        """수동 편집으로 잘못된 kind가 들어가도 fail-open — 그 항목만 무시."""
+        p = tmp_path / "phase_policy.json"
+        p.write_text('{"gates": {"4": "not_a_real_kind"}}', encoding="utf-8")
+        assert load_phase_policy(p) == {}
+
+
 class TestComputeRejectionRate:
     """§9.5.4 순위4 — 원칙6 자가점검(부록 H.7 "반려 이력 0건" 신호)."""
 
@@ -372,6 +419,69 @@ class TestTeamRegistry:
         team_path = tmp_path / "team.json"
         save_team(team_path, [{"id": "a", "name": "A", "roles": ["개발"]}])
         assert load_team(team_path)[0]["name"] == "A"
+
+
+class TestRemoveTeamMember:
+    """SPEC-AP-001 백로그 §1 — 등록만 있고 삭제가 없던 공백."""
+
+    def test_remove_deletes_and_returns_member(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        add_team_member(team_path, member_id="ms", name="민수", roles=["개발"])
+
+        removed = remove_team_member(team_path, "yj")
+        assert removed["id"] == "yj"
+        remaining = load_team(team_path)
+        assert {m["id"] for m in remaining} == {"ms"}
+
+    def test_remove_unknown_id_raises(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        with pytest.raises(ValueError, match="not found"):
+            remove_team_member(team_path, "ghost")
+        # 실패한 삭제는 기존 팀원을 안 건드렸어야 한다
+        assert len(load_team(team_path)) == 1
+
+
+class TestUpdateTeamMember:
+    """SPEC-AP-001 백로그 §1 — 등록 후 필드를 고칠 방법이 없던 공백."""
+
+    def test_update_changes_only_given_fields(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(
+            team_path, member_id="yj", name="유진", roles=["설계"], github="old-handle"
+        )
+        updated = update_team_member(team_path, "yj", roles=["개발"])
+        assert updated["roles"] == ["개발"]
+        assert updated["name"] == "유진"  # 안 건드린 필드는 유지
+        assert updated["github"] == "old-handle"
+
+    def test_update_persists_to_disk(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        update_team_member(team_path, "yj", name="유진2")
+        assert load_team(team_path)[0]["name"] == "유진2"
+
+    def test_update_rejects_unknown_role(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        with pytest.raises(ValueError, match="unknown role"):
+            update_team_member(team_path, "yj", roles=["해커"])
+
+    def test_update_unknown_id_raises(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        with pytest.raises(ValueError, match="not found"):
+            update_team_member(team_path, "ghost", name="X")
+
+    def test_update_can_mark_synced(self, tmp_path):
+        """§4.6 — synced는 등록 시 항상 False로 시작해 지금까지 절대 안
+        바뀌었다. 이 함수가 그 유일한 탈출구다."""
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        assert load_team(team_path)[0]["synced"] is False
+        updated = update_team_member(team_path, "yj", synced=True)
+        assert updated["synced"] is True
+        assert load_team(team_path)[0]["synced"] is True
 
 
 class TestExtractNeedsClarification:
@@ -530,6 +640,77 @@ class TestApprovalQueue:
 
     def test_load_approvals_empty_when_file_missing(self, tmp_path):
         assert load_approvals(tmp_path / "nope.jsonl") == []
+
+
+class TestUpdateApprovalChecklist:
+    """SPEC-AP-001 백로그 §4 — 기존 승인의 체크리스트를 못 고쳐 새 draft를
+    반복해서 열게 만들던 공백(AOO 실습서 Ch 35 실측)."""
+
+    def test_update_flips_item_and_promotes_to_pending(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            checklist=[{"label": "임계값 재검토", "status": "pending"}],
+        )
+        assert approval["status"] == "draft"
+
+        updated = update_approval_checklist(
+            p, approval["id"], [{"label": "임계값 재검토", "status": "ok"}]
+        )
+        assert updated["status"] == "pending"
+        assert updated["checklist"][0]["status"] == "ok"
+        assert updated["checklist_score"]["ready_for_review"] is True
+
+    def test_update_stays_draft_when_other_items_still_block(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            checklist=[
+                {"label": "항목1", "status": "pending"},
+                {"label": "항목2", "status": "pending"},
+            ],
+        )
+        updated = update_approval_checklist(
+            p, approval["id"], [{"label": "항목1", "status": "ok"}]
+        )
+        assert updated["status"] == "draft"
+        assert len(updated["checklist_score"]["blocking"]) == 1
+
+    def test_update_appends_new_line_not_overwrite(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            checklist=[{"label": "항목", "status": "pending"}],
+        )
+        update_approval_checklist(p, approval["id"], [{"label": "항목", "status": "ok"}])
+        lines = p.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2  # open + update, 이전 줄은 안 지움(append-only)
+
+    def test_update_unknown_approval_raises(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        with pytest.raises(ValueError, match="not found"):
+            update_approval_checklist(p, "ap-nope", [{"label": "x", "status": "ok"}])
+
+    def test_update_unknown_label_raises(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="threshold_review", phase=7, title="t",
+            checklist=[{"label": "실제항목", "status": "pending"}],
+        )
+        with pytest.raises(ValueError, match="no checklist item labeled"):
+            update_approval_checklist(
+                p, approval["id"], [{"label": "다른항목", "status": "ok"}]
+            )
+
+    def test_update_rejects_decided_approval(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(p, approval["id"], decision="approved", decided_by="pm")
+        with pytest.raises(ValueError, match="already decided"):
+            update_approval_checklist(p, approval["id"], [{"label": "a", "status": "flag"}])
 
 
 class TestMultiPersonApproval:

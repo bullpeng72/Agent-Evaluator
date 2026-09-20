@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -103,11 +103,27 @@ agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks
 agent-eval autopilot doctor                      # health-check the skeleton
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member>
+agent-eval autopilot list-tasks                  # list all registered tasks
+agent-eval autopilot show-task ST-014            # one task's owners + phase_history
 agent-eval autopilot add-member --id yj --name 유진 --role 설계
+agent-eval autopilot remove-member --id yj
+agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-synced   # only given fields change
+agent-eval autopilot list-members
 agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval spec_review  # opt-in gate
+agent-eval autopilot phase policy set --to 2 --require-approval spec_review   # declare the gate once (.aoo/phase_policy.json)
+#   instead of remembering --require-approval on every `phase transition` call (root cause of repeated phase
+#   drift in real use — see the AOO workbook Ch35->38). `phase policy show` / `--clear` manage it; an explicit
+#   --require-approval on `phase transition` always overrides the policy for that one call.
+agent-eval autopilot phase policy show
 agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \
     --body-file docs/SPEC.md --checklist-item "EARS 표기:ok"   # auto-scores checklist + [NEEDS CLARIFICATION] tags
+#   --checklist-item splits on the LAST colon (a label containing its own colon, e.g. "역할: 설명:ok", used to
+#   truncate the label at the first one) and rejects any STATUS that isn't ok|pending|flag outright.
 agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved --by pm-park
+agent-eval autopilot approvals update ap-a1b2c3d4 --checklist-item "EARS 표기:ok"   # flip an existing item's
+#   status on an open (draft/pending) approval instead of opening a brand-new approval from scratch to fix one
+#   item — re-scores the checklist and promotes draft->pending if now clean. Errors on an unknown label or an
+#   already-decided approval (decided approvals are immutable).
 agent-eval autopilot approvals scan-thresholds   # repeated exit-75 reason (5+) -> auto threshold_review card
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 

@@ -4,14 +4,20 @@ agent-eval autopilot — Harness Autopilot (설계서 SPEC-AP-001 §1.1 — 최�
 agent-evaluator의 평가 데이터를 팀의 HITL 승인 절차에 잇는 경량 거버넌스
 계층이다. Phase 0~8 전체 오케스트레이션은 범위 밖으로 동결됐다).
 
-    install    — .aoo/tasks/, .aoo/team.json 스켈레톤 생성 + harness-autopilot 스킬 배치
-    doctor     — 헬스체크(디렉토리·스키마 확인, 미동기화 팀원 경고)
-    dashboard  — 로컬 대시보드 — claims/decisions/approvals 실데이터 렌더
-    new-task   — 터미널에서 과제 등록(대시보드 "+ 새 과제"의 CLI 대응, 설계서 §8)
-    add-member — 팀원 등록(.aoo/team.json)
-    phase      — Phase 전이, 옵트인으로 승인 상태에 게이트(§9.5.4 순위1)
-    approvals  — HITL 승인 큐 — open/list/decide/scan-thresholds
-    skills     — 승인 이력에서 반복 체크리스트 패턴 탐지(읽기 전용)
+    install        — .aoo/tasks/, .aoo/team.json 스켈레톤 생성 + harness-autopilot 스킬 배치
+    doctor         — 헬스체크(디렉토리·스키마 확인, 미동기화 팀원 경고)
+    dashboard      — 로컬 대시보드 — claims/decisions/approvals 실데이터 렌더
+    new-task       — 터미널에서 과제 등록(대시보드 "+ 새 과제"의 CLI 대응, 설계서 §8)
+    list-tasks     — 등록된 과제 전체 목록
+    show-task      — 과제 하나의 상세(owners·phase_history)
+    add-member     — 팀원 등록(.aoo/team.json)
+    remove-member  — 팀원 삭제
+    update-member  — 팀원 필드 수정(역할·이름·github·synced 등)
+    list-members   — 등록된 팀원 전체 목록
+    phase          — Phase 전이, 옵트인으로 승인 상태에 게이트(§9.5.4 순위1).
+                     ``phase policy``로 이 게이트를 프로젝트 정책 파일로 선언 가능
+    approvals      — HITL 승인 큐 — open/list/decide/update/scan-thresholds
+    skills         — 승인 이력에서 반복 체크리스트 패턴 탐지(읽기 전용)
 
 GitHub Actions 상태머신·에이전트 러너 무인 트리거는 구현하지 않는다 — §1.1
 재정의로 영구히 범위 밖이다(BMAD·Spec Kit·OpenHands가 이미 더 큰 규모로
@@ -47,10 +53,16 @@ from agent_evaluator.gates.autopilot_state import (
     load_all_tasks,
     load_approvals,
     load_pending_approvals,
+    load_phase_policy,
+    load_task,
     load_team,
     open_approval,
     open_threshold_reviews,
+    remove_team_member,
+    set_phase_policy,
     transition_phase,
+    update_approval_checklist,
+    update_team_member,
 )
 
 _COLOR = _supports_color()
@@ -287,6 +299,119 @@ def _cmd_autopilot_add_member(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot_remove_member(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    team_path = root / ".aoo" / "team.json"
+
+    try:
+        removed = remove_team_member(team_path, args.member_id)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(_ok(f"Team member removed: {removed['name']} ({removed['id']})"))
+    return 0
+
+
+def _cmd_autopilot_update_member(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    team_path = root / ".aoo" / "team.json"
+
+    synced = None
+    if args.mark_synced:
+        synced = True
+    elif args.mark_unsynced:
+        synced = False
+
+    try:
+        member = update_team_member(
+            team_path, args.member_id,
+            name=args.name, roles=args.roles, github=args.github,
+            codeowner_scopes=args.codeowner_scopes, synced=synced,
+        )
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(
+        _ok(
+            f"Team member updated: {member['name']} ({member['id']})  "
+            f"roles={member['roles']}  synced={member['synced']}"
+        )
+    )
+    return 0
+
+
+def _cmd_autopilot_list_members(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    team_path = root / ".aoo" / "team.json"
+    members = load_team(team_path)
+
+    if not members:
+        print(f"{D}No team members registered ({team_path}){R}")
+        return 0
+
+    print(f"{B}Team — {team_path}{R}")
+    for m in members:
+        sync_note = "" if m.get("synced") else f"  {Y}(unsynced){R}"
+        print(
+            f"  {m.get('id', '?'):<12} {m.get('name', '?'):<12} "
+            f"roles={m.get('roles', [])}  github={m.get('github')}{sync_note}"
+        )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# tasks — read-only listing (SPEC-AP-001 백로그 §2, add-task는 new-task)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_autopilot_list_tasks(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    tasks_dir = root / ".aoo" / "tasks"
+    tasks = load_all_tasks(tasks_dir)
+
+    if not tasks:
+        print(f"{D}No tasks registered ({tasks_dir}){R}")
+        return 0
+
+    print(f"{B}Tasks — {tasks_dir}{R}")
+    for t in sorted(tasks, key=lambda x: x.get("task_id", "")):
+        phase = t.get("current_phase")
+        phase_int = phase if isinstance(phase, int) else -1
+        label = PHASE_LABELS.get(phase_int, str(phase))
+        print(
+            f"  {t.get('task_id', '?'):<14} [{t.get('platform', '?')}]  "
+            f"Phase {phase} · {label}  {D}{t.get('title', '')}{R}"
+        )
+    return 0
+
+
+def _cmd_autopilot_show_task(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    tasks_dir = root / ".aoo" / "tasks"
+    task = load_task(tasks_dir, args.task_id)
+
+    if task is None:
+        print(_err(f"task not found: {args.task_id}"))
+        return 1
+
+    phase = task.get("current_phase")
+    phase_int = phase if isinstance(phase, int) else -1
+    label = PHASE_LABELS.get(phase_int, str(phase))
+    print(f"{B}{task.get('task_id')}{R} — {task.get('title', '')}")
+    print(f"  {D}platform:{R} {task.get('platform')}   {D}priority:{R} {task.get('priority')}")
+    print(f"  {D}phase:{R} {phase} · {label}")
+    owners = task.get("owners") or {}
+    if owners:
+        print(f"  {D}owners:{R} " + ", ".join(f"{k}={v}" for k, v in owners.items()))
+    print(f"  {D}phase history:{R}")
+    for h in task.get("phase_history", []):
+        exited = h.get("exited_at") or f"{Y}(current){R}"
+        print(f"    phase {h.get('phase')}  {h.get('entered_at')} → {exited}")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # phase transition — §9.5.4 순위1 (opt-in approval gate)
 # ---------------------------------------------------------------------------
@@ -296,8 +421,15 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
     root = Path(args.root)
     tasks_dir = root / ".aoo" / "tasks"
     approvals_path = root / ".aoo" / "approvals.jsonl"
+    policy_path = root / ".aoo" / "phase_policy.json"
 
     require_approval = getattr(args, "require_approval", None)
+    from_policy = False
+    if require_approval is None:
+        policy = load_phase_policy(policy_path)
+        require_approval = policy.get(args.new_phase)
+        from_policy = require_approval is not None
+
     try:
         task = transition_phase(
             tasks_dir,
@@ -318,16 +450,80 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
         )
     )
     if require_approval:
-        print(f"  {D}Gated on an approved '{require_approval}' approval — satisfied.{R}")
+        source = "phase policy" if from_policy else "--require-approval"
+        print(
+            f"  {D}Gated on an approved '{require_approval}' approval "
+            f"({source}) — satisfied.{R}"
+        )
     return 0
 
 
+def _cmd_autopilot_phase_policy_set(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    policy_path = root / ".aoo" / "phase_policy.json"
+
+    kind = None if args.clear else args.require_approval
+    if not args.clear and kind is None:
+        print(_err("Specify --require-approval KIND, or --clear to remove the policy"))
+        return 1
+
+    try:
+        set_phase_policy(policy_path, args.new_phase, kind)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    if kind is None:
+        print(_ok(f"Cleared the phase policy for phase {args.new_phase}"))
+    else:
+        print(
+            _ok(
+                f"Phase {args.new_phase} now requires an approved '{kind}' approval "
+                f"on every 'phase transition' (until cleared or --require-approval "
+                f"is passed explicitly)"
+            )
+        )
+    return 0
+
+
+def _cmd_autopilot_phase_policy_show(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    policy_path = root / ".aoo" / "phase_policy.json"
+    policy = load_phase_policy(policy_path)
+
+    if not policy:
+        print(f"{D}No phase policy configured ({policy_path}){R}")
+        return 0
+
+    print(f"{B}Phase policy — {policy_path}{R}")
+    for phase_num in sorted(policy):
+        label = PHASE_LABELS.get(phase_num, str(phase_num))
+        print(f"  Phase {phase_num} ({label})  requires  {policy[phase_num]}")
+    return 0
+
+
+def _cmd_autopilot_phase_policy(args: argparse.Namespace) -> int:
+    handlers = {
+        "set": _cmd_autopilot_phase_policy_set,
+        "show": _cmd_autopilot_phase_policy_show,
+    }
+    policy_command = getattr(args, "policy_command", None)
+    handler = handlers.get(policy_command) if policy_command is not None else None
+    if handler is None:
+        print(_err("Specify a policy subcommand: set | show"))
+        return 1
+    return handler(args)
+
+
 def _cmd_autopilot_phase(args: argparse.Namespace) -> int:
-    handlers = {"transition": _cmd_autopilot_phase_transition}
+    handlers = {
+        "transition": _cmd_autopilot_phase_transition,
+        "policy": _cmd_autopilot_phase_policy,
+    }
     phase_command = getattr(args, "phase_command", None)
     handler = handlers.get(phase_command) if phase_command is not None else None
     if handler is None:
-        print(_err("Specify a phase subcommand: transition"))
+        print(_err("Specify a phase subcommand: transition | policy"))
         return 1
     return handler(args)
 
@@ -389,12 +585,31 @@ def _cmd_autopilot_dashboard(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+_VALID_CHECKLIST_STATUSES = ("ok", "pending", "flag")
+
+
 def _parse_checklist_items(raw_items: list[str] | None) -> list[dict[str, str]]:
-    """``--checklist-item "라벨:상태"`` 반복 인자를 파싱한다. 상태 생략 시 pending."""
+    """``--checklist-item "라벨:상태"`` 반복 인자를 파싱한다. 상태 생략 시 pending.
+
+    **마지막** 콜론에서 분리한다 — 첫 콜론에서 자르면 "역할: 설명:ok" 같은
+    라벨(콜론이 라벨 안에도 있는 경우)의 라벨이 잘리는 실제 버그가 있었다
+    (AOO 실습서 Ch 35, docs/AUTOPILOT_IMPROVEMENTS.md §4). ``STATUS``가
+    ``ok``/``pending``/``flag``가 아니면 조용히 통과시키지 않고 바로
+    거부한다 — 오타 하나가 그 항목을 영원히 차단 상태로 묻어 두는 걸
+    막는다.
+    """
     items: list[dict[str, str]] = []
     for raw in raw_items or []:
-        label, _, status = raw.partition(":")
+        if ":" in raw:
+            label, _, status = raw.rpartition(":")
+        else:
+            label, status = raw, ""
         status = status.strip() or "pending"
+        if status not in _VALID_CHECKLIST_STATUSES:
+            raise ValueError(
+                f"invalid checklist status {status!r} in {raw!r} "
+                f"(expected one of {_VALID_CHECKLIST_STATUSES})"
+            )
         items.append({"label": label.strip(), "status": status})
     return items
 
@@ -411,7 +626,11 @@ def _cmd_autopilot_approvals_open(args: argparse.Namespace) -> int:
             return 1
         body_text = body_path.read_text(encoding="utf-8")
 
-    checklist = _parse_checklist_items(args.checklist_item)
+    try:
+        checklist = _parse_checklist_items(args.checklist_item)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
 
     added_model_tier_item = False
     if args.kind == "adr_review" and not any(
@@ -520,6 +739,33 @@ def _cmd_autopilot_approvals_decide(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot_approvals_update(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    approvals_path = root / ".aoo" / "approvals.jsonl"
+
+    try:
+        updates = _parse_checklist_items(args.checklist_item)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    try:
+        updated = update_approval_checklist(approvals_path, args.approval_id, updates)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(_ok(f"Checklist updated on {updated['id']} ({len(updates)} item(s))"))
+    if updated["status"] == "pending":
+        print(_ok(f"Now ready for review: {updated['id']}"))
+    else:
+        blocking = updated["checklist_score"]["blocking"]
+        print(_warn(f"Still draft — {len(blocking)} item(s) not yet ok:"))
+        for b in blocking:
+            print(f"    - [{b.get('status')}] {b.get('label')}")
+    return 0
+
+
 def _cmd_autopilot_approvals_scan_thresholds(args: argparse.Namespace) -> int:
     root = Path(args.root)
     approvals_path = root / ".aoo" / "approvals.jsonl"
@@ -545,13 +791,14 @@ def _cmd_autopilot_approvals(args: argparse.Namespace) -> int:
         "open": _cmd_autopilot_approvals_open,
         "list": _cmd_autopilot_approvals_list,
         "decide": _cmd_autopilot_approvals_decide,
+        "update": _cmd_autopilot_approvals_update,
         "scan-thresholds": _cmd_autopilot_approvals_scan_thresholds,
     }
     approvals_command = getattr(args, "approvals_command", None)
     handler = handlers.get(approvals_command) if approvals_command is not None else None
     if handler is None:
         print(_err(
-            "Specify an approvals subcommand: open | list | decide | scan-thresholds"
+            "Specify an approvals subcommand: open | list | decide | update | scan-thresholds"
         ))
         return 1
     return handler(args)
@@ -623,6 +870,13 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     nt_p.add_argument("--design", default=None, help="Design owner (team member id or name)")
     nt_p.add_argument("--root", default=".", metavar="DIR")
 
+    lt_p = ap_sub.add_parser("list-tasks", help="List all registered tasks")
+    lt_p.add_argument("--root", default=".", metavar="DIR")
+
+    st_p = ap_sub.add_parser("show-task", help="Show one task's detail (owners, phase history)")
+    st_p.add_argument("task_id")
+    st_p.add_argument("--root", default=".", metavar="DIR")
+
     am_p = ap_sub.add_parser("add-member", help="Register a team member (.aoo/team.json)")
     am_p.add_argument("--id", required=True, dest="member_id")
     am_p.add_argument("--name", required=True)
@@ -632,6 +886,31 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     am_p.add_argument("--github", default=None)
     am_p.add_argument("--codeowner-scope", action="append", dest="codeowner_scopes")
     am_p.add_argument("--root", default=".", metavar="DIR")
+
+    rm_p = ap_sub.add_parser("remove-member", help="Remove a team member (.aoo/team.json)")
+    rm_p.add_argument("--id", required=True, dest="member_id")
+    rm_p.add_argument("--root", default=".", metavar="DIR")
+
+    um_p = ap_sub.add_parser(
+        "update-member", help="Update a registered team member's fields"
+    )
+    um_p.add_argument("--id", required=True, dest="member_id")
+    um_p.add_argument("--name", default=None)
+    um_p.add_argument("--role", action="append", dest="roles", choices=list(VALID_ROLES))
+    um_p.add_argument("--github", default=None)
+    um_p.add_argument("--codeowner-scope", action="append", dest="codeowner_scopes")
+    um_p.add_argument(
+        "--mark-synced", action="store_true",
+        help="Mark GitHub CODEOWNERS as updated for this person",
+    )
+    um_p.add_argument(
+        "--mark-unsynced", action="store_true",
+        help="Mark GitHub CODEOWNERS as NOT updated for this person",
+    )
+    um_p.add_argument("--root", default=".", metavar="DIR")
+
+    lm_p = ap_sub.add_parser("list-members", help="List all registered team members")
+    lm_p.add_argument("--root", default=".", metavar="DIR")
 
     ph_p = ap_sub.add_parser(
         "phase", help="Task phase transitions (.aoo/tasks/<id>.json current_phase)"
@@ -652,6 +931,25 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
              "for this task (§9.5.4 순위1 — opt-in, no gate by default)",
     )
     pht_p.add_argument("--root", default=".", metavar="DIR")
+
+    php_p = ph_sub.add_parser(
+        "policy",
+        help="Declare a project-wide phase gate instead of a per-call --require-approval",
+    )
+    php_sub = php_p.add_subparsers(dest="policy_command")
+    phps_p = php_sub.add_parser(
+        "set", help="Require an approval kind for every transition into a phase"
+    )
+    phps_p.add_argument("--to", required=True, type=int, dest="new_phase")
+    phps_p.add_argument(
+        "--require-approval", default=None, dest="require_approval",
+        choices=list(VALID_APPROVAL_KINDS),
+    )
+    phps_p.add_argument("--clear", action="store_true", help="Remove the policy for this phase")
+    phps_p.add_argument("--root", default=".", metavar="DIR")
+
+    phpw_p = php_sub.add_parser("show", help="Show the current phase policy")
+    phpw_p.add_argument("--root", default=".", metavar="DIR")
 
     ap_p = ap_sub.add_parser(
         "approvals", help="HITL approval queue (.aoo/approvals.jsonl) — open/list/decide"
@@ -690,6 +988,19 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     apd_p.add_argument("--by", required=True, dest="decided_by")
     apd_p.add_argument("--rationale", default=None)
     apd_p.add_argument("--root", default=".", metavar="DIR")
+
+    apu_p = ap_ap_sub.add_parser(
+        "update",
+        help="Update checklist item status on an existing open (draft/pending) approval",
+    )
+    apu_p.add_argument("approval_id")
+    apu_p.add_argument(
+        "--checklist-item", action="append", required=True, dest="checklist_item",
+        metavar="LABEL:STATUS",
+        help="Repeatable. LABEL must match an existing item exactly; "
+             "STATUS is ok|pending|flag",
+    )
+    apu_p.add_argument("--root", default=".", metavar="DIR")
 
     aps_p = ap_ap_sub.add_parser(
         "scan-thresholds",
@@ -754,7 +1065,12 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
         "doctor": _cmd_autopilot_doctor,
         "dashboard": _cmd_autopilot_dashboard,
         "new-task": _cmd_autopilot_new_task,
+        "list-tasks": _cmd_autopilot_list_tasks,
+        "show-task": _cmd_autopilot_show_task,
         "add-member": _cmd_autopilot_add_member,
+        "remove-member": _cmd_autopilot_remove_member,
+        "update-member": _cmd_autopilot_update_member,
+        "list-members": _cmd_autopilot_list_members,
         "phase": _cmd_autopilot_phase,
         "approvals": _cmd_autopilot_approvals,
         "skills": _cmd_autopilot_skills,
@@ -764,7 +1080,8 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
     if handler is None:
         print(_err(
             "Specify an autopilot subcommand: install | doctor | dashboard | "
-            "new-task | add-member | phase | approvals | skills"
+            "new-task | list-tasks | show-task | add-member | remove-member | "
+            "update-member | list-members | phase | approvals | skills"
         ))
         print(f"{D}For details: agent-eval autopilot --help{R}")
         return 1
