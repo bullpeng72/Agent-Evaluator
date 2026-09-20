@@ -122,6 +122,7 @@ class TestDoctor:
         ))
         tasks_dir = tmp_path / ".aoo" / "tasks"
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         save_task(tasks_dir, task)
 
@@ -139,6 +140,7 @@ class TestDoctor:
         ))
         tasks_dir = tmp_path / ".aoo" / "tasks"
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         save_task(tasks_dir, task)
 
@@ -1179,6 +1181,7 @@ class TestPhaseCheck:
         ))
         tasks_dir = tmp_path / ".aoo" / "tasks"
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         save_task(tasks_dir, task)
 

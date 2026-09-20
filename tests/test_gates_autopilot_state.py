@@ -210,6 +210,7 @@ class TestCheckPhaseStaleness:
         tasks_dir = tmp_path / ".aoo" / "tasks"
         create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         save_task(tasks_dir, task)
 
@@ -223,6 +224,7 @@ class TestCheckPhaseStaleness:
         tasks_dir = tmp_path / ".aoo" / "tasks"
         create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         task["status"] = "archived"
         save_task(tasks_dir, task)
@@ -233,6 +235,7 @@ class TestCheckPhaseStaleness:
         tasks_dir = tmp_path / ".aoo" / "tasks"
         create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
         task = load_task(tasks_dir, "ST-001")
+        assert task is not None
         task["phase_history"] = []
         save_task(tasks_dir, task)
 
@@ -243,9 +246,11 @@ class TestCheckPhaseStaleness:
         create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
         create_task(tasks_dir, task_id="ST-002", title="b", platform="ac")
         t1 = load_task(tasks_dir, "ST-001")
+        assert t1 is not None
         t1["phase_history"][-1]["entered_at"] = "2023-01-01T00:00:00+00:00"
         save_task(tasks_dir, t1)
         t2 = load_task(tasks_dir, "ST-002")
+        assert t2 is not None
         t2["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
         save_task(tasks_dir, t2)
 
