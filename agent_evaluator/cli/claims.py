@@ -8,8 +8,9 @@ agent-eval claims — `.aoo/claims.jsonl` 팀 스코프 클레임 관리 (SPEC-0
 한 줄로 같은 작업을 하게 한다.
 
 서브커맨드:
-    add      — 새 클레임을 연다 (append_claim, status="active")
-    list     — 활성 클레임을 표로 보여준다 (load_active_claims)
+    add      — 새 클레임을 연다 (append_claim, status="active"). 겹치는 활성
+               클레임이 있으면 non-blocking 경고를 낸다(차단은 여전히 audit의 몫).
+    list     — 활성 클레임을 표로 보여준다 (load_active_claims). --developer로 필터.
     release  — 클레임을 해제한다 (append_claim, status="released")
     audit    — TTL 초과·스코프 겹침 위반을 점검한다 (audit_claims, CI용)
 """
@@ -24,6 +25,7 @@ from agent_evaluator.cli._utils import _supports_color
 from agent_evaluator.gates.team_concurrency import (
     append_claim,
     audit_claims,
+    check_scope_claim,
     load_active_claims,
     resolve_owner,
 )
@@ -73,6 +75,23 @@ def _cmd_claims_add(args: argparse.Namespace) -> int:
     claim_id = args.claim_id or f"c-{uuid.uuid4().hex[:8]}"
     started_at = datetime.now(timezone.utc).isoformat()
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §5 — add() 자체는 겹침을 안 막는다(그건
+    # audit()의 몫, 설계 그대로 유지). 다만 지금까지는 add 시점에 최소한의
+    # 경고조차 없어 CI에서 audit을 따로 돌리기 전까지 겹침을 몰랐다 — 여기서
+    # 겹침이 있으면 non-blocking 경고만 낸다(exit 0 그대로, 열기 자체는 막지
+    # 않는다).
+    overlaps = check_scope_claim(args.scope, claims_path)
+    if overlaps:
+        for o in overlaps:
+            print(
+                _warn(
+                    f"scope overlaps an existing active claim: "
+                    f"{o.get('claim_id')} ({o.get('developer')}) — "
+                    f"{o.get('scope')}. Coordinate before proceeding, or "
+                    f"'agent-eval claims audit' will flag this later."
+                )
+            )
+
     append_claim(
         claims_path, claim_id=claim_id, developer=developer,
         scope=args.scope, started_at=started_at, status="active",
@@ -87,9 +106,13 @@ def _cmd_claims_add(args: argparse.Namespace) -> int:
 def _cmd_claims_list(args: argparse.Namespace) -> int:
     claims_path = Path(args.claims_path)
     claims = load_active_claims(claims_path)
+    developer = getattr(args, "developer", None)
+    if developer:
+        claims = [c for c in claims if c.get("developer") == developer]
 
     if not claims:
-        print(f"{D}No active claims ({claims_path}){R}")
+        label = f" for developer={developer}" if developer else ""
+        print(f"{D}No active claims{label} ({claims_path}){R}")
         return 0
 
     now = datetime.now(timezone.utc)
@@ -208,6 +231,10 @@ def build_claims_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
     list_p.add_argument(
         "--claims-path", default=".aoo/claims.jsonl", metavar="PATH",
         help="Claims log path (default: .aoo/claims.jsonl)",
+    )
+    list_p.add_argument(
+        "--developer", default=None, metavar="NAME",
+        help="Only show this developer's active claims",
     )
 
     release_p = claims_sub.add_parser(

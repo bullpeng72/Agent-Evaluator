@@ -45,14 +45,15 @@ from agent_evaluator.gates.autopilot_state import (
     VALID_APPROVAL_KINDS,
     VALID_DECISIONS,
     VALID_ROLES,
+    VALID_TASK_STATUSES,
     add_team_member,
+    cancel_approval,
     create_task,
     decide_approval,
     detect_skill_candidates,
     find_member,
     load_all_tasks,
     load_approvals,
-    load_pending_approvals,
     load_phase_policy,
     load_task,
     load_team,
@@ -60,6 +61,7 @@ from agent_evaluator.gates.autopilot_state import (
     open_threshold_reviews,
     remove_team_member,
     set_phase_policy,
+    set_task_status,
     transition_phase,
     update_approval_checklist,
     update_team_member,
@@ -216,6 +218,10 @@ def _cmd_autopilot_new_task(args: argparse.Namespace) -> int:
     for role_key, name, role_label in (
         ("analysis", args.analysis, "분석"),
         ("design", args.design, "설계"),
+        ("development", getattr(args, "development", None), "개발"),
+        ("qa", getattr(args, "qa", None), "QA"),
+        ("pm", getattr(args, "pm", None), "PM"),
+        ("security", getattr(args, "security", None), "보안"),
     ):
         if not name:
             continue
@@ -369,10 +375,14 @@ def _cmd_autopilot_list_members(args: argparse.Namespace) -> int:
 def _cmd_autopilot_list_tasks(args: argparse.Namespace) -> int:
     root = Path(args.root)
     tasks_dir = root / ".aoo" / "tasks"
+    show_all = getattr(args, "all", False)
     tasks = load_all_tasks(tasks_dir)
+    if not show_all:
+        tasks = [t for t in tasks if t.get("status", "active") == "active"]
 
     if not tasks:
-        print(f"{D}No tasks registered ({tasks_dir}){R}")
+        label = "" if show_all else " active"
+        print(f"{D}No{label} tasks registered ({tasks_dir}){R}")
         return 0
 
     print(f"{B}Tasks — {tasks_dir}{R}")
@@ -380,10 +390,26 @@ def _cmd_autopilot_list_tasks(args: argparse.Namespace) -> int:
         phase = t.get("current_phase")
         phase_int = phase if isinstance(phase, int) else -1
         label = PHASE_LABELS.get(phase_int, str(phase))
+        status = t.get("status", "active")
+        status_note = f"  {Y}[{status}]{R}" if status != "active" else ""
         print(
             f"  {t.get('task_id', '?'):<14} [{t.get('platform', '?')}]  "
-            f"Phase {phase} · {label}  {D}{t.get('title', '')}{R}"
+            f"Phase {phase} · {label}{status_note}  {D}{t.get('title', '')}{R}"
         )
+    return 0
+
+
+def _cmd_autopilot_set_task_status(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    tasks_dir = root / ".aoo" / "tasks"
+
+    try:
+        task = set_task_status(tasks_dir, args.task_id, args.status, reason=args.reason)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(_ok(f"{task['task_id']} status → {task['status']}"))
     return 0
 
 
@@ -402,6 +428,11 @@ def _cmd_autopilot_show_task(args: argparse.Namespace) -> int:
     print(f"{B}{task.get('task_id')}{R} — {task.get('title', '')}")
     print(f"  {D}platform:{R} {task.get('platform')}   {D}priority:{R} {task.get('priority')}")
     print(f"  {D}phase:{R} {phase} · {label}")
+    status = task.get("status", "active")
+    if status != "active":
+        reason = task.get("status_reason")
+        reason_note = f" — {reason}" if reason else ""
+        print(f"  {D}status:{R} {Y}{status}{R}{reason_note}")
     owners = task.get("owners") or {}
     if owners:
         print(f"  {D}owners:{R} " + ", ".join(f"{k}={v}" for k, v in owners.items()))
@@ -422,6 +453,30 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
     tasks_dir = root / ".aoo" / "tasks"
     approvals_path = root / ".aoo" / "approvals.jsonl"
     policy_path = root / ".aoo" / "phase_policy.json"
+
+    # docs/AUTOPILOT_IMPROVEMENTS.md §3 — transition_phase()는 역행이나 여러
+    # 단계 건너뛰기를 그 자체로 막지 않는다(승인 조건 검사와 별개). 정당한
+    # 되돌리기(예: 조기 진행 판단 취소)도 있을 수 있어 하드 차단은 안 하지만,
+    # 최소한 사람 눈에 띄게는 한다 — 실수로 역행한 걸 아무도 못 알아채는
+    # 것과, 알고도 역행하는 것은 다른 상황이다.
+    existing_task = load_task(tasks_dir, args.task_id)
+    if existing_task is not None:
+        current_phase = existing_task.get("current_phase")
+        if isinstance(current_phase, int) and args.new_phase < current_phase:
+            print(
+                _warn(
+                    f"phase {args.new_phase} is BEHIND the current phase "
+                    f"{current_phase} — proceeding anyway (not blocked)."
+                )
+            )
+        elif isinstance(current_phase, int) and args.new_phase > current_phase + 1:
+            print(
+                _warn(
+                    f"skipping from phase {current_phase} to {args.new_phase} "
+                    f"({args.new_phase - current_phase - 1} phase(s) skipped) — "
+                    f"proceeding anyway (not blocked)."
+                )
+            )
 
     require_approval = getattr(args, "require_approval", None)
     from_policy = False
@@ -688,26 +743,40 @@ def _cmd_autopilot_approvals_open(args: argparse.Namespace) -> int:
 def _cmd_autopilot_approvals_list(args: argparse.Namespace) -> int:
     root = Path(args.root)
     approvals_path = root / ".aoo" / "approvals.jsonl"
-    approvals = (
-        load_approvals(approvals_path) if args.all else load_pending_approvals(approvals_path)
-    )
+    all_approvals = load_approvals(approvals_path)
+    approvals = all_approvals if args.all else [
+        a for a in all_approvals if a.get("status") == "pending"
+    ]
+    # §4 — draft가 기본 목록(pending만) 뒤에 조용히 쌓이는 공백. --all이면
+    # 이미 보고 있으니 nudge가 불필요하다.
+    n_draft = 0 if args.all else sum(1 for a in all_approvals if a.get("status") == "draft")
 
     label = "all" if args.all else "pending"
     if not approvals:
         print(f"{D}No {label} approvals ({approvals_path}){R}")
+        if n_draft:
+            print(
+                _warn(
+                    f"{n_draft} draft approval(s) exist but aren't shown here "
+                    f"(they stay out of the review queue until their checklist "
+                    f"is satisfied) — run with --all to see them."
+                )
+            )
         return 0
 
     print(f"{B}Approvals ({label}) — {approvals_path}{R}")
     for a in sorted(approvals, key=lambda x: x.get("opened_at", "")):
         status_color = {
             "pending": Y, "draft": D, "approved": G,
-            "rejected": RD, "changes_requested": RD,
+            "rejected": RD, "changes_requested": RD, "cancelled": D,
         }.get(a.get("status", ""), "")
         print(
             f"  {status_color}{a.get('status'):>18}{R}  {a.get('id')}  "
             f"[{a.get('task_id')}] {a.get('title')}  "
             f"{D}({a.get('kind')}, phase {a.get('phase')}){R}"
         )
+    if n_draft:
+        print(f"{D}({n_draft} draft approval(s) not shown — run with --all){R}")
     return 0
 
 
@@ -766,6 +835,20 @@ def _cmd_autopilot_approvals_update(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot_approvals_cancel(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    approvals_path = root / ".aoo" / "approvals.jsonl"
+
+    try:
+        cancelled = cancel_approval(approvals_path, args.approval_id, reason=args.reason)
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(_ok(f"Cancelled: {cancelled['id']}"))
+    return 0
+
+
 def _cmd_autopilot_approvals_scan_thresholds(args: argparse.Namespace) -> int:
     root = Path(args.root)
     approvals_path = root / ".aoo" / "approvals.jsonl"
@@ -792,13 +875,15 @@ def _cmd_autopilot_approvals(args: argparse.Namespace) -> int:
         "list": _cmd_autopilot_approvals_list,
         "decide": _cmd_autopilot_approvals_decide,
         "update": _cmd_autopilot_approvals_update,
+        "cancel": _cmd_autopilot_approvals_cancel,
         "scan-thresholds": _cmd_autopilot_approvals_scan_thresholds,
     }
     approvals_command = getattr(args, "approvals_command", None)
     handler = handlers.get(approvals_command) if approvals_command is not None else None
     if handler is None:
         print(_err(
-            "Specify an approvals subcommand: open | list | decide | update | scan-thresholds"
+            "Specify an approvals subcommand: open | list | decide | update | "
+            "cancel | scan-thresholds"
         ))
         return 1
     return handler(args)
@@ -868,14 +953,32 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     nt_p.add_argument("--task-id", default=None, dest="task_id")
     nt_p.add_argument("--analysis", default=None, help="Analysis owner (team member id or name)")
     nt_p.add_argument("--design", default=None, help="Design owner (team member id or name)")
+    nt_p.add_argument(
+        "--development", default=None, help="Development owner (team member id or name)"
+    )
+    nt_p.add_argument("--qa", default=None, help="QA owner (team member id or name)")
+    nt_p.add_argument("--pm", default=None, help="PM owner (team member id or name)")
+    nt_p.add_argument("--security", default=None, help="Security owner (team member id or name)")
     nt_p.add_argument("--root", default=".", metavar="DIR")
 
     lt_p = ap_sub.add_parser("list-tasks", help="List all registered tasks")
+    lt_p.add_argument(
+        "--all", action="store_true",
+        help="Include archived/cancelled tasks (active-only by default)",
+    )
     lt_p.add_argument("--root", default=".", metavar="DIR")
 
     st_p = ap_sub.add_parser("show-task", help="Show one task's detail (owners, phase history)")
     st_p.add_argument("task_id")
     st_p.add_argument("--root", default=".", metavar="DIR")
+
+    sts_p = ap_sub.add_parser(
+        "set-task-status", help="Mark a task active/archived/cancelled"
+    )
+    sts_p.add_argument("task_id")
+    sts_p.add_argument("--status", required=True, choices=list(VALID_TASK_STATUSES))
+    sts_p.add_argument("--reason", default=None)
+    sts_p.add_argument("--root", default=".", metavar="DIR")
 
     am_p = ap_sub.add_parser("add-member", help="Register a team member (.aoo/team.json)")
     am_p.add_argument("--id", required=True, dest="member_id")
@@ -1002,6 +1105,13 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     apu_p.add_argument("--root", default=".", metavar="DIR")
 
+    apc_p = ap_ap_sub.add_parser(
+        "cancel", help="Withdraw an open (draft/pending) approval — a distinct terminal state"
+    )
+    apc_p.add_argument("approval_id")
+    apc_p.add_argument("--reason", default=None)
+    apc_p.add_argument("--root", default=".", metavar="DIR")
+
     aps_p = ap_ap_sub.add_parser(
         "scan-thresholds",
         help="Detect repeated exit-75 reasons (5+) and open threshold_review approvals",
@@ -1067,6 +1177,7 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
         "new-task": _cmd_autopilot_new_task,
         "list-tasks": _cmd_autopilot_list_tasks,
         "show-task": _cmd_autopilot_show_task,
+        "set-task-status": _cmd_autopilot_set_task_status,
         "add-member": _cmd_autopilot_add_member,
         "remove-member": _cmd_autopilot_remove_member,
         "update-member": _cmd_autopilot_update_member,
@@ -1080,8 +1191,8 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
     if handler is None:
         print(_err(
             "Specify an autopilot subcommand: install | doctor | dashboard | "
-            "new-task | list-tasks | show-task | add-member | remove-member | "
-            "update-member | list-members | phase | approvals | skills"
+            "new-task | list-tasks | show-task | set-task-status | add-member | "
+            "remove-member | update-member | list-members | phase | approvals | skills"
         ))
         print(f"{D}For details: agent-eval autopilot --help{R}")
         return 1

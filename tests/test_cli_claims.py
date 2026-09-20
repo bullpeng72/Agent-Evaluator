@@ -126,6 +126,38 @@ class TestClaimsAdd:
         active = load_active_claims(claims_path)
         assert active[0]["scope"] == ["a.py", "b.py", "dir/"]
 
+    def test_add_warns_but_does_not_block_on_overlap(self, tmp_path, capsys):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §5 — add()가 겹침을 add 시점에
+        경고조차 안 하던 공백. 여전히 exit 0이어야 한다 — 차단은 audit의 몫."""
+        claims_path = tmp_path / "claims.jsonl"
+        _cmd_claims_add(_ns(
+            scope=["src/ask/"], developer="ms",
+            claims_path=str(claims_path), claim_id=None,
+        ))
+        capsys.readouterr()
+        code = _cmd_claims_add(_ns(
+            scope=["src/ask/generate.py"], developer="sj",
+            claims_path=str(claims_path), claim_id=None,
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "overlaps an existing active claim" in out
+        assert len(load_active_claims(claims_path)) == 2  # 둘 다 열림 — 안 막음
+
+    def test_add_no_warning_when_no_overlap(self, tmp_path, capsys):
+        claims_path = tmp_path / "claims.jsonl"
+        _cmd_claims_add(_ns(
+            scope=["src/ask/"], developer="ms",
+            claims_path=str(claims_path), claim_id=None,
+        ))
+        capsys.readouterr()
+        _cmd_claims_add(_ns(
+            scope=["src/check/"], developer="sj",
+            claims_path=str(claims_path), claim_id=None,
+        ))
+        out = capsys.readouterr().out
+        assert "overlaps" not in out
+
 
 class TestClaimsList:
     def test_list_empty_returns_0(self, tmp_path, capsys):
@@ -133,6 +165,33 @@ class TestClaimsList:
         code = _cmd_claims_list(_ns(claims_path=str(claims_path)))
         assert code == 0
         assert "No active claims" in capsys.readouterr().out
+
+    def test_list_filters_by_developer(self, tmp_path, capsys):
+        claims_path = tmp_path / "claims.jsonl"
+        append_claim(
+            claims_path, claim_id="c1", developer="ms", scope=["a.py"],
+            started_at="2026-07-08T00:00:00+00:00", status="active",
+        )
+        append_claim(
+            claims_path, claim_id="c2", developer="sj", scope=["b.py"],
+            started_at="2026-07-08T00:00:00+00:00", status="active",
+        )
+        code = _cmd_claims_list(_ns(claims_path=str(claims_path), developer="sj"))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "c2" in out
+        assert "c1" not in out
+
+    def test_list_developer_filter_no_match(self, tmp_path, capsys):
+        claims_path = tmp_path / "claims.jsonl"
+        append_claim(
+            claims_path, claim_id="c1", developer="ms", scope=["a.py"],
+            started_at="2026-07-08T00:00:00+00:00", status="active",
+        )
+        code = _cmd_claims_list(_ns(claims_path=str(claims_path), developer="ghost"))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "No active claims" in out
 
     def test_list_shows_active_claims(self, tmp_path, capsys):
         claims_path = tmp_path / "claims.jsonl"

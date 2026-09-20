@@ -134,7 +134,47 @@ def create_task(
         "blocking_on": [],
         "last_gate_run": None,
         "created_at": now,
+        "status": "active",
     }
+    save_task(tasks_dir, task)
+    return task
+
+
+VALID_TASK_STATUSES = ("active", "archived", "cancelled")
+
+
+def set_task_status(
+    tasks_dir: Union[str, Path], task_id: str, status: str, reason: str | None = None
+) -> dict[str, Any]:
+    """과제 상태를 바꾼다(SPEC-AP-001 백로그 §2 — phase 8(운영) 이후 과제를
+    "끝"으로 표시할 방법이 없었다).
+
+    새 phase가 아니다 — phase는 SDLC 진행 단계(0~8), ``status``는 그
+    과제 자체가 아직 살아 있는지("active")·끝났는지("archived")·중단됐는지
+    ("cancelled")를 나타내는 별도 축이다. 이전 버전(``status`` 필드가 아예
+    없던 과제 파일)을 읽으면 ``load_task()``가 그대로 반환하고, 이 함수를
+    거치지 않는 한 필드가 안 생긴다 — 하위호환.
+
+    Args:
+        tasks_dir: ``.aoo/tasks`` 디렉터리.
+        task_id: 대상 과제.
+        status: ``VALID_TASK_STATUSES`` 중 하나.
+        reason: 자유 텍스트(선택) — 왜 보관/취소했는지.
+
+    Returns:
+        갱신된 과제 dict.
+
+    Raises:
+        ValueError: 과제가 없거나 ``status``가 알 수 없는 값이면.
+    """
+    if status not in VALID_TASK_STATUSES:
+        raise ValueError(f"status must be one of {VALID_TASK_STATUSES}, got {status!r}")
+    task = load_task(tasks_dir, task_id)
+    if task is None:
+        raise ValueError(f"task not found: {task_id}")
+    task["status"] = status
+    task["status_reason"] = reason
+    task["status_changed_at"] = _now()
     save_task(tasks_dir, task)
     return task
 
@@ -707,6 +747,42 @@ def update_approval_checklist(
     base["checklist"] = checklist
     base["checklist_score"] = score
     base["status"] = "pending" if ready else "draft"
+    _append_approval_event(approvals_path, base)
+    return base
+
+
+def cancel_approval(
+    approvals_path: Union[str, Path], approval_id: str, reason: str | None = None
+) -> dict[str, Any]:
+    """열려 있는(``draft``/``pending``) 승인을 취소한다(SPEC-AP-001 백로그 §4 —
+    폐기된 draft가 ``approvals.jsonl``에 영구 잔존해 "폐기됨"을 표시할 방법이
+    없었다).
+
+    ``decide_approval()``의 ``VALID_DECISIONS``(approved/rejected/
+    changes_requested)에 속하지 않는 별도 종결 상태다 — 아무도 내용을
+    검토해서 반려한 게 아니라, 애초에 철회됐다는 뜻이라 구분한다. 취소된
+    승인도 ``load_approvals()``에는 계속 나타난다(append-only, 이력 삭제
+    없음) — ``list``(기본, pending만)에선 다른 종결 상태와 마찬가지로
+    빠지고, ``list --all``에선 ``cancelled``로 표시된다.
+
+    Raises:
+        ValueError: 승인이 없거나 이미 결정됐으면(이미 종결된 승인은
+            취소도 다시 못 한다).
+    """
+    existing = {a["id"]: a for a in load_approvals(approvals_path)}
+    if approval_id not in existing:
+        raise ValueError(f"approval not found: {approval_id}")
+    base = dict(existing[approval_id])
+    if base.get("status") not in ("draft", "pending"):
+        raise ValueError(
+            f"cannot cancel {approval_id!r} — already decided "
+            f"(status={base.get('status')!r})"
+        )
+    base["status"] = "cancelled"
+    base["decision"] = "cancelled"
+    base["decided_by"] = None
+    base["rationale"] = reason
+    base["decided_at"] = _now()
     _append_approval_event(approvals_path, base)
     return base
 

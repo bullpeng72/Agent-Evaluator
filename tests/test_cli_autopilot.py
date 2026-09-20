@@ -16,6 +16,7 @@ import pytest
 
 from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_add_member,
+    _cmd_autopilot_approvals_cancel,
     _cmd_autopilot_approvals_decide,
     _cmd_autopilot_approvals_list,
     _cmd_autopilot_approvals_open,
@@ -30,6 +31,7 @@ from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_phase_policy_show,
     _cmd_autopilot_phase_transition,
     _cmd_autopilot_remove_member,
+    _cmd_autopilot_set_task_status,
     _cmd_autopilot_show_task,
     _cmd_autopilot_update_member,
     cmd_autopilot,
@@ -158,6 +160,29 @@ class TestNewTask:
         ))
         assert code == 1
 
+    def test_new_task_accepts_all_six_role_owners(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §2 — owner 필드가 6역할 중
+        analysis/design 2개뿐이던 공백."""
+        code = _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis="a", design="b", development="c", qa="d", pm="e", security="f",
+            root=str(tmp_path),
+        ))
+        assert code == 0
+        tasks = load_all_tasks(tmp_path / ".aoo" / "tasks")
+        assert tasks[0]["owners"] == {
+            "analysis": "a", "design": "b", "development": "c",
+            "qa": "d", "pm": "e", "security": "f",
+        }
+
+    def test_new_task_still_works_without_new_owner_flags(self, tmp_path):
+        """하위호환 — 새 인자를 Namespace에 안 넣어도(getattr 기본값) 안 깨짐."""
+        code = _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        assert code == 0
+
 
 class TestListAndShowTask:
     """SPEC-AP-001 백로그 §2 — 다중 task 조회 명령 부재."""
@@ -182,7 +207,7 @@ class TestListAndShowTask:
         code = _cmd_autopilot_list_tasks(_ns(root=str(tmp_path)))
         out = capsys.readouterr().out
         assert code == 0
-        assert "No tasks" in out
+        assert "No" in out and "tasks" in out
 
     def test_show_task_reports_phase_history(self, tmp_path, capsys):
         _cmd_autopilot_new_task(_ns(
@@ -203,6 +228,82 @@ class TestListAndShowTask:
     def test_show_task_missing_fails(self, tmp_path):
         code = _cmd_autopilot_show_task(_ns(task_id="nope", root=str(tmp_path)))
         assert code == 1
+
+    def test_list_tasks_excludes_archived_by_default(self, tmp_path, capsys):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §2 — 완료/취소된 task가 목록에 계속 쌓임."""
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_new_task(_ns(
+            title="b", platform="ac", priority="normal", task_id="ST-002",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_set_task_status(_ns(
+            task_id="ST-002", status="archived", reason=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_list_tasks(_ns(all=False, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "ST-001" in out
+        assert "ST-002" not in out
+
+    def test_list_tasks_all_includes_archived_with_status_note(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_set_task_status(_ns(
+            task_id="ST-001", status="archived", reason="done", root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_list_tasks(_ns(all=True, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "ST-001" in out
+        assert "archived" in out
+
+    def test_set_task_status_unknown_task_fails(self, tmp_path):
+        code = _cmd_autopilot_set_task_status(_ns(
+            task_id="nope", status="archived", reason=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_set_task_status_invalid_status_fails(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_set_task_status(_ns(
+            task_id="ST-001", status="bogus", reason=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_show_task_displays_non_active_status_and_reason(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        _cmd_autopilot_set_task_status(_ns(
+            task_id="ST-001", status="cancelled", reason="scope dropped", root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_show_task(_ns(task_id="ST-001", root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "cancelled" in out
+        assert "scope dropped" in out
+
+    def test_show_task_omits_status_line_when_active(self, tmp_path, capsys):
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        _cmd_autopilot_show_task(_ns(task_id="ST-001", root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert "status:" not in out
 
 
 class TestAddMember:
@@ -442,6 +543,52 @@ class TestPhaseTransition:
         ))
         assert code == 1
 
+    def test_transition_backward_warns_but_does_not_block(self, tmp_path, capsys):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §3 — 역행/건너뛰기가 조용히 성공함."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "BEHIND" in out
+        task = load_task(tasks_dir, "ST-014")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_transition_skip_warns_but_does_not_block(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        capsys.readouterr()
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=3, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "skipping" in out
+        assert "2 phase(s) skipped" in out
+
+    def test_transition_no_warning_on_normal_forward_step(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        capsys.readouterr()
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "BEHIND" not in out
+        assert "skipping" not in out
+
 
 class TestPhasePolicyCli:
     """SPEC-AP-001 백로그 §3 — 정책 파일이 --require-approval 없이도
@@ -571,6 +718,112 @@ class TestApprovalsListAndDecide:
         code = _cmd_autopilot_approvals_decide(_ns(
             approval_id="nope", decision="approved", decided_by="x",
             rationale=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_list_pending_nudges_when_drafts_hidden_and_none_pending(self, tmp_path, capsys):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §4 — draft가 조용히 쌓여 아무도 눈치 못 챔."""
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-002", kind="spec_review", phase=1, title="not-ready",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "No pending approvals" in out
+        assert "1 draft approval" in out
+        assert "--all" in out
+
+    def test_list_pending_footer_notes_hidden_drafts_when_results_exist(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-001", kind="spec_review", phase=1, title="ready",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-002", kind="spec_review", phase=1, title="not-ready",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_approvals_list(_ns(all=False, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "ready" in out
+        assert "1 draft approval(s) not shown" in out
+
+    def test_list_all_has_no_draft_nudge(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-002", kind="spec_review", phase=1, title="not-ready",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        _cmd_autopilot_approvals_list(_ns(all=True, root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert "not shown" not in out
+
+
+class TestApprovalsCancel:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §4 — 승인 요청을 취소할 방법이 없음."""
+
+    def test_cancel_draft_succeeds(self, tmp_path, capsys):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:pending"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        capsys.readouterr()
+        code = _cmd_autopilot_approvals_cancel(_ns(
+            approval_id=approval_id, reason="no longer needed", root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "Cancelled" in out
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "cancelled"
+
+    def test_cancel_pending_succeeds(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        code = _cmd_autopilot_approvals_cancel(_ns(
+            approval_id=approval_id, reason=None, root=str(tmp_path),
+        ))
+        assert code == 0
+
+    def test_cancel_unknown_id_fails(self, tmp_path):
+        code = _cmd_autopilot_approvals_cancel(_ns(
+            approval_id="nope", reason=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_cancel_already_decided_fails(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        _cmd_autopilot_approvals_decide(_ns(
+            approval_id=approval_id, decision="approved", decided_by="pm",
+            rationale=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_approvals_cancel(_ns(
+            approval_id=approval_id, reason=None, root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_cancel_already_cancelled_fails(self, tmp_path):
+        _cmd_autopilot_approvals_open(_ns(
+            task_id="ST-014", kind="spec_review", phase=1, title="t",
+            body_file=None, checklist_item=["a:ok"], root=str(tmp_path),
+        ))
+        approval_id = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")[0]["id"]
+        _cmd_autopilot_approvals_cancel(_ns(
+            approval_id=approval_id, reason=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_approvals_cancel(_ns(
+            approval_id=approval_id, reason=None, root=str(tmp_path),
         ))
         assert code == 1
 

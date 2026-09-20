@@ -18,6 +18,7 @@ from agent_evaluator.gates.autopilot_state import (
     PHASE_LABELS,
     PORTFOLIO_TASK_ID,
     add_team_member,
+    cancel_approval,
     compute_rejection_rate,
     create_task,
     decide_approval,
@@ -39,6 +40,7 @@ from agent_evaluator.gates.autopilot_state import (
     save_team,
     score_checklist,
     set_phase_policy,
+    set_task_status,
     task_path,
     transition_phase,
     update_approval_checklist,
@@ -122,6 +124,45 @@ class TestLoadAllTasks:
         (tasks_dir / "corrupt.json").write_text("{{{", encoding="utf-8")
         tasks = load_all_tasks(tasks_dir)
         assert len(tasks) == 1
+
+
+class TestCreateTaskStatus:
+    def test_new_task_starts_active(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        task = create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        assert task["status"] == "active"
+
+
+class TestSetTaskStatus:
+    """SPEC-AP-001 백로그 §2 — phase 8(운영) 이후 과제를 "끝"으로 표시할
+    방법이 없었다."""
+
+    def test_archive_persists(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        updated = set_task_status(tasks_dir, "ST-001", "archived", reason="done")
+        assert updated["status"] == "archived"
+        assert updated["status_reason"] == "done"
+        assert load_task(tasks_dir, "ST-001")["status"] == "archived"
+
+    def test_rejects_unknown_status(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        with pytest.raises(ValueError, match="status must be one of"):
+            set_task_status(tasks_dir, "ST-001", "bogus")
+
+    def test_missing_task_raises(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        with pytest.raises(ValueError, match="not found"):
+            set_task_status(tasks_dir, "nope", "archived")
+
+    def test_phase_untouched_by_status_change(self, tmp_path):
+        """status는 phase와 별개 축이다 — 바꿔도 phase는 그대로."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        transition_phase(tasks_dir, "ST-001", new_phase=3)
+        updated = set_task_status(tasks_dir, "ST-001", "cancelled")
+        assert updated["current_phase"] == 3
 
 
 class TestTransitionPhase:
@@ -711,6 +752,67 @@ class TestUpdateApprovalChecklist:
         decide_approval(p, approval["id"], decision="approved", decided_by="pm")
         with pytest.raises(ValueError, match="already decided"):
             update_approval_checklist(p, approval["id"], [{"label": "a", "status": "flag"}])
+
+
+class TestCancelApproval:
+    """SPEC-AP-001 백로그 §4 — 폐기된 draft가 approvals.jsonl에 영구
+    잔존해 "폐기됨"을 표시할 방법이 없었다."""
+
+    def test_cancel_draft(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "pending"}],
+        )
+        cancelled = cancel_approval(p, approval["id"], reason="opened by mistake")
+        assert cancelled["status"] == "cancelled"
+        assert cancelled["rationale"] == "opened by mistake"
+
+    def test_cancel_pending(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        cancelled = cancel_approval(p, approval["id"])
+        assert cancelled["status"] == "cancelled"
+
+    def test_cancel_appends_new_line(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(p, task_id="ST-014", kind="spec_review", phase=1, title="t")
+        cancel_approval(p, approval["id"])
+        lines = p.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+
+    def test_cancel_unknown_raises(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        with pytest.raises(ValueError, match="not found"):
+            cancel_approval(p, "ap-nope")
+
+    def test_cancel_already_decided_raises(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(
+            p, task_id="ST-014", kind="spec_review", phase=1, title="t",
+            checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(p, approval["id"], decision="approved", decided_by="pm")
+        with pytest.raises(ValueError, match="already decided"):
+            cancel_approval(p, approval["id"])
+
+    def test_cancel_twice_raises(self, tmp_path):
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(p, task_id="ST-014", kind="spec_review", phase=1, title="t")
+        cancel_approval(p, approval["id"])
+        with pytest.raises(ValueError, match="already decided"):
+            cancel_approval(p, approval["id"])
+
+    def test_cancelled_excluded_from_rejection_rate(self, tmp_path):
+        """취소는 반려가 아니다 — 원칙6 자가점검(반려율)의 분모에 안 들어간다."""
+        p = tmp_path / ".aoo" / "approvals.jsonl"
+        approval = open_approval(p, task_id="ST-014", kind="spec_review", phase=1, title="t")
+        cancel_approval(p, approval["id"])
+        rate = compute_rejection_rate(p)
+        assert rate["total"] == 0
 
 
 class TestMultiPersonApproval:

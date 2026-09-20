@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.1.3 (2026-09-20) — Harness Autopilot: task lifecycle + approval withdrawal + safer defaults
+
+Second follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Continues working through the same real-usage backlog (`docs/AUTOPILOT_IMPROVEMENTS.md` in the AOO Stack workbook repo) after v1.1.2's Top 3.
+
+### New: task lifecycle (`active` / `archived` / `cancelled`)
+
+- ✨ **`set-task-status <id> --status {active,archived,cancelled} [--reason TEXT]`** — a finished or dropped task previously had no way to leave `list-tasks` except staying `active` forever alongside every task still in flight. `status` is orthogonal to `current_phase` (a task can be archived/cancelled at any phase).
+- ✨ **`list-tasks`** now shows active tasks only by default; `--all` includes archived/cancelled ones, annotated with their status.
+- ✨ **`show-task`** prints the status line (+ reason, if given) when a task is non-active; omitted entirely for active tasks (no visual noise on the common case).
+- ✨ **`new-task`** now accepts all 6 owner roles — `--analysis`/`--design`/`--development`/`--qa`/`--pm`/`--security` — instead of only `analysis`/`design`.
+
+### New: `approvals cancel` — withdraw a request instead of leaving it to rot
+
+- ✨ **`approvals cancel <id> [--reason TEXT]`** — a `draft`/`pending` approval that's no longer needed (e.g. the underlying phase transition was abandoned) previously had no exit besides being force-decided. New terminal status `cancelled`, deliberately excluded from `compute_rejection_rate()`'s denominator — a withdrawn request isn't a rejection. Errors on an already-decided or already-cancelled approval.
+
+### Fixed: silent draft pile-up in `approvals list`
+
+- 🐛 `approvals list` (pending-only by default) gave no signal that draft approvals existed but were being hidden — a checklist stuck in `draft` could sit unnoticed indefinitely. It now prints a nudge ("N draft approval(s) exist ... run with --all") when there are zero pending results but drafts exist, and a footer note when pending results are shown alongside hidden drafts.
+
+### New: non-blocking safety nets
+
+- ✨ **`phase transition`** now warns (never blocks) when the target phase is behind the task's current phase, or skips one or more phases — surfaces an accidental regression/skip to a human without hard-blocking a deliberate one (e.g. rolling back a premature advance).
+- ✨ **`claims add`** now warns (non-blocking) when the new scope overlaps an existing active claim, instead of only catching the overlap later via `claims audit`.
+- ✨ **`claims list --developer NAME`** — filter the active-claims list to one developer.
+
+### Compatibility
+
+All of the above is additive. Existing `.aoo/tasks/*.json` files without a `status` field are treated as `active` (`task.get("status", "active")` throughout); `team.json`/`approvals.jsonl`/`claims.jsonl` schemas are otherwise unchanged.
+
 ## v1.1.2 (2026-09-20) — Harness Autopilot: CRUD completion + checklist/phase-gate fixes
 
 Feature/fix release for `agent-eval autopilot` (v1.1.1's M0), entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook; see that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the full backlog this release works through.

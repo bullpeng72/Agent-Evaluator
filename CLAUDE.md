@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.3 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -91,7 +91,9 @@ agent-eval improve apply-verify v3.json --proposal A --eval-cmd "python eval.py"
 
 # CLI — team scope claims (.aoo/claims.jsonl, TeamConcurrencyConfig integration)
 agent-eval claims add src/ --developer auto      # open a claim (owner="auto" -> git user.name)
-agent-eval claims list
+#   warns (non-blocking) when the new scope overlaps an existing active claim, instead of only catching the
+#   overlap later via `claims audit`.
+agent-eval claims list [--developer alice]       # filter to one developer's active claims
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
 
@@ -102,14 +104,21 @@ agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overl
 agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks/, .aoo/team.json, Skill placement
 agent-eval autopilot doctor                      # health-check the skeleton
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
-agent-eval autopilot new-task --title "..." --platform ac --analysis <member>
-agent-eval autopilot list-tasks                  # list all registered tasks
-agent-eval autopilot show-task ST-014            # one task's owners + phase_history
+agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
+#   6 owner roles total (was analysis/design only) — any subset may be given.
+agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled
+agent-eval autopilot show-task ST-014            # one task's owners + phase_history (+ status line when non-active)
+agent-eval autopilot set-task-status ST-014 --status archived --reason "shipped"   # active|archived|cancelled;
+#   orthogonal to current_phase — a task can be archived/cancelled at any phase. list-tasks hides non-active by
+#   default so a finished/dropped task doesn't keep cluttering the board.
 agent-eval autopilot add-member --id yj --name 유진 --role 설계
 agent-eval autopilot remove-member --id yj
 agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-synced   # only given fields change
 agent-eval autopilot list-members
 agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval spec_review  # opt-in gate
+#   warns (does not block) on a backward transition or a skipped phase — transition_phase() itself never
+#   validated phase ordering; this surfaces an accidental regression/skip to a human without hard-blocking a
+#   deliberate one (e.g. rolling back a premature phase advance).
 agent-eval autopilot phase policy set --to 2 --require-approval spec_review   # declare the gate once (.aoo/phase_policy.json)
 #   instead of remembering --require-approval on every `phase transition` call (root cause of repeated phase
 #   drift in real use — see the AOO workbook Ch35->38). `phase policy show` / `--clear` manage it; an explicit
@@ -124,6 +133,13 @@ agent-eval autopilot approvals update ap-a1b2c3d4 --checklist-item "EARS 표기:
 #   status on an open (draft/pending) approval instead of opening a brand-new approval from scratch to fix one
 #   item — re-scores the checklist and promotes draft->pending if now clean. Errors on an unknown label or an
 #   already-decided approval (decided approvals are immutable).
+agent-eval autopilot approvals cancel ap-a1b2c3d4 --reason "no longer needed"   # withdraw a draft/pending
+#   approval (new terminal status "cancelled", distinct from VALID_DECISIONS; excluded from
+#   compute_rejection_rate()'s denominator so a withdrawn request doesn't count as a rejection). Errors on an
+#   already-decided or already-cancelled approval.
+agent-eval autopilot approvals list               # pending only by default; nudges when drafts are hidden
+#   (either "no pending, but N draft(s) exist — run with --all" or a footer note when results exist alongside
+#   hidden drafts) so a draft stuck on its checklist doesn't silently sit unnoticed.
 agent-eval autopilot approvals scan-thresholds   # repeated exit-75 reason (5+) -> auto threshold_review card
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 
