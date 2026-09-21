@@ -3113,6 +3113,46 @@ class TestClaimsAuditOnOpsPage:
         assert "클레임 감사 TTL" in r.text
 
 
+class TestDecisionsGateScoreboard:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §15 — 모듈 docstring은 "Gate
+
+    스코어보드는 M1 이후 실데이터가 생겨야 의미 있다"고 미뤄뒀지만, 그
+    실데이터(`gate --decision-log`가 남기는 gate_scores)는 이미 매
+    gate_run 항목에 있었다 — 그냥 안 읽고 있었을 뿐."""
+
+    def test_gate_scores_rendered_per_run(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        record_gate_decision(
+            decisions_path, result_file="r.json", agent_version="v1", exit_code=0,
+            verdict_level="ready", decision_ready=True,
+            gate_scores={
+                "A": 0.912, "B": 0.85, "C": None, "D": 0.77,
+                "E": 0.95, "F": None, "G": 0.6,
+            },
+        )
+        r = autopilot_client.get("/ops")
+        assert "A:0.91" in r.text
+        assert "B:0.85" in r.text
+        assert "C:—" in r.text  # 미측정 게이트도 크래시 없이 em-dash로
+        assert "F:—" in r.text
+        assert "G:0.60" in r.text
+
+    def test_missing_gate_scores_does_not_crash(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        record_gate_decision(
+            decisions_path, result_file="r.json", agent_version="v1", exit_code=0,
+            verdict_level="ready", decision_ready=True,
+        )
+        r = autopilot_client.get("/ops")
+        assert r.status_code == 200
+
+    def test_scoreboard_column_header_rendered(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert "Gate 점수" in r.text
+
+
 class TestDecisionsRecordRoute:
     """docs/AUTOPILOT_IMPROVEMENTS.md §11 — 승인·과제·팀원은 대시보드로
 

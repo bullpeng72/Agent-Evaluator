@@ -208,7 +208,10 @@ agent-eval autopilot decisions list [--pending] [--json]   # alias for `agent-ev
 agent-eval autopilot decisions record --outcome accepted --by NAME   # autopilot namespace — same implementation,
 #   --log defaults to .aoo/decisions.jsonl (`agent-eval decisions` itself still works unchanged).
 #   dashboard: ops page has a matching "결정 기록" form (POST /decisions/record), populated with whichever
-#   gate run(s) are pending — a decided/known-outcome gate run never shows up as a choice.
+#   gate run(s) are pending — a decided/known-outcome gate run never shows up as a choice. The decision
+#   ledger table also shows each gate_run's Gate A–G scores inline (raw gate_scores value, "—" for an
+#   unmeasured gate) — this data has been in the ledger since `gate --decision-log` shipped (cli/gate.py
+#   pulls it from harness_groups), it just wasn't rendered anywhere on the dashboard until now.
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 #   count is now per distinct task_id, not per approval entry — a single task redrafting the same checklist
 #   shape N times (e.g. fixing a colon-parsing typo) no longer looks like an N-times-repeated cross-task pattern.

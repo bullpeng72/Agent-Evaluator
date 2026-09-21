@@ -5,8 +5,11 @@ M0 완료조건("대시보드가 실제 .aoo/claims.jsonl·decisions.jsonl을 �
 M0.5 산출물(과제 보드·팀 관리 화면, §9 개선안)을 채운다. UI 목업(claude.ai
 artifact)의 정적 화면과 달리, 여기는 폼 제출이 실제로 ``.aoo/`` 파일을
 바꾼다 — 그래서 순수 서버 렌더 HTML(자바스크립트 없음)로 만들었다. 나머지
-화면(모니터링·Gate 스코어보드 등, M1 이후 실데이터가 생겨야 의미 있는 것들)
-은 여전히 목업에만 있다.
+화면(실시간 모니터링 등, 살아있는 에이전트 연결이 필요한 것들)은 여전히
+목업에만 있다. Gate 스코어보드는 예외다(docs/AUTOPILOT_IMPROVEMENTS.md
+§15) — ``gate --decision-log``가 이미 매 ``gate_run`` 항목에 실제
+Gate A–G 점수를 남기고 있어서, ops 페이지의 결정 원장 표가 그 값을
+그대로(새 판정 없이) 보여준다.
 
 기존 ``agent_evaluator/serve/server.py``의 결과 대시보드(포트 8765)를
 대체하지 않는 별도 앱이다(포트 8766). 새 판정 로직은 없다(원칙4 — 이미
@@ -1610,18 +1613,34 @@ def _decisions_card(
     # 완결되는데 배포 결정 기록만 CLI(`decisions record`) 전용이었다.
     # record_decision_outcome() 그대로 재사용 — 미결 2건 이상인데 명시
     # 안 하면 그 함수가 이미 ValueError로 막는다(동시성 가드, v1.1.1).
+    #
+    # docs/AUTOPILOT_IMPROVEMENTS.md §15 — 이 모듈 맨 위 docstring은 "Gate
+    # 스코어보드는 M1 이후 실데이터가 생겨야 의미 있어서 목업에만 있다"고
+    # 적어뒀는데, 그 실데이터는 이미 여기 있다 — `gate --decision-log`가
+    # `cli/gate.py`에서 harness_groups 점수를 뽑아 매 gate_run 항목에
+    # `gate_scores`로 저장해온 지 오래고, 이 함수는 그 값을 읽지도 않았다.
+    # 새로 계산하는 값은 없다(원칙4) — 원점수를 그대로 보여줄 뿐, pass/fail
+    # 색상 같은 새 판정은 넣지 않는다.
+    _GATE_LETTERS = ("A", "B", "C", "D", "E", "F", "G")
     decision_rows = ""
     for d in decisions:
         if d.get("kind") != "gate_run":
             continue
+        gate_scores = d.get("gate_scores") or {}
+        scores_html = " ".join(
+            f"{g}:{gate_scores[g]:.2f}" if isinstance(gate_scores.get(g), (int, float))
+            else f"{g}:—"
+            for g in _GATE_LETTERS
+        ) if gate_scores else "—"
         decision_rows += (
             f"<tr><td>{_esc(str(d.get('id', '')))[:12]}</td>"
             f"<td>exit {_esc(str(d.get('exit_code')))}</td>"
             f"<td>{_esc(str(d.get('verdict_level', '')))}</td>"
+            f'<td class="tm">{_esc(scores_html)}</td>'
             f"<td>{_esc(str(d.get('outcome', 'pending')))}</td></tr>"
         )
     decision_rows = (
-        decision_rows or '<tr><td colspan="4" class="empty">기록된 게이트 실행이 없음</td></tr>'
+        decision_rows or '<tr><td colspan="5" class="empty">기록된 게이트 실행이 없음</td></tr>'
     )
 
     error_html = (
@@ -1660,7 +1679,8 @@ def _decisions_card(
     return f"""
 <div class="card">
   <h2>배포 결정 원장 — .aoo/decisions.jsonl</h2>
-  <table><thead><tr><th>gate run</th><th>exit</th><th>판정</th><th>사람 결정</th></tr></thead>
+  <table><thead><tr><th>gate run</th><th>exit</th><th>판정</th><th>Gate 점수</th>
+    <th>사람 결정</th></tr></thead>
   <tbody>{decision_rows}</tbody></table>
   {record_form}
 </div>"""
