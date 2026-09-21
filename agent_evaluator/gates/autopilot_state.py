@@ -294,6 +294,8 @@ def transition_phase(
     *,
     approvals_path: Union[str, Path, None] = None,
     required_approval_kind: str | None = None,
+    require_gate_ready: bool = False,
+    decisions_path: Union[str, Path, None] = None,
 ) -> dict[str, Any]:
     """Phase 전이(설계서 §3.3) — 이전 이력 항목을 닫고 새 항목을 연다.
 
@@ -305,6 +307,24 @@ def transition_phase(
     (원칙4). SPEC 검토가 끝나지 않은 채 Phase 2(설계)로, 심지어 Phase
     8(운영)로 바로 넘어가는 걸 코드가 막지 않던 §9.5의 갭을 이 지점에서
     메운다 — "결정 먼저"(원칙1)가 습관이 아니라 구조로 강제된다.
+
+    ``require_gate_ready``(docs/AUTOPILOT_IMPROVEMENTS.md §16)는 또 다른
+    옵트인 게이트다 — 이번엔 HITL 승인이 아니라 SDK 자신의 Harness Gate
+    A–G 판정(``.aoo/decisions.jsonl``)을 조건으로 건다. 지금까지
+    ``required_approval_kind``는 "사람이 승인했는가"만 확인했지 "Gate가
+    실제로 ready라고 판정했는가"는 phase 전이와 전혀 무관했다 — 최신
+    gate run이 ``verdict_level="not_ready"``여도 승인 하나만 있으면 phase
+    8(운영)까지 그냥 넘어갈 수 있었다. 이 인자는 ``decisions_path``의
+    가장 최근 ``gate_run``을 확인한다(``summarize_decisions()``가 이미
+    계산해 둔 ``last`` 그대로 재사용 — 새 채점 없음, 원칙4):
+
+    - ``verdict_level="ready"``이고 사람이 ``rejected``/``held``로 뒤집지
+      않았으면 통과.
+    - 사람이 그 실행에 대해 ``accepted``/``overridden``으로 확정했으면
+      ``verdict_level``이 무엇이든(``not_ready``여도) 통과 — 사람의 최종
+      판단(원칙1)이 Gate 판정보다 우선한다.
+    - 그 외(``not_ready``/``undecided``인데 결정이 없거나, ``ready``인데
+      사람이 ``rejected``/``held``로 뒤집었으면) 막는다.
     """
     task = load_task(tasks_dir, task_id)
     if task is None:
@@ -326,6 +346,36 @@ def transition_phase(
                 f"cannot transition {task_id!r} to phase {new_phase} — no "
                 f"approved {required_approval_kind!r} approval found for this "
                 f"task (required_approval_kind gate)"
+            )
+
+    if require_gate_ready:
+        if decisions_path is None:
+            raise ValueError("decisions_path is required when require_gate_ready is given")
+        from agent_evaluator.rca.decision_ledger import load_decisions, summarize_decisions
+
+        last = summarize_decisions(load_decisions(decisions_path)).get("last")
+        if last is None:
+            raise ValueError(
+                f"cannot transition {task_id!r} to phase {new_phase} — require_gate_ready "
+                f"is set but no gate run has been recorded yet in {decisions_path} "
+                f"(run `agent-eval gate --decision-log` first, require_gate_ready gate)"
+            )
+        gate_run = last["gate_run"]
+        outcome = (last.get("outcome") or {}).get("outcome")
+        verdict_level = gate_run.get("verdict_level")
+        # 사람의 명시적 rejected/held는 verdict_level이 "ready"여도 항상
+        # 우선한다(원칙1 — 사람의 최종 판단) — accepted/overridden만 not_ready
+        # 판정을 뒤집을 수 있고, 그 반대(rejected가 ready를 뒤집는 것)도
+        # 대칭적으로 성립해야 한다.
+        allowed = outcome in ("accepted", "overridden") or (
+            verdict_level == "ready" and outcome not in ("rejected", "held")
+        )
+        if not allowed:
+            raise ValueError(
+                f"cannot transition {task_id!r} to phase {new_phase} — latest gate run "
+                f"(id={gate_run.get('id')!r}) has verdict_level={verdict_level!r} and "
+                f"outcome={outcome!r} (require_gate_ready gate needs verdict_level='ready' "
+                f"with no rejected/held outcome, or an accepted/overridden human decision)"
             )
 
     now = _now()
@@ -627,11 +677,14 @@ _DEFAULT_REQUIRED_APPROVALS: dict[str, int] = {"deploy": 2, "release_hold": 2}
 # 완전히 동일하게 동작한다(기본값 없음, opt-in 그대로).
 
 
-def load_phase_policy(policy_path: Union[str, Path]) -> dict[int, str]:
-    """``.aoo/phase_policy.json``을 읽는다. ``{phase_number: approval_kind}``.
+def _load_policy_file(policy_path: Union[str, Path]) -> dict[str, Any]:
+    """``.aoo/phase_policy.json``의 원본 JSON을 통째로 읽는다.
 
-    파일이 없거나, JSON이 깨졌거나, 알 수 없는 ``kind``가 있으면 그 항목만
-    조용히 무시한다(fail-open — 정책이 없던 것과 똑같이 동작).
+    ``load_phase_policy()``/``load_gate_ready_policy()``가 각자 필요한
+    최상위 키만 뽑아 쓴다 — 한쪽이 파일을 다시 쓸 때 다른 쪽의 키를 조용히
+    지우지 않게 하려면, 쓰기 쪽(``set_phase_policy()``/
+    ``set_gate_ready_policy()``)도 이 함수로 먼저 전체를 읽은 뒤 자기
+    몫만 갱신해서 다시 써야 한다.
     """
     path = Path(policy_path)
     if not path.is_file():
@@ -640,7 +693,22 @@ def load_phase_policy(policy_path: Union[str, Path]) -> dict[int, str]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
-    gates = data.get("gates", {})
+    return data if isinstance(data, dict) else {}
+
+
+def _write_policy_file(policy_path: Union[str, Path], data: dict[str, Any]) -> None:
+    path = Path(policy_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def load_phase_policy(policy_path: Union[str, Path]) -> dict[int, str]:
+    """``.aoo/phase_policy.json``을 읽는다. ``{phase_number: approval_kind}``.
+
+    파일이 없거나, JSON이 깨졌거나, 알 수 없는 ``kind``가 있으면 그 항목만
+    조용히 무시한다(fail-open — 정책이 없던 것과 똑같이 동작).
+    """
+    gates = _load_policy_file(policy_path).get("gates", {})
     if not isinstance(gates, dict):
         return {}
     result: dict[int, str] = {}
@@ -651,6 +719,27 @@ def load_phase_policy(policy_path: Union[str, Path]) -> dict[int, str]:
             continue
         if isinstance(v, str) and v in VALID_APPROVAL_KINDS:
             result[phase_num] = v
+    return result
+
+
+def load_gate_ready_policy(policy_path: Union[str, Path]) -> set[int]:
+    """``.aoo/phase_policy.json``의 ``gate_ready`` 목록을 읽는다 — 이 phase로
+
+    전이할 때 최신 gate run이 ready(또는 사람이 accepted/overridden으로
+    확정)여야 하는 phase 번호 집합(docs/AUTOPILOT_IMPROVEMENTS.md §16).
+    ``load_phase_policy()``의 승인 kind 정책과는 독립적인 축이다 — 같은
+    phase에 둘 다 걸 수도, 하나만 걸 수도 있다. 파일이 없거나 깨졌으면
+    빈 집합(fail-open).
+    """
+    raw = _load_policy_file(policy_path).get("gate_ready", [])
+    if not isinstance(raw, list):
+        return set()
+    result: set[int] = set()
+    for item in raw:
+        try:
+            result.add(int(item))
+        except (TypeError, ValueError):
+            continue
     return result
 
 
@@ -674,15 +763,33 @@ def set_phase_policy(
         policy.pop(to_phase, None)
     else:
         policy[to_phase] = kind
-    path = Path(policy_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {"gates": {str(k): v for k, v in sorted(policy.items())}},
-            ensure_ascii=False, indent=2,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    raw = _load_policy_file(policy_path)
+    raw["gates"] = {str(k): v for k, v in sorted(policy.items())}
+    _write_policy_file(policy_path, raw)
+    return policy
+
+
+def set_gate_ready_policy(
+    policy_path: Union[str, Path], to_phase: int, required: bool
+) -> set[int]:
+    """``to_phase``로 전이할 때 최신 gate run이 ready여야 한다는 정책을
+
+    걸거나(``required=True``) 지운다(``required=False``)
+    (docs/AUTOPILOT_IMPROVEMENTS.md §16). ``set_phase_policy()``와 같은
+    파일을 공유하지만 서로 다른 최상위 키(``gate_ready``)를 쓰므로, 둘 중
+    하나만 걸어도 다른 쪽 정책이 지워지지 않는다.
+
+    Returns:
+        갱신된 전체 gate_ready 정책 집합.
+    """
+    policy = load_gate_ready_policy(policy_path)
+    if required:
+        policy.add(to_phase)
+    else:
+        policy.discard(to_phase)
+    raw = _load_policy_file(policy_path)
+    raw["gate_ready"] = sorted(policy)
+    _write_policy_file(policy_path, raw)
     return policy
 
 

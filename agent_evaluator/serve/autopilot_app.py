@@ -48,6 +48,7 @@ from agent_evaluator.gates.autopilot_state import (
     detect_skill_candidates,
     load_all_tasks,
     load_approvals,
+    load_gate_ready_policy,
     load_pending_approvals,
     load_phase_policy,
     load_task,
@@ -55,6 +56,7 @@ from agent_evaluator.gates.autopilot_state import (
     open_approval,
     open_threshold_reviews,
     remove_team_member,
+    set_gate_ready_policy,
     set_phase_policy,
     set_task_status,
     transition_phase,
@@ -220,6 +222,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                     phase_error=phase_error, phase_warning=phase_warning,
                     status_error=status_error, update_error=update_error,
                     phase_policy=load_phase_policy(policy_path),
+                    gate_ready_policy=load_gate_ready_policy(policy_path),
                 ),
             )
         )
@@ -230,6 +233,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
         new_phase: int = Form(...),
         require_approval: str = Form(""),
         approved_by: str = Form(""),
+        require_gate_ready: str = Form(""),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §9 — 이 동작(Autopilot phase-gate,
         # PLANNING.md §6가 "책의 척추"라고 부르는 바로 그 메커니즘)이 대시보드에
@@ -259,12 +263,24 @@ def create_autopilot_app(root: Path) -> FastAPI:
         if required_kind is None:
             policy = load_phase_policy(policy_path)
             required_kind = policy.get(new_phase)
+
+        # docs/AUTOPILOT_IMPROVEMENTS.md §16 — require_approval과 나란히, 이번엔
+        # Harness Gate A–G 판정 자체(decisions.jsonl)를 조건으로 건다. 드롭다운이
+        # ""(정책에 맡김)/"yes"/"no" 셋 중 하나 — CLI의 --require-gate-ready
+        # {yes,no}와 같은 "명시 값이 정책을 이긴다" 규칙.
+        if require_gate_ready == "":
+            gate_ready = new_phase in load_gate_ready_policy(policy_path)
+        else:
+            gate_ready = require_gate_ready == "yes"
+
         try:
             transition_phase(
                 tasks_dir, task_id, new_phase, mode="auto",
                 approved_by=approved_by.strip() or None,
                 approvals_path=approvals_path if required_kind else None,
                 required_approval_kind=required_kind,
+                require_gate_ready=gate_ready,
+                decisions_path=decisions_path if gate_ready else None,
             )
         except ValueError as exc:
             return RedirectResponse(
@@ -548,6 +564,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
         policy = load_phase_policy(policy_path)
+        gate_ready_policy = load_gate_ready_policy(policy_path)
         pending_runs = summarize_decisions(decisions)["pending"]
         return _layout(
             "ops", "운영 현황",
@@ -556,25 +573,39 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 decision_error=decision_error, claim_warning=claim_warning,
                 policy_error=policy_error,
                 claim_violations=claim_violations, claim_ttl_hours=claim_ttl_hours,
+                gate_ready_policy=gate_ready_policy,
             ),
         )
 
     @app.post("/phase-policy")
     def set_phase_policy_route(
-        phase: int = Form(...), require_approval: str = Form("")
+        phase: int = Form(...), require_approval: str = Form(""),
+        require_gate_ready: bool = Form(False),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI
         # 전용이라 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐다.
         # §12 — 알 수 없는 kind가 조용히 무시돼 실패 여부를 알 수 없었다.
-        try:
-            set_phase_policy(policy_path, phase, require_approval or None)
-        except ValueError as exc:
-            return RedirectResponse(f"/ops?policy_error={quote(str(exc))}", status_code=303)
+        # §16 — require_gate_ready 체크박스는 이 폼에서 켤 수만 있다(끄는
+        # 건 표의 개별 "해제" 버튼 몫) — HTML 체크박스는 안 체크되면 아예
+        # 필드 자체가 안 오므로, "이 필드가 없다"와 "끄고 싶다"를 구분할
+        # 방법이 없어서 여기서는 절대 끄지 않는다.
+        if require_approval:
+            try:
+                set_phase_policy(policy_path, phase, require_approval)
+            except ValueError as exc:
+                return RedirectResponse(f"/ops?policy_error={quote(str(exc))}", status_code=303)
+        if require_gate_ready:
+            set_gate_ready_policy(policy_path, phase, True)
         return RedirectResponse("/ops", status_code=303)
 
     @app.post("/phase-policy/{phase}/clear")
     def clear_phase_policy_route(phase: int) -> RedirectResponse:
         set_phase_policy(policy_path, phase, None)
+        return RedirectResponse("/ops", status_code=303)
+
+    @app.post("/phase-policy/{phase}/clear-gate-ready")
+    def clear_gate_ready_policy_route(phase: int) -> RedirectResponse:
+        set_gate_ready_policy(policy_path, phase, False)
         return RedirectResponse("/ops", status_code=303)
 
     @app.post("/decisions/record")
@@ -906,6 +937,7 @@ def _task_detail_body(
     status_error: str = "",
     update_error: str = "",
     phase_policy: dict[int, str] | None = None,
+    gate_ready_policy: set[int] | None = None,
 ) -> str:
     owners = task.get("owners") or {}
     owners_html = "".join(
@@ -960,16 +992,24 @@ def _task_detail_body(
     # 정책을 조회하므로) 여전히 막힐 수 있었다. 여기서는 그 상황을 사람이
     # 미리 알 수 있게 정책 표를 그대로 보여준다(새 판정 로직 아님, ops
     # 페이지의 정책 관리 카드와 같은 데이터).
+    # docs/AUTOPILOT_IMPROVEMENTS.md §16 — require_approval 정책 힌트와 나란히
+    # gate_ready 정책도 같이 보여준다. 두 정책은 독립된 축이라 한 phase가
+    # 둘 다·하나만·아무것도 안 걸려 있을 수 있다.
+    gate_ready_policy = gate_ready_policy or set()
     policy_hint_html = ""
-    if phase_policy:
+    if phase_policy or gate_ready_policy:
         rows = "".join(
             f"<li>phase {p} ({_esc(_phase_label(p))}) → <code>{_esc(k)}</code></li>"
             for p, k in sorted(phase_policy.items())
+        ) if phase_policy else ""
+        gate_ready_rows = "".join(
+            f"<li>phase {p} ({_esc(_phase_label(p))}) → gate-ready 요구</li>"
+            for p in sorted(gate_ready_policy)
         )
         policy_hint_html = (
             f'<p class="tm">프로젝트 phase 정책(운영 현황 페이지에서 관리):'
-            f'<ul class="checklist">{rows}</ul>'
-            f'"필요 승인"을 비워 두면 이 정책이 자동 적용됩니다.</p>'
+            f'<ul class="checklist">{rows}{gate_ready_rows}</ul>'
+            f'"필요 승인"/"Gate 준비 요구"를 비워 두면 이 정책이 자동 적용됩니다.</p>'
         )
 
     phase_form = f"""
@@ -982,12 +1022,21 @@ def _task_detail_body(
     <div class="field"><label>필요 승인(선택 — 비우면 정책 자동 적용)</label>
       <select name="require_approval">
         <option value="">(정책에 맡김)</option>{kind_options}</select></div>
+    <div class="field"><label>Gate 준비 요구(선택 — 비우면 정책 자동 적용)</label>
+      <select name="require_gate_ready">
+        <option value="">(정책에 맡김)</option>
+        <option value="yes">요구함</option>
+        <option value="no">요구 안 함</option>
+      </select></div>
     <div class="field"><label>승인자(선택)</label>
       <input type="text" name="approved_by" placeholder="예: pm-park"></div>
     <button type="submit">전이</button>
   </form>
   <p class="tm">필요 승인을 지정하면, 그 kind의 승인이 approved 상태로
-    확정돼 있어야만 전이됩니다 — 없으면 아래에 에러가 뜨고 막힙니다.</p>
+    확정돼 있어야만 전이됩니다. Gate 준비를 요구하면, 최신 Harness Gate
+    실행(.aoo/decisions.jsonl)이 ready 판정이거나 사람이 그 실행에 대해
+    accepted/overridden으로 확정돼 있어야만 전이됩니다 — 둘 다 없으면
+    아래에 에러가 뜨고 막힙니다.</p>
   {policy_hint_html}
 </div>"""
 
@@ -1498,18 +1547,42 @@ def _rejection_rate_card(rejection: dict[str, Any]) -> str:
 </div>"""
 
 
-def _phase_policy_card(policy: dict[int, str], policy_error: str = "") -> str:
+def _phase_policy_card(
+    policy: dict[int, str], policy_error: str = "", gate_ready_policy: set[int] | None = None
+) -> str:
     # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI 전용이라
     # 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐고, 그 상태로
     # "Phase 전이" 폼을 쓰면(§10 본 버그) 정책이 조용히 무시됐다. 여기서
     # 조회+설정+해제를 전부 대시보드로 옮긴다(새 판정 로직 아님,
     # load_/set_phase_policy() 그대로 재사용).
-    rows = "".join(
-        f'<tr><td>phase {p} ({_esc(_phase_label(p))})</td><td><code>{_esc(k)}</code></td>'
-        f'<td><form method="post" action="/phase-policy/{p}/clear">'
-        f'<button type="submit" class="ghost">해제</button></form></td></tr>'
-        for p, k in sorted(policy.items())
-    ) or '<tr><td colspan="3" class="empty">설정된 phase 정책 없음</td></tr>'
+    # §16 — gate_ready 정책은 승인-kind 정책과 독립된 축이라, 두 집합의
+    # 합집합을 행으로 삼고 각자 자기 열·자기 "해제" 버튼을 갖는다.
+    gate_ready_policy = gate_ready_policy or set()
+
+    def _policy_cell(clear_url: str, label: str) -> str:
+        return (
+            f"{label} "
+            f'<form method="post" action="{clear_url}" style="display:inline;">'
+            f'<button type="submit" class="ghost">해제</button></form>'
+        )
+
+    row_list = []
+    for p in sorted(set(policy) | gate_ready_policy):
+        kind_cell = (
+            _policy_cell(f"/phase-policy/{p}/clear", f"<code>{_esc(policy[p])}</code>")
+            if p in policy else "—"
+        )
+        gate_ready_cell = (
+            _policy_cell(f"/phase-policy/{p}/clear-gate-ready", "✓")
+            if p in gate_ready_policy else "—"
+        )
+        row_list.append(
+            f"<tr><td>phase {p} ({_esc(_phase_label(p))})</td>"
+            f"<td>{kind_cell}</td><td>{gate_ready_cell}</td></tr>"
+        )
+    rows = "".join(row_list) or (
+        '<tr><td colspan="3" class="empty">설정된 phase 정책 없음</td></tr>'
+    )
 
     kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
     policy_error_html = (
@@ -1519,17 +1592,20 @@ def _phase_policy_card(policy: dict[int, str], policy_error: str = "") -> str:
 <div class="card">
   <h2>Phase 정책 — .aoo/phase_policy.json</h2>
   {policy_error_html}
-  <table><thead><tr><th>Phase</th><th>필요 승인</th><th></th></tr></thead>
+  <table><thead><tr><th>Phase</th><th>필요 승인</th><th>Gate 준비 요구</th></tr></thead>
   <tbody>{rows}</tbody></table>
   <form class="inline" method="post" action="/phase-policy" style="margin-top:10px;">
     <div class="field"><label>Phase</label>
       <input type="number" name="phase" min="0" max="8" required></div>
-    <div class="field"><label>필요 승인</label>
-      <select name="require_approval" required>{kind_options}</select></div>
+    <div class="field"><label>필요 승인(선택)</label>
+      <select name="require_approval"><option value=""></option>{kind_options}</select></div>
+    <label style="font-weight:400;text-transform:none;letter-spacing:0;">
+      <input type="checkbox" name="require_gate_ready" value="1"> Gate 준비도 요구</label>
     <button type="submit" class="ghost">정책 설정</button>
   </form>
   <p class="tm">여기서 선언한 정책은 대시보드·CLI의 phase 전이 양쪽에
-    똑같이 자동 적용됩니다("필요 승인"을 직접 지정하지 않았을 때).</p>
+    똑같이 자동 적용됩니다(폼에서 직접 지정하지 않았을 때). 이 폼은 정책을
+    켜기만 한다 — 끄려면 표의 개별 "해제" 버튼을 쓴다.</p>
 </div>"""
 
 
@@ -1698,13 +1774,14 @@ def _ops_body(
     policy_error: str = "",
     claim_violations: list[dict[str, Any]] | None = None,
     claim_ttl_hours: float = 8.0,
+    gate_ready_policy: set[int] | None = None,
 ) -> str:
     claims_html = _claims_card(
         claims, claim_warning, violations=claim_violations or [], ttl_hours=claim_ttl_hours
     )
     decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
-    policy_html = _phase_policy_card(phase_policy or {}, policy_error)
+    policy_html = _phase_policy_card(phase_policy or {}, policy_error, gate_ready_policy)
 
     return f"""
 <div class="eyebrow">원칙6 자가점검</div>

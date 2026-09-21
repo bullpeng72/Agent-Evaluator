@@ -29,6 +29,7 @@ from agent_evaluator.gates.autopilot_state import (
     find_member,
     load_all_tasks,
     load_approvals,
+    load_gate_ready_policy,
     load_pending_approvals,
     load_phase_policy,
     load_task,
@@ -41,6 +42,7 @@ from agent_evaluator.gates.autopilot_state import (
     save_task,
     save_team,
     score_checklist,
+    set_gate_ready_policy,
     set_phase_policy,
     set_task_status,
     task_path,
@@ -510,6 +512,158 @@ class TestTransitionPhaseApprovalGate:
                 approvals_path=approvals_path, required_approval_kind="spec_review",
             )
         assert "approved" not in str(exc_info.value)
+
+
+class TestTransitionPhaseGateReadyGate:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — HITL 승인(required_approval_kind)
+
+    과 별개로, phase 전이가 Harness Gate A–G 판정(.aoo/decisions.jsonl) 자체는
+    한 번도 조건으로 쓰지 않았다. 최신 gate run이 not_ready여도 승인 하나만
+    있으면 phase 8(운영)까지 그냥 넘어갈 수 있었던 갭을 막는다."""
+
+    def _log(self, path, **overrides):
+        from agent_evaluator.rca.decision_ledger import record_gate_decision
+
+        base = dict(
+            result_file="r.json", agent_version="v1", exit_code=0,
+            verdict_level="ready", decision_ready=True,
+        )
+        base.update(overrides)
+        return record_gate_decision(path, **base)
+
+    def test_no_gate_by_default(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        # decisions_path 없이, require_gate_ready 없이 — 기존과 동일
+        updated = transition_phase(tasks_dir, "ST-001", new_phase=2)
+        assert updated["current_phase"] == 2
+
+    def test_requires_decisions_path_when_enabled(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        with pytest.raises(ValueError, match="decisions_path"):
+            transition_phase(tasks_dir, "ST-001", new_phase=2, require_gate_ready=True)
+
+    def test_blocks_when_no_gate_run_recorded_yet(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        with pytest.raises(ValueError, match="no gate run has been recorded"):
+            transition_phase(
+                tasks_dir, "ST-001", new_phase=2,
+                require_gate_ready=True, decisions_path=decisions_path,
+            )
+
+    def test_allows_when_latest_verdict_is_ready(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        self._log(decisions_path, verdict_level="ready", decision_ready=True)
+        updated = transition_phase(
+            tasks_dir, "ST-001", new_phase=2,
+            require_gate_ready=True, decisions_path=decisions_path,
+        )
+        assert updated["current_phase"] == 2
+
+    def test_blocks_when_latest_verdict_is_not_ready_and_no_outcome(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        self._log(decisions_path, verdict_level="not_ready", decision_ready=True)
+        with pytest.raises(ValueError, match="require_gate_ready gate"):
+            transition_phase(
+                tasks_dir, "ST-001", new_phase=8,
+                require_gate_ready=True, decisions_path=decisions_path,
+            )
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 0  # 실패한 전이는 상태를 안 바꿈
+
+    def test_allows_when_not_ready_but_human_overrode(self, tmp_path):
+        """not_ready 판정이어도 사람이 명시적으로 overridden/accepted로
+
+        기록했으면 통과한다 — 사람의 최종 판단(원칙1)을 존중한다."""
+        from agent_evaluator.rca.decision_ledger import record_decision_outcome
+
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        self._log(decisions_path, verdict_level="not_ready", decision_ready=True)
+        record_decision_outcome(
+            decisions_path, outcome="overridden", decided_by="pm-park",
+            rationale="known false positive",
+        )
+        updated = transition_phase(
+            tasks_dir, "ST-001", new_phase=8,
+            require_gate_ready=True, decisions_path=decisions_path,
+        )
+        assert updated["current_phase"] == 8
+
+    def test_blocks_when_human_rejected(self, tmp_path):
+        from agent_evaluator.rca.decision_ledger import record_decision_outcome
+
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        self._log(decisions_path, verdict_level="ready", decision_ready=True)
+        record_decision_outcome(decisions_path, outcome="rejected", decided_by="pm-park")
+        with pytest.raises(ValueError, match="require_gate_ready gate"):
+            transition_phase(
+                tasks_dir, "ST-001", new_phase=8,
+                require_gate_ready=True, decisions_path=decisions_path,
+            )
+
+    def test_only_the_latest_gate_run_matters(self, tmp_path):
+        """오래된 ready 판정이 있어도 최신 판정이 not_ready면 막는다."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        self._log(decisions_path, verdict_level="ready", decision_ready=True)
+        self._log(decisions_path, verdict_level="not_ready", decision_ready=True)
+        with pytest.raises(ValueError, match="require_gate_ready gate"):
+            transition_phase(
+                tasks_dir, "ST-001", new_phase=8,
+                require_gate_ready=True, decisions_path=decisions_path,
+            )
+
+
+class TestGateReadyPolicy:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — required_approval_kind와 같은
+
+    자리의 "정책에 맡김" 편의 — 매 호출 --require-gate-ready를 기억하지
+    않아도 되게 한다. set_phase_policy()의 승인-kind 정책과 파일을 공유
+    하지만 서로 다른 최상위 키라, 한쪽을 써도 다른 쪽이 안 지워진다."""
+
+    def test_empty_by_default(self, tmp_path):
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        assert load_gate_ready_policy(policy_path) == set()
+
+    def test_set_and_load_round_trips(self, tmp_path):
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_gate_ready_policy(policy_path, 8, True)
+        assert load_gate_ready_policy(policy_path) == {8}
+
+    def test_clear_removes_it(self, tmp_path):
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_gate_ready_policy(policy_path, 8, True)
+        set_gate_ready_policy(policy_path, 8, False)
+        assert load_gate_ready_policy(policy_path) == set()
+
+    def test_does_not_clobber_approval_kind_policy(self, tmp_path):
+        """회귀 테스트 — 두 정책이 같은 파일을 공유하므로, 한쪽을 쓸 때
+
+        파일 전체를 덮어써서 다른 쪽 키를 지우면 안 된다."""
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_phase_policy(policy_path, 2, "spec_review")
+        set_gate_ready_policy(policy_path, 8, True)
+        assert load_phase_policy(policy_path) == {2: "spec_review"}
+        assert load_gate_ready_policy(policy_path) == {8}
+
+        # 반대 순서로도 서로 안 건드려야 한다
+        set_phase_policy(policy_path, 3, "adr_review")
+        assert load_gate_ready_policy(policy_path) == {8}
+        set_gate_ready_policy(policy_path, 8, False)
+        assert load_phase_policy(policy_path) == {2: "spec_review", 3: "adr_review"}
 
 
 class TestPhasePolicy:

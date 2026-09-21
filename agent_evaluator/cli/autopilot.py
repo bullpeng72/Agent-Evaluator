@@ -61,6 +61,7 @@ from agent_evaluator.gates.autopilot_state import (
     find_member,
     load_all_tasks,
     load_approvals,
+    load_gate_ready_policy,
     load_phase_policy,
     load_task,
     load_team,
@@ -68,6 +69,7 @@ from agent_evaluator.gates.autopilot_state import (
     open_threshold_reviews,
     remove_team_member,
     render_skill_stub,
+    set_gate_ready_policy,
     set_phase_policy,
     set_task_status,
     transition_phase,
@@ -525,6 +527,7 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
     root = Path(args.root)
     tasks_dir = root / ".aoo" / "tasks"
     approvals_path = root / ".aoo" / "approvals.jsonl"
+    decisions_path = root / ".aoo" / "decisions.jsonl"
     policy_path = root / ".aoo" / "phase_policy.json"
 
     # docs/AUTOPILOT_IMPROVEMENTS.md §3 — transition_phase()는 역행이나 여러
@@ -558,6 +561,19 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
         require_approval = policy.get(args.new_phase)
         from_policy = require_approval is not None
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §16 — require_approval_kind와 나란히,
+    # 이번엔 사람 승인이 아니라 Harness Gate A–G 판정 자체(decisions.jsonl)를
+    # 조건으로 건다. --require-gate-ready {yes,no}가 명시되면 그 값을 그대로
+    # 쓰고, 생략되면(None) phase_policy.json의 gate_ready 정책을 따른다 —
+    # require_approval과 완전히 같은 "정책에 맡김" 편의 패턴.
+    require_gate_ready_arg = getattr(args, "require_gate_ready", None)
+    gate_ready_from_policy = False
+    if require_gate_ready_arg is None:
+        require_gate_ready = args.new_phase in load_gate_ready_policy(policy_path)
+        gate_ready_from_policy = require_gate_ready
+    else:
+        require_gate_ready = require_gate_ready_arg == "yes"
+
     try:
         task = transition_phase(
             tasks_dir,
@@ -567,6 +583,8 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
             approved_by=args.approved_by,
             approvals_path=approvals_path if require_approval else None,
             required_approval_kind=require_approval,
+            require_gate_ready=require_gate_ready,
+            decisions_path=decisions_path if require_gate_ready else None,
         )
     except ValueError as exc:
         print(_err(str(exc)))
@@ -583,6 +601,9 @@ def _cmd_autopilot_phase_transition(args: argparse.Namespace) -> int:
             f"  {D}Gated on an approved '{require_approval}' approval "
             f"({source}) — satisfied.{R}"
         )
+    if require_gate_ready:
+        source = "phase policy" if gate_ready_from_policy else "--require-gate-ready"
+        print(f"  {D}Gated on the latest Harness Gate run being ready ({source}) — satisfied.{R}")
     return 0
 
 
@@ -591,26 +612,52 @@ def _cmd_autopilot_phase_policy_set(args: argparse.Namespace) -> int:
     policy_path = root / ".aoo" / "phase_policy.json"
 
     kind = None if args.clear else args.require_approval
-    if not args.clear and kind is None:
-        print(_err("Specify --require-approval KIND, or --clear to remove the policy"))
-        return 1
+    approval_touched = args.clear or kind is not None
+    gate_ready_touched = getattr(args, "require_gate_ready", False) or getattr(
+        args, "clear_gate_ready", False
+    )
 
-    try:
-        set_phase_policy(policy_path, args.new_phase, kind)
-    except ValueError as exc:
-        print(_err(str(exc)))
-        return 1
-
-    if kind is None:
-        print(_ok(f"Cleared the phase policy for phase {args.new_phase}"))
-    else:
+    if not approval_touched and not gate_ready_touched:
         print(
-            _ok(
-                f"Phase {args.new_phase} now requires an approved '{kind}' approval "
-                f"on every 'phase transition' (until cleared or --require-approval "
-                f"is passed explicitly)"
+            _err(
+                "Specify --require-approval KIND / --clear, and/or "
+                "--require-gate-ready / --clear-gate-ready"
             )
         )
+        return 1
+
+    if approval_touched:
+        try:
+            set_phase_policy(policy_path, args.new_phase, kind)
+        except ValueError as exc:
+            print(_err(str(exc)))
+            return 1
+        if kind is None:
+            print(_ok(f"Cleared the approval policy for phase {args.new_phase}"))
+        else:
+            print(
+                _ok(
+                    f"Phase {args.new_phase} now requires an approved '{kind}' approval "
+                    f"on every 'phase transition' (until cleared or --require-approval "
+                    f"is passed explicitly)"
+                )
+            )
+
+    if gate_ready_touched:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §16 — 승인 kind와 독립적인 축이라
+        # 같은 --to로 둘 다, 또는 한쪽만 건드릴 수 있다.
+        required = bool(args.require_gate_ready)
+        set_gate_ready_policy(policy_path, args.new_phase, required)
+        if required:
+            print(
+                _ok(
+                    f"Phase {args.new_phase} now also requires the latest Harness Gate "
+                    f"run to be ready on every 'phase transition' (until cleared or "
+                    f"--require-gate-ready no is passed explicitly)"
+                )
+            )
+        else:
+            print(_ok(f"Cleared the gate-ready policy for phase {args.new_phase}"))
     return 0
 
 
@@ -618,15 +665,21 @@ def _cmd_autopilot_phase_policy_show(args: argparse.Namespace) -> int:
     root = Path(args.root)
     policy_path = root / ".aoo" / "phase_policy.json"
     policy = load_phase_policy(policy_path)
+    gate_ready_policy = load_gate_ready_policy(policy_path)
 
-    if not policy:
+    if not policy and not gate_ready_policy:
         print(f"{D}No phase policy configured ({policy_path}){R}")
         return 0
 
     print(f"{B}Phase policy — {policy_path}{R}")
-    for phase_num in sorted(policy):
+    for phase_num in sorted(set(policy) | gate_ready_policy):
         label = PHASE_LABELS.get(phase_num, str(phase_num))
-        print(f"  Phase {phase_num} ({label})  requires  {policy[phase_num]}")
+        parts = []
+        if phase_num in policy:
+            parts.append(f"requires {policy[phase_num]}")
+        if phase_num in gate_ready_policy:
+            parts.append("requires gate-ready")
+        print(f"  Phase {phase_num} ({label})  " + "  ·  ".join(parts))
     return 0
 
 
@@ -1189,6 +1242,14 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         help="Refuse the transition unless an approval of this kind is 'approved' "
              "for this task (§9.5.4 순위1 — opt-in, no gate by default)",
     )
+    pht_p.add_argument(
+        "--require-gate-ready", default=None, dest="require_gate_ready", choices=["yes", "no"],
+        help="Refuse the transition unless the latest Harness Gate run "
+             "(.aoo/decisions.jsonl) has verdict_level='ready' (or a human recorded "
+             "accepted/overridden for it) — independent of --require-approval "
+             "(docs/AUTOPILOT_IMPROVEMENTS.md §16). Omit to fall back to the phase "
+             "policy's gate_ready setting; an explicit value here always overrides it.",
+    )
     pht_p.add_argument("--root", default=".", metavar="DIR")
 
     php_p = ph_sub.add_parser(
@@ -1205,6 +1266,16 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         choices=list(VALID_APPROVAL_KINDS),
     )
     phps_p.add_argument("--clear", action="store_true", help="Remove the policy for this phase")
+    phps_p.add_argument(
+        "--require-gate-ready", action="store_true", dest="require_gate_ready",
+        help="Also require the latest Harness Gate run to be ready for every "
+             "transition into this phase (docs/AUTOPILOT_IMPROVEMENTS.md §16) — "
+             "independent of --require-approval, can be set alone or together with it",
+    )
+    phps_p.add_argument(
+        "--clear-gate-ready", action="store_true", dest="clear_gate_ready",
+        help="Remove the gate-ready policy for this phase",
+    )
     phps_p.add_argument("--root", default=".", metavar="DIR")
 
     phpw_p = php_sub.add_parser("show", help="Show the current phase policy")

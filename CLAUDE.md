@@ -169,15 +169,27 @@ agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval sp
 #   warns (does not block) on a backward transition or a skipped phase — transition_phase() itself never
 #   validated phase ordering; this surfaces an accidental regression/skip to a human without hard-blocking a
 #   deliberate one (e.g. rolling back a premature phase advance).
+#   --require-gate-ready {yes,no} (docs/AUTOPILOT_IMPROVEMENTS.md §16) is a SECOND, independent opt-in gate —
+#   until this existed, phase transition could only check a HITL approval, never the SDK's own Harness Gate
+#   A-G verdict, so a task could reach phase 8 (운영) even with the latest `gate --decision-log` run at
+#   verdict_level="not_ready". Passes if the latest gate_run in .aoo/decisions.jsonl is verdict_level="ready"
+#   (and not explicitly rejected/held by a human), OR if a human explicitly recorded accepted/overridden for
+#   it regardless of verdict — the human call always wins over the automated one, in either direction. Reuses
+#   summarize_decisions()'s existing `last` gate-run/outcome pairing — no new scoring.
 agent-eval autopilot phase policy set --to 2 --require-approval spec_review   # declare the gate once (.aoo/phase_policy.json)
 #   instead of remembering --require-approval on every `phase transition` call (root cause of repeated phase
 #   drift in real use — see the AOO workbook Ch35->38). `phase policy show` / `--clear` manage it; an explicit
 #   --require-approval on `phase transition` always overrides the policy for that one call.
+agent-eval autopilot phase policy set --to 8 --require-gate-ready   # same "declare once" convenience for the
+#   gate-ready gate — independent of --require-approval, a phase can have either, both, or neither. `--clear-
+#   gate-ready` removes it. An explicit --require-gate-ready {yes,no} on `phase transition` always overrides
+#   the policy for that one call, same rule as --require-approval.
 agent-eval autopilot phase policy show
-#   dashboard: the ops page has a matching Phase 정책 card (view/set/clear, POST /phase-policy[/{phase}/clear])
-#   and the task detail page's Phase 전이 form now consults this same policy when --require-approval-equivalent
-#   is left blank — a real bug until fixed: the dashboard route used to ignore phase_policy.json entirely,
-#   so a declared policy was silently bypassed when transitioning from the dashboard instead of the CLI.
+#   dashboard: the ops page has a matching Phase 정책 card (view/set/clear, POST /phase-policy[/{phase}/clear],
+#   plus /phase-policy/{phase}/clear-gate-ready) and the task detail page's Phase 전이 form now consults this
+#   same policy when the "필요 승인"/"Gate 준비 요구" selects are left blank — a real bug until fixed for the
+#   approval-kind side: the dashboard route used to ignore phase_policy.json entirely, so a declared policy
+#   was silently bypassed when transitioning from the dashboard instead of the CLI.
 agent-eval autopilot phase check [--stale-days 7]   # list active tasks stuck in their current phase (read-only,
 #   same signal `doctor` warns about inline — LIMITS L4).
 agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \

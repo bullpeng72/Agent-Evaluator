@@ -47,16 +47,22 @@ from agent_evaluator.gates.autopilot_state import (
     decide_approval,
     load_all_tasks,
     load_approvals,
+    load_gate_ready_policy,
     load_phase_policy,
     load_task,
     load_team,
     open_approval,
     save_task,
+    set_gate_ready_policy,
     set_phase_policy,
     set_task_status,
 )
 from agent_evaluator.gates.team_concurrency import load_active_claims
-from agent_evaluator.rca.decision_ledger import load_decisions, record_gate_decision
+from agent_evaluator.rca.decision_ledger import (
+    load_decisions,
+    record_decision_outcome,
+    record_gate_decision,
+)
 
 
 def _ns(**kwargs) -> argparse.Namespace:
@@ -800,6 +806,76 @@ class TestPhaseTransition:
         assert "skipping" not in out
 
 
+class TestPhaseTransitionGateReadyCli:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — CLI phase transition이 HITL
+
+    승인만 조건으로 걸 수 있었지, SDK 자신의 Harness Gate A–G 판정은 phase
+    전이 조건으로 한 번도 못 썼다."""
+
+    def test_no_gate_by_default(self, tmp_path):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, require_gate_ready=None, root=str(tmp_path),
+        ))
+        assert code == 0
+
+    def test_explicit_yes_blocks_when_no_gate_run_recorded(self, tmp_path):
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="t", platform="ac")
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, require_gate_ready="yes", root=str(tmp_path),
+        ))
+        assert code == 1
+
+    def test_explicit_yes_allows_when_latest_verdict_is_ready(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        record_gate_decision(
+            tmp_path / ".aoo" / "decisions.jsonl", result_file="r.json", agent_version="v1",
+            exit_code=0, verdict_level="ready", decision_ready=True,
+        )
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, require_gate_ready="yes", root=str(tmp_path),
+        ))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "Gated on the latest Harness Gate run" in out
+        task = load_task(tasks_dir, "ST-014")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_gate_ready_policy_auto_applies(self, tmp_path, capsys):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=2, mode="auto", approved_by=None,
+            require_approval=None, require_gate_ready=None, root=str(tmp_path),
+        ))
+        assert code == 1  # 아직 gate run이 없으니 정책이 대신 막음
+
+    def test_explicit_no_overrides_gate_ready_policy(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-014", title="t", platform="ac")
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=1, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_phase_transition(_ns(
+            task_id="ST-014", new_phase=1, mode="auto", approved_by=None,
+            require_approval=None, require_gate_ready="no", root=str(tmp_path),
+        ))
+        assert code == 0
+        task = load_task(tasks_dir, "ST-014")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+
 class TestPhasePolicyCli:
     """SPEC-AP-001 백로그 §3 — 정책 파일이 --require-approval 없이도
     phase transition을 게이트한다."""
@@ -878,6 +954,57 @@ class TestPhasePolicyCli:
             new_phase=2, require_approval=None, clear=False, root=str(tmp_path),
         ))
         assert code == 1
+
+
+class TestGateReadyPhasePolicyCli:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — Gate 준비 요구는 승인-kind
+
+    정책과 독립된 축이라, --require-approval/--clear 없이 이것만으로도
+    `phase policy set` 호출이 성립해야 한다."""
+
+    def test_set_gate_ready_alone_succeeds(self, tmp_path):
+        code = _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=8, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        assert code == 0
+        assert load_gate_ready_policy(tmp_path / ".aoo" / "phase_policy.json") == {8}
+
+    def test_clear_gate_ready_alone_succeeds(self, tmp_path):
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=8, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=8, require_approval=None, clear=False,
+            require_gate_ready=False, clear_gate_ready=True, root=str(tmp_path),
+        ))
+        assert code == 0
+        assert load_gate_ready_policy(policy_path) == set()
+
+    def test_does_not_clobber_approval_kind_policy(self, tmp_path):
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=2, require_approval="spec_review", clear=False, root=str(tmp_path),
+        ))
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=8, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        assert load_phase_policy(policy_path) == {2: "spec_review"}
+        assert load_gate_ready_policy(policy_path) == {8}
+
+    def test_show_lists_gate_ready_policy(self, tmp_path, capsys):
+        _cmd_autopilot_phase_policy_set(_ns(
+            new_phase=8, require_approval=None, clear=False,
+            require_gate_ready=True, clear_gate_ready=False, root=str(tmp_path),
+        ))
+        capsys.readouterr()
+        code = _cmd_autopilot_phase_policy_show(_ns(root=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "gate-ready" in out
 
 
 class TestApprovalsListAndDecide:
@@ -1909,6 +2036,168 @@ class TestPhaseTransitionRoute:
         set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
         r = autopilot_client.get("/tasks/ST-001")
         assert "spec_review" in r.text
+
+
+class TestPhaseTransitionGateReadyRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — phase 전이가 HITL 승인만 조건으로
+
+    걸 수 있었지, SDK 자신의 Harness Gate A–G 판정(.aoo/decisions.jsonl)은
+    한 번도 phase 게이트로 못 썼다. 최신 gate run이 not_ready여도 승인 하나만
+    있으면 phase 8(운영)까지 그냥 넘어갈 수 있었던 갭을 막는다."""
+
+    def test_gate_ready_select_rendered_on_form(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.get("/tasks/ST-001")
+        assert 'name="require_gate_ready"' in r.text
+
+    def test_no_gate_by_default(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_explicit_yes_blocks_when_no_gate_run_recorded(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": "yes"},
+            follow_redirects=False,
+        )
+        assert "phase_error" in r.headers["location"]
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 0
+
+    def test_explicit_yes_allows_when_latest_verdict_is_ready(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        record_gate_decision(
+            tmp_path / ".aoo" / "decisions.jsonl", result_file="r.json", agent_version="v1",
+            exit_code=0, verdict_level="ready", decision_ready=True,
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": "yes"},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_gate_ready_policy_is_enforced_when_select_left_blank(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_gate_ready_policy(tmp_path / ".aoo" / "phase_policy.json", 2, True)
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 0
+
+    def test_explicit_no_overrides_gate_ready_policy(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_gate_ready_policy(tmp_path / ".aoo" / "phase_policy.json", 1, True)
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": "no"},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_human_overridden_outcome_unblocks_a_not_ready_verdict(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        gate_run = record_gate_decision(
+            decisions_path, result_file="r.json", agent_version="v1", exit_code=1,
+            verdict_level="not_ready", decision_ready=True,
+        )
+        record_decision_outcome(
+            decisions_path, outcome="overridden", decided_by="pm-park",
+            gate_run_id=gate_run["id"],
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "",
+                  "require_gate_ready": "yes"},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+
+class TestGateReadyPhasePolicyOpsRoutes:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §16 — required_approval의 "정책에 맡김"
+
+    편의를 Gate 준비 요구에도 똑같이 준다 — ops 페이지에서 켜고, 표에서 끈다."""
+
+    def test_ops_page_shows_no_gate_ready_policy_by_default(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert "설정된 phase 정책 없음" in r.text
+
+    def test_post_phase_policy_sets_gate_ready(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        r = autopilot_client.post(
+            "/phase-policy", data={"phase": 8, "require_approval": "", "require_gate_ready": "1"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert load_gate_ready_policy(tmp_path / ".aoo" / "phase_policy.json") == {8}
+
+    def test_ops_page_lists_gate_ready_policy(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        set_gate_ready_policy(tmp_path / ".aoo" / "phase_policy.json", 8, True)
+        r = autopilot_client.get("/ops")
+        assert "phase 8" in r.text
+        assert "Gate 준비 요구" in r.text
+
+    def test_clear_gate_ready_route_removes_it(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_gate_ready_policy(policy_path, 8, True)
+        r = autopilot_client.post("/phase-policy/8/clear-gate-ready", follow_redirects=False)
+        assert r.status_code == 303
+        assert load_gate_ready_policy(policy_path) == set()
+
+    def test_setting_gate_ready_does_not_clobber_approval_kind_policy(self, autopilot_client):
+        """회귀 테스트 — 두 정책이 같은 파일을 공유한다."""
+        tmp_path = autopilot_client.tmp_path
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_phase_policy(policy_path, 2, "spec_review")
+        autopilot_client.post(
+            "/phase-policy", data={"phase": 8, "require_approval": "", "require_gate_ready": "1"},
+        )
+        assert load_phase_policy(policy_path) == {2: "spec_review"}
+        assert load_gate_ready_policy(policy_path) == {8}
 
 
 class TestSetTaskStatusRoute:
