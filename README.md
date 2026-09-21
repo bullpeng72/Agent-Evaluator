@@ -279,17 +279,18 @@ agent_evaluator/
 ├── integrations/     # LLMJudge · DeepEval/Ragas adapters · MCP servers · live-guardrail bridges
 ├── serve/            # FastAPI dashboard ([sdk] extra)
 └── cli/              # agent-eval CLI (init, check, gate, decisions, diagnose, abtest, trend, dataset,
-                      #   feedback, experiment, target, benchmark, improve, claims, monitor, opencode, claude)
+                      #   feedback, experiment, target, benchmark, improve, claims, autopilot, monitor,
+                      #   opencode, claude)
 
 Evaluator_Examples/   # 32 example files (ch01–ch32)
-tests/                # 5,316+ test functions
+tests/                # 5,720+ test functions
 ```
 
 ---
 
 ## Changelog
 
-- **v1.1.1** (2026-09-17) — Harness Autopilot (SPEC-AP-001): new `agent-eval autopilot` subcommand — HITL approval queue, multi-task/team registry, local dashboard, exit-75 threshold-review escalation, opt-in phase-transition approval gate. CLI plugin architecture (entry-points, not a hardcoded import). Additive/opt-in, no Gate/schema change.
+- **v1.1.1** (2026-09-21) — Harness Autopilot (SPEC-AP-001): new `agent-eval autopilot` subcommand — HITL approval queue, multi-task/team registry, local dashboard with full CLI↔dashboard write parity (task/team/approval CRUD, phase transitions gated on both HITL approval *and* the SDK's own Harness Gate A–G verdict via `--require-gate-ready`), actor attribution + optimistic-concurrency on task/team edits, ops-page Gate scoreboard and open-experiment visibility, claims audit/filtering. CLI plugin architecture (entry-points, not a hardcoded import). Additive/opt-in, no Gate/schema change. See `CHANGELOG.md` for the full list — this release absorbed a large round of hardening found via real multi-week use in the AOO Stack workbook.
 - **v1.1.0** (2026-09-11) — LiveGuardrail discovery/durability hardening. `tool_guard(audit_blocked=True)` now default; `on_block=`/`webhook_on_block()` out-of-band block alerts; keyword-free `list_violations()` / `violations` browsing; `blocked_attempt_capture.max_chars` 240→500; `insights.blocked_attempts_audit` HTML section. Additive/opt-in beyond the default change.
 - **v1.0.6** (2026-09-10) — Maintenance: `decorators.py` split into `framework_adapters.py` + `_eval_shared.py` (re-exported, no API change); `--help` now lists all 18 subcommands.
 - **v1.0.5** (2026-09-09) — Harness Methodology alignment + dev-support framework + 3-tier HTML report. `--hold-on-undecided`, `--require-spec-coverage`, deploy-decision ledger, `run_repeated()`, `FaultInjectionConfig`, `dataset review-candidates`, `improve apply-verify`. All opt-in.
