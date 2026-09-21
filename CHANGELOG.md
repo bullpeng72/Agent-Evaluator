@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.1.6 (2026-09-21) — Harness Autopilot: the 4 write actions the dashboard couldn't do at all
+
+Fifth follow-up release for `agent-eval autopilot`. v1.1.5 closed the *display* gap between the CLI and the dashboard (active-task filter, 6-role form, staleness badge, cancel button); this release closes the deeper *write* gap — four state-changing actions that had no dashboard route whatsoever and were reachable only via the CLI, found by cross-referencing every `autopilot_state.py` mutation function against `serve/autopilot_app.py`'s route table.
+
+### New: phase transition from the dashboard (the core mechanic had no UI at all)
+
+- ✨ Task detail page gets a **"Phase 전이"** form (`POST /tasks/{id}/phase`) — new phase, an optional required-approval kind, an optional approver name. Reuses `transition_phase()` unchanged: a required-approval gate still hard-blocks (shown as a `phase_error` banner) and a backward/skipped transition still only warns (`phase_warning` banner), matching the CLI's `phase transition` exactly. `PLANNING.md` §6 calls this gate "the spine of the book," and until now it was reachable only by CLI — the workbook itself never actually drove this from the dashboard once in 44 chapters.
+
+### New: open / update approvals from the dashboard
+
+- ✨ Approvals page gets a **"+ 새 승인 요청"** form (`POST /approvals`) — task, kind, phase, title, and a checklist textarea (one `LABEL:STATUS` per line, reusing the CLI's own `_parse_checklist_items()` so the "split on the last colon" fix and the ok/pending/flag validation apply identically). Replicates the `adr_review` auto model-tier checklist item and exposes `--no-checklist-gate` as a checkbox.
+- ✨ Draft/pending approval cards with a checklist get an inline status selector per item (`POST /approvals/{id}/update`) — the dashboard equivalent of `approvals update`, so a draft stuck on a checklist mistake can be fixed without dropping to a terminal.
+
+### New: task status from the dashboard
+
+- ✨ Task detail page gets a **"과제 상태"** form (`POST /tasks/{id}/status`) — active/archived/cancelled + an optional reason, wired to `set_task_status()`. v1.1.5 only added a status *badge*; changing the status itself was still CLI-only.
+
+### Compatibility
+
+All additive. New form parameters have backward-compatible defaults; `_task_detail_body()`/`_approvals_body()`/`_approval_card()` gained keyword-only parameters that existing direct callers don't need to pass.
+
 ## v1.1.5 (2026-09-21) — Harness Autopilot: dashboard parity + current --help text
 
 Fourth follow-up release for `agent-eval autopilot`. Every prior release (v1.1.2–v1.1.4) shipped CLI features that the local dashboard (`serve/autopilot_app.py`) never picked up — this release closes that gap and brings the `--help` text for `autopilot`/`claims` (and the top-level `agent-eval --help`) up to date with everything shipped since.

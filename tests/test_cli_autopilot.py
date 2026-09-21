@@ -1595,6 +1595,123 @@ class TestAutopilotBoardPage:
         assert "머물러 있습니다" not in r.text
 
 
+class TestPhaseTransitionRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §9 — phase 전이(PLANNING.md §6이
+
+    "책의 척추"라 부르는 메커니즘)가 대시보드에 아예 없었다."""
+
+    def test_ungated_transition_succeeds(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_gated_transition_without_approval_is_blocked(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "spec_review", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" in r.headers["location"]
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 0
+
+    def test_error_banner_rendered_on_task_detail(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "spec_review", "approved_by": ""},
+        )
+        assert "cannot transition" in r.text
+
+    def test_gated_transition_succeeds_after_approval(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", approval["id"],
+            decision="approved", decided_by="pm",
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "spec_review", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 2
+
+    def test_backward_transition_warns_but_succeeds(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "", "approved_by": ""},
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_warning" in r.headers["location"]
+        assert "BEHIND" in r.headers["location"]
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_skip_transition_warns(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 3, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "skipping" in r.headers["location"]
+
+
+class TestSetTaskStatusRoute:
+    def test_archives_task(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/status", data={"status": "archived", "reason": "done"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["status"] == "archived"
+        assert task["status_reason"] == "done"
+
+    def test_invalid_status_is_a_noop(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/status", data={"status": "bogus", "reason": ""},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["status"] == "active"
+
+
 class TestAutopilotTeamPage:
     def test_team_page_lists_members(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -1808,6 +1925,152 @@ class TestAutopilotApprovalsPage:
 
         updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
         assert updated[approval["id"]]["status"] == "approved"  # 그대로 유지
+
+
+class TestApprovalsOpenRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 것 자체가
+
+    대시보드엔 없었다(decide/cancel만 가능)."""
+
+    def test_opens_approval_with_checklist_text(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1,
+                "title": "SPEC 검토", "checklist_text": "EARS 표기:ok\nGate 매핑:ok",
+                "body_text": "",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/approvals"
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert len(approvals) == 1
+        assert approvals[0]["status"] == "pending"
+        assert approvals[0]["checklist"] == [
+            {"label": "EARS 표기", "status": "ok"}, {"label": "Gate 매핑", "status": "ok"}
+        ]
+
+    def test_invalid_checklist_status_shows_error(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1, "title": "t",
+                "checklist_text": "라벨:okk", "body_text": "",
+            },
+            follow_redirects=False,
+        )
+        assert "open_error" in r.headers["location"]
+        assert load_approvals(tmp_path / ".aoo" / "approvals.jsonl") == []
+
+    def test_error_banner_rendered_on_approvals_page(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1, "title": "t",
+                "checklist_text": "라벨:okk", "body_text": "",
+            },
+        )
+        assert "invalid checklist status" in r.text
+
+    def test_adr_review_auto_adds_model_tier_item(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "adr_review", "phase": 2, "title": "ADR",
+                "checklist_text": "", "body_text": "",
+            },
+        )
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert any("모델 tier" in c["label"] for c in approvals[0]["checklist"])
+        assert approvals[0]["status"] == "draft"  # 자동 추가 항목이 pending이라
+
+    def test_no_checklist_gate_checkbox(self, autopilot_client):
+        """Appendix M 발견 1 — scan-thresholds만 내부적으로 쓰던 옵션을
+
+        사람도 쓸 수 있어야 한다(CLI의 --no-checklist-gate와 동등)."""
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "threshold_review", "phase": 7, "title": "t",
+                "checklist_text": "할 일:pending", "body_text": "", "no_checklist_gate": "1",
+            },
+        )
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["status"] == "pending"
+        assert approvals[0]["gate_on_checklist"] is False
+
+    def test_missing_no_checklist_gate_defaults_to_gated(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1, "title": "t",
+                "checklist_text": "a:pending", "body_text": "",
+            },
+        )
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["gate_on_checklist"] is True
+        assert approvals[0]["status"] == "draft"
+
+
+class TestApprovalsUpdateRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §9 — draft/pending 체크리스트를
+
+    고치는 것이 대시보드엔 없었다(CLI approvals update 전용)."""
+
+    def test_update_promotes_draft_to_pending(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "pending"}],
+        )
+        r = autopilot_client.post(
+            f"/approvals/{approval['id']}/update",
+            data={"label": ["a"], "status": ["ok"]},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/approvals"
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "pending"
+        assert updated[approval["id"]]["checklist"][0]["status"] == "ok"
+
+    def test_update_unknown_label_is_a_noop(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "pending"}],
+        )
+        r = autopilot_client.post(
+            f"/approvals/{approval['id']}/update",
+            data={"label": ["없는항목"], "status": ["ok"]},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "draft"  # 그대로 유지
+
+    def test_update_form_rendered_for_draft_with_checklist(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "pending"}],
+        )
+        r = autopilot_client.get("/approvals")
+        assert "/update" in r.text
+        assert "체크리스트 반영" in r.text
 
 
 class TestAutopilotOpsPage:

@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.5 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.6 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -117,6 +117,13 @@ agent-eval autopilot dashboard                   # local dashboard, port 8766 (t
 #   tasks by default (`?show_all=1` to include them) · "+ 새 과제" form has all 6 owner roles · a task stuck in
 #   its phase gets a "phase 정체" board badge + a banner on its detail page (same check_phase_staleness() the
 #   CLI's doctor/phase check use) · approval cards get a 철회(cancel) button for draft/pending items.
+#   v1.1.6 adds the 4 remaining write actions the dashboard couldn't do at all (CLI-only until now):
+#   a task detail page "Phase 전이" form (POST /tasks/{id}/phase — same required-approval gate +
+#   non-blocking backward/skip warnings as `phase transition`) · a task detail "과제 상태" form
+#   (POST /tasks/{id}/status, active/archived/cancelled) · a "+ 새 승인 요청" form on the approvals
+#   page (POST /approvals — checklist as newline-separated "LABEL:STATUS" text, reuses
+#   `_parse_checklist_items()` + the adr_review auto model-tier item + `--no-checklist-gate` checkbox)
+#   · a per-checklist-item status selector on draft/pending approval cards (POST /approvals/{id}/update).
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled

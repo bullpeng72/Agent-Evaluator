@@ -23,14 +23,18 @@ from collections import Counter
 from html import escape as _esc
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from agent_evaluator.cli.autopilot import _ADR_MODEL_TIER_CHECKLIST_LABEL, _parse_checklist_items
 from agent_evaluator.gates.autopilot_state import (
     PHASE_LABELS,
+    VALID_APPROVAL_KINDS,
     VALID_PLATFORMS,
     VALID_ROLES,
+    VALID_TASK_STATUSES,
     add_team_member,
     cancel_approval,
     check_phase_staleness,
@@ -42,6 +46,10 @@ from agent_evaluator.gates.autopilot_state import (
     load_pending_approvals,
     load_task,
     load_team,
+    open_approval,
+    set_task_status,
+    transition_phase,
+    update_approval_checklist,
 )
 from agent_evaluator.gates.team_concurrency import load_active_claims
 from agent_evaluator.rca.decision_ledger import load_decisions
@@ -143,7 +151,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
         return RedirectResponse("/", status_code=303)
 
     @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-    def task_detail(task_id: str) -> HTMLResponse:
+    def task_detail(task_id: str, phase_error: str = "", phase_warning: str = "") -> HTMLResponse:
         task = load_task(tasks_dir, task_id)
         if task is None:
             body = f"<p class='empty'>과제 {_esc(task_id)}를 찾을 수 없습니다.</p>"
@@ -158,8 +166,64 @@ def create_autopilot_app(root: Path) -> FastAPI:
         )
         page_title = f"{task_id} · {task.get('title', '')}"
         return HTMLResponse(
-            _layout("board", page_title, _task_detail_body(task, related, stale))
+            _layout(
+                "board", page_title,
+                _task_detail_body(
+                    task, related, stale,
+                    phase_error=phase_error, phase_warning=phase_warning,
+                ),
+            )
         )
+
+    @app.post("/tasks/{task_id}/phase")
+    def transition_phase_route(
+        task_id: str,
+        new_phase: int = Form(...),
+        require_approval: str = Form(""),
+        approved_by: str = Form(""),
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §9 — 이 동작(Autopilot phase-gate,
+        # PLANNING.md §6가 "책의 척추"라고 부르는 바로 그 메커니즘)이 대시보드에
+        # 아예 없었다. CLI의 _cmd_autopilot_phase_transition()과 같은 비차단
+        # 역행/건너뛰기 경고를 그대로 재현한다(새 판정 로직 아님).
+        warning = ""
+        existing_task = load_task(tasks_dir, task_id)
+        if existing_task is not None:
+            current_phase = existing_task.get("current_phase")
+            if isinstance(current_phase, int) and new_phase < current_phase:
+                warning = (
+                    f"phase {new_phase} is BEHIND the current phase "
+                    f"{current_phase} — proceeded anyway (not blocked)."
+                )
+            elif isinstance(current_phase, int) and new_phase > current_phase + 1:
+                warning = (
+                    f"skipping from phase {current_phase} to {new_phase} "
+                    f"({new_phase - current_phase - 1} phase(s) skipped) — "
+                    f"proceeded anyway (not blocked)."
+                )
+        try:
+            transition_phase(
+                tasks_dir, task_id, new_phase, mode="auto",
+                approved_by=approved_by.strip() or None,
+                approvals_path=approvals_path if require_approval else None,
+                required_approval_kind=require_approval or None,
+            )
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/tasks/{task_id}?phase_error={quote(str(exc))}", status_code=303
+            )
+        suffix = f"?phase_warning={quote(warning)}" if warning else ""
+        return RedirectResponse(f"/tasks/{task_id}{suffix}", status_code=303)
+
+    @app.post("/tasks/{task_id}/status")
+    def set_task_status_route(
+        task_id: str, status: str = Form(...), reason: str = Form("")
+    ) -> RedirectResponse:
+        try:
+            set_task_status(tasks_dir, task_id, status, reason=reason.strip() or None)
+        except ValueError:
+            pass  # 알 수 없는 status 등 — 상세 페이지로 돌아가 다시 시도(M0.5 범위)
+        return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
     # ------------------------------------------------------------------
     # 팀 관리
@@ -190,10 +254,62 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/approvals", response_class=HTMLResponse)
-    def approvals_page() -> str:
+    def approvals_page(open_error: str = "") -> str:
         pending = load_pending_approvals(approvals_path)
         drafts = [a for a in load_approvals(approvals_path) if a.get("status") == "draft"]
-        return _layout("approvals", "승인 대기", _approvals_body(pending, drafts))
+        tasks = load_all_tasks(tasks_dir)
+        return _layout(
+            "approvals", "승인 대기",
+            _approvals_body(pending, drafts, tasks, open_error=open_error),
+        )
+
+    @app.post("/approvals")
+    def open_approval_route(
+        task_id: str = Form(...),
+        kind: str = Form(...),
+        phase: int = Form(...),
+        title: str = Form(...),
+        checklist_text: str = Form(""),
+        body_text: str = Form(""),
+        no_checklist_gate: bool = Form(False),
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 것 자체가
+        # 대시보드엔 없었다(decide/cancel만 가능). CLI의 _parse_checklist_items()
+        # (마지막 콜론 분리, 잘못된 STATUS 즉시 거부)와 adr_review 자동 체크리스트
+        # 추가(원칙5)를 그대로 재사용한다 — 새 판정 로직 아님.
+        lines = [ln for ln in checklist_text.splitlines() if ln.strip()]
+        try:
+            checklist = _parse_checklist_items(lines)
+        except ValueError as exc:
+            return RedirectResponse(f"/approvals?open_error={quote(str(exc))}", status_code=303)
+
+        if kind == "adr_review" and not any(
+            "모델 tier" in item.get("label", "") for item in checklist
+        ):
+            checklist.append({"label": _ADR_MODEL_TIER_CHECKLIST_LABEL, "status": "pending"})
+
+        try:
+            open_approval(
+                approvals_path, task_id=task_id, kind=kind, phase=phase, title=title,
+                checklist=checklist, body_text=body_text.strip() or None,
+                gate_on_checklist=not no_checklist_gate,
+            )
+        except ValueError as exc:
+            return RedirectResponse(f"/approvals?open_error={quote(str(exc))}", status_code=303)
+        return RedirectResponse("/approvals", status_code=303)
+
+    @app.post("/approvals/{approval_id}/update")
+    def update_checklist_route(
+        approval_id: str,
+        label: list[str] = Form([]),
+        status: list[str] = Form([]),
+    ) -> RedirectResponse:
+        updates = [{"label": la, "status": st} for la, st in zip(label, status)]
+        try:
+            update_approval_checklist(approvals_path, approval_id, updates)
+        except ValueError:
+            pass  # 이미 결정됐거나 라벨 불일치 — 큐로 돌아가 다시 시도(M0.5 범위)
+        return RedirectResponse("/approvals", status_code=303)
 
     @app.post("/approvals/{approval_id}/decide")
     def decide_route(
@@ -267,6 +383,7 @@ h1{font-size:20px;margin:18px 0 4px;}
   text-transform:uppercase;font-weight:700;}
 .banner{background:var(--warning-soft);color:var(--warning);border-radius:10px;
   padding:12px 16px;font-size:12.8px;margin:14px 0 22px;}
+.banner.critical{background:var(--critical-soft);color:var(--critical);}
 .card{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;
   padding:16px;margin-bottom:18px;}
 .card h2{font-size:14.5px;margin:0 0 10px;}
@@ -467,6 +584,9 @@ def _task_detail_body(
     task: dict[str, Any],
     related_approvals: list[dict[str, Any]],
     stale: dict[str, Any] | None = None,
+    *,
+    phase_error: str = "",
+    phase_warning: str = "",
 ) -> str:
     owners = task.get("owners") or {}
     owners_html = "".join(
@@ -498,6 +618,48 @@ def _task_detail_body(
         if stale else ""
     )
 
+    error_html = (
+        f'<div class="banner critical">✗ {_esc(phase_error)}</div>' if phase_error else ""
+    )
+    warning_html = (
+        f'<div class="banner">⚠ {_esc(phase_warning)}</div>' if phase_warning else ""
+    )
+
+    kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
+    phase_form = f"""
+<div class="card">
+  <h2>Phase 전이</h2>
+  <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/phase">
+    <div class="field"><label>새 phase</label>
+      <input type="number" name="new_phase" min="0" max="8" required
+        value="{_esc(str(task.get("current_phase", 0)))}"></div>
+    <div class="field"><label>필요 승인(선택)</label>
+      <select name="require_approval">
+        <option value="">(게이트 없음)</option>{kind_options}</select></div>
+    <div class="field"><label>승인자(선택)</label>
+      <input type="text" name="approved_by" placeholder="예: pm-park"></div>
+    <button type="submit">전이</button>
+  </form>
+  <p class="tm">필요 승인을 지정하면, 그 kind의 승인이 approved 상태로
+    확정돼 있어야만 전이됩니다 — 없으면 아래에 에러가 뜨고 막힙니다.</p>
+</div>"""
+
+    status_options = "".join(
+        f'<option value="{s}"{" selected" if s == status else ""}>{s}</option>'
+        for s in VALID_TASK_STATUSES
+    )
+    status_form = f"""
+<div class="card">
+  <h2>과제 상태</h2>
+  <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/status">
+    <div class="field"><label>상태</label>
+      <select name="status">{status_options}</select></div>
+    <div class="field"><label>사유(선택)</label>
+      <input type="text" name="reason" placeholder="예: shipped"></div>
+    <button type="submit" class="ghost">상태 변경</button>
+  </form>
+</div>"""
+
     phase_label_html = _esc(_phase_label(task.get("current_phase")))
     return f"""
 <p><a href="/">← 과제 보드</a></p>
@@ -508,6 +670,8 @@ def _task_detail_body(
 <p class="tm">Phase {_esc(str(task.get("current_phase")))} · {phase_label_html}</p>
 {status_html}
 {stale_html}
+{error_html}
+{warning_html}
 
 <div class="card">
   <h2>담당자</h2>
@@ -518,6 +682,9 @@ def _task_detail_body(
   <h2>관련 승인 항목</h2>
   <ul class="checklist">{approvals_html}</ul>
 </div>
+
+{phase_form}
+{status_form}
 """
 
 
@@ -568,6 +735,9 @@ def _team_body(team: list[dict[str, Any]]) -> str:
 """
 
 
+_CHECKLIST_STATUS_CHOICES = ("ok", "pending", "flag")
+
+
 def _approval_card(a: dict[str, Any], *, top: bool = False) -> str:
     checklist = a.get("checklist") or []
     # gate_on_checklist=False면 이 체크리스트는 "할 일 목록"이지 승인 게이트가
@@ -578,6 +748,32 @@ def _approval_card(a: dict[str, Any], *, top: bool = False) -> str:
         f'[{_esc(str(c.get("status")))}] {_esc(str(c.get("label")))}</li>'
         for c in checklist
     )
+
+    # docs/AUTOPILOT_IMPROVEMENTS.md §9 — draft/pending의 체크리스트 항목
+    # 상태를 고치는 것 자체가 대시보드엔 없었다(CLI approvals update 전용).
+    # 각 항목의 label을 hidden으로, status를 select로 같은 순서로 반복
+    # 제출한다(zip으로 다시 짝짓는다 — update_approval_checklist()는
+    # label 일치만 검증하고 새 항목 추가는 거부한다, 새 판정 로직 아님).
+    update_form = ""
+    if checklist and a.get("status") in ("draft", "pending"):
+        rows = "".join(
+            f'<div style="display:flex;gap:8px;align-items:center;margin:4px 0;">'
+            f'<input type="hidden" name="label" value="{_esc(str(c.get("label")))}">'
+            f'<select name="status">'
+            + "".join(
+                f'<option value="{s}"{" selected" if s == c.get("status") else ""}>{s}</option>'
+                for s in _CHECKLIST_STATUS_CHOICES
+            )
+            + f'</select><span class="tm">{_esc(str(c.get("label")))}</span></div>'
+            for c in checklist
+        )
+        update_form = f"""
+<form method="post" action="/approvals/{_esc(str(a.get("id")))}/update" style="margin-top:8px;">
+  {rows}
+  <button type="submit" class="ghost">체크리스트 반영</button>
+</form>
+"""
+
     nc = a.get("needs_clarification") or []
     nc_html = "".join(f'<span class="nc-tag">⚠ {_esc(n)}</span>' for n in nc)
 
@@ -634,12 +830,19 @@ def _approval_card(a: dict[str, Any], *, top: bool = False) -> str:
   {f'<ul class="checklist">{checklist_html}</ul>' if checklist_html else ""}
   {nc_html}
   {progress_html}
+  {update_form}
   {decide_form}
   {cancel_form}
 </div>"""
 
 
-def _approvals_body(pending: list[dict[str, Any]], drafts: list[dict[str, Any]]) -> str:
+def _approvals_body(
+    pending: list[dict[str, Any]],
+    drafts: list[dict[str, Any]],
+    tasks: list[dict[str, Any]] | None = None,
+    *,
+    open_error: str = "",
+) -> str:
     pending_html = "".join(_approval_card(a, top=(a.get("kind") == "deploy")) for a in pending) or (
         '<p class="empty">승인 대기 중인 항목이 없습니다.</p>'
     )
@@ -649,6 +852,47 @@ def _approvals_body(pending: list[dict[str, Any]], drafts: list[dict[str, Any]])
         f'<div class="card"><h2>{drafts_header}</h2>{drafts_html}</div>' if drafts else ""
     )
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 폼이 대시보드엔
+    # 없었다. 체크리스트는 CLI의 반복 --checklist-item과 같은 문법
+    # ("LABEL:STATUS", 줄바꿈으로 구분)을 그대로 쓴다 — _parse_checklist_items()
+    # 재사용.
+    task_options = "".join(
+        f'<option value="{_esc(str(t.get("task_id")))}">{_esc(str(t.get("task_id")))} — '
+        f'{_esc(str(t.get("title")))}</option>'
+        for t in (tasks or [])
+    )
+    kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
+    open_error_html = (
+        f'<div class="banner critical">✗ {_esc(open_error)}</div>' if open_error else ""
+    )
+    checklist_label = (
+        '체크리스트(한 줄에 하나, "라벨:상태" — 상태는 ok|pending|flag, 생략 시 pending)'
+    )
+    body_label = "본문(선택 — [NEEDS CLARIFICATION: ...] 태그 스캔용)"
+    open_form = f"""
+<div class="card">
+  <h2>+ 새 승인 요청</h2>
+  {open_error_html}
+  <form class="inline" method="post" action="/approvals">
+    <div class="field"><label>과제</label>
+      <select name="task_id" required><option value=""></option>{task_options}</select></div>
+    <div class="field"><label>종류</label>
+      <select name="kind" required>{kind_options}</select></div>
+    <div class="field"><label>Phase</label>
+      <input type="number" name="phase" min="0" max="8" required value="0"></div>
+    <div class="field"><label>제목</label>
+      <input type="text" name="title" required></div>
+    <div class="field" style="width:100%;"><label>{checklist_label}</label>
+      <textarea name="checklist_text" placeholder="EARS 표기:ok&#10;Gate 매핑:ok"></textarea></div>
+    <div class="field" style="width:100%;"><label>{body_label}</label>
+      <textarea name="body_text"></textarea></div>
+    <label style="font-weight:400;text-transform:none;letter-spacing:0;">
+      <input type="checkbox" name="no_checklist_gate" value="1"> 체크리스트를 게이트로 쓰지 않음
+      (threshold_review처럼 "할 일 목록"인 경우)</label>
+    <button type="submit">승인 요청 열기</button>
+  </form>
+</div>"""
+
     return f"""
 <div class="eyebrow">HITL 승인 큐</div>
 <h1>승인 대기 ({len(pending)})</h1>
@@ -657,6 +901,7 @@ def _approvals_body(pending: list[dict[str, Any]], drafts: list[dict[str, Any]])
   연동)은 아직 없습니다. 2인 승인 대상 항목은 서로 다른 이름을
   넣어야 합니다 — 같은 이름으로 두 번 승인해도 카운트되지 않습니다.
 </div>
+{open_form}
 {pending_html}
 {drafts_section}
 """
