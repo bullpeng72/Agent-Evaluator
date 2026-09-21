@@ -374,6 +374,7 @@ class TestUpdateTaskCli:
         code = _cmd_autopilot_update_task(self._ns_update(tmp_path, title="new"))
         assert code == 0
         task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
         assert task["title"] == "new"
 
     def test_update_single_owner_preserves_others(self, tmp_path):
@@ -384,6 +385,7 @@ class TestUpdateTaskCli:
         code = _cmd_autopilot_update_task(self._ns_update(tmp_path, design="c"))
         assert code == 0
         task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
         assert task["owners"] == {"analysis": "a", "design": "c"}
 
     def test_clear_owner_with_empty_string(self, tmp_path):
@@ -394,6 +396,7 @@ class TestUpdateTaskCli:
         code = _cmd_autopilot_update_task(self._ns_update(tmp_path, analysis=""))
         assert code == 0
         task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
         assert task["owners"] == {"design": "b"}
 
     def test_no_owner_flags_leaves_owners_untouched(self, tmp_path):
@@ -404,6 +407,7 @@ class TestUpdateTaskCli:
         code = _cmd_autopilot_update_task(self._ns_update(tmp_path, title="renamed"))
         assert code == 0
         task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
         assert task["owners"] == {"analysis": "a", "design": "b"}
 
     def test_missing_task_fails(self, tmp_path):
