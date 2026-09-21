@@ -26,7 +26,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from html import escape as _esc
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form
@@ -407,7 +407,12 @@ def create_autopilot_app(root: Path) -> FastAPI:
     def add_member_route(
         member_id: str = Form(...),
         name: str = Form(...),
-        role: list[str] = Form(...),
+        # FastAPI evaluates this annotation at runtime (to parse a repeated form
+        # field as a list) despite `from __future__ import annotations` deferring
+        # it to a string — `list[str]` (PEP 585 builtin subscripting) can't be
+        # eval()'d on Python 3.8, breaking CI there. typing.List[str] works on
+        # every supported version (3.8+).
+        role: List[str] = Form(...),  # noqa: UP006 — see comment above, py3.8 runtime eval
         github: str = Form(""),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 중복 id·알 수 없는 역할이 조용히
@@ -425,7 +430,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
     def update_member_route(
         member_id: str,
         name: str = Form(""),
-        role: list[str] = Form([]),
+        role: List[str] = Form([]),  # noqa: UP006 — py3.8-safe, see add_member_route
         github: str = Form(""),
         synced: bool = Form(False),
         changed_by: str = Form(""),
@@ -541,8 +546,8 @@ def create_autopilot_app(root: Path) -> FastAPI:
     @app.post("/approvals/{approval_id}/update")
     def update_checklist_route(
         approval_id: str,
-        label: list[str] = Form([]),
-        status: list[str] = Form([]),
+        label: List[str] = Form([]),  # noqa: UP006 — py3.8-safe, see add_member_route
+        status: List[str] = Form([]),  # noqa: UP006
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 이미 결정됐거나 라벨이 불일치해도
         # 조용히 큐로 돌아가 실패 여부를 알 수 없었다(이미 있는 배너 패턴 적용).
