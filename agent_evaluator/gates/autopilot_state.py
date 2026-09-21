@@ -148,6 +148,8 @@ def update_task(
     platform: str | None = None,
     priority: str | None = None,
     owners: dict[str, str] | None = None,
+    changed_by: str | None = None,
+    expected_updated_at: str | None = None,
 ) -> dict[str, Any]:
     """등록된 과제의 필드를 수정한다(대시보드/CLI에 과제 수정 기능이 없다는
 
@@ -160,6 +162,16 @@ def update_task(
     조용히 어긋난다(원칙2 — 정직한 기록). ``None``으로 남긴 인자는 기존
     값을 그대로 둔다.
 
+    ``changed_by``(docs/AUTOPILOT_IMPROVEMENTS.md §14)는 ``transition_phase()``
+    의 ``approved_by``·``decide_approval()``의 ``decided_by``와 같은 자리다 —
+    지금까진 과제 수정만 "누가 했는지"를 하나도 안 남겼다. ``last_updated_by``
+    /``last_updated_at``로 저장한다(선택 — 생략하면 이전과 동일하게 동작).
+
+    ``expected_updated_at``(선택)은 낙관적 동시성 검사다 — 값을 주면, 폼을
+    읽은 시점 이후 다른 사람이 먼저 저장해서 ``last_updated_at``이 달라졌을
+    때 조용히 덮어쓰는 대신 ``ValueError``로 막는다. 새 잠금 인프라가 아니라
+    이미 있는 타임스탬프를 재사용하는 비교일 뿐이다(원칙4).
+
     Args:
         tasks_dir: ``.aoo/tasks`` 디렉터리.
         task_id: 수정할 과제.
@@ -169,16 +181,27 @@ def update_task(
             SDK 레벨 검증 없음(CLI의 ``choices``가 그 역할을 한다).
         owners: 새 담당자 dict(선택) — ``update_team_member()``의 ``roles``와
             같은 방식으로 통째로 대체한다.
+        changed_by: 이 수정을 한 사람(선택, 자유 텍스트).
+        expected_updated_at: 낙관적 동시성 검사용(선택) — 폼을 그릴 때 본
+            ``last_updated_at`` 값. 현재 값과 다르면 막는다.
 
     Returns:
         수정된 과제 dict.
 
     Raises:
-        ValueError: 그 ``task_id``가 없거나, ``platform``이 알 수 없는 값이면.
+        ValueError: 그 ``task_id``가 없거나, ``platform``이 알 수 없는 값이거나,
+            ``expected_updated_at``이 주어졌는데 현재 값과 다르면.
     """
     task = load_task(tasks_dir, task_id)
     if task is None:
         raise ValueError(f"task not found: {task_id}")
+
+    if expected_updated_at is not None and task.get("last_updated_at") != expected_updated_at:
+        raise ValueError(
+            f"conflict: task {task_id!r} was modified by someone else since you loaded "
+            f"this page (current last_updated_at={task.get('last_updated_at')!r}) — "
+            f"reload and retry"
+        )
 
     if title is not None:
         task["title"] = title
@@ -192,6 +215,9 @@ def update_task(
     if owners is not None:
         task["owners"] = dict(owners)
 
+    task["last_updated_at"] = _now()
+    task["last_updated_by"] = changed_by
+
     save_task(tasks_dir, task)
     return task
 
@@ -200,7 +226,13 @@ VALID_TASK_STATUSES = ("active", "archived", "cancelled")
 
 
 def set_task_status(
-    tasks_dir: Union[str, Path], task_id: str, status: str, reason: str | None = None
+    tasks_dir: Union[str, Path],
+    task_id: str,
+    status: str,
+    reason: str | None = None,
+    *,
+    changed_by: str | None = None,
+    expected_updated_at: str | None = None,
 ) -> dict[str, Any]:
     """과제 상태를 바꾼다(SPEC-AP-001 백로그 §2 — phase 8(운영) 이후 과제를
     "끝"으로 표시할 방법이 없었다).
@@ -211,26 +243,44 @@ def set_task_status(
     없던 과제 파일)을 읽으면 ``load_task()``가 그대로 반환하고, 이 함수를
     거치지 않는 한 필드가 안 생긴다 — 하위호환.
 
+    ``changed_by``/``expected_updated_at``는 ``update_task()``와 같은
+    자리다(docs/AUTOPILOT_IMPROVEMENTS.md §14) — "누가 바꿨는지"가 지금까지
+    전혀 안 남았고, 낙관적 동시성 검사도 없었다. 둘 다 선택이라 생략하면
+    이전과 동일하게 동작한다.
+
     Args:
         tasks_dir: ``.aoo/tasks`` 디렉터리.
         task_id: 대상 과제.
         status: ``VALID_TASK_STATUSES`` 중 하나.
         reason: 자유 텍스트(선택) — 왜 보관/취소했는지.
+        changed_by: 이 상태 변경을 한 사람(선택, 자유 텍스트).
+        expected_updated_at: 낙관적 동시성 검사용(선택) — 폼을 그릴 때 본
+            ``last_updated_at`` 값. 현재 값과 다르면 막는다.
 
     Returns:
         갱신된 과제 dict.
 
     Raises:
-        ValueError: 과제가 없거나 ``status``가 알 수 없는 값이면.
+        ValueError: 과제가 없거나 ``status``가 알 수 없는 값이거나,
+            ``expected_updated_at``이 주어졌는데 현재 값과 다르면.
     """
     if status not in VALID_TASK_STATUSES:
         raise ValueError(f"status must be one of {VALID_TASK_STATUSES}, got {status!r}")
     task = load_task(tasks_dir, task_id)
     if task is None:
         raise ValueError(f"task not found: {task_id}")
+    if expected_updated_at is not None and task.get("last_updated_at") != expected_updated_at:
+        raise ValueError(
+            f"conflict: task {task_id!r} was modified by someone else since you loaded "
+            f"this page (current last_updated_at={task.get('last_updated_at')!r}) — "
+            f"reload and retry"
+        )
     task["status"] = status
     task["status_reason"] = reason
     task["status_changed_at"] = _now()
+    task["status_changed_by"] = changed_by
+    task["last_updated_at"] = task["status_changed_at"]
+    task["last_updated_by"] = changed_by
     save_task(tasks_dir, task)
     return task
 
@@ -449,6 +499,8 @@ def update_team_member(
     github: str | None = None,
     codeowner_scopes: list[str] | None = None,
     synced: bool | None = None,
+    changed_by: str | None = None,
+    expected_updated_at: str | None = None,
 ) -> dict[str, Any]:
     """등록된 팀원의 필드를 수정한다(SPEC-AP-001 백로그 §1 — 등록 후 역할·이름·
     github·codeowner_scope를 고칠 방법이 없었다).
@@ -459,6 +511,13 @@ def update_team_member(
     GitHub CODEOWNERS를 실제로 갱신한 뒤 ``synced=True``로 직접 표시할 수
     있다.
 
+    ``changed_by``/``expected_updated_at``는 ``update_task()``와 같은
+    자리다(docs/AUTOPILOT_IMPROVEMENTS.md §14) — 둘 다 선택이라 생략하면
+    이전과 동일하게 동작한다. (``remove_team_member()``는 그대로 둔다 —
+    그 함수는 이미 "이력이 필요하면 git으로 추적하라"고 명시적으로
+    범위를 밝혀둔 스냅숏 삭제라, 지워지는 레코드에 필드를 남길 자리가
+    없다.)
+
     Args:
         team_path: ``.aoo/team.json`` 경로.
         member_id: 수정할 팀원의 id.
@@ -467,12 +526,16 @@ def update_team_member(
         github: 새 github 핸들(선택).
         codeowner_scopes: 새 codeowner scope 목록(선택) — 통째로 대체.
         synced: GitHub CODEOWNERS 동기화 여부를 직접 표시(선택).
+        changed_by: 이 수정을 한 사람(선택, 자유 텍스트).
+        expected_updated_at: 낙관적 동시성 검사용(선택) — 폼을 그릴 때 본
+            ``last_updated_at`` 값. 현재 값과 다르면 막는다.
 
     Returns:
         수정된 팀원 dict.
 
     Raises:
-        ValueError: 그 id의 팀원이 없거나, ``roles``에 알 수 없는 역할이 있으면.
+        ValueError: 그 id의 팀원이 없거나, ``roles``에 알 수 없는 역할이 있거나,
+            ``expected_updated_at``이 주어졌는데 현재 값과 다르면.
     """
     members = load_team(team_path)
     idx = next((i for i, m in enumerate(members) if m.get("id") == member_id), None)
@@ -480,6 +543,12 @@ def update_team_member(
         raise ValueError(f"team member id not found: {member_id}")
 
     member = dict(members[idx])
+    if expected_updated_at is not None and member.get("last_updated_at") != expected_updated_at:
+        raise ValueError(
+            f"conflict: team member {member_id!r} was modified by someone else since you "
+            f"loaded this page (current last_updated_at="
+            f"{member.get('last_updated_at')!r}) — reload and retry"
+        )
     if name is not None:
         member["name"] = name
     if roles is not None:
@@ -493,6 +562,9 @@ def update_team_member(
         member["codeowner_scopes"] = list(codeowner_scopes)
     if synced is not None:
         member["synced"] = synced
+
+    member["last_updated_at"] = _now()
+    member["last_updated_by"] = changed_by
 
     members[idx] = member
     save_team(team_path, members)

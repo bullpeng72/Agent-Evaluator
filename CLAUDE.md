@@ -140,19 +140,31 @@ agent-eval autopilot list-tasks                  # active tasks only by default;
 agent-eval autopilot show-task ST-014            # one task's owners + phase_history (+ status line when non-active)
 #   dashboard: the task detail page now has a matching "Phase 이력" table (phase/entered/exited/mode/
 #   approved_by) — previously the dashboard only showed the current phase, not how the task got there.
-agent-eval autopilot update-task ST-014 --title "..." --platform aoo --priority high --design 유진
+agent-eval autopilot update-task ST-014 --title "..." --platform aoo --priority high --design 유진 --by jm
 #   edits title/platform/priority/owners only — not phase or status (those are transition_phase()/
-#   set-task-status()'s own audited trail). '' clears an owner role, e.g. --analysis ''.
-agent-eval autopilot set-task-status ST-014 --status archived --reason "shipped"   # active|archived|cancelled;
-#   orthogonal to current_phase — a task can be archived/cancelled at any phase. list-tasks hides non-active by
-#   default so a finished/dropped task doesn't keep cluttering the board.
+#   set-task-status()'s own audited trail). '' clears an owner role, e.g. --analysis ''. --by NAME (optional)
+#   records who made the edit as last_updated_at/last_updated_by — previously (like set-task-status/
+#   update-member below) this was the one CRUD path with no actor attribution at all, unlike
+#   transition_phase()'s approved_by / decide_approval()'s decided_by.
+agent-eval autopilot set-task-status ST-014 --status archived --reason "shipped" --by pm-park
+#   active|archived|cancelled; orthogonal to current_phase — a task can be archived/cancelled at any phase.
+#   list-tasks hides non-active by default so a finished/dropped task doesn't keep cluttering the board.
+#   --by NAME (optional) records status_changed_by alongside the existing status_changed_at.
 agent-eval autopilot add-member --id yj --name 유진 --role 설계
 agent-eval autopilot remove-member --id yj
-agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-synced   # only given fields change
+agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-synced --by jm
+#   only given fields change. --by NAME (optional) records last_updated_by/last_updated_at — remove-member
+#   intentionally has no equivalent: it's a snapshot delete (team.json isn't append-only) and already
+#   documents "use git if you want history," so there's no surviving record to attach an actor to.
 agent-eval autopilot list-members
 #   dashboard has full CRUD parity with all of the above: task edit/status-change forms on the task detail
 #   page, and team-member edit/delete forms on the team page (POST /tasks/{id}/update|/status,
 #   POST /team/{id}/update|/remove) — previously the dashboard was read-only for tasks/team beyond creation.
+#   Both the task and team-member edit/status forms also carry a "수정자"/"변경자" field (changed_by) and a
+#   hidden expected_updated_at (the value the form saw when rendered) — an optimistic-concurrency check: if
+#   someone else already saved a change since the form was loaded, the save is rejected (via the existing
+#   error-banner mechanism) instead of silently overwriting their edit. Same last_updated_at these functions
+#   already keep, not new lock infrastructure. CLI callers are unaffected (the check is opt-in per call).
 agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval spec_review  # opt-in gate
 #   warns (does not block) on a backward transition or a skipped phase — transition_phase() itself never
 #   validated phase ordering; this surfaces an accidental regression/skip to a human without hard-blocking a

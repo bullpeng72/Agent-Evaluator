@@ -332,6 +332,23 @@ class TestListAndShowTask:
         ))
         assert code == 1
 
+    def test_by_flag_records_changed_by(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — CLI set-task-status에도
+
+        "누가 했는지"를 기록할 방법이 없었다."""
+        _cmd_autopilot_new_task(_ns(
+            title="a", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_set_task_status(_ns(
+            task_id="ST-001", status="archived", reason=None, changed_by="pm-park",
+            root=str(tmp_path),
+        ))
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["status_changed_by"] == "pm-park"
+
     def test_show_task_displays_non_active_status_and_reason(self, tmp_path, capsys):
         _cmd_autopilot_new_task(_ns(
             title="a", platform="ac", priority="normal", task_id="ST-001",
@@ -418,6 +435,22 @@ class TestUpdateTaskCli:
         code = _cmd_autopilot_update_task(self._ns_update(tmp_path, task_id="nope", title="x"))
         assert code == 1
 
+    def test_by_flag_records_changed_by(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — CLI update-task에도
+
+        "누가 했는지"를 기록할 방법이 없었다."""
+        _cmd_autopilot_new_task(_ns(
+            title="old", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_task(
+            self._ns_update(tmp_path, title="new", changed_by="jm")
+        )
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["last_updated_by"] == "jm"
+
     def test_dispatch_via_cmd_autopilot(self, tmp_path):
         _cmd_autopilot_new_task(_ns(
             title="t", platform="ac", priority="normal", task_id="ST-001",
@@ -483,6 +516,22 @@ class TestUpdateMember:
         assert code == 0
         members = load_team(tmp_path / ".aoo" / "team.json")
         assert members[0]["roles"] == ["개발"]
+
+    def test_by_flag_records_changed_by(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — CLI update-member에도
+
+        "누가 했는지"를 기록할 방법이 없었다."""
+        _cmd_autopilot_add_member(_ns(
+            member_id="yj", name="유진", roles=["설계"], github=None, codeowner_scopes=None,
+            root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_member(_ns(
+            member_id="yj", name=None, roles=["개발"], github=None, codeowner_scopes=None,
+            mark_synced=False, mark_unsynced=False, changed_by="jm", root=str(tmp_path),
+        ))
+        assert code == 0
+        members = load_team(tmp_path / ".aoo" / "team.json")
+        assert members[0]["last_updated_by"] == "jm"
 
     def test_mark_synced(self, tmp_path):
         _cmd_autopilot_add_member(_ns(
@@ -1894,6 +1943,59 @@ class TestSetTaskStatusRoute:
         assert task is not None
         assert task["status"] == "active"
 
+    def test_changed_by_is_recorded(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 상태를 누가 바꿨는지가
+
+        approved_by/decided_by와 달리 전혀 안 남았다."""
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/tasks/ST-001/status",
+            data={"status": "archived", "reason": "done", "changed_by": "pm-park"},
+        )
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task is not None
+        assert task["status_changed_by"] == "pm-park"
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "마지막 수정" in r.text and "pm-park" in r.text
+
+    def test_stale_expected_updated_at_is_rejected(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 낙관적 동시성 검사: 두 사람이
+
+        같은 페이지를 읽은 뒤, 먼저 저장한 쪽 다음의 저장은 조용히 덮어쓰지
+        않고 막는다."""
+        import re
+
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        # 첫 저장으로 진짜 타임스탬프를 만든 다음, 그 페이지를 두 사람이
+        # "동시에" 읽었다고 가정 — 둘 다 같은 expected_updated_at을 본다.
+        autopilot_client.post(
+            "/tasks/ST-001/status", data={"status": "archived", "reason": "seed"},
+        )
+        both_saw = autopilot_client.get("/tasks/ST-001").text
+        expected_both_saw = re.search(
+            r'name="expected_updated_at" value="([^"]*)"', both_saw
+        ).group(1)
+        assert expected_both_saw  # 진짜 타임스탬프여야 한다("" 아님)
+
+        autopilot_client.post(
+            "/tasks/ST-001/status",
+            data={"status": "active", "reason": "editor-A", "changed_by": "editor-A",
+                  "expected_updated_at": expected_both_saw},
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/status",
+            data={"status": "cancelled", "reason": "editor-B", "changed_by": "editor-B",
+                  "expected_updated_at": expected_both_saw},  # 이제 stale
+            follow_redirects=False,
+        )
+        assert "status_error" in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["status"] == "active"  # editor-B의 덮어쓰기가 막힘
+
 
 class TestUpdateTaskRoute:
     """docs/AUTOPILOT_IMPROVEMENTS.md §1/§9 — 등록 후 과제 제목·플랫폼·
@@ -1987,6 +2089,69 @@ class TestUpdateTaskRoute:
         task = load_task(tasks_dir, "ST-001")
         assert task is not None
         assert task["current_phase"] == 2
+
+    def test_changed_by_is_recorded_and_rendered(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 과제 수정에 "누가 했는지"가
+
+        approved_by/decided_by와 달리 전혀 안 남았다."""
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={
+                "title": "new", "platform": "AC", "priority": "normal",
+                "analysis": "", "design": "", "development": "", "qa": "", "pm": "",
+                "security": "", "changed_by": "jm",
+            },
+        )
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["last_updated_by"] == "jm"
+        assert task["last_updated_at"]
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "마지막 수정" in r.text and "jm" in r.text
+
+    def test_stale_expected_updated_at_is_rejected(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 낙관적 동시성 검사: 두 사람이
+
+        같은 페이지를 읽은 뒤, 먼저 저장한 쪽 다음의 저장은 조용히 덮어쓰지
+        않고 막는다."""
+        import re
+
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        base_kwargs = {
+            "platform": "AC", "priority": "normal", "analysis": "", "design": "",
+            "development": "", "qa": "", "pm": "", "security": "",
+        }
+        # 첫 저장으로 진짜 타임스탬프를 만들고, 둘이 그 상태를 같이 읽었다고
+        # 가정한다.
+        autopilot_client.post(
+            "/tasks/ST-001/update", data={"title": "seed", **base_kwargs},
+        )
+        both_saw = autopilot_client.get("/tasks/ST-001").text
+        expected_both_saw = re.search(
+            r'name="expected_updated_at" value="([^"]*)"', both_saw
+        ).group(1)
+        assert expected_both_saw
+
+        autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={"title": "editor-A-wins", "changed_by": "editor-A",
+                  "expected_updated_at": expected_both_saw, **base_kwargs},
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={"title": "editor-B-should-not-win", "changed_by": "editor-B",
+                  "expected_updated_at": expected_both_saw, **base_kwargs},
+            follow_redirects=False,
+        )
+        assert "update_error" in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["title"] == "editor-A-wins"
 
 
 class TestTaskDetailPhaseHistory:
@@ -2117,6 +2282,57 @@ class TestTeamMemberUpdateRoute:
         )
         assert r.status_code == 303
         assert "team_error" in r.headers["location"]
+
+    def test_changed_by_is_recorded_and_rendered(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 팀원 수정에 "누가 했는지"가
+
+        전혀 안 남았다."""
+        tmp_path = autopilot_client.tmp_path
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="jm", name="정민", roles=["분석"])
+        autopilot_client.post(
+            "/team/jm/update",
+            data={"name": "정민2", "role": ["분석"], "github": "", "changed_by": "yj"},
+        )
+        member = next(m for m in load_team(team_path) if m["id"] == "jm")
+        assert member["last_updated_by"] == "yj"
+        assert member["last_updated_at"]
+        r = autopilot_client.get("/team")
+        assert "마지막 수정" in r.text and "yj" in r.text
+
+    def test_stale_expected_updated_at_is_rejected(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 낙관적 동시성 검사: 두 사람이
+
+        같은 페이지를 읽은 뒤, 먼저 저장한 쪽 다음의 저장은 조용히 덮어쓰지
+        않고 막는다."""
+        import re
+
+        tmp_path = autopilot_client.tmp_path
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="jm", name="정민", roles=["분석"])
+        autopilot_client.post(
+            "/team/jm/update", data={"name": "seed", "role": ["분석"], "github": ""},
+        )
+        both_saw = autopilot_client.get("/team").text
+        expected_both_saw = re.search(
+            r'name="expected_updated_at" value="([^"]*)"', both_saw
+        ).group(1)
+        assert expected_both_saw
+
+        autopilot_client.post(
+            "/team/jm/update",
+            data={"name": "editor-A-wins", "role": ["분석"], "github": "",
+                  "changed_by": "editor-A", "expected_updated_at": expected_both_saw},
+        )
+        r = autopilot_client.post(
+            "/team/jm/update",
+            data={"name": "editor-B-should-not-win", "role": ["분석"], "github": "",
+                  "changed_by": "editor-B", "expected_updated_at": expected_both_saw},
+            follow_redirects=False,
+        )
+        assert "team_error" in r.headers["location"]
+        member = next(m for m in load_team(team_path) if m["id"] == "jm")
+        assert member["name"] == "editor-A-wins"
 
 
 class TestTeamMemberRemoveRoute:

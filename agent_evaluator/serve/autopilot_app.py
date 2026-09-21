@@ -272,10 +272,20 @@ def create_autopilot_app(root: Path) -> FastAPI:
 
     @app.post("/tasks/{task_id}/status")
     def set_task_status_route(
-        task_id: str, status: str = Form(...), reason: str = Form("")
+        task_id: str, status: str = Form(...), reason: str = Form(""),
+        changed_by: str = Form(""), expected_updated_at: str = Form(""),
     ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §14 — "누가 이 과제를 archived로
+        # 바꿨는가"에 답할 방법이 없었다(approved_by/decided_by와 달리).
+        # expected_updated_at(폼을 그릴 때 본 값, 히든 필드)이 저장 시점의
+        # 실제 값과 다르면 다른 사람이 먼저 저장한 것 — 조용히 덮어쓰지
+        # 않고 막는다(새 잠금 인프라 아님, 이미 있는 타임스탬프 재사용).
         try:
-            set_task_status(tasks_dir, task_id, status, reason=reason.strip() or None)
+            set_task_status(
+                tasks_dir, task_id, status, reason=reason.strip() or None,
+                changed_by=changed_by.strip() or None,
+                expected_updated_at=expected_updated_at or None,
+            )
         except ValueError as exc:
             return RedirectResponse(
                 f"/tasks/{task_id}?status_error={quote(str(exc))}", status_code=303
@@ -294,6 +304,8 @@ def create_autopilot_app(root: Path) -> FastAPI:
         qa: str = Form(""),
         pm: str = Form(""),
         security: str = Form(""),
+        changed_by: str = Form(""),
+        expected_updated_at: str = Form(""),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §1/§9 — 등록 후 제목·플랫폼·우선순위·
         # 담당자를 고칠 방법이 CLI(update-task)에도 대시보드에도 없었다. 폼이
@@ -307,11 +319,17 @@ def create_autopilot_app(root: Path) -> FastAPI:
         ):
             if value.strip():
                 owners[role_key] = value.strip()
+        # docs/AUTOPILOT_IMPROVEMENTS.md §14 — 과제 수정에 "누가 했는지"가
+        # 전혀 안 남았다. expected_updated_at(히든 필드)은 낙관적 동시성
+        # 검사 — 폼을 읽은 뒤 다른 사람이 먼저 저장했으면 조용히 덮어쓰지
+        # 않고 막는다.
         try:
             update_task(
                 tasks_dir, task_id,
                 title=title.strip() or None, platform=platform or None,
                 priority=priority or None, owners=owners,
+                changed_by=changed_by.strip() or None,
+                expected_updated_at=expected_updated_at or None,
             )
         except ValueError as exc:
             return RedirectResponse(
@@ -354,15 +372,21 @@ def create_autopilot_app(root: Path) -> FastAPI:
         role: list[str] = Form([]),
         github: str = Form(""),
         synced: bool = Form(False),
+        changed_by: str = Form(""),
+        expected_updated_at: str = Form(""),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §1 — update-member(v1.1.2)가 대시보드엔
         # 없었다. 폼이 현재 값을 그대로 미리 채워서 보내므로(_team_member_card),
         # 체크박스를 안 건드려도 synced가 조용히 False로 초기화되지 않는다.
+        # §14 — 누가 이 팀원을 수정했는지가 전혀 안 남았고, 낙관적 동시성
+        # 검사(expected_updated_at)도 없었다.
         try:
             update_team_member(
                 team_path, member_id,
                 name=name.strip() or None, roles=role or None,
                 github=github.strip() or None, synced=synced,
+                changed_by=changed_by.strip() or None,
+                expected_updated_at=expected_updated_at or None,
             )
         except ValueError as exc:
             return RedirectResponse(f"/team?team_error={quote(str(exc))}", status_code=303)
@@ -898,6 +922,16 @@ def _task_detail_body(
         if status != "active" else ""
     )
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §14 — 과제 수정/상태 변경에 "누가
+    # 했는지"가 화면에 아예 안 보였다. update_task()/set_task_status()가
+    # 이제 남기는 last_updated_by/status_changed_by를 그대로 보여준다.
+    last_updated_by = task.get("last_updated_by")
+    last_updated_html = (
+        f'<p class="tm">마지막 수정: {_esc(str(task.get("last_updated_at")))}'
+        f' — {_esc(str(last_updated_by))}</p>'
+        if last_updated_by else ""
+    )
+
     # LIMITS_T-5E1FD6.md L4 — 이 phase가 실제 작업과 맞는지 확인하는 신호가
     # 대시보드엔 없었다(CLI의 doctor/phase check에만 있었음). 여기서도 똑같이
     # 보여준다 — 새 계측 없이 check_phase_staleness()가 이미 재는 값 그대로.
@@ -961,15 +995,24 @@ def _task_detail_body(
     status_error_html = (
         f'<div class="banner critical">✗ {_esc(status_error)}</div>' if status_error else ""
     )
+    # docs/AUTOPILOT_IMPROVEMENTS.md §14 — 이 두 폼(상태·수정)이 저장해도
+    # "누가 했는지"가 전혀 안 남았다(approved_by/decided_by와 달리). 폼을
+    # 그릴 때 본 last_updated_at을 히든 필드로 실어 보내 낙관적 동시성
+    # 검사도 같이 한다 — 새 잠금 인프라가 아니라 이미 있는 타임스탬프
+    # 비교일 뿐(update_task()/set_task_status() 쪽에서 처리).
+    expected_updated_at = _esc(str(task.get("last_updated_at", "")))
     status_form = f"""
 <div class="card">
   <h2>과제 상태</h2>
   {status_error_html}
   <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/status">
+    <input type="hidden" name="expected_updated_at" value="{expected_updated_at}">
     <div class="field"><label>상태</label>
       <select name="status">{status_options}</select></div>
     <div class="field"><label>사유(선택)</label>
       <input type="text" name="reason" placeholder="예: shipped"></div>
+    <div class="field"><label>변경자(선택)</label>
+      <input type="text" name="changed_by" placeholder="예: pm-park"></div>
     <button type="submit" class="ghost">상태 변경</button>
   </form>
 </div>"""
@@ -999,6 +1042,7 @@ def _task_detail_body(
   <h2>과제 수정</h2>
   {update_error_html}
   <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/update">
+    <input type="hidden" name="expected_updated_at" value="{expected_updated_at}">
     <div class="field"><label>제목</label>
       <input type="text" name="title" value="{_esc(str(task.get('title')))}"></div>
     <div class="field"><label>플랫폼</label>
@@ -1006,6 +1050,8 @@ def _task_detail_body(
     <div class="field"><label>우선순위</label>
       <select name="priority">{priority_options}</select></div>
     {owner_fields_edit}
+    <div class="field"><label>수정자(선택)</label>
+      <input type="text" name="changed_by" placeholder="예: jm"></div>
     <button type="submit" class="ghost">과제 정보 저장</button>
   </form>
 </div>"""
@@ -1039,6 +1085,7 @@ def _task_detail_body(
 {_phase_dots(task.get("current_phase", 0))}
 <p class="tm">Phase {_esc(str(task.get("current_phase")))} · {phase_label_html}</p>
 {status_html}
+{last_updated_html}
 {stale_html}
 {error_html}
 {warning_html}
@@ -1074,11 +1121,23 @@ def _team_member_card(m: dict[str, Any]) -> str:
         for r in VALID_ROLES
     )
     sync_note = "" if m.get("synced") else ' <span class="tm">(GitHub CODEOWNERS 반영 필요)</span>'
+    # docs/AUTOPILOT_IMPROVEMENTS.md §14 — 팀원 수정에 "누가 했는지"가 전혀
+    # 안 남았다. expected_updated_at 히든 필드로 낙관적 동시성 검사도 같이
+    # 한다(update_team_member() 쪽에서 처리, 새 잠금 인프라 아님).
+    last_updated_by = m.get("last_updated_by")
+    last_updated_note = (
+        f' <span class="tm">(마지막 수정: {_esc(str(m.get("last_updated_at")))} — '
+        f'{_esc(str(last_updated_by))})</span>'
+        if last_updated_by else ""
+    )
+    expected_updated_at = _esc(str(m.get("last_updated_at", "")))
     return f"""
 <div class="approval-item">
   <div><b>{_esc(str(m.get("name")))}</b>
-    <span class="tm">{member_id} · {_esc(str(m.get("github") or "—"))}{sync_note}</span></div>
+    <span class="tm">{member_id} · {_esc(str(m.get("github") or "—"))}{sync_note}</span>
+    {last_updated_note}</div>
   <form class="inline" method="post" action="/team/{member_id}/update" style="margin-top:8px;">
+    <input type="hidden" name="expected_updated_at" value="{expected_updated_at}">
     <div class="field"><label>이름</label>
       <input type="text" name="name" value="{_esc(str(m.get('name')))}"></div>
     <div class="field"><label>역할</label>
@@ -1088,6 +1147,8 @@ def _team_member_card(m: dict[str, Any]) -> str:
     <label style="font-weight:400;text-transform:none;letter-spacing:0;">
       <input type="checkbox" name="synced" value="1"{" checked" if m.get("synced") else ""}>
       GitHub 반영됨</label>
+    <div class="field"><label>수정자(선택)</label>
+      <input type="text" name="changed_by" placeholder="예: jm"></div>
     <button type="submit" class="ghost">수정</button>
   </form>
   <form method="post" action="/team/{member_id}/remove" style="margin-top:6px;">

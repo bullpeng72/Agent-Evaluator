@@ -357,6 +357,7 @@ def _cmd_autopilot_update_member(args: argparse.Namespace) -> int:
             team_path, args.member_id,
             name=args.name, roles=args.roles, github=args.github,
             codeowner_scopes=args.codeowner_scopes, synced=synced,
+            changed_by=getattr(args, "changed_by", None),
         )
     except ValueError as exc:
         print(_err(str(exc)))
@@ -427,7 +428,10 @@ def _cmd_autopilot_set_task_status(args: argparse.Namespace) -> int:
     tasks_dir = root / ".aoo" / "tasks"
 
     try:
-        task = set_task_status(tasks_dir, args.task_id, args.status, reason=args.reason)
+        task = set_task_status(
+            tasks_dir, args.task_id, args.status, reason=args.reason,
+            changed_by=getattr(args, "changed_by", None),
+        )
     except ValueError as exc:
         print(_err(str(exc)))
         return 1
@@ -498,7 +502,7 @@ def _cmd_autopilot_update_task(args: argparse.Namespace) -> int:
         task = update_task(
             tasks_dir, args.task_id,
             title=args.title, platform=args.platform, priority=args.priority,
-            owners=owners,
+            owners=owners, changed_by=getattr(args, "changed_by", None),
         )
     except ValueError as exc:
         print(_err(str(exc)))
@@ -1108,6 +1112,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     ut_p.add_argument(
         "--security", default=None, metavar="OWNER", help="Security owner; '' to clear"
     )
+    ut_p.add_argument(
+        "--by", default=None, dest="changed_by", metavar="NAME",
+        help="Who made this edit (optional, free text — recorded as last_updated_by)",
+    )
     ut_p.add_argument("--root", default=".", metavar="DIR")
 
     sts_p = ap_sub.add_parser(
@@ -1116,6 +1124,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     sts_p.add_argument("task_id")
     sts_p.add_argument("--status", required=True, choices=list(VALID_TASK_STATUSES))
     sts_p.add_argument("--reason", default=None)
+    sts_p.add_argument(
+        "--by", default=None, dest="changed_by", metavar="NAME",
+        help="Who made this change (optional, free text — recorded as status_changed_by)",
+    )
     sts_p.add_argument("--root", default=".", metavar="DIR")
 
     am_p = ap_sub.add_parser("add-member", help="Register a team member (.aoo/team.json)")
@@ -1147,6 +1159,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     um_p.add_argument(
         "--mark-unsynced", action="store_true",
         help="Mark GitHub CODEOWNERS as NOT updated for this person",
+    )
+    um_p.add_argument(
+        "--by", default=None, dest="changed_by", metavar="NAME",
+        help="Who made this edit (optional, free text — recorded as last_updated_by)",
     )
     um_p.add_argument("--root", default=".", metavar="DIR")
 

@@ -183,6 +183,57 @@ class TestUpdateTask:
         with pytest.raises(ValueError, match="not found"):
             update_task(tasks_dir, "nope", title="x")
 
+    def test_changed_by_is_recorded(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 과제 수정에 "누가 했는지"가
+
+        transition_phase()의 approved_by/decide_approval()의 decided_by와
+        달리 전혀 안 남았다."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        updated = update_task(tasks_dir, "ST-001", title="new", changed_by="jm")
+        assert updated["last_updated_by"] == "jm"
+        assert updated["last_updated_at"]
+
+    def test_changed_by_defaults_to_none(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        updated = update_task(tasks_dir, "ST-001", title="new")
+        assert updated["last_updated_by"] is None
+        assert updated["last_updated_at"]  # 타임스탬프는 항상 남는다
+
+    def test_expected_updated_at_mismatch_raises_conflict(self, tmp_path):
+        """낙관적 동시성 검사 — 새 잠금 인프라가 아니라 이미 있는
+
+        last_updated_at을 재사용하는 비교일 뿐(원칙4)."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        seeded = update_task(tasks_dir, "ST-001", title="seed")
+        with pytest.raises(ValueError, match="conflict"):
+            update_task(
+                tasks_dir, "ST-001", title="stale-write",
+                expected_updated_at="2000-01-01T00:00:00+00:00",
+            )
+        unchanged = load_task(tasks_dir, "ST-001")
+        assert unchanged is not None
+        assert unchanged["title"] == "seed"  # 안 바뀜
+
+        # 정확한 값을 주면 통과한다
+        update_task(
+            tasks_dir, "ST-001", title="fresh-write",
+            expected_updated_at=seeded["last_updated_at"],
+        )
+        reloaded = load_task(tasks_dir, "ST-001")
+        assert reloaded is not None
+        assert reloaded["title"] == "fresh-write"
+
+    def test_expected_updated_at_none_skips_check(self, tmp_path):
+        """생략하면 이전과 동일하게 동작한다(하위호환)."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        update_task(tasks_dir, "ST-001", title="seed")
+        updated = update_task(tasks_dir, "ST-001", title="no-conflict-check")
+        assert updated["title"] == "no-conflict-check"
+
     def test_does_not_touch_phase_or_status(self, tmp_path):
         """phase/status는 이 함수의 범위 밖 — transition_phase()/
 
@@ -235,6 +286,38 @@ class TestSetTaskStatus:
         transition_phase(tasks_dir, "ST-001", new_phase=3)
         updated = set_task_status(tasks_dir, "ST-001", "cancelled")
         assert updated["current_phase"] == 3
+
+    def test_changed_by_is_recorded(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 상태 변경에 "누가 했는지"가
+
+        전혀 안 남았다(status_changed_at만 있었음)."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        updated = set_task_status(tasks_dir, "ST-001", "archived", changed_by="pm-park")
+        assert updated["status_changed_by"] == "pm-park"
+        assert updated["last_updated_by"] == "pm-park"
+        assert updated["last_updated_at"] == updated["status_changed_at"]
+
+    def test_expected_updated_at_mismatch_raises_conflict(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="a", platform="ac")
+        seeded = set_task_status(tasks_dir, "ST-001", "archived")
+        with pytest.raises(ValueError, match="conflict"):
+            set_task_status(
+                tasks_dir, "ST-001", "cancelled",
+                expected_updated_at="2000-01-01T00:00:00+00:00",
+            )
+        unchanged = load_task(tasks_dir, "ST-001")
+        assert unchanged is not None
+        assert unchanged["status"] == "archived"
+
+        set_task_status(
+            tasks_dir, "ST-001", "cancelled",
+            expected_updated_at=seeded["last_updated_at"],
+        )
+        reloaded = load_task(tasks_dir, "ST-001")
+        assert reloaded is not None
+        assert reloaded["status"] == "cancelled"
 
 
 class TestTransitionPhase:
@@ -694,6 +777,37 @@ class TestUpdateTeamMember:
         updated = update_team_member(team_path, "yj", synced=True)
         assert updated["synced"] is True
         assert load_team(team_path)[0]["synced"] is True
+
+    def test_changed_by_is_recorded(self, tmp_path):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §14 — 팀원 수정에 "누가 했는지"가
+
+        전혀 안 남았다."""
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        updated = update_team_member(team_path, "yj", name="유진2", changed_by="jm")
+        assert updated["last_updated_by"] == "jm"
+        assert updated["last_updated_at"]
+
+    def test_expected_updated_at_mismatch_raises_conflict(self, tmp_path):
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="yj", name="유진", roles=["설계"])
+        seeded = update_team_member(team_path, "yj", name="seed")
+        with pytest.raises(ValueError, match="conflict"):
+            update_team_member(
+                team_path, "yj", name="stale-write",
+                expected_updated_at="2000-01-01T00:00:00+00:00",
+            )
+        unchanged = find_member(team_path, "yj")
+        assert unchanged is not None
+        assert unchanged["name"] == "seed"
+
+        update_team_member(
+            team_path, "yj", name="fresh-write",
+            expected_updated_at=seeded["last_updated_at"],
+        )
+        reloaded = find_member(team_path, "yj")
+        assert reloaded is not None
+        assert reloaded["name"] == "fresh-write"
 
 
 class TestExtractNeedsClarification:
