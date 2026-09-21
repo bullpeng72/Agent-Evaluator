@@ -2322,9 +2322,9 @@ class TestSetTaskStatusRoute:
             "/tasks/ST-001/status", data={"status": "archived", "reason": "seed"},
         )
         both_saw = autopilot_client.get("/tasks/ST-001").text
-        expected_both_saw = re.search(
-            r'name="expected_updated_at" value="([^"]*)"', both_saw
-        ).group(1)
+        match = re.search(r'name="expected_updated_at" value="([^"]*)"', both_saw)
+        assert match is not None
+        expected_both_saw = match.group(1)
         assert expected_both_saw  # 진짜 타임스탬프여야 한다("" 아님)
 
         autopilot_client.post(
@@ -2479,9 +2479,9 @@ class TestUpdateTaskRoute:
             "/tasks/ST-001/update", data={"title": "seed", **base_kwargs},
         )
         both_saw = autopilot_client.get("/tasks/ST-001").text
-        expected_both_saw = re.search(
-            r'name="expected_updated_at" value="([^"]*)"', both_saw
-        ).group(1)
+        match = re.search(r'name="expected_updated_at" value="([^"]*)"', both_saw)
+        assert match is not None
+        expected_both_saw = match.group(1)
         assert expected_both_saw
 
         autopilot_client.post(
@@ -2661,9 +2661,9 @@ class TestTeamMemberUpdateRoute:
             "/team/jm/update", data={"name": "seed", "role": ["분석"], "github": ""},
         )
         both_saw = autopilot_client.get("/team").text
-        expected_both_saw = re.search(
-            r'name="expected_updated_at" value="([^"]*)"', both_saw
-        ).group(1)
+        match = re.search(r'name="expected_updated_at" value="([^"]*)"', both_saw)
+        assert match is not None
+        expected_both_saw = match.group(1)
         assert expected_both_saw
 
         autopilot_client.post(
