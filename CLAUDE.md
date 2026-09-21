@@ -98,6 +98,8 @@ agent-eval claims add src/ --developer auto      # open a claim (owner="auto" ->
 agent-eval claims list [--developer alice]       # filter to one developer's active claims
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
+#   dashboard: the ops page's claims card now shows the same violations inline (audit_claims() reused,
+#   informational only — no exit code from a page view) with a TTL(h) field to re-run at a different window.
 agent-eval claims enable-live-check --config .opencode/plugin/agent-evaluator.config.json [--owner auto]
 #   merges {"team_concurrency": {...}} into an existing guardrail config JSON (Claude's guardrail_config.json
 #   or OpenCode's agent-evaluator.config.json) via a safe deep-merge (never overwrites a key you already set) —
@@ -136,6 +138,8 @@ agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [-
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled
 agent-eval autopilot show-task ST-014            # one task's owners + phase_history (+ status line when non-active)
+#   dashboard: the task detail page now has a matching "Phase 이력" table (phase/entered/exited/mode/
+#   approved_by) — previously the dashboard only showed the current phase, not how the task got there.
 agent-eval autopilot update-task ST-014 --title "..." --platform aoo --priority high --design 유진
 #   edits title/platform/priority/owners only — not phase or status (those are transition_phase()/
 #   set-task-status()'s own audited trail). '' clears an owner role, e.g. --analysis ''.
@@ -171,6 +175,9 @@ agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 -
 #   --no-checklist-gate opens it the same way `scan-thresholds` opens an auto threshold_review (checklist shown
 #   but not gating "ready for review") — without this flag a manually-opened approval of a kind that's normally
 #   auto-opened (e.g. threshold_review) stays gated and can get stuck in draft even when that's not intended.
+#   --required-approvals N overrides the kind's default sign-off count for this one request (e.g. escalate a
+#   normally single-approval spec_review to 2 for a high-risk task). dashboard: the "+ 새 승인 요청" form has a
+#   matching optional field (blank keeps the kind's default) — previously only the CLI flag could do this.
 agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved --by pm-park
 agent-eval autopilot approvals update ap-a1b2c3d4 --checklist-item "EARS 표기:ok"   # flip an existing item's
 #   status on an open (draft/pending) approval instead of opening a brand-new approval from scratch to fix one
@@ -193,6 +200,9 @@ agent-eval autopilot decisions record --outcome accepted --by NAME   # autopilot
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 #   count is now per distinct task_id, not per approval entry — a single task redrafting the same checklist
 #   shape N times (e.g. fixing a colon-parsing typo) no longer looks like an N-times-repeated cross-task pattern.
+#   dashboard: the approvals page has a matching read-only "스킬 후보 탐지" card (same detect_skill_candidates(),
+#   `?skill_min_occurrences=` to adjust the threshold) — `skills scaffold` (below) stays CLI-only since it
+#   writes a file; the dashboard view never creates anything.
 agent-eval autopilot skills scaffold --name my-skill [--kind spec_review] [--out Skills] [--force]
 #   writes Skills/<name>/SKILL.md from the top detected candidate, with TODO markers for the description/
 #   reasoning/per-step procedure — a starting skeleton, not a finished skill; human review still required.

@@ -1989,6 +1989,37 @@ class TestUpdateTaskRoute:
         assert task["current_phase"] == 2
 
 
+class TestTaskDetailPhaseHistory:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI show-task는 phase_history를
+
+    시간순으로 보여주는데, 대시보드 과제 상세 페이지는 현재 phase만 보여주고
+    이 감사 이력을 전혀 렌더링하지 않았다."""
+
+    def test_phase_history_rendered_with_entered_and_approver(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": "pm-park"},
+        )
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "Phase 이력" in r.text
+        assert "pm-park" in r.text
+        assert "진행중" in r.text  # 아직 안 닫힌 현재 phase 행
+
+    def test_freshly_created_task_shows_phase_zero_entry(self, autopilot_client):
+        """create_task()가 항상 phase 0 진입 행을 하나 심어두므로("phase 이력
+
+        없음" 상태는 실제로 없다) — 카드가 그 초기 행을 보여주는지 확인."""
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "Phase 이력" in r.text
+        assert "phase 0" in r.text
+        assert "진행중" in r.text
+
+
 class TestAutopilotTeamPage:
     def test_team_page_lists_members(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -2352,6 +2383,57 @@ class TestScanThresholdsRoute:
         assert "스캔 실행" in r.text
 
 
+class TestSkillsDetectOnApprovalsPage:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI `skills detect`(읽기 전용)가
+
+    대시보드엔 없어서, 반복되는 체크리스트 패턴을 스킬 후보로 발견하는 게
+    CLI 전용이었다. 실제로 파일을 만드는 `skills scaffold`는 CLI 전용으로
+    남긴다."""
+
+    def test_no_pattern_shows_empty_message(self, autopilot_client):
+        r = autopilot_client.get("/approvals")
+        assert "스킬 후보 탐지" in r.text
+        assert "no repeated checklist pattern found" in r.text
+
+    def test_repeated_checklist_shape_across_tasks_is_detected(self, autopilot_client):
+        # detect_skill_candidates()는 서로 다른 task_id 개수를 센다 —
+        # 같은 task에 반복 오픈해도 카운트가 안 올라간다(docstring 참고).
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        for i in range(3):
+            tid = f"ST-{i:03d}"
+            create_task(tasks_dir, task_id=tid, title=f"t{i}", platform="ac")
+            open_approval(
+                approvals_path, task_id=tid, kind="spec_review", phase=1, title=f"반복 {i}",
+                checklist=[
+                    {"label": "EARS 표기", "status": "ok"}, {"label": "Gate 매핑", "status": "ok"}
+                ],
+            )
+        r = autopilot_client.get("/approvals")
+        assert "kind=spec_review" in r.text
+        assert "3x" in r.text
+
+    def test_custom_min_occurrences_query_param(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        approvals_path = tmp_path / ".aoo" / "approvals.jsonl"
+        for i in range(3):
+            tid = f"ST-{i:03d}"
+            create_task(tasks_dir, task_id=tid, title=f"t{i}", platform="ac")
+            open_approval(
+                approvals_path, task_id=tid, kind="spec_review", phase=1, title=f"반복 {i}",
+                checklist=[{"label": "a", "status": "ok"}],
+            )
+        r = autopilot_client.get("/approvals?skill_min_occurrences=99")
+        assert "no repeated checklist pattern found" in r.text
+
+    def test_nothing_is_created_by_the_dashboard_view(self, autopilot_client):
+        """읽기 전용이어야 한다 — Skills/ 디렉터리에 아무것도 안 만든다."""
+        autopilot_client.get("/approvals")
+        assert not (autopilot_client.tmp_path / "Skills").exists()
+
+
 class TestApprovalsOpenRoute:
     """docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 것 자체가
 
@@ -2377,6 +2459,58 @@ class TestApprovalsOpenRoute:
         assert approvals[0]["checklist"] == [
             {"label": "EARS 표기", "status": "ok"}, {"label": "Gate 매핑", "status": "ok"}
         ]
+
+    def test_required_approvals_override_is_honored(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI의 --required-approvals가
+
+        이 폼엔 없어서 kind별 기본 인원(예: spec_review=1명)을 이번 건만
+        올리는 게 대시보드에서 불가능했다."""
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1,
+                "title": "2인 승인 필요", "checklist_text": "a:ok", "body_text": "",
+                "required_approvals": "2",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert "open_error" not in r.headers["location"]
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["required_approvals"] == 2
+
+    def test_blank_required_approvals_uses_kind_default(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1, "title": "t",
+                "checklist_text": "a:ok", "body_text": "", "required_approvals": "",
+            },
+        )
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert approvals[0]["required_approvals"] == 1  # spec_review 기본값
+
+    def test_non_integer_required_approvals_shows_error(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/approvals",
+            data={
+                "task_id": "ST-001", "kind": "spec_review", "phase": 1, "title": "t",
+                "checklist_text": "a:ok", "body_text": "", "required_approvals": "abc",
+            },
+            follow_redirects=False,
+        )
+        assert "open_error" in r.headers["location"]
+        assert load_approvals(tmp_path / ".aoo" / "approvals.jsonl") == []
+
+    def test_required_approvals_field_rendered_on_open_form(self, autopilot_client):
+        r = autopilot_client.get("/approvals")
+        assert 'name="required_approvals"' in r.text
 
     def test_invalid_checklist_status_shows_error(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -2711,6 +2845,56 @@ class TestClaimsOpsRoutes:
         assert "claim_warning" in r.headers["location"]
         r2 = autopilot_client.get(r.headers["location"])
         assert "banner" in r2.text
+
+
+class TestClaimsAuditOnOpsPage:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI `claims audit --ttl-hours`
+
+    (TTL 초과·스코프 겹침 위반)가 대시보드엔 없어서, 대시보드만 쓰는 사람은
+    CI가 잡는 이 신호를 볼 방법이 없었다."""
+
+    def test_ttl_exceeded_claim_flagged(self, autopilot_client):
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        tmp_path = autopilot_client.tmp_path
+        old_ts = "2020-01-01T00:00:00+00:00"
+        append_claim(
+            tmp_path / ".aoo" / "claims.jsonl", claim_id="c-old", developer="alice",
+            scope=["src/a/"], started_at=old_ts, status="active",
+        )
+        r = autopilot_client.get("/ops")
+        assert "claim audit violation" in r.text
+        assert "c-old" in r.text
+
+    def test_no_violation_when_within_ttl(self, autopilot_client):
+        import datetime
+
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        tmp_path = autopilot_client.tmp_path
+        now_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        append_claim(
+            tmp_path / ".aoo" / "claims.jsonl", claim_id="c-new", developer="alice",
+            scope=["src/a/"], started_at=now_ts, status="active",
+        )
+        r = autopilot_client.get("/ops")
+        assert "claim audit violation" not in r.text
+
+    def test_custom_ttl_hours_query_param_widens_window(self, autopilot_client):
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        tmp_path = autopilot_client.tmp_path
+        old_ts = "2020-01-01T00:00:00+00:00"
+        append_claim(
+            tmp_path / ".aoo" / "claims.jsonl", claim_id="c-old", developer="alice",
+            scope=["src/a/"], started_at=old_ts, status="active",
+        )
+        r = autopilot_client.get("/ops?claim_ttl_hours=999999999")
+        assert "claim audit violation" not in r.text
+
+    def test_audit_form_rendered_on_ops_page(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert "클레임 감사 TTL" in r.text
 
 
 class TestDecisionsRecordRoute:

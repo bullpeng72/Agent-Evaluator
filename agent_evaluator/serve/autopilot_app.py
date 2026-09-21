@@ -42,6 +42,7 @@ from agent_evaluator.gates.autopilot_state import (
     compute_rejection_rate,
     create_task,
     decide_approval,
+    detect_skill_candidates,
     load_all_tasks,
     load_approvals,
     load_pending_approvals,
@@ -60,6 +61,7 @@ from agent_evaluator.gates.autopilot_state import (
 )
 from agent_evaluator.gates.team_concurrency import (
     append_claim,
+    audit_claims,
     check_scope_claim,
     load_active_claims,
     resolve_owner,
@@ -86,6 +88,13 @@ def _safe_claims(claims_path: Path) -> list[dict[str, Any]]:
 def _safe_decisions(log_path: Path) -> list[dict[str, Any]]:
     try:
         return load_decisions(log_path)
+    except Exception:
+        return []
+
+
+def _safe_claim_audit(claims_path: Path, ttl_hours: float) -> list[dict[str, Any]]:
+    try:
+        return audit_claims(claims_path, ttl_hours=ttl_hours)
     except Exception:
         return []
 
@@ -373,16 +382,29 @@ def create_autopilot_app(root: Path) -> FastAPI:
 
     @app.get("/approvals", response_class=HTMLResponse)
     def approvals_page(
-        open_error: str = "", scan_note: str = "", action_error: str = ""
+        open_error: str = "", scan_note: str = "", action_error: str = "",
+        skill_min_occurrences: int = 3,
     ) -> str:
         pending = load_pending_approvals(approvals_path)
         drafts = [a for a in load_approvals(approvals_path) if a.get("status") == "draft"]
         tasks = load_all_tasks(tasks_dir)
+        # docs/AUTOPILOT_IMPROVEMENTS.md §13 — `skills detect`(읽기 전용)가
+        # CLI 전용이라, 대시보드만 쓰는 사람은 반복되는 체크리스트 패턴을
+        # 스킬 후보로 발견할 방법이 없었다. detect_skill_candidates() 그대로
+        # 재사용 — 파일을 만드는 scaffold는 그대로 CLI 전용으로 남긴다.
+        try:
+            skill_candidates = detect_skill_candidates(
+                approvals_path, min_occurrences=skill_min_occurrences
+            )
+        except Exception:
+            skill_candidates = []
         return _layout(
             "approvals", "승인 대기",
             _approvals_body(
                 pending, drafts, tasks,
                 open_error=open_error, scan_note=scan_note, action_error=action_error,
+                skill_candidates=skill_candidates,
+                skill_min_occurrences=skill_min_occurrences,
             ),
         )
 
@@ -395,11 +417,25 @@ def create_autopilot_app(root: Path) -> FastAPI:
         checklist_text: str = Form(""),
         body_text: str = Form(""),
         no_checklist_gate: bool = Form(False),
+        required_approvals: str = Form(""),
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 것 자체가
         # 대시보드엔 없었다(decide/cancel만 가능). CLI의 _parse_checklist_items()
         # (마지막 콜론 분리, 잘못된 STATUS 즉시 거부)와 adr_review 자동 체크리스트
         # 추가(원칙5)를 그대로 재사용한다 — 새 판정 로직 아님.
+        # §13 — CLI의 --required-approvals가 이 폼엔 없어서, kind별 기본값(예:
+        # spec_review=1명)을 이번 건만 2명 이상으로 올리는 게 대시보드에서
+        # 불가능했다. 빈 값이면 이전과 동일하게 kind별 기본값을 그대로 쓴다.
+        parsed_required: int | None = None
+        if required_approvals.strip():
+            try:
+                parsed_required = int(required_approvals)
+            except ValueError:
+                return RedirectResponse(
+                    f"/approvals?open_error={quote('required_approvals must be an integer')}",
+                    status_code=303,
+                )
+
         lines = [ln for ln in checklist_text.splitlines() if ln.strip()]
         try:
             checklist = _parse_checklist_items(lines)
@@ -416,6 +452,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 approvals_path, task_id=task_id, kind=kind, phase=phase, title=title,
                 checklist=checklist, body_text=body_text.strip() or None,
                 gate_on_checklist=not no_checklist_gate,
+                required_approvals=parsed_required,
             )
         except ValueError as exc:
             return RedirectResponse(f"/approvals?open_error={quote(str(exc))}", status_code=303)
@@ -472,9 +509,15 @@ def create_autopilot_app(root: Path) -> FastAPI:
 
     @app.get("/ops", response_class=HTMLResponse)
     def ops_page(
-        decision_error: str = "", claim_warning: str = "", policy_error: str = ""
+        decision_error: str = "", claim_warning: str = "", policy_error: str = "",
+        claim_ttl_hours: float = 8.0,
     ) -> str:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI의 `claims audit --ttl-hours`
+        # (TTL 초과·스코프 겹침 위반)가 대시보드엔 없어서, 대시보드만 쓰는
+        # 사람은 CI가 잡는 이 신호를 볼 방법이 없었다. audit_claims()를 그대로
+        # 재사용해 ops 페이지에서도 같은 위반을 보여준다(새 판정 로직 아님).
         claims = _safe_claims(claims_path)
+        claim_violations = _safe_claim_audit(claims_path, claim_ttl_hours)
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
         policy = load_phase_policy(policy_path)
@@ -485,6 +528,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 claims, decisions, rejection, policy, pending_runs,
                 decision_error=decision_error, claim_warning=claim_warning,
                 policy_error=policy_error,
+                claim_violations=claim_violations, claim_ttl_hours=claim_ttl_hours,
             ),
         )
 
@@ -966,6 +1010,26 @@ def _task_detail_body(
   </form>
 </div>"""
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI show-task는 phase_history(누가
+    # 언제 어떤 phase로 전이했는지)를 시간순으로 보여주는데, 대시보드 과제
+    # 상세 페이지는 현재 phase만 보여주고 이 감사 이력을 전혀 렌더링하지
+    # 않았다. transition_phase()가 이미 매번 기록하는 값을 그대로 표만 만든다
+    # (새 판정 로직 아님).
+    history_rows = "".join(
+        f'<tr><td>phase {h.get("phase")} ({_esc(_phase_label(h.get("phase")))})</td>'
+        f'<td>{_esc(str(h.get("entered_at")))}</td>'
+        f'<td>{_esc(str(h.get("exited_at"))) if h.get("exited_at") else "진행중"}</td>'
+        f'<td>{_esc(str(h.get("mode", "")))}</td>'
+        f'<td>{_esc(str(h.get("approved_by", "—")))}</td></tr>'
+        for h in task.get("phase_history", [])
+    ) or '<tr><td colspan="5" class="empty">phase 이력 없음</td></tr>'
+    history_html = f"""
+<div class="card">
+  <h2>Phase 이력</h2>
+  <table><thead><tr><th>Phase</th><th>진입</th><th>종료</th><th>방식</th><th>승인자</th></tr></thead>
+  <tbody>{history_rows}</tbody></table>
+</div>"""
+
     phase_label_html = _esc(_phase_label(task.get("current_phase")))
     return f"""
 <p><a href="/">← 과제 보드</a></p>
@@ -989,6 +1053,7 @@ def _task_detail_body(
   <ul class="checklist">{approvals_html}</ul>
 </div>
 
+{history_html}
 {edit_form}
 {phase_form}
 {status_form}
@@ -1200,6 +1265,8 @@ def _approvals_body(
     open_error: str = "",
     scan_note: str = "",
     action_error: str = "",
+    skill_candidates: list[dict[str, Any]] | None = None,
+    skill_min_occurrences: int = 3,
 ) -> str:
     pending_html = "".join(_approval_card(a, top=(a.get("kind") == "deploy")) for a in pending) or (
         '<p class="empty">승인 대기 중인 항목이 없습니다.</p>'
@@ -1227,6 +1294,10 @@ def _approvals_body(
         '체크리스트(한 줄에 하나, "라벨:상태" — 상태는 ok|pending|flag, 생략 시 pending)'
     )
     body_label = "본문(선택 — [NEEDS CLARIFICATION: ...] 태그 스캔용)"
+    # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI의 --required-approvals가 이 폼엔
+    # 없어서 kind별 기본 필요 승인 인원(예: spec_review=1명)을 이번 건만
+    # 올리는 게 대시보드에서 불가능했다. 비워두면 이전과 동일하게 기본값.
+    required_label = "필요 승인 인원(선택 — 비우면 종류별 기본값)"
     open_form = f"""
 <div class="card">
   <h2>+ 새 승인 요청</h2>
@@ -1240,6 +1311,8 @@ def _approvals_body(
       <input type="number" name="phase" min="0" max="8" required value="0"></div>
     <div class="field"><label>제목</label>
       <input type="text" name="title" required></div>
+    <div class="field"><label>{required_label}</label>
+      <input type="number" name="required_approvals" min="1"></div>
     <div class="field" style="width:100%;"><label>{checklist_label}</label>
       <textarea name="checklist_text" placeholder="EARS 표기:ok&#10;Gate 매핑:ok"></textarea></div>
     <div class="field" style="width:100%;"><label>{body_label}</label>
@@ -1267,6 +1340,34 @@ def _approvals_body(
     찾아 threshold_review 승인을 연다(이미 열려 있으면 다시 안 만듦, 멱등).</p>
 </div>"""
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI `skills detect`(읽기 전용)가
+    # 대시보드엔 없어서, 반복되는 체크리스트 패턴을 스킬 후보로 발견하는 게
+    # CLI 전용이었다. detect_skill_candidates() 그대로 재사용 — 실제로 파일을
+    # 만드는 `skills scaffold`는 그대로 CLI 전용으로 남긴다(원칙4, 방법론서
+    # §26.6 자격확인은 여전히 사람 검토 몫).
+    skill_rows = "".join(
+        f"<li>{c['count']}x kind={_esc(str(c['kind']))} — "
+        f"{', '.join(_esc(label) for label in c['labels'])}</li>"
+        for c in (skill_candidates or [])
+    ) or (
+        f'<li class="empty">no repeated checklist pattern found '
+        f'(threshold: {skill_min_occurrences}+ occurrences)</li>'
+    )
+    skills_form = f"""
+<div class="card">
+  <h2>스킬 후보 탐지 (읽기 전용)</h2>
+  <ul class="checklist">{skill_rows}</ul>
+  <form class="inline" method="get" action="/approvals" style="margin-top:6px;">
+    <div class="field"><label>최소 반복 횟수</label>
+      <input type="number" name="skill_min_occurrences" min="1"
+        value="{skill_min_occurrences}"></div>
+    <button type="submit" class="ghost">다시 탐지</button>
+  </form>
+  <p class="tm">여기서는 아무것도 만들지 않는다 — 실제 Skill 파일 생성(scaffold)은
+    `agent-eval autopilot skills scaffold`로, 기존 항목과의 중복 확인을 포함한
+    사람 검토 후에 하는 CLI 전용 단계로 남아 있다.</p>
+</div>"""
+
     # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 체크리스트 갱신/결정/취소 실패가
     # 조용히 큐로 돌아가 사용자가 실패 여부를 알 수 없었다.
     action_error_html = (
@@ -1286,6 +1387,7 @@ def _approvals_body(
 {pending_html}
 {drafts_section}
 {scan_form}
+{skills_form}
 """
 
 
@@ -1367,7 +1469,13 @@ def _phase_policy_card(policy: dict[int, str], policy_error: str = "") -> str:
 </div>"""
 
 
-def _claims_card(claims: list[dict[str, Any]], claim_warning: str = "") -> str:
+def _claims_card(
+    claims: list[dict[str, Any]],
+    claim_warning: str = "",
+    *,
+    violations: list[dict[str, Any]] | None = None,
+    ttl_hours: float = 8.0,
+) -> str:
     # docs/AUTOPILOT_IMPROVEMENTS.md §11 — claims add/release가 CLI 전용이었다.
     # append_claim()/check_scope_claim()/resolve_owner() 그대로 재사용 —
     # 겹침은 CLI와 같이 비차단 경고만(원칙4, 새 판정 로직 없음).
@@ -1383,10 +1491,35 @@ def _claims_card(claims: list[dict[str, Any]], claim_warning: str = "") -> str:
     warning_html = (
         f'<div class="banner">⚠ {_esc(claim_warning)}</div>' if claim_warning else ""
     )
+
+    # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI `claims audit --ttl-hours`(TTL
+    # 초과·스코프 겹침)가 대시보드엔 없어서, 대시보드만 쓰는 사람은 CI가 잡는
+    # 이 신호를 볼 방법이 없었다. audit_claims() 그대로 재사용 — 새 판정 로직
+    # 없음, CI처럼 종료 코드로 막지 않고 정보성 경고만 보여준다.
+    violation_items = ""
+    for v in violations or []:
+        if v.get("type") == "ttl_exceeded":
+            violation_items += (
+                f"<li>⏱ {_esc(str(v.get('claim_id')))} ({_esc(str(v.get('developer')))}) — "
+                f"{v.get('age_hours')}h &gt; {ttl_hours}h TTL</li>"
+            )
+        elif v.get("type") == "overlapping_claims":
+            violation_items += (
+                f"<li>⚠ {_esc(str(v.get('claim_id_a')))} ({_esc(str(v.get('developer_a')))}) "
+                f"↔ {_esc(str(v.get('claim_id_b')))} ({_esc(str(v.get('developer_b')))}) "
+                f"— scope overlap</li>"
+            )
+    audit_html = (
+        f'<div class="banner critical">✗ {len(violations or [])} claim audit violation(s)'
+        f'<ul>{violation_items}</ul></div>'
+        if violations else ""
+    )
+
     return f"""
 <div class="card">
   <h2>활성 클레임 — .aoo/claims.jsonl ({len(claims)})</h2>
   {warning_html}
+  {audit_html}
   <table><thead><tr><th>담당자</th><th>스코프</th><th>claim_id</th><th></th></tr></thead>
   <tbody>{claim_rows}</tbody></table>
   <form class="inline" method="post" action="/claims" style="margin-top:10px;">
@@ -1398,6 +1531,11 @@ def _claims_card(claims: list[dict[str, Any]], claim_warning: str = "") -> str:
     <div class="field"><label>claim_id(선택)</label>
       <input type="text" name="claim_id" placeholder="자동 생성"></div>
     <button type="submit" class="ghost">클레임 열기</button>
+  </form>
+  <form class="inline" method="get" action="/ops" style="margin-top:6px;">
+    <div class="field"><label>클레임 감사 TTL(시간)</label>
+      <input type="number" name="claim_ttl_hours" min="0" step="0.5" value="{ttl_hours}"></div>
+    <button type="submit" class="ghost">감사 재실행</button>
   </form>
 </div>"""
 
@@ -1477,8 +1615,12 @@ def _ops_body(
     decision_error: str = "",
     claim_warning: str = "",
     policy_error: str = "",
+    claim_violations: list[dict[str, Any]] | None = None,
+    claim_ttl_hours: float = 8.0,
 ) -> str:
-    claims_html = _claims_card(claims, claim_warning)
+    claims_html = _claims_card(
+        claims, claim_warning, violations=claim_violations or [], ttl_hours=claim_ttl_hours
+    )
     decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
     policy_html = _phase_policy_card(phase_policy or {}, policy_error)
