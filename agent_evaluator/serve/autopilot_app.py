@@ -166,15 +166,25 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
-    def board(show_all: bool = False, task_error: str = "") -> str:
+    def board(
+        show_all: bool = False, task_error: str = "", stale_days: float = 7.0
+    ) -> str:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §18 — CLI의 `doctor --stale-days N`/
+        # `phase check --stale-days N`은 정체 기준일을 사용자가 정할 수 있는데,
+        # 보드는 7.0을 코드에 그냥 박아뒀다 — 빠른 스프린트(예: 3일)나 느린
+        # 팀(예: 14일)은 대시보드에서 그 기준을 못 바꿨다. check_phase_staleness()
+        # 그대로 재사용(새 판정 로직 아님), 쿼리 파라미터로만 노출한다.
         tasks = load_all_tasks(tasks_dir)
         team = load_team(team_path)
         pending = load_pending_approvals(approvals_path)
-        stale_ids = {s["task_id"] for s in check_phase_staleness(tasks_dir, stale_days=7.0)}
+        stale_ids = {
+            s["task_id"] for s in check_phase_staleness(tasks_dir, stale_days=stale_days)
+        }
         return _layout(
             "board", "과제 보드",
             _board_body(
                 tasks, team, pending, stale_ids, show_all=show_all, task_error=task_error,
+                stale_days=stale_days,
             ),
         )
 
@@ -222,7 +232,11 @@ def create_autopilot_app(root: Path) -> FastAPI:
         phase_warning: str = "",
         status_error: str = "",
         update_error: str = "",
+        stale_days: float = 7.0,
     ) -> HTMLResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §18 — 보드와 같은 이유로, 이 페이지의
+        # 정체 배너도 7.0이 코드에 박혀 있었다. 같은 stale_days 쿼리 파라미터를
+        # 그대로 받는다(check_phase_staleness() 재사용, 새 판정 로직 아님).
         task = load_task(tasks_dir, task_id)
         if task is None:
             body = f"<p class='empty'>과제 {_esc(task_id)}를 찾을 수 없습니다.</p>"
@@ -231,7 +245,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
             a for a in load_approvals(approvals_path) if a.get("task_id") == task_id
         ]
         stale = next(
-            (s for s in check_phase_staleness(tasks_dir, stale_days=7.0)
+            (s for s in check_phase_staleness(tasks_dir, stale_days=stale_days)
              if s["task_id"] == task_id),
             None,
         )
@@ -245,6 +259,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                     status_error=status_error, update_error=update_error,
                     phase_policy=load_phase_policy(policy_path),
                     gate_ready_policy=load_gate_ready_policy(policy_path),
+                    stale_days=stale_days,
                 ),
             )
         )
@@ -575,13 +590,21 @@ def create_autopilot_app(root: Path) -> FastAPI:
     @app.get("/ops", response_class=HTMLResponse)
     def ops_page(
         decision_error: str = "", claim_warning: str = "", policy_error: str = "",
-        claim_ttl_hours: float = 8.0,
+        claim_ttl_hours: float = 8.0, claim_developer: str = "",
     ) -> str:
         # docs/AUTOPILOT_IMPROVEMENTS.md §13 — CLI의 `claims audit --ttl-hours`
         # (TTL 초과·스코프 겹침 위반)가 대시보드엔 없어서, 대시보드만 쓰는
         # 사람은 CI가 잡는 이 신호를 볼 방법이 없었다. audit_claims()를 그대로
         # 재사용해 ops 페이지에서도 같은 위반을 보여준다(새 판정 로직 아님).
-        claims = _safe_claims(claims_path)
+        # §18 — CLI `claims list --developer NAME` 필터가 대시보드엔 없어서
+        # 클레임이 많아지면 내 것만 보기가 안 됐다. 감사(TTL/겹침)는 팀
+        # 전체를 봐야 의미가 있으므로 필터 없이 전체 클레임에 대해 그대로
+        # 돌리고, 표시만 걸러서 보여준다.
+        claims_all = _safe_claims(claims_path)
+        claims = (
+            [c for c in claims_all if c.get("developer") == claim_developer]
+            if claim_developer else claims_all
+        )
         claim_violations = _safe_claim_audit(claims_path, claim_ttl_hours)
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
@@ -603,6 +626,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 claim_violations=claim_violations, claim_ttl_hours=claim_ttl_hours,
                 gate_ready_policy=gate_ready_policy,
                 open_experiments=open_experiments, improve_dir=improve_dir,
+                claim_developer=claim_developer,
             ),
         )
 
@@ -866,6 +890,7 @@ def _board_body(
     *,
     show_all: bool = False,
     task_error: str = "",
+    stale_days: float = 7.0,
 ) -> str:
     # blocking_on(과제 파일 필드)은 아직 아무도 쓰지 않는다 — 대신 "이 과제를
     # task_id로 건 pending 승인이 있는가"를 매번 여기서 직접 센다. 필드를
@@ -904,6 +929,16 @@ def _board_body(
         else ('<p class="tm"><a href="/">활성 과제만 보기</a></p>' if show_all else "")
     )
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §18 — stale_days를 바꿔도 show_all 상태는
+    # 유지되게 히든 필드로 같이 실어 보낸다.
+    stale_days_form = f"""
+<form class="inline" method="get" action="/" style="margin:6px 0 0;">
+  <input type="hidden" name="show_all" value="{"1" if show_all else ""}">
+  <div class="field"><label>정체 기준일(일)</label>
+    <input type="number" name="stale_days" min="0" step="0.5" value="{stale_days:g}"></div>
+  <button type="submit" class="ghost">적용</button>
+</form>"""
+
     owner_options = "".join(
         f'<option value="{_esc(m["id"])}">{_esc(m["name"])}</option>' for m in team
     )
@@ -935,6 +970,7 @@ def _board_body(
 <div class="eyebrow">과제 보드</div>
 <h1>진행 중인 과제 ({len(visible_tasks)})</h1>
 {toggle_html}
+{stale_days_form}
 {grid}
 {form}
 """
@@ -967,6 +1003,7 @@ def _task_detail_body(
     update_error: str = "",
     phase_policy: dict[int, str] | None = None,
     gate_ready_policy: set[int] | None = None,
+    stale_days: float = 7.0,
 ) -> str:
     owners = task.get("owners") or {}
     owners_html = "".join(
@@ -1007,6 +1044,14 @@ def _task_detail_body(
         f'phase를 전이하세요.</div>'
         if stale else ""
     )
+    # docs/AUTOPILOT_IMPROVEMENTS.md §18 — 보드와 같은 stale_days 컨트롤.
+    stale_days_form = f"""
+<form class="inline" method="get" action="/tasks/{_esc(str(task.get("task_id")))}"
+  style="margin:4px 0 0;">
+  <div class="field"><label>정체 기준일(일)</label>
+    <input type="number" name="stale_days" min="0" step="0.5" value="{stale_days:g}"></div>
+  <button type="submit" class="ghost">적용</button>
+</form>"""
 
     error_html = (
         f'<div class="banner critical">✗ {_esc(phase_error)}</div>' if phase_error else ""
@@ -1168,6 +1213,7 @@ def _task_detail_body(
 {status_html}
 {last_updated_html}
 {stale_html}
+{stale_days_form}
 {error_html}
 {warning_html}
 
@@ -1644,10 +1690,13 @@ def _claims_card(
     *,
     violations: list[dict[str, Any]] | None = None,
     ttl_hours: float = 8.0,
+    developer_filter: str = "",
 ) -> str:
     # docs/AUTOPILOT_IMPROVEMENTS.md §11 — claims add/release가 CLI 전용이었다.
     # append_claim()/check_scope_claim()/resolve_owner() 그대로 재사용 —
     # 겹침은 CLI와 같이 비차단 경고만(원칙4, 새 판정 로직 없음).
+    # §18 — CLI `claims list --developer NAME` 필터가 대시보드엔 없었다.
+    # claims는 이미 호출자(ops_page)가 걸러서 넘긴다 — 여기선 표시만.
     claim_rows = "".join(
         f"<tr><td>{_esc(str(c.get('developer')))}</td>"
         f"<td>{_esc(', '.join(c.get('scope', [])))}</td>"
@@ -1655,7 +1704,11 @@ def _claims_card(
         f'<td><form method="post" action="/claims/{_esc(str(c.get("claim_id")))}/release">'
         f'<button type="submit" class="ghost">해제</button></form></td></tr>'
         for c in claims
-    ) or '<tr><td colspan="4" class="empty">활성 클레임 없음</td></tr>'
+    ) or (
+        f'<tr><td colspan="4" class="empty">담당자 \'{_esc(developer_filter)}\'의 '
+        f'활성 클레임 없음</td></tr>'
+        if developer_filter else '<tr><td colspan="4" class="empty">활성 클레임 없음</td></tr>'
+    )
 
     warning_html = (
         f'<div class="banner">⚠ {_esc(claim_warning)}</div>' if claim_warning else ""
@@ -1684,9 +1737,14 @@ def _claims_card(
         if violations else ""
     )
 
+    filter_note = (
+        f' <span class="tm">(담당자 \'{_esc(developer_filter)}\'로 필터됨 — '
+        f'<a href="/ops">해제</a>)</span>'
+        if developer_filter else ""
+    )
     return f"""
 <div class="card">
-  <h2>활성 클레임 — .aoo/claims.jsonl ({len(claims)})</h2>
+  <h2>활성 클레임 — .aoo/claims.jsonl ({len(claims)}){filter_note}</h2>
   {warning_html}
   {audit_html}
   <table><thead><tr><th>담당자</th><th>스코프</th><th>claim_id</th><th></th></tr></thead>
@@ -1702,9 +1760,12 @@ def _claims_card(
     <button type="submit" class="ghost">클레임 열기</button>
   </form>
   <form class="inline" method="get" action="/ops" style="margin-top:6px;">
+    <div class="field"><label>담당자로 필터(선택)</label>
+      <input type="text" name="claim_developer" value="{_esc(developer_filter)}"
+        placeholder="예: alice"></div>
     <div class="field"><label>클레임 감사 TTL(시간)</label>
       <input type="number" name="claim_ttl_hours" min="0" step="0.5" value="{ttl_hours}"></div>
-    <button type="submit" class="ghost">감사 재실행</button>
+    <button type="submit" class="ghost">적용</button>
   </form>
 </div>"""
 
@@ -1842,9 +1903,11 @@ def _ops_body(
     gate_ready_policy: set[int] | None = None,
     open_experiments: list[dict[str, Any]] | None = None,
     improve_dir: Path | None = None,
+    claim_developer: str = "",
 ) -> str:
     claims_html = _claims_card(
-        claims, claim_warning, violations=claim_violations or [], ttl_hours=claim_ttl_hours
+        claims, claim_warning, violations=claim_violations or [], ttl_hours=claim_ttl_hours,
+        developer_filter=claim_developer,
     )
     decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""

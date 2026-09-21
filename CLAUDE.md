@@ -101,6 +101,9 @@ agent-eval claims add src/ --developer auto      # open a claim (owner="auto" ->
 #   warns (non-blocking) when the new scope overlaps an existing active claim, instead of only catching the
 #   overlap later via `claims audit`.
 agent-eval claims list [--developer alice]       # filter to one developer's active claims
+#   dashboard: the ops page's claims card has a matching `?claim_developer=` filter
+#   (docs/AUTOPILOT_IMPROVEMENTS.md §18) — display-only; the TTL/overlap audit below still
+#   always runs against every active claim regardless of the filter (project-wide signal).
 agent-eval claims release c-a1b2c3d4
 agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overlapping claims (exit 1)
 #   dashboard: the ops page's claims card now shows the same violations inline (audit_claims() reused,
@@ -121,6 +124,9 @@ agent-eval autopilot doctor [--stale-days 7]     # health-check the skeleton; al
 #   sat in its current phase >= --stale-days (0 disables) — the only signal that a task's declared phase may
 #   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook
 #   with zero warning before this existed). Same check standalone: `phase check`.
+#   dashboard: the board's "phase 정체" badge and the task detail page's stale banner both take a matching
+#   `?stale_days=` query param (docs/AUTOPILOT_IMPROVEMENTS.md §18, default 7) — previously hardcoded to 7.0,
+#   so a team on a faster/slower cadence had no way to change it short of editing the dashboard source.
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
 #   dashboard now has parity with these CLI features (previously CLI-only): board hides archived/cancelled
 #   tasks by default (`?show_all=1` to include them) · "+ 새 과제" form has all 6 owner roles · a task stuck in

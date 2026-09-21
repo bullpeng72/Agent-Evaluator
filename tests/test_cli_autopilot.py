@@ -1867,6 +1867,63 @@ class TestAutopilotBoardPage:
         assert "머물러 있습니다" not in r.text
 
 
+class TestStaleDaysConfigurable:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §18 — CLI `doctor --stale-days N`/
+
+    `phase check --stale-days N`은 정체 기준일을 사용자가 정할 수 있는데,
+    대시보드는 7.0을 코드에 그냥 박아뒀다."""
+
+    def test_board_control_rendered_with_default(self, autopilot_client):
+        r = autopilot_client.get("/")
+        assert 'name="stale_days"' in r.text
+        assert 'value="7"' in r.text
+
+    def test_board_custom_stale_days_changes_badge(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        # 3일 전 진입 — 기본 7일 기준으로는 정체 아님, 1일 기준으로는 정체.
+        import datetime
+        entered = (datetime.datetime.now(datetime.timezone.utc)
+                   - datetime.timedelta(days=3)).isoformat()
+        task["phase_history"][-1]["entered_at"] = entered
+        save_task(tasks_dir, task)
+
+        r = autopilot_client.get("/")
+        assert 'class="badge warning">phase 정체' not in r.text
+
+        r = autopilot_client.get("/?stale_days=1")
+        assert 'class="badge warning">phase 정체' in r.text
+        assert 'value="1"' in r.text
+
+    def test_task_detail_control_rendered_with_default(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.get("/tasks/ST-001")
+        assert 'name="stale_days"' in r.text
+        assert 'value="7"' in r.text
+
+    def test_task_detail_custom_stale_days_changes_banner(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        import datetime
+        entered = (datetime.datetime.now(datetime.timezone.utc)
+                   - datetime.timedelta(days=3)).isoformat()
+        task["phase_history"][-1]["entered_at"] = entered
+        save_task(tasks_dir, task)
+
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "머물러 있습니다" not in r.text
+
+        r = autopilot_client.get("/tasks/ST-001?stale_days=1")
+        assert "머물러 있습니다" in r.text
+
+
 class TestPhaseTransitionRoute:
     """docs/AUTOPILOT_IMPROVEMENTS.md §9 — phase 전이(PLANNING.md §6이
 
@@ -3401,6 +3458,66 @@ class TestClaimsAuditOnOpsPage:
     def test_audit_form_rendered_on_ops_page(self, autopilot_client):
         r = autopilot_client.get("/ops")
         assert "클레임 감사 TTL" in r.text
+
+
+class TestClaimsDeveloperFilter:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §18 — CLI `claims list --developer NAME`
+
+    필터가 ops 페이지엔 없어서 클레임이 많아지면 내 것만 보기가 안 됐다.
+    감사(TTL/겹침)는 필터와 무관하게 항상 전체 클레임에 대해 돈다."""
+
+    def _seed_two_developers(self, tmp_path):
+        import datetime
+
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        now_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        claims_path = tmp_path / ".aoo" / "claims.jsonl"
+        append_claim(claims_path, claim_id="c-alice", developer="alice",
+                     scope=["src/a/"], started_at=now_ts, status="active")
+        append_claim(claims_path, claim_id="c-bob", developer="bob",
+                     scope=["src/b/"], started_at=now_ts, status="active")
+
+    def test_unfiltered_shows_all_developers(self, autopilot_client):
+        self._seed_two_developers(autopilot_client.tmp_path)
+        r = autopilot_client.get("/ops")
+        assert "c-alice" in r.text
+        assert "c-bob" in r.text
+
+    def test_filter_narrows_to_one_developer(self, autopilot_client):
+        self._seed_two_developers(autopilot_client.tmp_path)
+        r = autopilot_client.get("/ops?claim_developer=alice")
+        assert "c-alice" in r.text
+        assert "필터됨" in r.text
+        # bob의 claim_id는 표에서 빠져야 한다(감사 배너에 우연히 등장하는 것과
+        # 구분하기 위해 release 폼 action URL로 정확히 확인).
+        assert 'action="/claims/c-bob/release"' not in r.text
+        assert 'action="/claims/c-alice/release"' in r.text
+
+    def test_non_matching_filter_shows_empty_message(self, autopilot_client):
+        self._seed_two_developers(autopilot_client.tmp_path)
+        r = autopilot_client.get("/ops?claim_developer=nobody")
+        assert "활성 클레임 없음" in r.text
+        assert 'action="/claims/c-alice/release"' not in r.text
+        assert 'action="/claims/c-bob/release"' not in r.text
+
+    def test_filter_does_not_affect_audit_which_stays_project_wide(self, autopilot_client):
+        """감사는 팀 전체를 봐야 의미가 있으므로 필터와 무관하게 전체
+
+        클레임에 대해 돈다 — display만 걸러진다."""
+        from agent_evaluator.gates.team_concurrency import append_claim
+
+        old_ts = "2020-01-01T00:00:00+00:00"
+        append_claim(
+            autopilot_client.tmp_path / ".aoo" / "claims.jsonl", claim_id="c-old",
+            developer="alice", scope=["src/a/"], started_at=old_ts, status="active",
+        )
+        r = autopilot_client.get("/ops?claim_developer=someone-else-entirely")
+        assert "claim audit violation" in r.text  # 감사는 필터와 무관하게 여전히 뜬다
+
+    def test_filter_field_prefilled_and_form_rendered(self, autopilot_client):
+        r = autopilot_client.get("/ops?claim_developer=alice")
+        assert 'name="claim_developer" value="alice"' in r.text
 
 
 class TestDecisionsGateScoreboard:
