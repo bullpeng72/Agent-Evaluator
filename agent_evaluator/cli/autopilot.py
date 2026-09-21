@@ -953,10 +953,17 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         epilog=(
             "Examples:\n"
             "  agent-eval autopilot install --platform ac\n"
-            "  agent-eval autopilot doctor\n"
+            "  agent-eval autopilot doctor --stale-days 7\n"
             "  agent-eval autopilot add-member --id yj --name 유진 --role 설계\n"
             "  agent-eval autopilot new-task --title \"반품정책 자동화\" --platform ac "
-            "--analysis 정민\n"
+            "--analysis 정민 --design 유진\n"
+            "  agent-eval autopilot list-tasks --all\n"
+            "  agent-eval autopilot set-task-status ST-014 --status archived "
+            "--reason \"shipped\"\n"
+            "  agent-eval autopilot phase transition --task ST-014 --to 2 "
+            "--require-approval spec_review\n"
+            "  agent-eval autopilot phase policy set --to 2 --require-approval spec_review\n"
+            "  agent-eval autopilot phase check --stale-days 7\n"
             "  agent-eval autopilot approvals open --task ST-014 --kind spec_review "
             "--phase 1 \\\n"
             "      --title \"ST-014 SPEC 검토\" --body-file docs/SPEC_ST-014.md \\\n"
@@ -964,8 +971,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
             "  agent-eval autopilot approvals list\n"
             "  agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved "
             "--by pm-park\n"
-            "  agent-eval autopilot phase transition --task ST-014 --to 2 "
-            "--require-approval spec_review\n"
+            "  agent-eval autopilot approvals cancel ap-a1b2c3d4 --reason \"no longer needed\"\n"
+            "  agent-eval autopilot decisions list --pending\n"
+            "  agent-eval autopilot skills detect\n"
+            "  agent-eval autopilot skills scaffold --name my-new-skill\n"
             "  agent-eval autopilot dashboard\n"
         ),
     )
@@ -977,7 +986,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     install_p.add_argument("--platform", choices=["ac", "aoo"], default="ac")
     install_p.add_argument("--root", default=".", metavar="DIR")
 
-    doctor_p = ap_sub.add_parser("doctor", help="Health-check the Autopilot installation")
+    doctor_p = ap_sub.add_parser(
+        "doctor",
+        help="Health-check the Autopilot installation (also warns on stale phases)",
+    )
     doctor_p.add_argument("--root", default=".", metavar="DIR")
     doctor_p.add_argument(
         "--stale-days", type=float, default=7.0, dest="stale_days",
@@ -1009,14 +1021,18 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     nt_p.add_argument("--security", default=None, help="Security owner (team member id or name)")
     nt_p.add_argument("--root", default=".", metavar="DIR")
 
-    lt_p = ap_sub.add_parser("list-tasks", help="List all registered tasks")
+    lt_p = ap_sub.add_parser(
+        "list-tasks", help="List registered tasks (active only by default)"
+    )
     lt_p.add_argument(
         "--all", action="store_true",
         help="Include archived/cancelled tasks (active-only by default)",
     )
     lt_p.add_argument("--root", default=".", metavar="DIR")
 
-    st_p = ap_sub.add_parser("show-task", help="Show one task's detail (owners, phase history)")
+    st_p = ap_sub.add_parser(
+        "show-task", help="Show one task's detail (owners, phase history, status)"
+    )
     st_p.add_argument("task_id")
     st_p.add_argument("--root", default=".", metavar="DIR")
 
@@ -1064,7 +1080,9 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     lm_p.add_argument("--root", default=".", metavar="DIR")
 
     ph_p = ap_sub.add_parser(
-        "phase", help="Task phase transitions (.aoo/tasks/<id>.json current_phase)"
+        "phase",
+        help="Task phase transitions + policy + staleness check "
+             "(.aoo/tasks/<id>.json current_phase)",
     )
     ph_sub = ph_p.add_subparsers(dest="phase_command")
     pht_p = ph_sub.add_parser(
@@ -1138,7 +1156,9 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     decr_p.add_argument("--root", default=".", metavar="DIR")
 
     ap_p = ap_sub.add_parser(
-        "approvals", help="HITL approval queue (.aoo/approvals.jsonl) — open/list/decide"
+        "approvals",
+        help="HITL approval queue (.aoo/approvals.jsonl) — "
+             "open/list/decide/update/cancel/scan-thresholds",
     )
     ap_ap_sub = ap_p.add_subparsers(dest="approvals_command")
 
@@ -1215,7 +1235,9 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     aps_p.add_argument("--root", default=".", metavar="DIR")
 
     sk_p = ap_sub.add_parser(
-        "skills", help="Detect repeated approval checklist shapes as skill candidates"
+        "skills",
+        help="Detect repeated approval checklist shapes as skill candidates, "
+             "and scaffold a SKILL.md stub from one",
     )
     sk_sub = sk_p.add_subparsers(dest="skills_command")
     skd_p = sk_sub.add_parser(

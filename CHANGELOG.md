@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.1.5 (2026-09-21) — Harness Autopilot: dashboard parity + current --help text
+
+Fourth follow-up release for `agent-eval autopilot`. Every prior release (v1.1.2–v1.1.4) shipped CLI features that the local dashboard (`serve/autopilot_app.py`) never picked up — this release closes that gap and brings the `--help` text for `autopilot`/`claims` (and the top-level `agent-eval --help`) up to date with everything shipped since.
+
+### Fixed: dashboard had fallen behind the CLI on 4 features
+
+- 🐛 **Board showed archived/cancelled tasks forever** — `GET /` rendered `load_all_tasks()` with no filter, unlike the CLI's `list-tasks` (active-only by default since v1.1.3). Now active-only by default, with `?show_all=1` (and a toggle link) to include the rest.
+- 🐛 **"+ 새 과제" form was capped at 2 of 6 owner roles** — the CLI's `new-task` has taken `--development`/`--qa`/`--pm`/`--security` since v1.1.3; the dashboard form and its `POST /tasks` handler only ever accepted `analysis`/`design`. Now takes all 6.
+- ✨ **Phase-staleness (v1.1.4's `doctor --stale-days`/`phase check`) was invisible on the dashboard** — the board now shows a "phase 정체" badge on a stuck task's card, and the task-detail page shows a banner with the exact days-in-phase, using the same `check_phase_staleness()` the CLI calls (no new signal).
+- ✨ **No way to cancel an approval from the dashboard** — `approvals cancel` (v1.1.3) was CLI-only. Approval cards for `draft`/`pending` items now have a 철회(cancel) button + optional reason field, wired to a new `POST /approvals/{id}/cancel` route.
+
+### Fixed: stale `--help` text
+
+- 📝 `agent-eval autopilot --help`: `list-tasks`/`show-task`/`doctor` one-liners now mention the active-filter/status/stale-days behavior; `phase`/`approvals`/`skills` one-liners mention `check`/`cancel`+`update`+`scan-thresholds`/`scaffold`; the `Examples:` epilog now covers `list-tasks --all`, `set-task-status`, `phase policy`, `phase check`, `approvals cancel`, `decisions list`, and `skills scaffold` (previously stuck at the original M0 example set).
+- 📝 `agent-eval claims --help`: description and `Examples:` now mention `enable-live-check` (v1.1.4), which was entirely absent from both.
+- 📝 `agent-eval --help`: the curated `Commands:`/`Examples:` list never included `autopilot` at all (it was only ever reachable through the auto-generated subcommand list) — added.
+
+### Compatibility
+
+All of the above is additive/opt-in. No Gate scoring change, no `.aoo/*.jsonl` schema change. `_board_body()`/`_task_detail_body()`/`_status_badge_for_task()` gained new optional keyword parameters with backward-compatible defaults — existing direct callers are unaffected.
+
 ## v1.1.4 (2026-09-21) — Harness Autopilot: phase-drift detection + decisions namespace + skill scaffolding
 
 Third follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Closes out the remaining `docs/AUTOPILOT_IMPROVEMENTS.md` backlog items plus two findings from a fresh source-level audit (Appendix M "Autopilot 완전독해" style read of `autopilot_state.py`) that weren't yet on that list.

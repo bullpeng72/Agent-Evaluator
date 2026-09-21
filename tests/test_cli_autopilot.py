@@ -50,6 +50,7 @@ from agent_evaluator.gates.autopilot_state import (
     load_team,
     open_approval,
     save_task,
+    set_task_status,
 )
 
 
@@ -1514,6 +1515,83 @@ class TestAutopilotBoardPage:
         r = autopilot_client.get("/tasks/NOPE")
         assert r.status_code == 404
 
+    def test_board_hides_archived_tasks_by_default(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md 신규(§8) — 대시보드 보드가 CLI
+
+        list-tasks의 active-only 기본값을 따라가지 못해 완료/취소 과제가
+        영원히 카드로 남아 있었다."""
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="활성", platform="ac")
+        create_task(tasks_dir, task_id="ST-002", title="완료됨", platform="ac")
+        set_task_status(tasks_dir, "ST-002", "archived")
+
+        r = autopilot_client.get("/")
+        assert "활성" in r.text
+        assert "완료됨" not in r.text
+        assert "전체 보기" in r.text
+
+    def test_board_show_all_includes_archived(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="완료됨", platform="ac")
+        set_task_status(tasks_dir, "ST-001", "archived")
+
+        r = autopilot_client.get("/?show_all=1")
+        assert "완료됨" in r.text
+        assert "활성 과제만 보기" in r.text
+
+    def test_post_tasks_accepts_all_six_owner_roles(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md 신규(§8) — new-task는 v1.1.3부터
+
+        6역할을 받는데 대시보드 폼/핸들러는 여전히 analysis/design 2개뿐."""
+        tmp_path = autopilot_client.tmp_path
+        autopilot_client.post(
+            "/tasks",
+            data={
+                "title": "t", "platform": "ac", "task_id": "ST-001",
+                "analysis": "a", "design": "b", "development": "c",
+                "qa": "d", "pm": "e", "security": "f",
+            },
+            follow_redirects=False,
+        )
+        task = load_all_tasks(tmp_path / ".aoo" / "tasks")[0]
+        assert task["owners"] == {
+            "analysis": "a", "design": "b", "development": "c",
+            "qa": "d", "pm": "e", "security": "f",
+        }
+
+    def test_board_flags_stale_phase(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md 신규(§8), LIMITS L4 — phase 정체
+
+        신호(v1.1.4)가 CLI에만 있고 대시보드엔 없었다."""
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="정체됨", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        r = autopilot_client.get("/")
+        assert 'class="badge warning">phase 정체' in r.text
+
+    def test_task_detail_shows_stale_banner(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="정체됨", platform="ac")
+        task = load_task(tasks_dir, "ST-001")
+        task["phase_history"][-1]["entered_at"] = "2020-01-01T00:00:00+00:00"
+        save_task(tasks_dir, task)
+
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "머물러 있습니다" in r.text
+
+    def test_task_detail_no_stale_banner_when_fresh(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="새 과제", platform="ac")
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "머물러 있습니다" not in r.text
+
 
 class TestAutopilotTeamPage:
     def test_team_page_lists_members(self, autopilot_client):
@@ -1669,6 +1747,65 @@ class TestAutopilotApprovalsPage:
 
         r = autopilot_client.get("/approvals")
         assert "승인 대기 중인 항목이 없습니다" in r.text
+
+    def test_cancel_button_rendered_for_pending(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md 신규(§8) — approvals cancel(v1.1.3)이
+
+        CLI에만 있고 대시보드엔 철회 버튼이 없었다."""
+        tmp_path = autopilot_client.tmp_path
+        open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.get("/approvals")
+        assert "/cancel" in r.text
+        assert "철회" in r.text
+
+    def test_post_cancel_marks_cancelled_and_redirects(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        r = autopilot_client.post(
+            f"/approvals/{approval['id']}/cancel",
+            data={"reason": "더 이상 필요 없음"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/approvals"
+
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "cancelled"
+        assert updated[approval["id"]]["rationale"] == "더 이상 필요 없음"
+
+    def test_cancelled_item_disappears_from_pending_view(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        autopilot_client.post(f"/approvals/{approval['id']}/cancel", data={})
+        r = autopilot_client.get("/approvals")
+        assert "승인 대기 중인 항목이 없습니다" in r.text
+
+    def test_cancel_of_already_decided_approval_is_a_noop(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        autopilot_client.post(
+            f"/approvals/{approval['id']}/decide",
+            data={"decision": "approved", "decided_by": "pm"},
+        )
+        r = autopilot_client.post(
+            f"/approvals/{approval['id']}/cancel", data={}, follow_redirects=False,
+        )
+        assert r.status_code == 303  # ValueError는 조용히 삼켜지고 큐로 리다이렉트
+
+        updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
+        assert updated[approval["id"]]["status"] == "approved"  # 그대로 유지
 
 
 class TestAutopilotOpsPage:

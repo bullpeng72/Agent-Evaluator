@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.4 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.5 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -113,6 +113,10 @@ agent-eval autopilot doctor [--stale-days 7]     # health-check the skeleton; al
 #   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook
 #   with zero warning before this existed). Same check standalone: `phase check`.
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
+#   dashboard now has parity with these CLI features (previously CLI-only): board hides archived/cancelled
+#   tasks by default (`?show_all=1` to include them) · "+ 새 과제" form has all 6 owner roles · a task stuck in
+#   its phase gets a "phase 정체" board badge + a banner on its detail page (same check_phase_staleness() the
+#   CLI's doctor/phase check use) · approval cards get a 철회(cancel) button for draft/pending items.
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled

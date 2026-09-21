@@ -32,6 +32,8 @@ from agent_evaluator.gates.autopilot_state import (
     VALID_PLATFORMS,
     VALID_ROLES,
     add_team_member,
+    cancel_approval,
+    check_phase_staleness,
     compute_rejection_rate,
     create_task,
     decide_approval,
@@ -98,11 +100,15 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
-    def board() -> str:
+    def board(show_all: bool = False) -> str:
         tasks = load_all_tasks(tasks_dir)
         team = load_team(team_path)
         pending = load_pending_approvals(approvals_path)
-        return _layout("board", "과제 보드", _board_body(tasks, team, pending))
+        stale_ids = {s["task_id"] for s in check_phase_staleness(tasks_dir, stale_days=7.0)}
+        return _layout(
+            "board", "과제 보드",
+            _board_body(tasks, team, pending, stale_ids, show_all=show_all),
+        )
 
     @app.post("/tasks")
     def create_task_route(
@@ -112,15 +118,21 @@ def create_autopilot_app(root: Path) -> FastAPI:
         task_id: str = Form(""),
         analysis: str = Form(""),
         design: str = Form(""),
+        development: str = Form(""),
+        qa: str = Form(""),
+        pm: str = Form(""),
+        security: str = Form(""),
     ) -> RedirectResponse:
         import uuid
 
         tid = task_id.strip() or f"T-{uuid.uuid4().hex[:6].upper()}"
         owners: dict[str, str] = {}
-        if analysis.strip():
-            owners["analysis"] = analysis.strip()
-        if design.strip():
-            owners["design"] = design.strip()
+        for role_key, value in (
+            ("analysis", analysis), ("design", design), ("development", development),
+            ("qa", qa), ("pm", pm), ("security", security),
+        ):
+            if value.strip():
+                owners[role_key] = value.strip()
         try:
             create_task(
                 tasks_dir, task_id=tid, title=title, platform=platform,
@@ -139,8 +151,15 @@ def create_autopilot_app(root: Path) -> FastAPI:
         related = [
             a for a in load_approvals(approvals_path) if a.get("task_id") == task_id
         ]
+        stale = next(
+            (s for s in check_phase_staleness(tasks_dir, stale_days=7.0)
+             if s["task_id"] == task_id),
+            None,
+        )
         page_title = f"{task_id} · {task.get('title', '')}"
-        return HTMLResponse(_layout("board", page_title, _task_detail_body(task, related)))
+        return HTMLResponse(
+            _layout("board", page_title, _task_detail_body(task, related, stale))
+        )
 
     # ------------------------------------------------------------------
     # 팀 관리
@@ -190,6 +209,14 @@ def create_autopilot_app(root: Path) -> FastAPI:
             )
         except ValueError:
             pass  # 잘못된 id/사유 누락 — 큐로 돌아가 다시 시도(M0.5 범위)
+        return RedirectResponse("/approvals", status_code=303)
+
+    @app.post("/approvals/{approval_id}/cancel")
+    def cancel_route(approval_id: str, reason: str = Form("")) -> RedirectResponse:
+        try:
+            cancel_approval(approvals_path, approval_id, reason=reason.strip() or None)
+        except ValueError:
+            pass  # 이미 결정됐거나 없는 id — 큐로 돌아가 다시 시도(M0.5 범위)
         return RedirectResponse("/approvals", status_code=303)
 
     # ------------------------------------------------------------------
@@ -337,37 +364,66 @@ def _phase_dots(current_phase: int) -> str:
     return f'<div class="phase-dots">{"".join(dots)}</div>'
 
 
+_OWNER_ROLE_FIELDS = (
+    ("analysis", "분석 담당"), ("design", "설계 담당"), ("development", "개발 담당"),
+    ("qa", "QA 담당"), ("pm", "PM 담당"), ("security", "보안 담당"),
+)
+
+
 def _board_body(
     tasks: list[dict[str, Any]],
     team: list[dict[str, Any]],
     pending_approvals: list[dict[str, Any]] | None = None,
+    stale_task_ids: set[Any] | None = None,
+    *,
+    show_all: bool = False,
 ) -> str:
     # blocking_on(과제 파일 필드)은 아직 아무도 쓰지 않는다 — 대신 "이 과제를
     # task_id로 건 pending 승인이 있는가"를 매번 여기서 직접 센다. 필드를
     # 억지로 동기화하면 §9 마찰 #6과 똑같은 새 동기화 버그를 또 만든다.
     pending_by_task = Counter(a.get("task_id") for a in (pending_approvals or []))
+    stale_task_ids = stale_task_ids or set()
 
-    if tasks:
+    all_tasks = tasks
+    visible_tasks = tasks if show_all else [
+        t for t in tasks if t.get("status", "active") == "active"
+    ]
+    hidden_count = len(all_tasks) - len(visible_tasks)
+
+    if visible_tasks:
         cards = "".join(
             f'<a class="task-card" href="/tasks/{_esc(str(t.get("task_id")))}">'
             f'{_platform_badge(t.get("platform", "?"))} '
-            f'{_status_badge_for_task(t, pending_by_task)}'
+            f'{_status_badge_for_task(t, pending_by_task, stale_task_ids)}'
             f'<div class="tt">{_esc(str(t.get("title")))}</div>'
             f'<div class="tm">{_esc(str(t.get("task_id")))}</div>'
             f'{_phase_dots(t.get("current_phase", 0))}'
             f'<div class="tm">Phase {_esc(str(t.get("current_phase")))} · '
             f'{_esc(_phase_label(t.get("current_phase")))}</div>'
             f"</a>"
-            for t in tasks
+            for t in visible_tasks
         )
         grid = f'<div class="task-grid">{cards}</div>'
+    elif all_tasks:
+        grid = '<p class="empty">활성 과제가 없습니다 — 아래 링크로 전체를 확인하세요.</p>'
     else:
         grid = '<p class="empty">아직 과제가 없습니다 — 아래에서 등록하세요.</p>'
+
+    toggle_html = (
+        f'<p class="tm"><a href="/?show_all=1">전체 보기(완료·취소 {hidden_count}건 포함)</a></p>'
+        if not show_all and hidden_count
+        else ('<p class="tm"><a href="/">활성 과제만 보기</a></p>' if show_all else "")
+    )
 
     owner_options = "".join(
         f'<option value="{_esc(m["id"])}">{_esc(m["name"])}</option>' for m in team
     )
     platform_options = "".join(f'<option value="{p}">{p}</option>' for p in VALID_PLATFORMS)
+    owner_fields_html = "".join(
+        f'<div class="field"><label>{label}</label>'
+        f'<select name="{key}"><option value=""></option>{owner_options}</select></div>'
+        for key, label in _OWNER_ROLE_FIELDS
+    )
 
     form = f"""
 <div class="card">
@@ -377,31 +433,41 @@ def _board_body(
       <input type="text" name="title" required></div>
     <div class="field"><label>플랫폼</label>
       <select name="platform">{platform_options}</select></div>
-    <div class="field"><label>분석 담당</label>
-      <select name="analysis"><option value=""></option>{owner_options}</select></div>
-    <div class="field"><label>설계 담당</label>
-      <select name="design"><option value=""></option>{owner_options}</select></div>
+    {owner_fields_html}
     <button type="submit">과제 등록 — Phase 0</button>
   </form>
 </div>"""
 
     return f"""
 <div class="eyebrow">과제 보드</div>
-<h1>진행 중인 과제 ({len(tasks)})</h1>
+<h1>진행 중인 과제 ({len(visible_tasks)})</h1>
+{toggle_html}
 {grid}
 {form}
 """
 
 
-def _status_badge_for_task(task: dict[str, Any], pending_by_task: Counter[Any]) -> str:
+def _status_badge_for_task(
+    task: dict[str, Any], pending_by_task: Counter[Any], stale_task_ids: set[Any] | None = None,
+) -> str:
+    badges = []
+    status = task.get("status", "active")
+    if status != "active":
+        badges.append(f'<span class="badge draft">{_esc(status)}</span>')
+    if task.get("task_id") in (stale_task_ids or set()):
+        badges.append('<span class="badge warning">phase 정체</span>')
     if pending_by_task.get(task.get("task_id"), 0) > 0:
-        return '<span class="badge pending">승인 대기</span>'
+        badges.append('<span class="badge pending">승인 대기</span>')
     if task.get("current_phase") == 8:
-        return '<span class="badge approved">운영중</span>'
-    return ""
+        badges.append('<span class="badge approved">운영중</span>')
+    return " ".join(badges)
 
 
-def _task_detail_body(task: dict[str, Any], related_approvals: list[dict[str, Any]]) -> str:
+def _task_detail_body(
+    task: dict[str, Any],
+    related_approvals: list[dict[str, Any]],
+    stale: dict[str, Any] | None = None,
+) -> str:
     owners = task.get("owners") or {}
     owners_html = "".join(
         f"<tr><td>{_esc(k)}</td><td>{_esc(str(v))}</td></tr>" for k, v in owners.items()
@@ -413,6 +479,25 @@ def _task_detail_body(task: dict[str, Any], related_approvals: list[dict[str, An
         for a in related_approvals
     ) or '<li class="empty">관련 승인 항목 없음</li>'
 
+    status = task.get("status", "active")
+    status_html = (
+        f'<p class="tm">상태: <span class="badge draft">{_esc(status)}</span>'
+        f'{" — " + _esc(str(task["status_reason"])) if task.get("status_reason") else ""}</p>'
+        if status != "active" else ""
+    )
+
+    # LIMITS_T-5E1FD6.md L4 — 이 phase가 실제 작업과 맞는지 확인하는 신호가
+    # 대시보드엔 없었다(CLI의 doctor/phase check에만 있었음). 여기서도 똑같이
+    # 보여준다 — 새 계측 없이 check_phase_staleness()가 이미 재는 값 그대로.
+    stale_html = (
+        f'<div class="banner">⚠ 이 과제는 phase {_esc(str(task.get("current_phase")))}'
+        f'({_esc(_phase_label(task.get("current_phase")))})에 '
+        f'{stale["days_in_phase"]:.1f}일째 머물러 있습니다(진입: '
+        f'{_esc(str(stale["entered_at"]))}) — 실제 작업과 맞는지 확인하거나 '
+        f'phase를 전이하세요.</div>'
+        if stale else ""
+    )
+
     phase_label_html = _esc(_phase_label(task.get("current_phase")))
     return f"""
 <p><a href="/">← 과제 보드</a></p>
@@ -421,6 +506,8 @@ def _task_detail_body(task: dict[str, Any], related_approvals: list[dict[str, An
 <h1>{_esc(str(task.get("title")))}</h1>
 {_phase_dots(task.get("current_phase", 0))}
 <p class="tm">Phase {_esc(str(task.get("current_phase")))} · {phase_label_html}</p>
+{status_html}
+{stale_html}
 
 <div class="card">
   <h2>담당자</h2>
@@ -520,6 +607,21 @@ def _approval_card(a: dict[str, Any], *, top: bool = False) -> str:
 </form>
 """
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §4 — draft/pending 승인을 철회할 방법이
+    # CLI(`approvals cancel`)에만 있고 대시보드엔 없었다. approved/rejected/
+    # changes_requested로 이미 끝난 항목은 cancel_approval() 자체가 거부하므로
+    # draft·pending에서만 보여준다.
+    cancel_form = ""
+    if a.get("status") in ("draft", "pending"):
+        cancel_form = f"""
+<form method="post" action="/approvals/{_esc(str(a.get("id")))}/cancel" style="margin-top:6px;">
+  <div style="display:flex;gap:8px;align-items:center;">
+    <input type="text" name="reason" placeholder="철회 사유(선택)" style="flex:1;">
+    <button type="submit" class="ghost">철회</button>
+  </div>
+</form>
+"""
+
     cls = "approval-item top" if top else "approval-item"
     meta = (
         f'[{_esc(str(a.get("task_id")))}] · {_esc(str(a.get("kind")))} '
@@ -533,6 +635,7 @@ def _approval_card(a: dict[str, Any], *, top: bool = False) -> str:
   {nc_html}
   {progress_html}
   {decide_form}
+  {cancel_form}
 </div>"""
 
 

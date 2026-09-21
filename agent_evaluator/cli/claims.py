@@ -245,11 +245,13 @@ def build_claims_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
     """claims 서브커맨드를 argparse 서브파서에 등록한다."""
     p = sub.add_parser(
         "claims",
-        help="Manage .aoo/claims.jsonl team scope claims (add/list/release/audit)",
+        help="Manage .aoo/claims.jsonl team scope claims "
+             "(add/list/release/audit/enable-live-check)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Add, list, release, and audit team scope claims used by\n"
-            "TeamConcurrencyConfig (LiveGuardrail) to detect overlapping work.\n"
+            "TeamConcurrencyConfig (LiveGuardrail) to detect overlapping work, and\n"
+            "turn on real-time claim-overlap checking in an existing guardrail config.\n"
             "\n"
             "This is a thin wrapper around append_claim()/load_active_claims()/\n"
             "audit_claims() — no new logic, just a terminal-friendly interface.\n"
@@ -258,9 +260,11 @@ def build_claims_subparser(sub: argparse._SubParsersAction) -> None:  # type: ig
             "Examples:\n"
             "  agent-eval claims add agent_evaluator/gates/configs.py --developer alex\n"
             "  agent-eval claims add src/ --developer auto\n"
-            "  agent-eval claims list\n"
+            "  agent-eval claims list --developer alex\n"
             "  agent-eval claims release c-a1b2c3d4\n"
             "  agent-eval claims audit --ttl-hours 8\n"
+            "  agent-eval claims enable-live-check --config "
+            ".opencode/plugin/agent-evaluator.config.json\n"
         ),
     )
     claims_sub = p.add_subparsers(dest="claims_command")
