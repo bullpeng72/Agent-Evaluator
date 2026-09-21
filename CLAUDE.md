@@ -126,6 +126,12 @@ agent-eval autopilot dashboard                   # local dashboard, port 8766 (t
 #   page (POST /approvals — checklist as newline-separated "LABEL:STATUS" text, reuses
 #   `_parse_checklist_items()` + the adr_review auto model-tier item + `--no-checklist-gate` checkbox)
 #   · a per-checklist-item status selector on draft/pending approval cards (POST /approvals/{id}/update).
+#   Every write route now surfaces a failure instead of silently redirecting back unchanged — a duplicate/
+#   unknown id, an invalid status/platform/role/checklist-status/phase-policy value, or cancelling an
+#   already-decided approval renders a `.banner.critical` (`task_error`/`status_error`/`update_error` on the
+#   board & task detail, `team_error` on the team page, `action_error` on the approvals page, `policy_error`
+#   on the ops page). `claims/{id}/release` on an id not in the active list still releases but shows a
+#   non-blocking `claim_warning` (no `--force` equivalent for a single-click button).
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled
