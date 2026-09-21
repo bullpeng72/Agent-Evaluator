@@ -135,6 +135,11 @@ Full Gate reference: [`Docs/05_QUALITY_GATE.md`](https://github.com/bullpeng72/A
   [`Docs/09_OPENCODE_VS_CLAUDE_CODE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/09_OPENCODE_VS_CLAUDE_CODE.md)
 - **Dashboard** — `agent-eval dashboard` (FastAPI): Harness Gate breakdown, File Compare with pairwise
   LLM Judge, anomaly/cost tracking, and a 🔧 Improve tab surfacing the RCA engine.
+- **Harness Autopilot** — `agent-eval autopilot` is an optional governance layer on top of this SDK's
+  own Gate/decision data: a multi-task/team registry, a human-in-the-loop approval queue (with dual
+  sign-off for high-stakes kinds), and a phase gate that can require a human approval, a passing
+  Harness Gate verdict, or both, before a task advances — plus its own local dashboard (port 8766).
+  → [`Docs/15_AUTOPILOT.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/15_AUTOPILOT.md)
 
 ---
 
@@ -251,6 +256,7 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval opencode` / `claude` `install\|upgrade\|doctor\|test-config\|uninstall` | Install & manage the LiveGuardrail OpenCode plugin / Claude Code CLI hooks (`test-config` asserts the resolved guardrail config against a case file) |
 | `agent-eval opencode` / `claude` `violations\|blocked-detail` | Search (or, with no query, browse most-recent-first) past Gate B/E blocks; show the exact blocked command for a session |
 | `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
+| `agent-eval autopilot install\|dashboard\|new-task\|...` | Harness Autopilot — an HITL approval queue, task/team registry, and phase-gate governance layer on top of this SDK's own Gate/decision data, with a local dashboard (port 8766) |
 
 ---
 
@@ -283,7 +289,7 @@ agent_evaluator/
                       #   opencode, claude)
 
 Evaluator_Examples/   # 32 example files (ch01–ch32)
-tests/                # 5,720+ test functions
+tests/                # 5,598+ test functions
 ```
 
 ---
@@ -322,6 +328,7 @@ Full history (incl. the `1.0.0-rc.1`–`rc4` series): [`CHANGELOG.md`](https://g
 | [`Docs/12_OPERATIONS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/12_OPERATIONS.md) | Install variants, Docker, per-environment config, performance tuning, troubleshooting |
 | [`Docs/13_OUTPUTS.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/13_OUTPUTS.md) | Result JSON · HTML reports · CLI · dashboard · AI-runtime output system |
 | [`Docs/14_API_REFERENCE.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/14_API_REFERENCE.md) | Full public API reference |
+| [`Docs/15_AUTOPILOT.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/Docs/15_AUTOPILOT.md) | Harness Autopilot — HITL approval queue, task/team registry, phase gates, dashboard |
 | [`CHANGELOG.md`](https://github.com/bullpeng72/Agent-Evaluator/blob/HEAD/CHANGELOG.md) | Version history |
 
 Also available in-app once the dashboard is running: `agent-eval dashboard` → **SDK Reference**

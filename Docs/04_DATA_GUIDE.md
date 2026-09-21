@@ -138,10 +138,10 @@ print(f"saved: {path}")
 ```bash
 agent-eval dataset build --source results/ --strategy high_value --max-cases 30
 
-# Promote approved cases from the HITL review queue to golden regression cases (SPEC-041 P15)
+# Promote approved cases from the HITL review queue to golden regression cases
 agent-eval dataset promote result.json --min-priority high
 
-# Golden-set health — does it still exercise the current failure modes + stale / duplicate cases (SPEC-041 P58)
+# Golden-set health — does it still exercise the current failure modes + stale / duplicate cases
 agent-eval dataset health golden.json --against results/latest.json
 ```
 
@@ -162,7 +162,7 @@ breaks:
 4. `agent-eval dataset health <golden>.json --against <latest>.json` periodically checks the golden set
    still covers the failure modes production is producing.
 
-#### Production → candidate queue (SPEC-043 REQ-4)
+#### Production → candidate queue
 
 `dataset promote` mines a *batch* run's review queue. For *streaming production* traffic, opt into a
 candidate sink and review it separately:
@@ -183,13 +183,13 @@ agent-eval dataset review-candidates q.jsonl --accept <id> --to data/golden_data
 Nothing auto-promotes — `--accept` is a human step and the label stays yours. `insights.golden_health`
 then carries `pending_production_candidates: N`.
 
-#### Tying a golden case to a requirement (SPEC-043 REQ-1)
+#### Tying a golden case to a requirement
 
 `create_taskresult(..., covers=["REQ-004", "REQ-008"])` (or `EvalMetadata(extra={"covers": [...]})`)
 records which requirements a golden case tests. `agent-eval gate result.json --requirements
 docs/REQUIREMENTS.txt --require-spec-coverage` then fails CI (**exit 4**) if any `REQ-ID: description`
 line has no case declaring it — surfaced as `insights.spec_coverage`. `acceptance_criteria=[...]`
-(SPEC-042 REQ-1) similarly records short pass conditions per case, shown as `insights.acceptance_coverage`
+similarly records short pass conditions per case, shown as `insights.acceptance_coverage`
 ("N of M met", keyword match) — **display only, not a Gate score**.
 
 ---

@@ -21,9 +21,9 @@ blocked call durable and discoverable even with no host present.
 | **Raw API** (`check_before_tool_call()` / `record_tool_call()` / `record_blocked_attempt()`) | You call each step yourself | Full manual control — e.g. the call site isn't a simple function call, or you need custom recording logic |
 
 All three modes share one property that matters for what follows: **nothing is durable unless something
-explicitly writes it down.** `check_before_tool_call()` is a pure decision function — SPEC-030's design
-choice — it never records anything itself, by design (so speculative/probe calls don't pollute the audit
-trail). Recording is always a separate, explicit step.
+explicitly writes it down.** `check_before_tool_call()` is a pure decision function — it never records
+anything itself, by design (so speculative/probe calls don't pollute the audit trail). Recording is
+always a separate, explicit step.
 
 ### Mode 2 in full
 
@@ -197,7 +197,7 @@ Passed to `LiveGuardrail(blocked_attempt_capture={...})` (or the equivalent key 
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `enabled` | `True` | Off restores the pre-SPEC-041 shape (`tool_name`/`gate`/`reason` only, no excerpt). |
+| `enabled` | `True` | Off restores the earlier shape (`tool_name`/`gate`/`reason` only, no excerpt). |
 | `max_chars` | `500` (was `240` before 1.1.0) | The capture/display budget the CLI list/search views and MCP tools show. |
 | `report_max_chars` | opt-in; omitted = equals `max_chars` | (1.1.0) A separate, longer ceiling reserved for the HTML report and `blocked-detail`/`show_violation` deep-dive. Capture always stores at the **larger** of the two — a narrowed `max_chars` you set explicitly is never silently widened just because a default `report_max_chars` exists. |
 | `redact_pii` | `True` | Best-effort PII redaction on the captured excerpt before storage. |
@@ -218,8 +218,4 @@ scannable-list case. The report and `blocked-detail`/`show_violation` show the f
   integrations.
 - [`13_OUTPUTS.md`](13_OUTPUTS.md) — the full output-surface map, including `insights.blocked_attempts_audit`
   and the MCP tool table.
-- `Docs/specs/SPEC-019-live-guardrail-api.md` — original `LiveGuardrail` design.
-- `Docs/specs/SPEC-030-blocked-attempt-audit-trail.md` — the `record_blocked_attempt()` /
-  `blocked_violations` audit-trail design this document builds on.
-- `Docs/specs/SPEC-039-decorator-architecture-fixes.md` — `tool_guard`/`live_guardrail_session()` design.
-- `agent_evaluator/gates/live_guardrail.py` — the implementation (SPEC-019, hardened through SPEC-045).
+- `agent_evaluator/gates/live_guardrail.py` — the implementation.

@@ -26,7 +26,7 @@ So a resident-process bridge doesn't fit here. Instead, each hook invocation:
 1. Reads the session's confirmed tool-call history back from a small JSON file (append-only JSON Lines).
 2. Builds a fresh `LiveGuardrail` and replays history through `record_tool_call()` (a normal public
    method — `LiveGuardrail` itself has no new code for this) to reconstruct its judgment state.
-   **Since 1.0.5 (SPEC-042 REQ-5), `PreToolUse` replays only the last `live_loop_window + 5` records
+   **Since 1.0.5, `PreToolUse` replays only the last `live_loop_window + 5` records
    (`_replay_tail_records`) — O(n²) → O(n) over a long session** — because windowed loop detection is
    the only history-dependent live check. Full replay still happens when `deadlock` /
    `privilege_escalation` / `tool_chain_attack` / a cumulative-scope cap is configured, and at
@@ -39,7 +39,7 @@ Claude Code CLI                                   Python (spawned fresh per hook
 ┌──────────────────────┐  stdin (one JSON obj)  ┌────────────────────────────────────────┐
 │ PreToolUse hook       │───────────────────────►│ claude_code_hook.py                    │
 │  (Bash|Write|Edit|…)  │◄───────────────────────│  replay history → check_before_tool_call│
-└──────────────────────┘  stdout (allow/deny)    │  → gates/live_guardrail.py (SPEC-019)   │
+└──────────────────────┘  stdout (allow/deny)    │  → gates/live_guardrail.py              │
 ┌──────────────────────┐                         └────────────────────────────────────────┘
 │ PostToolUse hook      │───────────────────────► same module → record_tool_call(), appends
 │  (Bash|Write|Edit|…)  │                          the confirmed call to the session state file
@@ -65,7 +65,7 @@ State lives under the project (or `~/.claude/` with `--global`):
 (`clear`/`logout`/`prompt_input_exit`/...), unlike `PreToolUse`/`PostToolUse` which filter by tool name.
 `agent-eval claude install` registers `PreToolUse`/`PostToolUse` with a fully-anchored tool-name regex
 (`Bash|Write|Edit|MultiEdit|NotebookEdit|WebFetch` plus `mcp__<server>__<write-verb>…` — MCP file/editor
-servers were silently uncovered before SPEC-041) and `SessionEnd` with `"*"` (match all reasons) —
+servers were silently uncovered before this) and `SessionEnd` with `"*"` (match all reasons) —
 reusing the tool-name matcher for `SessionEnd` would mean the batch-save hook silently never fires. This
 was actually caught by running the install → hook flow end-to-end during development, not by reading the
 docs alone, and has a regression test (`test_all_three_events_registered_with_correct_matchers`).
@@ -130,7 +130,7 @@ that you're expected to edit is `guardrail_config.json`.
 ```
 
 Same principle as the OpenCode plugin's `GUARDRAIL_CONFIG`, adapted to Claude Code's own tool naming
-(`"Bash"`, not the lowercase `"bash"` OpenCode uses). SPEC-041 trimmed `dangerous_patterns` down to
+(`"Bash"`, not the lowercase `"bash"` OpenCode uses). `dangerous_patterns` was later trimmed down to
 genuinely destructive commands (`../`, `&&`, `||`, and bare single-file `rm` were removed — too common
 in normal coding sessions), raised `consecutive_repeat_threshold` to 8, added `live_loop_window: 15`
 (bounds the live loop check to the last N calls so an early transient repeat can't latch the session),
@@ -280,7 +280,7 @@ the full mechanism (and how it differs from the lower-level, per-block `on_block
   servers registered by `--with-*` flags here too.
 - [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations, including the live-verification evidence summarized above.
-- `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic (SPEC-019).
+- `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic.
 - `agent_evaluator/integrations/claude_code_hook.py` — this bridge's implementation.
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — `build_guardrail()`, reused here to construct
   `LiveGuardrail` from the same JSON config shape as the OpenCode stdio bridge.

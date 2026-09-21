@@ -33,7 +33,7 @@ OpenCode (Node/Bun)                              Python
 │ agent-evaluator.ts       │◄────────────────►│ live_guardrail_stdio.py            │
 │  tool.execute.before     │    JSON Lines    │  → gates/live_guardrail.py         │
 │  tool.execute.after      │  (long-lived,    │    (Gate B pure functions +        │
-│                          │   whole session) │     Gate E trackers, SPEC-019)     │
+│                          │   whole session) │     Gate E trackers)               │
 │                          │                  └────────────────────────────────────┘
 │  session.idle/error      │   stdin/stdout   ┌────────────────────────────────────┐
 │  (recordSessionReport)   │◄────────────────►│ live_guardrail_report.py           │
@@ -115,7 +115,7 @@ export AGENT_EVALUATOR_OUTPUT_DIR=results/my_project
 ```
 
 To adjust the config, put a JSON object in a sibling `agent-evaluator.config.json` next to the installed
-plugin (its top-level keys are shallow-merged over the built-in `GUARDRAIL_CONFIG` — SPEC-041). Keep it
+plugin (its top-level keys are shallow-merged over the built-in `GUARDRAIL_CONFIG`). Keep it
 in that file, not in the `.ts`: reinstalling / `agent-eval opencode upgrade` overwrites the `.ts` code
 but never the `.config.json`. It takes the same
 `LoopDetectionConfig`/`DeadlockConfig`/`ScopeConfig`/`ToolParameterSafetyConfig` (Gate B) and
@@ -156,7 +156,7 @@ lifecycle notifications and no verdict text). Since `live_guardrail_report.py` a
 verdict detail to Agent-Evaluator's own SQLite backend on every `session.idle`, `search_violations`
 (below) works around that `ctx` gap by making the same data independently searchable.
 
-## Batch Gate A–G integration (SPEC-028)
+## Batch Gate A–G integration
 
 Real-time (per-tool-call, Gate B/E) and batch (per-session, Gate A–G) evaluation are the same pipeline
 underneath — the plugin's session-end bridge (`live_guardrail_report.record_and_save()`) calls the
@@ -177,7 +177,7 @@ The result is a normal result file — point `agent-eval gate`/`agent-eval dashb
 
 > **Note**: `ToolCallAnalyzer.analyze()` treats a tool call with no `success` key as a success by
 > default. The `tool.execute.after` hook now captures each call's real result (`exit_code` / `stdout` /
-> `success`, SPEC-031) and promotes it into `TaskResult.tool_calls`, so Gate G's success rate is
+> `success`) and promotes it into `TaskResult.tool_calls`, so Gate G's success rate is
 > accurate for calls that carry that data. A call whose result the plugin could not determine still
 > counts as a success — so a session where the plugin's `after` hook never fired can still read
 > optimistically.
@@ -213,7 +213,7 @@ never blocks the session report from saving.
 > when you need a signal independent of whether *any* session-end code ever runs. Full comparison in
 > [`06_LIVEGUARDRAIL.md`](06_LIVEGUARDRAIL.md#discovery--durability-hardening-v110).
 
-## Team scope claims — `.aoo/claims.jsonl` (SPEC-032/034/036/037/038)
+## Team scope claims — `.aoo/claims.jsonl`
 
 When multiple sessions (or teammates) touch the same repo concurrently, `TeamConcurrencyConfig`
 (passed to `LiveGuardrail`) checks structured-path tool calls (`read`/`edit`/`write` — `bash` is
@@ -317,7 +317,7 @@ forget once a stack is running. In the AOO loop the levers are:
   that agrees with a human golden set (check with `agent-eval` LLM-Judge calibration) is cheaper *and*
   no less trustworthy for the easy majority.
 - **Agent tier per task type**: the eval knows which task types are hard. `insights.efficiency_opportunities`
-  now emits a `tier_downshift` opportunity (SPEC-042 REQ-8) when a task type passes with a comfortable
+  now emits a `tier_downshift` opportunity when a task type passes with a comfortable
   accuracy margin (≥ 0.85, n ≥ 3) yet costs about as much per task as the hardest type — a signal to try
   a smaller model for that type. It is advisory only: the margin is measured on the *current* model, so
   estimate the drop on a held-out slice before switching. The SDK does not (and cannot) force the tier —
@@ -358,7 +358,7 @@ opencode run --dir /path/to/project "your message" \
 ### Shipped defaults, and why they are what they are
 
 The shipped `GUARDRAIL_CONFIG` (`opencode_plugin/agent-evaluator.ts`) — its rationale is a direct
-product of live tuning against OpenCode's coarse tool granularity, but the values changed over SPEC-041.
+product of live tuning against OpenCode's coarse tool granularity, but the values have changed over time.
 The authoritative current values are in that file, `07_CLAUDE_CODE_HOOKS.md` (the symmetric Claude Code
 default), and `CHANGELOG.md`. As of 1.1.0:
 
@@ -415,7 +415,7 @@ throwaway file via `rm`. The `tool_use` event in the JSON output stream showed t
 was confirmed intact on disk; and the batch report
 (`results/opencode_live_guardrail/opencode_sessions.db`) recorded the blocked `rm` in
 `blocked_attempts` while the follow-up `ls` landed correctly in `tool_calls` with real
-`stdout`/`exit_code`/`success` (SPEC-031's `output` field working as designed). One thing that did
+`stdout`/`exit_code`/`success` (the `output` field working as designed). One thing that did
 **not** reproduce this time: the "`opencode run` hangs on open stdin" gotcha documented above — this run
 used `--auto --format json` with no explicit `< /dev/null` and completed cleanly (exit 0, no hang).
 Unclear whether that's fixed in `1.18.9` or just didn't trigger under these specific flags — not
@@ -456,19 +456,9 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
   modes (host-integrated / `tool_guard` / raw `check_before_tool_call`), the v1.1.0 discovery/durability
   hardening (`on_block`, `audit_log_path`, `list_violations`, the HTML report's `blocked_attempts_audit`
   section), and the full config knob reference.
-- `Docs/specs/SPEC-019-live-guardrail-api.md` — `LiveGuardrail` design.
-- `Docs/specs/SPEC-024-local-ade-memory-layer.md` — `search_violations` design.
-- `Docs/specs/SPEC-027-git-based-agent-version-tagging.md` — `agent_version="auto"` design.
-- `Docs/specs/SPEC-028-aoo-batch-harness-integration.md` — batch Gate A–G integration design.
-- `Docs/specs/SPEC-032-team-concurrency-scope-check.md`, `SPEC-034-claim-log-ci-audit.md`,
-  `SPEC-035-branch-guard.md`, `SPEC-036-team-concurrency-owner-exclusion.md`,
-  `SPEC-037-team-concurrency-owner-auto.md`, `SPEC-038-claims-cli.md` — team-concurrency/branch-guard
-  design history.
-- `Docs/specs/SPEC-039-decorator-architecture-fixes.md` — `tool_guard`/`live_guardrail_session()` design.
 - `Evaluator_Examples/ch22_tool_guard_realtime.py` — runnable example of the `tool_guard` decorator
   pattern used throughout this stack.
-- `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic + `tool_calls` exposure
-  (SPEC-028 REQ-1).
+- `agent_evaluator/gates/live_guardrail.py` — the actual Gate B/E judgment logic + `tool_calls` exposure.
 - `agent_evaluator/integrations/live_guardrail_stdio.py` — the long-lived, protocol-agnostic (not
   OpenCode-specific) stdio bridge used throughout a session.
 - [`07_CLAUDE_CODE_HOOKS.md`](07_CLAUDE_CODE_HOOKS.md) — the same `LiveGuardrail` engine wired into Claude Code
@@ -476,6 +466,6 @@ confirmed either way, so the stdin-close workaround above is left in place rathe
 - [`09_OPENCODE_VS_CLAUDE_CODE.md`](09_OPENCODE_VS_CLAUDE_CODE.md) — detailed side-by-side comparison of the
   two integrations.
 - `agent_evaluator/integrations/live_guardrail_report.py` — the one-shot, session-end batch-integration
-  bridge, with opt-in `success`/`execution_time`/`agent_version` fields (SPEC-028).
+  bridge, with opt-in `success`/`execution_time`/`agent_version` fields.
 - `agent_evaluator/integrations/opencode_plugin/agent-evaluator.ts` — the plugin source itself; its
   header comments record the live-tuning history behind `GUARDRAIL_CONFIG` cited above.

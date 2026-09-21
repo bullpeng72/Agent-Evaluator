@@ -787,7 +787,7 @@ fault_injection (SPEC-043 REQ-5 — FaultInjectionConfig; sync/async wrappers on
 
 ## Testing
 
-**189 files, 5,720+ test functions** in `tests/`.
+**189 files, 5,598+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)

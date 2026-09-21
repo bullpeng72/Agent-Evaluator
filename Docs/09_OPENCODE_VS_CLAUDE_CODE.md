@@ -31,8 +31,8 @@ Every other difference stems from "which process model the same engine was wired
 |---|---|---|
 | Install method | **copy the whole file** (`agent-evaluator.ts`) | **merge** 3 hooks into `.claude/settings.json` (read-modify-write) |
 | Preserves existing hooks | N/A (a single plugin file) | ✅ — leaves any other hooks you already registered alone and only adds/refreshes ours |
-| Preserves user config | ✅ (SPEC-041) — reinstall / `upgrade` overwrites only the `.ts` and does not touch the adjacent `agent-evaluator.config.json` | ✅ — only `install --force` resets `guardrail_config.json`; `upgrade` deep-merges only new default keys |
-| GUARDRAIL_CONFIG location | **`agent-evaluator.config.json`** next to the plugin (SPEC-041 — shallow-merged over the `.ts` inline defaults; editing the `.ts` directly is lost on reinstall) | a separate **JSON file** (`guardrail_config.json`) — the hook script itself does not need copying |
+| Preserves user config | ✅ — reinstall / `upgrade` overwrites only the `.ts` and does not touch the adjacent `agent-evaluator.config.json` | ✅ — only `install --force` resets `guardrail_config.json`; `upgrade` deep-merges only new default keys |
+| GUARDRAIL_CONFIG location | **`agent-evaluator.config.json`** next to the plugin (shallow-merged over the `.ts` inline defaults; editing the `.ts` directly is lost on reinstall) | a separate **JSON file** (`guardrail_config.json`) — the hook script itself does not need copying |
 | `--global` target | `~/.config/opencode/plugin/` | `~/.claude/settings.json` |
 | MCP-registration command | `opencode mcp add <name> -- <cmd>` (no scope concept; no `mcp remove`, so `uninstall` edits `opencode.json` directly) | `claude mcp add <name> --scope {local\|user} -- <cmd>` (more fine-grained) |
 | Lifecycle subcommands | `install` · `upgrade` · `doctor` · `test-config` · `uninstall` · `violations` · `blocked-detail` | `install` · `upgrade` · `doctor` · `test-config` · `uninstall` · `violations` · `blocked-detail` |
@@ -96,7 +96,7 @@ Confirmed 4 ways:
 3. **Direct filesystem check**: `delete_me.txt` really still exists.
 4. **Direct batch-report query** (`results/opencode_live_guardrail/opencode_sessions.db`):
    `blocked_attempts` has 1 blocked `rm`; `tool_calls` has only the `ls` that actually ran next,
-   recorded accurately down to `stdout` / `exit_code` / `success` (confirming the SPEC-031 `output`
+   recorded accurately down to `stdout` / `exit_code` / `success` (confirming the `output`
    field works).
 
 Detailed record: [the "Known gotchas" section of `08_AOO_STACK.md`](08_AOO_STACK.md#known-gotchas-from-live-opencode-validation)
@@ -181,4 +181,4 @@ one bridge's default, review the other bridge's default too.
 | `LiveGuardrail` subsystem reference (all usage modes + v1.1.0 discovery/durability hardening) | [06_LIVEGUARDRAIL.md](06_LIVEGUARDRAIL.md) |
 | OpenCode integration detail | [08_AOO_STACK.md](08_AOO_STACK.md) |
 | Claude Code integration detail | [07_CLAUDE_CODE_HOOKS.md](07_CLAUDE_CODE_HOOKS.md) |
-| The original LiveGuardrail verdict logic | `agent_evaluator/gates/live_guardrail.py` (SPEC-019) |
+| The original LiveGuardrail verdict logic | `agent_evaluator/gates/live_guardrail.py` |
