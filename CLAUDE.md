@@ -150,6 +150,10 @@ agent-eval autopilot phase policy set --to 2 --require-approval spec_review   # 
 #   drift in real use — see the AOO workbook Ch35->38). `phase policy show` / `--clear` manage it; an explicit
 #   --require-approval on `phase transition` always overrides the policy for that one call.
 agent-eval autopilot phase policy show
+#   dashboard: the ops page has a matching Phase 정책 card (view/set/clear, POST /phase-policy[/{phase}/clear])
+#   and the task detail page's Phase 전이 form now consults this same policy when --require-approval-equivalent
+#   is left blank — a real bug until fixed: the dashboard route used to ignore phase_policy.json entirely,
+#   so a declared policy was silently bypassed when transitioning from the dashboard instead of the CLI.
 agent-eval autopilot phase check [--stale-days 7]   # list active tasks stuck in their current phase (read-only,
 #   same signal `doctor` warns about inline — LIMITS L4).
 agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \

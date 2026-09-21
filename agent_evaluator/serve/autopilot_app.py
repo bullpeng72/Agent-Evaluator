@@ -44,10 +44,12 @@ from agent_evaluator.gates.autopilot_state import (
     load_all_tasks,
     load_approvals,
     load_pending_approvals,
+    load_phase_policy,
     load_task,
     load_team,
     open_approval,
     remove_team_member,
+    set_phase_policy,
     set_task_status,
     transition_phase,
     update_approval_checklist,
@@ -79,6 +81,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
     claims_path = root / ".aoo" / "claims.jsonl"
     decisions_path = root / ".aoo" / "decisions.jsonl"
     approvals_path = root / ".aoo" / "approvals.jsonl"
+    policy_path = root / ".aoo" / "phase_policy.json"
 
     app = FastAPI(title="Harness Autopilot Dashboard")
 
@@ -174,6 +177,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 _task_detail_body(
                     task, related, stale,
                     phase_error=phase_error, phase_warning=phase_warning,
+                    phase_policy=load_phase_policy(policy_path),
                 ),
             )
         )
@@ -204,12 +208,21 @@ def create_autopilot_app(root: Path) -> FastAPI:
                     f"({new_phase - current_phase - 1} phase(s) skipped) — "
                     f"proceeded anyway (not blocked)."
                 )
+        # docs/AUTOPILOT_IMPROVEMENTS.md §10 — 이 라우트가 phase_policy.json을
+        # 전혀 안 읽어서, CLI phase transition은 정책을 자동 적용하는데 대시보드로
+        # 전이하면 사람이 드롭다운에서 kind를 안 고르는 한 정책이 조용히
+        # 무시됐다. CLI의 _cmd_autopilot_phase_transition()과 정확히 같은 순서로
+        # (명시 값 우선, 없으면 정책 조회) 채운다 — 새 판정 로직 아님.
+        required_kind = require_approval or None
+        if required_kind is None:
+            policy = load_phase_policy(policy_path)
+            required_kind = policy.get(new_phase)
         try:
             transition_phase(
                 tasks_dir, task_id, new_phase, mode="auto",
                 approved_by=approved_by.strip() or None,
-                approvals_path=approvals_path if require_approval else None,
-                required_approval_kind=require_approval or None,
+                approvals_path=approvals_path if required_kind else None,
+                required_approval_kind=required_kind,
             )
         except ValueError as exc:
             return RedirectResponse(
@@ -411,7 +424,25 @@ def create_autopilot_app(root: Path) -> FastAPI:
         claims = _safe_claims(claims_path)
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
-        return _layout("ops", "운영 현황", _ops_body(claims, decisions, rejection))
+        policy = load_phase_policy(policy_path)
+        return _layout("ops", "운영 현황", _ops_body(claims, decisions, rejection, policy))
+
+    @app.post("/phase-policy")
+    def set_phase_policy_route(
+        phase: int = Form(...), require_approval: str = Form("")
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI
+        # 전용이라 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐다.
+        try:
+            set_phase_policy(policy_path, phase, require_approval or None)
+        except ValueError:
+            pass  # 알 수 없는 kind — 조용히 무시(M0.5 범위)
+        return RedirectResponse("/ops", status_code=303)
+
+    @app.post("/phase-policy/{phase}/clear")
+    def clear_phase_policy_route(phase: int) -> RedirectResponse:
+        set_phase_policy(policy_path, phase, None)
+        return RedirectResponse("/ops", status_code=303)
 
     return app
 
@@ -654,6 +685,7 @@ def _task_detail_body(
     *,
     phase_error: str = "",
     phase_warning: str = "",
+    phase_policy: dict[int, str] | None = None,
 ) -> str:
     owners = task.get("owners") or {}
     owners_html = "".join(
@@ -693,6 +725,23 @@ def _task_detail_body(
     )
 
     kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
+    # docs/AUTOPILOT_IMPROVEMENTS.md §10 — 정책이 걸려 있어도 대시보드에서는
+    # 안 보여서, 드롭다운을 "(게이트 없음)"으로 그냥 제출하면 실제로는(라우트가
+    # 정책을 조회하므로) 여전히 막힐 수 있었다. 여기서는 그 상황을 사람이
+    # 미리 알 수 있게 정책 표를 그대로 보여준다(새 판정 로직 아님, ops
+    # 페이지의 정책 관리 카드와 같은 데이터).
+    policy_hint_html = ""
+    if phase_policy:
+        rows = "".join(
+            f"<li>phase {p} ({_esc(_phase_label(p))}) → <code>{_esc(k)}</code></li>"
+            for p, k in sorted(phase_policy.items())
+        )
+        policy_hint_html = (
+            f'<p class="tm">프로젝트 phase 정책(운영 현황 페이지에서 관리):'
+            f'<ul class="checklist">{rows}</ul>'
+            f'"필요 승인"을 비워 두면 이 정책이 자동 적용됩니다.</p>'
+        )
+
     phase_form = f"""
 <div class="card">
   <h2>Phase 전이</h2>
@@ -700,15 +749,16 @@ def _task_detail_body(
     <div class="field"><label>새 phase</label>
       <input type="number" name="new_phase" min="0" max="8" required
         value="{_esc(str(task.get("current_phase", 0)))}"></div>
-    <div class="field"><label>필요 승인(선택)</label>
+    <div class="field"><label>필요 승인(선택 — 비우면 정책 자동 적용)</label>
       <select name="require_approval">
-        <option value="">(게이트 없음)</option>{kind_options}</select></div>
+        <option value="">(정책에 맡김)</option>{kind_options}</select></div>
     <div class="field"><label>승인자(선택)</label>
       <input type="text" name="approved_by" placeholder="예: pm-park"></div>
     <button type="submit">전이</button>
   </form>
   <p class="tm">필요 승인을 지정하면, 그 kind의 승인이 approved 상태로
     확정돼 있어야만 전이됩니다 — 없으면 아래에 에러가 뜨고 막힙니다.</p>
+  {policy_hint_html}
 </div>"""
 
     status_options = "".join(
@@ -1094,10 +1144,42 @@ def _rejection_rate_card(rejection: dict[str, Any]) -> str:
 </div>"""
 
 
+def _phase_policy_card(policy: dict[int, str]) -> str:
+    # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI 전용이라
+    # 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐고, 그 상태로
+    # "Phase 전이" 폼을 쓰면(§10 본 버그) 정책이 조용히 무시됐다. 여기서
+    # 조회+설정+해제를 전부 대시보드로 옮긴다(새 판정 로직 아님,
+    # load_/set_phase_policy() 그대로 재사용).
+    rows = "".join(
+        f'<tr><td>phase {p} ({_esc(_phase_label(p))})</td><td><code>{_esc(k)}</code></td>'
+        f'<td><form method="post" action="/phase-policy/{p}/clear">'
+        f'<button type="submit" class="ghost">해제</button></form></td></tr>'
+        for p, k in sorted(policy.items())
+    ) or '<tr><td colspan="3" class="empty">설정된 phase 정책 없음</td></tr>'
+
+    kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
+    return f"""
+<div class="card">
+  <h2>Phase 정책 — .aoo/phase_policy.json</h2>
+  <table><thead><tr><th>Phase</th><th>필요 승인</th><th></th></tr></thead>
+  <tbody>{rows}</tbody></table>
+  <form class="inline" method="post" action="/phase-policy" style="margin-top:10px;">
+    <div class="field"><label>Phase</label>
+      <input type="number" name="phase" min="0" max="8" required></div>
+    <div class="field"><label>필요 승인</label>
+      <select name="require_approval" required>{kind_options}</select></div>
+    <button type="submit" class="ghost">정책 설정</button>
+  </form>
+  <p class="tm">여기서 선언한 정책은 대시보드·CLI의 phase 전이 양쪽에
+    똑같이 자동 적용됩니다("필요 승인"을 직접 지정하지 않았을 때).</p>
+</div>"""
+
+
 def _ops_body(
     claims: list[dict[str, Any]],
     decisions: list[dict[str, Any]],
     rejection: dict[str, Any] | None = None,
+    phase_policy: dict[int, str] | None = None,
 ) -> str:
     claim_rows = "".join(
         f"<tr><td>{_esc(str(c.get('developer')))}</td>"
@@ -1121,6 +1203,7 @@ def _ops_body(
     )
 
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
+    policy_html = _phase_policy_card(phase_policy or {})
 
     return f"""
 <div class="eyebrow">원칙6 자가점검</div>
@@ -1135,5 +1218,6 @@ def _ops_body(
   <table><thead><tr><th>gate run</th><th>exit</th><th>판정</th><th>사람 결정</th></tr></thead>
   <tbody>{decision_rows}</tbody></table>
 </div>
+{policy_html}
 {rejection_html}
 """

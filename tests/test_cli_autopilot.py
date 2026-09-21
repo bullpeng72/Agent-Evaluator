@@ -47,10 +47,12 @@ from agent_evaluator.gates.autopilot_state import (
     decide_approval,
     load_all_tasks,
     load_approvals,
+    load_phase_policy,
     load_task,
     load_team,
     open_approval,
     save_task,
+    set_phase_policy,
     set_task_status,
 )
 
@@ -1758,6 +1760,88 @@ class TestPhaseTransitionRoute:
         )
         assert "skipping" in r.headers["location"]
 
+    def test_phase_policy_is_enforced_without_explicit_require_approval(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §10 — CLI phase transition은
+
+        .aoo/phase_policy.json을 자동 조회하는데, 대시보드 라우트는 그걸
+        전혀 안 읽어서 사람이 드롭다운에서 kind를 안 고르면 정책이 조용히
+        무시됐다. 이게 바로 그 회귀 테스트다."""
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 0  # blocked, unchanged
+
+    def test_phase_policy_satisfied_by_approval_allows_transition(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+        approval = open_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
+            phase=1, title="t", checklist=[{"label": "a", "status": "ok"}],
+        )
+        decide_approval(
+            tmp_path / ".aoo" / "approvals.jsonl", approval["id"],
+            decision="approved", decided_by="pm",
+        )
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 2
+
+    def test_explicit_require_approval_overrides_policy(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "adr_review", "approved_by": ""},
+            follow_redirects=False,
+        )
+        # adr_review (explicit) not spec_review (policy) is what gets checked
+        assert "adr_review" in r.headers["location"]
+        assert "spec_review" not in r.headers["location"]
+
+    def test_no_policy_for_this_phase_is_ungated(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 5, "deploy")
+
+        r = autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 1, "require_approval": "", "approved_by": ""},
+            follow_redirects=False,
+        )
+        assert "phase_error" not in r.headers["location"]
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 1
+
+    def test_task_detail_shows_policy_hint(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "spec_review" in r.text
+
 
 class TestSetTaskStatusRoute:
     def test_archives_task(self, autopilot_client):
@@ -2393,3 +2477,55 @@ class TestAutopilotOpsPage:
 
         r = autopilot_client.get("/ops")
         assert "draft 상태로 대기 중인 승인" not in r.text
+
+
+class TestPhasePolicyOpsRoutes:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI
+
+    전용이라 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐다."""
+
+    def test_ops_page_shows_no_policy_by_default(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert "설정된 phase 정책 없음" in r.text
+
+    def test_ops_page_lists_configured_policy(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+        r = autopilot_client.get("/ops")
+        assert "phase 2" in r.text
+        assert "spec_review" in r.text
+
+    def test_post_phase_policy_sets_and_redirects(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        r = autopilot_client.post(
+            "/phase-policy", data={"phase": 2, "require_approval": "spec_review"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/ops"
+        assert load_phase_policy(tmp_path / ".aoo" / "phase_policy.json") == {2: "spec_review"}
+
+    def test_post_phase_policy_invalid_kind_is_a_noop(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        r = autopilot_client.post(
+            "/phase-policy", data={"phase": 2, "require_approval": "bogus"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert load_phase_policy(tmp_path / ".aoo" / "phase_policy.json") == {}
+
+    def test_clear_route_removes_policy(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        policy_path = tmp_path / ".aoo" / "phase_policy.json"
+        set_phase_policy(policy_path, 2, "spec_review")
+        r = autopilot_client.post("/phase-policy/2/clear", follow_redirects=False)
+        assert r.status_code == 303
+        assert r.headers["location"] == "/ops"
+        assert load_phase_policy(policy_path) == {}
+
+    def test_clear_button_rendered_per_policy_row(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        set_phase_policy(tmp_path / ".aoo" / "phase_policy.json", 2, "spec_review")
+        r = autopilot_client.get("/ops")
+        assert "/phase-policy/2/clear" in r.text
+        assert "해제" in r.text
