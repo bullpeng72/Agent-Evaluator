@@ -130,14 +130,16 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
-    def board(show_all: bool = False) -> str:
+    def board(show_all: bool = False, task_error: str = "") -> str:
         tasks = load_all_tasks(tasks_dir)
         team = load_team(team_path)
         pending = load_pending_approvals(approvals_path)
         stale_ids = {s["task_id"] for s in check_phase_staleness(tasks_dir, stale_days=7.0)}
         return _layout(
             "board", "과제 보드",
-            _board_body(tasks, team, pending, stale_ids, show_all=show_all),
+            _board_body(
+                tasks, team, pending, stale_ids, show_all=show_all, task_error=task_error,
+            ),
         )
 
     @app.post("/tasks")
@@ -168,12 +170,23 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 tasks_dir, task_id=tid, title=title, platform=platform,
                 priority=priority, owners=owners,
             )
-        except ValueError:
-            pass  # 중복 id 등 — 폼 재제출 시 조용히 무시하고 보드로 돌아간다(M0.5 범위)
+        except ValueError as exc:
+            # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 이 라우트를 포함해 10곳이
+            # 실패해도 사용자에게 아무 표시 없이 조용히 돌아갔다. CLI는 항상
+            # 에러를 출력하는데 대시보드만 그 정보를 버리고 있었다 — 이미
+            # 있는 배너 패턴(phase_error/open_error/decision_error)을
+            # 나머지 라우트에도 전부 적용한다(새 판정 로직 아님).
+            return RedirectResponse(f"/?task_error={quote(str(exc))}", status_code=303)
         return RedirectResponse("/", status_code=303)
 
     @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-    def task_detail(task_id: str, phase_error: str = "", phase_warning: str = "") -> HTMLResponse:
+    def task_detail(
+        task_id: str,
+        phase_error: str = "",
+        phase_warning: str = "",
+        status_error: str = "",
+        update_error: str = "",
+    ) -> HTMLResponse:
         task = load_task(tasks_dir, task_id)
         if task is None:
             body = f"<p class='empty'>과제 {_esc(task_id)}를 찾을 수 없습니다.</p>"
@@ -193,6 +206,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 _task_detail_body(
                     task, related, stale,
                     phase_error=phase_error, phase_warning=phase_warning,
+                    status_error=status_error, update_error=update_error,
                     phase_policy=load_phase_policy(policy_path),
                 ),
             )
@@ -253,8 +267,10 @@ def create_autopilot_app(root: Path) -> FastAPI:
     ) -> RedirectResponse:
         try:
             set_task_status(tasks_dir, task_id, status, reason=reason.strip() or None)
-        except ValueError:
-            pass  # 알 수 없는 status 등 — 상세 페이지로 돌아가 다시 시도(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/tasks/{task_id}?status_error={quote(str(exc))}", status_code=303
+            )
         return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
     @app.post("/tasks/{task_id}/update")
@@ -288,8 +304,10 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 title=title.strip() or None, platform=platform or None,
                 priority=priority or None, owners=owners,
             )
-        except ValueError:
-            pass  # 알 수 없는 platform 등 — 상세 페이지로 돌아가 다시 시도(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/tasks/{task_id}?update_error={quote(str(exc))}", status_code=303
+            )
         return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
     # ------------------------------------------------------------------
@@ -297,8 +315,10 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/team", response_class=HTMLResponse)
-    def team_page() -> str:
-        return _layout("team", "팀 관리", _team_body(load_team(team_path)))
+    def team_page(team_error: str = "") -> str:
+        return _layout(
+            "team", "팀 관리", _team_body(load_team(team_path), team_error=team_error)
+        )
 
     @app.post("/team")
     def add_member_route(
@@ -307,13 +327,15 @@ def create_autopilot_app(root: Path) -> FastAPI:
         role: list[str] = Form(...),
         github: str = Form(""),
     ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 중복 id·알 수 없는 역할이 조용히
+        # 무시돼 사용자가 실패 여부를 알 수 없었다(이미 있는 배너 패턴 적용).
         try:
             add_team_member(
                 team_path, member_id=member_id, name=name, roles=role,
                 github=github.strip() or None,
             )
-        except ValueError:
-            pass  # 중복 id·알 수 없는 역할 — 조용히 무시(M0.5 범위, 폼 검증은 M1 이후)
+        except ValueError as exc:
+            return RedirectResponse(f"/team?team_error={quote(str(exc))}", status_code=303)
         return RedirectResponse("/team", status_code=303)
 
     @app.post("/team/{member_id}/update")
@@ -333,16 +355,16 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 name=name.strip() or None, roles=role or None,
                 github=github.strip() or None, synced=synced,
             )
-        except ValueError:
-            pass  # 알 수 없는 id·역할 — 조용히 무시(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(f"/team?team_error={quote(str(exc))}", status_code=303)
         return RedirectResponse("/team", status_code=303)
 
     @app.post("/team/{member_id}/remove")
     def remove_member_route(member_id: str) -> RedirectResponse:
         try:
             remove_team_member(team_path, member_id)
-        except ValueError:
-            pass  # 없는 id — 조용히 무시(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(f"/team?team_error={quote(str(exc))}", status_code=303)
         return RedirectResponse("/team", status_code=303)
 
     # ------------------------------------------------------------------
@@ -350,13 +372,18 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/approvals", response_class=HTMLResponse)
-    def approvals_page(open_error: str = "", scan_note: str = "") -> str:
+    def approvals_page(
+        open_error: str = "", scan_note: str = "", action_error: str = ""
+    ) -> str:
         pending = load_pending_approvals(approvals_path)
         drafts = [a for a in load_approvals(approvals_path) if a.get("status") == "draft"]
         tasks = load_all_tasks(tasks_dir)
         return _layout(
             "approvals", "승인 대기",
-            _approvals_body(pending, drafts, tasks, open_error=open_error, scan_note=scan_note),
+            _approvals_body(
+                pending, drafts, tasks,
+                open_error=open_error, scan_note=scan_note, action_error=action_error,
+            ),
         )
 
     @app.post("/approvals")
@@ -400,11 +427,15 @@ def create_autopilot_app(root: Path) -> FastAPI:
         label: list[str] = Form([]),
         status: list[str] = Form([]),
     ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 이미 결정됐거나 라벨이 불일치해도
+        # 조용히 큐로 돌아가 실패 여부를 알 수 없었다(이미 있는 배너 패턴 적용).
         updates = [{"label": la, "status": st} for la, st in zip(label, status)]
         try:
             update_approval_checklist(approvals_path, approval_id, updates)
-        except ValueError:
-            pass  # 이미 결정됐거나 라벨 불일치 — 큐로 돌아가 다시 시도(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/approvals?action_error={quote(str(exc))}", status_code=303
+            )
         return RedirectResponse("/approvals", status_code=303)
 
     @app.post("/approvals/{approval_id}/decide")
@@ -419,16 +450,20 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 approvals_path, approval_id, decision=decision,
                 decided_by=decided_by, rationale=rationale.strip() or None,
             )
-        except ValueError:
-            pass  # 잘못된 id/사유 누락 — 큐로 돌아가 다시 시도(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/approvals?action_error={quote(str(exc))}", status_code=303
+            )
         return RedirectResponse("/approvals", status_code=303)
 
     @app.post("/approvals/{approval_id}/cancel")
     def cancel_route(approval_id: str, reason: str = Form("")) -> RedirectResponse:
         try:
             cancel_approval(approvals_path, approval_id, reason=reason.strip() or None)
-        except ValueError:
-            pass  # 이미 결정됐거나 없는 id — 큐로 돌아가 다시 시도(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(
+                f"/approvals?action_error={quote(str(exc))}", status_code=303
+            )
         return RedirectResponse("/approvals", status_code=303)
 
     # ------------------------------------------------------------------
@@ -436,7 +471,9 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/ops", response_class=HTMLResponse)
-    def ops_page(decision_error: str = "", claim_warning: str = "") -> str:
+    def ops_page(
+        decision_error: str = "", claim_warning: str = "", policy_error: str = ""
+    ) -> str:
         claims = _safe_claims(claims_path)
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
@@ -447,6 +484,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
             _ops_body(
                 claims, decisions, rejection, policy, pending_runs,
                 decision_error=decision_error, claim_warning=claim_warning,
+                policy_error=policy_error,
             ),
         )
 
@@ -456,10 +494,11 @@ def create_autopilot_app(root: Path) -> FastAPI:
     ) -> RedirectResponse:
         # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI
         # 전용이라 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐다.
+        # §12 — 알 수 없는 kind가 조용히 무시돼 실패 여부를 알 수 없었다.
         try:
             set_phase_policy(policy_path, phase, require_approval or None)
-        except ValueError:
-            pass  # 알 수 없는 kind — 조용히 무시(M0.5 범위)
+        except ValueError as exc:
+            return RedirectResponse(f"/ops?policy_error={quote(str(exc))}", status_code=303)
         return RedirectResponse("/ops", status_code=303)
 
     @app.post("/phase-policy/{phase}/clear")
@@ -521,8 +560,19 @@ def create_autopilot_app(root: Path) -> FastAPI:
 
     @app.post("/claims/{claim_id}/release")
     def release_claim_route(claim_id: str) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §12 — CLI의 `claims release`는 claim_id가
+        # 활성 목록에 없으면 경고한다(_cmd_claims_release), 대시보드 버튼은 아무
+        # 검증 없이 조용히 append했다. 버튼 하나짜리 UI엔 --force에 대응하는
+        # 자연스러운 확인 동작이 없으므로, 클레임 카드 경고(claim_warning)와 같은
+        # "막지 않고 경고" 패턴을 재사용한다 — 새 판정 로직 아님.
+        active_ids = {c.get("claim_id") for c in load_active_claims(claims_path)}
+        warning = (
+            "" if claim_id in active_ids
+            else f"claim_id not found among active claims: {claim_id}"
+        )
         append_claim(claims_path, claim_id=claim_id, status="released", released_at=_now_iso())
-        return RedirectResponse("/ops", status_code=303)
+        suffix = f"?claim_warning={quote(warning)}" if warning else ""
+        return RedirectResponse(f"/ops{suffix}", status_code=303)
 
     @app.post("/approvals/scan-thresholds")
     def scan_thresholds_route(min_occurrences: int = Form(5)) -> RedirectResponse:
@@ -684,6 +734,7 @@ def _board_body(
     stale_task_ids: set[Any] | None = None,
     *,
     show_all: bool = False,
+    task_error: str = "",
 ) -> str:
     # blocking_on(과제 파일 필드)은 아직 아무도 쓰지 않는다 — 대신 "이 과제를
     # task_id로 건 pending 승인이 있는가"를 매번 여기서 직접 센다. 필드를
@@ -732,9 +783,13 @@ def _board_body(
         for key, label in _OWNER_ROLE_FIELDS
     )
 
+    task_error_html = (
+        f'<div class="banner critical">✗ {_esc(task_error)}</div>' if task_error else ""
+    )
     form = f"""
 <div class="card">
   <h2>+ 새 과제</h2>
+  {task_error_html}
   <form class="inline" method="post" action="/tasks">
     <div class="field"><label>제목</label>
       <input type="text" name="title" required></div>
@@ -777,6 +832,8 @@ def _task_detail_body(
     *,
     phase_error: str = "",
     phase_warning: str = "",
+    status_error: str = "",
+    update_error: str = "",
     phase_policy: dict[int, str] | None = None,
 ) -> str:
     owners = task.get("owners") or {}
@@ -857,9 +914,13 @@ def _task_detail_body(
         f'<option value="{s}"{" selected" if s == status else ""}>{s}</option>'
         for s in VALID_TASK_STATUSES
     )
+    status_error_html = (
+        f'<div class="banner critical">✗ {_esc(status_error)}</div>' if status_error else ""
+    )
     status_form = f"""
 <div class="card">
   <h2>과제 상태</h2>
+  {status_error_html}
   <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/status">
     <div class="field"><label>상태</label>
       <select name="status">{status_options}</select></div>
@@ -886,9 +947,13 @@ def _task_detail_body(
         f'<input type="text" name="{key}" value="{_esc(str(owners.get(key, "")))}"></div>'
         for key, label in _OWNER_ROLE_FIELDS
     )
+    update_error_html = (
+        f'<div class="banner critical">✗ {_esc(update_error)}</div>' if update_error else ""
+    )
     edit_form = f"""
 <div class="card">
   <h2>과제 수정</h2>
+  {update_error_html}
   <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/update">
     <div class="field"><label>제목</label>
       <input type="text" name="title" value="{_esc(str(task.get('title')))}"></div>
@@ -966,7 +1031,7 @@ def _team_member_card(m: dict[str, Any]) -> str:
 </div>"""
 
 
-def _team_body(team: list[dict[str, Any]]) -> str:
+def _team_body(team: list[dict[str, Any]], *, team_error: str = "") -> str:
     if team:
         rows = "".join(
             f"<tr><td>{_esc(str(m.get('name')))}</td>"
@@ -990,9 +1055,14 @@ def _team_body(team: list[dict[str, Any]]) -> str:
         f'<div class="card"><h2>팀원 수정/삭제</h2>{member_cards}</div>' if team else ""
     )
 
+    team_error_html = (
+        f'<div class="banner critical">✗ {_esc(team_error)}</div>' if team_error else ""
+    )
+
     return f"""
 <div class="eyebrow">팀 관리</div>
 <h1>팀원 ({len(team)})</h1>
+{team_error_html}
 <div class="card">
   <table><thead><tr><th>이름</th><th>역할</th><th>동기화</th><th>GitHub</th></tr></thead>
   <tbody>{rows}</tbody></table>
@@ -1129,6 +1199,7 @@ def _approvals_body(
     *,
     open_error: str = "",
     scan_note: str = "",
+    action_error: str = "",
 ) -> str:
     pending_html = "".join(_approval_card(a, top=(a.get("kind") == "deploy")) for a in pending) or (
         '<p class="empty">승인 대기 중인 항목이 없습니다.</p>'
@@ -1196,6 +1267,12 @@ def _approvals_body(
     찾아 threshold_review 승인을 연다(이미 열려 있으면 다시 안 만듦, 멱등).</p>
 </div>"""
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §12 — 체크리스트 갱신/결정/취소 실패가
+    # 조용히 큐로 돌아가 사용자가 실패 여부를 알 수 없었다.
+    action_error_html = (
+        f'<div class="banner critical">✗ {_esc(action_error)}</div>' if action_error else ""
+    )
+
     return f"""
 <div class="eyebrow">HITL 승인 큐</div>
 <h1>승인 대기 ({len(pending)})</h1>
@@ -1204,6 +1281,7 @@ def _approvals_body(
   연동)은 아직 없습니다. 2인 승인 대상 항목은 서로 다른 이름을
   넣어야 합니다 — 같은 이름으로 두 번 승인해도 카운트되지 않습니다.
 </div>
+{action_error_html}
 {open_form}
 {pending_html}
 {drafts_section}
@@ -1254,7 +1332,7 @@ def _rejection_rate_card(rejection: dict[str, Any]) -> str:
 </div>"""
 
 
-def _phase_policy_card(policy: dict[int, str]) -> str:
+def _phase_policy_card(policy: dict[int, str], policy_error: str = "") -> str:
     # docs/AUTOPILOT_IMPROVEMENTS.md §10 — phase policy set/show가 CLI 전용이라
     # 대시보드만 쓰는 사람은 정책이 걸려 있다는 사실 자체를 몰랐고, 그 상태로
     # "Phase 전이" 폼을 쓰면(§10 본 버그) 정책이 조용히 무시됐다. 여기서
@@ -1268,9 +1346,13 @@ def _phase_policy_card(policy: dict[int, str]) -> str:
     ) or '<tr><td colspan="3" class="empty">설정된 phase 정책 없음</td></tr>'
 
     kind_options = "".join(f'<option value="{k}">{k}</option>' for k in VALID_APPROVAL_KINDS)
+    policy_error_html = (
+        f'<div class="banner critical">✗ {_esc(policy_error)}</div>' if policy_error else ""
+    )
     return f"""
 <div class="card">
   <h2>Phase 정책 — .aoo/phase_policy.json</h2>
+  {policy_error_html}
   <table><thead><tr><th>Phase</th><th>필요 승인</th><th></th></tr></thead>
   <tbody>{rows}</tbody></table>
   <form class="inline" method="post" action="/phase-policy" style="margin-top:10px;">
@@ -1394,11 +1476,12 @@ def _ops_body(
     *,
     decision_error: str = "",
     claim_warning: str = "",
+    policy_error: str = "",
 ) -> str:
     claims_html = _claims_card(claims, claim_warning)
     decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
-    policy_html = _phase_policy_card(phase_policy or {})
+    policy_html = _phase_policy_card(phase_policy or {}, policy_error)
 
     return f"""
 <div class="eyebrow">원칙6 자가점검</div>

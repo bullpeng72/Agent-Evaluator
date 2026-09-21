@@ -1582,6 +1582,23 @@ class TestAutopilotBoardPage:
         assert task["task_id"] == "ST-099"
         assert task["owners"]["analysis"] == "정민"
 
+    def test_post_tasks_duplicate_id_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 중복 task_id가 조용히 무시돼
+
+        사용자가 실패 여부를 알 수 없었다."""
+        tmp_path = autopilot_client.tmp_path
+        create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
+        r = autopilot_client.post(
+            "/tasks", data={"title": "dup", "platform": "ac", "task_id": "ST-001"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert "task_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
+        tasks = load_all_tasks(tmp_path / ".aoo" / "tasks")
+        assert len(tasks) == 1  # 중복 추가되지 않음
+
     def test_task_detail_page_renders(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
         create_task(tmp_path / ".aoo" / "tasks", task_id="ST-014", title="반품정책", platform="ac")
@@ -1859,7 +1876,10 @@ class TestSetTaskStatusRoute:
         assert task["status"] == "archived"
         assert task["status_reason"] == "done"
 
-    def test_invalid_status_is_a_noop(self, autopilot_client):
+    def test_invalid_status_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 잘못된 상태값이 조용히 무시돼
+
+        사용자가 실패 여부를 알 수 없었다."""
         tmp_path = autopilot_client.tmp_path
         create_task(tmp_path / ".aoo" / "tasks", task_id="ST-001", title="t", platform="ac")
         r = autopilot_client.post(
@@ -1867,6 +1887,9 @@ class TestSetTaskStatusRoute:
             follow_redirects=False,
         )
         assert r.status_code == 303
+        assert "status_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
         task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
         assert task is not None
         assert task["status"] == "active"
@@ -1929,7 +1952,10 @@ class TestUpdateTaskRoute:
         assert task is not None
         assert task["owners"] == {}
 
-    def test_update_unknown_task_is_a_noop(self, autopilot_client):
+    def test_update_unknown_task_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 없는 task_id 수정이 조용히
+
+        무시돼 사용자가 실패 여부를 알 수 없었다."""
         r = autopilot_client.post(
             "/tasks/nope/update",
             data={
@@ -1940,6 +1966,7 @@ class TestUpdateTaskRoute:
             follow_redirects=False,
         )
         assert r.status_code == 303
+        assert "update_error" in r.headers["location"]
 
     def test_does_not_touch_phase_or_status(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -1985,7 +2012,10 @@ class TestAutopilotTeamPage:
         assert members[0]["roles"] == ["설계"]
         assert members[0]["synced"] is False
 
-    def test_post_team_duplicate_id_does_not_500(self, autopilot_client):
+    def test_post_team_duplicate_id_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 중복 id가 조용히 무시돼
+
+        사용자가 실패 여부를 알 수 없었다."""
         tmp_path = autopilot_client.tmp_path
         add_team_member(
             tmp_path / ".aoo" / "team.json", member_id="yj", name="유진", roles=["설계"]
@@ -1994,7 +2024,10 @@ class TestAutopilotTeamPage:
             "/team", data={"member_id": "yj", "name": "유진2", "role": "개발"},
             follow_redirects=False,
         )
-        assert r.status_code == 303  # 조용히 무시하고 페이지로 돌아감(M0.5 범위)
+        assert r.status_code == 303
+        assert "team_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
         members = load_team(tmp_path / ".aoo" / "team.json")
         assert len(members) == 1  # 중복 추가되지 않음
 
@@ -2043,12 +2076,16 @@ class TestTeamMemberUpdateRoute:
         r = autopilot_client.get("/team")
         assert 'name="synced" value="1" checked' in r.text  # 폼이 현재 값을 미리 채움
 
-    def test_update_unknown_id_is_a_noop(self, autopilot_client):
+    def test_update_unknown_id_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 없는 id 수정이 조용히 무시돼
+
+        사용자가 실패 여부를 알 수 없었다."""
         r = autopilot_client.post(
             "/team/nope/update", data={"name": "x", "role": [], "github": ""},
             follow_redirects=False,
         )
         assert r.status_code == 303
+        assert "team_error" in r.headers["location"]
 
 
 class TestTeamMemberRemoveRoute:
@@ -2061,9 +2098,13 @@ class TestTeamMemberRemoveRoute:
         assert r.headers["location"] == "/team"
         assert load_team(team_path) == []
 
-    def test_remove_unknown_id_is_a_noop(self, autopilot_client):
+    def test_remove_unknown_id_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 없는 id 삭제가 조용히 무시돼
+
+        사용자가 실패 여부를 알 수 없었다."""
         r = autopilot_client.post("/team/nope/remove", follow_redirects=False)
         assert r.status_code == 303
+        assert "team_error" in r.headers["location"]
 
     def test_delete_button_rendered_for_each_member(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -2124,6 +2165,20 @@ class TestAutopilotApprovalsPage:
 
         updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
         assert updated[approval["id"]]["status"] == "approved"
+
+    def test_decide_unknown_id_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 없는 id 결정이 조용히 큐로
+
+        돌아가 사용자가 실패 여부를 알 수 없었다."""
+        r = autopilot_client.post(
+            "/approvals/nope/decide",
+            data={"decision": "approved", "decided_by": "pm"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert "action_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
 
     def test_approved_item_disappears_from_pending_view(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -2234,7 +2289,10 @@ class TestAutopilotApprovalsPage:
         r = autopilot_client.get("/approvals")
         assert "승인 대기 중인 항목이 없습니다" in r.text
 
-    def test_cancel_of_already_decided_approval_is_a_noop(self, autopilot_client):
+    def test_cancel_of_already_decided_approval_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 이미 결정된 항목 취소가 조용히
+
+        큐로 리다이렉트돼 사용자가 실패 여부를 알 수 없었다."""
         tmp_path = autopilot_client.tmp_path
         approval = open_approval(
             tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-014", kind="spec_review",
@@ -2247,7 +2305,10 @@ class TestAutopilotApprovalsPage:
         r = autopilot_client.post(
             f"/approvals/{approval['id']}/cancel", data={}, follow_redirects=False,
         )
-        assert r.status_code == 303  # ValueError는 조용히 삼켜지고 큐로 리다이렉트
+        assert r.status_code == 303
+        assert "action_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
 
         updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
         assert updated[approval["id"]]["status"] == "approved"  # 그대로 유지
@@ -2411,7 +2472,10 @@ class TestApprovalsUpdateRoute:
         assert updated[approval["id"]]["status"] == "pending"
         assert updated[approval["id"]]["checklist"][0]["status"] == "ok"
 
-    def test_update_unknown_label_is_a_noop(self, autopilot_client):
+    def test_update_unknown_label_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 라벨 불일치가 조용히 큐로
+
+        돌아가 사용자가 실패 여부를 알 수 없었다."""
         tmp_path = autopilot_client.tmp_path
         approval = open_approval(
             tmp_path / ".aoo" / "approvals.jsonl", task_id="ST-001", kind="spec_review",
@@ -2423,6 +2487,9 @@ class TestApprovalsUpdateRoute:
             follow_redirects=False,
         )
         assert r.status_code == 303
+        assert "action_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
         updated = {a["id"]: a for a in load_approvals(tmp_path / ".aoo" / "approvals.jsonl")}
         assert updated[approval["id"]]["status"] == "draft"  # 그대로 유지
 
@@ -2545,13 +2612,19 @@ class TestPhasePolicyOpsRoutes:
         assert r.headers["location"] == "/ops"
         assert load_phase_policy(tmp_path / ".aoo" / "phase_policy.json") == {2: "spec_review"}
 
-    def test_post_phase_policy_invalid_kind_is_a_noop(self, autopilot_client):
+    def test_post_phase_policy_invalid_kind_shows_error_banner(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — 알 수 없는 kind가 조용히
+
+        무시돼 사용자가 실패 여부를 알 수 없었다."""
         tmp_path = autopilot_client.tmp_path
         r = autopilot_client.post(
             "/phase-policy", data={"phase": 2, "require_approval": "bogus"},
             follow_redirects=False,
         )
         assert r.status_code == 303
+        assert "policy_error" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner critical" in r2.text
         assert load_phase_policy(tmp_path / ".aoo" / "phase_policy.json") == {}
 
     def test_clear_route_removes_policy(self, autopilot_client):
@@ -2626,6 +2699,18 @@ class TestClaimsOpsRoutes:
         r = autopilot_client.get("/ops")
         assert '/claims"' in r.text
         assert "클레임 열기" in r.text
+
+    def test_release_unknown_claim_id_warns_but_still_releases(self, autopilot_client):
+        """docs/AUTOPILOT_IMPROVEMENTS.md §12 — CLI의 `claims release`는
+
+        claim_id가 활성 목록에 없으면 경고하는데(_cmd_claims_release), 대시보드
+        버튼은 아무 검증 없이 조용히 append했다. 버튼 하나짜리 UI엔 --force에
+        대응하는 자연스러운 확인 동작이 없으므로 막지 않고 경고만 한다."""
+        r = autopilot_client.post("/claims/nope/release", follow_redirects=False)
+        assert r.status_code == 303
+        assert "claim_warning" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "banner" in r2.text
 
 
 class TestDecisionsRecordRoute:
