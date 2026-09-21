@@ -20,6 +20,7 @@ artifact)의 정적 화면과 달리, 여기는 폼 제출이 실제로 ``.aoo/`
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime, timezone
 from html import escape as _esc
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,7 @@ from agent_evaluator.gates.autopilot_state import (
     load_task,
     load_team,
     open_approval,
+    open_threshold_reviews,
     remove_team_member,
     set_phase_policy,
     set_task_status,
@@ -56,8 +58,22 @@ from agent_evaluator.gates.autopilot_state import (
     update_task,
     update_team_member,
 )
-from agent_evaluator.gates.team_concurrency import load_active_claims
-from agent_evaluator.rca.decision_ledger import load_decisions
+from agent_evaluator.gates.team_concurrency import (
+    append_claim,
+    check_scope_claim,
+    load_active_claims,
+    resolve_owner,
+)
+from agent_evaluator.rca.decision_ledger import (
+    VALID_OUTCOMES,
+    load_decisions,
+    record_decision_outcome,
+    summarize_decisions,
+)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _safe_claims(claims_path: Path) -> list[dict[str, Any]]:
@@ -334,13 +350,13 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/approvals", response_class=HTMLResponse)
-    def approvals_page(open_error: str = "") -> str:
+    def approvals_page(open_error: str = "", scan_note: str = "") -> str:
         pending = load_pending_approvals(approvals_path)
         drafts = [a for a in load_approvals(approvals_path) if a.get("status") == "draft"]
         tasks = load_all_tasks(tasks_dir)
         return _layout(
             "approvals", "승인 대기",
-            _approvals_body(pending, drafts, tasks, open_error=open_error),
+            _approvals_body(pending, drafts, tasks, open_error=open_error, scan_note=scan_note),
         )
 
     @app.post("/approvals")
@@ -420,12 +436,19 @@ def create_autopilot_app(root: Path) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/ops", response_class=HTMLResponse)
-    def ops_page() -> str:
+    def ops_page(decision_error: str = "", claim_warning: str = "") -> str:
         claims = _safe_claims(claims_path)
         decisions = _safe_decisions(decisions_path)
         rejection = compute_rejection_rate(approvals_path)
         policy = load_phase_policy(policy_path)
-        return _layout("ops", "운영 현황", _ops_body(claims, decisions, rejection, policy))
+        pending_runs = summarize_decisions(decisions)["pending"]
+        return _layout(
+            "ops", "운영 현황",
+            _ops_body(
+                claims, decisions, rejection, policy, pending_runs,
+                decision_error=decision_error, claim_warning=claim_warning,
+            ),
+        )
 
     @app.post("/phase-policy")
     def set_phase_policy_route(
@@ -443,6 +466,75 @@ def create_autopilot_app(root: Path) -> FastAPI:
     def clear_phase_policy_route(phase: int) -> RedirectResponse:
         set_phase_policy(policy_path, phase, None)
         return RedirectResponse("/ops", status_code=303)
+
+    @app.post("/decisions/record")
+    def record_decision_route(
+        gate_run_id: str = Form(""),
+        outcome: str = Form(...),
+        decided_by: str = Form(...),
+        rationale: str = Form(""),
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §11 — 승인·과제·팀원은 전부 대시보드로
+        # 완결되는데 배포 결정 기록만 CLI(`agent-eval decisions record`) 전용
+        # 이었다. record_decision_outcome() 그대로 재사용 — 미결 2건 이상인데
+        # gate_run_id를 안 고르면 그 함수 자체가 ValueError로 막는다(이미 있는
+        # 동시성 가드, 새 판정 로직 아님).
+        try:
+            record_decision_outcome(
+                decisions_path, outcome=outcome, decided_by=decided_by,
+                rationale=rationale.strip() or None, gate_run_id=gate_run_id or None,
+            )
+        except ValueError as exc:
+            return RedirectResponse(f"/ops?decision_error={quote(str(exc))}", status_code=303)
+        return RedirectResponse("/ops", status_code=303)
+
+    @app.post("/claims")
+    def add_claim_route(
+        scope: str = Form(...), developer: str = Form(""), claim_id: str = Form("")
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §11 — claims add/release가 CLI 전용
+        # 이었다. CLI와 같은 "auto" 처리(git user.name) + 겹침 비차단 경고를
+        # 그대로 재사용한다(원칙4 — 새 판정 로직 없음).
+        import uuid
+
+        scope_list = [s.strip() for s in scope.splitlines() if s.strip()]
+        resolved_developer = resolve_owner(developer.strip() or "auto")
+        if not resolved_developer or not scope_list:
+            return RedirectResponse(
+                f"/ops?claim_warning={quote('developer could not be resolved, or scope is empty')}",
+                status_code=303,
+            )
+
+        claims_path.parent.mkdir(parents=True, exist_ok=True)
+        overlaps = check_scope_claim(scope_list, claims_path)
+        cid = claim_id.strip() or f"c-{uuid.uuid4().hex[:8]}"
+        append_claim(
+            claims_path, claim_id=cid, developer=resolved_developer, scope=scope_list,
+            started_at=_now_iso(), status="active",
+        )
+        warning = ""
+        if overlaps:
+            who = ", ".join(f"{o.get('claim_id')}({o.get('developer')})" for o in overlaps)
+            warning = f"scope overlaps existing active claim(s): {who} — opened anyway"
+        suffix = f"?claim_warning={quote(warning)}" if warning else ""
+        return RedirectResponse(f"/ops{suffix}", status_code=303)
+
+    @app.post("/claims/{claim_id}/release")
+    def release_claim_route(claim_id: str) -> RedirectResponse:
+        append_claim(claims_path, claim_id=claim_id, status="released", released_at=_now_iso())
+        return RedirectResponse("/ops", status_code=303)
+
+    @app.post("/approvals/scan-thresholds")
+    def scan_thresholds_route(min_occurrences: int = Form(5)) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §11 — 반복된 exit-75 사유를 찾아
+        # threshold_review를 여는 이 멱등 스캔이 CLI(`approvals scan-thresholds`)
+        # 전용이었다. open_threshold_reviews() 그대로 재사용.
+        opened = open_threshold_reviews(approvals_path, decisions_path, min_occurrences)
+        note = (
+            f"{len(opened)} threshold_review approval(s) opened" if opened
+            else "no repeated exit-75 pattern found"
+        )
+        return RedirectResponse(f"/approvals?scan_note={quote(note)}", status_code=303)
 
     return app
 
@@ -1036,6 +1128,7 @@ def _approvals_body(
     tasks: list[dict[str, Any]] | None = None,
     *,
     open_error: str = "",
+    scan_note: str = "",
 ) -> str:
     pending_html = "".join(_approval_card(a, top=(a.get("kind") == "deploy")) for a in pending) or (
         '<p class="empty">승인 대기 중인 항목이 없습니다.</p>'
@@ -1087,6 +1180,22 @@ def _approvals_body(
   </form>
 </div>"""
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §11 — 반복된 exit-75 사유를 찾아
+    # threshold_review를 여는 이 멱등 스캔이 CLI 전용이었다.
+    scan_note_html = f'<p class="tm">{_esc(scan_note)}</p>' if scan_note else ""
+    scan_form = f"""
+<div class="card">
+  <h2>임계값 재검토 스캔</h2>
+  <form class="inline" method="post" action="/approvals/scan-thresholds">
+    <div class="field"><label>최소 반복 횟수</label>
+      <input type="number" name="min_occurrences" min="1" value="5"></div>
+    <button type="submit" class="ghost">스캔 실행</button>
+  </form>
+  {scan_note_html}
+  <p class="tm">.aoo/decisions.jsonl에서 같은 사유로 반복된 exit-75(--hold-on-undecided)를
+    찾아 threshold_review 승인을 연다(이미 열려 있으면 다시 안 만듦, 멱등).</p>
+</div>"""
+
     return f"""
 <div class="eyebrow">HITL 승인 큐</div>
 <h1>승인 대기 ({len(pending)})</h1>
@@ -1098,6 +1207,7 @@ def _approvals_body(
 {open_form}
 {pending_html}
 {drafts_section}
+{scan_form}
 """
 
 
@@ -1175,19 +1285,50 @@ def _phase_policy_card(policy: dict[int, str]) -> str:
 </div>"""
 
 
-def _ops_body(
-    claims: list[dict[str, Any]],
-    decisions: list[dict[str, Any]],
-    rejection: dict[str, Any] | None = None,
-    phase_policy: dict[int, str] | None = None,
-) -> str:
+def _claims_card(claims: list[dict[str, Any]], claim_warning: str = "") -> str:
+    # docs/AUTOPILOT_IMPROVEMENTS.md §11 — claims add/release가 CLI 전용이었다.
+    # append_claim()/check_scope_claim()/resolve_owner() 그대로 재사용 —
+    # 겹침은 CLI와 같이 비차단 경고만(원칙4, 새 판정 로직 없음).
     claim_rows = "".join(
         f"<tr><td>{_esc(str(c.get('developer')))}</td>"
         f"<td>{_esc(', '.join(c.get('scope', [])))}</td>"
-        f"<td>{_esc(str(c.get('claim_id')))}</td></tr>"
+        f"<td>{_esc(str(c.get('claim_id')))}</td>"
+        f'<td><form method="post" action="/claims/{_esc(str(c.get("claim_id")))}/release">'
+        f'<button type="submit" class="ghost">해제</button></form></td></tr>'
         for c in claims
-    ) or '<tr><td colspan="3" class="empty">활성 클레임 없음</td></tr>'
+    ) or '<tr><td colspan="4" class="empty">활성 클레임 없음</td></tr>'
 
+    warning_html = (
+        f'<div class="banner">⚠ {_esc(claim_warning)}</div>' if claim_warning else ""
+    )
+    return f"""
+<div class="card">
+  <h2>활성 클레임 — .aoo/claims.jsonl ({len(claims)})</h2>
+  {warning_html}
+  <table><thead><tr><th>담당자</th><th>스코프</th><th>claim_id</th><th></th></tr></thead>
+  <tbody>{claim_rows}</tbody></table>
+  <form class="inline" method="post" action="/claims" style="margin-top:10px;">
+    <div class="field" style="width:100%;"><label>스코프(한 줄에 경로 하나)</label>
+      <textarea name="scope" required
+        placeholder="src/archivist/ask/&#10;src/archivist/check/"></textarea></div>
+    <div class="field"><label>담당자(선택 — 비우면 git user.name)</label>
+      <input type="text" name="developer" placeholder="auto"></div>
+    <div class="field"><label>claim_id(선택)</label>
+      <input type="text" name="claim_id" placeholder="자동 생성"></div>
+    <button type="submit" class="ghost">클레임 열기</button>
+  </form>
+</div>"""
+
+
+def _decisions_card(
+    decisions: list[dict[str, Any]],
+    pending_runs: list[dict[str, Any]],
+    decision_error: str = "",
+) -> str:
+    # docs/AUTOPILOT_IMPROVEMENTS.md §11 — 승인·과제·팀원은 대시보드로
+    # 완결되는데 배포 결정 기록만 CLI(`decisions record`) 전용이었다.
+    # record_decision_outcome() 그대로 재사용 — 미결 2건 이상인데 명시
+    # 안 하면 그 함수가 이미 ValueError로 막는다(동시성 가드, v1.1.1).
     decision_rows = ""
     for d in decisions:
         if d.get("kind") != "gate_run":
@@ -1202,22 +1343,68 @@ def _ops_body(
         decision_rows or '<tr><td colspan="4" class="empty">기록된 게이트 실행이 없음</td></tr>'
     )
 
+    error_html = (
+        f'<div class="banner critical">✗ {_esc(decision_error)}</div>' if decision_error else ""
+    )
+    outcome_options = "".join(f'<option value="{o}">{o}</option>' for o in VALID_OUTCOMES)
+    record_form = ""
+    if pending_runs:
+        multiple_pending = len(pending_runs) > 1
+        run_note = "" if multiple_pending else " — 유일한 미결"
+        run_options = "".join(
+            f'<option value="{_esc(str(p.get("id")))}">{_esc(str(p.get("id")))[:12]} '
+            f'(exit {_esc(str(p.get("exit_code")))}){run_note}</option>'
+            for p in pending_runs
+        )
+        gate_run_label = (
+            "gate run (미결 2건 이상 — 반드시 선택)" if multiple_pending
+            else "gate run (선택 — 미결 1건이면 자동)"
+        )
+        record_form = f"""
+{error_html}
+<form class="inline" method="post" action="/decisions/record" style="margin-top:10px;">
+  <div class="field"><label>{gate_run_label}</label>
+    <select name="gate_run_id"><option value=""></option>{run_options}</select></div>
+  <div class="field"><label>결정</label>
+    <select name="outcome">{outcome_options}</select></div>
+  <div class="field"><label>결정자</label>
+    <input type="text" name="decided_by" required placeholder="예: pm-park"></div>
+  <div class="field" style="width:100%;"><label>근거(선택)</label>
+    <input type="text" name="rationale"></div>
+  <button type="submit" class="ghost">결정 기록</button>
+</form>"""
+    elif decision_error:
+        record_form = error_html
+
+    return f"""
+<div class="card">
+  <h2>배포 결정 원장 — .aoo/decisions.jsonl</h2>
+  <table><thead><tr><th>gate run</th><th>exit</th><th>판정</th><th>사람 결정</th></tr></thead>
+  <tbody>{decision_rows}</tbody></table>
+  {record_form}
+</div>"""
+
+
+def _ops_body(
+    claims: list[dict[str, Any]],
+    decisions: list[dict[str, Any]],
+    rejection: dict[str, Any] | None = None,
+    phase_policy: dict[int, str] | None = None,
+    pending_runs: list[dict[str, Any]] | None = None,
+    *,
+    decision_error: str = "",
+    claim_warning: str = "",
+) -> str:
+    claims_html = _claims_card(claims, claim_warning)
+    decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
     policy_html = _phase_policy_card(phase_policy or {})
 
     return f"""
 <div class="eyebrow">원칙6 자가점검</div>
 <h1>운영 현황</h1>
-<div class="card">
-  <h2>활성 클레임 — .aoo/claims.jsonl ({len(claims)})</h2>
-  <table><thead><tr><th>담당자</th><th>스코프</th><th>claim_id</th></tr></thead>
-  <tbody>{claim_rows}</tbody></table>
-</div>
-<div class="card">
-  <h2>배포 결정 원장 — .aoo/decisions.jsonl</h2>
-  <table><thead><tr><th>gate run</th><th>exit</th><th>판정</th><th>사람 결정</th></tr></thead>
-  <tbody>{decision_rows}</tbody></table>
-</div>
+{claims_html}
+{decisions_html}
 {policy_html}
 {rejection_html}
 """

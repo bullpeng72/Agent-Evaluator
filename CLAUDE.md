@@ -102,6 +102,8 @@ agent-eval claims enable-live-check --config .opencode/plugin/agent-evaluator.co
 #   merges {"team_concurrency": {...}} into an existing guardrail config JSON (Claude's guardrail_config.json
 #   or OpenCode's agent-evaluator.config.json) via a safe deep-merge (never overwrites a key you already set) —
 #   until this existed, turning on real-time claim-overlap checking required hand-editing that JSON.
+#   dashboard: the ops page can also open/release a claim directly (POST /claims, POST /claims/{id}/release) —
+#   previously the ops page only ever displayed claims read-only.
 
 # CLI — Harness Autopilot (SPEC-AP-001, agent_evaluator/{gates/autopilot_state.py,cli/autopilot.py,serve/autopilot_app.py})
 #   HITL approval queue layered on top of this SDK's own Gate/decision/claims data — not an SDLC pipeline.
@@ -176,9 +178,12 @@ agent-eval autopilot approvals list               # pending only by default; nud
 #   (either "no pending, but N draft(s) exist — run with --all" or a footer note when results exist alongside
 #   hidden drafts) so a draft stuck on its checklist doesn't silently sit unnoticed.
 agent-eval autopilot approvals scan-thresholds   # repeated exit-75 reason (5+) -> auto threshold_review card
+#   dashboard: approvals page has a matching "스캔 실행" form (POST /approvals/scan-thresholds).
 agent-eval autopilot decisions list [--pending] [--json]   # alias for `agent-eval decisions` under the
 agent-eval autopilot decisions record --outcome accepted --by NAME   # autopilot namespace — same implementation,
 #   --log defaults to .aoo/decisions.jsonl (`agent-eval decisions` itself still works unchanged).
+#   dashboard: ops page has a matching "결정 기록" form (POST /decisions/record), populated with whichever
+#   gate run(s) are pending — a decided/known-outcome gate run never shows up as a choice.
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 #   count is now per distinct task_id, not per approval entry — a single task redrafting the same checklist
 #   shape N times (e.g. fixing a colon-parsing typo) no longer looks like an N-times-repeated cross-task pattern.

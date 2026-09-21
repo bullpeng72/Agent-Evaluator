@@ -55,6 +55,8 @@ from agent_evaluator.gates.autopilot_state import (
     set_phase_policy,
     set_task_status,
 )
+from agent_evaluator.gates.team_concurrency import load_active_claims
+from agent_evaluator.rca.decision_ledger import load_decisions, record_gate_decision
 
 
 def _ns(**kwargs) -> argparse.Namespace:
@@ -2251,6 +2253,44 @@ class TestAutopilotApprovalsPage:
         assert updated[approval["id"]]["status"] == "approved"  # 그대로 유지
 
 
+class TestScanThresholdsRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §11 — `approvals scan-thresholds`가
+
+    CLI 전용이었다."""
+
+    def test_no_repeated_pattern_shows_note(self, autopilot_client):
+        r = autopilot_client.post(
+            "/approvals/scan-thresholds", data={"min_occurrences": 5},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert "scan_note" in r.headers["location"]
+        r2 = autopilot_client.get(r.headers["location"])
+        assert "no repeated exit-75 pattern found" in r2.text
+
+    def test_repeated_pattern_opens_threshold_review(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        for i in range(5):
+            record_gate_decision(
+                decisions_path, result_file=f"r{i}.json", agent_version="v1",
+                exit_code=75, verdict_level="ready", decision_ready=False,
+                undecided_reason="CI straddles",
+            )
+        r = autopilot_client.post(
+            "/approvals/scan-thresholds", data={"min_occurrences": 5},
+            follow_redirects=False,
+        )
+        assert "opened" in r.headers["location"]
+        approvals = load_approvals(tmp_path / ".aoo" / "approvals.jsonl")
+        assert any(a.get("kind") == "threshold_review" for a in approvals)
+
+    def test_scan_form_rendered_on_approvals_page(self, autopilot_client):
+        r = autopilot_client.get("/approvals")
+        assert "/approvals/scan-thresholds" in r.text
+        assert "스캔 실행" in r.text
+
+
 class TestApprovalsOpenRoute:
     """docs/AUTOPILOT_IMPROVEMENTS.md §9 — 새 승인 요청을 여는 것 자체가
 
@@ -2529,3 +2569,145 @@ class TestPhasePolicyOpsRoutes:
         r = autopilot_client.get("/ops")
         assert "/phase-policy/2/clear" in r.text
         assert "해제" in r.text
+
+
+class TestClaimsOpsRoutes:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §11 — claims add/release가 CLI 전용
+
+    이었다(운영 현황 페이지는 조회만 가능했음)."""
+
+    def test_post_claims_opens_claim(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        claims_path = tmp_path / ".aoo" / "claims.jsonl"
+        r = autopilot_client.post(
+            "/claims", data={"scope": "src/a/\nsrc/b/", "developer": "alice", "claim_id": ""},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/ops"
+        claims = load_active_claims(claims_path)
+        assert len(claims) == 1
+        assert claims[0]["developer"] == "alice"
+        assert claims[0]["scope"] == ["src/a/", "src/b/"]
+
+    def test_post_claims_auto_generates_id_when_blank(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        autopilot_client.post(
+            "/claims", data={"scope": "src/a/", "developer": "alice", "claim_id": ""},
+        )
+        claims = load_active_claims(tmp_path / ".aoo" / "claims.jsonl")
+        assert claims[0]["claim_id"].startswith("c-")
+
+    def test_post_claims_overlap_warns_but_does_not_block(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        claims_path = tmp_path / ".aoo" / "claims.jsonl"
+        autopilot_client.post(
+            "/claims", data={"scope": "src/a/", "developer": "alice", "claim_id": ""},
+        )
+        r = autopilot_client.post(
+            "/claims", data={"scope": "src/a/", "developer": "bob", "claim_id": ""},
+            follow_redirects=False,
+        )
+        assert "claim_warning" in r.headers["location"]
+        assert len(load_active_claims(claims_path)) == 2  # opened anyway
+
+    def test_post_claims_release_route(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        claims_path = tmp_path / ".aoo" / "claims.jsonl"
+        autopilot_client.post(
+            "/claims", data={"scope": "src/a/", "developer": "alice", "claim_id": "c-fixed"},
+        )
+        r = autopilot_client.post("/claims/c-fixed/release", follow_redirects=False)
+        assert r.status_code == 303
+        assert r.headers["location"] == "/ops"
+        assert load_active_claims(claims_path) == []
+
+    def test_add_and_release_forms_rendered_on_ops_page(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert '/claims"' in r.text
+        assert "클레임 열기" in r.text
+
+
+class TestDecisionsRecordRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §11 — 승인·과제·팀원은 대시보드로
+
+    완결되는데 배포 결정 기록만 CLI(`decisions record`) 전용이었다."""
+
+    def test_records_decision_with_sole_pending_run(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        gate_run = record_gate_decision(
+            decisions_path, result_file="r.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        r = autopilot_client.post(
+            "/decisions/record",
+            data={
+                "gate_run_id": "", "outcome": "overridden", "decided_by": "pm",
+                "rationale": "ok",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/ops"
+        entries = load_decisions(decisions_path)
+        outcomes = [e for e in entries if e.get("kind") == "outcome"]
+        assert len(outcomes) == 1
+        assert outcomes[0]["gate_run_id"] == gate_run["id"]
+        assert outcomes[0]["outcome"] == "overridden"
+
+    def test_ambiguous_pending_runs_shows_error(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        record_gate_decision(
+            decisions_path, result_file="a.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        record_gate_decision(
+            decisions_path, result_file="b.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        r = autopilot_client.post(
+            "/decisions/record",
+            data={"gate_run_id": "", "outcome": "accepted", "decided_by": "pm"},
+            follow_redirects=False,
+        )
+        assert "decision_error" in r.headers["location"]
+
+    def test_explicit_gate_run_id_resolves_ambiguity(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        decisions_path = tmp_path / ".aoo" / "decisions.jsonl"
+        record_gate_decision(
+            decisions_path, result_file="a.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        gate_run_b = record_gate_decision(
+            decisions_path, result_file="b.json", agent_version="v1", exit_code=75,
+            verdict_level="ready", decision_ready=False,
+        )
+        r = autopilot_client.post(
+            "/decisions/record",
+            data={
+                "gate_run_id": gate_run_b["id"], "outcome": "accepted", "decided_by": "pm",
+            },
+            follow_redirects=False,
+        )
+        assert "decision_error" not in r.headers["location"]
+
+    def test_no_pending_runs_shows_error(self, autopilot_client):
+        r = autopilot_client.post(
+            "/decisions/record",
+            data={"gate_run_id": "", "outcome": "accepted", "decided_by": "pm"},
+            follow_redirects=False,
+        )
+        assert "decision_error" in r.headers["location"]
+
+    def test_record_form_rendered_when_pending_run_exists(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        record_gate_decision(
+            tmp_path / ".aoo" / "decisions.jsonl", result_file="r.json", agent_version="v1",
+            exit_code=75, verdict_level="ready", decision_ready=False,
+        )
+        r = autopilot_client.get("/ops")
+        assert "/decisions/record" in r.text
+        assert "결정 기록" in r.text
