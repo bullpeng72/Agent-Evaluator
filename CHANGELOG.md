@@ -2,7 +2,7 @@
 
 ## v1.1.1 (2026-09-21) — Harness Autopilot: HITL approval queue, full CRUD, and CLI↔dashboard parity
 
-Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand (SPEC-AP-001): a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none). This release folds in the full round of hardening found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook — CRUD completion, task-lifecycle management, phase-drift detection, decisions/skills tooling, and full CLI↔dashboard write parity. Everything below shipped together as one unreleased feature, so items that would otherwise read as "bug fixes" are folded in here rather than split into a separate section — there's no prior public behavior to regress against. See that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the complete backlog this release works through.
+Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand: a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none). This release folds in the full round of hardening found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook — CRUD completion, task-lifecycle management, phase-drift detection, decisions/skills tooling, and full CLI↔dashboard write parity. Everything below shipped together as one unreleased feature, so items that would otherwise read as "bug fixes" are folded in here rather than split into a separate section — there's no prior public behavior to regress against. See that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the complete backlog this release works through.
 
 ### New: `agent-eval autopilot`
 
@@ -18,7 +18,7 @@ Feature release, entirely additive/opt-in — no change to Gate scoring, result 
 - ✨ **Principle-6 self-check** — the ops page shows the rolling approval rejection rate and flags a "rubber-stamp" warning once 5+ decisions have a 0% rejection rate. Also surfaces a `stuck_in_draft` count next to that rate — the existing rate only counts *decided* approvals, so a project whose real rejections happen at the `draft` stage could show a misleadingly clean 0%.
 - ✨ **Ops page "개선 실험" card** — a read-only view of `.aoo/experiments.jsonl`'s open hypotheses (`agent-eval experiment register` / `improve start`), each row showing its target Gate, target field, predicted delta, note, and — matched by filename convention (`<gate>_<kind>_<experiment_id>.md`) — the corresponding `.aoo/improve/*.md` proposal stub if one exists. The ops page already gathers every other piece of `.aoo/` governance state (claims, decisions, phase policy, rejection rate) in one place; this was the one piece of `.aoo/` state a team could be sitting on without any Autopilot surface ever mentioning it. Registering, resolving, and applying an experiment/proposal all remain CLI-only — this card creates nothing.
 - 🔧 **CLI plugin architecture** — `agent-eval autopilot` registers through the `agent_evaluator.cli_plugins` entry-points group (`pyproject.toml`) instead of a hardcoded import in `cli/main.py`, so it can move to a separate distribution later without touching `main.py`.
-- 📝 4 new Skills (`unattended-session-recovery`, `checklist-confidence-audit`, `threshold-realism-review`, `sync-drift-check`) and `Docs/specs/SPEC-AP-001-harness-autopilot-interface.md`, documenting the SDK-internal contract (`team_concurrency`/`decision_ledger`) and `.aoo/*.jsonl` formats Autopilot depends on. `--help` text for `autopilot`/`claims` (subcommand one-liners, `Examples:` epilogs) and the top-level `agent-eval --help` (which never listed `autopilot` at all) brought up to date with everything in this release.
+- 📝 4 new Skills (`unattended-session-recovery`, `checklist-confidence-audit`, `threshold-realism-review`, `sync-drift-check`) and internal documentation of the SDK contract (`team_concurrency`/`decision_ledger`) and `.aoo/*.jsonl` formats Autopilot depends on. `--help` text for `autopilot`/`claims` (subcommand one-liners, `Examples:` epilogs) and the top-level `agent-eval --help` (which never listed `autopilot` at all) brought up to date with everything in this release.
 
 ### Compatibility
 
@@ -56,7 +56,7 @@ Maintenance release. **No behaviour, public-API, or `schema_version` change** �
 
 Feature release. All additions are **opt-in** — with defaults unchanged, the result JSON stays byte-identical and no `schema_version` bump is needed (new `insights` keys are additive, `additionalProperties: true`). Two new CLI subcommands (`decisions`, `feedback`); `agent-eval --help` now lists 18.
 
-### Harness Methodology alignment (SPEC-042)
+### Harness Methodology alignment
 
 - **`agent-eval gate --hold-on-undecided`** — a would-be PASS whose pass-rate Wilson CI straddles the TCR target (or flips within ±0.05 of the gate line) returns **exit 75** ("hold for human review", BSD `EX_TEMPFAIL`). Never overrides a real fail (1–4). Surfaces as `insights.verdict.decision_ready` + `verdict.undecided_reason`.
 - **`agent_evaluator.repeat.run_repeated(fn, k)` / `summarize_repeated(runs)`** — call a full eval K times, fold into a verdict-stability summary (`flip_rate` · `tcr_stddev` · `unstable_tasks`) at `insights.nondeterminism_repeat`. Release-candidate / nightly only; idempotent agents only.
@@ -67,7 +67,7 @@ Feature release. All additions are **opt-in** — with defaults unchanged, the r
 - **`insights.efficiency_opportunities[].kind == "tier_downshift"`** — a `task_type` that passes with ≥0.85 margin (n≥3) while costing as much as the hardest slice gets a "try a smaller model" signal.
 - **`recommend_fix` MCP** appends this project's `.aoo` improvement track record ("config change on Gate E: 3/4 confirmed, mean Δ+0.05, n=4") when `experiments.jsonl` / `recommendation_outcomes.jsonl` carry resolved verdicts.
 
-### Development-support framework (SPEC-043)
+### Development-support framework
 
 - **`create_taskresult(covers=[req_id])` + `agent-eval gate --requirements docs/REQ.txt --require-spec-coverage`** → `insights.spec_coverage`; **exit 4** if any `REQ-ID:` line has no golden case declaring it.
 - **Deploy-decision ledger** — `agent-eval gate --decision-log .aoo/decisions.jsonl` appends the gate run; **`agent-eval decisions {list,record}`** records the human outcome (`accepted` / `held` / `overridden` / `rejected`). Surfaces as `insights.deploy_decision`. Does not change the exit code.
@@ -78,7 +78,7 @@ Feature release. All additions are **opt-in** — with defaults unchanged, the r
 - **`agent-eval feedback export-preferences <path> --out prefs.jsonl`** — A/B preference rows (`pairwise_judge` / `annotation` / `contrast_pair`) → JSONL. Export only, no training.
 - **`agent-eval improve apply-verify <result> --proposal <gate> --eval-cmd "…"`** — applies one proposal's diff in a detached `git worktree` at HEAD, runs the eval there, scores predicted-vs-actual. **Never merges or commits.**
 
-### HTML report as a methodology instrument (SPEC-044)
+### HTML report as a methodology instrument
 
 - Both report entry points share one `_assemble_report_body(ctx)` laying sections out in **3 tiers** — judgment (verdict + next action + readiness + scorecard) · iteration (lifecycle spine + proof panel) · evidence (6 collapsible `<details>` groups, auto-open on a fail/warn signal).
 - **`agent-eval gate --html-out PATH`** also writes the full HTML report; **`--html-summary`** prints a short Markdown block (verdict + path-to-green + the one next command) for a PR body.
@@ -142,33 +142,33 @@ malformed / partial / externally-produced result JSON no longer crashes report g
 ## v1.0.0 (2026-08-31) — General Availability
 
 First GA release. Public SDK API is `1.0.0-rc4` unchanged — the delta is the completion of
-SPEC-041's insight-delivery layer (`reporting/insights.py::build_insights()` is now a ~62-key
+the insight-delivery layer (`reporting/insights.py::build_insights()` is now a ~62-key
 machine-readable hub, every section schema-validated against `agent_evaluator/schemas/insights.schema.json`)
 plus two further example-report audit passes. No breaking changes.
 
-- ✨ **User-defined targets / SLOs** (P43) — `.aoo/targets.json` via `agent-eval target set`; `agent-eval gate` and every "below target" line now measure against your per-gate / TCR bar, not a fixed 0.7.
-- ✨ **Deploy-call robustness** (P44) — `threshold_sensitivity` flags a knife-edge readiness verdict.
-- ✨ **Eval-set intelligence** — gap analysis + prompt-contamination check (P45), metric signal / redundancy (P46), golden-set health (P58), eval-set-vs-production representativeness (P54).
-- ✨ **Failure understanding** — claim-level failure explanation (P47) and a single-agent failure taxonomy (P55): 14 modes, each with an owner (prompt / config / data / model / infra) and remediation.
-- ✨ **Longitudinal intelligence** (P48) — chronic / flapping / recurring failure tracking across sibling runs.
-- ✨ **Closed improvement loop** — `agent-eval improve {plan,start,verify,patch}` (P49, P61); improvement priors synthesized from past experiment outcomes (P57).
-- ✨ **Partial / mid-run insights** (P50) — `build_insights(partial=True)`, `PerformanceMonitor.running_insights()` / `.should_early_stop()` for advisory early-stop in an eval loop.
-- ✨ **Provenance** (P51) — a `derived_from` on every `next_actions` / `fix_plan` / `recommendations` item.
-- ✨ **Judge robustness** (P52) and **external reference frame** (P53) — `.aoo/reference.json`, percentile vs an industry / historical baseline.
-- ✨ **Statistical rigor** — multiple-comparison audit (P59: Welch p-values + `likely_noise` flags), uncertainty budget (P60: where the confidence gap comes from and the cheapest lever to close it).
-- ✨ **Ablation hints** (P56) — the one prompt line / config knob most implicated in each failure mode.
-- ✨ **Within-run contrast pairs** (P62) — each worst failure beside its nearest passing task plus a structured diff isolating the likely differentiator.
+- ✨ **User-defined targets / SLOs** — `.aoo/targets.json` via `agent-eval target set`; `agent-eval gate` and every "below target" line now measure against your per-gate / TCR bar, not a fixed 0.7.
+- ✨ **Deploy-call robustness** — `threshold_sensitivity` flags a knife-edge readiness verdict.
+- ✨ **Eval-set intelligence** — gap analysis + prompt-contamination check, metric signal / redundancy, golden-set health, eval-set-vs-production representativeness.
+- ✨ **Failure understanding** — claim-level failure explanation and a single-agent failure taxonomy: 14 modes, each with an owner (prompt / config / data / model / infra) and remediation.
+- ✨ **Longitudinal intelligence** — chronic / flapping / recurring failure tracking across sibling runs.
+- ✨ **Closed improvement loop** — `agent-eval improve {plan,start,verify,patch}`; improvement priors synthesized from past experiment outcomes.
+- ✨ **Partial / mid-run insights** — `build_insights(partial=True)`, `PerformanceMonitor.running_insights()` / `.should_early_stop()` for advisory early-stop in an eval loop.
+- ✨ **Provenance** — a `derived_from` on every `next_actions` / `fix_plan` / `recommendations` item.
+- ✨ **Judge robustness** and **external reference frame** — `.aoo/reference.json`, percentile vs an industry / historical baseline.
+- ✨ **Statistical rigor** — multiple-comparison audit (Welch p-values + `likely_noise` flags), uncertainty budget (where the confidence gap comes from and the cheapest lever to close it).
+- ✨ **Ablation hints** — the one prompt line / config knob most implicated in each failure mode.
+- ✨ **Within-run contrast pairs** — each worst failure beside its nearest passing task plus a structured diff isolating the likely differentiator.
 - ✨ New CLI: `agent-eval benchmark {set,show,clear}`, `agent-eval dataset health`.
-- 🐛 **P35 rounds 4–5** — ~30 cross-section coherence fixes from re-auditing the generated example report: Gate A/C/F score-breakdown reconciliation, narrative claim audit, review-queue severity, flaky-fixed failure lineage, cohort "—" for gates a version never measured, and more.
-- 📝 SPEC-041 insight-layer field reference moved to `Docs/specs/SPEC-041-insight-delivery.md`; `insights.schema.json` extended for every new section; `CLAUDE.md` Key Files tree compressed to 1–2 lines per entry.
+- 🐛 **~30 cross-section coherence fixes** from re-auditing the generated example report: Gate A/C/F score-breakdown reconciliation, narrative claim audit, review-queue severity, flaky-fixed failure lineage, cohort "—" for gates a version never measured, and more.
+- 📝 Insight-layer field reference documented separately; `insights.schema.json` extended for every new section; `CLAUDE.md` Key Files tree compressed to 1–2 lines per entry.
 
 ## v1.0.0-rc4 (2026-08-28) — `doctor` global fallback + hook-docs currency
 
 Follow-up to rc3. No public SDK API changes.
 
 - 🐛 `agent-eval opencode doctor` / `agent-eval claude doctor` (without `--global`) no longer report a hard error when there is no project-local install but a healthy global one exists — OpenCode and Claude Code both auto-load / merge the global location, so `doctor` now checks it and notes "global — no project-local install". `❌` is raised only when neither exists.
-- 🔧 `agent-eval opencode install`'s tuning tip corrected — the plugin's `consecutive_repeat_threshold` default is 8 (not 6), and loop identity is tool *name + arguments* (SPEC-041), so only N *identical* calls in a row count.
-- 📝 `docs/CLAUDE_CODE_HOOKS.md` / `docs/AOO_STACK.md` / `docs/OPENCODE_VS_CLAUDE_CODE.md` currency pass: stale hook-matcher description, out-of-date default `guardrail_config.json` block, and the pre-SPEC-041 config-in-the-`.ts` guidance were corrected; the new `upgrade`/`doctor`/`uninstall` subcommands were added to the install sections.
+- 🔧 `agent-eval opencode install`'s tuning tip corrected — the plugin's `consecutive_repeat_threshold` default is 8 (not 6), and loop identity is tool *name + arguments*, so only N *identical* calls in a row count.
+- 📝 `docs/CLAUDE_CODE_HOOKS.md` / `docs/AOO_STACK.md` / `docs/OPENCODE_VS_CLAUDE_CODE.md` currency pass: stale hook-matcher description, out-of-date default `guardrail_config.json` block, and the previous config-in-the-`.ts` guidance were corrected; the new `upgrade`/`doctor`/`uninstall` subcommands were added to the install sections.
 
 ## v1.0.0-rc3 (2026-08-28) — Integration Install Lifecycle (upgrade · doctor · uninstall)
 
@@ -235,7 +235,7 @@ First stable release — `Development Status :: 5 - Production/Stable`. Adds a f
 
 ## v0.9.9 (2026-07-14) — tool_guard Decorator · Decorator Architecture Fixes · Lint Debt Cleanup
 
-- ✨ `tool_guard` decorator (SPEC-039) automates the `LiveGuardrail` check → execute → record cycle.
+- ✨ `tool_guard` decorator automates the `LiveGuardrail` check → execute → record cycle.
 - 🐛 6 decorator-architecture defects fixed alongside `tool_guard`; example bugs fixed in `ch16`/`ch21`/`ch22`.
 - 🧹 Lint debt reduced (4,015 → ~1,100 errors); mypy target raised to Python 3.10.
 - 📝 Book Ch22–34 examples reorganized to match the current chapter structure.
