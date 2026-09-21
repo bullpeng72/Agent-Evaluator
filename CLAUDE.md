@@ -83,6 +83,11 @@ agent-eval benchmark set --from-results results/                      # build TC
 agent-eval benchmark show
 # once set: `insights.reference_frame` reports the run's percentile + gap to the frontier
 agent-eval experiment register --gate A --field avg_subtask_completion --predict-delta 0.08 --note "add SubtaskConfig"  # register a hypothesis in .aoo/experiments.jsonl (P27)
+#   Harness Autopilot dashboard: the ops page's "개선 실험" card (docs/AUTOPILOT_IMPROVEMENTS.md §17) shows
+#   every open experiment read-only (target gate/field, predicted delta, note) alongside its matching
+#   .aoo/improve/*.md stub if one exists (filename match on the experiment_id) — previously this shared the
+#   .aoo/ directory with claims/decisions/tasks but had zero presence on the one dashboard meant to surface
+#   all of it. Registering/resolving/applying stays CLI-only; the card creates nothing.
 agent-eval experiment list
 agent-eval experiment score v3.json --baseline v2.json --persist      # score open hypotheses vs baseline, write verdicts back
 agent-eval improve plan v3.json --baseline v2.json                    # closed loop (P49): per-gate proposals

@@ -63,6 +63,7 @@ from agent_evaluator.rca.decision_ledger import (
     record_decision_outcome,
     record_gate_decision,
 )
+from agent_evaluator.rca.experiments import register_experiment, resolve_experiment
 
 
 def _ns(**kwargs) -> argparse.Namespace:
@@ -3440,6 +3441,70 @@ class TestDecisionsGateScoreboard:
     def test_scoreboard_column_header_rendered(self, autopilot_client):
         r = autopilot_client.get("/ops")
         assert "Gate 점수" in r.text
+
+
+class TestExperimentsCard:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §17 — ops 페이지가 클레임·결정 원장 등
+
+    .aoo/ 거버넌스 상태를 한곳에 모아 보여주는데, 같은 .aoo/ 아래 있는
+    experiments.jsonl과 improve/*.md 제안 스텁은 대시보드 어디에도 안
+    보였다. 읽기 전용 카드 — 새로 만드는 것은 없다."""
+
+    def test_empty_state_does_not_crash(self, autopilot_client):
+        r = autopilot_client.get("/ops")
+        assert r.status_code == 200
+        assert "개선 실험" in r.text
+        assert "진행 중인 개선 실험 없음" in r.text
+
+    def test_open_experiment_rendered(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        register_experiment(
+            tmp_path / ".aoo" / "experiments.jsonl", target_gate="E", predicted_delta=0.08,
+            target_field="avg_pii_redaction", note="add stricter PII regex",
+        )
+        r = autopilot_client.get("/ops")
+        assert "avg_pii_redaction" in r.text
+        assert "+0.0800" in r.text
+        assert "add stricter PII regex" in r.text
+        assert "1 open" in r.text
+
+    def test_resolved_experiment_excluded(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        experiments_path = tmp_path / ".aoo" / "experiments.jsonl"
+        exp = register_experiment(experiments_path, target_gate="A", predicted_delta=0.05,
+                                   note="should not show")
+        resolve_experiment(experiments_path, exp["experiment_id"], actual_delta=0.01,
+                            verdict="refuted")
+        r = autopilot_client.get("/ops")
+        # 해결된 실험은 이 카드 밖 — open 카운트가 0이어야 한다
+        assert "0 open" in r.text
+
+    def test_matching_improve_stub_linked(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        experiments_path = tmp_path / ".aoo" / "experiments.jsonl"
+        improve_dir = tmp_path / ".aoo" / "improve"
+        exp = register_experiment(experiments_path, target_gate="E", predicted_delta=0.08)
+        improve_dir.mkdir(parents=True)
+        stub_path = improve_dir / f"E_prompt_{exp['experiment_id']}.md"
+        stub_path.write_text("# stub\n", encoding="utf-8")
+        r = autopilot_client.get("/ops")
+        assert stub_path.name in r.text
+
+    def test_experiment_without_stub_shows_dash(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        register_experiment(tmp_path / ".aoo" / "experiments.jsonl", target_gate="C",
+                             predicted_delta=-0.02)
+        r = autopilot_client.get("/ops")
+        assert r.status_code == 200
+
+    def test_nothing_is_created_by_the_ops_page_view(self, autopilot_client):
+        """읽기 전용이어야 한다 — .aoo/experiments.jsonl·improve/에 아무것도
+
+        안 만든다."""
+        autopilot_client.get("/ops")
+        tmp_path = autopilot_client.tmp_path
+        assert not (tmp_path / ".aoo" / "experiments.jsonl").exists()
+        assert not (tmp_path / ".aoo" / "improve").exists()
 
 
 class TestDecisionsRecordRoute:

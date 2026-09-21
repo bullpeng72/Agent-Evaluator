@@ -77,6 +77,7 @@ from agent_evaluator.rca.decision_ledger import (
     record_decision_outcome,
     summarize_decisions,
 )
+from agent_evaluator.rca.experiments import load_experiments
 
 
 def _now_iso() -> str:
@@ -104,6 +105,25 @@ def _safe_claim_audit(claims_path: Path, ttl_hours: float) -> list[dict[str, Any
         return []
 
 
+def _safe_open_experiments(experiments_path: Path) -> list[dict[str, Any]]:
+    try:
+        return load_experiments(experiments_path, status="open")
+    except Exception:
+        return []
+
+
+def _find_improve_stub(improve_dir: Path, experiment_id: str) -> str | None:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §17 — `improve start`가 쓰는 스텁 파일명은
+
+    ``<gate>_<kind>_<experiment_id>.md``라 experiment_id로 접미사 매칭하면
+    찾을 수 있다(새 인덱스 없음 — 디렉터리 자체가 진실 소스, autopilot_state.py
+    모듈 docstring과 같은 이유)."""
+    if not improve_dir.is_dir():
+        return None
+    matches = sorted(improve_dir.glob(f"*_{experiment_id}.md"))
+    return matches[0].name if matches else None
+
+
 def create_autopilot_app(root: Path) -> FastAPI:
     root = Path(root)
     tasks_dir = root / ".aoo" / "tasks"
@@ -112,6 +132,8 @@ def create_autopilot_app(root: Path) -> FastAPI:
     decisions_path = root / ".aoo" / "decisions.jsonl"
     approvals_path = root / ".aoo" / "approvals.jsonl"
     policy_path = root / ".aoo" / "phase_policy.json"
+    experiments_path = root / ".aoo" / "experiments.jsonl"
+    improve_dir = root / ".aoo" / "improve"
 
     app = FastAPI(title="Harness Autopilot Dashboard")
 
@@ -566,6 +588,12 @@ def create_autopilot_app(root: Path) -> FastAPI:
         policy = load_phase_policy(policy_path)
         gate_ready_policy = load_gate_ready_policy(policy_path)
         pending_runs = summarize_decisions(decisions)["pending"]
+        # docs/AUTOPILOT_IMPROVEMENTS.md §17 — 같은 .aoo/ 아래 있는
+        # experiments.jsonl(`agent-eval experiment register`/`improve start`)와
+        # improve/*.md 제안 스텁이 ops 페이지 어디에도 안 보였다 — 클레임·결정
+        # 원장처럼 이것도 ".aoo/ 상태를 한눈에" 보여주는 단일 창구에 들어가야
+        # 한다. load_experiments() 그대로 재사용(읽기 전용, 새 판정 없음).
+        open_experiments = _safe_open_experiments(experiments_path)
         return _layout(
             "ops", "운영 현황",
             _ops_body(
@@ -574,6 +602,7 @@ def create_autopilot_app(root: Path) -> FastAPI:
                 policy_error=policy_error,
                 claim_violations=claim_violations, claim_ttl_hours=claim_ttl_hours,
                 gate_ready_policy=gate_ready_policy,
+                open_experiments=open_experiments, improve_dir=improve_dir,
             ),
         )
 
@@ -1762,6 +1791,42 @@ def _decisions_card(
 </div>"""
 
 
+def _experiments_card(
+    open_experiments: list[dict[str, Any]], improve_dir: Path | None
+) -> str:
+    # docs/AUTOPILOT_IMPROVEMENTS.md §17 — ops 페이지가 클레임·결정 원장 등
+    # .aoo/ 거버넌스 상태를 한곳에 모아 보여주는데, 같은 .aoo/ 아래 있는
+    # experiments.jsonl(`agent-eval experiment register`/`improve start`)과
+    # improve/*.md 제안 스텁은 대시보드 어디에도 안 보였다. 읽기 전용 —
+    # load_experiments()/파일 스캔 그대로, 새 판정 로직 없음.
+    rows = ""
+    for e in open_experiments:
+        eid = str(e.get("experiment_id", ""))
+        stub = _find_improve_stub(improve_dir, eid) if improve_dir else None
+        stub_cell = f"<code>{_esc(stub)}</code>" if stub else "—"
+        delta = e.get("predicted_delta")
+        delta_cell = f"{delta:+.4f}" if isinstance(delta, (int, float)) else "—"
+        rows += (
+            f"<tr><td>{_esc(str(e.get('target_gate', '')))}</td>"
+            f"<td>{_esc(str(e.get('target_field') or '—'))}</td>"
+            f"<td>{delta_cell}</td>"
+            f"<td>{_esc(str(e.get('note') or '—'))}</td>"
+            f"<td>{stub_cell}</td></tr>"
+        )
+    rows = rows or '<tr><td colspan="5" class="empty">진행 중인 개선 실험 없음</td></tr>'
+
+    return f"""
+<div class="card">
+  <h2>개선 실험 — .aoo/experiments.jsonl ({len(open_experiments)} open)</h2>
+  <table><thead><tr><th>Gate</th><th>필드</th><th>예측 Δ</th><th>메모</th>
+    <th>제안 스텁(.aoo/improve/)</th></tr></thead>
+  <tbody>{rows}</tbody></table>
+  <p class="tm">등록·검증은 CLI 전용이다 — `agent-eval experiment register` /
+    `agent-eval improve {{plan,start,verify}}`. 여기서는 아무것도 만들지
+    않는다(읽기 전용).</p>
+</div>"""
+
+
 def _ops_body(
     claims: list[dict[str, Any]],
     decisions: list[dict[str, Any]],
@@ -1775,6 +1840,8 @@ def _ops_body(
     claim_violations: list[dict[str, Any]] | None = None,
     claim_ttl_hours: float = 8.0,
     gate_ready_policy: set[int] | None = None,
+    open_experiments: list[dict[str, Any]] | None = None,
+    improve_dir: Path | None = None,
 ) -> str:
     claims_html = _claims_card(
         claims, claim_warning, violations=claim_violations or [], ttl_hours=claim_ttl_hours
@@ -1782,6 +1849,7 @@ def _ops_body(
     decisions_html = _decisions_card(decisions, pending_runs or [], decision_error)
     rejection_html = _rejection_rate_card(rejection) if rejection is not None else ""
     policy_html = _phase_policy_card(phase_policy or {}, policy_error, gate_ready_policy)
+    experiments_html = _experiments_card(open_experiments or [], improve_dir)
 
     return f"""
 <div class="eyebrow">원칙6 자가점검</div>
@@ -1789,5 +1857,6 @@ def _ops_body(
 {claims_html}
 {decisions_html}
 {policy_html}
+{experiments_html}
 {rejection_html}
 """
