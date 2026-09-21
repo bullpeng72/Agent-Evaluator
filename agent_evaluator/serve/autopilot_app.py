@@ -47,9 +47,12 @@ from agent_evaluator.gates.autopilot_state import (
     load_task,
     load_team,
     open_approval,
+    remove_team_member,
     set_task_status,
     transition_phase,
     update_approval_checklist,
+    update_task,
+    update_team_member,
 )
 from agent_evaluator.gates.team_concurrency import load_active_claims
 from agent_evaluator.rca.decision_ledger import load_decisions
@@ -225,6 +228,41 @@ def create_autopilot_app(root: Path) -> FastAPI:
             pass  # 알 수 없는 status 등 — 상세 페이지로 돌아가 다시 시도(M0.5 범위)
         return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
+    @app.post("/tasks/{task_id}/update")
+    def update_task_route(
+        task_id: str,
+        title: str = Form(""),
+        platform: str = Form(""),
+        priority: str = Form(""),
+        analysis: str = Form(""),
+        design: str = Form(""),
+        development: str = Form(""),
+        qa: str = Form(""),
+        pm: str = Form(""),
+        security: str = Form(""),
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §1/§9 — 등록 후 제목·플랫폼·우선순위·
+        # 담당자를 고칠 방법이 CLI(update-task)에도 대시보드에도 없었다. 폼이
+        # 현재 값을 전부 미리 채워서 보내므로(_task_detail_body) 6칸 전체
+        # 대체가 안전하다 — CLI의 부분 수정과 달리 화면에 이미 전체 상태가
+        # 보이기 때문(+ 새 과제 폼과 같은 패턴).
+        owners: dict[str, str] = {}
+        for role_key, value in (
+            ("analysis", analysis), ("design", design), ("development", development),
+            ("qa", qa), ("pm", pm), ("security", security),
+        ):
+            if value.strip():
+                owners[role_key] = value.strip()
+        try:
+            update_task(
+                tasks_dir, task_id,
+                title=title.strip() or None, platform=platform or None,
+                priority=priority or None, owners=owners,
+            )
+        except ValueError:
+            pass  # 알 수 없는 platform 등 — 상세 페이지로 돌아가 다시 시도(M0.5 범위)
+        return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+
     # ------------------------------------------------------------------
     # 팀 관리
     # ------------------------------------------------------------------
@@ -247,6 +285,35 @@ def create_autopilot_app(root: Path) -> FastAPI:
             )
         except ValueError:
             pass  # 중복 id·알 수 없는 역할 — 조용히 무시(M0.5 범위, 폼 검증은 M1 이후)
+        return RedirectResponse("/team", status_code=303)
+
+    @app.post("/team/{member_id}/update")
+    def update_member_route(
+        member_id: str,
+        name: str = Form(""),
+        role: list[str] = Form([]),
+        github: str = Form(""),
+        synced: bool = Form(False),
+    ) -> RedirectResponse:
+        # docs/AUTOPILOT_IMPROVEMENTS.md §1 — update-member(v1.1.2)가 대시보드엔
+        # 없었다. 폼이 현재 값을 그대로 미리 채워서 보내므로(_team_member_card),
+        # 체크박스를 안 건드려도 synced가 조용히 False로 초기화되지 않는다.
+        try:
+            update_team_member(
+                team_path, member_id,
+                name=name.strip() or None, roles=role or None,
+                github=github.strip() or None, synced=synced,
+            )
+        except ValueError:
+            pass  # 알 수 없는 id·역할 — 조용히 무시(M0.5 범위)
+        return RedirectResponse("/team", status_code=303)
+
+    @app.post("/team/{member_id}/remove")
+    def remove_member_route(member_id: str) -> RedirectResponse:
+        try:
+            remove_team_member(team_path, member_id)
+        except ValueError:
+            pass  # 없는 id — 조용히 무시(M0.5 범위)
         return RedirectResponse("/team", status_code=303)
 
     # ------------------------------------------------------------------
@@ -660,6 +727,38 @@ def _task_detail_body(
   </form>
 </div>"""
 
+    # docs/AUTOPILOT_IMPROVEMENTS.md §1/§9 — 등록 후 제목·플랫폼·우선순위·
+    # 담당자를 고칠 방법이 없었다(CLI update-task와 함께 신설). 현재 값을
+    # 전부 미리 채우므로("+ 새 과제" 폼과 같은 패턴) 안 건드린 필드는
+    # 그대로 다시 제출돼 안전하다.
+    platform_options_edit = "".join(
+        f'<option value="{p}"{" selected" if p == task.get("platform") else ""}>{p}</option>'
+        for p in VALID_PLATFORMS
+    )
+    priority_options = "".join(
+        f'<option value="{p}"{" selected" if p == task.get("priority") else ""}>{p}</option>'
+        for p in ("high", "normal", "low")
+    )
+    owner_fields_edit = "".join(
+        f'<div class="field"><label>{label}</label>'
+        f'<input type="text" name="{key}" value="{_esc(str(owners.get(key, "")))}"></div>'
+        for key, label in _OWNER_ROLE_FIELDS
+    )
+    edit_form = f"""
+<div class="card">
+  <h2>과제 수정</h2>
+  <form class="inline" method="post" action="/tasks/{_esc(str(task.get("task_id")))}/update">
+    <div class="field"><label>제목</label>
+      <input type="text" name="title" value="{_esc(str(task.get('title')))}"></div>
+    <div class="field"><label>플랫폼</label>
+      <select name="platform">{platform_options_edit}</select></div>
+    <div class="field"><label>우선순위</label>
+      <select name="priority">{priority_options}</select></div>
+    {owner_fields_edit}
+    <button type="submit" class="ghost">과제 정보 저장</button>
+  </form>
+</div>"""
+
     phase_label_html = _esc(_phase_label(task.get("current_phase")))
     return f"""
 <p><a href="/">← 과제 보드</a></p>
@@ -683,9 +782,46 @@ def _task_detail_body(
   <ul class="checklist">{approvals_html}</ul>
 </div>
 
+{edit_form}
 {phase_form}
 {status_form}
 """
+
+
+def _team_member_card(m: dict[str, Any]) -> str:
+    # docs/AUTOPILOT_IMPROVEMENTS.md §1 — 팀원 수정/삭제가 CLI(update-member/
+    # remove-member)에는 v1.1.2부터 있었는데 대시보드엔 조회 전용 표뿐이었다.
+    # 현재 값을 그대로 미리 채운 폼이라 "고칠 것만 바꾸는" CLI의 부분 수정
+    # 의미를 그대로 재현한다(update_team_member()가 그렇게 동작).
+    member_id = _esc(str(m.get("id")))
+    current_roles = set(m.get("roles") or [])
+    role_options = "".join(
+        f'<label style="font-weight:400;text-transform:none;letter-spacing:0;">'
+        f'<input type="checkbox" name="role" value="{r}"'
+        f'{" checked" if r in current_roles else ""}> {r}</label>'
+        for r in VALID_ROLES
+    )
+    sync_note = "" if m.get("synced") else ' <span class="tm">(GitHub CODEOWNERS 반영 필요)</span>'
+    return f"""
+<div class="approval-item">
+  <div><b>{_esc(str(m.get("name")))}</b>
+    <span class="tm">{member_id} · {_esc(str(m.get("github") or "—"))}{sync_note}</span></div>
+  <form class="inline" method="post" action="/team/{member_id}/update" style="margin-top:8px;">
+    <div class="field"><label>이름</label>
+      <input type="text" name="name" value="{_esc(str(m.get('name')))}"></div>
+    <div class="field"><label>역할</label>
+      <div style="display:flex;gap:10px;">{role_options}</div></div>
+    <div class="field"><label>GitHub</label>
+      <input type="text" name="github" value="{_esc(str(m.get('github') or ''))}"></div>
+    <label style="font-weight:400;text-transform:none;letter-spacing:0;">
+      <input type="checkbox" name="synced" value="1"{" checked" if m.get("synced") else ""}>
+      GitHub 반영됨</label>
+    <button type="submit" class="ghost">수정</button>
+  </form>
+  <form method="post" action="/team/{member_id}/remove" style="margin-top:6px;">
+    <button type="submit" class="danger">삭제</button>
+  </form>
+</div>"""
 
 
 def _team_body(team: list[dict[str, Any]]) -> str:
@@ -697,13 +833,19 @@ def _team_body(team: list[dict[str, Any]]) -> str:
             f"<td>{_esc(str(m.get('github') or '—'))}</td></tr>"
             for m in team
         )
+        member_cards = "".join(_team_member_card(m) for m in team)
     else:
         rows = '<tr><td colspan="4" class="empty">등록된 팀원이 없습니다.</td></tr>'
+        member_cards = ""
 
     role_options = "".join(
         f'<label style="font-weight:400;text-transform:none;letter-spacing:0;">'
         f'<input type="checkbox" name="role" value="{r}"> {r}</label>'
         for r in VALID_ROLES
+    )
+
+    member_section = (
+        f'<div class="card"><h2>팀원 수정/삭제</h2>{member_cards}</div>' if team else ""
     )
 
     return f"""
@@ -732,6 +874,8 @@ def _team_body(team: list[dict[str, Any]]) -> str:
     이 사람의 승인이 실제로 라우팅됩니다(설계서 §4.6).
   </p>
 </div>
+
+{member_section}
 """
 
 

@@ -10,6 +10,7 @@ agent-evaluator의 평가 데이터를 팀의 HITL 승인 절차에 잇는 경�
     new-task       — 터미널에서 과제 등록(대시보드 "+ 새 과제"의 CLI 대응, 설계서 §8)
     list-tasks     — 등록된 과제 전체 목록(active만, --all로 archived/cancelled 포함)
     show-task      — 과제 하나의 상세(owners·phase_history·status)
+    update-task    — 과제 필드 수정(제목·플랫폼·우선순위·담당자) — phase·status는 범위 밖
     set-task-status — 과제 생명주기(active/archived/cancelled) — current_phase와 별도 축
     add-member     — 팀원 등록(.aoo/team.json)
     remove-member  — 팀원 삭제
@@ -71,6 +72,7 @@ from agent_evaluator.gates.autopilot_state import (
     set_task_status,
     transition_phase,
     update_approval_checklist,
+    update_task,
     update_team_member,
 )
 
@@ -461,6 +463,52 @@ def _cmd_autopilot_show_task(args: argparse.Namespace) -> int:
     for h in task.get("phase_history", []):
         exited = h.get("exited_at") or f"{Y}(current){R}"
         print(f"    phase {h.get('phase')}  {h.get('entered_at')} → {exited}")
+    return 0
+
+
+_TASK_OWNER_ROLES = ("analysis", "design", "development", "qa", "pm", "security")
+
+
+def _cmd_autopilot_update_task(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    tasks_dir = root / ".aoo" / "tasks"
+
+    # owners는 update_task()에서 통째로 대체되므로(update_team_member()의
+    # roles와 같은 방식), 여기서는 기존 owners에서 주어진 역할만 덮어써 넘긴다
+    # — 그래야 "제목만 고치기"가 담당자 전체를 지우지 않는다. 빈 문자열은
+    # 명시적 해제로 취급한다.
+    owners_given = any(getattr(args, role, None) is not None for role in _TASK_OWNER_ROLES)
+    owners = None
+    if owners_given:
+        existing = load_task(tasks_dir, args.task_id)
+        if existing is None:
+            print(_err(f"task not found: {args.task_id}"))
+            return 1
+        owners = dict(existing.get("owners") or {})
+        for role_key in _TASK_OWNER_ROLES:
+            value = getattr(args, role_key, None)
+            if value is None:
+                continue
+            if value == "":
+                owners.pop(role_key, None)
+            else:
+                owners[role_key] = value
+
+    try:
+        task = update_task(
+            tasks_dir, args.task_id,
+            title=args.title, platform=args.platform, priority=args.priority,
+            owners=owners,
+        )
+    except ValueError as exc:
+        print(_err(str(exc)))
+        return 1
+
+    print(_ok(f"Task updated: {task['task_id']} — {task['title']}"))
+    print(
+        f"  {D}platform:{R} {task['platform']}   {D}priority:{R} {task['priority']}   "
+        f"{D}owners:{R} {task.get('owners') or {}}"
+    )
     return 0
 
 
@@ -958,6 +1006,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
             "  agent-eval autopilot new-task --title \"반품정책 자동화\" --platform ac "
             "--analysis 정민 --design 유진\n"
             "  agent-eval autopilot list-tasks --all\n"
+            "  agent-eval autopilot update-task ST-014 --title \"새 제목\" --priority high\n"
             "  agent-eval autopilot set-task-status ST-014 --status archived "
             "--reason \"shipped\"\n"
             "  agent-eval autopilot phase transition --task ST-014 --to 2 "
@@ -1035,6 +1084,31 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     st_p.add_argument("task_id")
     st_p.add_argument("--root", default=".", metavar="DIR")
+
+    ut_p = ap_sub.add_parser(
+        "update-task",
+        help="Edit a task's title/platform/priority/owners "
+             "(not phase or status — see 'phase transition' / 'set-task-status')",
+    )
+    ut_p.add_argument("task_id")
+    ut_p.add_argument("--title", default=None)
+    ut_p.add_argument("--platform", default=None, choices=["ac", "aoo"])
+    ut_p.add_argument("--priority", default=None, choices=["high", "normal", "low"])
+    ut_p.add_argument(
+        "--analysis", default=None, metavar="OWNER",
+        help="Analysis owner (team member id or name); pass '' to clear",
+    )
+    ut_p.add_argument("--design", default=None, metavar="OWNER", help="Design owner; '' to clear")
+    ut_p.add_argument(
+        "--development", default=None, metavar="OWNER",
+        help="Development owner; '' to clear",
+    )
+    ut_p.add_argument("--qa", default=None, metavar="OWNER", help="QA owner; '' to clear")
+    ut_p.add_argument("--pm", default=None, metavar="OWNER", help="PM owner; '' to clear")
+    ut_p.add_argument(
+        "--security", default=None, metavar="OWNER", help="Security owner; '' to clear"
+    )
+    ut_p.add_argument("--root", default=".", metavar="DIR")
 
     sts_p = ap_sub.add_parser(
         "set-task-status", help="Mark a task active/archived/cancelled"
@@ -1365,6 +1439,7 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
         "new-task": _cmd_autopilot_new_task,
         "list-tasks": _cmd_autopilot_list_tasks,
         "show-task": _cmd_autopilot_show_task,
+        "update-task": _cmd_autopilot_update_task,
         "set-task-status": _cmd_autopilot_set_task_status,
         "add-member": _cmd_autopilot_add_member,
         "remove-member": _cmd_autopilot_remove_member,
@@ -1380,9 +1455,9 @@ def cmd_autopilot(args: argparse.Namespace) -> int:
     if handler is None:
         print(_err(
             "Specify an autopilot subcommand: install | doctor | dashboard | "
-            "new-task | list-tasks | show-task | set-task-status | add-member | "
-            "remove-member | update-member | list-members | phase | approvals | "
-            "decisions | skills"
+            "new-task | list-tasks | show-task | update-task | set-task-status | "
+            "add-member | remove-member | update-member | list-members | phase | "
+            "approvals | decisions | skills"
         ))
         print(f"{D}For details: agent-eval autopilot --help{R}")
         return 1

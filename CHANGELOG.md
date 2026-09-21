@@ -1,164 +1,38 @@
 # Changelog
 
-## v1.1.6 (2026-09-21) — Harness Autopilot: the 4 write actions the dashboard couldn't do at all
+## v1.1.1 (2026-09-21) — Harness Autopilot: HITL approval queue, full CRUD, and CLI↔dashboard parity
 
-Fifth follow-up release for `agent-eval autopilot`. v1.1.5 closed the *display* gap between the CLI and the dashboard (active-task filter, 6-role form, staleness badge, cancel button); this release closes the deeper *write* gap — four state-changing actions that had no dashboard route whatsoever and were reachable only via the CLI, found by cross-referencing every `autopilot_state.py` mutation function against `serve/autopilot_app.py`'s route table.
-
-### New: phase transition from the dashboard (the core mechanic had no UI at all)
-
-- ✨ Task detail page gets a **"Phase 전이"** form (`POST /tasks/{id}/phase`) — new phase, an optional required-approval kind, an optional approver name. Reuses `transition_phase()` unchanged: a required-approval gate still hard-blocks (shown as a `phase_error` banner) and a backward/skipped transition still only warns (`phase_warning` banner), matching the CLI's `phase transition` exactly. `PLANNING.md` §6 calls this gate "the spine of the book," and until now it was reachable only by CLI — the workbook itself never actually drove this from the dashboard once in 44 chapters.
-
-### New: open / update approvals from the dashboard
-
-- ✨ Approvals page gets a **"+ 새 승인 요청"** form (`POST /approvals`) — task, kind, phase, title, and a checklist textarea (one `LABEL:STATUS` per line, reusing the CLI's own `_parse_checklist_items()` so the "split on the last colon" fix and the ok/pending/flag validation apply identically). Replicates the `adr_review` auto model-tier checklist item and exposes `--no-checklist-gate` as a checkbox.
-- ✨ Draft/pending approval cards with a checklist get an inline status selector per item (`POST /approvals/{id}/update`) — the dashboard equivalent of `approvals update`, so a draft stuck on a checklist mistake can be fixed without dropping to a terminal.
-
-### New: task status from the dashboard
-
-- ✨ Task detail page gets a **"과제 상태"** form (`POST /tasks/{id}/status`) — active/archived/cancelled + an optional reason, wired to `set_task_status()`. v1.1.5 only added a status *badge*; changing the status itself was still CLI-only.
-
-### Compatibility
-
-All additive. New form parameters have backward-compatible defaults; `_task_detail_body()`/`_approvals_body()`/`_approval_card()` gained keyword-only parameters that existing direct callers don't need to pass.
-
-## v1.1.5 (2026-09-21) — Harness Autopilot: dashboard parity + current --help text
-
-Fourth follow-up release for `agent-eval autopilot`. Every prior release (v1.1.2–v1.1.4) shipped CLI features that the local dashboard (`serve/autopilot_app.py`) never picked up — this release closes that gap and brings the `--help` text for `autopilot`/`claims` (and the top-level `agent-eval --help`) up to date with everything shipped since.
-
-### Fixed: dashboard had fallen behind the CLI on 4 features
-
-- 🐛 **Board showed archived/cancelled tasks forever** — `GET /` rendered `load_all_tasks()` with no filter, unlike the CLI's `list-tasks` (active-only by default since v1.1.3). Now active-only by default, with `?show_all=1` (and a toggle link) to include the rest.
-- 🐛 **"+ 새 과제" form was capped at 2 of 6 owner roles** — the CLI's `new-task` has taken `--development`/`--qa`/`--pm`/`--security` since v1.1.3; the dashboard form and its `POST /tasks` handler only ever accepted `analysis`/`design`. Now takes all 6.
-- ✨ **Phase-staleness (v1.1.4's `doctor --stale-days`/`phase check`) was invisible on the dashboard** — the board now shows a "phase 정체" badge on a stuck task's card, and the task-detail page shows a banner with the exact days-in-phase, using the same `check_phase_staleness()` the CLI calls (no new signal).
-- ✨ **No way to cancel an approval from the dashboard** — `approvals cancel` (v1.1.3) was CLI-only. Approval cards for `draft`/`pending` items now have a 철회(cancel) button + optional reason field, wired to a new `POST /approvals/{id}/cancel` route.
-
-### Fixed: stale `--help` text
-
-- 📝 `agent-eval autopilot --help`: `list-tasks`/`show-task`/`doctor` one-liners now mention the active-filter/status/stale-days behavior; `phase`/`approvals`/`skills` one-liners mention `check`/`cancel`+`update`+`scan-thresholds`/`scaffold`; the `Examples:` epilog now covers `list-tasks --all`, `set-task-status`, `phase policy`, `phase check`, `approvals cancel`, `decisions list`, and `skills scaffold` (previously stuck at the original M0 example set).
-- 📝 `agent-eval claims --help`: description and `Examples:` now mention `enable-live-check` (v1.1.4), which was entirely absent from both.
-- 📝 `agent-eval --help`: the curated `Commands:`/`Examples:` list never included `autopilot` at all (it was only ever reachable through the auto-generated subcommand list) — added.
-
-### Compatibility
-
-All of the above is additive/opt-in. No Gate scoring change, no `.aoo/*.jsonl` schema change. `_board_body()`/`_task_detail_body()`/`_status_badge_for_task()` gained new optional keyword parameters with backward-compatible defaults — existing direct callers are unaffected.
-
-## v1.1.4 (2026-09-21) — Harness Autopilot: phase-drift detection + decisions namespace + skill scaffolding
-
-Third follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Closes out the remaining `docs/AUTOPILOT_IMPROVEMENTS.md` backlog items plus two findings from a fresh source-level audit (Appendix M "Autopilot 완전독해" style read of `autopilot_state.py`) that weren't yet on that list.
-
-### New: phase-drift detection (LIMITS L4)
-
-- ✨ **`doctor --stale-days N`** (default 7, 0 disables) and standalone **`phase check`** — flag an active task that has sat in its current `phase` for `N`+ days. This is the first signal at all that a task's declared phase may have silently fallen behind the actual work — the exact drift that recurred twice, undetected, in the AOO Stack workbook (Part VIII and Part X were both a phase behind their real progress). Pure elapsed-time signal read from the task's own `phase_history` — no new instrumentation, no git calls.
-
-### Fixed: `gate_on_checklist` had no CLI switch
-
-- 🐛 `open_threshold_reviews()` (the `scan-thresholds` auto-open path) has always passed `gate_on_checklist=False` internally, but `agent-eval autopilot approvals open` (the manual path) had no way to set it — so a human manually opening a kind that's normally auto-opened (e.g. `threshold_review`) got gated behavior with no documented way out, and could get stuck in `draft` unexpectedly. New **`approvals open --no-checklist-gate`** exposes the existing SDK parameter.
-
-### Fixed: `detect_skill_candidates()` counted redrafts as repetition
-
-- 🐛 A single approval redrafted N times after a checklist mistake (each redraft gets a new `id`, since only an undecided approval can be edited in place) used to count as "N independent occurrences" of that checklist shape — indistinguishable from N different tasks genuinely needing the same procedure. `count` is now the number of **distinct `task_id`s**, not raw approval-entry count. Trade-off: the rare case of one task legitimately needing the same shape twice now also collapses to 1 — accepted, since redraft noise is far more common.
-
-### New: `agent-eval autopilot skills scaffold`
-
-- ✨ **`skills scaffold --name NAME [--kind KIND] [--out DIR] [--force]`** — writes a `Skills/<name>/SKILL.md` stub from the top detected candidate (repeated checklist labels become a numbered procedure draft), with `TODO` markers left for the description, the reasoning, and each step's concrete execution. Not a finished skill — a starting skeleton instead of a blank page; human review and the existing dedup-against-`Skills/` step are unchanged.
-
-### New: `agent-eval autopilot decisions` (namespace alias)
-
-- ✨ **`autopilot decisions {list,record}`** — the deploy-decision ledger commands, now also reachable under the `autopilot` tree they conceptually belong to (`--log` defaults to `.aoo/decisions.jsonl`, matching every other autopilot command's `.aoo/`-relative convention). The original top-level `agent-eval decisions ...` is unchanged and still works — this is an additional path, not a replacement.
-
-### Fixed: `decisions record` silently picked "the latest" pending gate run
-
-- 🐛 `record_decision_outcome()` without an explicit `--gate-run-id`, when 2+ gate runs were pending, used to silently attach the outcome to the most recent one. A team running `gate --decision-log` concurrently could end up with a decision recorded against the wrong gate run with no warning. It now raises (listing the pending IDs) whenever there is more than one candidate, requiring an explicit `--gate-run-id`. Still auto-links when exactly one run is pending — unchanged for the common case.
-
-### New: `agent-eval claims enable-live-check`
-
-- ✨ **`claims enable-live-check --config PATH [--owner auto] [--claims-path PATH]`** — merges a `{"team_concurrency": {...}}` block into an existing `guardrail_config.json` / `agent-evaluator.config.json` via the same safe deep-merge `claude upgrade`/`opencode upgrade` use (never overwrites a key you already set). Until now, turning on real-time claim-overlap checking required hand-editing that JSON directly, and it went unused for that reason in real usage.
-
-### New: rejection-rate blind spot made visible (LIMITS L6)
-
-- ✨ `compute_rejection_rate()` gains a `stuck_in_draft` count (surfaced on the Autopilot ops page) — not a new rate, just a number. The existing rejection rate only counts *decided* approvals, so a project whose real rejections all happen at the `draft` stage (checklist-driven redrafts) can show a suspicious 0% rate and trigger the "rubber-stamp" warning for the wrong reason. This count sits next to that rate so the two states aren't confused.
-
-### Compatibility
-
-All of the above is additive. Existing `Namespace`/dict-shaped call sites without the new fields keep working via `getattr(..., default)` throughout; `record_decision_outcome()`'s behavior with exactly 0 or 1 pending run is unchanged (only the 2+-pending case, previously silent, now raises).
-
-## v1.1.3 (2026-09-20) — Harness Autopilot: task lifecycle + approval withdrawal + safer defaults
-
-Second follow-up release for `agent-eval autopilot`, entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Continues working through the same real-usage backlog (`docs/AUTOPILOT_IMPROVEMENTS.md` in the AOO Stack workbook repo) after v1.1.2's Top 3.
-
-### New: task lifecycle (`active` / `archived` / `cancelled`)
-
-- ✨ **`set-task-status <id> --status {active,archived,cancelled} [--reason TEXT]`** — a finished or dropped task previously had no way to leave `list-tasks` except staying `active` forever alongside every task still in flight. `status` is orthogonal to `current_phase` (a task can be archived/cancelled at any phase).
-- ✨ **`list-tasks`** now shows active tasks only by default; `--all` includes archived/cancelled ones, annotated with their status.
-- ✨ **`show-task`** prints the status line (+ reason, if given) when a task is non-active; omitted entirely for active tasks (no visual noise on the common case).
-- ✨ **`new-task`** now accepts all 6 owner roles — `--analysis`/`--design`/`--development`/`--qa`/`--pm`/`--security` — instead of only `analysis`/`design`.
-
-### New: `approvals cancel` — withdraw a request instead of leaving it to rot
-
-- ✨ **`approvals cancel <id> [--reason TEXT]`** — a `draft`/`pending` approval that's no longer needed (e.g. the underlying phase transition was abandoned) previously had no exit besides being force-decided. New terminal status `cancelled`, deliberately excluded from `compute_rejection_rate()`'s denominator — a withdrawn request isn't a rejection. Errors on an already-decided or already-cancelled approval.
-
-### Fixed: silent draft pile-up in `approvals list`
-
-- 🐛 `approvals list` (pending-only by default) gave no signal that draft approvals existed but were being hidden — a checklist stuck in `draft` could sit unnoticed indefinitely. It now prints a nudge ("N draft approval(s) exist ... run with --all") when there are zero pending results but drafts exist, and a footer note when pending results are shown alongside hidden drafts.
-
-### New: non-blocking safety nets
-
-- ✨ **`phase transition`** now warns (never blocks) when the target phase is behind the task's current phase, or skips one or more phases — surfaces an accidental regression/skip to a human without hard-blocking a deliberate one (e.g. rolling back a premature advance).
-- ✨ **`claims add`** now warns (non-blocking) when the new scope overlaps an existing active claim, instead of only catching the overlap later via `claims audit`.
-- ✨ **`claims list --developer NAME`** — filter the active-claims list to one developer.
-
-### Compatibility
-
-All of the above is additive. Existing `.aoo/tasks/*.json` files without a `status` field are treated as `active` (`task.get("status", "active")` throughout); `team.json`/`approvals.jsonl`/`claims.jsonl` schemas are otherwise unchanged.
-
-## v1.1.2 (2026-09-20) — Harness Autopilot: CRUD completion + checklist/phase-gate fixes
-
-Feature/fix release for `agent-eval autopilot` (v1.1.1's M0), entirely additive/opt-in — no change to Gate scoring or existing command behavior when the new flags/subcommands aren't used. Found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook; see that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the full backlog this release works through.
-
-### New: team/task CRUD (previously create-only)
-
-- ✨ **`remove-member` / `update-member` / `list-members`** — `team.json` had `add-member` only; a team member could never be removed, corrected (role/name/github/codeowner_scope), or listed with detail. `update-member` also adds the only way to flip `synced` to `true` after actually updating GitHub CODEOWNERS (it started `false` at registration and had no path to change).
-- ✨ **`list-tasks` / `show-task`** — no command previously listed all registered tasks or showed one task's `owners`/`phase_history` without opening the JSON file directly.
-
-### Fixed: `--checklist-item` colon parsing (real, previously-shipped bug)
-
-- 🐛 `--checklist-item "LABEL:STATUS"` split on the **first** colon, silently truncating any label that contained its own colon (e.g. `"역할: 설명:ok"` → label `"역할"`, status `" 설명:ok"`, which then never matches `ok`/`pending`/`flag` and blocks forever with no error). Now splits on the **last** colon.
-- 🐛 An invalid `STATUS` (anything other than `ok`/`pending`/`flag`, e.g. a typo like `okk`) used to silently become a permanently-blocking checklist item. It's now rejected immediately at parse time.
-
-### New: `approvals update` — fixes the "redraft from scratch" pattern
-
-- ✨ **`approvals update <id> --checklist-item LABEL:STATUS`** — flips the status of an existing item on an open (`draft`/`pending`) approval and re-scores the checklist (promoting `draft`→`pending` once clean), instead of the only previous option: opening an entirely new approval from scratch every time one item's status needed to change. Errors clearly on an unknown label or an already-decided approval (decided approvals stay immutable).
-
-### New: `phase policy` — a declarative alternative to a per-call flag
-
-- ✨ **`phase policy set --to N --require-approval KIND`** (+ `show` / `--clear`) — `.aoo/phase_policy.json` declares once that entering phase `N` always requires an approved `KIND`, instead of relying on remembering `--require-approval` on every single `phase transition` call. `phase transition` now consults the policy automatically when `--require-approval` is omitted; an explicit flag on the call still overrides the policy. This was the root cause of a real phase getting silently stuck behind actual work twice in the same project (nothing enforced the gate because nobody happened to type the flag that time).
-
-### Compatibility
-
-All of the above is additive. `transition_phase()`/`open_approval()`/`decide_approval()` behavior is byte-for-byte unchanged when the new arguments/files aren't used; `team.json`'s schema is unchanged (CRUD only mutates existing fields).
-
-## v1.1.1 (2026-09-17) — Harness Autopilot: HITL approval queue
-
-Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand (SPEC-AP-001): a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none).
+Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand (SPEC-AP-001): a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none). This release folds in the full round of hardening found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook — CRUD completion, task-lifecycle management, phase-drift detection, decisions/skills tooling, and full CLI↔dashboard write parity. See that project's `docs/AUTOPILOT_IMPROVEMENTS.md` for the complete backlog this release works through.
 
 ### New: `agent-eval autopilot`
 
-- ✨ **Multi-task / multi-team registry** — `.aoo/tasks/<id>.json` + `.aoo/team.json`, AC/AOO platform-neutral. `install` / `doctor` / `new-task` / `add-member`.
-- ✨ **Local dashboard** (`agent-eval autopilot dashboard`, port 8766) — task board, team management, HITL approval queue, and an ops view (claims / decisions / rejection-rate), server-rendered against real `.aoo/` files (no JS).
-- ✨ **HITL approval queue** (`.aoo/approvals.jsonl`) — `approvals {open,list,decide}`. Checklist auto-scoring + `[NEEDS CLARIFICATION: ...]` tag detection keep a draft out of the human queue until it's ready. `required_approvals` (default 2 for `deploy`/`release_hold`) enforces dual sign-off by two distinct approvers.
+- ✨ **Multi-task / multi-team registry** — `.aoo/tasks/<id>.json` + `.aoo/team.json`, AC/AOO platform-neutral. `install` / `doctor` / `new-task` / `add-member`, plus full CRUD: `remove-member` / `update-member` / `update-task` / `list-members` / `list-tasks` / `show-task` / `set-task-status`.
+- ✨ **Local dashboard** (`agent-eval autopilot dashboard`, port 8766) — task board, team management, HITL approval queue, and an ops view (claims / decisions / rejection-rate), server-rendered against real `.aoo/` files (no JS). Has full write parity with the CLI: creating/editing/archiving a task, editing/removing a team member, and opening/deciding/updating/cancelling an approval and transitioning its task's phase are all reachable from the dashboard, not just the CLI.
+- ✨ **HITL approval queue** (`.aoo/approvals.jsonl`) — `approvals {open,list,decide,update,cancel}`. Checklist auto-scoring + `[NEEDS CLARIFICATION: ...]` tag detection keep a draft out of the human queue until it's ready. `required_approvals` (default 2 for `deploy`/`release_hold`) enforces dual sign-off by two distinct approvers. `approvals update` fixes a draft's checklist without redrafting from scratch; `approvals cancel` withdraws a `draft`/`pending` request (new terminal status `cancelled`, excluded from the rejection-rate denominator — a withdrawal isn't a rejection).
 - ✨ **`approvals scan-thresholds`** — detects a repeated `--hold-on-undecided` exit-75 reason (5+ occurrences) in `.aoo/decisions.jsonl` and idempotently opens a `threshold_review` approval (4-step checklist). No new scoring — reads the existing decision ledger only.
-- ✨ **`skills detect`** — read-only detection of repeated approval-checklist shapes as skill candidates (never auto-generates a `SKILL.md`; creation stays a human step).
-- ✨ **`phase transition --require-approval KIND`** — opt-in gate that refuses a task's phase transition unless an approval of that kind is `approved` for that task.
-- ✨ **Principle-6 self-check** — the ops page shows the rolling approval rejection rate and flags a "rubber-stamp" warning once 5+ decisions have a 0% rejection rate.
-- 🔧 **CLI plugin architecture** — `agent-eval autopilot` now registers through a new `agent_evaluator.cli_plugins` entry-points group (`pyproject.toml`) instead of a hardcoded import in `cli/main.py`, so it can move to a separate distribution later without touching `main.py`.
+- ✨ **`skills detect` / `skills scaffold`** — read-only detection of repeated approval-checklist shapes as skill candidates (counted per distinct `task_id`, so a checklist mistake redrafted several times doesn't look like a repeated cross-task pattern), plus `scaffold --name NAME` to write a `Skills/<name>/SKILL.md` stub from a candidate (TODO markers left for a human; never auto-finished).
+- ✨ **`phase transition --require-approval KIND`** — opt-in gate that refuses a task's phase transition unless an approval of that kind is `approved` for that task. Warns (never blocks) on a backward or skipped transition. `phase policy set --to N --require-approval KIND` declares this once per project instead of remembering the flag on every call. `doctor --stale-days N` / standalone `phase check` flag a task that has sat in its current phase too long — the first signal that a task's declared phase may have silently fallen behind the actual work.
+- ✨ **`agent-eval autopilot decisions {list,record}`** — the deploy-decision ledger commands, reachable under the `autopilot` tree (`--log` defaults to `.aoo/decisions.jsonl`); the original top-level `agent-eval decisions ...` still works unchanged. `decisions record` now requires an explicit `--gate-run-id` whenever 2+ gate runs are pending, instead of silently picking "the latest."
+- ✨ **`agent-eval claims enable-live-check --config PATH`** — merges a `{"team_concurrency": {...}}` block into an existing guardrail config JSON via a safe deep-merge (never overwrites a key already set); `claims add` warns (non-blocking) on scope overlap with an existing active claim; `claims list --developer NAME` filters to one developer.
+- ✨ **Principle-6 self-check** — the ops page shows the rolling approval rejection rate and flags a "rubber-stamp" warning once 5+ decisions have a 0% rejection rate. Also surfaces a `stuck_in_draft` count next to that rate — the existing rate only counts *decided* approvals, so a project whose real rejections happen at the `draft` stage could show a misleadingly clean 0%.
+- 🔧 **CLI plugin architecture** — `agent-eval autopilot` registers through the `agent_evaluator.cli_plugins` entry-points group (`pyproject.toml`) instead of a hardcoded import in `cli/main.py`, so it can move to a separate distribution later without touching `main.py`.
 - 📝 4 new Skills (`unattended-session-recovery`, `checklist-confidence-audit`, `threshold-realism-review`, `sync-drift-check`) and `Docs/specs/SPEC-AP-001-harness-autopilot-interface.md`, documenting the SDK-internal contract (`team_concurrency`/`decision_ledger`) and `.aoo/*.jsonl` formats Autopilot depends on.
 
-### Fixes found during this round's self-audits
+### Fixed
 
+- 🐛 `--checklist-item "LABEL:STATUS"` split on the **first** colon, silently truncating any label that contained its own colon (e.g. `"역할: 설명:ok"` → label `"역할"`, status never matches `ok`/`pending`/`flag` and blocks forever with no error). Now splits on the **last** colon; an invalid `STATUS` is rejected immediately at parse time instead of silently blocking forever.
+- 🐛 `open_threshold_reviews()` (the `scan-thresholds` auto-open path) always passed `gate_on_checklist=False` internally, but manually opening a kind that's normally auto-opened (e.g. `threshold_review`) had no way to set it — `approvals open --no-checklist-gate` exposes the existing SDK parameter.
 - 🐛 `open_threshold_reviews()` deduplicated on a title string with the repeat count baked in, so a card could be duplicated once the same reason recurred past its original count.
-- 🐛 `transition_phase()`'s new approval-gate check ran before the task-existence check, producing a misleading error message when the task itself didn't exist.
+- 🐛 `transition_phase()`'s approval-gate check ran before the task-existence check, producing a misleading error message when the task itself didn't exist.
 - 🐛 The dashboard's decide form hard-coded `decided_by="local-reviewer"`, making dual-approval structurally impossible through the UI (every approver looked like the same person).
 - 🐛 A task's `blocking_on` field was never updated by anything, so the board's "pending approval" badge never lit up; it's now computed live from the approval queue instead.
+- 🐛 `approvals list` (pending-only by default) gave no signal that draft approvals existed but were being hidden; it now nudges when there are hidden drafts.
+- 🐛 The dashboard board showed archived/cancelled tasks forever and its "+ 새 과제" form only took 2 of the 6 owner roles the CLI's `new-task` takes; both are now consistent with the CLI.
+- 📝 `--help` text for `autopilot`/`claims` (subcommand one-liners, `Examples:` epilogs) and the top-level `agent-eval --help` (which never listed `autopilot` at all) brought up to date with everything in this release.
+
+### Compatibility
+
+All of the above is additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI/dashboard behavior when the new flags/subcommands/routes aren't used. `.aoo/tasks/*.json` files without a `status` field are treated as `active`; `team.json`/`approvals.jsonl`/`claims.jsonl`/`decisions.jsonl` schemas are otherwise unchanged; `transition_phase()`/`open_approval()`/`decide_approval()` behavior is byte-for-byte unchanged when the new arguments aren't used.
 
 ## v1.1.0 (2026-09-11) — LiveGuardrail discovery & durability hardening
 

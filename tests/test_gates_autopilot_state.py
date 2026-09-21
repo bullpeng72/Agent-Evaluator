@@ -46,6 +46,7 @@ from agent_evaluator.gates.autopilot_state import (
     task_path,
     transition_phase,
     update_approval_checklist,
+    update_task,
     update_team_member,
 )
 
@@ -126,6 +127,73 @@ class TestLoadAllTasks:
         (tasks_dir / "corrupt.json").write_text("{{{", encoding="utf-8")
         tasks = load_all_tasks(tasks_dir)
         assert len(tasks) == 1
+
+
+class TestUpdateTask:
+    """대시보드/CLI에 과제 수정 기능이 없다는 실사용 피드백."""
+
+    def test_updates_title_only(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        updated = update_task(tasks_dir, "ST-001", title="new")
+        assert updated["title"] == "new"
+        assert updated["platform"] == "AC"  # untouched
+
+    def test_updates_platform_uppercases(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        updated = update_task(tasks_dir, "ST-001", platform="aoo")
+        assert updated["platform"] == "AOO"
+
+    def test_invalid_platform_raises(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        with pytest.raises(ValueError, match="platform must be one of"):
+            update_task(tasks_dir, "ST-001", platform="bogus")
+
+    def test_updates_priority(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        updated = update_task(tasks_dir, "ST-001", priority="high")
+        assert updated["priority"] == "high"
+
+    def test_owners_replaces_entirely(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(
+            tasks_dir, task_id="ST-001", title="t", platform="ac",
+            owners={"analysis": "a", "design": "b"},
+        )
+        updated = update_task(tasks_dir, "ST-001", owners={"design": "c"})
+        assert updated["owners"] == {"design": "c"}  # analysis is gone, not merged
+
+    def test_none_fields_leave_existing_values(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(
+            tasks_dir, task_id="ST-001", title="t", platform="ac", priority="high",
+            owners={"analysis": "a"},
+        )
+        updated = update_task(tasks_dir, "ST-001")
+        assert updated["title"] == "t"
+        assert updated["platform"] == "AC"
+        assert updated["priority"] == "high"
+        assert updated["owners"] == {"analysis": "a"}
+
+    def test_missing_task_raises(self, tmp_path):
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        with pytest.raises(ValueError, match="not found"):
+            update_task(tasks_dir, "nope", title="x")
+
+    def test_does_not_touch_phase_or_status(self, tmp_path):
+        """phase/status는 이 함수의 범위 밖 — transition_phase()/
+
+        set_task_status()가 전담한다(감사 이력 보존)."""
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        transition_phase(tasks_dir, "ST-001", new_phase=3)
+        set_task_status(tasks_dir, "ST-001", "archived")
+        updated = update_task(tasks_dir, "ST-001", title="new")
+        assert updated["current_phase"] == 3
+        assert updated["status"] == "archived"
 
 
 class TestCreateTaskStatus:

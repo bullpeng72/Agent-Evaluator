@@ -38,6 +38,7 @@ from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_skills_detect,
     _cmd_autopilot_skills_scaffold,
     _cmd_autopilot_update_member,
+    _cmd_autopilot_update_task,
     cmd_autopilot,
 )
 from agent_evaluator.gates.autopilot_state import (
@@ -351,6 +352,75 @@ class TestListAndShowTask:
         _cmd_autopilot_show_task(_ns(task_id="ST-001", root=str(tmp_path)))
         out = capsys.readouterr().out
         assert "status:" not in out
+
+
+class TestUpdateTaskCli:
+    """대시보드/CLI에 과제 수정 기능이 없다는 실사용 피드백."""
+
+    def _ns_update(self, tmp_path, **overrides):
+        base = dict(
+            task_id="ST-001", title=None, platform=None, priority=None,
+            analysis=None, design=None, development=None, qa=None, pm=None,
+            security=None, root=str(tmp_path),
+        )
+        base.update(overrides)
+        return _ns(**base)
+
+    def test_update_title(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="old", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_task(self._ns_update(tmp_path, title="new"))
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task["title"] == "new"
+
+    def test_update_single_owner_preserves_others(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis="a", design="b", root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_task(self._ns_update(tmp_path, design="c"))
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task["owners"] == {"analysis": "a", "design": "c"}
+
+    def test_clear_owner_with_empty_string(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis="a", design="b", root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_task(self._ns_update(tmp_path, analysis=""))
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task["owners"] == {"design": "b"}
+
+    def test_no_owner_flags_leaves_owners_untouched(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis="a", design="b", root=str(tmp_path),
+        ))
+        code = _cmd_autopilot_update_task(self._ns_update(tmp_path, title="renamed"))
+        assert code == 0
+        task = load_task(tmp_path / ".aoo" / "tasks", "ST-001")
+        assert task["owners"] == {"analysis": "a", "design": "b"}
+
+    def test_missing_task_fails(self, tmp_path):
+        code = _cmd_autopilot_update_task(self._ns_update(tmp_path, task_id="nope", title="x"))
+        assert code == 1
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        _cmd_autopilot_new_task(_ns(
+            title="t", platform="ac", priority="normal", task_id="ST-001",
+            analysis=None, design=None, root=str(tmp_path),
+        ))
+        code = cmd_autopilot(_ns(
+            autopilot_command="update-task", task_id="ST-001", title="new",
+            platform=None, priority=None, analysis=None, design=None,
+            development=None, qa=None, pm=None, security=None, root=str(tmp_path),
+        ))
+        assert code == 0
 
 
 class TestAddMember:
@@ -1712,6 +1782,96 @@ class TestSetTaskStatusRoute:
         assert task["status"] == "active"
 
 
+class TestUpdateTaskRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §1/§9 — 등록 후 과제 제목·플랫폼·
+
+    우선순위·담당자를 고칠 방법이 대시보드에 없었다."""
+
+    def test_edit_form_prefilled_with_current_values(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        create_task(
+            tmp_path / ".aoo" / "tasks", task_id="ST-001", title="원래 제목", platform="ac",
+            owners={"analysis": "a"},
+        )
+        r = autopilot_client.get("/tasks/ST-001")
+        assert "/tasks/ST-001/update" in r.text
+        assert 'value="원래 제목"' in r.text
+        assert 'value="a"' in r.text
+
+    def test_updates_title_platform_priority_owners(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="old", platform="ac")
+        r = autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={
+                "title": "new", "platform": "AOO", "priority": "high",
+                "analysis": "a", "design": "b", "development": "", "qa": "", "pm": "",
+                "security": "",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/tasks/ST-001"
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["title"] == "new"
+        assert task["platform"] == "AOO"
+        assert task["priority"] == "high"
+        assert task["owners"] == {"analysis": "a", "design": "b"}
+
+    def test_blank_owner_fields_clear_owners(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(
+            tasks_dir, task_id="ST-001", title="t", platform="ac",
+            owners={"analysis": "a", "design": "b"},
+        )
+        autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={
+                "title": "t", "platform": "AC", "priority": "normal",
+                "analysis": "", "design": "", "development": "", "qa": "", "pm": "",
+                "security": "",
+            },
+        )
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["owners"] == {}
+
+    def test_update_unknown_task_is_a_noop(self, autopilot_client):
+        r = autopilot_client.post(
+            "/tasks/nope/update",
+            data={
+                "title": "x", "platform": "", "priority": "",
+                "analysis": "", "design": "", "development": "", "qa": "", "pm": "",
+                "security": "",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+
+    def test_does_not_touch_phase_or_status(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        tasks_dir = tmp_path / ".aoo" / "tasks"
+        create_task(tasks_dir, task_id="ST-001", title="t", platform="ac")
+        autopilot_client.post(
+            "/tasks/ST-001/phase",
+            data={"new_phase": 2, "require_approval": "", "approved_by": ""},
+        )
+        autopilot_client.post(
+            "/tasks/ST-001/update",
+            data={
+                "title": "new", "platform": "AC", "priority": "normal",
+                "analysis": "", "design": "", "development": "", "qa": "", "pm": "",
+                "security": "",
+            },
+        )
+        task = load_task(tasks_dir, "ST-001")
+        assert task is not None
+        assert task["current_phase"] == 2
+
+
 class TestAutopilotTeamPage:
     def test_team_page_lists_members(self, autopilot_client):
         tmp_path = autopilot_client.tmp_path
@@ -1747,6 +1907,82 @@ class TestAutopilotTeamPage:
         assert r.status_code == 303  # 조용히 무시하고 페이지로 돌아감(M0.5 범위)
         members = load_team(tmp_path / ".aoo" / "team.json")
         assert len(members) == 1  # 중복 추가되지 않음
+
+
+class TestTeamMemberUpdateRoute:
+    """docs/AUTOPILOT_IMPROVEMENTS.md §1 — update-member(v1.1.2)가
+
+    대시보드엔 없었다."""
+
+    def test_update_renders_prefilled_edit_form(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        add_team_member(
+            tmp_path / ".aoo" / "team.json", member_id="jm", name="정민",
+            roles=["분석"], github="@jm",
+        )
+        r = autopilot_client.get("/team")
+        assert "/team/jm/update" in r.text
+        assert 'value="정민"' in r.text
+        assert 'value="@jm"' in r.text
+        assert 'value="분석" checked' in r.text
+
+    def test_update_changes_name_roles_github_synced(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="jm", name="정민", roles=["분석"])
+        r = autopilot_client.post(
+            "/team/jm/update",
+            data={"name": "정민2", "role": ["분석", "PM"], "github": "@jm2", "synced": "1"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == "/team"
+        member = next(m for m in load_team(team_path) if m["id"] == "jm")
+        assert member["name"] == "정민2"
+        assert set(member["roles"]) == {"분석", "PM"}
+        assert member["github"] == "@jm2"
+        assert member["synced"] is True
+
+    def test_unchecked_synced_checkbox_sets_false(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="jm", name="정민", roles=["분석"])
+        autopilot_client.post(
+            "/team/jm/update", data={"name": "정민", "role": ["분석"], "github": "", "synced": "1"},
+        )
+        r = autopilot_client.get("/team")
+        assert 'name="synced" value="1" checked' in r.text  # 폼이 현재 값을 미리 채움
+
+    def test_update_unknown_id_is_a_noop(self, autopilot_client):
+        r = autopilot_client.post(
+            "/team/nope/update", data={"name": "x", "role": [], "github": ""},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+
+
+class TestTeamMemberRemoveRoute:
+    def test_removes_member_and_redirects(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        team_path = tmp_path / ".aoo" / "team.json"
+        add_team_member(team_path, member_id="jm", name="정민", roles=["분석"])
+        r = autopilot_client.post("/team/jm/remove", follow_redirects=False)
+        assert r.status_code == 303
+        assert r.headers["location"] == "/team"
+        assert load_team(team_path) == []
+
+    def test_remove_unknown_id_is_a_noop(self, autopilot_client):
+        r = autopilot_client.post("/team/nope/remove", follow_redirects=False)
+        assert r.status_code == 303
+
+    def test_delete_button_rendered_for_each_member(self, autopilot_client):
+        tmp_path = autopilot_client.tmp_path
+        add_team_member(
+            tmp_path / ".aoo" / "team.json", member_id="jm", name="정민", roles=["분석"]
+        )
+        r = autopilot_client.get("/team")
+        assert "/team/jm/remove" in r.text
+        assert "삭제" in r.text
 
 
 class TestAutopilotApprovalsPage:

@@ -140,6 +140,62 @@ def create_task(
     return task
 
 
+def update_task(
+    tasks_dir: Union[str, Path],
+    task_id: str,
+    *,
+    title: str | None = None,
+    platform: str | None = None,
+    priority: str | None = None,
+    owners: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """등록된 과제의 필드를 수정한다(대시보드/CLI에 과제 수정 기능이 없다는
+
+    실사용 피드백 — 등록 후 제목·플랫폼·우선순위·담당자를 고칠 방법이
+    없었다).
+
+    ``phase``와 ``status``는 이 함수의 범위 밖이다 — 각각 ``transition_phase()``
+    /``set_task_status()``가 이미 전담하고, 그 둘은 감사 이력(``phase_history``
+    ·``status_changed_at``)을 남기는데 이 함수로 같이 바꾸면 그 이력 없이
+    조용히 어긋난다(원칙2 — 정직한 기록). ``None``으로 남긴 인자는 기존
+    값을 그대로 둔다.
+
+    Args:
+        tasks_dir: ``.aoo/tasks`` 디렉터리.
+        task_id: 수정할 과제.
+        title: 새 제목(선택).
+        platform: 새 플랫폼(선택) — ``VALID_PLATFORMS`` 중 하나(대소문자 무관).
+        priority: 새 우선순위(선택) — ``create_task()``와 같이 자유 문자열,
+            SDK 레벨 검증 없음(CLI의 ``choices``가 그 역할을 한다).
+        owners: 새 담당자 dict(선택) — ``update_team_member()``의 ``roles``와
+            같은 방식으로 통째로 대체한다.
+
+    Returns:
+        수정된 과제 dict.
+
+    Raises:
+        ValueError: 그 ``task_id``가 없거나, ``platform``이 알 수 없는 값이면.
+    """
+    task = load_task(tasks_dir, task_id)
+    if task is None:
+        raise ValueError(f"task not found: {task_id}")
+
+    if title is not None:
+        task["title"] = title
+    if platform is not None:
+        platform_norm = platform.upper()
+        if platform_norm not in VALID_PLATFORMS:
+            raise ValueError(f"platform must be one of {VALID_PLATFORMS}, got {platform!r}")
+        task["platform"] = platform_norm
+    if priority is not None:
+        task["priority"] = priority
+    if owners is not None:
+        task["owners"] = dict(owners)
+
+    save_task(tasks_dir, task)
+    return task
+
+
 VALID_TASK_STATUSES = ("active", "archived", "cancelled")
 
 

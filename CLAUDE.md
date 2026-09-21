@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.6 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
@@ -128,6 +128,9 @@ agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [-
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled
 agent-eval autopilot show-task ST-014            # one task's owners + phase_history (+ status line when non-active)
+agent-eval autopilot update-task ST-014 --title "..." --platform aoo --priority high --design 유진
+#   edits title/platform/priority/owners only — not phase or status (those are transition_phase()/
+#   set-task-status()'s own audited trail). '' clears an owner role, e.g. --analysis ''.
 agent-eval autopilot set-task-status ST-014 --status archived --reason "shipped"   # active|archived|cancelled;
 #   orthogonal to current_phase — a task can be archived/cancelled at any phase. list-tasks hides non-active by
 #   default so a finished/dropped task doesn't keep cluttering the board.
@@ -135,6 +138,9 @@ agent-eval autopilot add-member --id yj --name 유진 --role 설계
 agent-eval autopilot remove-member --id yj
 agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-synced   # only given fields change
 agent-eval autopilot list-members
+#   dashboard has full CRUD parity with all of the above: task edit/status-change forms on the task detail
+#   page, and team-member edit/delete forms on the team page (POST /tasks/{id}/update|/status,
+#   POST /team/{id}/update|/remove) — previously the dashboard was read-only for tasks/team beyond creation.
 agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval spec_review  # opt-in gate
 #   warns (does not block) on a backward transition or a skipped phase — transition_phase() itself never
 #   validated phase ordering; this surfaces an accidental regression/skip to a human without hard-blocking a
