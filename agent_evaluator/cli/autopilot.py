@@ -45,7 +45,7 @@ import uuid
 from pathlib import Path
 from typing import Callable
 
-from agent_evaluator.cli._utils import _supports_color
+from agent_evaluator.cli._utils import ColoredHelpFormatter, _supports_color
 from agent_evaluator.gates.autopilot_state import (
     PHASE_LABELS,
     VALID_APPROVAL_KINDS,
@@ -111,7 +111,7 @@ _ADR_MODEL_TIER_CHECKLIST_LABEL = (
 
 _SCOPE_NOTE = (
     f"{D}Harness Autopilot은 HITL 승인 큐 — GitHub Actions 상태머신·에이전트 러너 무인\n"
-    f"  트리거는 이 도구의 범위 밖이다(설계서 §1.1 최종 목표 재정의).{R}"
+    f"  트리거는 이 도구의 범위 밖이다.{R}"
 )
 
 
@@ -196,8 +196,7 @@ def _cmd_autopilot_doctor(args: argparse.Namespace) -> int:
                         f"{s['task_id']} has been in phase {s['current_phase']} "
                         f"({s['phase_label']}) for {s['days_in_phase']:.1f} day(s) "
                         f"(since {s['entered_at']}) — verify this still matches "
-                        f"the actual work, or transition it (docs/"
-                        f"AUTOPILOT_IMPROVEMENTS.md §3, LIMITS L4)."
+                        f"the actual work, or transition it."
                     )
                 )
     else:
@@ -324,7 +323,7 @@ def _cmd_autopilot_add_member(args: argparse.Namespace) -> int:
     print(
         _warn(
             "synced=false — GitHub CODEOWNERS must be updated manually before this "
-            "person's reviews actually route (design doc §4.6)."
+            "person's reviews actually route."
         )
     )
     return 0
@@ -859,7 +858,7 @@ def _cmd_autopilot_approvals_open(args: argparse.Namespace) -> int:
 
     if added_model_tier_item:
         print(
-            f"  {D}adr_review 기본 체크리스트 항목 자동 추가됨(원칙5, §9.5.4 순위5): "
+            f"  {D}adr_review 기본 체크리스트 항목 자동 추가됨(원칙5 — 최소 기록): "
             f"\"{_ADR_MODEL_TIER_CHECKLIST_LABEL}\" — 이미 이 항목을 --checklist-item으로 "
             f"직접 넣었다면 자동 추가되지 않는다.{R}"
         )
@@ -883,7 +882,7 @@ def _cmd_autopilot_approvals_open(args: argparse.Namespace) -> int:
                 print(f"    - [{b.get('status')}] {b.get('label')}")
         print(
             f"  {D}This stays out of the human review queue until resolved "
-            f"(design doc §3.4 — no review request is sent).{R}"
+            f"— no review request is sent.{R}"
         )
     return 0
 
@@ -1013,7 +1012,7 @@ def _cmd_autopilot_approvals_scan_thresholds(args: argparse.Namespace) -> int:
     for a in opened:
         print(_warn(f"Threshold review opened: {a['id']} — {a['title']}"))
     print(f"{D}Run the review with the threshold-realism-review skill "
-          f"(설계서 §30/§31.6) — a 4-step pipeline, not an automatic change.{R}")
+          f"— a 4-step pipeline, not an automatic change.{R}")
     return 0
 
 
@@ -1049,13 +1048,44 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
              "own Gate/decision data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Harness Autopilot — a lightweight governance layer that connects "
-            "agent-evaluator's evaluation data (Gate scores, exit-75 holds, team "
-            "claims) to your team's HITL approval process. Multi-task / multi-team / "
-            "AC·AOO foundation. No new scoring logic; wraps .aoo/tasks/*.json, "
-            "team.json and approvals.jsonl.\n"
+            "Harness Autopilot — a lightweight governance layer that connects\n"
+            "agent-evaluator's own evaluation data (Gate scores, exit-75 holds, team\n"
+            "scope claims) to your team's human-in-the-loop (HITL) approval process.\n"
+            "Works with either the AC stack (Agent-Evaluator + Claude Code) or the\n"
+            "AOO stack (Agent-Evaluator + Ollama + OpenCode).\n"
+            "\n"
+            "No new scoring logic — it wraps three plain files: .aoo/tasks/*.json,\n"
+            ".aoo/team.json, and .aoo/approvals.jsonl.\n"
         ),
         epilog=(
+            "Commands:\n"
+            "\n"
+            "  Setup & health\n"
+            "    install           Create .aoo/tasks/, .aoo/team.json, install the Skill\n"
+            "    doctor            Health-check the installation (also flags stale phases)\n"
+            "    dashboard         Local web dashboard — task board · team · approvals · ops\n"
+            "\n"
+            "  Tasks (.aoo/tasks/<id>.json)\n"
+            "    new-task          Register a new task (starts at Phase 0)\n"
+            "    list-tasks        List registered tasks (active only by default)\n"
+            "    show-task         Show one task's detail — owners, phase history, status\n"
+            "    update-task       Edit title/platform/priority/owners (not phase/status)\n"
+            "    set-task-status   Mark a task active / archived / cancelled\n"
+            "\n"
+            "  Team (.aoo/team.json)\n"
+            "    add-member        Register a team member\n"
+            "    update-member     Update a registered team member's fields\n"
+            "    remove-member     Remove a team member\n"
+            "    list-members      List all registered team members\n"
+            "\n"
+            "  Phase gates, approvals & decisions\n"
+            "    phase             Phase transitions + project-wide policy + staleness check\n"
+            "    approvals         HITL approval queue — open/list/decide/update/cancel\n"
+            "    decisions         Deploy-decision ledger (alias for `agent-eval decisions`)\n"
+            "\n"
+            "  Skills\n"
+            "    skills            Detect repeated checklist shapes; scaffold a SKILL.md stub\n"
+            "\n"
             "Examples:\n"
             "  agent-eval autopilot install --platform ac\n"
             "  agent-eval autopilot doctor --stale-days 7\n"
@@ -1084,18 +1114,18 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
             "  agent-eval autopilot dashboard\n"
         ),
     )
-    ap_sub = p.add_subparsers(dest="autopilot_command")
+    ap_sub = p.add_subparsers(dest="autopilot_command", metavar="<command>")
 
     install_p = ap_sub.add_parser(
         "install", help="Create .aoo/tasks/, .aoo/team.json, install the skill"
-    )
+    , formatter_class=ColoredHelpFormatter)
     install_p.add_argument("--platform", choices=["ac", "aoo"], default="ac")
     install_p.add_argument("--root", default=".", metavar="DIR")
 
     doctor_p = ap_sub.add_parser(
         "doctor",
         help="Health-check the Autopilot installation (also warns on stale phases)",
-    )
+    formatter_class=ColoredHelpFormatter)
     doctor_p.add_argument("--root", default=".", metavar="DIR")
     doctor_p.add_argument(
         "--stale-days", type=float, default=7.0, dest="stale_days",
@@ -1105,14 +1135,17 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     dash_p = ap_sub.add_parser(
         "dashboard", help="Local dashboard (task board · team · approvals · ops)"
-    )
+    , formatter_class=ColoredHelpFormatter)
     dash_p.add_argument("--root", default=".", metavar="DIR")
     dash_p.add_argument("--host", default="127.0.0.1")
     dash_p.add_argument("--port", type=int, default=8766)
     dash_p.add_argument("--open", action="store_true", default=True)
     dash_p.add_argument("--no-open", dest="open", action="store_false")
 
-    nt_p = ap_sub.add_parser("new-task", help="Register a new task (Phase 0)")
+    nt_p = ap_sub.add_parser(
+        "new-task", help="Register a new task (Phase 0)",
+        formatter_class=ColoredHelpFormatter,
+    )
     nt_p.add_argument("--title", required=True)
     nt_p.add_argument("--platform", choices=["ac", "aoo"], default="ac")
     nt_p.add_argument("--priority", choices=["high", "normal", "low"], default="normal")
@@ -1129,7 +1162,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     lt_p = ap_sub.add_parser(
         "list-tasks", help="List registered tasks (active only by default)"
-    )
+    , formatter_class=ColoredHelpFormatter)
     lt_p.add_argument(
         "--all", action="store_true",
         help="Include archived/cancelled tasks (active-only by default)",
@@ -1138,7 +1171,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     st_p = ap_sub.add_parser(
         "show-task", help="Show one task's detail (owners, phase history, status)"
-    )
+    , formatter_class=ColoredHelpFormatter)
     st_p.add_argument("task_id")
     st_p.add_argument("--root", default=".", metavar="DIR")
 
@@ -1146,7 +1179,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "update-task",
         help="Edit a task's title/platform/priority/owners "
              "(not phase or status — see 'phase transition' / 'set-task-status')",
-    )
+    formatter_class=ColoredHelpFormatter)
     ut_p.add_argument("task_id")
     ut_p.add_argument("--title", default=None)
     ut_p.add_argument("--platform", default=None, choices=["ac", "aoo"])
@@ -1173,7 +1206,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     sts_p = ap_sub.add_parser(
         "set-task-status", help="Mark a task active/archived/cancelled"
-    )
+    , formatter_class=ColoredHelpFormatter)
     sts_p.add_argument("task_id")
     sts_p.add_argument("--status", required=True, choices=list(VALID_TASK_STATUSES))
     sts_p.add_argument("--reason", default=None)
@@ -1183,7 +1216,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     sts_p.add_argument("--root", default=".", metavar="DIR")
 
-    am_p = ap_sub.add_parser("add-member", help="Register a team member (.aoo/team.json)")
+    am_p = ap_sub.add_parser(
+        "add-member", help="Register a team member (.aoo/team.json)",
+        formatter_class=ColoredHelpFormatter,
+    )
     am_p.add_argument("--id", required=True, dest="member_id")
     am_p.add_argument("--name", required=True)
     am_p.add_argument(
@@ -1193,13 +1229,16 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     am_p.add_argument("--codeowner-scope", action="append", dest="codeowner_scopes")
     am_p.add_argument("--root", default=".", metavar="DIR")
 
-    rm_p = ap_sub.add_parser("remove-member", help="Remove a team member (.aoo/team.json)")
+    rm_p = ap_sub.add_parser(
+        "remove-member", help="Remove a team member (.aoo/team.json)",
+        formatter_class=ColoredHelpFormatter,
+    )
     rm_p.add_argument("--id", required=True, dest="member_id")
     rm_p.add_argument("--root", default=".", metavar="DIR")
 
     um_p = ap_sub.add_parser(
         "update-member", help="Update a registered team member's fields"
-    )
+    , formatter_class=ColoredHelpFormatter)
     um_p.add_argument("--id", required=True, dest="member_id")
     um_p.add_argument("--name", default=None)
     um_p.add_argument("--role", action="append", dest="roles", choices=list(VALID_ROLES))
@@ -1219,19 +1258,22 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     um_p.add_argument("--root", default=".", metavar="DIR")
 
-    lm_p = ap_sub.add_parser("list-members", help="List all registered team members")
+    lm_p = ap_sub.add_parser(
+        "list-members", help="List all registered team members",
+        formatter_class=ColoredHelpFormatter,
+    )
     lm_p.add_argument("--root", default=".", metavar="DIR")
 
     ph_p = ap_sub.add_parser(
         "phase",
         help="Task phase transitions + policy + staleness check "
              "(.aoo/tasks/<id>.json current_phase)",
-    )
+    formatter_class=ColoredHelpFormatter)
     ph_sub = ph_p.add_subparsers(dest="phase_command")
     pht_p = ph_sub.add_parser(
         "transition",
         help="Move a task to a new phase — optionally gated on an approved approval",
-    )
+    formatter_class=ColoredHelpFormatter)
     pht_p.add_argument("--task", required=True, dest="task_id")
     pht_p.add_argument("--to", required=True, type=int, dest="new_phase")
     pht_p.add_argument("--mode", default="auto", choices=["auto", "hitl"])
@@ -1240,26 +1282,26 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "--require-approval", default=None, dest="require_approval",
         choices=list(VALID_APPROVAL_KINDS),
         help="Refuse the transition unless an approval of this kind is 'approved' "
-             "for this task (§9.5.4 순위1 — opt-in, no gate by default)",
+             "for this task (opt-in, no gate by default)",
     )
     pht_p.add_argument(
         "--require-gate-ready", default=None, dest="require_gate_ready", choices=["yes", "no"],
         help="Refuse the transition unless the latest Harness Gate run "
              "(.aoo/decisions.jsonl) has verdict_level='ready' (or a human recorded "
-             "accepted/overridden for it) — independent of --require-approval "
-             "(docs/AUTOPILOT_IMPROVEMENTS.md §16). Omit to fall back to the phase "
-             "policy's gate_ready setting; an explicit value here always overrides it.",
+             "accepted/overridden for it) — independent of --require-approval. "
+             "Omit to fall back to the phase policy's gate_ready setting; an "
+             "explicit value here always overrides it.",
     )
     pht_p.add_argument("--root", default=".", metavar="DIR")
 
     php_p = ph_sub.add_parser(
         "policy",
         help="Declare a project-wide phase gate instead of a per-call --require-approval",
-    )
+    formatter_class=ColoredHelpFormatter)
     php_sub = php_p.add_subparsers(dest="policy_command")
     phps_p = php_sub.add_parser(
         "set", help="Require an approval kind for every transition into a phase"
-    )
+    , formatter_class=ColoredHelpFormatter)
     phps_p.add_argument("--to", required=True, type=int, dest="new_phase")
     phps_p.add_argument(
         "--require-approval", default=None, dest="require_approval",
@@ -1269,8 +1311,8 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     phps_p.add_argument(
         "--require-gate-ready", action="store_true", dest="require_gate_ready",
         help="Also require the latest Harness Gate run to be ready for every "
-             "transition into this phase (docs/AUTOPILOT_IMPROVEMENTS.md §16) — "
-             "independent of --require-approval, can be set alone or together with it",
+             "transition into this phase — independent of --require-approval, "
+             "can be set alone or together with it",
     )
     phps_p.add_argument(
         "--clear-gate-ready", action="store_true", dest="clear_gate_ready",
@@ -1278,14 +1320,17 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     )
     phps_p.add_argument("--root", default=".", metavar="DIR")
 
-    phpw_p = php_sub.add_parser("show", help="Show the current phase policy")
+    phpw_p = php_sub.add_parser(
+        "show", help="Show the current phase policy",
+        formatter_class=ColoredHelpFormatter,
+    )
     phpw_p.add_argument("--root", default=".", metavar="DIR")
 
     phc_p = ph_sub.add_parser(
         "check",
         help="List active tasks stuck in their current phase (no forgotten "
-             "transition, LIMITS L4 — pure elapsed-time signal, read-only)",
-    )
+             "transition — pure elapsed-time signal, read-only)",
+    formatter_class=ColoredHelpFormatter)
     phc_p.add_argument(
         "--stale-days", type=float, default=7.0, dest="stale_days",
         help="Flag a task that has been in its current phase this many days "
@@ -1297,16 +1342,22 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "decisions",
         help="Deploy-decision ledger (alias for `agent-eval decisions`, "
              "defaults --log to .aoo/decisions.jsonl)",
-    )
+    formatter_class=ColoredHelpFormatter)
     dec_sub = dec_p.add_subparsers(dest="decisions_command", metavar="{list,record}")
-    decl_p = dec_sub.add_parser("list", help="List gate runs + outcomes")
+    decl_p = dec_sub.add_parser(
+        "list", help="List gate runs + outcomes",
+        formatter_class=ColoredHelpFormatter,
+    )
     decl_p.add_argument("--log", default=None, help="Override .aoo/decisions.jsonl")
     decl_p.add_argument("--pending", action="store_true",
                         help="Only gate runs with no recorded outcome yet")
     decl_p.add_argument("--json", action="store_true", dest="as_json",
                         help="Emit the summary as JSON")
     decl_p.add_argument("--root", default=".", metavar="DIR")
-    decr_p = dec_sub.add_parser("record", help="Append a human decision")
+    decr_p = dec_sub.add_parser(
+        "record", help="Append a human decision",
+        formatter_class=ColoredHelpFormatter,
+    )
     decr_p.add_argument("--log", default=None, help="Override .aoo/decisions.jsonl")
     decr_p.add_argument("--outcome", required=True,
                         choices=["accepted", "held", "overridden", "rejected"])
@@ -1320,12 +1371,12 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "approvals",
         help="HITL approval queue (.aoo/approvals.jsonl) — "
              "open/list/decide/update/cancel/scan-thresholds",
-    )
-    ap_ap_sub = ap_p.add_subparsers(dest="approvals_command")
+    formatter_class=ColoredHelpFormatter)
+    ap_ap_sub = ap_p.add_subparsers(dest="approvals_command", metavar="<command>")
 
     apo_p = ap_ap_sub.add_parser(
-        "open", help="Open an approval — auto-scores the checklist (§3.4)"
-    )
+        "open", help="Open an approval — auto-scores the checklist"
+    , formatter_class=ColoredHelpFormatter)
     apo_p.add_argument("--task", required=True, dest="task_id")
     apo_p.add_argument("--kind", required=True, choices=list(VALID_APPROVAL_KINDS))
     apo_p.add_argument("--phase", required=True, type=int)
@@ -1348,16 +1399,21 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         help="Checklist is shown but does not block review (use when the checklist "
              "is a follow-up procedure list, not an entry condition — this is what "
              "'scan-thresholds' uses internally for threshold_review; without this "
-             "flag a manually-opened approval of the same kind stays gated, "
-             "docs/AUTOPILOT_IMPROVEMENTS.md §Appendix-M-finding-1)",
+             "flag a manually-opened approval of the same kind stays gated)",
     )
     apo_p.add_argument("--root", default=".", metavar="DIR")
 
-    apl_p = ap_ap_sub.add_parser("list", help="List approvals (pending by default)")
+    apl_p = ap_ap_sub.add_parser(
+        "list", help="List approvals (pending by default)",
+        formatter_class=ColoredHelpFormatter,
+    )
     apl_p.add_argument("--all", action="store_true", help="Include draft/decided items")
     apl_p.add_argument("--root", default=".", metavar="DIR")
 
-    apd_p = ap_ap_sub.add_parser("decide", help="Record a human decision on an approval")
+    apd_p = ap_ap_sub.add_parser(
+        "decide", help="Record a human decision on an approval",
+        formatter_class=ColoredHelpFormatter,
+    )
     apd_p.add_argument("approval_id")
     apd_p.add_argument("--decision", required=True, choices=list(VALID_DECISIONS))
     apd_p.add_argument("--by", required=True, dest="decided_by")
@@ -1367,7 +1423,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     apu_p = ap_ap_sub.add_parser(
         "update",
         help="Update checklist item status on an existing open (draft/pending) approval",
-    )
+    formatter_class=ColoredHelpFormatter)
     apu_p.add_argument("approval_id")
     apu_p.add_argument(
         "--checklist-item", action="append", required=True, dest="checklist_item",
@@ -1379,7 +1435,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
 
     apc_p = ap_ap_sub.add_parser(
         "cancel", help="Withdraw an open (draft/pending) approval — a distinct terminal state"
-    )
+    , formatter_class=ColoredHelpFormatter)
     apc_p.add_argument("approval_id")
     apc_p.add_argument("--reason", default=None)
     apc_p.add_argument("--root", default=".", metavar="DIR")
@@ -1387,11 +1443,10 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     aps_p = ap_ap_sub.add_parser(
         "scan-thresholds",
         help="Detect repeated exit-75 reasons (5+) and open threshold_review approvals",
-    )
+    formatter_class=ColoredHelpFormatter)
     aps_p.add_argument(
         "--min-occurrences", type=int, default=5, dest="min_occurrences",
-        help="How many repeats of the same undecided_reason trigger a review (default: 5, "
-             "matching 방법론서 §30)",
+        help="How many repeats of the same undecided_reason trigger a review (default: 5)",
     )
     aps_p.add_argument("--root", default=".", metavar="DIR")
 
@@ -1399,21 +1454,21 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
         "skills",
         help="Detect repeated approval checklist shapes as skill candidates, "
              "and scaffold a SKILL.md stub from one",
-    )
+    formatter_class=ColoredHelpFormatter)
     sk_sub = sk_p.add_subparsers(dest="skills_command")
     skd_p = sk_sub.add_parser(
         "detect", help="List repeated checklist patterns (read-only, creates nothing)"
-    )
+    , formatter_class=ColoredHelpFormatter)
     skd_p.add_argument(
         "--min-occurrences", type=int, default=3, dest="min_occurrences",
-        help="How many repeats count as a candidate (default: 3, 방법론서 §26.6)",
+        help="How many repeats count as a candidate (default: 3)",
     )
     skd_p.add_argument("--root", default=".", metavar="DIR")
 
     sks_p = sk_sub.add_parser(
         "scaffold",
         help="Write a SKILL.md stub from a detected candidate (TODOs left for a human)",
-    )
+    formatter_class=ColoredHelpFormatter)
     sks_p.add_argument("--name", required=True, help="kebab-case skill name")
     sks_p.add_argument(
         "--kind", default=None, choices=list(VALID_APPROVAL_KINDS),
@@ -1448,8 +1503,8 @@ def _cmd_autopilot_skills_detect(args: argparse.Namespace) -> int:
         for label in c["labels"]:
             print(f"      - {label}")
     print()
-    print(f"{D}Before creating a skill: check against the existing 17+ in Skills/ "
-          f"(원칙4, 방법론서 §26.6 자격확인). Creation itself stays a human step.{R}")
+    print(f"{D}Before creating a skill: check against the existing 17+ in Skills/. "
+          f"Creation itself stays a human step.{R}")
     return 0
 
 
@@ -1481,7 +1536,7 @@ def _cmd_autopilot_skills_scaffold(args: argparse.Namespace) -> int:
         f"  {D}Based on {candidates[0]['count']}x repeated kind={candidates[0]['kind']} "
         f"checklist. TODO markers are left for a human — fill in the description, "
         f"the reasoning, and each step's concrete procedure before treating this "
-        f"as a real skill (원칙4, 방법론서 §26.6 자격확인).{R}"
+        f"as a real skill.{R}"
     )
     return 0
 

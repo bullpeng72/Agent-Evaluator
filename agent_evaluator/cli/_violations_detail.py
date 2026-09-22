@@ -16,6 +16,7 @@ The only per-host difference is the default batch-report DB path.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -163,19 +164,21 @@ def add_violation_detail_subcommands(host_sub, host: str) -> None:
             "List/search past blocked/observed Gate B/E violations "
             "(like the search_violations MCP)"
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Full-text search the LiveGuardrail batch-report DB for past Gate B/E "
-            "violations. --detail also prints the captured command excerpt for blocked rows. "
-            "Omit the query entirely to browse the most recent history instead (SPEC-045 "
-            "REQ-6) — no keyword needed; use --since/--gate to narrow."
+            "Full-text search the LiveGuardrail batch-report DB for past Gate B/E\n"
+            "violations. --detail also prints the captured command excerpt for blocked rows.\n"
+            "Omit the query entirely to browse the most recent history instead — no keyword\n"
+            "needed; use --since/--gate to narrow."
         ),
         epilog=(
-            f'{_G}agent-eval {host} violations{_R}'
+            "Examples:\n"
+            f'  {_G}agent-eval {host} violations{_R}'
             f'                          # browse recent, no keyword\n'
-            f'{_G}agent-eval {host} violations --since 2026-09-08{_R}\n'
-            f'{_G}agent-eval {host} violations --gate B --detail{_R}\n'
-            f'{_G}agent-eval {host} violations "rm -rf"{_R}\n'
-            f'{_G}agent-eval {host} violations "dangerous tool parameters" --detail{_R}\n'
+            f'  {_G}agent-eval {host} violations --since 2026-09-08{_R}\n'
+            f'  {_G}agent-eval {host} violations --gate B --detail{_R}\n'
+            f'  {_G}agent-eval {host} violations "rm -rf"{_R}\n'
+            f'  {_G}agent-eval {host} violations "dangerous tool parameters" --detail{_R}\n'
         ),
     )
     v.add_argument(
@@ -200,12 +203,16 @@ def add_violation_detail_subcommands(host_sub, host: str) -> None:
     b = host_sub.add_parser(
         "blocked-detail",
         help="Show the exact blocked command(s) for one session (task_id)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Given a task_id (== the session id, e.g. from `violations` output), print "
-            "every blocked tool call with its captured argument excerpt. Falls back to the "
+            "Given a task_id (== the session id, e.g. from `violations` output), print\n"
+            "every blocked tool call with its captured argument excerpt. Falls back to the\n"
             "host session transcript when the excerpt was not captured."
         ),
-        epilog=f"{_G}agent-eval {host} blocked-detail 16325c72-3030-4cee-a8c6-7b66f048bb81{_R}\n",
+        epilog=(
+            "Examples:\n"
+            f"  {_G}agent-eval {host} blocked-detail 16325c72-3030-4cee-a8c6-7b66f048bb81{_R}\n"
+        ),
     )
     b.add_argument("task_id", help="session / task id from a `violations` result")
     b.add_argument("--json", dest="as_json", action="store_true", help="machine-readable output")

@@ -13,7 +13,6 @@ import argparse
 import getpass
 import importlib
 import os
-import re
 import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
@@ -28,7 +27,7 @@ except PackageNotFoundError:
     except ImportError:
         __version__ = "unknown"
 
-from agent_evaluator.cli._utils import _supports_color
+from agent_evaluator.cli._utils import ColoredHelpFormatter, _supports_color
 from agent_evaluator.cli.abtest import build_abtest_subparser, cmd_abtest
 from agent_evaluator.cli.benchmark import build_benchmark_subparser, cmd_benchmark
 from agent_evaluator.cli.claims import build_claims_subparser, cmd_claims
@@ -77,35 +76,9 @@ def _hdr(msg: str)  -> str: return f"{B}{C}{msg}{R}"
 
 
 # ---------------------------------------------------------------------------
-# ColoredHelpFormatter — argparse 도움말 컬러 출력
+# ColoredHelpFormatter — argparse 도움말 컬러 출력 (agent_evaluator.cli._utils가
+# 정의를 갖고 있다 — autopilot.py 등 다른 서브커맨드 모듈과 공유하기 위해서다).
 # ---------------------------------------------------------------------------
-
-class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    """ANSI 색상이 적용된 argparse HelpFormatter.
-
-    TTY 여부는 _COLOR 전역 변수로 제어된다 (non-TTY 에서는 색상 없음).
-    """
-
-    def start_section(self, heading: str | None) -> None:  # type: ignore[override]
-        if heading and _COLOR:
-            heading = f"{B}{heading}{R}"
-        super().start_section(heading)
-
-    def _format_usage(self, usage, actions, groups, prefix):  # type: ignore[override]
-        if prefix is None:
-            prefix = f"{B}Usage{R}: " if _COLOR else "Usage: "
-        result = super()._format_usage(usage, actions, groups, prefix)
-        if _COLOR:
-            result = re.sub(r"\bagent-eval\b", f"{C}agent-eval{R}", result, count=1)
-        return result
-
-    def _format_action(self, action):  # type: ignore[override]
-        result = super()._format_action(action)
-        if not _COLOR:
-            return result
-        # --option 플래그 → 노란색
-        result = re.sub(r"(--?[\w-]+)", f"{Y}\\1{R}", result)
-        return result
 
 
 # ---------------------------------------------------------------------------

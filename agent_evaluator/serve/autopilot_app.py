@@ -1341,7 +1341,7 @@ def _team_body(team: list[dict[str, Any]], *, team_error: str = "") -> str:
   </form>
   <p style="font-size:11.5px;color:var(--warning);margin:10px 0 0;">
     ⚠️ 추가해도 GitHub CODEOWNERS는 자동으로 갱신되지 않습니다 — 별도로 반영해야
-    이 사람의 승인이 실제로 라우팅됩니다(설계서 §4.6).
+    이 사람의 승인이 실제로 라우팅됩니다.
   </p>
 </div>
 
