@@ -40,7 +40,6 @@ GitHub Actions 상태머신·에이전트 러너 무인 트리거는 구현하�
 from __future__ import annotations
 
 import argparse
-import importlib.resources
 import shutil
 import uuid
 from pathlib import Path
@@ -107,17 +106,17 @@ def _resolve_skills_root() -> Path | None:
     Tries the packaged location first — ``pyproject.toml``'s wheel
     ``force-include`` copies the repo's top-level ``Skills/`` into
     ``agent_evaluator/skills/`` at build time, so a real ``pip install``
-    (non-editable) finds it there via :mod:`importlib.resources`. Falls back
-    to the repo-root ``Skills/`` two levels above this file, which is what an
-    editable install (``pip install -e .``, this checkout) resolves to.
-    Returns ``None`` if neither exists (e.g. a corrupted/partial install).
+    (non-editable) finds it there as a plain subdirectory of the installed
+    package (``importlib.resources.files`` needs Python 3.9+; this project
+    targets 3.8+, so path arithmetic off ``__file__`` is used instead — it
+    resolves identically for a real install). Falls back to the repo-root
+    ``Skills/`` two levels above this file, which is what an editable install
+    (``pip install -e .``, this checkout) resolves to. Returns ``None`` if
+    neither exists (e.g. a corrupted/partial install).
     """
-    try:
-        packaged = importlib.resources.files("agent_evaluator") / "skills"
-        if packaged.is_dir():
-            return Path(str(packaged))
-    except (ModuleNotFoundError, FileNotFoundError, TypeError):
-        pass
+    packaged = Path(__file__).resolve().parents[1] / "skills"
+    if packaged.is_dir():
+        return packaged
     repo_root = Path(__file__).resolve().parents[2] / "Skills"
     return repo_root if repo_root.is_dir() else None
 
