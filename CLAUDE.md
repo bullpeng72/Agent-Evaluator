@@ -85,9 +85,8 @@ agent-eval benchmark show
 agent-eval experiment register --gate A --field avg_subtask_completion --predict-delta 0.08 --note "add SubtaskConfig"  # register a hypothesis in .aoo/experiments.jsonl (P27)
 #   Harness Autopilot dashboard: the ops page's "개선 실험" card (docs/AUTOPILOT_IMPROVEMENTS.md §17) shows
 #   every open experiment read-only (target gate/field, predicted delta, note) alongside its matching
-#   .aoo/improve/*.md stub if one exists (filename match on the experiment_id) — previously this shared the
-#   .aoo/ directory with claims/decisions/tasks but had zero presence on the one dashboard meant to surface
-#   all of it. Registering/resolving/applying stays CLI-only; the card creates nothing.
+#   .aoo/improve/*.md stub if one exists (filename match on the experiment_id). Registering/resolving/applying
+#   stays CLI-only; the card creates nothing.
 agent-eval experiment list
 agent-eval experiment score v3.json --baseline v2.json --persist      # score open hypotheses vs baseline, write verdicts back
 agent-eval improve plan v3.json --baseline v2.json                    # closed loop (P49): per-gate proposals
@@ -110,10 +109,8 @@ agent-eval claims audit --ttl-hours 8            # CI: flag TTL-exceeded / overl
 #   informational only — no exit code from a page view) with a TTL(h) field to re-run at a different window.
 agent-eval claims enable-live-check --config .opencode/plugin/agent-evaluator.config.json [--owner auto]
 #   merges {"team_concurrency": {...}} into an existing guardrail config JSON (Claude's guardrail_config.json
-#   or OpenCode's agent-evaluator.config.json) via a safe deep-merge (never overwrites a key you already set) —
-#   until this existed, turning on real-time claim-overlap checking required hand-editing that JSON.
-#   dashboard: the ops page can also open/release a claim directly (POST /claims, POST /claims/{id}/release) —
-#   previously the ops page only ever displayed claims read-only.
+#   or OpenCode's agent-evaluator.config.json) via a safe deep-merge (never overwrites a key you already set).
+#   dashboard: the ops page can also open/release a claim directly (POST /claims, POST /claims/{id}/release).
 
 # CLI — Harness Autopilot (SPEC-AP-001, agent_evaluator/{gates/autopilot_state.py,cli/autopilot.py,serve/autopilot_app.py})
 #   HITL approval queue layered on top of this SDK's own Gate/decision/claims data — not an SDLC pipeline.
@@ -123,41 +120,36 @@ agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks
 #   every bundled Skill (Skills/*/SKILL.md — 15 currently) copied into .claude/skills/ or .opencode/skills/.
 agent-eval autopilot doctor [--stale-days 7]     # health-check the skeleton; also warns when an active task has
 #   sat in its current phase >= --stale-days (0 disables) — the only signal that a task's declared phase may
-#   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook
-#   with zero warning before this existed). Same check standalone: `phase check`.
+#   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook).
+#   Same check standalone: `phase check`.
 #   dashboard: the board's "phase 정체" badge and the task detail page's stale banner both take a matching
-#   `?stale_days=` query param (docs/AUTOPILOT_IMPROVEMENTS.md §18, default 7) — previously hardcoded to 7.0,
-#   so a team on a faster/slower cadence had no way to change it short of editing the dashboard source.
+#   `?stale_days=` query param (docs/AUTOPILOT_IMPROVEMENTS.md §18, default 7).
 agent-eval autopilot dashboard                   # local dashboard, port 8766 (task board · team · approvals · ops)
-#   dashboard now has parity with these CLI features (previously CLI-only): board hides archived/cancelled
-#   tasks by default (`?show_all=1` to include them) · "+ 새 과제" form has all 6 owner roles · a task stuck in
-#   its phase gets a "phase 정체" board badge + a banner on its detail page (same check_phase_staleness() the
-#   CLI's doctor/phase check use) · approval cards get a 철회(cancel) button for draft/pending items.
-#   v1.1.6 adds the 4 remaining write actions the dashboard couldn't do at all (CLI-only until now):
-#   a task detail page "Phase 전이" form (POST /tasks/{id}/phase — same required-approval gate +
-#   non-blocking backward/skip warnings as `phase transition`) · a task detail "과제 상태" form
-#   (POST /tasks/{id}/status, active/archived/cancelled) · a "+ 새 승인 요청" form on the approvals
-#   page (POST /approvals — checklist as newline-separated "LABEL:STATUS" text, reuses
-#   `_parse_checklist_items()` + the adr_review auto model-tier item + `--no-checklist-gate` checkbox)
-#   · a per-checklist-item status selector on draft/pending approval cards (POST /approvals/{id}/update).
-#   Every write route now surfaces a failure instead of silently redirecting back unchanged — a duplicate/
-#   unknown id, an invalid status/platform/role/checklist-status/phase-policy value, or cancelling an
-#   already-decided approval renders a `.banner.critical` (`task_error`/`status_error`/`update_error` on the
-#   board & task detail, `team_error` on the team page, `action_error` on the approvals page, `policy_error`
-#   on the ops page). `claims/{id}/release` on an id not in the active list still releases but shows a
-#   non-blocking `claim_warning` (no `--force` equivalent for a single-click button).
+#   full CRUD parity with the CLI: board hides archived/cancelled tasks by default (`?show_all=1` to include
+#   them) · "+ 새 과제" form has all 6 owner roles · a task stuck in its phase gets a "phase 정체" board badge
+#   + a banner on its detail page (same check_phase_staleness() the CLI's doctor/phase check use) · approval
+#   cards get a 철회(cancel) button for draft/pending items · a task detail page "Phase 전이" form
+#   (POST /tasks/{id}/phase — same required-approval gate + non-blocking backward/skip warnings as
+#   `phase transition`) · a task detail "과제 상태" form (POST /tasks/{id}/status, active/archived/cancelled) ·
+#   a "+ 새 승인 요청" form on the approvals page (POST /approvals — checklist as newline-separated
+#   "LABEL:STATUS" text, reuses `_parse_checklist_items()` + the adr_review auto model-tier item +
+#   `--no-checklist-gate` checkbox) · a per-checklist-item status selector on draft/pending approval cards
+#   (POST /approvals/{id}/update). Every write route surfaces a failure instead of silently redirecting back
+#   unchanged — a duplicate/unknown id, an invalid status/platform/role/checklist-status/phase-policy value,
+#   or cancelling an already-decided approval renders a `.banner.critical` (`task_error`/`status_error`/
+#   `update_error` on the board & task detail, `team_error` on the team page, `action_error` on the approvals
+#   page, `policy_error` on the ops page). `claims/{id}/release` on an id not in the active list still releases
+#   but shows a non-blocking `claim_warning` (no `--force` equivalent for a single-click button).
 agent-eval autopilot new-task --title "..." --platform ac --analysis <member> [--design --development --qa --pm --security <member>]
 #   6 owner roles total (was analysis/design only) — any subset may be given.
 agent-eval autopilot list-tasks                  # active tasks only by default; --all also shows archived/cancelled
 agent-eval autopilot show-task ST-014            # one task's owners + phase_history (+ status line when non-active)
-#   dashboard: the task detail page now has a matching "Phase 이력" table (phase/entered/exited/mode/
-#   approved_by) — previously the dashboard only showed the current phase, not how the task got there.
+#   dashboard: the task detail page has a matching "Phase 이력" table (phase/entered/exited/mode/approved_by).
 agent-eval autopilot update-task ST-014 --title "..." --platform aoo --priority high --design 유진 --by jm
 #   edits title/platform/priority/owners only — not phase or status (those are transition_phase()/
 #   set-task-status()'s own audited trail). '' clears an owner role, e.g. --analysis ''. --by NAME (optional)
-#   records who made the edit as last_updated_at/last_updated_by — previously (like set-task-status/
-#   update-member below) this was the one CRUD path with no actor attribution at all, unlike
-#   transition_phase()'s approved_by / decide_approval()'s decided_by.
+#   records who made the edit as last_updated_at/last_updated_by, alongside transition_phase()'s
+#   approved_by / decide_approval()'s decided_by.
 agent-eval autopilot set-task-status ST-014 --status archived --reason "shipped" --by pm-park
 #   active|archived|cancelled; orthogonal to current_phase — a task can be archived/cancelled at any phase.
 #   list-tasks hides non-active by default so a finished/dropped task doesn't keep cluttering the board.
@@ -171,9 +163,9 @@ agent-eval autopilot update-member --id yj --role 개발 --github @yj --mark-syn
 agent-eval autopilot list-members
 #   dashboard has full CRUD parity with all of the above: task edit/status-change forms on the task detail
 #   page, and team-member edit/delete forms on the team page (POST /tasks/{id}/update|/status,
-#   POST /team/{id}/update|/remove) — previously the dashboard was read-only for tasks/team beyond creation.
-#   Both the task and team-member edit/status forms also carry a "수정자"/"변경자" field (changed_by) and a
-#   hidden expected_updated_at (the value the form saw when rendered) — an optimistic-concurrency check: if
+#   POST /team/{id}/update|/remove). Both the task and team-member edit/status forms also carry a
+#   "수정자"/"변경자" field (changed_by) and a hidden expected_updated_at (the value the form saw when
+#   rendered) — an optimistic-concurrency check: if
 #   someone else already saved a change since the form was loaded, the save is rejected (via the existing
 #   error-banner mechanism) instead of silently overwriting their edit. Same last_updated_at these functions
 #   already keep, not new lock infrastructure. CLI callers are unaffected (the check is opt-in per call).
@@ -181,10 +173,9 @@ agent-eval autopilot phase transition --task ST-014 --to 2 --require-approval sp
 #   warns (does not block) on a backward transition or a skipped phase — transition_phase() itself never
 #   validated phase ordering; this surfaces an accidental regression/skip to a human without hard-blocking a
 #   deliberate one (e.g. rolling back a premature phase advance).
-#   --require-gate-ready {yes,no} (docs/AUTOPILOT_IMPROVEMENTS.md §16) is a SECOND, independent opt-in gate —
-#   until this existed, phase transition could only check a HITL approval, never the SDK's own Harness Gate
-#   A-G verdict, so a task could reach phase 8 (운영) even with the latest `gate --decision-log` run at
-#   verdict_level="not_ready". Passes if the latest gate_run in .aoo/decisions.jsonl is verdict_level="ready"
+#   --require-gate-ready {yes,no} (docs/AUTOPILOT_IMPROVEMENTS.md §16) is a SECOND, independent opt-in gate,
+#   checking the SDK's own Harness Gate A-G verdict instead of (or alongside) a HITL approval.
+#   Passes if the latest gate_run in .aoo/decisions.jsonl is verdict_level="ready"
 #   (and not explicitly rejected/held by a human), OR if a human explicitly recorded accepted/overridden for
 #   it regardless of verdict — the human call always wins over the automated one, in either direction. Reuses
 #   summarize_decisions()'s existing `last` gate-run/outcome pairing — no new scoring.
@@ -198,10 +189,8 @@ agent-eval autopilot phase policy set --to 8 --require-gate-ready   # same "decl
 #   the policy for that one call, same rule as --require-approval.
 agent-eval autopilot phase policy show
 #   dashboard: the ops page has a matching Phase 정책 card (view/set/clear, POST /phase-policy[/{phase}/clear],
-#   plus /phase-policy/{phase}/clear-gate-ready) and the task detail page's Phase 전이 form now consults this
-#   same policy when the "필요 승인"/"Gate 준비 요구" selects are left blank — a real bug until fixed for the
-#   approval-kind side: the dashboard route used to ignore phase_policy.json entirely, so a declared policy
-#   was silently bypassed when transitioning from the dashboard instead of the CLI.
+#   plus /phase-policy/{phase}/clear-gate-ready) and the task detail page's Phase 전이 form consults this same
+#   policy when the "필요 승인"/"Gate 준비 요구" selects are left blank.
 agent-eval autopilot phase check [--stale-days 7]   # list active tasks stuck in their current phase (read-only,
 #   same signal `doctor` warns about inline — LIMITS L4).
 agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 --title "..." \
@@ -213,7 +202,7 @@ agent-eval autopilot approvals open --task ST-014 --kind spec_review --phase 1 -
 #   auto-opened (e.g. threshold_review) stays gated and can get stuck in draft even when that's not intended.
 #   --required-approvals N overrides the kind's default sign-off count for this one request (e.g. escalate a
 #   normally single-approval spec_review to 2 for a high-risk task). dashboard: the "+ 새 승인 요청" form has a
-#   matching optional field (blank keeps the kind's default) — previously only the CLI flag could do this.
+#   matching optional field (blank keeps the kind's default).
 agent-eval autopilot approvals decide ap-a1b2c3d4 --decision approved --by pm-park
 agent-eval autopilot approvals update ap-a1b2c3d4 --checklist-item "EARS 표기:ok"   # flip an existing item's
 #   status on an open (draft/pending) approval instead of opening a brand-new approval from scratch to fix one
@@ -234,8 +223,7 @@ agent-eval autopilot decisions record --outcome accepted --by NAME   # autopilot
 #   dashboard: ops page has a matching "결정 기록" form (POST /decisions/record), populated with whichever
 #   gate run(s) are pending — a decided/known-outcome gate run never shows up as a choice. The decision
 #   ledger table also shows each gate_run's Gate A–G scores inline (raw gate_scores value, "—" for an
-#   unmeasured gate) — this data has been in the ledger since `gate --decision-log` shipped (cli/gate.py
-#   pulls it from harness_groups), it just wasn't rendered anywhere on the dashboard until now.
+#   unmeasured gate; sourced from harness_groups).
 agent-eval autopilot skills detect               # read-only: repeated checklist shapes as skill candidates
 #   count is now per distinct task_id, not per approval entry — a single task redrafting the same checklist
 #   shape N times (e.g. fixing a colon-parsing typo) no longer looks like an N-times-repeated cross-task pattern.
@@ -251,9 +239,7 @@ agent-eval autopilot skills install [NAME|--all] [--platform ac|aoo]
 #   bootstrap time (below); use this to (re-)fetch one skill, or the full set, after the fact (e.g. once
 #   an SDK upgrade ships new skills). Source resolution is packaging-aware (`_resolve_skills_root()`):
 #   a real `pip install` reads `agent_evaluator/skills/` (bundled via `pyproject.toml`'s wheel
-#   `force-include`), an editable/dev checkout falls back to the repo-root `Skills/` — previously only the
-#   latter path existed, so `agent-eval autopilot install` silently installed nothing for any real
-#   pip-installed user (`_SKILL_SRC` pointed at a path that only exists in a git checkout).
+#   `force-include`), an editable/dev checkout falls back to the repo-root `Skills/`.
 
 # CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · test-config · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
@@ -265,7 +251,7 @@ agent-eval claude install [--global] [--force] [--with-violation-search] [--with
 # --with-violation-search auto-appends the Claude Code report-DB path to the MCP registration
 #   (results/claude_code_live_guardrail/claude_code_sessions.db, abs for a local install / relative for --global,
 #    honoring a custom output_dir in guardrail_config.json). Without it the server falls back to the OpenCode
-#    default and search_violations fails with "unable to open database file". Registered before this shipped?
+#    default and search_violations fails with "unable to open database file".
 #    `agent-eval claude upgrade --with-violation-search` (remove+add) rewrites the args; `claude doctor` flags a stale one.
 agent-eval claude upgrade       # refresh hooks/matchers + deep-merge only NEW guardrail_config.json keys (keeps your edits); --with-* re-registers MCP
 agent-eval claude doctor        # static checks + live hook round-trip (allow/deny/batch-report) + MCP handshake (--json/--no-live/--strict)
