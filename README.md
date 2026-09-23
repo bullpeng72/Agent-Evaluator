@@ -289,7 +289,7 @@ agent_evaluator/
                       #   opencode, claude)
 
 Evaluator_Examples/   # 32 example files (ch01–ch32)
-tests/                # 5,598+ test functions
+tests/                # 5,609+ test functions
 ```
 
 ---

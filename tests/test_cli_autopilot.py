@@ -36,9 +36,13 @@ from agent_evaluator.cli.autopilot import (
     _cmd_autopilot_set_task_status,
     _cmd_autopilot_show_task,
     _cmd_autopilot_skills_detect,
+    _cmd_autopilot_skills_install,
     _cmd_autopilot_skills_scaffold,
     _cmd_autopilot_update_member,
     _cmd_autopilot_update_task,
+    _copy_skill,
+    _list_bundled_skills,
+    _resolve_skills_root,
     cmd_autopilot,
 )
 from agent_evaluator.gates.autopilot_state import (
@@ -88,11 +92,19 @@ class TestInstall:
         assert load_team(team_path)[0]["id"] == "x"
 
     def test_install_aoo_targets_opencode_skill_dir(self, tmp_path):
-        _cmd_autopilot_install(_ns(platform="aoo", root=str(tmp_path)))
-        # 스킬 소스가 없을 수도 있으니(패키징 환경에 따라) 디렉토리 자체는 안 만들어질 수 있음 —
-        # install이 실패하지 않는지(exit 0)만 별도로 확인한다.
         code = _cmd_autopilot_install(_ns(platform="aoo", root=str(tmp_path)))
         assert code == 0
+        # SPEC-AP-001 packaging fix: install() now copies every bundled skill
+        # (not just harness-autopilot), resolved via _resolve_skills_root() —
+        # this dev checkout always finds the repo-root Skills/, so the file
+        # must exist (this used to be best-effort/"may not exist" before the fix).
+        assert (tmp_path / ".opencode" / "skills" / "harness-autopilot" / "SKILL.md").is_file()
+
+    def test_install_copies_every_bundled_skill(self, tmp_path):
+        _cmd_autopilot_install(_ns(platform="ac", root=str(tmp_path)))
+        dest = tmp_path / ".claude" / "skills"
+        installed = {p.name for p in dest.iterdir() if p.is_dir()}
+        assert installed == set(_list_bundled_skills())
 
 
 class TestDoctor:
@@ -1414,6 +1426,77 @@ class TestSkillsScaffold:
             autopilot_command="skills", skills_command="scaffold",
             name="s", kind=None, min_occurrences=3, out=str(tmp_path / "Skills"),
             force=False, root=str(tmp_path),
+        ))
+        assert code == 0
+
+
+class TestResolveSkillsRoot:
+    """`_resolve_skills_root()`/`_list_bundled_skills()`/`_copy_skill()` — the
+    packaging fix so `agent-eval autopilot install` finds Skills/ in a real
+    (non-editable) `pip install`, not just this dev checkout."""
+
+    def test_resolves_to_a_real_directory(self):
+        root = _resolve_skills_root()
+        assert root is not None
+        assert root.is_dir()
+
+    def test_lists_known_bundled_skills(self):
+        names = _list_bundled_skills()
+        assert "harness-autopilot" in names
+        assert names == sorted(names)
+
+    def test_copy_skill_writes_the_file(self, tmp_path):
+        dest = _copy_skill("harness-autopilot", tmp_path)
+        assert dest is not None
+        assert dest.is_file()
+        assert dest.read_text(encoding="utf-8").startswith("---\nname: harness-autopilot")
+
+    def test_copy_unknown_skill_returns_none(self, tmp_path):
+        assert _copy_skill("no-such-skill", tmp_path) is None
+
+
+class TestSkillsInstall:
+    def test_install_one_named_skill_ac(self, tmp_path):
+        code = _cmd_autopilot_skills_install(_ns(
+            name="harness-gate-ci", all=False, platform="ac", root=str(tmp_path),
+        ))
+        assert code == 0
+        assert (tmp_path / ".claude" / "skills" / "harness-gate-ci" / "SKILL.md").is_file()
+
+    def test_install_one_named_skill_aoo(self, tmp_path):
+        code = _cmd_autopilot_skills_install(_ns(
+            name="claims-audit-ci", all=False, platform="aoo", root=str(tmp_path),
+        ))
+        assert code == 0
+        assert (tmp_path / ".opencode" / "skills" / "claims-audit-ci" / "SKILL.md").is_file()
+
+    def test_install_all(self, tmp_path):
+        code = _cmd_autopilot_skills_install(_ns(
+            name=None, all=True, platform="ac", root=str(tmp_path),
+        ))
+        assert code == 0
+        dest = tmp_path / ".claude" / "skills"
+        installed = {p.name for p in dest.iterdir() if p.is_dir()}
+        assert installed == set(_list_bundled_skills())
+
+    def test_unknown_skill_name_fails(self, tmp_path, capsys):
+        code = _cmd_autopilot_skills_install(_ns(
+            name="no-such-skill", all=False, platform="ac", root=str(tmp_path),
+        ))
+        assert code == 1
+        assert "unknown skill" in capsys.readouterr().out
+
+    def test_no_name_and_no_all_fails(self, tmp_path, capsys):
+        code = _cmd_autopilot_skills_install(_ns(
+            name=None, all=False, platform="ac", root=str(tmp_path),
+        ))
+        assert code == 1
+        assert "--all" in capsys.readouterr().out
+
+    def test_dispatch_via_cmd_autopilot(self, tmp_path):
+        code = cmd_autopilot(_ns(
+            autopilot_command="skills", skills_command="install",
+            name="harness-autopilot", all=False, platform="ac", root=str(tmp_path),
         ))
         assert code == 0
 

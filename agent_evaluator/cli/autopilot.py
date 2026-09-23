@@ -23,7 +23,7 @@ agent-evaluator의 평가 데이터를 팀의 HITL 승인 절차에 잇는 경�
     decisions      — 배포 결정 원장(``agent-eval decisions`` alias,
                      --log 기본값 .aoo/decisions.jsonl)
     skills         — 승인 이력에서 반복 체크리스트 패턴 탐지(읽기 전용) +
-                     scaffold로 SKILL.md 초안 생성
+                     scaffold로 SKILL.md 초안 생성 + install로 번들 스킬 배치
 
 GitHub Actions 상태머신·에이전트 러너 무인 트리거는 구현하지 않는다 — §1.1
 재정의로 영구히 범위 밖이다(BMAD·Spec Kit·OpenHands가 이미 더 큰 규모로
@@ -40,6 +40,7 @@ GitHub Actions 상태머신·에이전트 러너 무인 트리거는 구현하�
 from __future__ import annotations
 
 import argparse
+import importlib.resources
 import shutil
 import uuid
 from pathlib import Path
@@ -100,8 +101,51 @@ def _err(msg: str) -> str:
     return f"{RD}❌ {msg}{R}"
 
 
-# Skills/harness-autopilot/SKILL.md — repo root 기준 (agent_evaluator/cli/ 에서 두 단계 위)
-_SKILL_SRC = Path(__file__).resolve().parents[2] / "Skills" / "harness-autopilot" / "SKILL.md"
+def _resolve_skills_root() -> Path | None:
+    """Find the directory holding the bundled ``<name>/SKILL.md`` skill set.
+
+    Tries the packaged location first — ``pyproject.toml``'s wheel
+    ``force-include`` copies the repo's top-level ``Skills/`` into
+    ``agent_evaluator/skills/`` at build time, so a real ``pip install``
+    (non-editable) finds it there via :mod:`importlib.resources`. Falls back
+    to the repo-root ``Skills/`` two levels above this file, which is what an
+    editable install (``pip install -e .``, this checkout) resolves to.
+    Returns ``None`` if neither exists (e.g. a corrupted/partial install).
+    """
+    try:
+        packaged = importlib.resources.files("agent_evaluator") / "skills"
+        if packaged.is_dir():
+            return Path(str(packaged))
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        pass
+    repo_root = Path(__file__).resolve().parents[2] / "Skills"
+    return repo_root if repo_root.is_dir() else None
+
+
+def _list_bundled_skills() -> list[str]:
+    """Names of every bundled skill (subdirectory with a ``SKILL.md``), sorted."""
+    root = _resolve_skills_root()
+    if root is None:
+        return []
+    return sorted(p.name for p in root.iterdir() if p.is_dir() and (p / "SKILL.md").is_file())
+
+
+def _copy_skill(name: str, dest_dir: Path) -> Path | None:
+    """Copy the bundled ``<name>/SKILL.md`` into ``dest_dir/<name>/SKILL.md``.
+
+    Returns the destination path, or ``None`` if the bundled skill (or the
+    skills root itself) can't be found.
+    """
+    root = _resolve_skills_root()
+    if root is None:
+        return None
+    src = root / name / "SKILL.md"
+    if not src.is_file():
+        return None
+    out_dir = dest_dir / name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, out_dir / "SKILL.md")
+    return out_dir / "SKILL.md"
 
 # §9.5.4 순위5(원칙5 최소 기록) — adr_review에 자동으로 얹는 체크리스트 항목.
 # 새 필드·새 판정 로직 없음 — CLI가 체크리스트 "템플릿"에 한 줄 더할 뿐이다.
@@ -141,13 +185,19 @@ def _cmd_autopilot_install(args: argparse.Namespace) -> int:
         print(f"{D}  {team_path} already exists — left untouched{R}")
 
     skill_dir_name = ".claude" if platform == "AC" else ".opencode"
-    skill_dest = root / skill_dir_name / "skills" / "harness-autopilot"
-    if _SKILL_SRC.is_file():
-        skill_dest.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(_SKILL_SRC, skill_dest / "SKILL.md")
-        print(_ok(f"{skill_dest / 'SKILL.md'}"))
-    else:
-        print(_warn(f"skill source not found: {_SKILL_SRC} (skipped)"))
+    skills_dest_dir = root / skill_dir_name / "skills"
+    bundled = _list_bundled_skills()
+    if not bundled:
+        print(_warn(
+            "no bundled skills found (package data missing) — skipped. "
+            "Run 'agent-eval autopilot skills install --all' later once fixed."
+        ))
+    for name in bundled:
+        dest = _copy_skill(name, skills_dest_dir)
+        if dest is not None:
+            print(_ok(f"{dest}"))
+        else:
+            print(_warn(f"'{name}' — source SKILL.md not found (skipped)"))
 
     print()
     print(f"{B}Next:{R}")
@@ -1453,7 +1503,7 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     sk_p = ap_sub.add_parser(
         "skills",
         help="Detect repeated approval checklist shapes as skill candidates, "
-             "and scaffold a SKILL.md stub from one",
+             "scaffold a SKILL.md stub from one, and install bundled skills",
     formatter_class=ColoredHelpFormatter)
     sk_sub = sk_p.add_subparsers(dest="skills_command")
     skd_p = sk_sub.add_parser(
@@ -1486,6 +1536,21 @@ def build_autopilot_subparser(sub: argparse._SubParsersAction) -> None:  # type:
     sks_p.add_argument("--force", action="store_true", help="Overwrite an existing stub")
     sks_p.add_argument("--root", default=".", metavar="DIR")
 
+    ski_p = sk_sub.add_parser(
+        "install",
+        help="Copy one (or every) bundled Skills/<name>/SKILL.md into this project",
+    formatter_class=ColoredHelpFormatter)
+    ski_p.add_argument(
+        "name", nargs="?", default=None,
+        help="Bundled skill name to install (omit and pass --all for every skill)",
+    )
+    ski_p.add_argument("--all", action="store_true", help="Install every bundled skill")
+    ski_p.add_argument(
+        "--platform", choices=["ac", "aoo"], default="ac",
+        help="Install into .claude/skills/ (ac) or .opencode/skills/ (aoo)",
+    )
+    ski_p.add_argument("--root", default=".", metavar="DIR")
+
 
 def _cmd_autopilot_skills_detect(args: argparse.Namespace) -> int:
     root = Path(args.root)
@@ -1503,7 +1568,8 @@ def _cmd_autopilot_skills_detect(args: argparse.Namespace) -> int:
         for label in c["labels"]:
             print(f"      - {label}")
     print()
-    print(f"{D}Before creating a skill: check against the existing 17+ in Skills/. "
+    print(f"{D}Before creating a skill: check against the existing {len(_list_bundled_skills())}+ "
+          f"in Skills/ ('agent-eval autopilot skills install --all' to fetch them). "
           f"Creation itself stays a human step.{R}")
     return 0
 
@@ -1541,12 +1607,50 @@ def _cmd_autopilot_skills_scaffold(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_autopilot_skills_install(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    platform = args.platform.upper()
+    skill_dir_name = ".claude" if platform == "AC" else ".opencode"
+    dest_dir = root / skill_dir_name / "skills"
+
+    bundled = _list_bundled_skills()
+    if not bundled:
+        print(_err(
+            "no bundled skills found — this install is missing package data "
+            f"(looked for {_resolve_skills_root()!s})"
+        ))
+        return 1
+
+    if args.all:
+        names = bundled
+    elif args.name:
+        if args.name not in bundled:
+            print(_err(f"unknown skill '{args.name}' — available: {', '.join(bundled)}"))
+            return 1
+        names = [args.name]
+    else:
+        print(_err("specify a skill NAME, or pass --all"))
+        return 1
+
+    for name in names:
+        dest = _copy_skill(name, dest_dir)
+        if dest is not None:
+            print(_ok(f"{dest}"))
+        else:
+            print(_warn(f"'{name}' — source SKILL.md not found (skipped)"))
+    return 0
+
+
 def _cmd_autopilot_skills(args: argparse.Namespace) -> int:
-    handlers = {"detect": _cmd_autopilot_skills_detect, "scaffold": _cmd_autopilot_skills_scaffold}
+    handlers = {
+        "detect": _cmd_autopilot_skills_detect,
+        "scaffold": _cmd_autopilot_skills_scaffold,
+        "install": _cmd_autopilot_skills_install,
+    }
     skills_command = getattr(args, "skills_command", None)
     handler = handlers.get(skills_command) if skills_command is not None else None
     if handler is None:
-        print(_err("Specify a skills subcommand: detect | scaffold"))
+        print(_err("Specify a skills subcommand: detect | scaffold | install"))
         return 1
     return handler(args)
 

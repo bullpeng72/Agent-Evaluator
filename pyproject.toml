@@ -348,9 +348,16 @@ autopilot = "agent_evaluator.cli.autopilot:register"
 [tool.hatch.build.targets.wheel]
 packages = ["agent_evaluator"]
 
+# Skills/ ships as data under the installed package (agent_evaluator/skills/) so
+# `agent-eval autopilot install`/`skills install` can find it in a real `pip install`,
+# not just an editable checkout — see cli/autopilot.py::_resolve_skills_root().
+[tool.hatch.build.targets.wheel.force-include]
+"Skills" = "agent_evaluator/skills"
+
 [tool.hatch.build.targets.sdist]
 include = [
     "agent_evaluator/",
+    "Skills/",
     "LICENSE",
     "README.md",
     "pyproject.toml",

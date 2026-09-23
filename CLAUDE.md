@@ -119,7 +119,8 @@ agent-eval claims enable-live-check --config .opencode/plugin/agent-evaluator.co
 #   HITL approval queue layered on top of this SDK's own Gate/decision/claims data — not an SDLC pipeline.
 #   Registered via the "agent_evaluator.cli_plugins" entry-points group (pyproject.toml), not a hardcoded
 #   import in cli/main.py — Docs/specs/SPEC-AP-001-harness-autopilot-interface.md has the full contract.
-agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks/, .aoo/team.json, Skill placement
+agent-eval autopilot install --platform ac       # or --platform aoo; .aoo/tasks/, .aoo/team.json, +
+#   every bundled Skill (Skills/*/SKILL.md — 15 currently) copied into .claude/skills/ or .opencode/skills/.
 agent-eval autopilot doctor [--stale-days 7]     # health-check the skeleton; also warns when an active task has
 #   sat in its current phase >= --stale-days (0 disables) — the only signal that a task's declared phase may
 #   have silently fallen behind the actual work (LIMITS L4: this exact drift recurred twice in the AOO workbook
@@ -244,6 +245,15 @@ agent-eval autopilot skills detect               # read-only: repeated checklist
 agent-eval autopilot skills scaffold --name my-skill [--kind spec_review] [--out Skills] [--force]
 #   writes Skills/<name>/SKILL.md from the top detected candidate, with TODO markers for the description/
 #   reasoning/per-step procedure — a starting skeleton, not a finished skill; human review still required.
+agent-eval autopilot skills install [NAME|--all] [--platform ac|aoo]
+#   copies a bundled `Skills/<name>/SKILL.md` into this project's `.claude/skills/`(ac) or
+#   `.opencode/skills/`(aoo) — the same file `agent-eval autopilot install` already copies in bulk at
+#   bootstrap time (below); use this to (re-)fetch one skill, or the full set, after the fact (e.g. once
+#   an SDK upgrade ships new skills). Source resolution is packaging-aware (`_resolve_skills_root()`):
+#   a real `pip install` reads `agent_evaluator/skills/` (bundled via `pyproject.toml`'s wheel
+#   `force-include`), an editable/dev checkout falls back to the repo-root `Skills/` — previously only the
+#   latter path existed, so `agent-eval autopilot install` silently installed nothing for any real
+#   pip-installed user (`_SKILL_SRC` pointed at a path that only exists in a git checkout).
 
 # CLI — LiveGuardrail install lifecycle (both tools: install · upgrade · doctor · test-config · uninstall · violations · blocked-detail)
 agent-eval opencode install [--global] [--force] [--with-violation-search] [--with-recommend-fix] [--with-ask-insights]
@@ -787,7 +797,7 @@ fault_injection (SPEC-043 REQ-5 — FaultInjectionConfig; sync/async wrappers on
 
 ## Testing
 
-**189 files, 5,598+ test functions** in `tests/`.
+**189 files, 5,609+ test functions** in `tests/`.
 
 ```bash
 pytest  # configured in pyproject.toml (testpaths, cov)
