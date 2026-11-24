@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Gate G
+
+- 🐛 **`ExplainabilityConfig` default `reasoning_markers` now recognise common Korean business-writing reasoning cues** (`근거`, `때문`, `므로`, `이유`, `그러므로`), alongside the existing `왜냐하면` / `따라서`. Korean reports that justify their conclusions with "근거:" sections or "~므로"/"~때문" clauses used to score `explainability = 0` regardless of content — measured in a downstream platform, a finance report that explained its reasoning with `근거`/`므로` scored G = 0.0 and jumped to 1.0 after adding a single `따라서`. **Scoring change:** Korean responses using these cues may now pass the reasoning check where they previously failed; English behaviour and explicitly passed `reasoning_markers` are unchanged.
+
 ## v1.1.1 (2026-09-23) — Harness Autopilot: HITL approval queue, full CRUD, and CLI↔dashboard parity
 
 Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand: a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none). This release folds in the full round of hardening found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook — CRUD completion, task-lifecycle management, phase-drift detection, decisions/skills tooling, and full CLI↔dashboard write parity. Everything below shipped together as one unreleased feature, so items that would otherwise read as "bug fixes" are folded in here rather than split into a separate section — there's no prior public behavior to regress against.

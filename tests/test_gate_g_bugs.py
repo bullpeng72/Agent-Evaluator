@@ -683,3 +683,27 @@ class TestGateGEvalFunctionsIntegration:
             config=cfg,
         )
         assert result["bottleneck"] == "tool"
+
+
+class TestKoreanReasoningMarkers:
+    """한국어 업무 문서의 근거 표현("근거"·"~므로"·"~때문")도 기본 표지로 인정한다."""
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            "## 근거\n마케팅 실적이 예산을 30% 초과해 4분기 재배정을 권고한다.",
+            "마케팅 실적이 예산을 30% 초과했으므로 4분기 재배정을 권고한다.",
+            "마케팅 실적이 예산을 30% 초과했기 때문에 4분기 재배정을 권고한다.",
+        ],
+    )
+    def test_default_markers_accept_korean_business_reasoning(self, response):
+        result = eval_explainability(response, [], ExplainabilityConfig())
+        assert result["checks"]["reasoning"] is True
+
+    def test_korean_text_without_reasoning_still_fails(self):
+        result = eval_explainability("마케팅 예산을 4분기에 재배정할 것을 권고합니다.", [], ExplainabilityConfig())
+        assert result["checks"]["reasoning"] is False
+
+    def test_existing_markers_kept(self):
+        markers = ExplainabilityConfig().reasoning_markers
+        assert {"because", "therefore", "왜냐하면", "따라서"} <= set(markers)
