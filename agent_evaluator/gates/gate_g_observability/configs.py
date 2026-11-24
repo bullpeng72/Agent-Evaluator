@@ -57,6 +57,9 @@ class ExplainabilityConfig:
     """
 
     require_reasoning: bool = True
+    # 한국어 표지: 업무 문서는 "왜냐하면"·"따라서"보다 "근거"·"~므로"·"~때문"으로 근거를 쓰는
+    # 경우가 많아, 두 표지만으로는 근거를 충분히 쓴 한국어 응답도 0점이 됐다(HAIR-Platform
+    # 실측 — 재무 보고서가 "근거"·"므로"로 설명했는데 G=0, "따라서" 한 단어 추가로 1.0).
     reasoning_markers: list[str] = dataclasses.field(
         default_factory=lambda: [
             "because",
@@ -66,6 +69,11 @@ class ExplainabilityConfig:
             "reason",
             "왜냐하면",
             "따라서",
+            "그러므로",
+            "근거",
+            "때문",
+            "므로",
+            "이유",
         ]
     )
     require_uncertainty_expression: bool = False

@@ -1,10 +1,11 @@
 # Changelog
 
-## v1.1.2 (2026-11-25) — Dashboard fix for current FastAPI releases
+## v1.1.2 (2026-11-25) — Dashboard fix for current FastAPI, Korean reasoning cues in Gate G
 
-Patch release — no change to Gate scoring, result JSON schema, or CLI behavior.
+Patch release — no change to the result JSON schema or CLI behavior. One intentional scoring change: Gate G's default Korean `reasoning_markers` (below).
 
 - 🐛 **`agent-eval dashboard` / `create_app()` crashed on current FastAPI.** `serve/server.py` passed `openapi_version="3.1.0"` to `FastAPI(...)`, a constructor kwarg that recent FastAPI releases (0.162+) no longer accept — so a fresh `pip install "agent-evaluator[serve]"` (which resolves the newest FastAPI under the `<1.0.0` cap) raised `TypeError: FastAPI.__init__() got an unexpected keyword argument 'openapi_version'` at dashboard startup. The kwarg is dropped; FastAPI ≥ 0.99 already defaults to OpenAPI 3.1.0 (our floor is 0.110), so the served schema is unchanged. Verified against FastAPI 0.165.0 (full suite: 5,703 passed).
+- 🐛 **`ExplainabilityConfig` default `reasoning_markers` now recognise common Korean business-writing reasoning cues** (`근거`, `때문`, `므로`, `이유`, `그러므로`), alongside the existing `왜냐하면` / `따라서`. Korean reports that justify their conclusions with "근거:" sections or "~므로"/"~때문" clauses used to score `explainability = 0` regardless of content — measured in a downstream platform, a finance report that explained its reasoning with `근거`/`므로` scored G = 0.0 and jumped to 1.0 after adding a single `따라서`. **Scoring change:** Korean responses using these cues may now pass the reasoning check where they previously failed; English behaviour and explicitly passed `reasoning_markers` are unchanged.
 - 🔧 **`anthropic` dependency cap widened to `<3.0.0`** (was `<2.0.0`, #20) in the core deps and the `[llm]`/`[sdk]`/`[examples]`/`[full]` extras. LLMJudge's Anthropic path (`messages.create`, `content[0].text`, `usage`, `RateLimitError` retry) verified against anthropic 2.14.0.
 - 🔧 **CI: pytest matrix pinned to `ubuntu-24.04`.** `ubuntu-latest` now resolves to Ubuntu 26.04, for which `actions/setup-python` ships no Python 3.8/3.9 builds; pinning keeps the declared 3.8+ support actually tested.
 
