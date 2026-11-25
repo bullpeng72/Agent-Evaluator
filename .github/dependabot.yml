@@ -35,6 +35,11 @@ updates:
       # Phoenix/OTEL extra를 함께 수동 검증한 뒤에만 올린다.
       - dependency-name: "openai"
         update-types: ["version-update:semver-major"]
+      # hatchling: 1.28.0부터 requires-python >=3.10 — 빌드 백엔드라 올리면 Python 3.8/3.9에서
+      # `pip install`(소스 빌드) 자체가 실패한다(PR #17·#19·#21, CI py3.8/3.9 빌드 의존성 설치 에러).
+      # 3.8/3.9 지원을 끊을 때 이 규칙을 제거한다.
+      - dependency-name: "hatchling"
+        versions: [">=1.28.0"]
 
   # github-actions 생태계 — ci.yml/security.yml이 참조하는 액션 자체의 공급망 리스크 관리
   - package-ecosystem: "github-actions"
