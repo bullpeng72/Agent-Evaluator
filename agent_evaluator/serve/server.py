@@ -204,9 +204,10 @@ def create_app(
         if watch and app.state.watcher:
             app.state.watcher.stop()
 
+    # openapi_version is intentionally not passed: FastAPI >= 0.99 already defaults to
+    # OpenAPI 3.1.x, and recent releases removed the constructor kwarg (TypeError).
     app = FastAPI(title=title, version=version, docs_url="/api/docs",
-                  redoc_url="/api/redoc", openapi_version="3.1.0",
-                  lifespan=lifespan)
+                  redoc_url="/api/redoc", lifespan=lifespan)
 
     # CORS — localhost-only (dashboard is never exposed to the public internet)
     app.add_middleware(
