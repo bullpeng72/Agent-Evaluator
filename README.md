@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.1.1-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-1.1.2-brightgreen.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates.**
 
@@ -193,8 +193,9 @@ that is not the focus.
 ### Direction
 
 The trajectory from 1.0.0 has moved from **"score the agent"** toward **"drive the whole
-build-and-improve loop, with the human's judgment on record"** — and, most recently, toward making the
-real-time guardrail trustworthy even with no host process watching it:
+build-and-improve loop, with the human's judgment on record"** — toward making the real-time guardrail
+trustworthy even with no host process watching it, and, most recently, toward governing the team
+workflow around the verdict:
 
 - **1.0.0** — the machine-readable `insights` layer + the `target` / `benchmark` / `experiment` /
   `improve` CLI loop.
@@ -209,6 +210,10 @@ real-time guardrail trustworthy even with no host process watching it:
   flush, `on_block=webhook_on_block(...)` out-of-band alert) — plus keyword-free `violations`/
   `list_violations` browsing and an HTML report section for everyone, since a blocked attempt never
   moves Gate B/E scores and a clean scorecard alone would hide it.
+- **1.1.1** — *Harness Autopilot* (`agent-eval autopilot`): a HITL approval queue, a task/team registry
+  and phase gates that can require a human sign-off, a passing Gate A–G verdict, or both — layered on
+  this SDK's own Gate / decision-ledger / claims data, with its own local dashboard. Governance, not new
+  scoring.
 
 **Explicit non-goals** — the boundary is a deliberate design choice, not a missing feature: it does not
 author or parse specs (EARS), does not provide a sandbox (E2B / Firecracker — that is the team's
@@ -224,9 +229,9 @@ to do. Every category is additive and independent; combine as needed.
 
 | # | Category | Install | What it adds |
 |---|----------|---------|---------------|
-| **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · full CLI (`gate`/`decisions`/`diagnose`/`abtest`/`trend`/`dataset`/`feedback`/`experiment`/`target`/`benchmark`/`improve`/`claims`) |
+| **1** | **Base measurement + diagnosis** | `pip install agent-evaluator` | 25 trackers · 33 Harness Config · 7 Gates · LLMJudge · **RCA diagnosis engine** (`agent_evaluator.rca`/`ontology`, no extra deps needed) · full CLI (`gate`/`decisions`/`diagnose`/`abtest`/`trend`/`dataset`/`feedback`/`experiment`/`target`/`benchmark`/`improve`/`claims`/`autopilot`) |
 | **2** | **SDK — dashboard + monitoring** | `pip install "agent-evaluator[sdk]"` | FastAPI dashboard (`serve`), Phoenix/OTEL (`otel`), Korean RAG PDF processing (`pdf`+`korean`) — recommended for most users |
-| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `search_violations` + `show_violation`, `recommend_fix`, and `ask_insights` stdio MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (`recommend_fix`'s knowledge is used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
+| **3** | **Real-time guardrail — OpenCode/Claude Code + MCP** | `pip install "agent-evaluator[mcp]"` | `list_violations` + `search_violations` + `show_violation`, `recommend_fix`, and `ask_insights` stdio MCP servers so OpenCode, Claude Code (or another MCP client) can call them as tools during a live session — the underlying functions already work without this (`recommend_fix`'s knowledge is used directly by `agent-eval diagnose`); this only wires up the MCP protocol layer |
 | **4** | **Your agent's framework** | `pip install "agent-evaluator[langchain]"` (or `[crewai]`/`[autogen]`/`[dspy]`/`[pydanticai]`/`[eval]`) | Packages your *agent code* imports directly — agent-evaluator itself works without them via duck typing; install only what you actually use |
 | **5** | **Examples / full / dev** | `pip install "agent-evaluator[examples]"` | Everything needed to run `Evaluator_Examples/` with real (non-mock) DeepEval/Ragas/dashboard/Phoenix output. `[full]` = category 4's frameworks all at once (⚠️ 10+ min install); `[dev]` = contributor tooling |
 
@@ -255,7 +260,7 @@ Single-feature extras that don't fit the 5 categories above: `[export]` (dashboa
 | `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
 | `agent-eval opencode` / `claude` `install\|upgrade\|doctor\|test-config\|uninstall` | Install & manage the LiveGuardrail OpenCode plugin / Claude Code CLI hooks (`test-config` asserts the resolved guardrail config against a case file) |
 | `agent-eval opencode` / `claude` `violations\|blocked-detail` | Search (or, with no query, browse most-recent-first) past Gate B/E blocks; show the exact blocked command for a session |
-| `agent-eval claims add\|list\|release\|audit` | Team scope-claim management (`.aoo/claims.jsonl`) |
+| `agent-eval claims add\|list\|release\|audit\|enable-live-check` | Team scope-claim management (`.aoo/claims.jsonl`); `enable-live-check` wires claims into a LiveGuardrail config |
 | `agent-eval autopilot install\|dashboard\|new-task\|...` | Harness Autopilot — an HITL approval queue, task/team registry, and phase-gate governance layer on top of this SDK's own Gate/decision data, with a local dashboard (port 8766) |
 
 ---
@@ -284,7 +289,7 @@ agent_evaluator/
 ├── reporting/        # insights.py (build_insights) + comprehensive_report.py (self-contained HTML)
 ├── integrations/     # LLMJudge · DeepEval/Ragas adapters · MCP servers · live-guardrail bridges
 ├── serve/            # FastAPI dashboard ([sdk] extra)
-└── cli/              # agent-eval CLI (init, check, gate, decisions, diagnose, abtest, trend, dataset,
+└── cli/              # agent-eval CLI (init, check, dashboard, gate, decisions, diagnose, abtest, trend, dataset,
                       #   feedback, experiment, target, benchmark, improve, claims, autopilot, monitor,
                       #   opencode, claude)
 
@@ -296,6 +301,7 @@ tests/                # 5,609+ test functions
 
 ## Changelog
 
+- **v1.1.2** (2026-11-25) — Patch: `agent-eval dashboard` no longer crashes with `TypeError: ... 'openapi_version'` on current FastAPI (0.162+); `anthropic` cap widened to `<3.0.0`; CI pytest matrix pinned to `ubuntu-24.04` so Python 3.8/3.9 stay tested.
 - **v1.1.1** (2026-09-23) — Harness Autopilot: new `agent-eval autopilot` subcommand — HITL approval queue, multi-task/team registry, local dashboard with full CLI↔dashboard write parity (task/team/approval CRUD, phase transitions gated on both HITL approval *and* the SDK's own Harness Gate A–G verdict via `--require-gate-ready`), actor attribution + optimistic-concurrency on task/team edits, ops-page Gate scoreboard and open-experiment visibility, claims audit/filtering. CLI plugin architecture (entry-points, not a hardcoded import). `Skills/` grows from 5 to 15 (10 backported) and now ships as real package data, fixing `agent-eval autopilot install` silently finding nothing on a real (non-editable) `pip install`; new `agent-eval autopilot skills install [NAME|--all]`. Additive/opt-in, no Gate/schema change. See `CHANGELOG.md` for the full list — this release absorbed a large round of hardening found via real multi-week use in the AOO Stack workbook.
 - **v1.1.0** (2026-09-11) — LiveGuardrail discovery/durability hardening. `tool_guard(audit_blocked=True)` now default; `on_block=`/`webhook_on_block()` out-of-band block alerts; keyword-free `list_violations()` / `violations` browsing; `blocked_attempt_capture.max_chars` 240→500; `insights.blocked_attempts_audit` HTML section. Additive/opt-in beyond the default change.
 - **v1.0.6** (2026-09-10) — Maintenance: `decorators.py` split into `framework_adapters.py` + `_eval_shared.py` (re-exported, no API change); `--help` now lists all 18 subcommands.

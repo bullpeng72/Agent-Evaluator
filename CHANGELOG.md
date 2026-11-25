@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.2 (2026-11-25) — Dashboard fix for current FastAPI releases
+
+Patch release — no change to Gate scoring, result JSON schema, or CLI behavior.
+
+- 🐛 **`agent-eval dashboard` / `create_app()` crashed on current FastAPI.** `serve/server.py` passed `openapi_version="3.1.0"` to `FastAPI(...)`, a constructor kwarg that recent FastAPI releases (0.162+) no longer accept — so a fresh `pip install "agent-evaluator[serve]"` (which resolves the newest FastAPI under the `<1.0.0` cap) raised `TypeError: FastAPI.__init__() got an unexpected keyword argument 'openapi_version'` at dashboard startup. The kwarg is dropped; FastAPI ≥ 0.99 already defaults to OpenAPI 3.1.0 (our floor is 0.110), so the served schema is unchanged. Verified against FastAPI 0.165.0 (full suite: 5,703 passed).
+- 🔧 **`anthropic` dependency cap widened to `<3.0.0`** (was `<2.0.0`, #20) in the core deps and the `[llm]`/`[sdk]`/`[examples]`/`[full]` extras. LLMJudge's Anthropic path (`messages.create`, `content[0].text`, `usage`, `RateLimitError` retry) verified against anthropic 2.14.0.
+- 🔧 **CI: pytest matrix pinned to `ubuntu-24.04`.** `ubuntu-latest` now resolves to Ubuntu 26.04, for which `actions/setup-python` ships no Python 3.8/3.9 builds; pinning keeps the declared 3.8+ support actually tested.
+
 ## v1.1.1 (2026-09-23) — Harness Autopilot: HITL approval queue, full CRUD, and CLI↔dashboard parity
 
 Feature release, entirely additive/opt-in — no change to Gate scoring, result JSON schema, or existing CLI behavior. New `agent-eval autopilot` subcommand: a lightweight governance layer that connects agent-evaluator's own evaluation data (Gate scores, `--hold-on-undecided` exit-75 holds, team claims) to a team's HITL approval process, independent of any specific SDLC methodology (BMAD, Spec Kit, or none). This release folds in the full round of hardening found via a real multi-week, 44-chapter end-to-end use of Autopilot (phase 0→8) in the AOO Stack workbook — CRUD completion, task-lifecycle management, phase-drift detection, decisions/skills tooling, and full CLI↔dashboard write parity. Everything below shipped together as one unreleased feature, so items that would otherwise read as "bug fixes" are folded in here rather than split into a separate section — there's no prior public behavior to regress against.

@@ -9,7 +9,7 @@
 
 **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 1.1.1 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
+- **Version:** 1.1.2 | **Python:** 3.8+ | **License:** MIT | **Author:** Sungwoo Kim
 
 ---
 
